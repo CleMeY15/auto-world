@@ -31,3 +31,5 @@ Make the repository reproducibly installable and verifiable on developer machine
 
 ## Tests/evidence
 Attach command output in the PR and update this task to DONE only after CI is green.
+
+Validation record: `docs/validation/TASK-0001.md`. Status remains `READY` until the pull-request CI completion gate is satisfied.
