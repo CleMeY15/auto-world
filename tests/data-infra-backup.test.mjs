@@ -104,7 +104,8 @@ test("tar validator rejects dangerous node types and checksum tampering", async 
   }
 });
 
-test("cold backup stops only running services, archives stopped volumes and restores prior state", async () => {
+for (const cancelled of [false, true]) test(`cold backup preserves prior service state${cancelled ? " after cancellation" : " on success"}`, async () => {
+  const { operationSignal, withCancellation } = await import("../scripts/data-infra/cancellation.mjs");
   const checkout = await mkdtemp(path.join(tmpdir(), "aw-backup-flow-"));
   const project = "aw-test-backup-flow";
   const state = {
@@ -134,8 +135,9 @@ test("cold backup stops only running services, archives stopped volumes and rest
         redis: "redis-data",
         object: "object-store-data",
       }).map((name) => `${project}_${name}`),
-      stop: async (_state, services) => { calls.stop.push(services); phase = "stopped"; },
+      stop: async (_state, services) => { calls.stop.push(services); phase = "stopped"; if (cancelled) process.emit("SIGTERM"); },
       start: async (recoveryState, services) => {
+        assert.equal(operationSignal(), undefined);
         assert.ok(recoveryState.deadlineAt > Date.now());
         calls.start.push(services);
         phase = "recovered";
@@ -147,6 +149,7 @@ test("cold backup stops only running services, archives stopped volumes and rest
       uuid: () => UUID,
       now: () => new Date("2026-09-06T12:00:00.000Z"),
       runProcess: async (_command, args) => {
+        if (operationSignal()?.aborted) throw new InfraError("process_cancelled");
         if (args[0] === "image" && args[1] === "inspect") {
           const image = args[2].startsWith("postgres@") ? images.postgres : images.seaweedfs;
           return ok(JSON.stringify([{
@@ -193,11 +196,13 @@ test("cold backup stops only running services, archives stopped volumes and rest
         throw new Error(`unexpected command ${args.join(" ")}`);
       },
     });
-    const result = await backupRuntime.backup(state);
-    assert.equal(result.backupId, UUID);
+    const result = await withCancellation(() => cancelled
+      ? assert.rejects(backupRuntime.backup(state), hasCode("process_cancelled"))
+      : backupRuntime.backup(state));
     assert.deepEqual(calls.stop, [["postgres", "redis", "object-store"]]);
     assert.deepEqual(calls.start, [["postgres", "redis", "object-store"]]);
-    assert.deepEqual(result.manifest.services, {
+    if (!cancelled) assert.equal(result.backupId, UUID);
+    if (!cancelled) assert.deepEqual(result.manifest.services, {
       postgres: "running",
       opensearch: "exited",
       redis: "running",

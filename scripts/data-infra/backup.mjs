@@ -4,6 +4,8 @@ import { chmod, mkdir, open, readFile, stat, writeFile } from "node:fs/promises"
 import { TextDecoder } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
+import { protectedRecovery } from "./cancellation.mjs";
+import { discardTestProject } from "./ephemeral.mjs";
 import {
   InfraError,
   S3_BUCKET,
@@ -130,9 +132,11 @@ export function createBackupRuntime(options = {}) {
 
     let recoveryFailure;
     try {
-      const recoveryState = independentRecoveryState(state);
-      if (initial.running.length > 0) await runtime.start(recoveryState, initial.running);
-      await awaitRecovered(runtime, recoveryState, initial.states);
+      await protectedRecovery(async () => {
+        const recoveryState = independentRecoveryState(state);
+        if (initial.running.length > 0) await runtime.start(recoveryState, initial.running);
+        await awaitRecovered(runtime, recoveryState, initial.states);
+      });
     } catch (cause) {
       recoveryFailure = cause;
     }
@@ -215,8 +219,13 @@ export function createBackupRuntime(options = {}) {
     let cleanupFailure;
     if (targetState !== undefined) {
       try {
-        const cleanupState = independentRecoveryState(targetState);
-        await runtime.withProjectLock(cleanupState, () => runtime.reset(cleanupState));
+        await protectedRecovery(async () => {
+          const cleanupState = independentRecoveryState(targetState);
+          await runtime.withProjectLock(cleanupState, async () => {
+            await runtime.reset(cleanupState);
+            await discardTestProject(cleanupState);
+          });
+        });
       } catch (cause) {
         cleanupFailure = cause;
       }
@@ -388,7 +397,7 @@ export function createBackupRuntime(options = {}) {
       failure = cause;
     }
     try {
-      await cleanupHelper(state, helperName);
+      await protectedRecovery(() => cleanupHelper(state, helperName));
     } catch (cause) {
       throw new InfraError("backup_helper_cleanup_failed", {
         cause: failure === undefined ? cause : new AggregateError([failure, cause]),

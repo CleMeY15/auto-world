@@ -3,11 +3,13 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { compose, initProject, InfraError, reset, root, run, serviceStates, sql, start, stop, up, pull, withProjectLock } from "./runtime.mjs";
+import { compose, initProject, InfraError, loadProject, reset, root, run, serviceStates, sql, start, stop, up, pull, withProjectLock } from "./runtime.mjs";
 import { migration, migrationChecksum, migrationSql, sqlText } from "./migrations.mjs";
 import { fixtureTransaction, syntheticFixture } from "./fixtures.mjs";
 import { prepareTools, redis, s3, search, serviceHealth, writeRaw } from "./probes.mjs";
 import { digestBytes } from "./raw-protocol.mjs";
+import { discardTestProject } from "./ephemeral.mjs";
+import { protectedRecovery, withCancellation } from "./cancellation.mjs";
 
 const records = [];
 const runId = randomUUID();
@@ -211,10 +213,18 @@ async function suite() {
     await stop(state, ["redis"]);
     const saved = await backup(state);
     assert.equal((await serviceStates(state)).redis.state, "exited");
-    await restoreCheck(state, saved.backupId, { verify: async (target) => {
+    const restored = await restoreCheck(state, saved.backupId, { verify: async (target) => {
       assert.equal(await snapshot(target), before);
       assert.equal(digestBytes(await s3(target, "get-object", { key: fixture.raw.object_key })), fixture.sha256);
     } });
+    await assert.rejects(loadProject(restored.project), (error) => error.code === "project_not_initialized");
+    let failedTarget;
+    await assert.rejects(restoreCheck(state, saved.backupId, { verify: async (target) => {
+      failedTarget = target.project;
+      throw new Error("injected_restore_verification_failure");
+    } }), (error) => error.code === "restore_failed");
+    assert.ok(failedTarget);
+    await assert.rejects(loadProject(failedTarget), (error) => error.code === "project_not_initialized");
     assert.equal((await serviceStates(state)).redis.state, "exited");
     assert.equal(await snapshot(state), before);
     await start(state, ["redis"]);
@@ -222,6 +232,7 @@ async function suite() {
   });
 }
 
+await withCancellation(async () => {
 try {
   await mkdir(evidence, { recursive: true });
   const initialized = await initProject({ test: true });
@@ -264,17 +275,26 @@ try {
 } finally {
   if (state) {
     try {
-      await withProjectLock({ ...state, deadlineAt: Date.now() + 120000 }, () => reset({ ...state, deadlineAt: Date.now() + 120000 }));
+      await protectedRecovery(async () => {
+        const cleanup = { ...state, deadlineAt: Date.now() + 120000 };
+        await withProjectLock(cleanup, async () => {
+          await reset(cleanup);
+          await discardTestProject(cleanup);
+        });
+      });
     } catch { records.push({ phase: "cleanup", status: "failed", code: "scoped_cleanup_failed" }); failed = true; }
   }
   if (sentinel) {
+    await protectedRecovery(async () => {
     const inspected = await run("docker", ["volume", "inspect", "--format", '{{index .Labels "io.auto-world.owner"}}', sentinel], { timeoutMs: 10000 });
     if (inspected.code === 0 && inspected.stdout.trim() === runId) {
       const removed = await run("docker", ["volume", "rm", sentinel], { timeoutMs: 10000 });
       if (removed.code !== 0) failed = true;
     } else failed = true;
+    });
   }
   await writeFile(join(evidence, "validation.json"), JSON.stringify({ schemaVersion: 1, at: new Date().toISOString(), status: failed ? "failed" : "passed", records }, null, 2));
   console.log(JSON.stringify({ phase: "integration", status: failed ? "failed" : "passed", code: failed ? "validation_failed" : "all_real_service_checks_passed" }));
   if (failed) process.exitCode = 1;
 }
+});

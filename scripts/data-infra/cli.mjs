@@ -3,6 +3,7 @@ import { initProject, loadProject, withProjectLock, InfraError, compose, pull, u
 import { migrate } from "./migrations.mjs";
 import { prepareTools, s3, serviceHealth } from "./probes.mjs";
 import { backup, restoreCheck } from "./backup.mjs";
+import { withCancellation } from "./cancellation.mjs";
 
 export function parseCommand(args) {
   const [command, ...rest] = args;
@@ -68,7 +69,7 @@ export async function main(args) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const result = await main(process.argv.slice(2));
+    const result = await withCancellation(() => main(process.argv.slice(2)));
     console.log(JSON.stringify(result));
     if (result.health?.some((entry) => entry.status !== "passed")) process.exitCode = 1;
   } catch (error) {

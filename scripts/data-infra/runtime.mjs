@@ -11,6 +11,7 @@ import {
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { operationSignal } from "./cancellation.mjs";
 
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const MAX_TIMEOUT_MS = 20 * 60 * 1000;
@@ -93,7 +94,7 @@ export class InfraError extends Error {
   }
 }
 
-export function run(command, args, { input, env, timeoutMs } = {}) {
+export function run(command, args, { input, env, timeoutMs, signal = operationSignal() } = {}) {
   if (typeof command !== "string" || command.length === 0 || command.includes("\0")) {
     throw new InfraError("invalid_command");
   }
@@ -101,6 +102,7 @@ export function run(command, args, { input, env, timeoutMs } = {}) {
     throw new InfraError("invalid_arguments");
   }
   const deadline = validateTimeout(timeoutMs ?? 15_000);
+  if (signal?.aborted) throw new InfraError("process_cancelled");
   if (input !== undefined && typeof input !== "string" && !Buffer.isBuffer(input)) {
     throw new InfraError("invalid_input");
   }
@@ -115,6 +117,7 @@ export function run(command, args, { input, env, timeoutMs } = {}) {
       if (settled) return;
       settled = true;
       globalThis.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       if (child !== undefined && !child.killed) child.kill("SIGKILL");
       reject(error);
     };
@@ -135,6 +138,9 @@ export function run(command, args, { input, env, timeoutMs } = {}) {
       fail(new InfraError("process_timeout"));
     }, deadline);
     timer.unref();
+    const abort = () => fail(new InfraError("process_cancelled"));
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
 
     const collect = (current, chunk) => {
       if (current.length + chunk.length > MAX_OUTPUT_BYTES) {
@@ -160,6 +166,7 @@ export function run(command, args, { input, env, timeoutMs } = {}) {
       if (settled) return;
       settled = true;
       globalThis.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       resolve({
         stdout: stdout.toString("utf8"),
         stderr: stderr.toString("utf8"),

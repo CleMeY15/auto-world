@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { compose, images, InfraError, ownedVolumes, port, run, sql } from "./runtime.mjs";
 import { conditionalRawWrite, rawKey } from "./raw-protocol.mjs";
+import { withRawScratch } from "./ephemeral.mjs";
+import { protectedRecovery } from "./cancellation.mjs";
 
 export async function prepareTools(state) {
   const result = await run("docker", ["pull", "--platform", "linux/amd64", `${images.awsCli.repository}@${images.awsCli.manifestDigest}`], { timeoutMs: bounded(state, 600000) });
@@ -29,10 +30,11 @@ export async function s3(state, operation, { key, bytes, timeoutMs = 15000, wron
   if (!["create-bucket", "head-bucket", "put-object", "get-object", "head-object"].includes(operation)) throw new InfraError("infra_s3_operation_invalid");
   if (key !== undefined && !/^v1\/raw\/src_[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/run_[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/raw_[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(key)) throw new InfraError("infra_s3_key_invalid");
   await ownedVolumes(state); // Verifies the exact network and container ownership too.
-  const id = randomUUID();
+  return withRawScratch(state, (directory, id) => executeS3(state, operation, { key, bytes, timeoutMs, wrongKey }, directory, id));
+}
+
+async function executeS3(state, operation, { key, bytes, timeoutMs, wrongKey }, directory, id) {
   const name = `aw-helper-${id}`;
-  const directory = join(state.dir, "helpers", id);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
   if (bytes !== undefined) {
     if (!Buffer.isBuffer(bytes) || bytes.length > 1048576) throw new InfraError("infra_s3_payload_invalid");
     await writeFile(join(directory, "input.bin"), bytes, { mode: 0o600, flag: "wx" });
@@ -56,9 +58,6 @@ export async function s3(state, operation, { key, bytes, timeoutMs = 15000, wron
       timeoutMs: bounded(state, timeoutMs),
       env: { ...process.env, AWS_ACCESS_KEY_ID: wrongKey ? "0".repeat(64) : state.credentials.s3Access, AWS_SECRET_ACCESS_KEY: state.credentials.s3Secret, AWS_DEFAULT_REGION: "us-east-1", AWS_EC2_METADATA_DISABLED: "true", AWS_REQUEST_CHECKSUM_CALCULATION: "WHEN_REQUIRED", AWS_RESPONSE_CHECKSUM_VALIDATION: "WHEN_REQUIRED" },
     });
-  } finally {
-    await cleanupS3Helper(state, name);
-  }
   if (operation === "put-object") {
     if (result.code === 0) return "created";
     if (/\(PreconditionFailed\)|\(412\)/u.test(result.stderr)) return "precondition412";
@@ -71,6 +70,9 @@ export async function s3(state, operation, { key, bytes, timeoutMs = 15000, wron
     return retrieved;
   }
   return result.stdout.trim() ? JSON.parse(result.stdout) : {};
+  } finally {
+    await protectedRecovery(() => cleanupS3Helper(state, name));
+  }
 }
 
 export function writeRaw(state, reference, bytes, timeoutMs = 15000) {

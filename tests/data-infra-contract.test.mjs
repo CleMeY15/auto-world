@@ -68,6 +68,11 @@ test("credentials are required generated inputs and object authentication is exp
   assert.equal(services.redis.environment.REDISCLI_AUTH, "${AW_REDIS_PASSWORD:?}");
   assert.ok(services["object-store"].command.some((item) => item.includes("s3.config")));
   assert.ok(services["object-store"].volumes.some((volume) => volume.type === "bind" && volume.read_only === true));
+  assert.deepEqual(services["object-store"].entrypoint, ["/bin/sh", "/run/aw/bootstrap.sh"]);
+  assert.deepEqual(services["object-store"].tmpfs, ["/run/aw-private:rw,noexec,nosuid,size=1m,mode=0700"]);
+  const init = readFileSync(new URL("../infra/object-store-init.sh", import.meta.url), "utf8");
+  assert.match(init, /chown 1000:1000 \/run\/aw-private/u);
+  assert.doesNotMatch(init, /chmod 0?777|set -x|\r/u);
   assert.equal(services.opensearch.environment.DISABLE_SECURITY_PLUGIN, "true");
   assert.doesNotMatch(JSON.stringify(services), /\$\{AW_[A-Z_]+:-/u);
 });

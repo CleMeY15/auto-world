@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { evaluateImageReport } from "./audit-policy.mjs";
 import { assertLocalDocker, images, root, run, InfraError } from "./runtime.mjs";
+import { operationSignal, protectedRecovery, withCancellation } from "./cancellation.mjs";
 
 const owner = randomUUID();
 const base = join(root, ".local-data", "audits", owner);
@@ -55,7 +56,7 @@ async function scan(key, pin) {
       throw new InfraError(categories[0] ?? "infra_image_scan_failed");
     }
   } finally {
-    await cleanupScanner(name);
+    await protectedRecovery(() => cleanupScanner(name));
   }
   const report = JSON.parse(await readFile(join(reports, `${key}.json`), "utf8"));
   const database = JSON.parse(await readFile(join(cache, "db", "metadata.json"), "utf8"));
@@ -65,6 +66,7 @@ async function scan(key, pin) {
   return report;
 }
 
+await withCancellation(async () => {
 try {
   await assertLocalDocker();
   await mkdir(cache, { recursive: true, mode: 0o700 });
@@ -73,6 +75,7 @@ try {
   if (policy.schemaVersion !== 1 || !Array.isArray(policy.dispositions)) throw new InfraError("infra_audit_policy_invalid");
   const summary = [];
   for (const [key, pin] of Object.entries(images)) {
+    if (operationSignal()?.aborted) throw new InfraError("process_cancelled");
     try {
       const result = evaluateImageReport(await scan(key, pin), pin, policy.dispositions);
       summary.push({ image: key, ...result });
@@ -87,3 +90,4 @@ try {
   console.error(JSON.stringify({ phase: "image-audit", status: "failed", code: error instanceof InfraError ? error.code : "infra_audit_failed" }));
   process.exitCode = 1;
 }
+});

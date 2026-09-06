@@ -183,6 +183,8 @@
       "image": "chrislusf/seaweedfs@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5",
       "platform": "linux/amd64",
       "restart": "unless-stopped",
+      "entrypoint": ["/bin/sh", "/run/aw/bootstrap.sh"],
+      "tmpfs": ["/run/aw-private:rw,noexec,nosuid,size=1m,mode=0700"],
       "command": [
         "server",
         "-dir=/data",
@@ -191,7 +193,7 @@
         "-s3.port=8333",
         "-s3.port.iceberg=0",
         "-s3.port.lance=0",
-        "-s3.config=/run/aw/s3.json"
+        "-s3.config=/run/aw-private/s3.json"
       ],
       "volumes": [
         {
@@ -202,7 +204,13 @@
         {
           "type": "bind",
           "source": "${AW_RUNTIME_DIR:?}/s3.json",
-          "target": "/run/aw/s3.json",
+          "target": "/run/aw-input/s3.json",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "./object-store-init.sh",
+          "target": "/run/aw/bootstrap.sh",
           "read_only": true
         }
       ],
