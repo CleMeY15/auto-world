@@ -58,7 +58,7 @@ function parseCircuit(input: unknown): SourceCircuitState | null {
   return Object.freeze({ ...value }) as unknown as SourceCircuitState;
 }
 
-function parseState(input: unknown): SourceRuntimeState | null {
+export function parseSourceRuntimeState(input: unknown): SourceRuntimeState | null {
   const value = inspectRecord(input, STATE_KEYS);
   if (value === null || value.schemaVersion !== 1 || !identifier(value.sourceId, "src_", 64) ||
       !integer(value.revision, 0, Number.MAX_SAFE_INTEGER - 1) || !integer(value.nextRequestAtMs, 0, Number.MAX_SAFE_INTEGER)) return null;
@@ -78,7 +78,7 @@ function advance(state: SourceRuntimeState, nextRequestAtMs: number, circuit: So
 }
 
 export function reduceAttemptReservation(stateInput: SourceRuntimeState, requestInput: ReserveAttemptRequest): SourceRuntimeReduction<AttemptReservation> {
-  const state = parseState(stateInput);
+  const state = parseSourceRuntimeState(stateInput);
   const request = inspectRecord(requestInput, ["schemaVersion", "sourceId", "runId", "operationKey", "leaseFence", "signal", "pageOrdinal", "attempt", "nowMs", "requestIntervalMs", "circuitOpenMs", "transientFailureThreshold", "probeTtlMs"]);
   if (state === null || request === null || request.schemaVersion !== 1 || request.sourceId !== state.sourceId ||
       !identifier(request.runId, "run_", 128) || !key(request.operationKey, "reserve_") ||
@@ -113,7 +113,7 @@ export function reduceAttemptReservation(stateInput: SourceRuntimeState, request
 }
 
 export function reduceAttemptCompletion(stateInput: SourceRuntimeState, reservationInput: AttemptReservation, requestInput: CompleteAttemptRequest): SourceRuntimeReduction<AttemptCompletionReceipt> {
-  const state = parseState(stateInput);
+  const state = parseSourceRuntimeState(stateInput);
   const reservation = inspectRecord(reservationInput, ["reservationKey", "runtimeRevision", "notBeforeMs", "nextRequestAtMs", "ownsHalfOpenProbe"]);
   const request = inspectRecord(requestInput, ["schemaVersion", "sourceId", "runId", "operationKey", "leaseFence", "signal", "reservationKey", "expectedRuntimeRevision", "outcome", "completedAtMs"]);
   const outcome = request === null ? null : parseOutcome(request.outcome);
@@ -121,7 +121,7 @@ export function reduceAttemptCompletion(stateInput: SourceRuntimeState, reservat
       !identifier(request.runId, "run_", 128) || !key(request.operationKey, "attempt_") || !key(reservation.reservationKey, "reserve_") ||
       request.reservationKey !== reservation.reservationKey || request.expectedRuntimeRevision !== state.revision || reservation.runtimeRevision !== state.revision ||
       reservation.nextRequestAtMs !== state.nextRequestAtMs || !integer(reservation.notBeforeMs, 0, Number.MAX_SAFE_INTEGER) || typeof reservation.ownsHalfOpenProbe !== "boolean" ||
-      !integer(request.leaseFence, 1, Number.MAX_SAFE_INTEGER) || !integer(request.completedAtMs, 0, Number.MAX_SAFE_INTEGER)) return failure("runtime_conflict");
+      !integer(request.leaseFence, 1, Number.MAX_SAFE_INTEGER) || !integer(request.completedAtMs, 0, Number.MAX_SAFE_INTEGER) || request.completedAtMs < reservation.notBeforeMs) return failure("runtime_conflict");
 
   if (state.circuit.state === "half_open") {
     if (reservation.ownsHalfOpenProbe !== true || state.circuit.probeOwnerFence !== request.leaseFence || state.circuit.probeExpiresAtMs === null || request.completedAtMs >= state.circuit.probeExpiresAtMs) return failure("stale_fence");

@@ -50,10 +50,14 @@ export async function buildFullFinalization(
   completedAt: ExactUtcTimestamp,
   authorityRevision: number,
   signal: AbortSignal,
+  checkContinuation: () => void,
 ): Promise<Omit<FinalizeFullRunRequest, "operationKey"> & { readonly operationKey: string }> {
   if (checkpoint.finalPageCommitKey === null) throw new Error("connector_final_page_missing");
+  checkContinuation();
   const inventoryGenerationId = await deriveInventoryGenerationId(checkpoint.scope.scopeId, checkpoint.runId, checkpoint.baselineGenerationId);
+  checkContinuation();
   const finalizationKey = await deriveFinalizationKey(checkpoint.scope.scopeId, checkpoint.runId, checkpoint.baselineGenerationId, inventoryGenerationId, checkpoint.finalPageCommitKey);
+  checkContinuation();
   const ended = new Set(checkpoint.stagedEndedSourceListingIds);
   const stagedActive = sortedUnique(checkpoint.stagedActiveSourceListingIds.filter((id) => !ended.has(id)));
   const nextActiveSourceListingIds = checkpoint.operations.deletionMode === "explicit_tombstone"
@@ -65,8 +69,11 @@ export async function buildFullFinalization(
     : sortedUnique(checkpoint.baselineActiveSourceListingIds.filter((id) => !nextActive.has(id) && !ended.has(id)));
   const inferredMissing: InferredMissingTombstone[] = [];
   for (const sourceListingId of missingIds) {
+    checkContinuation();
     const listingId = await deriveListingId(checkpoint.sourceId, sourceListingId);
+    checkContinuation();
     const tombstoneId = await deriveMissingTombstoneId(checkpoint.scope.scopeId, sourceListingId, checkpoint.baselineGenerationId, inventoryGenerationId, finalizationKey);
+    checkContinuation();
     inferredMissing.push(Object.freeze({ schemaVersion: 1, tombstoneId, kind: "inferred_missing", scope: checkpoint.scope, listingId, sourceListingId, runId: checkpoint.runId, baselineGenerationId: checkpoint.baselineGenerationId, inventoryGenerationId, finalizationKey, completedAt }));
   }
   return Object.freeze({

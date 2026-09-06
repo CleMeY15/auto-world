@@ -32,6 +32,7 @@ export interface BuildCanonicalPageEffectsInput {
   readonly checkpoint: RunningConnectorCheckpoint;
   readonly pending: PendingRawPage;
   readonly draft: MappedPageDraft;
+  readonly checkContinuation: () => void;
 }
 
 function invalid(path: string): ValidationResult<never> {
@@ -81,6 +82,7 @@ export async function buildCanonicalPageEffects(
   if (!(await sameBoundRun(input))) return invalid("$");
 
   const { checkpoint, pending } = input;
+  input.checkContinuation();
   const raw: RawReference = Object.freeze({
     snapshotId: pending.snapshotId,
     connectorRunId: checkpoint.runId,
@@ -94,7 +96,9 @@ export async function buildCanonicalPageEffects(
   const endedSourceListingIds: string[] = [];
 
   for (const item of draft.data.items) {
+    input.checkContinuation();
     const listingId = await deriveListingId(request.data.sourceId, item.sourceListingId);
+    input.checkContinuation();
     if (item.outcome !== "active") {
       if (checkpoint.operations.deletionMode === "full_reconciliation") return invalid("$.draft.items");
       const tombstoneId = await deriveExplicitTombstoneId(
@@ -106,6 +110,7 @@ export async function buildCanonicalPageEffects(
         pending.snapshotId,
         pending.sha256,
       );
+      input.checkContinuation();
       explicitTombstones.push(freeze({
         schemaVersion: 1 as const,
         tombstoneId,
@@ -128,6 +133,7 @@ export async function buildCanonicalPageEffects(
     const observationIds = [];
     const fingerprints = new Set<string>();
     for (const observationDraft of item.observations) {
+      input.checkContinuation();
       if (!request.data.fields.includes(observationDraft.field)) return invalid("$.draft.items");
       const fingerprint = `${observationDraft.field}\0${encodeObservationValue(observationDraft)}\0${observationDraft.confidenceBps}`;
       if (fingerprints.has(fingerprint)) continue;
@@ -141,6 +147,7 @@ export async function buildCanonicalPageEffects(
         pending.sha256,
         request.data.mapperVersion,
       );
+      input.checkContinuation();
       const candidate = freeze({
         schemaVersion: 1 as const,
         observationId,
@@ -168,6 +175,7 @@ export async function buildCanonicalPageEffects(
     const parsedListing = parseListing(freeze(listingCandidate));
     if (!parsedListing.success) return invalid("$.draft.items");
     const listingVersionId = await deriveListingVersionId(listingId, checkpoint.runId, pending.snapshotId, pending.sha256, request.data.mapperVersion);
+    input.checkContinuation();
     const version = item.url === undefined
       ? { schemaVersion: 1 as const, listingVersionId, listingId, sourceId: request.data.sourceId, sourceListingId: item.sourceListingId, connectorRunId: checkpoint.runId, mapperVersion: request.data.mapperVersion, capturedAt: pending.capturedAt, observationIds: Object.freeze(observationIds), raw, deadlines: pending.deadlines }
       : { schemaVersion: 1 as const, listingVersionId, listingId, sourceId: request.data.sourceId, sourceListingId: item.sourceListingId, connectorRunId: checkpoint.runId, mapperVersion: request.data.mapperVersion, capturedAt: pending.capturedAt, url: item.url, observationIds: Object.freeze(observationIds), raw, deadlines: pending.deadlines };

@@ -17,9 +17,9 @@ import {
 import { parseAdapterFetchResult, parseConnectorRunRequest, parseMappedPageDraft, parseStoreResult } from "./validation.js";
 import type {
   AdapterFailure, AttemptOutcome, ConnectorCheckpoint, ConnectorError,
-  ConnectorErrorCode, ConnectorMutationKind, ConnectorPhase, ConnectorPorts,
+  CanonicalPageEffects, ConnectorErrorCode, ConnectorMutationKind, ConnectorPhase, ConnectorPorts,
   ConnectorRunRequest, ConnectorRunResult, ExactUtcTimestamp, PendingRawPage,
-  PolicyObligations, RunningConnectorCheckpoint, SchedulerPort, SourceLease,
+  PageCommitReceipt, PolicyObligations, RunningConnectorCheckpoint, SchedulerPort, SourceLease,
   StoreFailureCode, StoreResult,
 } from "./types.js";
 
@@ -34,6 +34,56 @@ class RunFault extends Error {
   constructor(readonly code: ConnectorErrorCode, readonly phase: ConnectorPhase, readonly attempt: number, readonly retryable = false) { super(code); }
 }
 interface LeaseContext { current: SourceLease; renewAtMs: number }
+
+// Compare already detached/validated DTOs without depending on JSON member order.
+function sameData(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (typeof left !== "object" || left === null || typeof right !== "object" || right === null) return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const keys = Object.keys(leftRecord);
+  return keys.length === Object.keys(rightRecord).length && keys.every((key) => Object.hasOwn(rightRecord, key) && sameData(leftRecord[key], rightRecord[key]));
+}
+
+function sameCheckpointPins(value: ConnectorCheckpoint, expected: ConnectorCheckpoint): boolean {
+  return value.sourceId === expected.sourceId && value.runId === expected.runId &&
+    value.requestSha256 === expected.requestSha256 && sameData(value.request, expected.request) &&
+    value.startedAt === expected.startedAt && value.authorityRevision === expected.authorityRevision &&
+    value.registryRevision === expected.registryRevision && value.configurationSha256 === expected.configurationSha256 &&
+    value.authorizationBasisRef === expected.authorizationBasisRef && sameData(value.obligations, expected.obligations) &&
+    sameData(value.scope, expected.scope) && value.baselineGenerationId === expected.baselineGenerationId &&
+    value.leaseFence === expected.leaseFence &&
+    (value.status !== "running" || expected.status !== "running" || sameData(value.operations, expected.operations));
+}
+
+function requireLiveRaw(ports: ConnectorPorts, pending: PendingRawPage): void {
+  if (now(ports) >= Date.parse(pending.deadlines.rawRetainUntil)) throw new RunFault("retention_expired", "stage_raw", 0);
+}
+
+function validPageTransition(receipt: PageCommitReceipt, before: RunningConnectorCheckpoint, pending: PendingRawPage, effects: CanonicalPageEffects, itemCount: number, committedAt: string): boolean {
+  const after = receipt.checkpoint;
+  const incremental = before.request.mode === "incremental";
+  const inventoryRevision = before.expectedInventoryRevision + (incremental ? 1 : 0);
+  if (!sameCheckpointPins(after, before) || receipt.complete !== pending.complete ||
+      receipt.checkpointRevision !== before.checkpointRevision + 1 || receipt.committedPages !== before.committedPages + 1 ||
+      receipt.committedItems !== before.committedItems + itemCount || receipt.inventoryGenerationId !== before.expectedInventoryGenerationId ||
+      receipt.inventoryRevision !== inventoryRevision || (after.status === "completed") !== (incremental && pending.complete)) return false;
+  if (after.status === "completed") {
+    return after.completionOperationKey === receipt.operationKey && after.completedAt === committedAt &&
+      after.finalInventoryGenerationId === receipt.inventoryGenerationId && after.finalInventoryRevision === inventoryRevision;
+  }
+  const expectedActive = incremental ? before.stagedActiveSourceListingIds : [...before.stagedActiveSourceListingIds, ...effects.activeSourceListingIds];
+  const expectedEnded = incremental ? before.stagedEndedSourceListingIds : [...before.stagedEndedSourceListingIds, ...effects.endedSourceListingIds];
+  return after.pendingRaw === null && after.nextPageOrdinal === pending.pageOrdinal + 1 && after.nextCursor === pending.nextCursor &&
+    after.lastPageCommitKey === receipt.operationKey && after.finalPageCommitKey === (pending.complete ? receipt.operationKey : null) &&
+    after.committedRawBytes === before.committedRawBytes + pending.byteLength &&
+    sameData(after.baselineActiveSourceListingIds, before.baselineActiveSourceListingIds) && after.lastCompletedFullAt === before.lastCompletedFullAt &&
+    sameData(after.visitedCursors, [...before.visitedCursors, before.nextCursor]) &&
+    sameData([...after.stagedActiveSourceListingIds].sort(), [...expectedActive].sort()) &&
+    sameData([...after.stagedEndedSourceListingIds].sort(), [...expectedEnded].sort()) &&
+    after.expectedInventoryGenerationId === receipt.inventoryGenerationId && after.expectedInventoryRevision === inventoryRevision;
+}
 
 function now(ports: ConnectorPorts): number {
   let value: number;
@@ -85,10 +135,12 @@ async function bounded<T>(ports: ConnectorPorts, parent: AbortSignal, ms: number
       controller.signal.addEventListener("abort", rejectAbort, { once: true });
       removeChildAbort = () => controller.signal.removeEventListener("abort", rejectAbort);
     });
-    return await Promise.race([
+    const result = await Promise.race([
       operation(controller.signal),
       aborted,
     ]);
+    if (controller.signal.aborted) throw new RunFault(reason === "cancelled" ? "cancelled" : "deadline", phase, attempt);
+    return result;
   } finally {
     parent.removeEventListener("abort", cancel);
     removeChildAbort();
@@ -146,6 +198,7 @@ async function authority(ports: ConnectorPorts, request: ConnectorRunRequest, si
   catch (error) { if (error instanceof RunFault) throw error; throw new RunFault("authority_untrusted", "authority", attempt); }
   const checked = verifyAuthorityHead(raw, request, asOf);
   if (!checked.success) throw new RunFault(checked.code, "authority", attempt);
+  if (now(ports) >= Date.parse(checked.obligations.authorizationValidUntil)) throw new RunFault("policy_ineligible", "authority", attempt);
   return checked;
 }
 
@@ -159,6 +212,9 @@ async function recheckAuthority(ports: ConnectorPorts, checkpoint: RunningConnec
   try {
     const current = await authority(ports, checkpoint.request, signal, timeoutMs);
     ensureSameAuthority(current, checkpoint);
+    if (await digestSourceConfiguration(current.configuration) !== checkpoint.configurationSha256) {
+      throw new RunFault("policy_revision_changed", "authority", 0);
+    }
   } catch (error) {
     if (error instanceof RunFault && error.code === "policy_ineligible") {
       throw new RunFault("policy_revoked", "authority", error.attempt);
@@ -235,12 +291,17 @@ function emitMutation(ports: ConnectorPorts, input: { kind: ConnectorMutationKin
 }
 
 async function finalize(ports: ConnectorPorts, signal: AbortSignal, checkpoint: RunningConnectorCheckpoint, effectMs: number, authorityRevision: number, lease: LeaseContext, deadlineAtMs: number): Promise<ConnectorRunResult> {
-  const timeoutMs = effectBudget(ports, deadlineAtMs, effectMs, "finalize");
-  await ensureLease(ports, signal, lease, timeoutMs);
+  await ensureLease(ports, signal, lease, effectBudget(ports, deadlineAtMs, effectMs, "lease"));
   await recheckAuthority(ports, checkpoint, signal, effectBudget(ports, deadlineAtMs, effectMs, "authority"));
-  const input = await buildFullFinalization(checkpoint, timestamp(now(ports)), authorityRevision, signal);
-  const receipt = await mutation(ports, signal, timeoutMs, "finalize", 0, (child) => ports.store.finalizeFullRun({ ...input, signal: child }), parseFullRunReceipt);
-  if (receipt.operationKey !== input.operationKey || receipt.finalizationKey !== input.finalizationKey || receipt.result.runId !== checkpoint.runId || receipt.result.pages !== checkpoint.committedPages || receipt.result.items !== checkpoint.committedItems || receipt.result.checkpointRevision !== receipt.checkpointRevision) throw new RunFault("checkpoint_conflict", "finalize", 0);
+  const input = await buildFullFinalization(checkpoint, timestamp(now(ports)), authorityRevision, signal, () => {
+    if (signal.aborted) throw new RunFault("cancelled", "finalize", 0);
+    effectBudget(ports, deadlineAtMs, effectMs, "finalize");
+    if (now(ports) >= Date.parse(checkpoint.obligations.authorizationValidUntil)) throw new RunFault("policy_revoked", "authority", 0);
+  });
+  await recheckAuthority(ports, checkpoint, signal, effectBudget(ports, deadlineAtMs, effectMs, "authority"));
+  await ensureLease(ports, signal, lease, effectBudget(ports, deadlineAtMs, effectMs, "lease"));
+  const receipt = await mutation(ports, signal, effectBudget(ports, deadlineAtMs, effectMs, "finalize"), "finalize", 0, (child) => ports.store.finalizeFullRun({ ...input, signal: child }), parseFullRunReceipt);
+  if (receipt.operationKey !== input.operationKey || receipt.finalizationKey !== input.finalizationKey || receipt.result.runId !== checkpoint.runId || receipt.result.pages !== checkpoint.committedPages || receipt.result.items !== checkpoint.committedItems || receipt.result.checkpointRevision !== receipt.checkpointRevision || receipt.checkpointRevision !== checkpoint.checkpointRevision + 1 || receipt.inventoryGenerationId !== input.inventoryGenerationId || receipt.inventoryRevision !== input.expectedInventoryRevision + 1 || !sameData(receipt.inferredMissing, input.inferredMissing)) throw new RunFault("checkpoint_conflict", "finalize", 0);
   emitMutation(ports, { kind: "full.finalized", operationKey: input.operationKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, checkpointRevision: receipt.checkpointRevision });
   return receipt.result;
 }
@@ -261,14 +322,12 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
     let bytes: Uint8Array;
     if (checkpoint.pendingRaw !== null) {
       pending = checkpoint.pendingRaw;
-      if (now(ports) >= Date.parse(pending.deadlines.rawRetainUntil)) {
-        throw new RunFault("retention_expired", "stage_raw", 0);
-      }
+      requireLiveRaw(ports, pending);
       await requireMutationReceipt(ports, signal, checkpoint, pending.operationKey, "raw.staged", timeout("stage_raw"));
       const staged = await storeRead(ports, signal, timeout("stage_raw"), "stage_raw", (child) => ports.store.loadStagedRaw({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, snapshotId: pending.snapshotId, leaseFence: checkpoint.leaseFence, asOf: timestamp(now(ports)), signal: child }), parseStagedRawPage);
       if (staged.pending.operationKey !== pending.operationKey || staged.pending.sha256 !== pending.sha256 || staged.pending.snapshotId !== pending.snapshotId) throw new RunFault("raw_conflict", "stage_raw", 0);
       bytes = staged.bytes;
-      if (await sha256Bytes(bytes) !== pending.sha256 || JSON.stringify(staged.obligations) !== JSON.stringify(checkpoint.obligations)) {
+      if (await sha256Bytes(bytes) !== pending.sha256 || !sameData(staged.obligations, checkpoint.obligations) || !sameData(staged.pending, pending)) {
         throw new RunFault("raw_conflict", "stage_raw", 0);
       }
     } else {
@@ -276,8 +335,10 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
       for (let attempt = 1; attempt <= checkpoint.operations.maxRetries + 1; attempt += 1) {
         await recheckAuthority(ports, checkpoint, signal, timeout("authority", attempt));
         const reservationKey = await deriveAttemptReservationKey(checkpoint.runId, checkpoint.leaseFence, checkpoint.nextPageOrdinal, attempt);
-        const reservation = await mutation(ports, signal, timeout("reserve", attempt), "reserve", attempt, (child) => ports.store.reserveAttempt({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: reservationKey, leaseFence: checkpoint.leaseFence, signal: child, pageOrdinal: checkpoint.nextPageOrdinal, attempt, nowMs: now(ports), requestIntervalMs: Math.ceil(60_000 / checkpoint.operations.requestsPerMinute), circuitOpenMs: 60_000, transientFailureThreshold: 5, probeTtlMs: checkpoint.operations.timeoutMs }), parseAttemptReservationReceipt);
-        if (reservation.reservationKey !== reservationKey || reservation.runtimeRevision < 1) throw new RunFault("checkpoint_conflict", "reserve", attempt);
+        const reservedAtMs = now(ports);
+        const requestIntervalMs = Math.ceil(60_000 / checkpoint.operations.requestsPerMinute);
+        const reservation = await mutation(ports, signal, timeout("reserve", attempt), "reserve", attempt, (child) => ports.store.reserveAttempt({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: reservationKey, leaseFence: checkpoint.leaseFence, signal: child, pageOrdinal: checkpoint.nextPageOrdinal, attempt, nowMs: reservedAtMs, requestIntervalMs, circuitOpenMs: 60_000, transientFailureThreshold: 5, probeTtlMs: checkpoint.operations.timeoutMs }), parseAttemptReservationReceipt);
+        if (reservation.reservationKey !== reservationKey || reservation.runtimeRevision < 1 || reservation.notBeforeMs < reservedAtMs || reservation.nextRequestAtMs !== reservation.notBeforeMs + requestIntervalMs) throw new RunFault("checkpoint_conflict", "reserve", attempt);
         emitMutation(ports, { kind: "attempt.reserved", operationKey: reservationKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, runtimeRevision: reservation.runtimeRevision, pageOrdinal: checkpoint.nextPageOrdinal });
         await waitUntil(ports, signal, reservation.notBeforeMs, attempt, lease, operationTimeout, deadlineAtMs);
         await ensureLease(ports, signal, lease, timeout("lease", attempt));
@@ -290,7 +351,7 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
         const outcome: AttemptOutcome = fetch.data.success ? { kind: "success" } : { kind: fetch.data.failure.kind };
         const completionKey = await deriveAttemptCompletionKey(checkpoint.runId, reservation.reservationKey);
         const completion = await mutation(ports, signal, timeout("reserve", attempt), "reserve", attempt, (child) => ports.store.completeAttempt({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: completionKey, leaseFence: checkpoint.leaseFence, signal: child, reservationKey: reservation.reservationKey, expectedRuntimeRevision: reservation.runtimeRevision, outcome, completedAtMs: now(ports) }), parseAttemptCompletionReceipt);
-        if (completion.operationKey !== completionKey || completion.reservationKey !== reservation.reservationKey || completion.runtime.sourceId !== checkpoint.sourceId) throw new RunFault("checkpoint_conflict", "reserve", attempt);
+        if (completion.operationKey !== completionKey || completion.reservationKey !== reservation.reservationKey || completion.runtime.sourceId !== checkpoint.sourceId || completion.runtime.revision !== reservation.runtimeRevision + 1 || completion.runtime.nextRequestAtMs !== reservation.nextRequestAtMs) throw new RunFault("checkpoint_conflict", "reserve", attempt);
         emitMutation(ports, { kind: "attempt.completed", operationKey: completionKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, runtimeRevision: completion.runtime.revision, pageOrdinal: checkpoint.nextPageOrdinal, outcome: outcome.kind === "success" ? "success" : "failed" });
         if (fetch.data.success) { acquired = fetch.data.page; break; }
         const failure: AdapterFailure = fetch.data.failure;
@@ -317,24 +378,38 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
       bytes = acquired.bytes.slice();
     }
 
+    requireLiveRaw(ports, pending);
     await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
+    requireLiveRaw(ports, pending);
     const decoded = decodeJsonPage(bytes, { maxBytes: checkpoint.request.limits.maxPageBytes, maxDepth: checkpoint.request.limits.maxJsonDepth, maxMembers: checkpoint.request.limits.maxJsonMembers });
     if (!decoded.success) throw new RunFault(decoded.issues[0]?.code ?? "invalid_json", "decode", 0);
+    requireLiveRaw(ports, pending);
     let mappedRaw: unknown;
     try { mappedRaw = await bounded(ports, signal, timeout("map"), "map", 0, (child) => ports.adapter.mapPage({ sourceId: checkpoint.sourceId, runId: checkpoint.runId, territory: checkpoint.request.territory, acquisitionMethod: checkpoint.request.acquisitionMethod, fields: checkpoint.request.fields, raw: { snapshotId: pending.snapshotId, connectorRunId: checkpoint.runId, sha256: pending.sha256 }, decoded: decoded.data, signal: child })); }
     catch (error) { if (error instanceof RunFault) throw error; throw new RunFault("adapter_output_invalid", "map", 0); }
+    requireLiveRaw(ports, pending);
     const mapped = parseMappedPageDraft(mappedRaw);
     if (!mapped.success) throw new RunFault("adapter_output_invalid", "map", 0);
+    if (checkpoint.request.mode === "full") {
+      const priorPublications = new Set([...checkpoint.stagedActiveSourceListingIds, ...checkpoint.stagedEndedSourceListingIds]);
+      if (mapped.data.items.some((item) => priorPublications.has(item.sourceListingId))) throw new RunFault("adapter_output_invalid", "map", 0);
+    }
     if (checkpoint.committedItems + mapped.data.items.length > checkpoint.request.limits.maxItems) throw new RunFault("limit_exceeded", "commit", 0);
     if (!pending.complete && (pending.nextCursor === null || checkpoint.visitedCursors.includes(pending.nextCursor))) throw new RunFault("cursor_cycle", "commit", 0);
-    const effects = await buildCanonicalPageEffects({ request: checkpoint.request, checkpoint, pending, draft: mapped.data });
+    const effects = await buildCanonicalPageEffects({ request: checkpoint.request, checkpoint, pending, draft: mapped.data, checkContinuation: () => {
+      if (signal.aborted) throw new RunFault("cancelled", "map", 0);
+      effectBudget(ports, deadlineAtMs, operationTimeout, "map");
+      requireLiveRaw(ports, pending);
+    } });
     if (!effects.success) throw new RunFault("adapter_output_invalid", "map", 0);
     const pageKey = await derivePageKey(checkpoint.runId, pending.pageOrdinal, pending.pageIdentity);
     const commitKey = await derivePageCommitKey(pageKey, pending.sha256, checkpoint.request.mapperVersion);
     await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
     await ensureLease(ports, signal, lease, timeout("lease"));
-    const receipt = await mutation(ports, signal, timeout("commit"), "commit", 0, (child) => ports.store.commitPage({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: commitKey, leaseFence: checkpoint.leaseFence, signal: child, expectedCheckpointRevision: checkpoint.checkpointRevision, expectedInventoryGenerationId: checkpoint.expectedInventoryGenerationId, expectedInventoryRevision: checkpoint.expectedInventoryRevision, pending, effects: effects.data, nextPageOrdinal: pending.pageOrdinal + 1, nextCursor: pending.nextCursor, pageItemCount: mapped.data.items.length, complete: pending.complete, authorityRevision: checkpoint.authorityRevision, committedAt: timestamp(now(ports)) }), parsePageCommitReceipt);
-    if (receipt.operationKey !== commitKey || receipt.checkpoint.sourceId !== checkpoint.sourceId || receipt.checkpoint.runId !== checkpoint.runId || receipt.complete !== pending.complete) throw new RunFault("checkpoint_conflict", "commit", 0);
+    requireLiveRaw(ports, pending);
+    const committedAt = timestamp(now(ports));
+    const receipt = await mutation(ports, signal, timeout("commit"), "commit", 0, (child) => ports.store.commitPage({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: commitKey, leaseFence: checkpoint.leaseFence, signal: child, expectedCheckpointRevision: checkpoint.checkpointRevision, expectedInventoryGenerationId: checkpoint.expectedInventoryGenerationId, expectedInventoryRevision: checkpoint.expectedInventoryRevision, pending, effects: effects.data, nextPageOrdinal: pending.pageOrdinal + 1, nextCursor: pending.nextCursor, pageItemCount: mapped.data.items.length, complete: pending.complete, authorityRevision: checkpoint.authorityRevision, committedAt }), parsePageCommitReceipt);
+    if (receipt.operationKey !== commitKey || !validPageTransition(receipt, checkpoint, pending, effects.data, mapped.data.items.length, committedAt)) throw new RunFault("checkpoint_conflict", "commit", 0);
     emitMutation(ports, { kind: "page.committed", operationKey: commitKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, checkpointRevision: receipt.checkpointRevision, pageOrdinal: pending.pageOrdinal, itemCount: mapped.data.items.length, byteCount: pending.byteLength });
     onCheckpoint(receipt.checkpoint);
     if (receipt.checkpoint.status === "completed") return receipt.checkpoint.result;
@@ -373,8 +448,12 @@ export async function runConnector(requestInput: ConnectorRunRequest, ports: Con
     lease = parsedLease.data;
     leaseContext = { current: lease, renewAtMs: startedMs + Math.floor((lease.expiresAtMs - startedMs) / 2) };
     const openKey = await deriveOpenOperationKey(runId, lease.leaseFence);
+    const currentHead = await authority(ports, request, signal, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "authority"));
+    if (currentHead.head.authorityRevision !== checked.head.authorityRevision || currentHead.registryRevision !== checked.registryRevision || currentHead.head.authorizationBasisRef !== checked.head.authorizationBasisRef || await digestSourceConfiguration(currentHead.configuration) !== configurationSha256) throw new RunFault("policy_revision_changed", "authority", 0);
+    if (now(ports) >= Date.parse(currentHead.obligations.authorizationValidUntil)) throw new RunFault("policy_ineligible", "authority", 0);
+    await ensureLease(ports, signal, leaseContext, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "lease"));
     const opened = await mutation(ports, signal, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "open"), "open", 0, (child) => ports.store.openRun({ schemaVersion: 1, sourceId: request.sourceId, runId: runId!, operationKey: openKey, leaseFence: lease!.leaseFence, signal: child, request, requestSha256, openedAt: timestamp(startedMs), authority: checked.head, registryRevision: checked.registryRevision, configurationSha256, obligations: checked.obligations, operations: checked.operations, scope }), parseOpenRunResult);
-    if (opened.checkpoint.sourceId !== request.sourceId || opened.checkpoint.runId !== runId || opened.checkpoint.requestSha256 !== requestSha256 || opened.checkpoint.configurationSha256 !== configurationSha256 || (opened.status !== "completed" && opened.checkpoint.leaseFence !== lease.leaseFence)) {
+    if (opened.checkpoint.sourceId !== request.sourceId || opened.checkpoint.runId !== runId || opened.checkpoint.requestSha256 !== requestSha256 || opened.checkpoint.configurationSha256 !== configurationSha256 || !sameData(opened.checkpoint.request, request) || !sameData(opened.checkpoint.obligations, checked.obligations) || !sameData(opened.checkpoint.scope, scope) || opened.checkpoint.authorityRevision !== checked.head.authorityRevision || opened.checkpoint.registryRevision !== checked.registryRevision || opened.checkpoint.authorizationBasisRef !== checked.head.authorizationBasisRef || (opened.status !== "completed" && (opened.checkpoint.leaseFence !== lease.leaseFence || !sameData(opened.checkpoint.operations, checked.operations)))) {
       throw new RunFault("checkpoint_conflict", "open", 0);
     }
     emitMutation(ports, { kind: "run.opened", operationKey: openKey, sourceId: request.sourceId, runId, leaseFence: lease.leaseFence, checkpointRevision: opened.checkpoint.checkpointRevision });

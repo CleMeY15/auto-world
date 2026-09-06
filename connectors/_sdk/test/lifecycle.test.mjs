@@ -354,6 +354,272 @@ test("staged raw expires at equality before load, decode or refetch on resume", 
   assert.ok(!h.trace.slice(before).some((event) => event === "map" || event === "store.loadRaw" || event.startsWith("fetch:")));
 });
 
+for (const phase of ["stage_ack", "pre_map_authority", "map_result"]) {
+  test("retention expiry during " + phase + " stops fresh raw processing", async () => {
+    const h = harness({ registry: {
+      policy: { retention: { rawSeconds: 1, normalizedSeconds: 100, mediaSeconds: 0, piiSeconds: 0 } },
+      operations: { timeoutMs: 2000 },
+    } });
+    if (phase === "stage_ack") {
+      const original = h.ports.store.stageRaw;
+      h.ports.store.stageRaw = async (input) => { const value = await original(input); h.time.advance(1000); return value; };
+    } else if (phase === "pre_map_authority") {
+      const original = h.ports.authority.loadVerifiedCurrent;
+      h.ports.authority.loadVerifiedCurrent = async (input) => {
+        const value = await original(input);
+        if (h.trace.includes("store.raw.staged")) h.time.advance(1000);
+        return value;
+      };
+    } else {
+      const original = h.ports.adapter.mapPage;
+      h.ports.adapter.mapPage = async (input) => { const value = await original(input); h.time.advance(1000); return value; };
+    }
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    assert.equal(result.error.code, "retention_expired");
+    assert.equal(result.error.phase, "stage_raw");
+    assert.equal(h.storage.snapshot().observations.size, 0);
+    assert.equal(h.trace.includes("map"), phase === "map_result");
+  });
+}
+
+for (const [name, change] of [
+  ["legal status", (checkpoint) => { checkpoint.obligations.legalStatus = "official_api"; }],
+  ["retention", (checkpoint) => { checkpoint.obligations.retention.rawSeconds += 1; }],
+  ["operation policy", (checkpoint) => { checkpoint.operations.maxRetries += 1; }],
+  ["request fields", (checkpoint) => { checkpoint.request.fields.push("vin"); }],
+  ["scope", (checkpoint) => { checkpoint.scope.territory = "DE"; }],
+  ["basis", (checkpoint) => { checkpoint.authorizationBasisRef = "evidence_other"; }],
+]) {
+  test("open receipt cannot forge the pinned " + name, async () => {
+    const h = harness();
+    const original = h.ports.store.openRun;
+    h.ports.store.openRun = async (input) => { const value = copy(await original(input)); change(value.data.checkpoint); return value; };
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    assert.equal(fetches(h).length, 0);
+    assert.equal(h.storage.snapshot().raw.size, 0);
+  });
+}
+
+test("attempt completion runtime rejects secret-bearing scalar and malformed circuit before telemetry", async () => {
+  for (const change of [
+    (runtime) => { runtime.revision = "synthetic-private-runtime-secret"; },
+    (runtime) => { runtime.circuit.state = "synthetic-private-runtime-secret"; },
+    (runtime) => { runtime.circuit.consecutiveTransientFailures = -1; },
+  ]) {
+    const h = harness();
+    const original = h.ports.store.completeAttempt;
+    h.ports.store.completeAttempt = async (input) => { const value = copy(await original(input)); change(value.data.runtime); return value; };
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    assert.equal(result.error.code, "store_failed");
+    assert.ok(!JSON.stringify(h.events).includes("synthetic-private-runtime-secret"));
+    assert.equal(h.storage.snapshot().raw.size, 0);
+  }
+});
+
+test("finalization receives only the budget remaining after its authority recheck", async () => {
+  const h = harness();
+  const authority = h.ports.authority.loadVerifiedCurrent;
+  let delayed = false;
+  h.ports.authority.loadVerifiedCurrent = async (input) => {
+    const value = await authority(input);
+    if (!delayed && [...h.storage.snapshot().runs.values()].some((run) => run.finalPageCommitKey !== null)) { delayed = true; h.time.advance(90); }
+    return value;
+  };
+  let finalizedAt = null;
+  h.ports.store.finalizeFullRun = (input) => new Promise((resolve) => {
+    h.time.scheduler.schedule(20, () => { finalizedAt = h.time.clock.nowMs(); resolve({ acknowledged: true, success: false, failure: { code: "store_failed", retryable: false } }); });
+    input.signal.addEventListener("abort", () => { finalizedAt = h.time.clock.nowMs(); });
+  });
+  const result = await h.run(request({ limits: { maxRunMs: 100 } }));
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "mutation_indeterminate");
+  assert.equal(finalizedAt, NOW + 100);
+});
+
+test("a full page commit cannot masquerade as completed and skip reconciliation", async () => {
+  const h = harness();
+  const original = h.ports.store.commitPage;
+  h.ports.store.commitPage = async (input) => {
+    const value = copy(await original(input));
+    const run = value.data.checkpoint;
+    const result = { status: "completed", runId: run.runId, pages: run.committedPages,
+      items: run.committedItems, checkpointRevision: run.checkpointRevision };
+    const { schemaVersion, checkpointRevision, sourceId, runId, leaseFence, request: runRequest,
+      requestSha256, startedAt, authorityRevision, registryRevision, configurationSha256,
+      authorizationBasisRef, obligations, scope, baselineGenerationId, committedPages, committedItems } = run;
+    value.data.checkpoint = { schemaVersion, status: "completed", checkpointRevision, sourceId, runId,
+      leaseFence, request: runRequest, requestSha256, startedAt, completedAt: input.committedAt,
+      completionOperationKey: input.operationKey, authorityRevision, registryRevision, configurationSha256,
+      authorizationBasisRef, obligations, scope, baselineGenerationId, committedPages, committedItems,
+      finalInventoryGenerationId: value.data.inventoryGenerationId, finalInventoryRevision: value.data.inventoryRevision, result };
+    return value;
+  };
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "checkpoint_conflict");
+  assert.equal(onlyRun(h).status, "running");
+  assert.equal([...h.storage.snapshot().inventories.values()][0].lastCompletedFullAt, null);
+});
+
+test("a reservation receipt cannot erase the durable source-wide rate wait", async () => {
+  const h = harness();
+  assert.equal((await h.run()).status, "completed");
+  const fetchCount = fetches(h).length;
+  const original = h.ports.store.reserveAttempt;
+  h.ports.store.reserveAttempt = async (input) => {
+    const value = copy(await original(input));
+    value.data.notBeforeMs = input.nowMs;
+    return value;
+  };
+  const result = await h.run(request({ invocationKey: "second" }));
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "checkpoint_conflict");
+  assert.equal(fetches(h).length, fetchCount);
+});
+
+for (const cursor of ["", "x".repeat(2048)]) {
+  test("checkpoint and replay preserve an allowed opaque cursor of length " + cursor.length, async () => {
+    const h = harness();
+    const fetch = h.ports.adapter.fetchPage;
+    h.ports.adapter.fetchPage = async (input) => {
+      const result = await fetch(input);
+      result.page.nextCursor = cursor;
+      return result;
+    };
+    const first = await h.run();
+    assert.equal(first.status, "completed");
+    assert.equal([...h.storage.snapshot().inventories.values()][0].incrementalCursor, cursor);
+    assert.deepEqual(await h.run(), first);
+  });
+}
+
+test("authorization that expires while the current head is loading cannot start acquisition", async () => {
+  const h = harness({ registry: { operations: { timeoutMs: 2000 }, policy: {
+    authorization: { basisRef: "evidence_sdk_synthetic", reviewerRef: "actor_sdk_reviewer",
+      reviewedAt: "2026-01-01T00:00:00.000Z", validFrom: "2026-01-01T00:00:00.000Z",
+      validUntil: new Date(NOW + 1000).toISOString() },
+  } } });
+  const original = h.ports.authority.loadVerifiedCurrent;
+  h.ports.authority.loadVerifiedCurrent = async (input) => { const value = await original(input); h.time.advance(1000); return value; };
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "policy_ineligible");
+  assert.equal(fetches(h).length, 0);
+  assert.equal(h.storage.snapshot().runs.size, 0);
+});
+
+test("a same-revision changed authority configuration fails the pinned digest recheck", async () => {
+  const h = harness();
+  const original = h.ports.authority.loadVerifiedCurrent;
+  let reads = 0;
+  h.ports.authority.loadVerifiedCurrent = async (input) => {
+    const value = copy(await original(input));
+    if (++reads > 1) {
+      for (const revision of value.registry.revisions) revision.configuration.operations.maxRetries += 1;
+    }
+    return value;
+  };
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "policy_revision_changed");
+  assert.equal(fetches(h).length, 0);
+});
+
+test("page acknowledgement cannot replace the pinned provenance policy for the next page", async () => {
+  const h = harness({ pages: [{ items: [activeItem("first")] }, { items: [activeItem("second")] }] });
+  const original = h.ports.store.commitPage;
+  h.ports.store.commitPage = async (input) => {
+    const value = copy(await original(input));
+    value.data.checkpoint.obligations.legalStatus = "official_api";
+    return value;
+  };
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "checkpoint_conflict");
+  assert.equal(fetches(h).length, 1);
+  assert.equal([...h.storage.snapshot().observations.values()][0].provenance.legalStatus, "dealer_feed");
+});
+
+for (const [name, change] of [
+  ["baseline membership", (run) => { run.baselineActiveSourceListingIds.push("invented"); }],
+  ["staged active membership", (run) => { run.stagedActiveSourceListingIds.push("invented"); }],
+  ["staged ended membership", (run) => { run.stagedEndedSourceListingIds.push("invented"); }],
+  ["visited cursor", (run) => { run.visitedCursors[0] = "invented"; }],
+  ["raw counter", (run) => { run.committedRawBytes += 1; }],
+  ["full cadence", (run) => { run.lastCompletedFullAt = new Date(NOW).toISOString(); }],
+  ["inventory revision", (run) => { run.expectedInventoryRevision += 1; }],
+]) {
+  test("page receipt cannot alter " + name + " used by later reconciliation", async () => {
+    const h = harness();
+    const original = h.ports.store.commitPage;
+    h.ports.store.commitPage = async (input) => { const value = copy(await original(input)); change(value.data.checkpoint); return value; };
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    assert.equal(result.error.code, "checkpoint_conflict");
+    assert.equal([...h.storage.snapshot().inventories.values()][0].lastCompletedFullAt, null);
+  });
+}
+
+test("incremental completed result cannot disagree with its committed checkpoint counts", async () => {
+  const h = harness();
+  assert.equal((await h.run()).status, "completed");
+  const original = h.ports.store.commitPage;
+  h.ports.store.commitPage = async (input) => {
+    const value = copy(await original(input));
+    value.data.checkpoint.result.items += 1;
+    return value;
+  };
+  const result = await h.run(request({ mode: "incremental", invocationKey: "second" }));
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "store_failed");
+});
+
+test("authorization expiry during lease acquisition prevents even opening a run", async () => {
+  const h = harness({ registry: { operations: { timeoutMs: 2000 }, policy: {
+    authorization: { basisRef: "evidence_sdk_synthetic", reviewerRef: "actor_sdk_reviewer",
+      reviewedAt: "2026-01-01T00:00:00.000Z", validFrom: "2026-01-01T00:00:00.000Z",
+      validUntil: new Date(NOW + 1000).toISOString() },
+  } } });
+  const original = h.ports.lease.acquire;
+  h.ports.lease.acquire = async (input) => { const value = await original(input); h.time.advance(1000); return value; };
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.error.code, "policy_ineligible");
+  assert.equal(h.storage.snapshot().runs.size, 0);
+  assert.equal(fetches(h).length, 0);
+});
+
+test("page-effect construction checks continuation within the identity derivation loop", async () => {
+  const h = harness();
+  h.storage.faults.set("raw.staged", "after");
+  assert.equal((await h.run()).status, "failed");
+  const checkpoint = onlyRun(h);
+  const { buildCanonicalPageEffects } = await import("../dist/candidates.js");
+  const stop = new Error("synthetic cooperative stop");
+  let checks = 0;
+  await assert.rejects(buildCanonicalPageEffects({ request: checkpoint.request, checkpoint,
+    pending: checkpoint.pendingRaw, draft: { items: Array.from({ length: 500 }, (_, index) => activeItem("publication-" + index)) },
+    checkContinuation: () => { if (++checks === 8) throw stop; },
+  }), (error) => error === stop);
+  assert.equal(checks, 8);
+});
+
+test("full reconciliation checks continuation within large missing-membership derivation", async () => {
+  const h = harness();
+  h.storage.faults.set("page.committed", "after");
+  assert.equal((await h.run()).status, "failed");
+  const checkpoint = { ...onlyRun(h), baselineActiveSourceListingIds: Array.from({ length: 500 }, (_, index) => "missing-" + index) };
+  const { buildFullFinalization } = await import("../dist/effects.js");
+  const stop = new Error("synthetic cooperative stop");
+  let checks = 0;
+  await assert.rejects(buildFullFinalization(checkpoint, new Date(NOW).toISOString(), checkpoint.authorityRevision,
+    new globalThis.AbortController().signal, () => { if (++checks === 8) throw stop; }), (error) => error === stop);
+  assert.equal(checks, 8);
+});
+
 test("pre-start cancellation has no authority/acquisition/store effects", async () => {
   const h = harness();
   const controller = new globalThis.AbortController();

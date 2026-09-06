@@ -92,13 +92,13 @@ function reservation(nowMs = NOW, fence = 1, attempt = 1) {
     pageOrdinal: 0, attempt, nowMs, requestIntervalMs: 500,
     circuitOpenMs: 60000, transientFailureThreshold: 5, probeTtlMs: 1000 };
 }
-function complete(state, reserved, input, kind) {
+function complete(state, reserved, input, kind, completedAtMs = reserved.notBeforeMs) {
   return sdk.reduceAttemptCompletion(state, reserved, {
     schemaVersion: 1, sourceId: SOURCE, runId: input.runId, leaseFence: input.leaseFence,
     operationKey: referenceKey("attempt_", "attempt", input.runId, reserved.reservationKey),
     signal: input.signal, reservationKey: reserved.reservationKey,
     expectedRuntimeRevision: reserved.runtimeRevision, outcome: { kind },
-    completedAtMs: reserved.notBeforeMs,
+    completedAtMs,
   });
 }
 
@@ -113,6 +113,13 @@ test("durable rate reservation advances before fetch and does not mutate input",
   const second = sdk.reduceAttemptReservation(first.nextState, reservation(NOW, 1, 2));
   assert.equal(second.success, true);
   assert.equal(second.data.notBeforeMs, NOW + 500);
+});
+
+test("attempt completion cannot consume a reservation before its source-wide rate slot", () => {
+  const input = reservation();
+  const reserved = sdk.reduceAttemptReservation(runtime(), input);
+  assert.equal(complete(reserved.nextState, reserved.data, input, "success", reserved.data.notBeforeMs - 1).success, false);
+  assert.equal(complete(reserved.nextState, reserved.data, input, "success", reserved.data.notBeforeMs).success, true);
 });
 
 test("circuit opens at five typed transient failures then admits exactly one expiring probe", () => {
