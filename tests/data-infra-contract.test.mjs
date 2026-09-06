@@ -56,7 +56,10 @@ test("named data volumes and private network retain project ownership without gl
     assert.equal(resource.external, undefined);
     assert.equal(resource.labels["io.auto-world.owner"], "${AW_OWNER_TOKEN:?}");
   }
-  for (const network of Object.values(compose.networks)) assert.equal(network.internal, true);
+  assert.deepEqual(Object.keys(compose.networks), ["foundation"]);
+  assert.equal(compose.networks.foundation.driver, "bridge");
+  assert.equal(compose.networks.foundation.internal, false);
+  assert.deepEqual(compose.networks.foundation.driver_opts, { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" });
   const serialized = JSON.stringify(compose);
   assert.doesNotMatch(serialized, /docker\.sock|\/var\/run|\bprivileged\b|network_mode/u);
 });

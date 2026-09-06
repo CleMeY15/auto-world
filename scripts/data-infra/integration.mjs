@@ -89,6 +89,24 @@ async function suite() {
   await phase("fresh-usable-start", async () => {
     const starting = { ...state, deadlineAt: Math.min(state.deadlineAt, Date.now() + 180000) };
     await up(starting);
+    await phase("loopback-network-and-protocols", async () => {
+      const { port } = await import("./runtime.mjs");
+      const { postgresHostChallenge, redisHostPing } = await import("./loopback-probes.mjs");
+      const inspected = await run("docker", ["network", "inspect", `${state.project}_foundation`], { timeoutMs: 10000 });
+      assert.equal(inspected.code, 0);
+      const [network] = JSON.parse(inspected.stdout);
+      assert.equal(network.Driver, "bridge");
+      assert.equal(network.Internal, false);
+      assert.equal(network.Labels["io.auto-world.owner"], state.ownerToken);
+      assert.equal(network.Options["com.docker.network.bridge.host_binding_ipv4"], "127.0.0.1");
+      for (const [service, target] of [["postgres", 5432], ["redis", 6379], ["opensearch", 9200], ["object-store", 8333]]) {
+        const published = await port(starting, service, target);
+        assert.ok(published > 0);
+        if (service === "postgres") await postgresHostChallenge(published);
+        if (service === "redis") await redisHostPing(published, state.credentials.redis);
+      }
+      assert.ok(["green", "yellow"].includes((await search(starting)).status));
+    });
     await s3(starting, "create-bucket");
     records.push(...await ready(starting));
     await assert.rejects(s3(state, "head-bucket", { wrongKey: true }));
