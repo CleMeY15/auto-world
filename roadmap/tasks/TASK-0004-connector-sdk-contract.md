@@ -1,7 +1,7 @@
 # TASK-0004 — Connector SDK contract
 
-Status: BLOCKED by TASK-0002 and TASK-0003  
-Priority: P0  
+Status: BLOCKED by TASK-0002 and TASK-0003
+Priority: P0
 Owner role: Connector-platform executor, with data/security reviewer
 
 ## Goal

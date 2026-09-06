@@ -1,7 +1,7 @@
 # TASK-0002 — Canonical vehicle schema
 
-Status: READY  
-Priority: P0  
+Status: READY
+Priority: P0
 Owner role: Domain/schema executor, with independent contract and security review
 
 ## Goal

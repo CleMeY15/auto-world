@@ -1,7 +1,7 @@
 # TASK-0003 — Source Registry contract
 
-Status: BLOCKED by TASK-0002  
-Priority: P0  
+Status: BLOCKED by TASK-0002
+Priority: P0
 Owner role: Data-governance executor, with legal/security reviewer
 
 ## Goal

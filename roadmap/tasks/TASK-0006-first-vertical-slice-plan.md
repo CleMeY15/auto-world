@@ -1,7 +1,7 @@
 # TASK-0006 — First authorized vertical-slice plan
 
-Status: BLOCKED by TASK-0004 and TASK-0005  
-Priority: P0  
+Status: BLOCKED by TASK-0004 and TASK-0005
+Priority: P0
 Owner role: Product/architecture planner, with data-rights, UX and operations review
 
 ## Goal

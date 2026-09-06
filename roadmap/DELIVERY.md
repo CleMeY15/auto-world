@@ -1,6 +1,6 @@
 # Auto World delivery ledger
 
-Status: ACTIVE — full roadmap P0 through P5 remains NOT DONE  
+Status: ACTIVE — full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome

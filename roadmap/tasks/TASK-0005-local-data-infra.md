@@ -1,7 +1,7 @@
 # TASK-0005 — Local data infrastructure
 
-Status: READY; queued behind TASK-0002, TASK-0003 and TASK-0004 by the singular execution frontier  
-Priority: P0  
+Status: READY; queued behind TASK-0002, TASK-0003 and TASK-0004 by the singular execution frontier
+Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
 ## Goal
