@@ -3,16 +3,27 @@
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": "22.23.2",
+    "pnpm": "10.15.0"
+  },
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --concurrency=2",
     "dev": "turbo run dev --parallel",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "lint": "eslint eslint.config.mjs scripts tests --max-warnings=0 && turbo run lint --concurrency=2",
+    "typecheck": "turbo run typecheck --concurrency=2",
+    "test": "node --test tests/*.test.mjs && turbo run test --concurrency=2",
+    "secrets:check": "node scripts/check-secrets.mjs",
+    "audit:dependencies": "pnpm audit --audit-level low",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run secrets:check && pnpm run audit:dependencies"
   },
   "devDependencies": {
-    "turbo": "^2.5.6",
-    "typescript": "^5.9.2"
+    "@eslint/js": "10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.5",
+    "eslint": "10.10.0",
+    "secretlint": "13.0.5",
+    "turbo": "2.10.12",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.69.0"
   }
 }

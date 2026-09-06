@@ -1,6 +1,6 @@
 # TASK-0001 — Workspace bootstrap
 
-Status: READY
+Status: DONE
 Priority: P0
 Owner role: ARCHITECT / PLATFORM
 Dependencies: none
@@ -31,3 +31,9 @@ Make the repository reproducibly installable and verifiable on developer machine
 
 ## Tests/evidence
 Attach command output in the PR and update this task to DONE only after CI is green.
+
+Validation record: `docs/validation/TASK-0001.md`.
+
+- Issue: [#1](https://github.com/CleMeY15/auto-world/issues/1)
+- Pull request: [#2](https://github.com/CleMeY15/auto-world/pull/2)
+- Initial completion-gate CI: [run 33924694087](https://github.com/CleMeY15/auto-world/actions/runs/33924694087) — passed on commit `b924f54`
