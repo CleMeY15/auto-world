@@ -1,6 +1,6 @@
 # TASK-0003 — Source Registry contract
 
-Status: READY after TASK-0002 is merged and verified on `main`
+Status: IN_PROGRESS — TASK-0002 merged at `fe82aaf`; main CI verified
 Priority: P0
 Owner role: Data-governance executor, with legal/security reviewer
 
@@ -16,6 +16,7 @@ Define the authoritative, fail-closed contract for source rights, acquisition po
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/DEFINITION_OF_DONE.md`
 - TASK-0002 canonical IDs and provenance contract
+- `docs/decisions/ADR-0002-source-registry-contract.md`
 
 ## Scope
 - Record an ADR for Source Registry ownership, state transitions and compatibility before consumers couple to it.
