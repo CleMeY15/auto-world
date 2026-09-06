@@ -115,7 +115,8 @@ export async function serviceHealth(state) {
       const reason = error instanceof InfraError && /^[a-z_]{1,64}$/u.test(error.code) ? error.code :
         ["ECONNREFUSED", "EHOSTUNREACH", "ETIMEDOUT"].includes(error?.cause?.code) ? error.cause.code : "probe_failed";
       const accessDenied = error instanceof InfraError && /\(AccessDenied\)|\(403\)/u.test(error.stderr ?? "");
-      return { service, phase: "usable-health", status: "failed", code: "dependency_unavailable", reason, ...(accessDenied ? { accessDenied: true } : {}), durationMs: Date.now() - started };
+      const apiCode = error instanceof InfraError ? ["404", "405", "500", "503", "NoSuchBucket", "NotFound", "MethodNotAllowed", "InvalidAccessKeyId", "SignatureDoesNotMatch"].find((code) => error.stderr?.includes(`(${code})`)) : undefined;
+      return { service, phase: "usable-health", status: "failed", code: "dependency_unavailable", reason, ...(accessDenied ? { accessDenied: true } : {}), ...(apiCode ? { apiCode } : {}), durationMs: Date.now() - started };
     }
   }));
 }

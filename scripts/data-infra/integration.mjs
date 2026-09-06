@@ -46,9 +46,15 @@ async function expectSql(query, sqlstate, options = {}) {
 async function ready(target, timeoutMs = 120000) {
   const until = Math.min(target.deadlineAt, Date.now() + timeoutMs);
   let health;
+  const failures = new Set();
   do {
     health = await serviceHealth({ ...target, deadlineAt: until });
     if (health.every((entry) => entry.status === "passed")) return health;
+    for (const entry of health.filter((entry) => entry.status === "failed")) {
+      const signature = `${entry.service}:${entry.reason}:${entry.accessDenied ?? false}:${entry.apiCode ?? ""}`;
+      if (!failures.has(signature)) records.push({ ...entry, phase: "readiness-diagnostic" });
+      failures.add(signature);
+    }
     await delay(1000);
   } while (Date.now() < until);
   records.push(...health);
