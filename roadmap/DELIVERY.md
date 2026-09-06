@@ -8,8 +8,8 @@ Operate as a continuous development team that selects the single first READY tas
 
 ## Current checkpoint
 - TASK-0001 is merged to `main` at `d479482`; issue #1 is closed.
-- TASK-0002 through TASK-0006 are published as executable contracts by the current docs-only change.
-- TASK-0002 is the singular execution frontier after this contract change is merged.
+- TASK-0002 through TASK-0006 contracts are integrated through PR #3 at `9fcdeae`; merge CI passed.
+- TASK-0002 is IN_PROGRESS on `codex/task-0002-canonical-vehicle-schema`; ADR-0001 precedes implementation. TASK-0003 must not start before TASK-0002 is verified and merged.
 - TASK-0005 is dependency-ready but deliberately queued after TASK-0004 to preserve one ordered frontier.
 
 ## P0 sequence

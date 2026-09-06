@@ -45,12 +45,18 @@ test("declares every architecture boundary as a private workspace package", () =
     const manifest = readJson(`${directory}/package.json`);
     const source = read(`${directory}/src/index.ts`);
     const tsconfig = readJson(`${directory}/tsconfig.json`);
+    const activeContract = expectedName === "@auto-world/vehicle-schema";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
     assert.equal(manifest.private, true);
     assert.equal(manifest.type, "module");
-    assert.deepEqual(manifest.scripts, {
+    assert.deepEqual(manifest.scripts, activeContract ? {
+      build: "tsc -p tsconfig.json",
+      lint: "eslint src test --max-warnings=0",
+      typecheck: "tsc -p tsconfig.test.json --noEmit",
+      test: "node --test test/*.test.mjs",
+    } : {
       build: "tsc -p tsconfig.json",
       lint: "eslint src --max-warnings=0",
       typecheck: "tsc -p tsconfig.json --noEmit",
@@ -64,7 +70,15 @@ test("declares every architecture boundary as a private workspace package", () =
     names.add(manifest.name);
     assert.ok(source.includes(`name: "${expectedName}"`));
     assert.ok(source.includes(`kind: "${expectedKind}"`));
-    assert.ok(source.includes('status: "placeholder"'));
+    assert.ok(source.includes(`status: "${activeContract ? "active" : "placeholder"}"`));
+    if (activeContract) {
+      assert.deepEqual(manifest.exports, {
+        ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
+      });
+      assert.equal(manifest.types, "./dist/index.d.ts");
+      assert.ok(existsSync(path.join(root, directory, "test")));
+      assert.ok(existsSync(path.join(root, directory, "tsconfig.test.json")));
+    }
   }
 });
 

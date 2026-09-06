@@ -14,7 +14,7 @@ Vertical slice: one real permitted source -> ingestion -> raw store -> normaliza
 ## Workspace
 This repository is a pnpm + Turborepo monorepo. Node `22.23.2` and pnpm `10.15.0` are the reproducible toolchain for TypeScript services and apps. Python services can be introduced only where materially useful for data/ML workloads.
 
-The current workspace members are architecture-only placeholders. They establish package boundaries and quality-gate execution without implementing product UI, vehicle contracts, real connectors, authentication or production infrastructure.
+`packages/vehicle-schema` provides the internal V1 VehicleEntity/Listing/Observation contract, strict runtime validation and immutable provenance-bearing evidence. See its [contract guide](packages/vehicle-schema/README.md) and [ADR-0001](docs/decisions/ADR-0001-canonical-vehicle-contract.md). The seven other workspace members remain architecture-only placeholders; no product UI, real connector, authentication or production infrastructure is implemented yet. Track delivery in [the roadmap ledger](roadmap/DELIVERY.md).
 
 ## Deterministic bootstrap
 
@@ -52,7 +52,7 @@ pnpm secrets:check
 pnpm run audit:dependencies
 ```
 
-`pnpm check` runs the same gates in release order. Every workspace placeholder exposes real lint, typecheck, test and build tasks; a zero-task Turbo run is not accepted as validation. The dependency audit fails on any known vulnerability severity.
+`pnpm check` runs the same gates in release order. Every workspace member exposes lint, typecheck, test and build tasks; the active vehicle contract has runtime and type regression tests, while placeholders have build-boundary smoke tests. A zero-task Turbo run is not accepted as validation. The dependency audit fails on any known vulnerability severity.
 
 ## Local environment
 
