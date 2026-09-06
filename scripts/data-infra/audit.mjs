@@ -35,7 +35,21 @@ async function scan(key, pin) {
     `${pin.repository}@${pin.manifestDigest}`];
   try {
     const result = await run("docker", args, { timeoutMs: Math.min(300000, deadline - Date.now()) });
-    if (result.code !== 0) throw new InfraError("infra_image_scan_failed");
+    if (result.code !== 0) {
+      const categories = [
+        ["image_pull_rate_limit", /toomanyrequests|rate.limit/iu],
+        ["image_manifest_unavailable", /manifest unknown|not found|no matching manifest/iu],
+        ["image_access_denied", /unauthorized|denied|forbidden/iu],
+        ["scanner_flag_invalid", /unknown flag|flag provided but not defined/iu],
+        ["scanner_readonly_filesystem", /read.only file system/iu],
+        ["scanner_permission_denied", /permission denied/iu],
+        ["scanner_database_download_failed", /failed to download|database.*error|db error/iu],
+        ["scanner_network_failed", /no such host|connection refused|timeout|certificate/iu],
+        ["scanner_out_of_space", /no space left/iu],
+      ].filter(([, pattern]) => pattern.test(result.stderr)).map(([code]) => code);
+      await writeFile(join(reports, `${key}-failure.json`), JSON.stringify({ exitCode: result.code, categories }, null, 2), { flag: "wx" });
+      throw new InfraError(categories[0] ?? "infra_image_scan_failed");
+    }
   } finally {
     await cleanupScanner(name);
   }
