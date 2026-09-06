@@ -594,6 +594,21 @@ export interface AttemptCompletionReceipt {
   readonly runtime: SourceRuntimeState;
 }
 
+export type SourceRuntimeReduction<T> =
+  | { readonly success: true; readonly data: T; readonly nextState: SourceRuntimeState }
+  | { readonly success: false; readonly failure: { readonly code: "circuit_open" | "stale_fence" | "runtime_conflict" | "invalid_state" } };
+
+export function reduceAttemptReservation(
+  state: SourceRuntimeState,
+  request: ReserveAttemptRequest,
+): SourceRuntimeReduction<AttemptReservation>;
+
+export function reduceAttemptCompletion(
+  state: SourceRuntimeState,
+  reservation: AttemptReservation,
+  request: CompleteAttemptRequest,
+): SourceRuntimeReduction<AttemptCompletionReceipt>;
+
 export interface StageRawRequest extends StoreMutationBase {
   readonly checkpointRevision: number;
   readonly pageOrdinal: number;
@@ -919,6 +934,8 @@ export function parseStoreResult<T>(
 - Fixtures remain synthetic and contain no real source payload, credential, seller PII or VIN. Passing them proves neither authentic authority, durable fencing/storage, source minimization, encryption/retention/takedown workers nor production monitoring.
 
 ## Resolved declaration details
+
+- The two pure runtime reducers implement SDK-owned deterministic rate/circuit transitions. Inputs supply time/configuration; reducers do no I/O and validate source/revision/numeric invariants. They do not authenticate a lease or prove one-time reservation consumption: the enclosing store transaction must fence, bind reservation key/owner and enforce exact replay in its ledger. Half-open expiry starts at the reserved notBefore time plus probe TTL, not before the delayed request can begin. A failed probe reopens for 60 seconds; only typed transient outcomes increment the consecutive-transient counter (clamped at threshold); successful acquisition closes/resets. Acknowledged terminal/rate-limited outcomes outside a probe do not increment it.
 
 - Deterministic ID/key prefixes are `run_`, `page_`, `raw_`, `item_`, `scope_`, `lst_`, `lv_`, `obs_`, `tmb_`, `inv_`, `commit_`, `final_`, `reserve_` followed by 64 lowercase SHA256 hex. Hash kinds are respectively `run`, `page`, `raw`, `item`, `scope`, `listing`, `listing-version`, `observation`, `explicit-tombstone` or `missing-tombstone`, `inventory`, `commit`, `finalization`, `attempt-reservation`. Store lifecycle operation keys for open, stage, completion and terminal use separate `open_`, `stage_`, `attempt_`, `terminal_` prefixes/kinds and fixed scalar order documented with their implementation; these are transport lifecycle keys, never vehicle identities. Stage binds snapshot ID, attempt completion binds reservation key, open binds run/fence, terminal binds run/fence/checkpoint revision/status/stable error.
 
