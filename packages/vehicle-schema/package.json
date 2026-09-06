@@ -3,10 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "eslint src --max-warnings=0",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node ../../scripts/verify-package-build.mjs"
+    "lint": "eslint src test --max-warnings=0",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "pnpm run build && node --test test/*.test.mjs"
   }
 }

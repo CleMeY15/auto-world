@@ -1,6 +1,6 @@
 # TASK-0002 — Canonical vehicle schema
 
-Status: READY
+Status: DONE
 Priority: P0
 Owner role: Domain/schema executor, with independent contract and security review
 
@@ -50,3 +50,8 @@ Create the versioned internal V1 contract that keeps `VehicleEntity`, `Listing`,
 - Run targeted lint/typecheck/test/build, then root `pnpm check`, secrets scan, dependency audit and a clean-checkout run.
 - Record security/privacy, compatibility/rollback, CI URL and independent review in `docs/validation/TASK-0002.md`.
 - After implementation CI and review are green, set `DONE` on the same branch, rerun CI, then merge.
+
+## Validation evidence
+- [TASK-0002 validation](../../docs/validation/TASK-0002.md): 88 runtime tests, compile-time contract fixtures, root gates and fresh-clone proof.
+- [PR #4](https://github.com/CleMeY15/auto-world/pull/4): independent code/spec/security APPROVE and architecture CLEAR at `900ce34`; final evidence/status HEAD must be green before integration.
+- DONE records accepted implementation. Downstream execution still requires this PR merged and its `main` state verified.
