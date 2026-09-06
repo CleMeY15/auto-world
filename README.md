@@ -14,7 +14,7 @@ Vertical slice: one real permitted source -> ingestion -> raw store -> normaliza
 ## Workspace
 This repository is a pnpm + Turborepo monorepo. Node `22.23.2` and pnpm `10.15.0` are the reproducible toolchain for TypeScript services and apps. Python services can be introduced only where materially useful for data/ML workloads.
 
-`packages/vehicle-schema` provides the internal V1 VehicleEntity/Listing/Observation contract, strict runtime validation and immutable provenance-bearing evidence. See its [contract guide](packages/vehicle-schema/README.md) and [ADR-0001](docs/decisions/ADR-0001-canonical-vehicle-contract.md). `packages/source-registry` adds declared source policies, immutable audit revisions, contextual eligibility and operational health under [ADR-0002](docs/decisions/ADR-0002-source-registry-contract.md). Structural eligibility is not real source authorization. The seven other workspace members remain architecture-only placeholders; no product UI, real connector, authentication or production infrastructure is implemented yet. Track delivery and current validation status in [the roadmap ledger](roadmap/DELIVERY.md).
+`packages/vehicle-schema` provides the internal V1 VehicleEntity/Listing/Observation contract, strict runtime validation and immutable provenance-bearing evidence. See its [contract guide](packages/vehicle-schema/README.md) and [ADR-0001](docs/decisions/ADR-0001-canonical-vehicle-contract.md). `packages/source-registry` adds declared source policies, immutable audit revisions, contextual eligibility and operational health under [ADR-0002](docs/decisions/ADR-0002-source-registry-contract.md). Structural eligibility is not real source authorization. The [Connector SDK](connectors/_sdk/README.md) executes bounded ingestion, raw staging, provenance mapping and scoped reconciliation through injected ports under [ADR-0003](docs/decisions/ADR-0003-connector-sdk-contract.md). Its transactional test store and source fixtures are synthetic, not production integrations. The six other workspace members remain architecture-only placeholders; no product UI, real source adapter, authentication or production infrastructure is implemented yet. Track delivery and current validation status in [the roadmap ledger](roadmap/DELIVERY.md).
 
 ## Deterministic bootstrap
 
@@ -52,7 +52,7 @@ pnpm secrets:check
 pnpm run audit:dependencies
 ```
 
-`pnpm check` runs the same gates in release order. Every workspace member exposes lint, typecheck, test and build tasks; the two active contracts have runtime and type regression tests, while seven placeholders have build-boundary smoke tests. Direct source-registry build/test/typecheck rebuild its public vehicle-schema dependency; Turbo also orders dependency builds before typechecking. A zero-task Turbo run is not accepted as validation. The dependency audit fails on any known vulnerability severity.
+`pnpm check` runs the same gates in release order. Every workspace member exposes lint, typecheck, test and build tasks; the three active packages have runtime and type regression tests, while six placeholders have build-boundary smoke tests. Direct source-registry and SDK build/test/typecheck rebuild their public workspace dependencies; Turbo also orders dependency builds before typechecking. A zero-task Turbo run is not accepted as validation. The dependency audit fails on any known vulnerability severity.
 
 ## Local environment
 
