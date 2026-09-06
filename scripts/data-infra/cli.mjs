@@ -67,13 +67,16 @@ export async function main(args) {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export async function runCli(args, { execute = main, emit = (value) => console.log(JSON.stringify(value)) } = {}) {
   try {
-    const result = await withCancellation(() => main(process.argv.slice(2)), { processExit: true });
-    console.log(JSON.stringify([130, 143].includes(process.exitCode) ? { status: "cancelled", code: "process_cancelled" } : result));
-    if (result.health?.some((entry) => entry.status !== "passed")) process.exitCode = 1;
+    const result = await withCancellation(() => execute(args), { processExit: true });
+    const cancelled = [130, 143].includes(process.exitCode);
+    emit(cancelled ? { status: "cancelled", code: "process_cancelled" } : result);
+    if (!cancelled && result.health?.some((entry) => entry.status !== "passed")) process.exitCode = 1;
   } catch (error) {
     console.error(JSON.stringify({ status: "failed", code: error instanceof InfraError ? error.code : "infra_operation_failed" }));
     if (!process.exitCode) process.exitCode = 1;
   }
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await runCli(process.argv.slice(2));

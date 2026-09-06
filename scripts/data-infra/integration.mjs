@@ -27,14 +27,16 @@ async function phase(name, fn) {
     console.log(JSON.stringify(records.at(-1)));
     return result;
   } catch (error) {
-    const sqlstate = error instanceof InfraError && error.code === "infra_sql_failed" ? error.stderr?.match(/ERROR:\s+([A-Z0-9]{5})/u)?.[1] : undefined;
+    const sqlError = error instanceof InfraError ? error : error?.actual instanceof InfraError ? error.actual : undefined;
+    const sqlstate = sqlError?.code === "infra_sql_failed" ? sqlError.stderr?.match(/ERROR:\s+([A-Z0-9]{5})/u)?.[1] : undefined;
+    const checkLine = error?.stack?.match(/\/integration\.mjs:(\d{1,5}):\d+/u)?.[1];
     const s3Failure = error instanceof InfraError && error.code === "infra_s3_request_failed" ? [
       ["access_denied", /\(AccessDenied\)|\(403\)/u], ["invalid_key", /\(InvalidAccessKeyId\)/u],
       ["signature_mismatch", /\(SignatureDoesNotMatch\)/u], ["permission_denied", /Permission denied/iu],
       ["endpoint_unavailable", /Could not connect to the endpoint|Connect timeout|Read timeout/iu],
       ["invalid_cli_option", /Unknown options|Invalid choice/u],
     ].filter(([, pattern]) => pattern.test(error.stderr ?? "")).map(([code]) => code) : undefined;
-    records.push({ phase: name, status: "failed", code: error instanceof InfraError ? error.code : "assertion_failed", ...(sqlstate ? { sqlstate } : {}), ...(s3Failure ? { s3Failure } : {}), durationMs: Date.now() - started });
+    records.push({ phase: name, status: "failed", code: error instanceof InfraError ? error.code : "assertion_failed", ...(sqlstate ? { sqlstate } : {}), ...(checkLine ? { checkLine: Number(checkLine) } : {}), ...(s3Failure ? { s3Failure } : {}), durationMs: Date.now() - started });
     throw error;
   }
 }
@@ -166,7 +168,9 @@ async function suite() {
     assert.equal(parseObservation(vehicleObservation).success, true);
     await insertRow("observation", { ...row("observation"), observation_id: vehicleObservation.observationId, subject_kind: "vehicle", listing_id: null, vehicle_id: fixture.vehicleId });
     await assert.rejects(insertRow("listing_version_observation", { version_id: fixture.versionId, listing_id: fixture.listingId, observation_id: vehicleObservation.observationId }), (error) => /23503/u.test(error.stderr));
-    await assert.rejects(insertRow("listing_version_observation", { version_id: fixture.versionId, listing_id: "lst_case_upper", observation_id: fixture.observations[0].observationId }), (error) => /23503/u.test(error.stderr));
+    // Use an unused membership key: an existing PK would mask the intended FK failure.
+    await insertRow("observation", { ...row("observation"), observation_id: "obs_wrong_membership" });
+    await assert.rejects(insertRow("listing_version_observation", { version_id: fixture.versionId, listing_id: "lst_case_upper", observation_id: "obs_wrong_membership" }), (error) => /23503/u.test(error.stderr));
     for (const value of [
       { ...row("observation"), observation_id: "obs_wrong_digest", sha256: "0".repeat(64) },
       { ...row("observation"), observation_id: "obs_wrong_source", source_id: "src_missing" },
