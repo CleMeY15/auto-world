@@ -387,6 +387,7 @@ function parseRegistryInternal(input: unknown, path: string): InternalResult<Sou
       const unchanged = sameConfiguration(previous.configuration, revision.value.configuration);
       if (revision.value.event.kind === "replace_configuration") {
         if (revision.value.state !== "disabled") return issue("invalid_value", `${revisionPath}.state`);
+        if (unchanged) return issue("invalid_value", `${revisionPath}.configuration`);
       } else {
         if (!unchanged) return issue("invalid_value", `${revisionPath}.configuration`);
         if (revision.value.event.kind === "enable") {

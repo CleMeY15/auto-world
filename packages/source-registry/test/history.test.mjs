@@ -13,7 +13,7 @@ import {
   syntheticRegistry,
   syntheticRevision,
 } from "./fixtures/synthetic.mjs";
-import { assertSuccess } from "./helpers.mjs";
+import { assertIssue, assertSuccess } from "./helpers.mjs";
 
 function enableRevision(configuration = syntheticConfiguration()) {
   return syntheticRevision({
@@ -94,6 +94,38 @@ test("requires configuration replacement to leave the source disabled", () => {
     }),
   });
   assert.equal(appendSourceRevision(current, next).success, false);
+});
+
+test("rejects disabled-to-disabled replacement with unchanged configuration", () => {
+  const current = syntheticRegistry();
+  const next = syntheticRevision({
+    revision: 2,
+    state: "disabled",
+    configuration: cloneSynthetic(current.revisions[0].configuration),
+    event: syntheticEvent({
+      eventId: "aud_synthetic_noop_replace",
+      kind: "replace_configuration",
+      at: "2026-02-01T00:00:00.000Z",
+      reasonRef: "reason_synthetic_replace",
+    }),
+  });
+  assertIssue(appendSourceRevision(current, next), "invalid_value", "$.nextRevision.configuration");
+});
+
+test("rejects enabled-to-disabled replacement with unchanged configuration", () => {
+  const current = syntheticEnabledRegistry();
+  const next = syntheticRevision({
+    revision: 3,
+    state: "disabled",
+    configuration: cloneSynthetic(current.revisions[1].configuration),
+    event: syntheticEvent({
+      eventId: "aud_synthetic_disguised_disable",
+      kind: "replace_configuration",
+      at: "2026-02-01T00:00:00.000Z",
+      reasonRef: "reason_synthetic_replace",
+    }),
+  });
+  assertIssue(appendSourceRevision(current, next), "invalid_value", "$.nextRevision.configuration");
 });
 
 test("retains full prior snapshots across configuration replacement", () => {

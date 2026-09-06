@@ -30,12 +30,12 @@ Opaque audit/reference suffixes use 1–64 ASCII letters/digits/underscore/hyphe
 | Event | Required transition |
 |---|---|
 | `create` | Only genesis revision 1, disabled |
-| `replace_configuration` | Disabled/enabled → disabled; old full snapshot retained |
+| `replace_configuration` | Disabled/enabled → disabled; configuration must change; old full snapshot retained |
 | `enable` | Disabled → enabled; unchanged configuration; every enable precondition valid at event time |
 | `disable` | Enabled → disabled; unchanged configuration |
 | `takedown` | Disabled/enabled → takedown; unchanged configuration; terminal V1 |
 
-Historical parsing validates every transition. An expired policy can describe a historically valid enablement; current eligibility still fails. Only an identical **entire current last revision** replay is idempotent. Otherwise append requires N+1 with a new event ID; older replay, changed reuse, gaps or post-takedown transitions fail. Inputs and previous snapshots remain untouched. Key order is not content identity; array order is. Storage must implement current-head compare-and-swap and immutable durable audit: this package cannot detect a valid truncated historical prefix or authenticate its author.
+Historical parsing validates every transition. An unchanged replacement is rejected: it must not disguise a disable or create a hidden no-op audit event. An expired policy can describe a historically valid enablement; current eligibility still fails. Only an identical **entire current last revision** replay is idempotent. Otherwise append requires N+1 with a new event ID; older replay, changed reuse, gaps or post-takedown transitions fail. Inputs and previous snapshots remain untouched. Key order is not content identity; array order is. Storage must implement current-head compare-and-swap and immutable durable audit: this package cannot detect a valid truncated historical prefix or authenticate its author.
 
 ## Source configuration and policy
 
