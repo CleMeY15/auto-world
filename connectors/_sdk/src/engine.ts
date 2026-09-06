@@ -215,6 +215,7 @@ async function recheckAuthority(ports: ConnectorPorts, checkpoint: RunningConnec
     if (await digestSourceConfiguration(current.configuration) !== checkpoint.configurationSha256) {
       throw new RunFault("policy_revision_changed", "authority", 0);
     }
+    if (now(ports) >= Date.parse(current.obligations.authorizationValidUntil)) throw new RunFault("policy_revoked", "authority", 0);
   } catch (error) {
     if (error instanceof RunFault && error.code === "policy_ineligible") {
       throw new RunFault("policy_revoked", "authority", error.attempt);
@@ -250,7 +251,10 @@ async function ensureLease(ports: ConnectorPorts, signal: AbortSignal, lease: Le
   if (currentMs < lease.renewAtMs && currentMs < lease.current.expiresAtMs) return;
   let raw: unknown;
   try { raw = await bounded(ports, signal, timeoutMs, "lease", 0, (child) => ports.lease.renew({ lease: lease.current, signal: child })); }
-  catch { throw new RunFault("lease_lost", "lease", 0); }
+  catch (error) {
+    if (error instanceof RunFault && error.code === "cancelled") throw error;
+    throw new RunFault("lease_lost", "lease", 0);
+  }
   const parsed = parseSourceLease(raw);
   const renewedAt = now(ports);
   if (!parsed.success || parsed.data.leaseFence !== lease.current.leaseFence || parsed.data.leaseId !== lease.current.leaseId || parsed.data.expiresAtMs <= renewedAt) throw new RunFault("lease_lost", "lease", 0);
@@ -263,7 +267,7 @@ async function waitUntil(ports: ConnectorPorts, signal: AbortSignal, targetMs: n
     const wakeAt = Math.min(targetMs, lease.renewAtMs, deadlineAtMs);
     await sleep(ports, signal, wakeAt - now(ports), attempt);
     if (now(ports) >= deadlineAtMs) throw new RunFault("deadline", "runtime", attempt);
-    await ensureLease(ports, signal, lease, timeoutMs);
+    await ensureLease(ports, signal, lease, effectBudget(ports, deadlineAtMs, timeoutMs, "lease", attempt));
   }
 }
 
@@ -298,8 +302,8 @@ async function finalize(ports: ConnectorPorts, signal: AbortSignal, checkpoint: 
     effectBudget(ports, deadlineAtMs, effectMs, "finalize");
     if (now(ports) >= Date.parse(checkpoint.obligations.authorizationValidUntil)) throw new RunFault("policy_revoked", "authority", 0);
   });
-  await recheckAuthority(ports, checkpoint, signal, effectBudget(ports, deadlineAtMs, effectMs, "authority"));
   await ensureLease(ports, signal, lease, effectBudget(ports, deadlineAtMs, effectMs, "lease"));
+  await recheckAuthority(ports, checkpoint, signal, effectBudget(ports, deadlineAtMs, effectMs, "authority"));
   const receipt = await mutation(ports, signal, effectBudget(ports, deadlineAtMs, effectMs, "finalize"), "finalize", 0, (child) => ports.store.finalizeFullRun({ ...input, signal: child }), parseFullRunReceipt);
   if (receipt.operationKey !== input.operationKey || receipt.finalizationKey !== input.finalizationKey || receipt.result.runId !== checkpoint.runId || receipt.result.pages !== checkpoint.committedPages || receipt.result.items !== checkpoint.committedItems || receipt.result.checkpointRevision !== receipt.checkpointRevision || receipt.checkpointRevision !== checkpoint.checkpointRevision + 1 || receipt.inventoryGenerationId !== input.inventoryGenerationId || receipt.inventoryRevision !== input.expectedInventoryRevision + 1 || !sameData(receipt.inferredMissing, input.inferredMissing)) throw new RunFault("checkpoint_conflict", "finalize", 0);
   emitMutation(ports, { kind: "full.finalized", operationKey: input.operationKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, checkpointRevision: receipt.checkpointRevision });
@@ -448,10 +452,10 @@ export async function runConnector(requestInput: ConnectorRunRequest, ports: Con
     lease = parsedLease.data;
     leaseContext = { current: lease, renewAtMs: startedMs + Math.floor((lease.expiresAtMs - startedMs) / 2) };
     const openKey = await deriveOpenOperationKey(runId, lease.leaseFence);
+    await ensureLease(ports, signal, leaseContext, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "lease"));
     const currentHead = await authority(ports, request, signal, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "authority"));
     if (currentHead.head.authorityRevision !== checked.head.authorityRevision || currentHead.registryRevision !== checked.registryRevision || currentHead.head.authorizationBasisRef !== checked.head.authorizationBasisRef || await digestSourceConfiguration(currentHead.configuration) !== configurationSha256) throw new RunFault("policy_revision_changed", "authority", 0);
     if (now(ports) >= Date.parse(currentHead.obligations.authorizationValidUntil)) throw new RunFault("policy_ineligible", "authority", 0);
-    await ensureLease(ports, signal, leaseContext, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "lease"));
     const opened = await mutation(ports, signal, effectBudget(ports, deadlineAtMs, request.limits.maxEffectMs, "open"), "open", 0, (child) => ports.store.openRun({ schemaVersion: 1, sourceId: request.sourceId, runId: runId!, operationKey: openKey, leaseFence: lease!.leaseFence, signal: child, request, requestSha256, openedAt: timestamp(startedMs), authority: checked.head, registryRevision: checked.registryRevision, configurationSha256, obligations: checked.obligations, operations: checked.operations, scope }), parseOpenRunResult);
     if (opened.checkpoint.sourceId !== request.sourceId || opened.checkpoint.runId !== runId || opened.checkpoint.requestSha256 !== requestSha256 || opened.checkpoint.configurationSha256 !== configurationSha256 || !sameData(opened.checkpoint.request, request) || !sameData(opened.checkpoint.obligations, checked.obligations) || !sameData(opened.checkpoint.scope, scope) || opened.checkpoint.authorityRevision !== checked.head.authorityRevision || opened.checkpoint.registryRevision !== checked.registryRevision || opened.checkpoint.authorizationBasisRef !== checked.head.authorizationBasisRef || (opened.status !== "completed" && (opened.checkpoint.leaseFence !== lease.leaseFence || !sameData(opened.checkpoint.operations, checked.operations)))) {
       throw new RunFault("checkpoint_conflict", "open", 0);

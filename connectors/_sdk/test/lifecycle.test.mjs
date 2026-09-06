@@ -620,6 +620,65 @@ test("full reconciliation checks continuation within large missing-membership de
   assert.equal(checks, 8);
 });
 
+test("a renewal during a rate wait cannot exceed the remaining whole-run budget", async () => {
+  const h = harness({ registry: { operations: { requestsPerMinute: 1 } } });
+  const acquire = h.ports.lease.acquire;
+  h.ports.lease.acquire = async (input) => ({ ...await acquire(input), expiresAtMs: NOW + 100 });
+  let abortedAt = null;
+  h.ports.lease.renew = (input) => new Promise(() => {
+    input.signal.addEventListener("abort", () => { abortedAt = h.time.clock.nowMs(); });
+  });
+  h.ports.adapter.fetchPage = async () => ({ success: false, failure: { kind: "transient" } });
+  const result = await h.run(request({ limits: { maxRunMs: 60 } }));
+  assert.equal(result.status, "failed");
+  assert.equal(abortedAt, NOW + 60);
+  assert.equal(h.time.clock.nowMs(), NOW + 60);
+});
+
+test("cancellation during renewal retains cancelled outcome and cleans SDK timers", async () => {
+  const h = harness({ registry: { operations: { requestsPerMinute: 1 } } });
+  const controller = new globalThis.AbortController();
+  const acquire = h.ports.lease.acquire;
+  h.ports.lease.acquire = async (input) => ({ ...await acquire(input), expiresAtMs: NOW + 100 });
+  h.ports.lease.renew = async () => { controller.abort(); return new Promise(() => {}); };
+  h.ports.adapter.fetchPage = async () => ({ success: false, failure: { kind: "transient" } });
+  const result = await h.run(request(), controller.signal);
+  assert.equal(result.status, "cancelled");
+  assert.equal(result.error.phase, "lease");
+  assert.equal(h.time.timers.size, 0);
+});
+
+for (const phase of ["open", "finalize"]) {
+  test("authorization expiring during the last " + phase + " lease renewal prevents mutation", async () => {
+    const h = harness({ registry: { policy: {
+      authorization: { basisRef: "evidence_sdk_synthetic", reviewerRef: "actor_sdk_reviewer",
+        reviewedAt: "2026-01-01T00:00:00.000Z", validFrom: "2026-01-01T00:00:00.000Z",
+        validUntil: new Date(NOW + 600).toISOString() },
+    } } });
+    const acquire = h.ports.lease.acquire;
+    h.ports.lease.acquire = async (input) => {
+      const value = await acquire(input);
+      if (phase === "open") h.time.advance(400);
+      return { ...value, expiresAtMs: NOW + (phase === "open" ? 600 : 1000) };
+    };
+    const renew = h.ports.lease.renew;
+    h.ports.lease.renew = async (input) => { const value = await renew(input); h.time.advance(phase === "open" ? 300 : 100); return value; };
+    if (phase === "finalize") {
+      const authority = h.ports.authority.loadVerifiedCurrent;
+      let delayed = false;
+      h.ports.authority.loadVerifiedCurrent = async (input) => {
+        const value = await authority(input);
+        if (!delayed && [...h.storage.snapshot().runs.values()].some((run) => run.finalPageCommitKey !== null)) { delayed = true; h.time.advance(550); }
+        return value;
+      };
+    }
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    if (phase === "open") assert.equal(h.storage.snapshot().runs.size, 0);
+    else assert.equal([...h.storage.snapshot().inventories.values()][0].lastCompletedFullAt, null);
+  });
+}
+
 test("pre-start cancellation has no authority/acquisition/store effects", async () => {
   const h = harness();
   const controller = new globalThis.AbortController();
