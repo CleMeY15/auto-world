@@ -63,7 +63,7 @@ async function executeS3(state, operation, { key, bytes, timeoutMs, wrongKey }, 
     if (/\(PreconditionFailed\)|\(412\)/u.test(result.stderr)) return "precondition412";
     if (/\(ConditionalRequestConflict\)|\(409\)/u.test(result.stderr)) return "conflict409";
   }
-  if (result.code !== 0) throw new InfraError("infra_s3_request_failed");
+  if (result.code !== 0) throw new InfraError("infra_s3_request_failed", { stderr: result.stderr });
   if (operation === "get-object") {
     const retrieved = await readFile(join(directory, "output.bin"));
     if (retrieved.length > 1048576) throw new InfraError("infra_s3_object_oversized");

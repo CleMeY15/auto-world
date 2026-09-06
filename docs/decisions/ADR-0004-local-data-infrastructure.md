@@ -51,6 +51,8 @@ SeaweedFS uses `server -dir=/data -s3` without a conflicting filer.toml: volume,
 
 ## Command and credential contract
 
+The local lifecycle S3 identity additionally requires `Admin:aw-raw` to create its fixed bucket: SeaweedFS 4.45 routes PutBucket through `ACTION_ADMIN` ([versioned upstream handler](https://github.com/seaweedfs/seaweedfs/blob/4.45/weed/s3api/s3api_server.go)). All four actions are scoped to `aw-raw`, never global Admin. This is a local initialization/validation identity, not a production connector least-privilege credential. Read/List/Write alone cannot initialize a fresh store; wrong-key and unsigned denial remain required.
+
 `scripts/data-infra/*.mjs` uses Node built-ins and argument-array subprocesses, never a shell-built command. Root scripts expose init, up, status, migrate, stop/start, backup, restore-check, test, down and explicit reset. Commands accept only known options/project IDs and validated local Docker contexts; arbitrary remote endpoints/projects/paths are rejected.
 
 State lives in ignored `.local-data/` per-project directories. Generate strong random local-only secrets exclusively on first initialization; never overwrite inconsistent existing state or print credentials/resolved Compose environment. `.env.example` contains non-secret defaults and generation guidance only. Restore needs matching PostgreSQL credentials separately because the cold volume contains role password hashes. No backup/env/raw content enters CI artifacts.

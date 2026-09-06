@@ -65,7 +65,8 @@ test("project initialization is exclusive, replayable and rejects credential dri
     assert.deepEqual(await runtime.loadProject("aw-test-state"), state);
     assert.deepEqual(await runtime.initProject({ project: "aw-test-state", test: true }), state);
     const s3 = JSON.parse(await readFile(path.join(state.dir, "s3.json"), "utf8"));
-    assert.deepEqual(s3.identities[0].actions, ["Read:aw-raw", "List:aw-raw", "Write:aw-raw"]);
+    assert.deepEqual(s3.identities[0].actions, ["Admin:aw-raw", "Read:aw-raw", "List:aw-raw", "Write:aw-raw"]);
+    assert.ok(s3.identities[0].actions.every((action) => action.endsWith(":aw-raw")));
     assert.equal(s3.identities.some((identity) => identity.name === "anonymous"), false);
     await assert.rejects(
       runtime.initProject({

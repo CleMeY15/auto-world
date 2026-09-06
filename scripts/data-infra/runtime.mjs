@@ -652,7 +652,8 @@ function renderS3Configuration(state) {
             secretKey: state.credentials.s3Secret,
           },
         ],
-        actions: [`Read:${S3_BUCKET}`, `List:${S3_BUCKET}`, `Write:${S3_BUCKET}`],
+        // This local lifecycle identity also creates its one bucket; never grant global Admin.
+        actions: [`Admin:${S3_BUCKET}`, `Read:${S3_BUCKET}`, `List:${S3_BUCKET}`, `Write:${S3_BUCKET}`],
       },
     ],
   };

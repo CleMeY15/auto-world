@@ -28,7 +28,13 @@ async function phase(name, fn) {
     return result;
   } catch (error) {
     const sqlstate = error instanceof InfraError && error.code === "infra_sql_failed" ? error.stderr?.match(/ERROR:\s+([A-Z0-9]{5})/u)?.[1] : undefined;
-    records.push({ phase: name, status: "failed", code: error instanceof InfraError ? error.code : "assertion_failed", ...(sqlstate ? { sqlstate } : {}), durationMs: Date.now() - started });
+    const s3Failure = error instanceof InfraError && error.code === "infra_s3_request_failed" ? [
+      ["access_denied", /\(AccessDenied\)|\(403\)/u], ["invalid_key", /\(InvalidAccessKeyId\)/u],
+      ["signature_mismatch", /\(SignatureDoesNotMatch\)/u], ["permission_denied", /Permission denied/iu],
+      ["endpoint_unavailable", /Could not connect to the endpoint|Connect timeout|Read timeout/iu],
+      ["invalid_cli_option", /Unknown options|Invalid choice/u],
+    ].filter(([, pattern]) => pattern.test(error.stderr ?? "")).map(([code]) => code) : undefined;
+    records.push({ phase: name, status: "failed", code: error instanceof InfraError ? error.code : "assertion_failed", ...(sqlstate ? { sqlstate } : {}), ...(s3Failure ? { s3Failure } : {}), durationMs: Date.now() - started });
     throw error;
   }
 }
