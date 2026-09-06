@@ -69,11 +69,11 @@ export async function main(args) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const result = await withCancellation(() => main(process.argv.slice(2)));
-    console.log(JSON.stringify(result));
+    const result = await withCancellation(() => main(process.argv.slice(2)), { processExit: true });
+    console.log(JSON.stringify([130, 143].includes(process.exitCode) ? { status: "cancelled", code: "process_cancelled" } : result));
     if (result.health?.some((entry) => entry.status !== "passed")) process.exitCode = 1;
   } catch (error) {
     console.error(JSON.stringify({ status: "failed", code: error instanceof InfraError ? error.code : "infra_operation_failed" }));
-    process.exitCode = 1;
+    if (!process.exitCode) process.exitCode = 1;
   }
 }

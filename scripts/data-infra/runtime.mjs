@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   chmod,
+  lstat,
   mkdir,
   open,
   readFile,
@@ -112,14 +113,21 @@ export function run(command, args, { input, env, timeoutMs, signal = operationSi
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
     let child;
+    let failure;
+    let terminationTimer;
 
     const fail = (error) => {
-      if (settled) return;
-      settled = true;
+      if (settled || failure) return;
+      failure = error;
       globalThis.clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
       if (child !== undefined && !child.killed) child.kill("SIGKILL");
-      reject(error);
+      // Rejection must not start recovery while the child is still alive.
+      terminationTimer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new InfraError("process_termination_unverified", { cause: error }));
+      }, 5000);
     };
 
     try {
@@ -166,7 +174,9 @@ export function run(command, args, { input, env, timeoutMs, signal = operationSi
       if (settled) return;
       settled = true;
       globalThis.clearTimeout(timer);
+      globalThis.clearTimeout(terminationTimer);
       signal?.removeEventListener("abort", abort);
+      if (failure) { reject(failure); return; }
       resolve({
         stdout: stdout.toString("utf8"),
         stderr: stderr.toString("utf8"),
@@ -183,6 +193,7 @@ export function createRuntime(checkoutRoot, options = {}) {
   const checkout = path.resolve(checkoutRoot);
   const runProcess = options.runProcess ?? run;
   const ambientEnvironment = options.environment ?? process.env;
+  const persist = options.persistPrivateFile ?? writePrivateFile;
 
   async function initProject({ project, test = false, credentials } = {}) {
     const selectedProject = project ?? (test ? `aw-test-${randomUUID()}` : "aw-local-default");
@@ -218,13 +229,15 @@ export function createRuntime(checkoutRoot, options = {}) {
       ),
     };
 
+    const createdDirectory = await lstat(projectDir);
     try {
-      await writePrivateJson(path.join(projectDir, "state.json"), state);
-      await writePrivateFile(path.join(projectDir, "env"), renderEnvironment(state));
-      await writePrivateJson(path.join(projectDir, "s3.json"), renderS3Configuration(state));
+      await persist(path.join(projectDir, "state.json"), `${JSON.stringify(state, null, 2)}\n`);
+      await persist(path.join(projectDir, "env"), renderEnvironment(state));
+      await persist(path.join(projectDir, "s3.json"), `${JSON.stringify(renderS3Configuration(state), null, 2)}\n`);
       await chmodPrivate(projectDir, 0o700);
       return validateState(state, checkout, projectDir);
     } catch (cause) {
+      await protectedInitializationCleanup(projectDir, projectsDir, selectedProject, createdDirectory);
       throw cause instanceof InfraError ? cause : new InfraError("state_create_failed", { cause });
     }
   }
@@ -615,8 +628,10 @@ async function writePrivateFile(file, contents) {
   await chmodPrivate(file, 0o600);
 }
 
-async function writePrivateJson(file, value) {
-  await writePrivateFile(file, `${JSON.stringify(value, null, 2)}\n`);
+async function protectedInitializationCleanup(directory, parent, name, identity) {
+  const { removeGeneratedDirectory } = await import("./ephemeral.mjs");
+  const { protectedRecovery } = await import("./cancellation.mjs");
+  await protectedRecovery(() => removeGeneratedDirectory(directory, parent, name, new Set(["state.json", "env", "s3.json"]), identity));
 }
 
 async function chmodPrivate(target, mode) {

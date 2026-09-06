@@ -6,10 +6,11 @@ import { protectedRecovery } from "./cancellation.mjs";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 
-async function removeGeneratedDirectory(directory, parent, expectedName, allowed) {
+export async function removeGeneratedDirectory(directory, parent, expectedName, allowed, identity) {
   if (resolve(dirname(directory)) !== resolve(parent) || basename(directory) !== expectedName) throw new InfraError("ephemeral_path_invalid");
   const details = await lstat(directory);
   if (!details.isDirectory() || details.isSymbolicLink()) throw new InfraError("ephemeral_path_invalid");
+  if (identity && (details.dev !== identity.dev || details.ino !== identity.ino)) throw new InfraError("ephemeral_owner_mismatch");
   const actual = await realpath(directory);
   if (dirname(actual) !== await realpath(parent) || basename(actual) !== expectedName) throw new InfraError("ephemeral_path_invalid");
   for (const entry of await readdir(directory, { withFileTypes: true })) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,8 +11,26 @@ import {
   validateTarArchive,
 } from "../scripts/data-infra/backup.mjs";
 import { InfraError, images } from "../scripts/data-infra/runtime.mjs";
+import { withSyntheticBackupDirectory } from "../scripts/data-infra/integration-backup-negative.mjs";
 
 const UUID = "123e4567-e89b-42d3-a456-426614174000";
+
+test("negative backup clones are erased on normal and partial-copy failure, preserving the original", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aw-backup-clone-"));
+  try {
+    await writeFile(path.join(directory, "original"), "must remain");
+    for (const fail of [false, true]) {
+      const work = withSyntheticBackupDirectory(directory, async (clone) => {
+        await writeFile(path.join(clone, "postgres.tar"), "synthetic partial copy");
+        if (fail) throw new Error("injected_copy_failure");
+      });
+      if (fail) await assert.rejects(work, /injected_copy_failure/u);
+      else await work;
+      assert.deepEqual(await readdir(directory), ["original"]);
+      assert.equal(await readFile(path.join(directory, "original"), "utf8"), "must remain");
+    }
+  } finally { await rm(directory, { recursive: true }); }
+});
 
 test("service recovery preserves only exact running and exited states", () => {
   const plan = planServiceRecovery({

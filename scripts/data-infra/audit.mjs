@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { auditSubjects, evaluateImageReport } from "./audit-policy.mjs";
 import { assertLocalDocker, images, root, run, InfraError } from "./runtime.mjs";
 import { operationSignal, protectedRecovery, withCancellation } from "./cancellation.mjs";
+import { removeOwnedHelper } from "./helper-cleanup.mjs";
 
 const owner = randomUUID();
 const base = join(root, ".local-data", "audits", owner);
@@ -13,14 +14,7 @@ const scanner = `${images.trivy.repository}@${images.trivy.manifestDigest}`;
 const deadline = Date.now() + 28 * 60000;
 
 async function cleanupScanner(name) {
-  // Killing a Docker CLI does not guarantee that its remote helper stopped.
-  const remaining = await run("docker", ["container", "ls", "-aq", "--filter", `name=^/${name}$`], { timeoutMs: 10000 });
-  if (remaining.code !== 0) throw new InfraError("infra_audit_cleanup_unverified");
-  if (!remaining.stdout.trim()) return;
-  const inspected = await run("docker", ["inspect", "--format", '{{index .Config.Labels "io.auto-world.owner"}}', name], { timeoutMs: 10000 });
-  if (inspected.code !== 0 || inspected.stdout.trim() !== owner) throw new InfraError("infra_audit_cleanup_unowned");
-  const removed = await run("docker", ["rm", "-f", name], { timeoutMs: 15000 });
-  if (removed.code !== 0) throw new InfraError("infra_audit_cleanup_failed");
+  await removeOwnedHelper(name, owner);
 }
 
 async function scan(key, pin) {
@@ -91,4 +85,4 @@ try {
   console.error(JSON.stringify({ phase: "image-audit", status: "failed", code: error instanceof InfraError ? error.code : "infra_audit_failed" }));
   process.exitCode = 1;
 }
-});
+}, { processExit: true });

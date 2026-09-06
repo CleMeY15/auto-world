@@ -4,6 +4,7 @@ import { compose, images, InfraError, ownedVolumes, port, run, sql } from "./run
 import { conditionalRawWrite, rawKey } from "./raw-protocol.mjs";
 import { withRawScratch } from "./ephemeral.mjs";
 import { protectedRecovery } from "./cancellation.mjs";
+import { removeOwnedHelper } from "./helper-cleanup.mjs";
 
 export async function prepareTools(state) {
   const result = await run("docker", ["pull", "--platform", "linux/amd64", `${images.awsCli.repository}@${images.awsCli.manifestDigest}`], { timeoutMs: bounded(state, 600000) });
@@ -17,13 +18,7 @@ function bounded(state, milliseconds) {
 }
 
 async function cleanupS3Helper(state, name) {
-  const result = await run("docker", ["container", "ls", "-aq", "--filter", `name=^/${name}$`], { timeoutMs: 10000 });
-  if (result.code !== 0) throw new InfraError("infra_helper_cleanup_unverified");
-  if (!result.stdout.trim()) return;
-  const inspected = await run("docker", ["inspect", "--format", '{{index .Config.Labels "io.auto-world.owner"}}', name], { timeoutMs: 10000 });
-  if (inspected.code !== 0 || inspected.stdout.trim() !== state.ownerToken) throw new InfraError("infra_helper_cleanup_unowned");
-  const removed = await run("docker", ["rm", "-f", name], { timeoutMs: 10000 });
-  if (removed.code !== 0) throw new InfraError("infra_helper_cleanup_failed");
+  await removeOwnedHelper(name, state.ownerToken);
 }
 
 export async function s3(state, operation, { key, bytes, timeoutMs = 15000, wrongKey = false } = {}) {

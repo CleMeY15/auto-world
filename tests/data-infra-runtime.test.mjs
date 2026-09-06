@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -94,6 +94,23 @@ test("project guards reject traversal, wrong mode and malformed restore credenti
   } finally {
     await removeCheckout(checkout);
   }
+});
+
+test("partial initialization erases only its newly created secret directory", async () => {
+  const checkout = await makeCheckout();
+  try {
+    for (const failAfter of [0, 1, 2, 3]) {
+      let writes = 0;
+      const runtime = createRuntime(checkout, { persistPrivateFile: async (file, contents) => {
+        if (failAfter === 0) throw new Error("injected_write_failure");
+        await writeFile(file, contents, { flag: "wx", mode: 0o600 });
+        if (++writes === failAfter) throw new Error("injected_write_failure");
+      } });
+      const project = `aw-test-partial-${failAfter}`;
+      await assert.rejects(runtime.initProject({ project, test: true }), hasCode("state_create_failed"));
+      await assert.rejects(access(path.join(checkout, ".local-data", "projects", project)), (error) => error.code === "ENOENT");
+    }
+  } finally { await removeCheckout(checkout); }
 });
 
 test("project lock rejects overlapping operations and is released after completion", async () => {

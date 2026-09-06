@@ -311,4 +311,4 @@ try {
   console.log(JSON.stringify({ phase: "integration", status: failed ? "failed" : "passed", code: failed ? "validation_failed" : "all_real_service_checks_passed" }));
   if (failed) process.exitCode = 1;
 }
-});
+}, { processExit: true });

@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { protectedRecovery } from "./cancellation.mjs";
 import { discardTestProject } from "./ephemeral.mjs";
+import { removeOwnedHelper } from "./helper-cleanup.mjs";
 import {
   InfraError,
   S3_BUCKET,
@@ -408,35 +409,7 @@ export function createBackupRuntime(options = {}) {
   }
 
   async function cleanupHelper(state, helperName) {
-    const cleanupState = independentRecoveryState(state);
-    const listed = await runProcess(
-      "docker",
-      ["container", "ls", "-aq", "--filter", `name=^/${helperName}$`],
-      { timeoutMs: clipped(cleanupState, 10_000) },
-    );
-    if (listed.code !== 0) throw new InfraError("backup_helper_cleanup_unverified", { stderr: listed.stderr });
-    const identifiers = splitLines(listed.stdout);
-    if (identifiers.length === 0) return;
-    if (identifiers.length !== 1) throw new InfraError("backup_helper_cleanup_unverified");
-    const inspected = await runProcess("docker", ["container", "inspect", identifiers[0]], {
-      timeoutMs: clipped(cleanupState, 10_000),
-    });
-    if (inspected.code !== 0) throw new InfraError("backup_helper_cleanup_unverified", { stderr: inspected.stderr });
-    let item;
-    try {
-      [item] = JSON.parse(inspected.stdout);
-    } catch (cause) {
-      throw new InfraError("backup_helper_invalid", { cause });
-    }
-    if (item?.Config?.Labels?.["io.auto-world.owner"] !== state.ownerToken) {
-      throw new InfraError("backup_helper_ownership_mismatch");
-    }
-    await runDocker(
-      cleanupState,
-      ["container", "rm", "--force", identifiers[0]],
-      120_000,
-      "backup_helper_cleanup_failed",
-    );
+    await removeOwnedHelper(helperName, state.ownerToken, { runProcess });
   }
 
   async function assertExclusiveWriters(state, volumes) {

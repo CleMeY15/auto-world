@@ -12,15 +12,17 @@ export function protectedRecovery(action) {
   return context.run({ signal: undefined }, action);
 }
 
-export async function withCancellation(action) {
+export async function withCancellation(action, { processExit = false } = {}) {
   const controller = new globalThis.AbortController();
-  const cancel = () => controller.abort();
-  process.on("SIGINT", cancel);
-  process.on("SIGTERM", cancel);
+  const interrupt = () => controller.abort("SIGINT");
+  const terminate = () => controller.abort("SIGTERM");
+  process.on("SIGINT", interrupt);
+  process.on("SIGTERM", terminate);
   try {
     return await context.run({ signal: controller.signal }, action);
   } finally {
-    process.removeListener("SIGINT", cancel);
-    process.removeListener("SIGTERM", cancel);
+    process.removeListener("SIGINT", interrupt);
+    process.removeListener("SIGTERM", terminate);
+    if (processExit && controller.signal.aborted) process.exitCode = controller.signal.reason === "SIGINT" ? 130 : 143;
   }
 }
