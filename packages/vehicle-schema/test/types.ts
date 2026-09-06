@@ -1,14 +1,39 @@
 import type {
+  ConnectorRunId,
   Listing,
   ListingId,
   Observation,
   ObservationId,
+  RawSnapshotId,
   SourceId,
   VehicleEntity,
   VehicleEntityId,
 } from "../src/index.js";
 
-import { parseSourceId } from "../src/index.js";
+import { parseConnectorRunId, parseListingId, parseObservationId, parseRawSnapshotId, parseSourceId } from "../src/index.js";
+
+const parsedListing = parseListingId("lst_synthetic");
+const parsedObservation = parseObservationId("obs_synthetic");
+const parsedRun = parseConnectorRunId("run_synthetic");
+const parsedRaw = parseRawSnapshotId("raw_synthetic");
+if (parsedListing.success && parsedObservation.success && parsedRun.success && parsedRaw.success) {
+  const accepted: readonly [ListingId, ObservationId, ConnectorRunId, RawSnapshotId] = [
+    parsedListing.data, parsedObservation.data, parsedRun.data, parsedRaw.data,
+  ];
+  // @ts-expect-error a raw snapshot ID is not a connector run ID
+  const crossedRun: ConnectorRunId = parsedRaw.data;
+  // @ts-expect-error a run ID is not a raw snapshot ID
+  const crossedRaw: RawSnapshotId = parsedRun.data;
+  // @ts-expect-error an observation ID is not a listing ID
+  const crossedListing: ListingId = parsedObservation.data;
+  // @ts-expect-error a listing ID is not an observation ID
+  const crossedObservation: ObservationId = parsedListing.data;
+  void accepted;
+  void crossedRun;
+  void crossedRaw;
+  void crossedListing;
+  void crossedObservation;
+}
 
 const parsedSource = parseSourceId("src_synthetic");
 if (parsedSource.success) {
