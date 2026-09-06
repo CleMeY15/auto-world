@@ -8,10 +8,10 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 
 ## Tasks
 1. `TASK-0001-workspace-bootstrap.md` — DONE
-2. `TASK-0002-canonical-vehicle-schema.md` — BLOCKED by TASK-0001
+2. `TASK-0002-canonical-vehicle-schema.md` — READY
 3. `TASK-0003-source-registry-contract.md` — BLOCKED by TASK-0002
 4. `TASK-0004-connector-sdk-contract.md` — BLOCKED by TASK-0002 + TASK-0003
-5. `TASK-0005-local-data-infra.md` — BLOCKED by TASK-0001
+5. `TASK-0005-local-data-infra.md` — READY; queued after TASK-0004 by the singular execution frontier
 6. `TASK-0006-first-vertical-slice-plan.md` — BLOCKED by TASK-0004 + TASK-0005
 
 ## Exit gate
