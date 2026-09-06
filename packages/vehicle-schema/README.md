@@ -9,6 +9,7 @@ Dependency-free V1 internal contracts for vehicle candidates, source publication
 - `appendObservations` returns a fresh collection with the same replay semantics and never mutates existing history.
 - Branded ID, domain and validation-result types are exported from the package root.
 - `parseSourceId` validates the canonical source namespace for other contracts without constructing a vehicle record; the returned ID is not proof of registration or permission.
+- `parseListingId`, `parseObservationId`, `parseConnectorRunId` and `parseRawSnapshotId` expose the same bounded nominal namespaces for the Connector SDK; validation never invents a stored record or crosses ID domains.
 
 Every parser returns a discriminated `ValidationResult`. Failures expose only stable issue codes and schema-owned paths; they never echo source text, VINs or hostile object details. Successful data is reconstructed without caller references and recursively frozen.
 

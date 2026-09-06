@@ -88,6 +88,22 @@ export function parseSourceId(input: unknown): ValidationResult<SourceId> {
   return publicResult(parseId<SourceId>(input, "src_", "$"));
 }
 
+export function parseListingId(input: unknown): ValidationResult<ListingId> {
+  return publicResult(parseId<ListingId>(input, "lst_", "$"));
+}
+
+export function parseObservationId(input: unknown): ValidationResult<ObservationId> {
+  return publicResult(parseId<ObservationId>(input, "obs_", "$"));
+}
+
+export function parseConnectorRunId(input: unknown): ValidationResult<ConnectorRunId> {
+  return publicResult(parseId<ConnectorRunId>(input, "run_", "$"));
+}
+
+export function parseRawSnapshotId(input: unknown): ValidationResult<RawSnapshotId> {
+  return publicResult(parseId<RawSnapshotId>(input, "raw_", "$"));
+}
+
 function parseVersionedObject(
   input: unknown,
   keys: readonly string[],

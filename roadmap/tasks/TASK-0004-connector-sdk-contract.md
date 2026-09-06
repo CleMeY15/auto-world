@@ -1,6 +1,6 @@
 # TASK-0004 — Connector SDK contract
 
-Status: READY after TASK-0003 is merged and verified on `main`
+Status: DONE — implementation validated at `2e83e79`; final PR HEAD CI and integration gate apply
 Priority: P0
 Owner role: Connector-platform executor, with data/security reviewer
 
@@ -50,3 +50,8 @@ Create the source-agnostic connector boundary that safely converts authorized so
 - Connector DoD covers fixtures, parser contracts, incremental/deletion behavior, retry/circuit configuration, health signals and provenance.
 - Record threat/operational impact, telemetry contract, compatibility/rollback, CI and independent review in `docs/validation/TASK-0004.md`.
 - Set `DONE` on the same branch after green implementation review/CI, rerun CI, then merge.
+
+## Validation evidence
+- [Validation report](../../docs/validation/TASK-0004.md): 157 SDK tests, type fixtures, forced root gates, fresh remote clone, independent code/spec/security APPROVE and architecture CLEAR on the same implementation SHA.
+- [PR #6](https://github.com/CleMeY15/auto-world/pull/6) carries final-head CI and integration evidence. No next task starts before merge and main verification.
+- The generic SDK does not activate a real source or provide authenticated production ports, durable storage, retention workers, a source-health dashboard or deployed alerts; these remain mandatory real-source activation gates.

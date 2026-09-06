@@ -34,7 +34,14 @@ importers:
 
   apps/web: {}
 
-  connectors/_sdk: {}
+  connectors/_sdk:
+    dependencies:
+      '@auto-world/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-schema
 
   packages/source-registry:
     dependencies:

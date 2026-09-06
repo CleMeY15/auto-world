@@ -47,8 +47,11 @@ test("declares every architecture boundary as a private workspace package", () =
     const source = read(`${directory}/src/index.ts`);
     const tsconfig = readJson(`${directory}/tsconfig.json`);
     const registry = expectedName === "@auto-world/source-registry";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry;
-    const dependencyBuild = registry ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
+    const connector = expectedName === "@auto-world/connector-sdk";
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector;
+    const dependencyBuild = connector
+      ? "pnpm --filter @auto-world/source-registry build && "
+      : registry ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
@@ -117,10 +120,15 @@ test("keeps all root quality gates executable and non-trivial", () => {
   assert.deepEqual(turbo.tasks.typecheck.dependsOn, ["^typecheck", "^build"]);
 });
 
-test("keeps governance dependent on the public vehicle contract without a cycle", () => {
+test("keeps connector and governance dependencies pointed toward public vehicle contracts", () => {
+  const connector = readJson("connectors/_sdk/package.json");
   const registry = readJson("packages/source-registry/package.json");
   const vehicle = readJson("packages/vehicle-schema/package.json");
   assert.deepEqual(registry.dependencies, { "@auto-world/vehicle-schema": "workspace:*" });
+  assert.deepEqual(connector.dependencies, {
+    "@auto-world/source-registry": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
+  });
   assert.equal(vehicle.dependencies, undefined);
   assert.equal(expectedBoundaries.length, 9);
 });

@@ -33,3 +33,7 @@ Version external contracts. Cursor pagination. Typed errors. Request IDs. Rate l
 ## Internal source-policy boundary
 
 `packages/source-registry` owns source governance and depends only on the public `packages/vehicle-schema` contract for shared identity/result types. The dependency is one-way; vehicle data does not import governance. [ADR-0002](../decisions/ADR-0002-source-registry-contract.md) defines V1 immutable policy revisions, contextual grants, structural eligibility and independent health. A future authoritative-registry port must supply authenticated current state before any connector acts; this pure package does not establish that trust boundary itself.
+
+## Executable connector boundary
+
+`connectors/_sdk` depends on both public contract packages and implements [ADR-0003](../decisions/ADR-0003-connector-sdk-contract.md) over injected authoritative-registry, lease, transactional-store and adapter ports. The SDK owns bounded decoding, provenance construction and deterministic lifecycle rules; a production store owns authenticated fenced atomicity, durable source-wide rate/circuit state, checkpoints, inventory and ledger/outbox. Raw staging precedes decoding; page commits and full finalization are separate atomic boundaries. No persistence vendor or real adapter is selected by this SDK. The [integration guide](../../connectors/_sdk/README.md) separates synthetic proof from mandatory real activation gates.
