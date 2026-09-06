@@ -111,8 +111,11 @@ export async function serviceHealth(state) {
     try {
       await probe();
       return { service, phase: "usable-health", status: "passed", code: "ready", durationMs: Date.now() - started };
-    } catch {
-      return { service, phase: "usable-health", status: "failed", code: "dependency_unavailable", durationMs: Date.now() - started };
+    } catch (error) {
+      const reason = error instanceof InfraError && /^[a-z_]{1,64}$/u.test(error.code) ? error.code :
+        ["ECONNREFUSED", "EHOSTUNREACH", "ETIMEDOUT"].includes(error?.cause?.code) ? error.cause.code : "probe_failed";
+      const accessDenied = error instanceof InfraError && /\(AccessDenied\)|\(403\)/u.test(error.stderr ?? "");
+      return { service, phase: "usable-health", status: "failed", code: "dependency_unavailable", reason, ...(accessDenied ? { accessDenied: true } : {}), durationMs: Date.now() - started };
     }
   }));
 }

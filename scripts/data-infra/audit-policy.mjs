@@ -1,3 +1,18 @@
+// Candidate evidence supplements the shipped inventory; it never replaces a subject.
+export function auditSubjects(shipped, candidates) {
+  if (candidates?.schemaVersion !== 1 || !candidates.images || typeof candidates.images !== "object" || Array.isArray(candidates.images)) throw new Error("infra_audit_candidates_invalid");
+  const subjects = Object.entries(shipped).map(([key, pin]) => ({ key, pin, purpose: "shipped" }));
+  for (const [role, pin] of Object.entries(candidates.images)) {
+    if (!["postgres", "redis"].includes(role) || pin?.repository !== shipped[role]?.repository ||
+        typeof pin.version !== "string" || !/^[0-9]+\.[0-9]+(?:\.[0-9]+)?-alpine[0-9]+\.[0-9]+$/u.test(pin.version) ||
+        !/^sha256:[a-f0-9]{64}$/u.test(pin.manifestDigest ?? "") ||
+        !/^sha256:[a-f0-9]{64}$/u.test(pin.platform?.digest ?? "") ||
+        pin.platform?.os !== "linux" || pin.platform?.architecture !== "amd64" || pin.platform?.variant !== null) throw new Error("infra_audit_candidates_invalid");
+    subjects.push({ key: `candidate-${role}`, pin, purpose: "candidate-not-adopted" });
+  }
+  return subjects;
+}
+
 export function evaluateImageReport(report, pin, dispositions = [], now = new Date()) {
   if (report?.SchemaVersion !== 2 || report.Trivy?.Version !== "0.74.0" ||
       !Number.isFinite(Date.parse(report.CreatedAt)) || !Array.isArray(report.Results) || !report.Results.length ||

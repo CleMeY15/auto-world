@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "postgres": {
+      "repository": "postgres",
+      "version": "17.11-alpine3.24",
+      "manifestDigest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"
+      }
+    },
+    "redis": {
+      "repository": "redis",
+      "version": "8.4.6-alpine3.22",
+      "manifestDigest": "sha256:12da49daa000c2be4d55118574f889c8cc298140ecf343d04f345c818f227823",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:4c11cf5900ff67ec9dc7bd33f1d2ab437a64ee0ac9b49ff85f4b21b6f3b9d0fd"
+      }
+    }
+  }
+}

@@ -219,6 +219,8 @@ async function suite() {
     await stop(state, ["redis"]);
     const saved = await backup(state);
     assert.equal((await serviceStates(state)).redis.state, "exited");
+    const { rejectUnsafeRestore } = await import("./integration-backup-negative.mjs");
+    await phase("restore-refuses-platform-tamper-and-existing-target", () => rejectUnsafeRestore(state, saved));
     const restored = await restoreCheck(state, saved.backupId, { verify: async (target) => {
       assert.equal(await snapshot(target), before);
       assert.equal(digestBytes(await s3(target, "get-object", { key: fixture.raw.object_key })), fixture.sha256);

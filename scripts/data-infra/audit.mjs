@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { evaluateImageReport } from "./audit-policy.mjs";
+import { auditSubjects, evaluateImageReport } from "./audit-policy.mjs";
 import { assertLocalDocker, images, root, run, InfraError } from "./runtime.mjs";
 import { operationSignal, protectedRecovery, withCancellation } from "./cancellation.mjs";
 
@@ -74,13 +74,14 @@ try {
   const policy = JSON.parse(await readFile(join(root, "infra", "image-risk-dispositions.json"), "utf8"));
   if (policy.schemaVersion !== 1 || !Array.isArray(policy.dispositions)) throw new InfraError("infra_audit_policy_invalid");
   const summary = [];
-  for (const [key, pin] of Object.entries(images)) {
+  const candidates = JSON.parse(await readFile(join(root, "infra", "image-candidates.json"), "utf8"));
+  for (const { key, pin, purpose } of auditSubjects(images, candidates)) {
     if (operationSignal()?.aborted) throw new InfraError("process_cancelled");
     try {
       const result = evaluateImageReport(await scan(key, pin), pin, policy.dispositions);
-      summary.push({ image: key, ...result });
+      summary.push({ image: key, purpose, ...result });
     } catch (error) {
-      summary.push({ image: key, findings: [], blockers: [{ code: error instanceof InfraError ? error.code : "infra_audit_validation_failed" }] });
+      summary.push({ image: key, purpose, findings: [], blockers: [{ code: error instanceof InfraError ? error.code : "infra_audit_validation_failed" }] });
     }
   }
   await writeFile(join(reports, "summary.json"), JSON.stringify({ schemaVersion: 1, at: new Date().toISOString(), images: summary }, null, 2), { flag: "wx" });
