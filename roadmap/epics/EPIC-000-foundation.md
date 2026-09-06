@@ -9,8 +9,8 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 ## Tasks
 1. `TASK-0001-workspace-bootstrap.md` — DONE
 2. `TASK-0002-canonical-vehicle-schema.md` — DONE; PR #4 merged at `fe82aaf`, main CI green
-3. `TASK-0003-source-registry-contract.md` — DONE; dependency usable only after PR #5 integration and verified main
-4. `TASK-0004-connector-sdk-contract.md` — READY after TASK-0003 is merged and verified on `main`
+3. `TASK-0003-source-registry-contract.md` — DONE; PR #5 merged and main verified at `79e6ab0`
+4. `TASK-0004-connector-sdk-contract.md` — IN_PROGRESS; ADR-0003 accepted, implementation/validation pending
 5. `TASK-0005-local-data-infra.md` — READY; queued after TASK-0004 by the singular execution frontier
 6. `TASK-0006-first-vertical-slice-plan.md` — BLOCKED by TASK-0004 + TASK-0005
 

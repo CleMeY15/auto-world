@@ -1,6 +1,6 @@
 # TASK-0004 — Connector SDK contract
 
-Status: READY after TASK-0003 is merged and verified on `main`
+Status: IN_PROGRESS — ADR-0003 accepted; implementation and validation are not complete
 Priority: P0
 Owner role: Connector-platform executor, with data/security reviewer
 
