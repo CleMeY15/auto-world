@@ -61,6 +61,17 @@ function requireLiveRaw(ports: ConnectorPorts, pending: PendingRawPage): void {
   if (now(ports) >= Date.parse(pending.deadlines.rawRetainUntil)) throw new RunFault("retention_expired", "stage_raw", 0);
 }
 
+async function withinRawRetention<T>(ports: ConnectorPorts, pending: PendingRawPage, maximumMs: number, operation: (budgetMs: number) => Promise<T>): Promise<T> {
+  const expiresAtMs = Date.parse(pending.deadlines.rawRetainUntil);
+  const remainingMs = expiresAtMs - now(ports);
+  if (remainingMs <= 0) throw new RunFault("retention_expired", "stage_raw", 0);
+  try { return await operation(Math.min(maximumMs, remainingMs)); }
+  catch (error) {
+    if (error instanceof RunFault && error.code === "deadline" && now(ports) >= expiresAtMs) throw new RunFault("retention_expired", "stage_raw", 0);
+    throw error;
+  }
+}
+
 function validPageTransition(receipt: PageCommitReceipt, before: RunningConnectorCheckpoint, pending: PendingRawPage, effects: CanonicalPageEffects, itemCount: number, committedAt: string): boolean {
   const after = receipt.checkpoint;
   const incremental = before.request.mode === "incremental";
@@ -328,7 +339,7 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
       pending = checkpoint.pendingRaw;
       requireLiveRaw(ports, pending);
       await requireMutationReceipt(ports, signal, checkpoint, pending.operationKey, "raw.staged", timeout("stage_raw"));
-      const staged = await storeRead(ports, signal, timeout("stage_raw"), "stage_raw", (child) => ports.store.loadStagedRaw({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, snapshotId: pending.snapshotId, leaseFence: checkpoint.leaseFence, asOf: timestamp(now(ports)), signal: child }), parseStagedRawPage);
+      const staged = await withinRawRetention(ports, pending, timeout("stage_raw"), (budgetMs) => storeRead(ports, signal, budgetMs, "stage_raw", (child) => ports.store.loadStagedRaw({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, snapshotId: pending.snapshotId, leaseFence: checkpoint.leaseFence, asOf: timestamp(now(ports)), signal: child }), parseStagedRawPage));
       if (staged.pending.operationKey !== pending.operationKey || staged.pending.sha256 !== pending.sha256 || staged.pending.snapshotId !== pending.snapshotId) throw new RunFault("raw_conflict", "stage_raw", 0);
       bytes = staged.bytes;
       if (await sha256Bytes(bytes) !== pending.sha256 || !sameData(staged.obligations, checkpoint.obligations) || !sameData(staged.pending, pending)) {
@@ -389,7 +400,7 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
     if (!decoded.success) throw new RunFault(decoded.issues[0]?.code ?? "invalid_json", "decode", 0);
     requireLiveRaw(ports, pending);
     let mappedRaw: unknown;
-    try { mappedRaw = await bounded(ports, signal, timeout("map"), "map", 0, (child) => ports.adapter.mapPage({ sourceId: checkpoint.sourceId, runId: checkpoint.runId, territory: checkpoint.request.territory, acquisitionMethod: checkpoint.request.acquisitionMethod, fields: checkpoint.request.fields, raw: { snapshotId: pending.snapshotId, connectorRunId: checkpoint.runId, sha256: pending.sha256 }, decoded: decoded.data, signal: child })); }
+    try { mappedRaw = await withinRawRetention(ports, pending, timeout("map"), (budgetMs) => bounded(ports, signal, budgetMs, "map", 0, (child) => ports.adapter.mapPage({ sourceId: checkpoint.sourceId, runId: checkpoint.runId, territory: checkpoint.request.territory, acquisitionMethod: checkpoint.request.acquisitionMethod, fields: checkpoint.request.fields, raw: { snapshotId: pending.snapshotId, connectorRunId: checkpoint.runId, sha256: pending.sha256 }, decoded: decoded.data, signal: child }))); }
     catch (error) { if (error instanceof RunFault) throw error; throw new RunFault("adapter_output_invalid", "map", 0); }
     requireLiveRaw(ports, pending);
     const mapped = parseMappedPageDraft(mappedRaw);

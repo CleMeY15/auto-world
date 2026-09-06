@@ -679,6 +679,47 @@ for (const phase of ["open", "finalize"]) {
   });
 }
 
+test("in-flight mapping is aborted at raw expiry and a later result cannot commit", async () => {
+  const h = harness({ registry: { operations: { timeoutMs: 2000 }, policy: {
+    retention: { rawSeconds: 1, normalizedSeconds: 100, mediaSeconds: 0, piiSeconds: 0 },
+  } } });
+  let childSignal;
+  let abortedAt = null;
+  let resolveLate;
+  h.ports.adapter.mapPage = (input) => {
+    childSignal = input.signal;
+    input.signal.addEventListener("abort", () => { abortedAt = h.time.clock.nowMs(); });
+    return new Promise((resolve) => { resolveLate = resolve; });
+  };
+  const result = await h.run();
+  assert.equal(result.error.code, "retention_expired");
+  assert.equal(result.error.phase, "stage_raw");
+  assert.equal(abortedAt, NOW + 1000);
+  assert.equal(childSignal.aborted, true);
+  resolveLate({ items: [activeItem()] });
+  await Promise.resolve();
+  assert.equal(h.storage.snapshot().observations.size, 0);
+  assert.equal(h.time.timers.size, 0);
+});
+
+test("resumed raw load is aborted at its remaining retention deadline", async () => {
+  const h = harness({ registry: { operations: { timeoutMs: 2000 }, policy: {
+    retention: { rawSeconds: 1, normalizedSeconds: 100, mediaSeconds: 0, piiSeconds: 0 },
+  } } });
+  h.storage.faults.set("raw.staged", "after");
+  assert.equal((await h.run()).status, "failed");
+  h.time.advance(500);
+  let abortedAt = null;
+  h.ports.store.loadStagedRaw = (input) => new Promise(() => {
+    input.signal.addEventListener("abort", () => { abortedAt = h.time.clock.nowMs(); });
+  });
+  const result = await h.run();
+  assert.equal(result.error.code, "retention_expired");
+  assert.equal(abortedAt, NOW + 1000);
+  assert.equal(h.storage.snapshot().observations.size, 0);
+  assert.equal(fetches(h).length, 1);
+});
+
 test("pre-start cancellation has no authority/acquisition/store effects", async () => {
   const h = harness();
   const controller = new globalThis.AbortController();
