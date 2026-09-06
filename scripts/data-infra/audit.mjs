@@ -25,10 +25,13 @@ async function cleanupScanner(name) {
 async function scan(key, pin) {
   const name = `aw-audit-${owner}-${key.toLowerCase()}`;
   const started = Date.now();
+  const scratch = join(base, "scratch", key);
+  await mkdir(scratch, { recursive: true, mode: 0o700 });
   const args = ["run", "--rm", "--name", name, "--label", `io.auto-world.owner=${owner}`,
     "--user", `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`,
     "--platform", "linux/amd64", "--memory", "1536m", "--cpus", "2", "--pids-limit", "256",
-    "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--tmpfs", "/tmp:rw,size=1g",
+    "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
+    "--mount", `type=bind,source=${scratch},target=/tmp`,
     "--mount", `type=bind,source=${cache},target=/cache`, "--mount", `type=bind,source=${reports},target=/reports`,
     scanner, "image", "--cache-dir", "/cache", "--image-src", "remote", "--platform", "linux/amd64",
     "--scanners", "vuln", "--severity", "HIGH,CRITICAL", "--format", "json", "--output", `/reports/${key}.json`,

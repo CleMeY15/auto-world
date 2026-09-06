@@ -124,6 +124,17 @@ async function suite() {
   });
   await phase("relational-negative-cases-and-privileges", async () => {
     const row = (name) => globalThis.structuredClone(fixture.rows.find(([table]) => table === name)[1]);
+    const { parseListing, parseObservation } = await import("@auto-world/vehicle-schema");
+    for (const [suffix, publication] of [["case_upper", "Offer-A"], ["case_lower", "offer-a"], ["composed", "caf\u00e9"], ["decomposed", "cafe\u0301"]]) {
+      const listingId = `lst_${suffix}`;
+      assert.equal(parseListing({ ...fixture.listing, listingId, sourceListingId: publication, observationIds: [] }).success, true);
+      await insertRow("listing", { ...row("listing"), listing_id: listingId, source_listing_id: publication });
+    }
+    const vehicleObservation = { ...fixture.observations[0], observationId: "obs_vehicle_evidence", subject: { kind: "vehicle", vehicleId: fixture.vehicleId } };
+    assert.equal(parseObservation(vehicleObservation).success, true);
+    await insertRow("observation", { ...row("observation"), observation_id: vehicleObservation.observationId, subject_kind: "vehicle", listing_id: null, vehicle_id: fixture.vehicleId });
+    await assert.rejects(insertRow("listing_version_observation", { version_id: fixture.versionId, listing_id: fixture.listingId, observation_id: vehicleObservation.observationId }), (error) => /23503/u.test(error.stderr));
+    await assert.rejects(insertRow("listing_version_observation", { version_id: fixture.versionId, listing_id: "lst_case_upper", observation_id: fixture.observations[0].observationId }), (error) => /23503/u.test(error.stderr));
     for (const value of [
       { ...row("observation"), observation_id: "obs_wrong_digest", sha256: "0".repeat(64) },
       { ...row("observation"), observation_id: "obs_wrong_source", source_id: "src_missing" },
@@ -146,6 +157,12 @@ async function suite() {
     await expectSql("UPDATE aw_migration.version SET checksum = repeat('0',64);", "23514");
     await expectSql(migrationSql("down"), "23514");
     await sql(state, "UPDATE aw_foundation.outbox_delivery SET attempts = 1;", { role: "writer" });
+    const uncovered = await sql(state, `SELECT c.conname FROM pg_constraint c
+      WHERE c.contype = 'f' AND c.connamespace = 'aw_foundation'::regnamespace
+      AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indisvalid AND i.indpred IS NULL
+        AND (SELECT array_agg(k ORDER BY ordinal) FROM unnest(i.indkey::smallint[]) WITH ORDINALITY AS columns(k, ordinal)
+          WHERE ordinal <= cardinality(c.conkey)) = c.conkey);`);
+    assert.equal(uncovered.trim(), "");
   });
   await phase("outbox-pending-index", async () => {
     await sql(state, `BEGIN;
@@ -223,6 +240,27 @@ try {
   });
 } catch {
   failed = true;
+  if (state) {
+    try {
+      const states = await serviceStates(state);
+      records.push(...Object.entries(states).map(([service, value]) => ({ service, phase: "failure-diagnostic", state: ["running", "exited", "created", "restarting", "absent"].includes(value.state) ? value.state : "unknown", health: ["healthy", "unhealthy", "starting", ""].includes(value.health) ? value.health : "unknown" })));
+      for (const service of Object.keys(states)) {
+        const listing = await run("docker", ["ps", "-aq", "--filter", `label=com.docker.compose.project=${state.project}`, "--filter", `label=com.docker.compose.service=${service}`], { timeoutMs: 10000 });
+        if (listing.code !== 0 || !/^[a-f0-9]{12,64}$/u.test(listing.stdout.trim())) continue;
+        const logs = await run("docker", ["logs", "--tail", "100", listing.stdout.trim()], { timeoutMs: 10000 });
+        const output = `${logs.stdout}\n${logs.stderr}`;
+        const categories = [
+          ["permission_denied", /permission denied/iu], ["unknown_flag", /flag provided but not defined|unknown flag|unknown option/iu],
+          ["sql_syntax_error", /syntax error/iu], ["authentication_failed", /password authentication failed|authentication failed/iu],
+          ["missing_configuration", /No such file|cannot.*config|failed.*config/iu], ["memory_failure", /out of memory|cannot allocate memory/iu],
+          ["bootstrap_check_failed", /bootstrap checks failed/iu], ["java_error", /Exception|java.lang.Error/u],
+          ["postgres_role_creation_failed", /role .* already exists|must be superuser/iu], ["kernel_map_limit", /vm.max_map_count/iu],
+        ].filter(([, pattern]) => pattern.test(output)).map(([code]) => code);
+        const badFlag = output.match(/(?:flag provided but not defined|unknown flag):\s*(-?[a-zA-Z0-9._-]+)/u)?.[1];
+        records.push({ service, phase: "startup-log-classification", categories, ...(badFlag ? { rejectedFlag: badFlag } : {}) });
+      }
+    } catch { records.push({ phase: "failure-diagnostic", status: "failed", code: "diagnostic_unavailable" }); }
+  }
 } finally {
   if (state) {
     try {
