@@ -83,6 +83,11 @@ function parseId<T extends string>(
   return valid(parsed.value as T);
 }
 
+/** Validate the shared source identity without constructing a vehicle record. */
+export function parseSourceId(input: unknown): ValidationResult<SourceId> {
+  return publicResult(parseId<SourceId>(input, "src_", "$"));
+}
+
 function parseVersionedObject(
   input: unknown,
   keys: readonly string[],

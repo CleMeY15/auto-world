@@ -24,3 +24,9 @@ Raw payload/object snapshots must allow parser vN+1 to replay history without so
 
 ## Reconciliation
 Incremental sync continuously + periodic full reconciliation to detect missing/deleted listings.
+
+## Source Registry V1 contract
+
+[ADR-0002](../decisions/ADR-0002-source-registry-contract.md) defines the machine-readable source configuration, scoped rights, retention/media/PII/takedown obligations, full policy/audit revision history and explicit health windows. Rights clauses bind one territory, acquisition method and audience to fields; unrelated clauses must never be combined into a broader grant. Replacing configuration disables eligibility pending a new enable event. Expiry is checked at evaluation time without erasing valid historical approvals.
+
+`evaluatePolicyEligibility` describes consistency with declared policy only. Operational callers must read authenticated current registry state, verify legal evidence, enforce all obligations and re-evaluate at acquisition/publication boundaries. Health cannot authorize a source. No source, licence, retention worker, dashboard or network connector is introduced by the contract package.

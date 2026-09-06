@@ -8,6 +8,17 @@ import type {
   VehicleEntityId,
 } from "../src/index.js";
 
+import { parseSourceId } from "../src/index.js";
+
+const parsedSource = parseSourceId("src_synthetic");
+if (parsedSource.success) {
+  const acceptedSource: SourceId = parsedSource.data;
+  // @ts-expect-error source parser cannot produce a listing ID
+  const wrongDomain: ListingId = parsedSource.data;
+  void acceptedSource;
+  void wrongDomain;
+}
+
 declare const vehicleId: VehicleEntityId;
 declare const listingId: ListingId;
 declare const observationId: ObservationId;
