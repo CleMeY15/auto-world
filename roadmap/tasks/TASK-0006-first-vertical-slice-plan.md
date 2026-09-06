@@ -24,6 +24,7 @@ Produce an implementation-ready P1 plan for one authorized or synthetic source f
 - Map source -> connector -> immutable raw -> validation -> normalization -> observations -> entity candidate -> PostgreSQL -> index -> API -> responsive web.
 - Define exact contracts, service ownership, migrations, events/outbox, idempotency, reconciliation and rollback checkpoints.
 - Define a thin user flow from search intent to results and vehicle detail with progressive disclosure.
+- Include accountless/local favorites and visible observation history in the P1 flow; account synchronization remains P2.
 - Specify mobile and desktop layouts plus skeleton, empty, error, offline, slow, partial and success states.
 - Set accessibility checks, analytics events, privacy handling and measurable performance budgets, including search p95 below 500 ms outside generation.
 - Define telemetry, source-health alerts, data-quality metrics and incident/takedown path.
@@ -37,6 +38,7 @@ Produce an implementation-ready P1 plan for one authorized or synthetic source f
 - Every critical canonical field traces to an observation and raw SHA-256 reference; contradictions and removals remain historical evidence.
 - No service invents canonical fields, rights semantics, retry/deletion behavior or identity resolution.
 - User-flow states, accessibility criteria, visual review viewports and performance budgets are testable.
+- P1 task contracts and E2E criteria cover save/remove/reopen favorites, local persistence, empty favorites and traceable observation-history display.
 - Implementation tasks form an acyclic sequence and each satisfies DoR before P1 execution.
 - Security, operational, migration/rollback and feature-flag decisions have owners and verification methods.
 

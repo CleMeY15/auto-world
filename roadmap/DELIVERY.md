@@ -35,7 +35,7 @@ Operate as a continuous development team that selects the single first READY tas
 10. Reconcile roadmap/epic state and immediately select the next singular READY task.
 
 ## P1 through P5 gates
-- P1 NOT DONE: prove one authorized or labeled-synthetic path through raw, canonical provenance, index, API and premium web UI.
+- P1 NOT DONE: prove one authorized or labeled-synthetic path through raw, canonical provenance, index, API, premium web UI, local favorites and observation history. Synthetic proof does not satisfy the authorized-source production exit gate.
 - P2 NOT DONE: France/Germany/Korea MVP waits for authorized coverage and contracts for accounts, alerts, identity, specs, emissions and registration.
 - P3 NOT DONE: pricing, Deal/Trust, import, compare and focused CV require golden datasets, explainability and confidence gates.
 - P4 NOT DONE: Europe/Asia scale and dealer/B2B alpha require measured reliability, capacity, cost and partner rights.

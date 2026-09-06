@@ -20,6 +20,8 @@ Create the versioned internal V1 contract that keeps `VehicleEntity`, `Listing`,
 - Write `ADR-0001-canonical-vehicle-contract.md` before code; record all V1 lexical, value, compatibility and rollback choices.
 - Replace only `packages/vehicle-schema` placeholder behavior; add no dependency.
 - Export readonly TypeScript contracts plus strict parsers from already-parsed `unknown` objects.
+- Give each Listing a stable `sourceId` plus `sourceListingId`; a URL is optional metadata, never publication identity.
+- Give every Observation an explicit subject discriminator (`vehicle` or `listing`) and the corresponding namespaced ID.
 - Fix runtime ID namespaces as `veh_`, `lst_`, `obs_`, `src_`, `run_` and `raw_` for vehicle, listing, observation, source, connector-run and raw-snapshot IDs.
 - Make observation `field` a closed discriminant: mileage uses `km|mi`, power uses `kw|metric_hp`, and CO2 uses `g_per_km` plus `wltp|nedc`.
 - Permit money only as safe integer minor units with currency in `EUR|USD|GBP|CHF|JPY|KRW`; there is no unknown currency value.
@@ -37,6 +39,7 @@ Create the versioned internal V1 contract that keeps `VehicleEntity`, `Listing`,
 ## Acceptance criteria
 - `schemaVersion` is exactly `1`; all other versions, unknown keys, dangerous prototypes/accessors, coercion, invalid IDs/times/VINs/digests/units/currencies and unsafe numbers fail with stable code/path issues that contain no input values.
 - Valid synthetic records round-trip and preserve distinct entity/listing identity, each observation, provenance and raw reference.
+- Missing source publication identity, URL-only identity and subject discriminator/ID mismatches are rejected by runtime and compile-time tests.
 - Mutating caller input after parsing cannot affect output; nested output mutation fails.
 - Conflicting observations remain addressable without a resolution claim.
 - Workspace contract marks only `@auto-world/vehicle-schema` active; seven untouched boundaries remain placeholders.
