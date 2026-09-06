@@ -1,6 +1,6 @@
 # TASK-0003 — Source Registry contract
 
-Status: READY after TASK-0002 is merged and verified on `main`
+Status: DONE — implementation validated at `cdb1187`; dependency usable only after PR #5 final checks, merge and main verification
 Priority: P0
 Owner role: Data-governance executor, with legal/security reviewer
 
@@ -16,6 +16,7 @@ Define the authoritative, fail-closed contract for source rights, acquisition po
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/DEFINITION_OF_DONE.md`
 - TASK-0002 canonical IDs and provenance contract
+- `docs/decisions/ADR-0002-source-registry-contract.md`
 
 ## Scope
 - Record an ADR for Source Registry ownership, state transitions and compatibility before consumers couple to it.
@@ -48,3 +49,7 @@ Define the authoritative, fail-closed contract for source rights, acquisition po
 - Targeted and root lint/typecheck/tests/build, secrets scan, dependency audit and clean-checkout verification pass.
 - Security/privacy and legal-data review approve fail-closed behavior; observability and rollback/versioning notes are recorded.
 - CI/review evidence is linked in `docs/validation/TASK-0003.md`; set `DONE` on the same branch only after green review/CI, rerun CI, then merge.
+
+## Validation evidence
+
+`docs/validation/TASK-0003.md` records acceptance mapping, 77 registry tests, 91 vehicle tests, full forced root gates, fresh corrected remote clone, independent code/security APPROVE and architecture CLEAR, and implementation CI. PR #5 remains responsible for final-head CI and verified main integration before TASK-0004.

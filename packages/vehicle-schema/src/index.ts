@@ -9,6 +9,7 @@ export {
   parseListing,
   parseObservation,
   parseObservationCollection,
+  parseSourceId,
   parseVehicleEntity,
 } from "./parsers.js";
 

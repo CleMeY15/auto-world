@@ -17,6 +17,7 @@ const expectedBoundaries = [
   ["services/search", "@auto-world/search", "service"],
   ["services/ai", "@auto-world/ai", "service"],
   ["packages/vehicle-schema", "@auto-world/vehicle-schema", "package"],
+  ["packages/source-registry", "@auto-world/source-registry", "package"],
   ["connectors/_sdk", "@auto-world/connector-sdk", "connector-sdk"],
 ];
 
@@ -45,16 +46,18 @@ test("declares every architecture boundary as a private workspace package", () =
     const manifest = readJson(`${directory}/package.json`);
     const source = read(`${directory}/src/index.ts`);
     const tsconfig = readJson(`${directory}/tsconfig.json`);
-    const activeContract = expectedName === "@auto-world/vehicle-schema";
+    const registry = expectedName === "@auto-world/source-registry";
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry;
+    const dependencyBuild = registry ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
     assert.equal(manifest.private, true);
     assert.equal(manifest.type, "module");
     assert.deepEqual(manifest.scripts, activeContract ? {
-      build: "tsc -p tsconfig.json",
+      build: `${dependencyBuild}tsc -p tsconfig.json`,
       lint: "eslint src test --max-warnings=0",
-      typecheck: "tsc -p tsconfig.test.json --noEmit",
+      typecheck: `${dependencyBuild}tsc -p tsconfig.test.json --noEmit`,
       test: "pnpm run build && node --test test/*.test.mjs",
     } : {
       build: "tsc -p tsconfig.json",
@@ -111,6 +114,15 @@ test("keeps all root quality gates executable and non-trivial", () => {
     "tsconfig.base.json",
   ]);
   assert.deepEqual(turbo.tasks.test.dependsOn, ["build"]);
+  assert.deepEqual(turbo.tasks.typecheck.dependsOn, ["^typecheck", "^build"]);
+});
+
+test("keeps governance dependent on the public vehicle contract without a cycle", () => {
+  const registry = readJson("packages/source-registry/package.json");
+  const vehicle = readJson("packages/vehicle-schema/package.json");
+  assert.deepEqual(registry.dependencies, { "@auto-world/vehicle-schema": "workspace:*" });
+  assert.equal(vehicle.dependencies, undefined);
+  assert.equal(expectedBoundaries.length, 9);
 });
 
 test("uses a frozen, separately observable CI gate sequence", () => {

@@ -36,6 +36,12 @@ importers:
 
   connectors/_sdk: {}
 
+  packages/source-registry:
+    dependencies:
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../vehicle-schema
+
   packages/vehicle-schema: {}
 
   services/ai: {}
