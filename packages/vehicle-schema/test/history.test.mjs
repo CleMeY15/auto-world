@@ -95,6 +95,21 @@ test("reports an append conflict at the original incoming index", () => {
   );
 });
 
+test("rejects conflicting IDs within a new incoming batch without changing history", () => {
+  const existing = [syntheticObservation({ observationId: "obs_existing" })];
+  const first = syntheticObservation({ observationId: "obs_incoming" });
+  const changed = { ...first, value: { amountMinor: 1, currency: "EUR" } };
+  const before = cloneSynthetic(existing);
+  assertIssue(appendObservations(existing, [first, changed]), "observation_conflict", "$.incoming[1]");
+  assert.deepEqual(existing, before);
+});
+
+test("rejects invalid existing and incoming batches at their own schema paths", () => {
+  assertIssue(appendObservations(null, []), "invalid_type", "$.existing");
+  assertIssue(appendObservations([], {}), "invalid_type", "$.incoming");
+  assertIssue(appendObservations([], [null]), "invalid_type", "$.incoming[0]");
+});
+
 test("rejects collections above the documented limit", () => {
   const oversized = Array.from({ length: 10_001 }, (_, index) =>
     syntheticObservation({ observationId: `obs_${index}` }),

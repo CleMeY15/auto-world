@@ -55,7 +55,7 @@ Construct fresh plain objects and arrays from validated primitives only, retain 
 
 ## Replay and contradictions
 
-Error conventions: wrong JavaScript primitive types produce `invalid_type`; type-correct but out-of-domain values produce `invalid_value`. Malformed array structure (holes, extra keys, symbols, descriptors or bounds) produces `invalid_object` at the array path. A full VIN with disallowed legal status produces `invalid_value` at the observation's `provenance.legalStatus`, never at a path derived from source text.
+Error conventions: wrong JavaScript primitive types produce `invalid_type`; type-correct but out-of-domain values produce `invalid_value`. Malformed array structure (holes, extra keys, symbols or descriptors) produces `invalid_object` at the array path; a collection exceeding the documented length limit produces `invalid_value`. A full VIN with disallowed legal status produces `invalid_value` at the observation's `provenance.legalStatus`, never at a path derived from source text.
 
 Collection parsing validates all observations, preserves first-seen order and collapses only exact replays: same observation ID plus identical validated content. Canonical construction order makes property ordering irrelevant. Reusing an ID for any changed subject, value, provenance or raw reference fails with `observation_conflict` at that array entry; it never replaces prior evidence. Different IDs with contradictory values remain distinct. `appendObservations` validates both collections and returns a fresh frozen combined collection with identical semantics; it never mutates prior history. Reference existence and cross-record relationships are the future persistence aggregate's responsibility, not silently resolved here.
 
