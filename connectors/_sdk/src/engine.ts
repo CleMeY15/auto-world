@@ -383,8 +383,8 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
       const deadlines = deriveRetentionDeadlines(capturedAt, obligations);
       const stageKey = await deriveStageOperationKey(checkpoint.runId, snapshotId);
       pending = Object.freeze({ operationKey: stageKey, pageOrdinal: checkpoint.nextPageOrdinal, pageIdentity: acquired.pageIdentity, snapshotId, sha256, byteLength: acquired.bytes.byteLength, capturedAt, nextCursor: acquired.nextCursor, complete: acquired.complete, deadlines });
-      await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
       await ensureLease(ports, signal, lease, timeout("lease"));
+      await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
       const staged = await mutation(ports, signal, timeout("stage_raw"), "stage_raw", 0, (child) => ports.store.stageRaw({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: stageKey, leaseFence: checkpoint.leaseFence, signal: child, checkpointRevision: checkpoint.checkpointRevision, pageOrdinal: pending.pageOrdinal, pageIdentity: pending.pageIdentity, snapshotId, sha256, bytes: acquired!.bytes.slice(), capturedAt, nextCursor: pending.nextCursor, complete: pending.complete, obligations, deadlines }), parseStageRawReceipt);
       if (staged.operationKey !== stageKey || staged.snapshotId !== snapshotId || staged.sha256 !== sha256 || staged.byteLength !== pending.byteLength || staged.checkpointRevision !== checkpoint.checkpointRevision + 1) throw new RunFault("raw_conflict", "stage_raw", 0);
       emitMutation(ports, { kind: "raw.staged", operationKey: stageKey, sourceId: checkpoint.sourceId, runId: checkpoint.runId, leaseFence: checkpoint.leaseFence, checkpointRevision: staged.checkpointRevision, pageOrdinal: pending.pageOrdinal, byteCount: pending.byteLength });
@@ -419,8 +419,8 @@ async function executePages(ports: ConnectorPorts, signal: AbortSignal, initial:
     if (!effects.success) throw new RunFault("adapter_output_invalid", "map", 0);
     const pageKey = await derivePageKey(checkpoint.runId, pending.pageOrdinal, pending.pageIdentity);
     const commitKey = await derivePageCommitKey(pageKey, pending.sha256, checkpoint.request.mapperVersion);
-    await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
     await ensureLease(ports, signal, lease, timeout("lease"));
+    await recheckAuthority(ports, checkpoint, signal, timeout("authority"));
     requireLiveRaw(ports, pending);
     const committedAt = timestamp(now(ports));
     const receipt = await mutation(ports, signal, timeout("commit"), "commit", 0, (child) => ports.store.commitPage({ schemaVersion: 1, sourceId: checkpoint.sourceId, runId: checkpoint.runId, operationKey: commitKey, leaseFence: checkpoint.leaseFence, signal: child, expectedCheckpointRevision: checkpoint.checkpointRevision, expectedInventoryGenerationId: checkpoint.expectedInventoryGenerationId, expectedInventoryRevision: checkpoint.expectedInventoryRevision, pending, effects: effects.data, nextPageOrdinal: pending.pageOrdinal + 1, nextCursor: pending.nextCursor, pageItemCount: mapped.data.items.length, complete: pending.complete, authorityRevision: checkpoint.authorityRevision, committedAt }), parsePageCommitReceipt);

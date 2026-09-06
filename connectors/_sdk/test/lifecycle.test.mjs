@@ -720,6 +720,36 @@ test("resumed raw load is aborted at its remaining retention deadline", async ()
   assert.equal(fetches(h).length, 1);
 });
 
+for (const phase of ["stage", "commit"]) {
+  test("revocation during the last " + phase + " renewal prevents the page mutation", async () => {
+    const h = harness();
+    const acquire = h.ports.lease.acquire;
+    h.ports.lease.acquire = async (input) => ({ ...await acquire(input), expiresAtMs: NOW + 1000 });
+    const renew = h.ports.lease.renew;
+    h.ports.lease.renew = async (input) => {
+      const value = await renew(input);
+      const head = h.registry.revisions.at(-1);
+      const changed = appendSourceRevision(h.registry, {
+        revision: head.revision + 1, state: "disabled", configuration: head.configuration,
+        event: { eventId: "aud_sdk_disable", kind: "disable", actorRef: "actor_sdk",
+          at: new Date(h.time.clock.nowMs()).toISOString(), reasonRef: "reason_revoked" },
+      });
+      assert.equal(changed.success, true);
+      h.registry = changed.data;
+      return value;
+    };
+    const method = phase === "stage" ? "fetchPage" : "mapPage";
+    const original = h.ports.adapter[method];
+    h.ports.adapter[method] = async (input) => { const value = await original(input); h.time.advance(600); return value; };
+    const result = await h.run();
+    assert.equal(result.status, "failed");
+    assert.equal(result.error.code, "policy_revoked");
+    assert.equal(h.trace.includes(phase === "stage" ? "store.raw.staged" : "store.page.committed"), false);
+    assert.equal(h.storage.snapshot().raw.size, phase === "stage" ? 0 : 1);
+    assert.equal(h.storage.snapshot().observations.size, 0);
+  });
+}
+
 test("pre-start cancellation has no authority/acquisition/store effects", async () => {
   const h = harness();
   const controller = new globalThis.AbortController();
