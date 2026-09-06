@@ -60,6 +60,7 @@ const HEX_SECRET_PATTERN = /^[a-f0-9]{64}$/u;
 const LOCAL_DOCKER_HOST_PATTERN = /^(?:unix:\/\/\/|npipe:\/\/)/u;
 const COMPOSE_COMMANDS = new Set([
   "config",
+  "create",
   "down",
   "exec",
   "port",
@@ -294,7 +295,7 @@ export function createRuntime(checkoutRoot, options = {}) {
     const current = await validateLoadedState(state, checkout);
     validateComposeArguments(args);
     await assertLocalDocker(current.deadlineAt);
-    if (["down", "exec", "start", "stop", "up"].includes(args[0])) {
+    if (["create", "down", "exec", "start", "stop", "up"].includes(args[0])) {
       await inspectOwnership(current);
     }
     const result = await runProcess(
@@ -341,6 +342,7 @@ export function createRuntime(checkoutRoot, options = {}) {
           "-X",
           "-A",
           "-t",
+          "-q",
           "--set=ON_ERROR_STOP=1",
           "--set=VERBOSITY=sqlstate",
           `--username=${ROLE_NAMES[role]}`,

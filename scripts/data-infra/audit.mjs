@@ -26,6 +26,7 @@ async function scan(key, pin) {
   const name = `aw-audit-${owner}-${key.toLowerCase()}`;
   const started = Date.now();
   const args = ["run", "--rm", "--name", name, "--label", `io.auto-world.owner=${owner}`,
+    "--user", `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`,
     "--platform", "linux/amd64", "--memory", "1536m", "--cpus", "2", "--pids-limit", "256",
     "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--tmpfs", "/tmp:rw,size=1g",
     "--mount", `type=bind,source=${cache},target=/cache`, "--mount", `type=bind,source=${reports},target=/reports`,
