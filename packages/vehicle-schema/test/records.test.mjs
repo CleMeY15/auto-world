@@ -169,6 +169,27 @@ test("rejects a class instance", () => {
   assertIssue(parseVehicleEntity(new VehicleInput()), "invalid_object", "$");
 });
 
+test("rejects parsed prototype-pollution keys at root and nested boundaries", () => {
+  assert.equal(({}).polluted, undefined);
+  const poison = JSON.parse('{"__proto__":{"polluted":true}}');
+  const root = { ...syntheticVehicle(), ...poison };
+  assert.equal(Object.hasOwn(root, "__proto__"), true);
+  assertIssue(parseVehicleEntity(root), "unknown_key", "$");
+  const nested = syntheticListing();
+  nested.identity = { ...nested.identity, ...poison };
+  assertIssue(parseListing(nested), "unknown_key", "$.identity");
+  assert.equal(({}).polluted, undefined);
+});
+
+test("rejects polluted inherited prototypes without copying inherited data", () => {
+  const root = Object.assign(Object.create({ polluted: true }), syntheticVehicle());
+  assertIssue(parseVehicleEntity(root), "invalid_object", "$");
+  const nested = syntheticListing();
+  Object.setPrototypeOf(nested.identity, { polluted: true });
+  assertIssue(parseListing(nested), "invalid_object", "$.identity");
+  assert.equal(({}).polluted, undefined);
+});
+
 test("rejects a null-prototype object only when its values are invalid", () => {
   const input = Object.assign(Object.create(null), cloneSynthetic(syntheticVehicle()));
   assert.deepEqual(assertSuccess(parseVehicleEntity(input)), syntheticVehicle());

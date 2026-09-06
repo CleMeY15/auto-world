@@ -55,7 +55,7 @@ test("declares every architecture boundary as a private workspace package", () =
       build: "tsc -p tsconfig.json",
       lint: "eslint src test --max-warnings=0",
       typecheck: "tsc -p tsconfig.test.json --noEmit",
-      test: "node --test test/*.test.mjs",
+      test: "pnpm run build && node --test test/*.test.mjs",
     } : {
       build: "tsc -p tsconfig.json",
       lint: "eslint src --max-warnings=0",

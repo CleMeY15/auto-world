@@ -11,6 +11,8 @@ Dependency-free V1 internal contracts for vehicle candidates, source publication
 
 Every parser returns a discriminated `ValidationResult`. Failures expose only stable issue codes and schema-owned paths; they never echo source text, VINs or hostile object details. Successful data is reconstructed without caller references and recursively frozen.
 
+Run `pnpm --filter @auto-world/vehicle-schema test` from the repository root for targeted runtime verification. The package test command rebuilds the current sources before importing the public built export, so stale `dist` files cannot supply a false passing result. Root Turbo also retains its build-before-test dependency.
+
 ```ts
 import { parseListing } from "@auto-world/vehicle-schema";
 
