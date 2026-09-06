@@ -1,6 +1,6 @@
 # TASK-0003 — Source Registry contract
 
-Status: IN_PROGRESS — TASK-0002 merged at `fe82aaf`; main CI verified
+Status: DONE — implementation validated at `cdb1187`; dependency usable only after PR #5 final checks, merge and main verification
 Priority: P0
 Owner role: Data-governance executor, with legal/security reviewer
 
@@ -49,3 +49,7 @@ Define the authoritative, fail-closed contract for source rights, acquisition po
 - Targeted and root lint/typecheck/tests/build, secrets scan, dependency audit and clean-checkout verification pass.
 - Security/privacy and legal-data review approve fail-closed behavior; observability and rollback/versioning notes are recorded.
 - CI/review evidence is linked in `docs/validation/TASK-0003.md`; set `DONE` on the same branch only after green review/CI, rerun CI, then merge.
+
+## Validation evidence
+
+`docs/validation/TASK-0003.md` records acceptance mapping, 77 registry tests, 91 vehicle tests, full forced root gates, fresh corrected remote clone, independent code/security APPROVE and architecture CLEAR, and implementation CI. PR #5 remains responsible for final-head CI and verified main integration before TASK-0004.

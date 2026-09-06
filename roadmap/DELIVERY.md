@@ -11,7 +11,8 @@ Operate as a continuous development team that selects the single first READY tas
 - TASK-0002 through TASK-0006 contracts are integrated through PR #3 at `9fcdeae`; merge CI passed.
 - TASK-0002 implementation is validated at `900ce34`: 88 runtime tests, type fixtures, all root gates, fresh remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0002.md`; integration and final-head CI: PR #4.
 - TASK-0002 PR #4 merged at `fe82aaf`; final-head CI `34018762556` and main CI `34018855938` passed.
-- Current frontier: TASK-0003 IN_PROGRESS on `codex/task-0003-source-registry`. Independent sequential Architect/Critic plan approvals precede ADR-0002 and implementation. Its declared-policy contract remains fail-closed; real source activation is not authorized by synthetic fixtures or successful schema parsing.
+- TASK-0003 implementation is validated at `cdb1187`: 77 registry tests, 91 vehicle tests, all forced root gates, fresh corrected remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0003.md`; final-head CI and integration remain PR #5 gates. Its declared-policy contract does not authorize a real source.
+- Next frontier: TASK-0004, only after PR #5 is merged and `main` verified. No TASK-0004 implementation has begun. Connector execution must distinguish declared eligibility from an authenticated current registry and verified rights, and enforce every returned policy obligation.
 - TASK-0005 is dependency-ready but deliberately queued after TASK-0004 to preserve one ordered frontier.
 
 ## P0 sequence
