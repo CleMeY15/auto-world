@@ -3,6 +3,8 @@
 Status: Accepted architecture — independent Architect and Critic plan reviews approved, 2026-09-06.
 Task: TASK-0004. Exact public declarations are frozen in the companion contract appendix before implementation. This ADR is not production source authorization.
 
+The normative [public API appendix](ADR-0003-connector-sdk-api.md) defines request/result/receipt shapes, scoped inventory ownership and exact resume states. Independent architecture readiness is CLEAR. If an implementation requires a contract change, update this ADR/appendix with rationale before changing dependent consumers.
+
 ## Outcome and boundary
 
 Activate `@auto-world/connector-sdk` as an executable source-agnostic TypeScript SDK. Synthetic ports must prove this complete lifecycle: trusted-current Source Registry read, exact policy pin, bounded/rate-reserved acquisition, atomic immutable raw staging, strict JSON decode, deterministic mapping to append-only listing/observation evidence, atomic page/checkpoint commit, safe incremental resume, and scoped full reconciliation.
