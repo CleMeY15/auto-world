@@ -3,6 +3,28 @@ import { TextDecoder } from "node:util";
 import { StrictDataError } from "./strict-json.mjs";
 
 const BLOCK = 512;
+const NATIVE_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024;
+const NATIVE_ARCHIVE_ENTRIES = 200_000;
+const NATIVE_FILE_BYTES = 2 * 1024 * 1024 * 1024;
+const GO_PAX_RECORDS = Object.freeze([
+  Object.freeze({
+    header: "go/test/fixedbugs/issue27836.dir/PaxHeaders.0/foo.go",
+    path: "go/test/fixedbugs/issue27836.dir/Þfoo.go",
+    payload: "50 path=go/test/fixedbugs/issue27836.dir/Þfoo.go\n",
+    target: "go/test/fixedbugs/issue27836.dir/foo.go",
+  }),
+  Object.freeze({
+    header: "go/test/fixedbugs/issue27836.dir/PaxHeaders.0/main.go",
+    path: "go/test/fixedbugs/issue27836.dir/Þmain.go",
+    payload: "51 path=go/test/fixedbugs/issue27836.dir/Þmain.go\n",
+    target: "go/test/fixedbugs/issue27836.dir/main.go",
+  }),
+]);
+const TRIVY_LINKS = Object.freeze(new Map([
+  ["pkg/fanal/analyzer/language/golang/binary/testdata/symlink", "foo"],
+  ["pkg/fanal/analyzer/language/rust/binary/testdata/symlink", "foo"],
+  ["pkg/fanal/walker/testdata/fs/sym.txt", "bar"],
+]));
 const fail = (code) => {
   throw new StrictDataError(code);
 };
@@ -166,7 +188,7 @@ class StreamReader {
   }
 }
 
-const validateHeader = (header) => {
+const validateHeader = (header, allowedTypes) => {
   const checksumField = header.subarray(148, 156);
   let checksumText;
   if (checksumField[6] === 0 && checksumField[7] === 0x20) {
@@ -187,18 +209,27 @@ const validateHeader = (header) => {
   const version = header.subarray(263, 265).toString("binary");
   if (magic !== "ustar" || version !== "00") fail("TAR_FORMAT_UNSUPPORTED");
   const type = header[156] === 0 ? "0" : String.fromCharCode(header[156]);
-  if (!new Set(["0", "5"]).has(type)) fail("TAR_TYPE_UNSUPPORTED");
+  if (!allowedTypes.has(type)) fail("TAR_TYPE_UNSUPPORTED");
   const prefix = decodeField(header.subarray(345, 500));
   const base = decodeField(header.subarray(0, 100));
   const rawName = prefix ? `${prefix}/${base}` : base;
   const name = safePath(rawName, type);
   const size = parseOctal(header.subarray(124, 136));
   if (type === "5" && size !== 0) fail("TAR_DIRECTORY_SIZE_INVALID");
-  if (decodeField(header.subarray(157, 257)) !== "") fail("TAR_LINK_INVALID");
-  return { name, size, type };
+  if (type === "2" && size !== 0) fail("TAR_LINK_INVALID");
+  if ((type === "2" || type === "x") && size > 256 * 1024) fail("TAR_SPECIAL_SIZE_INVALID");
+  const linkTarget = decodeField(header.subarray(157, 257));
+  if ((type === "0" || type === "5" || type === "x") && linkTarget !== "") {
+    fail("TAR_LINK_INVALID");
+  }
+  if (type === "2" && (linkTarget === "" || linkTarget.startsWith("/") || linkTarget.includes("\\") ||
+      /^[A-Za-z]:/u.test(linkTarget) || linkTarget.split("/").some((part) => part === "" || part === "." || part === ".."))) {
+    fail("TAR_LINK_INVALID");
+  }
+  return { linkTarget, name, size, type };
 };
 
-export async function validateTarArchive(
+async function validateArchive(
   input,
   {
     closeStreams = [],
@@ -207,12 +238,22 @@ export async function validateTarArchive(
     maxFileBytes = 256 * 1024,
     maxTotalFileBytes = 32 * 1024,
   } = {},
+  profile = Object.freeze({ allowedTypes: new Set(["0", "5"]), kind: "strict" }),
 ) {
   const reader = new StreamReader(input, maxArchiveBytes, closeStreams);
   const names = new Set();
   const entries = [];
   let totalFileBytes = 0;
   let terminators = 0;
+  const profileState = {
+    directories: 0,
+    effectiveNames: new Set(),
+    files: 0,
+    links: new Map(),
+    paxIndex: 0,
+    pendingPax: null,
+    rootSeen: false,
+  };
 
   let validationFailed = false;
   try {
@@ -234,10 +275,23 @@ export async function validateTarArchive(
           const trailing = await reader.read(BLOCK);
           if (!isZero(trailing)) fail("TAR_TRAILING_DATA");
         }
+        if (profileState.pendingPax) fail("TAR_PAX_TARGET_MISSING");
+        if (profile.kind === "go" &&
+            (profileState.paxIndex !== GO_PAX_RECORDS.length || profileState.directories !== 1_667 || profileState.files !== 15_036)) {
+          fail("TAR_GO_PROFILE_MISMATCH");
+        }
+        if (profile.kind === "native") {
+          if (!profileState.rootSeen) fail("TAR_NATIVE_ROOT_INVALID");
+          const expectedLinks = profile.tool === "trivy" ? TRIVY_LINKS : new Map();
+          if (profileState.links.size !== expectedLinks.size) fail("TAR_NATIVE_LINK_SET_INVALID");
+          for (const [relative, target] of expectedLinks) {
+            if (profileState.links.get(`${profile.prefix}/${relative}`) !== target) fail("TAR_NATIVE_LINK_SET_INVALID");
+          }
+        }
         return Object.freeze(entries.map((entry) => Object.freeze(entry)));
       }
       if (terminators !== 0) fail("TAR_TERMINATOR_INVALID");
-      const entry = validateHeader(header);
+      const entry = validateHeader(header, profile.allowedTypes);
       if (names.has(entry.name)) fail("TAR_PATH_DUPLICATE");
       names.add(entry.name);
       if (entries.length >= maxEntries) fail("TAR_ENTRIES_EXCEEDED");
@@ -246,15 +300,66 @@ export async function validateTarArchive(
       if (!Number.isSafeInteger(totalFileBytes) || totalFileBytes > maxTotalFileBytes) {
         fail("TAR_TOTAL_TOO_LARGE");
       }
+      let body;
       const hash = createHash("sha256");
-      await reader.consume(entry.size, (part) => hash.update(part));
+      if (entry.type === "x") {
+        body = await reader.read(entry.size);
+        hash.update(body);
+      } else {
+        await reader.consume(entry.size, (part) => hash.update(part));
+      }
       const padding = (BLOCK - (entry.size % BLOCK)) % BLOCK;
       if (padding > 0 && !isZero(await reader.read(padding))) fail("TAR_PADDING_INVALID");
+
+      if (profile.kind === "go") {
+        if (entry.name !== "go" && !entry.name.startsWith("go/")) fail("TAR_GO_PATH_INVALID");
+        if (entry.type === "x") {
+          if (profileState.pendingPax) fail("TAR_GO_PAX_TARGET_INVALID");
+          const expected = GO_PAX_RECORDS[profileState.paxIndex];
+          if (!expected || entry.name !== expected.header || !body.equals(Buffer.from(expected.payload, "utf8"))) {
+            fail("TAR_GO_PAX_INVALID");
+          }
+          profileState.pendingPax = expected.target;
+          profileState.paxIndex += 1;
+          continue;
+        }
+        let effectiveName = entry.name;
+        if (profileState.pendingPax) {
+          if (entry.type !== "0" || entry.name !== profileState.pendingPax) fail("TAR_GO_PAX_TARGET_INVALID");
+          effectiveName = GO_PAX_RECORDS[profileState.paxIndex - 1].path;
+          profileState.pendingPax = null;
+        }
+        if (profileState.effectiveNames.has(effectiveName)) fail("TAR_PATH_DUPLICATE");
+        profileState.effectiveNames.add(effectiveName);
+      }
+      if (profile.kind === "native") {
+        if (entry.name !== profile.prefix && !entry.name.startsWith(`${profile.prefix}/`)) {
+          fail("TAR_NATIVE_PATH_INVALID");
+        }
+        for (const relative of TRIVY_LINKS.keys()) {
+          if (entry.name.startsWith(`${profile.prefix}/${relative}/`)) fail("TAR_NATIVE_LINK_ANCESTOR_INVALID");
+        }
+        if (entry.name === profile.prefix) {
+          if (entry.type !== "5") fail("TAR_NATIVE_ROOT_INVALID");
+          profileState.rootSeen = true;
+        }
+        if (entry.type === "2") {
+          const relative = entry.name.slice(profile.prefix.length + 1);
+          if (profile.tool !== "trivy") fail("TAR_NATIVE_LINK_INVALID");
+          if (!TRIVY_LINKS.has(relative)) fail("TAR_NATIVE_LINK_PATH_INVALID");
+          if (TRIVY_LINKS.get(relative) !== entry.linkTarget) fail("TAR_NATIVE_LINK_TARGET_INVALID");
+          if (profileState.links.has(entry.name)) fail("TAR_NATIVE_LINK_INVALID");
+          profileState.links.set(entry.name, entry.linkTarget);
+        }
+      }
+      if (entry.type === "0") profileState.files += 1;
+      if (entry.type === "5") profileState.directories += 1;
       entries.push({
+        ...(entry.type === "2" ? { linkTarget: entry.linkTarget } : {}),
         path: entry.name,
         sha256: hash.digest("hex"),
         size: entry.size,
-        type: entry.type === "5" ? "directory" : "file",
+        type: entry.type === "5" ? "directory" : entry.type === "2" ? "symlink" : "file",
       });
     }
     fail("TAR_TERMINATOR_MISSING");
@@ -264,4 +369,35 @@ export async function validateTarArchive(
   } finally {
     await reader.close(validationFailed);
   }
+}
+
+export function validateTarArchive(input, options = {}) {
+  return validateArchive(input, options);
+}
+
+export function validateGoCompilerTarArchive(input, { closeStreams = [] } = {}) {
+  return validateArchive(input, {
+    closeStreams,
+    maxArchiveBytes: NATIVE_ARCHIVE_BYTES,
+    maxEntries: NATIVE_ARCHIVE_ENTRIES,
+    maxFileBytes: NATIVE_FILE_BYTES,
+    maxTotalFileBytes: NATIVE_ARCHIVE_BYTES,
+  }, Object.freeze({ allowedTypes: new Set(["0", "5", "x"]), kind: "go" }));
+}
+
+export function validateNativeSourceTarArchive(
+  input,
+  { closeStreams = [], expectedPrefix, tool } = {},
+) {
+  if (!new Set(["oras", "cosign", "trivy"]).has(tool) ||
+      typeof expectedPrefix !== "string" || !/^[a-z0-9_.-]+-[0-9a-f]{40}$/u.test(expectedPrefix)) {
+    fail("TAR_NATIVE_PROFILE_INVALID");
+  }
+  return validateArchive(input, {
+    closeStreams,
+    maxArchiveBytes: NATIVE_ARCHIVE_BYTES,
+    maxEntries: NATIVE_ARCHIVE_ENTRIES,
+    maxFileBytes: NATIVE_FILE_BYTES,
+    maxTotalFileBytes: NATIVE_ARCHIVE_BYTES,
+  }, Object.freeze({ allowedTypes: new Set(["0", "2", "5"]), kind: "native", prefix: expectedPrefix, tool }));
 }

@@ -6,15 +6,36 @@ import path from "node:path";
 import { test } from "node:test";
 import { clearTimeout, setTimeout } from "node:timers";
 import { createGunzip, gzipSync } from "node:zlib";
-import { validateTarArchive } from "../scripts/supply-chain/archive.mjs";
+import {
+  validateGoCompilerTarArchive,
+  validateNativeSourceTarArchive,
+  validateTarArchive,
+} from "../scripts/supply-chain/archive.mjs";
 
 const BLOCK = 512;
 const code = (expected) => (error) => error?.code === expected;
 const octal = (value, length) => Buffer.from(`${value.toString(8).padStart(length - 1, "0")}\0`);
 
-const header = (name, size, type = "0", checksumEncoding = "nul-space") => {
+const header = (
+  name,
+  size,
+  type = "0",
+  checksumEncoding = "nul-space",
+  linkTarget = "",
+) => {
   const value = Buffer.alloc(BLOCK);
-  value.write(name, 0, 100, "utf8");
+  const nameBytes = Buffer.byteLength(name, "utf8");
+  if (nameBytes <= 100) {
+    value.write(name, 0, 100, "utf8");
+  } else {
+    const separator = name.lastIndexOf("/");
+    const prefix = name.slice(0, separator);
+    const base = name.slice(separator + 1);
+    assert.ok(Buffer.byteLength(prefix, "utf8") <= 155);
+    assert.ok(Buffer.byteLength(base, "utf8") <= 100);
+    value.write(base, 0, 100, "utf8");
+    value.write(prefix, 345, 155, "utf8");
+  }
   octal(0o644, 8).copy(value, 100);
   octal(0, 8).copy(value, 108);
   octal(0, 8).copy(value, 116);
@@ -22,6 +43,7 @@ const header = (name, size, type = "0", checksumEncoding = "nul-space") => {
   octal(0, 12).copy(value, 136);
   value.fill(0x20, 148, 156);
   value.write(type, 156, 1, "ascii");
+  value.write(linkTarget, 157, 100, "utf8");
   value.write("ustar", 257, 5, "ascii");
   value.write("00", 263, 2, "ascii");
   const checksum = value.reduce((sum, byte) => sum + byte, 0);
@@ -36,7 +58,13 @@ const tar = (entries, { terminators = 2 } = {}) => {
   const parts = [];
   for (const entry of entries) {
     const contents = Buffer.from(entry.contents ?? "");
-    parts.push(header(entry.name, contents.length, entry.type));
+    parts.push(header(
+      entry.name,
+      contents.length,
+      entry.type,
+      entry.checksumEncoding,
+      entry.linkTarget,
+    ));
     parts.push(contents);
     parts.push(Buffer.alloc((BLOCK - (contents.length % BLOCK)) % BLOCK));
   }
@@ -122,6 +150,163 @@ test("tar validator accepts the two supported checksum terminators", async () =>
   await assert.rejects(
     validateTarArchive(Buffer.concat([paxHeader, Buffer.alloc(BLOCK * 2)])),
     code("TAR_TYPE_UNSUPPORTED"),
+  );
+});
+
+const goCompilerTar = ({ firstOrdinaryName = "go/file-00000" } = {}) => {
+  const parts = [];
+  for (let index = 0; index < 1_667; index += 1) {
+    parts.push(header(index === 0 ? "go/" : `go/d${String(index).padStart(4, "0")}/`, 0, "5"));
+  }
+  const pax = [
+    {
+      header: "go/test/fixedbugs/issue27836.dir/PaxHeaders.0/foo.go",
+      payload: "50 path=go/test/fixedbugs/issue27836.dir/Þfoo.go\n",
+      target: "go/test/fixedbugs/issue27836.dir/foo.go",
+    },
+    {
+      header: "go/test/fixedbugs/issue27836.dir/PaxHeaders.0/main.go",
+      payload: "51 path=go/test/fixedbugs/issue27836.dir/Þmain.go\n",
+      target: "go/test/fixedbugs/issue27836.dir/main.go",
+    },
+  ];
+  for (const record of pax) {
+    const payload = Buffer.from(record.payload, "utf8");
+    parts.push(
+      header(record.header, payload.length, "x"),
+      payload,
+      Buffer.alloc(BLOCK - payload.length),
+      header(record.target, 0),
+    );
+  }
+  for (let index = 0; index < 15_034; index += 1) {
+    parts.push(header(index === 0 ? firstOrdinaryName : `go/file-${String(index).padStart(5, "0")}`, 0));
+  }
+  parts.push(Buffer.alloc(BLOCK * 2));
+  return Buffer.concat(parts);
+};
+
+test("Go compiler profile accepts only the two exact PAX path records and inventory", async () => {
+  const archive = goCompilerTar();
+  const entries = await validateGoCompilerTarArchive(archive);
+  assert.equal(entries.filter((entry) => entry.type === "directory").length, 1_667);
+  assert.equal(entries.filter((entry) => entry.type === "file").length, 15_036);
+
+  const altered = Buffer.from(archive);
+  const marker = altered.indexOf(Buffer.from("50 path=go/test/fixedbugs/issue27836.dir/Þfoo.go\n", "utf8"));
+  assert.ok(marker > 0);
+  altered[marker + 3] ^= 1;
+  await assert.rejects(validateGoCompilerTarArchive(altered), code("TAR_GO_PAX_INVALID"));
+  const paxPayload = Buffer.from("50 path=go/test/fixedbugs/issue27836.dir/Þfoo.go\n", "utf8");
+  const paxArchive = Buffer.concat([
+    header("go/test/fixedbugs/issue27836.dir/PaxHeaders.0/foo.go", paxPayload.length, "x"),
+    paxPayload,
+    Buffer.alloc(BLOCK - paxPayload.length),
+    Buffer.alloc(BLOCK * 2),
+  ]);
+  await assert.rejects(validateTarArchive(paxArchive), code("TAR_TYPE_UNSUPPORTED"));
+
+  const outsideRoot = Buffer.from(archive);
+  header("outside/", 0, "5").copy(outsideRoot, 0);
+  await assert.rejects(validateGoCompilerTarArchive(outsideRoot), code("TAR_GO_PATH_INVALID"));
+
+  const firstPayload = Buffer.from("50 path=go/test/fixedbugs/issue27836.dir/Þfoo.go\n", "utf8");
+  const secondPayload = Buffer.from("51 path=go/test/fixedbugs/issue27836.dir/Þmain.go\n", "utf8");
+  const consecutivePax = Buffer.concat([
+    header("go/test/fixedbugs/issue27836.dir/PaxHeaders.0/foo.go", firstPayload.length, "x"),
+    firstPayload,
+    Buffer.alloc(BLOCK - firstPayload.length),
+    header("go/test/fixedbugs/issue27836.dir/PaxHeaders.0/main.go", secondPayload.length, "x"),
+    secondPayload,
+    Buffer.alloc(BLOCK - secondPayload.length),
+    Buffer.alloc(BLOCK * 2),
+  ]);
+  await assert.rejects(validateGoCompilerTarArchive(consecutivePax), code("TAR_GO_PAX_TARGET_INVALID"));
+
+  await assert.rejects(
+    validateGoCompilerTarArchive(goCompilerTar({
+      firstOrdinaryName: "go/test/fixedbugs/issue27836.dir/Þfoo.go",
+    })),
+    code("TAR_PATH_DUPLICATE"),
+  );
+});
+
+test("native source profile permits only the three exact Trivy relative symlinks", async () => {
+  const prefix = `trivy-${"a".repeat(40)}`;
+  const links = [
+    ["pkg/fanal/analyzer/language/golang/binary/testdata/symlink", "foo"],
+    ["pkg/fanal/analyzer/language/rust/binary/testdata/symlink", "foo"],
+    ["pkg/fanal/walker/testdata/fs/sym.txt", "bar"],
+  ];
+  const archive = tar([
+    { name: `${prefix}/`, type: "5" },
+    ...links.map(([name, linkTarget]) => ({ name: `${prefix}/${name}`, type: "2", linkTarget })),
+    { name: `${prefix}/README.md`, contents: "source" },
+  ]);
+  const entries = await validateNativeSourceTarArchive(archive, {
+    expectedPrefix: prefix,
+    tool: "trivy",
+  });
+  assert.deepEqual(
+    entries
+      .filter((entry) => entry.type === "symlink")
+      .map(({ path: name, linkTarget }) => [name, linkTarget]),
+    links.map(([name, target]) => [`${prefix}/${name}`, target]),
+  );
+
+  const wrongTarget = tar([
+    { name: `${prefix}/`, type: "5" },
+    ...links.map(([name, linkTarget], index) => ({
+      name: `${prefix}/${name}`,
+      type: "2",
+      linkTarget: index === 0 ? "../escape" : linkTarget,
+    })),
+  ]);
+  await assert.rejects(
+    validateNativeSourceTarArchive(wrongTarget, { expectedPrefix: prefix, tool: "trivy" }),
+    code("TAR_LINK_INVALID"),
+  );
+  await assert.rejects(
+    validateNativeSourceTarArchive(archive, { expectedPrefix: prefix, tool: "oras" }),
+    code("TAR_NATIVE_LINK_INVALID"),
+  );
+
+  const safeWrongTarget = tar([
+    { name: `${prefix}/`, type: "5" },
+    ...links.map(([name, linkTarget], index) => ({
+      name: `${prefix}/${name}`,
+      type: "2",
+      linkTarget: index === 0 ? "bar" : linkTarget,
+    })),
+  ]);
+  await assert.rejects(
+    validateNativeSourceTarArchive(safeWrongTarget, { expectedPrefix: prefix, tool: "trivy" }),
+    code("TAR_NATIVE_LINK_TARGET_INVALID"),
+  );
+
+  const missingLink = tar([
+    { name: `${prefix}/`, type: "5" },
+    ...links.slice(0, 2).map(([name, linkTarget]) => ({ name: `${prefix}/${name}`, type: "2", linkTarget })),
+  ]);
+  await assert.rejects(
+    validateNativeSourceTarArchive(missingLink, { expectedPrefix: prefix, tool: "trivy" }),
+    code("TAR_NATIVE_LINK_SET_INVALID"),
+  );
+
+  await assert.rejects(
+    validateNativeSourceTarArchive(tar([{ name: `${prefix}/README.md` }]), {
+      expectedPrefix: prefix,
+      tool: "oras",
+    }),
+    code("TAR_NATIVE_ROOT_INVALID"),
+  );
+
+  await assert.rejects(
+    validateNativeSourceTarArchive(tar([
+      { name: `${prefix}/`, type: "5" },
+      { name: `${prefix}/${links[0][0]}/child` },
+    ]), { expectedPrefix: prefix, tool: "trivy" }),
+    code("TAR_NATIVE_LINK_ANCESTOR_INVALID"),
   );
 });
 

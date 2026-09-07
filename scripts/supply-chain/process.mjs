@@ -10,6 +10,7 @@ const allowedEnvironment = new Set([
   "GOPATH", "GOCACHE", "GOMODCACHE", "GOTOOLCHAIN", "GOPROXY", "GOSUMDB",
   "GOOS", "GOARCH", "CGO_ENABLED", "GOEXPERIMENT", "GOFLAGS", "SOURCE_DATE_EPOCH",
   "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_TERMINAL_PROMPT",
+  "COSIGN_PASSWORD",
 ]);
 const fixedEnvironment = { GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0" };
 const ownedDirectories = new WeakSet();
@@ -25,6 +26,9 @@ export function cleanEnvironment(values = {}) {
       throw policyError("environment_refused");
     }
     if (Object.hasOwn(fixedEnvironment, key) && value !== fixedEnvironment[key]) throw policyError("environment_refused");
+    // Only the native disposable-key harness supplies this explicit value.
+    // Ordinary passwords and inherited process credentials remain refused.
+    if (key === "COSIGN_PASSWORD" && !/^auto-world-disposable-[0-9a-f]{64}$/u.test(value)) throw policyError("environment_refused");
     output[key] = value;
   }
   return output;

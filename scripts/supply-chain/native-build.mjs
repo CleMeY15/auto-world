@@ -1,12 +1,12 @@
 import { createReadStream } from "node:fs";
-import { access, chmod, copyFile, lstat, mkdir, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, lstat, mkdir, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
-import { validateTarArchive } from "./archive.mjs";
+import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, fetchExactSource } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, fetchExactSource, validateCheckedOutSource } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertDigest,
@@ -61,32 +61,44 @@ async function download(url, destination, cwd) {
   return sha256File(destination);
 }
 
-async function validateGzipTar(filePath, expectedPrefix) {
+async function validateGoCompilerGzipTar(filePath) {
   const source = createReadStream(filePath);
   const gunzip = createGunzip();
-  const entries = await validateTarArchive(source.pipe(gunzip), {
-    maxArchiveBytes: MATERIAL_LIMITS.closureBytes,
-    maxEntries: MATERIAL_LIMITS.closureEntries,
-    maxFileBytes: MATERIAL_LIMITS.archiveBytes,
-    maxTotalFileBytes: MATERIAL_LIMITS.closureBytes,
-    closeStreams: [source],
-  });
-  if (entries.length === 0 || entries.some((entry) => entry.path !== expectedPrefix && !entry.path.startsWith(`${expectedPrefix}/`))) materialError("native_build_archive_path_invalid");
+  await validateGoCompilerTarArchive(source.pipe(gunzip), { closeStreams: [source] });
 }
 
-async function ensureCommittedCleanLock(lockPath, workspace) {
-  const relative = path.relative(REPOSITORY_ROOT, lockPath).replaceAll("\\", "/");
-  const gitEnvironment = { PATH: "/usr/bin:/bin", HOME: path.join(workspace, "home"), TMPDIR: path.join(workspace, "tmp"), LANG: "C.UTF-8", LC_ALL: "C.UTF-8" };
-  await runCommand(BIN.git, ["-C", REPOSITORY_ROOT, "ls-files", "--error-unmatch", "--", relative], {
-    cwd: REPOSITORY_ROOT, env: gitEnvironment, timeoutMs: 10_000,
-  });
-  try {
-    await runCommand(BIN.git, ["-C", REPOSITORY_ROOT, "diff", "--quiet", "--exit-code", "--", relative], {
+async function ensureCommittedInputs(inputPaths, workspace) {
+  const gitEnvironment = {
+    PATH: "/usr/bin:/bin", HOME: path.join(workspace, "home"), TMPDIR: path.join(workspace, "tmp"), LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0",
+  };
+  const gitPrefix = ["-c", "credential.helper=", "-c", "core.askPass=/bin/false", "-c", "core.hooksPath=/dev/null", "-c", "diff.external=", "-C", REPOSITORY_ROOT];
+  const relatives = [...new Set(inputPaths.map((inputPath) => {
+    const absolute = path.resolve(inputPath);
+    if (!absolute.startsWith(`${REPOSITORY_ROOT}${path.sep}`)) materialError("native_build_input_path_refused");
+    const relative = path.relative(REPOSITORY_ROOT, absolute).replaceAll("\\", "/");
+    if (relative.split("/").some((part) => part === "" || part === "." || part === "..")) materialError("native_build_input_path_refused");
+    return relative;
+  }))];
+  for (const relative of relatives) {
+    await runCommand(BIN.git, [...gitPrefix, "ls-files", "--error-unmatch", "--", relative], {
       cwd: REPOSITORY_ROOT, env: gitEnvironment, timeoutMs: 10_000,
     });
-  } catch {
-    materialError("native_build_lock_dirty");
+    for (const staged of [false, true]) {
+      try {
+        await runCommand(BIN.git, [...gitPrefix, "diff", ...(staged ? ["--cached"] : []), "--no-ext-diff", "--no-textconv", "--quiet", "--exit-code", "--", relative], {
+          cwd: REPOSITORY_ROOT, env: gitEnvironment, timeoutMs: 10_000,
+        });
+      } catch {
+        materialError("native_build_input_dirty");
+      }
+    }
   }
+  const commit = (await runCommand(BIN.git, [...gitPrefix, "rev-parse", "HEAD^{commit}"], {
+    cwd: REPOSITORY_ROOT, env: gitEnvironment, timeoutMs: 10_000,
+  })).stdout.toString("utf8").trim();
+  if (!/^[0-9a-f]{40}$/u.test(commit)) materialError("native_build_repository_commit_invalid");
+  return commit;
 }
 
 async function requireBuildRuntime(tool, repeat, workspace, output) {
@@ -102,26 +114,6 @@ async function requireBuildRuntime(tool, repeat, workspace, output) {
     if (error?.code !== "ENOENT") throw error;
   }
   await Promise.all(Object.values(BIN).map((item) => access(item)));
-}
-
-async function scanSourceTree(directory) {
-  let count = 0;
-  let bytes = 0;
-  const pending = [directory];
-  while (pending.length) {
-    const current = pending.pop();
-    for (const entry of await readdir(current, { withFileTypes: true })) {
-      count += 1;
-      if (count > MATERIAL_LIMITS.closureEntries) materialError("native_build_source_entries_exceeded");
-      const item = path.join(current, entry.name);
-      if (entry.isSymbolicLink() || (!entry.isFile() && !entry.isDirectory())) materialError("native_build_source_entry_refused");
-      if (entry.isDirectory()) pending.push(item);
-      else {
-        bytes += (await stat(item)).size;
-        if (bytes > MATERIAL_LIMITS.closureBytes) materialError("native_build_source_bytes_exceeded");
-      }
-    }
-  }
 }
 
 function jsonSequence(bytes) {
@@ -232,12 +224,17 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   await requireBuildRuntime(tool, repeat, workspace, output);
   await mkdir(workspace, { recursive: false });
   await Promise.all(["home", "tmp", "gopath", "gocache", "gomodcache", "out"].map((item) => mkdir(path.join(workspace, item))));
-  await ensureCommittedCleanLock(lockPath, workspace);
+  const repositoryCommit = await ensureCommittedInputs([lockPath, SELECTION_PATH], workspace);
   const selection = validateSourceSelection(readBoundedJsonFile(SELECTION_PATH));
   const lock = validateMaterialLock(readBoundedJsonFile(lockPath), selection);
   const selected = selection.tools.find((entry) => entry.name === tool);
   const proposal = lock.proposals.find((entry) => entry.tool === tool);
   if (!proposal || proposal.managedRunner.imageVersion !== process.env.ImageVersion) materialError("native_build_runner_identity_mismatch");
+  await ensureCommittedInputs([
+    ...selected.recipeFiles.map((relative) => path.join(REPOSITORY_ROOT, relative)),
+    ...proposal.patches.map((entry) => path.join(REPOSITORY_ROOT, entry.path)),
+    ...proposal.testMaterials.map((entry) => path.join(REPOSITORY_ROOT, entry.path)),
+  ], workspace);
   const recipe = await collectRecipeFiles(selected);
   const recipeSha256 = sha256(canonicalJsonBuffer({
     tool, commit: selected.commit, modifiedVersion: selected.modifiedVersion, targets: selected.targets,
@@ -254,17 +251,20 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   assertDigest(sourceArchive.digest, proposal.sourceArchive, "source_archive");
   const compilerSelection = selection.compiler.archives.find((entry) => entry.goos === "linux");
   assertDigest(await download(compilerSelection.url, compilerArchive, workspace), proposal.compilerArchive, "compiler_archive");
-  await validateGzipTar(compilerArchive, "go");
+  await validateGoCompilerGzipTar(compilerArchive);
   await mkdir(path.join(workspace, "compiler"));
   await runCommand(BIN.tar, ["-xzf", compilerArchive, "-C", path.join(workspace, "compiler"), "--no-same-owner", "--no-same-permissions"], { cwd: workspace, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 120_000 });
   const source = sourceIdentity.sourceDirectory;
-  await scanSourceTree(source);
+  await validateCheckedOutSource(source, selected.sourceSymlinks);
+  const patchRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/patches");
   for (const patch of proposal.patches) {
-    const patchPath = path.join(REPOSITORY_ROOT, patch.path);
+    const patchPath = path.resolve(REPOSITORY_ROOT, patch.path);
+    if (!patchPath.startsWith(`${patchRoot}${path.sep}`)) materialError("native_build_patch_path_refused");
     assertDigest(await sha256File(patchPath, 1024 * 1024), patch, `patch_${patch.order}`);
     await runCommand(BIN.git, ["apply", "--check", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 });
     await runCommand(BIN.git, ["apply", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 });
   }
+  await validateCheckedOutSource(source, selected.sourceSymlinks);
   await materializeTestData(tool, proposal, source);
   const go = path.join(workspace, "compiler/go/bin/go");
   await chmod(go, 0o755);
@@ -280,7 +280,7 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   const versionText = versionResult.stdout.toString("utf8");
   if (!versionText.includes(selected.modifiedVersion) || versionText.includes(`${selected.version}+${selected.modifiedVersion}`)) materialError("native_build_version_identity_mismatch");
   const record = {
-    schemaVersion: 1, state: "built_candidate", tool, repeat, sourceCommit: selected.commit,
+    schemaVersion: 1, state: "built_candidate", tool, repeat, sourceCommit: selected.commit, repositoryCommit,
     selectionSha256: lock.selectionSha256, materialLockSha256: (await sha256File(lockPath, MATERIAL_LIMITS.receiptBytes)).sha256,
     recipeSha256: proposal.recipeSha256, compilerVersion: selection.compiler.version,
     runner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion },

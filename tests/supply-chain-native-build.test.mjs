@@ -43,8 +43,17 @@ test("Git source inventory refuses traversal, links, gitlinks and duplicates bef
     `160000 commit ${"a".repeat(40)} -\tsubmodule\0`,
     `${blob}${blob}`,
     `100644 blob ${"a".repeat(40)} 12\tline\nbreak\0`,
-  ]) assert.throws(() => validateGitTree(Buffer.from(hostile)), /source_git_tree_(entry|path)_refused/u);
+  ]) assert.throws(() => validateGitTree(Buffer.from(hostile)), /source_git_tree_(entry|path|symlink)_refused/u);
   assert.throws(() => validateGitTree(Buffer.from([0xff, 0x00])), /encoding_invalid/u);
+});
+
+test("Git source inventory accepts only an exact reviewed symlink identity", () => {
+  const link = { path: "pkg/testdata/symlink", target: "foo", blob: "b".repeat(40), size: 3 };
+  const record = `120000 blob ${link.blob}       3\t${link.path}\0`;
+  assert.doesNotThrow(() => validateGitTree(Buffer.from(record), [link]));
+  assert.throws(() => validateGitTree(Buffer.from(record)), /symlink_refused/u);
+  assert.throws(() => validateGitTree(Buffer.from(record), [{ ...link, blob: "c".repeat(40) }]), /symlink_refused/u);
+  assert.throws(() => validateGitTree(Buffer.from(`100644 blob ${"a".repeat(40)} 1\tregular\0`), [link]), /symlink_missing/u);
 });
 
 test("native build CLI has no target, activation, registry or credential input", () => {

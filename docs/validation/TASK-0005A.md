@@ -9,6 +9,9 @@ Status: IN_PROGRESS; no native tool admitted, no dormant installation accepted, 
 - 2026-09-07 baseline frozen install and forced `pnpm check` pass on Node 22.23.2, pnpm 10.15.0, Turbo 2.10.12. Turbo lint/typecheck/test/build: 9/11/18/9 successful tasks, zero cached. Root tests 10, vehicle 99, registry 77, SDK 157; secrets scan and dependency audit pass. This is base evidence only.
 - Native Architect then distinct Critic approved revision 5 planning hashes recorded in ADR-0005. Their approval covers preparation only; implementation reviews remain pending.
 - Live main `protected:false`; ruleset and branch-protection GETs both return HTTP 403 requiring Pro/public. No settings, environments, secrets, keys or registry packages were created.
+- Implementation commit `0b4401fb0c81ee858a61be4162fc898fd960087e` adds bounded JSON/OCI/archive validation, explicit material proposals, a native candidate builder, audit identity/inventory checks, subprocess isolation and a closed workflow policy. Local full checks passed during implementation; they do not establish native acceptance.
+- Exact commit `61a3896dde31044c13628e5b95f1e1c3247c8ece` passes the general [CI 34157849634](https://github.com/CleMeY15/auto-world/actions/runs/34157849634). Its [native preparation run 34157850993](https://github.com/CleMeY15/auto-world/actions/runs/34157850993) exposed Git's space-aligned `ls-tree -l` sizes before material collection. Commit `a5fc179080722c2e461207094af5b40ba1346feb` corrects that parser; its targeted tests and a real 150-entry repository tree pass locally. Later native phases remain pending.
+- No native source build, upstream suite, real vulnerability scan or network-disabled signature test has passed yet. The committed native workflow deliberately refuses installation while these gates are missing.
 
 ## Required pending evidence
 

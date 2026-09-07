@@ -37,6 +37,23 @@ test("subprocess error hides raw sentinel output and enforces aggregate output a
   await assert.rejects(runCommand("node", [], { cwd: process.cwd() }), { code: "command_refused" });
 });
 
+test("Cosign receives only an explicit disposable password and never inherits one", async () => {
+  const old = process.env.COSIGN_PASSWORD;
+  process.env.COSIGN_PASSWORD = "inherited-password-must-not-reach-child";
+  try {
+    const result = await runCommand(process.execPath, ["-e", "process.stdout.write(String(process.env.COSIGN_PASSWORD === undefined))"], { cwd: process.cwd() });
+    assert.equal(result.stdout.toString(), "true");
+    const disposable = `auto-world-disposable-${"a".repeat(64)}`;
+    assert.equal(cleanEnvironment({ COSIGN_PASSWORD: disposable }).COSIGN_PASSWORD, disposable);
+    for (const value of ["", "durable-password", "auto-world-disposable-short", `${disposable}\n`]) {
+      assert.throws(() => cleanEnvironment({ COSIGN_PASSWORD: value }), { code: "environment_refused" });
+    }
+  } finally {
+    if (old === undefined) delete process.env.COSIGN_PASSWORD;
+    else process.env.COSIGN_PASSWORD = old;
+  }
+});
+
 test("owned cleanup refuses forged handles and preserves unrelated sentinel", async () => {
   const parent = await createOwnedDirectory();
   const child = await createOwnedDirectory(parent.path);

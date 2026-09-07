@@ -18,7 +18,7 @@
   },
   "managedRunner": {
     "label": "ubuntu-24.04",
-    "requiredUtilities": ["git", "bash", "make", "tar", "gzip", "gpg", "openssl", "curl", "gcc"]
+    "requiredUtilities": ["git", "bash", "make", "tar", "gzip", "gpg", "openssl", "curl", "gcc", "unshare"]
   },
   "tools": [
     {
@@ -28,10 +28,11 @@
       "repository": "oras-project/oras",
       "commit": "db9e29505c3059f2b8fde34ae8cae266c5c765e9",
       "sourceRepositoryUrl": "https://github.com/oras-project/oras.git",
+      "sourceSymlinks": [],
       "targets": ["linux-amd64"],
       "timeoutMinutes": 30,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
       "upstreamTests": ["make-test", "upstream-e2e-pending-separate-registry-fixture-review", "project-layout-auth-log-contract"],
       "requiredEvidence": ["license", "notice", "module-closure", "release-checksum-signature", "tag-verification", "commit-verification"],
       "orasVerification": {
@@ -49,6 +50,7 @@
       "repository": "sigstore/cosign",
       "commit": "11926fa5bbbbde47e88fc006b625a17769b743b2",
       "sourceRepositoryUrl": "https://github.com/sigstore/cosign.git",
+      "sourceSymlinks": [],
       "targets": ["linux-amd64", "windows-amd64"],
       "timeoutMinutes": 60,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
@@ -63,6 +65,11 @@
       "repository": "aquasecurity/trivy",
       "commit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
       "sourceRepositoryUrl": "https://github.com/aquasecurity/trivy.git",
+      "sourceSymlinks": [
+        {"path": "pkg/fanal/analyzer/language/golang/binary/testdata/symlink", "target": "foo", "blob": "19102815663d23f8b75a47e7a01965dcdc96468c", "size": 3},
+        {"path": "pkg/fanal/analyzer/language/rust/binary/testdata/symlink", "target": "foo", "blob": "19102815663d23f8b75a47e7a01965dcdc96468c", "size": 3},
+        {"path": "pkg/fanal/walker/testdata/fs/sym.txt", "target": "bar", "blob": "ba0e162e1c47469e3fe4b393a8bf8c569f302116", "size": 3}
+      ],
       "targets": ["linux-amd64"],
       "timeoutMinutes": 90,
       "patchPolicy": {"allowedKinds": ["grpc-1.83.1", "fixture-locking"], "additionalPatchReviewRequired": true},

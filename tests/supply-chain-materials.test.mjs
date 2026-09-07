@@ -56,6 +56,9 @@ test("source selection rejects mutable or substituted source URLs", () => {
   assert.throws(() => validateSourceSelection(mutated), /source_repository_url_invalid/u);
   mutated.tools[0].sourceRepositoryUrl = "https://evil.invalid/oras-project/oras.git";
   assert.throws(() => validateSourceSelection(mutated), /host_not_allowed/u);
+  const symlinkDrift = JSON.parse(JSON.stringify(selection));
+  symlinkDrift.tools.find((entry) => entry.name === "trivy").sourceSymlinks[0].target = "other";
+  assert.throws(() => validateSourceSelection(symlinkDrift), /source_symlinks_mismatch/u);
 });
 
 test("proposal rejects closure, patch order, runner and completion drift", () => {
@@ -65,6 +68,12 @@ test("proposal rejects closure, patch order, runner and completion drift", () =>
   assert.throws(() => validateMaterialProposal(proposal("oras", {
     patches: [{ order: 2, kind: "reviewed", path: "infra/supply-chain/patches/a.patch", sha256: "5".repeat(64), size: 1 }],
   }), selectionSha256, "oras"), /patch_order_invalid/u);
+  assert.throws(() => validateMaterialProposal(proposal("trivy", {
+    patches: [{ order: 1, kind: "unexpected", path: "infra/supply-chain/patches/a.patch", sha256: "5".repeat(64), size: 1 }],
+  }), selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /patch_kind_not_selected/u);
+  assert.throws(() => validateMaterialProposal(proposal("trivy", {
+    patches: [{ order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/../outside.patch", sha256: "5".repeat(64), size: 1 }],
+  }), selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /patches_0_path_invalid/u);
   assert.throws(() => validateMaterialProposal(proposal("oras", { complete: true, blockers: ["pending"] }), selectionSha256, "oras"), /completion_mismatch/u);
 });
 

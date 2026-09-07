@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, readFileSync } from "node:fs";
+import { closeSync, createReadStream, fstatSync, openSync, readSync } from "node:fs";
 import { canonicalJsonBuffer, parseBoundedJson, sha256 } from "./strict-json.mjs";
 
 export const MATERIAL_LIMITS = Object.freeze({
@@ -16,6 +16,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const COMMIT = /^[0-9a-f]{40}$/;
 const TOOL_NAMES = new Set(["oras", "cosign", "trivy"]);
 const TARGETS = new Set(["linux-amd64", "windows-amd64"]);
+const TRIVY_SOURCE_SYMLINKS = Object.freeze([
+  { path: "pkg/fanal/analyzer/language/golang/binary/testdata/symlink", target: "foo", blob: "19102815663d23f8b75a47e7a01965dcdc96468c", size: 3 },
+  { path: "pkg/fanal/analyzer/language/rust/binary/testdata/symlink", target: "foo", blob: "19102815663d23f8b75a47e7a01965dcdc96468c", size: 3 },
+  { path: "pkg/fanal/walker/testdata/fs/sym.txt", target: "bar", blob: "ba0e162e1c47469e3fe4b393a8bf8c569f302116", size: 3 },
+]);
 
 function fail(message) {
   throw new Error(`material_contract:${message}`);
@@ -86,6 +91,14 @@ function digestRecord(value, name) {
   return record;
 }
 
+function repositoryPath(value, name, prefix) {
+  const candidate = string(value, name, /^[a-z0-9_./-]+$/u);
+  if (!candidate.startsWith(`${prefix}/`) || candidate.split("/").some((part) => part === "" || part === "." || part === "..")) {
+    fail(`${name}_invalid`);
+  }
+  return candidate;
+}
+
 function compilerArchive(value, name) {
   const record = closed(value, ["goos", "url", "sha256"], [], name);
   if (!new Set(["linux", "windows"]).has(record.goos)) fail(`${name}_goos_unsupported`);
@@ -96,7 +109,7 @@ function compilerArchive(value, name) {
 
 function validateSelectionTool(value, index) {
   const name = `tools_${index}`;
-  const record = closed(value, ["name", "version", "modifiedVersion", "repository", "commit", "sourceRepositoryUrl", "targets", "timeoutMinutes", "patchPolicy", "recipeFiles", "upstreamTests", "requiredEvidence"], ["orasVerification", "knownFixtureBlockers"], name);
+  const record = closed(value, ["name", "version", "modifiedVersion", "repository", "commit", "sourceRepositoryUrl", "sourceSymlinks", "targets", "timeoutMinutes", "patchPolicy", "recipeFiles", "upstreamTests", "requiredEvidence"], ["orasVerification", "knownFixtureBlockers"], name);
   string(record.name, `${name}_name`);
   if (!TOOL_NAMES.has(record.name)) fail(`${name}_unsupported`);
   string(record.version, `${name}_version`, /^[0-9]+\.[0-9]+\.[0-9]+$/);
@@ -105,6 +118,16 @@ function validateSelectionTool(value, index) {
   string(record.commit, `${name}_commit`, COMMIT);
   fixedHttpsUrl(record.sourceRepositoryUrl, `${name}_source_repository_url`);
   if (record.sourceRepositoryUrl !== `https://github.com/${repository}.git`) fail(`${name}_source_repository_url_invalid`);
+  if (!Array.isArray(record.sourceSymlinks)) fail(`${name}_source_symlinks_invalid`);
+  record.sourceSymlinks.forEach((entry, linkIndex) => {
+    const link = closed(entry, ["path", "target", "blob", "size"], [], `${name}_source_symlink_${linkIndex}`);
+    repositoryPath(link.path, `${name}_source_symlink_${linkIndex}_path`, "pkg");
+    string(link.target, `${name}_source_symlink_${linkIndex}_target`, /^[a-z0-9_.-]+$/u);
+    string(link.blob, `${name}_source_symlink_${linkIndex}_blob`, COMMIT);
+    integer(link.size, `${name}_source_symlink_${linkIndex}_size`, 1, 4096);
+  });
+  const expectedSymlinks = record.name === "trivy" ? TRIVY_SOURCE_SYMLINKS : [];
+  if (canonicalJsonBuffer(record.sourceSymlinks).compare(canonicalJsonBuffer(expectedSymlinks)) !== 0) fail(`${name}_source_symlinks_mismatch`);
   const targets = strings(record.targets, `${name}_targets`, { allowed: TARGETS });
   const expectedTargets = record.name === "cosign" ? ["linux-amd64", "windows-amd64"] : ["linux-amd64"];
   if (canonicalJsonBuffer(targets).compare(canonicalJsonBuffer(expectedTargets)) !== 0) fail(`${name}_target_set_invalid`);
@@ -168,14 +191,14 @@ function validatePatch(value, index) {
   const name = `patches_${index}`;
   const record = closed(value, ["order", "kind", "path", "sha256", "size"], [], name);
   integer(record.order, `${name}_order`, 1, 100);
-  string(record.kind, `${name}_kind`, /^[a-z0-9_-]+$/);
-  string(record.path, `${name}_path`, /^infra\/supply-chain\/patches\/[a-z0-9_./-]+$/);
+  string(record.kind, `${name}_kind`, /^[a-z0-9_.-]+$/);
+  repositoryPath(record.path, `${name}_path`, "infra/supply-chain/patches");
   string(record.sha256, `${name}_sha256`, SHA256);
   integer(record.size, `${name}_size`, 1, 1024 * 1024);
   return record;
 }
 
-export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool) {
+export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds) {
   const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "managedRunner", "complete", "blockers"], [], "proposal");
   if (root.schemaVersion !== 1 || root.state !== "material_lock_proposal") fail("proposal_header_invalid");
   string(root.selectionSha256, "proposal_selection_sha256", SHA256);
@@ -194,6 +217,7 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   if (!Array.isArray(root.patches) || root.patches.length > 100) fail("proposal_patches_invalid");
   const patches = root.patches.map(validatePatch);
   if (patches.some((entry, index) => entry.order !== index + 1)) fail("proposal_patch_order_invalid");
+  if (expectedPatchKinds && patches.some((entry) => !expectedPatchKinds.includes(entry.kind))) fail("proposal_patch_kind_not_selected");
   if (!Array.isArray(root.testMaterials) || root.testMaterials.length > MATERIAL_LIMITS.closureEntries) fail("proposal_test_materials_invalid");
   root.testMaterials.forEach((entry, index) => {
     const record = closed(entry, ["name", "kind", "origin", "path", "sha256", "size"], [], `test_material_${index}`);
@@ -204,7 +228,7 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
       ? "https://github.com/aquasecurity/trivy-test-repo"
       : "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm";
     if (record.origin !== expectedOrigin) fail("test_material_origin_invalid");
-    string(record.path, `test_material_${index}_path`, /^infra\/supply-chain\/materials\/[a-z0-9_./-]+$/);
+    repositoryPath(record.path, `test_material_${index}_path`, "infra/supply-chain/materials");
     string(record.sha256, `test_material_${index}_sha256`, SHA256);
     integer(record.size, `test_material_${index}_size`, 1, MATERIAL_LIMITS.archiveBytes);
   });
@@ -245,7 +269,11 @@ export function validateMaterialLock(value, selection) {
   string(root.selectionSha256, "lock_selection_sha256", SHA256);
   if (root.selectionSha256 !== selectionSha) fail("lock_selection_mismatch");
   if (!Array.isArray(root.proposals) || root.proposals.length !== 3) fail("lock_proposals_invalid");
-  const proposals = root.proposals.map((entry) => validateMaterialProposal(entry, selectionSha));
+  const proposals = root.proposals.map((entry) => {
+    const selected = selection.tools.find((tool) => tool.name === entry?.tool);
+    if (!selected) fail("lock_proposal_tool_not_selected");
+    return validateMaterialProposal(entry, selectionSha, selected.name, selected.patchPolicy.allowedKinds);
+  });
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) fail("lock_proposal_duplicate");
   if (proposals.some((entry) => !entry.complete)) fail("lock_proposal_incomplete");
   for (const proposal of proposals) {
@@ -256,12 +284,26 @@ export function validateMaterialLock(value, selection) {
 }
 
 export function readBoundedJsonFile(filePath) {
-  const bytes = readFileSync(filePath);
-  return parseBoundedJson(bytes, {
-    maxBytes: MATERIAL_LIMITS.receiptBytes,
-    maxDepth: MATERIAL_LIMITS.receiptDepth,
-    maxMembers: MATERIAL_LIMITS.receiptMembers,
-  });
+  const descriptor = openSync(filePath, "r");
+  try {
+    const size = fstatSync(descriptor).size;
+    if (!Number.isSafeInteger(size) || size < 1 || size > MATERIAL_LIMITS.receiptBytes) fail("json_file_size_invalid");
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = readSync(descriptor, bytes, offset, size - offset, offset);
+      if (count === 0) fail("json_file_truncated");
+      offset += count;
+    }
+    if (readSync(descriptor, Buffer.alloc(1), 0, 1, offset) !== 0) fail("json_file_grew_during_read");
+    return parseBoundedJson(bytes, {
+      maxBytes: MATERIAL_LIMITS.receiptBytes,
+      maxDepth: MATERIAL_LIMITS.receiptDepth,
+      maxMembers: MATERIAL_LIMITS.receiptMembers,
+    });
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 export async function sha256File(filePath, maximumBytes = MATERIAL_LIMITS.archiveBytes) {

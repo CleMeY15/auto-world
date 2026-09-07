@@ -1,10 +1,10 @@
 import { createReadStream } from "node:fs";
-import { access, lstat, mkdir, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readlink, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
-import { validateTarArchive } from "./archive.mjs";
+import { validateGoCompilerTarArchive, validateNativeSourceTarArchive, validateTarArchive } from "./archive.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 import {
   MATERIAL_LIMITS,
@@ -22,7 +22,7 @@ const DEFAULT_SELECTION = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-
 const LINUX_BINARIES = Object.freeze({
   bash: "/usr/bin/bash", curl: "/usr/bin/curl", git: "/usr/bin/git", gpg: "/usr/bin/gpg",
   gzip: "/usr/bin/gzip", make: "/usr/bin/make", openssl: "/usr/bin/openssl", tar: "/usr/bin/tar",
-  gcc: "/usr/bin/gcc",
+  gcc: "/usr/bin/gcc", unshare: "/usr/bin/unshare",
 });
 
 function usage() {
@@ -101,7 +101,7 @@ async function runGit(args, cwd, workspace, timeoutMs = 60_000) {
   });
 }
 
-export function validateGitTree(bytes) {
+export function validateGitTree(bytes, allowedSymlinks = []) {
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -112,8 +112,10 @@ export function validateGitTree(bytes) {
   if (records.length === 0 || records.length > MATERIAL_LIMITS.closureEntries) materialError("source_git_tree_count_invalid");
   let totalBytes = 0;
   const paths = new Set();
+  const expectedSymlinks = new Map(allowedSymlinks.map((entry) => [entry.path, entry]));
+  const observedSymlinks = new Set();
   for (const record of records) {
-    const match = /^(100644|100755) blob ([0-9a-f]{40}) +([0-9]+)\t([^\0]+)$/u.exec(record);
+    const match = /^(100644|100755|120000) blob ([0-9a-f]{40}) +([0-9]+)\t([^\0]+)$/u.exec(record);
     if (!match) materialError("source_git_tree_entry_refused");
     const name = match[4];
     const hasControl = [...name].some((character) => character.codePointAt(0) <= 0x1f || character.codePointAt(0) === 0x7f);
@@ -124,9 +126,15 @@ export function validateGitTree(bytes) {
     paths.add(name);
     const size = Number(match[3]);
     if (!Number.isSafeInteger(size) || size > MATERIAL_LIMITS.archiveBytes) materialError("source_git_tree_file_size_invalid");
+    if (match[1] === "120000") {
+      const expected = expectedSymlinks.get(name);
+      if (!expected || expected.blob !== match[2] || expected.size !== size || observedSymlinks.has(name)) materialError("source_git_tree_symlink_refused");
+      observedSymlinks.add(name);
+    }
     totalBytes += size;
     if (!Number.isSafeInteger(totalBytes) || totalBytes > MATERIAL_LIMITS.closureBytes) materialError("source_git_tree_bytes_exceeded");
   }
+  if (observedSymlinks.size !== expectedSymlinks.size) materialError("source_git_tree_symlink_missing");
   return records.length;
 }
 
@@ -145,30 +153,27 @@ export async function fetchExactSource(selected, workspace, phase = (_name, oper
     const tree = (await runGit(["-C", sourceDirectory, "rev-parse", `${selected.commit}^{tree}`], workspace, workspace)).stdout.toString("utf8").trim();
     if (!/^[0-9a-f]{40}$/u.test(tree)) materialError("source_git_tree_invalid");
     const listing = await runGit(["-C", sourceDirectory, "ls-tree", "-r", "-l", "-z", "--full-tree", selected.commit], workspace, workspace);
-    validateGitTree(listing.stdout);
+    validateGitTree(listing.stdout, selected.sourceSymlinks);
     await runGit(["-C", sourceDirectory, "checkout", "--quiet", "--detach", selected.commit], workspace, workspace);
-    await rejectLinksAndMeasure(sourceDirectory);
+    await validateCheckedOutSource(sourceDirectory, selected.sourceSymlinks);
     const epochText = (await runGit(["-C", sourceDirectory, "show", "-s", "--format=%ct", selected.commit], workspace, workspace)).stdout.toString("utf8").trim();
     const sourceDateEpoch = Number(epochText);
     if (!Number.isSafeInteger(sourceDateEpoch) || sourceDateEpoch < 1) materialError("source_date_epoch_invalid");
-    return { prefix, sourceDirectory, sourceDateEpoch, sourceTree: tree };
+    return { prefix, sourceDirectory, sourceDateEpoch, sourceTree: tree, tool: selected.name };
   });
 }
 
-export async function canonicalSourceArchive({ prefix, sourceDateEpoch }, workspace, phase = (_name, operation) => operation()) {
+export async function canonicalSourceArchive({ prefix, sourceDateEpoch, tool }, workspace, phase = (_name, operation) => operation()) {
   return phase("archive", async () => {
     const tarPath = path.join(workspace, `${prefix}.tar`);
     await runCommand(LINUX_BINARIES.tar, ["--format=ustar", "--sort=name", `--mtime=@${sourceDateEpoch}`, "--owner=0", "--group=0", "--numeric-owner", `--exclude=${prefix}/.git`, "-cf", tarPath, prefix], {
       cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024,
     });
     const source = createReadStream(tarPath);
-    await validateTarArchive(source, {
-      maxArchiveBytes: MATERIAL_LIMITS.closureBytes, maxEntries: MATERIAL_LIMITS.closureEntries,
-      maxFileBytes: MATERIAL_LIMITS.archiveBytes, maxTotalFileBytes: MATERIAL_LIMITS.closureBytes, closeStreams: [source],
-    });
+    await validateNativeSourceTarArchive(source, { closeStreams: [source], expectedPrefix: prefix, tool });
     await runCommand(LINUX_BINARIES.gzip, ["-n", "-9", tarPath], { cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024 });
     const archivePath = `${tarPath}.gz`;
-    await validateGzipTar(archivePath, prefix);
+    await validateNativeGzipTar(archivePath, prefix, tool);
     return { archivePath, digest: await sha256File(archivePath) };
   });
 }
@@ -213,17 +218,42 @@ async function validateGzipTar(filePath, expectedPrefix) {
   return entries;
 }
 
-async function rejectLinksAndMeasure(directory) {
+async function validateGoCompilerGzipTar(filePath) {
+  const source = createReadStream(filePath);
+  const gunzip = createGunzip();
+  return validateGoCompilerTarArchive(source.pipe(gunzip), { closeStreams: [source] });
+}
+
+async function validateNativeGzipTar(filePath, expectedPrefix, tool) {
+  const source = createReadStream(filePath);
+  const gunzip = createGunzip();
+  return validateNativeSourceTarArchive(source.pipe(gunzip), { closeStreams: [source], expectedPrefix, tool });
+}
+
+export async function validateCheckedOutSource(directory, allowedSymlinks = []) {
   let entries = 0;
   let bytes = 0;
   const pending = [directory];
+  const expectedSymlinks = new Map(allowedSymlinks.map((entry) => [entry.path, entry]));
+  const observedSymlinks = new Set();
   while (pending.length > 0) {
     const current = pending.pop();
     for (const entry of await readdir(current, { withFileTypes: true })) {
       entries += 1;
       if (entries > MATERIAL_LIMITS.closureEntries) materialError("source_closure_entries_exceeded");
       const target = path.join(current, entry.name);
-      if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) materialError("source_closure_unsupported_entry");
+      if (entry.isSymbolicLink()) {
+        const relative = path.relative(directory, target).replaceAll("\\", "/");
+        const expected = expectedSymlinks.get(relative);
+        const linkTarget = await readlink(target);
+        if (!expected || observedSymlinks.has(relative) || linkTarget !== expected.target || Buffer.byteLength(linkTarget) !== expected.size) {
+          materialError("source_closure_symlink_refused");
+        }
+        observedSymlinks.add(relative);
+        bytes += expected.size;
+        continue;
+      }
+      if (!entry.isDirectory() && !entry.isFile()) materialError("source_closure_unsupported_entry");
       if (entry.isDirectory()) pending.push(target);
       else {
         bytes += (await stat(target)).size;
@@ -231,6 +261,7 @@ async function rejectLinksAndMeasure(directory) {
       }
     }
   }
+  if (observedSymlinks.size !== expectedSymlinks.size) materialError("source_closure_symlink_missing");
   return { entries, bytes };
 }
 
@@ -364,7 +395,7 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
   const compilerArchive = await runPhase("compiler_verify", async () => {
     const digest = await download(compilerSelection.url, compilerArchivePath, workspace);
     if (digest.sha256 !== compilerSelection.sha256) materialError("compiler_archive_digest_mismatch");
-    await validateGzipTar(compilerArchivePath, "go");
+    await validateGoCompilerGzipTar(compilerArchivePath);
     return digest;
   });
 
@@ -383,7 +414,7 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     GOPROXY: "https://proxy.golang.org", GOSUMDB: "sum.golang.org", GOFLAGS: "-mod=readonly",
   });
 
-  const blockers = [];
+  const blockers = ["required-source-evidence-closure-not-yet-implemented"];
   if (tool === "trivy") blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
   if (tool === "oras") blockers.push("oras-release-gpg-and-github-signature-evidence-not-yet-byte-locked");
   const recipe = await collectRecipeFiles(selected);
@@ -414,7 +445,7 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     blockers: [...new Set(blockers)].sort(),
   };
   await runPhase("proposal_write", async () => {
-    validateMaterialProposal(proposal, selectionSha256, tool);
+    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds);
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, canonicalJsonBuffer(proposal));
   });
@@ -424,7 +455,12 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
 export async function mergeMaterialProposals({ proposals: proposalPaths, output, selection: selectionPath }) {
   const selection = validateSourceSelection(readBoundedJsonFile(selectionPath));
   const selectionSha256 = sha256(canonicalJsonBuffer(selection));
-  const proposals = proposalPaths.map((proposalPath) => validateMaterialProposal(readBoundedJsonFile(proposalPath), selectionSha256));
+  const proposals = proposalPaths.map((proposalPath) => {
+    const candidate = readBoundedJsonFile(proposalPath);
+    const selected = selection.tools.find((entry) => entry.name === candidate?.tool);
+    if (!selected) materialError("merge_tool_not_selected");
+    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds);
+  });
   proposals.sort((left, right) => left.tool.localeCompare(right.tool, "en"));
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) materialError("merge_tool_set_invalid");
   if (proposals.some((entry) => !entry.complete)) materialError("merge_incomplete_proposal_refused");
