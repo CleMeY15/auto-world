@@ -79,3 +79,11 @@ test("credentials are required generated inputs and object authentication is exp
   assert.equal(services.opensearch.environment.DISABLE_SECURITY_PLUGIN, "true");
   assert.doesNotMatch(JSON.stringify(services), /\$\{AW_[A-Z_]+:-/u);
 });
+
+test("only the raw volume disables image skeleton copy-up before empty-target restore", () => {
+  const { services } = read("infra/compose.json");
+  for (const [name, service] of Object.entries(services)) {
+    const data = service.volumes.find((mount) => mount.type === "volume");
+    assert.equal(data.volume?.nocopy, name === "object-store" ? true : undefined);
+  }
+});

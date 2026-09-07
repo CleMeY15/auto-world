@@ -75,6 +75,15 @@ async function snapshot(target) {
   return (await sql(target, query, { role: "reader" })).trim();
 }
 
+async function assertRawServiceOwnership(target) {
+  const ownership = await compose(target, ["exec", "-T", "object-store", "stat", "-c", "%u:%g", "/data", "/data/filerldb2"]);
+  assert.deepEqual(ownership.stdout.trim().split(/\r?\n/u), ["1000:1000", "1000:1000"]);
+  const processStatus = await compose(target, ["exec", "-T", "object-store", "cat", "/proc/1/status"]);
+  for (const field of ["Uid", "Gid"]) {
+    assert.match(processStatus.stdout, new RegExp(`^${field}:\\s+1000\\s+1000\\s+1000\\s+1000\\s*$`, "mu"));
+  }
+}
+
 async function insertRow(table, value) {
   if (!/^[a-z_]+$/u.test(table)) throw new InfraError("infra_test_table_invalid");
   return sql(state, `INSERT INTO aw_foundation.${table} SELECT * FROM jsonb_populate_record(NULL::aw_foundation.${table}, ${sqlText(JSON.stringify(value))}::jsonb);`, { role: "writer" });
@@ -111,6 +120,7 @@ async function suite() {
     });
     await s3(starting, "create-bucket");
     records.push(...await ready(starting));
+    await phase("raw-service-nonroot-and-ownership", () => assertRawServiceOwnership(starting));
     await assert.rejects(s3(state, "head-bucket", { wrongKey: true }));
     const { port } = await import("./runtime.mjs");
     const endpoint = await port(state, "object-store", 8333);
@@ -250,6 +260,7 @@ async function suite() {
     const { rejectUnsafeRestore } = await import("./integration-backup-negative.mjs");
     await phase("restore-refuses-platform-tamper-and-existing-target", () => rejectUnsafeRestore(state, saved));
     const restored = await restoreCheck(state, saved.backupId, { verify: async (target) => {
+      await assertRawServiceOwnership(target);
       assert.equal(await snapshot(target), before);
       assert.equal(digestBytes(await s3(target, "get-object", { key: fixture.raw.object_key })), fixture.sha256);
     } });
