@@ -1,0 +1,78 @@
+name: Native bootstrap preparation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Validate dormant policy and data contracts
+        run: node --test tests/supply-chain-*.test.mjs
+      - name: Report dormant status
+        run: node scripts/supply-chain/dormant.mjs status
+
+  lock-proposal:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - tool: oras
+            timeout: 30
+          - tool: cosign
+            timeout: 60
+          - tool: trivy
+            timeout: 90
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Propose material lock without promotion
+        env:
+          BOOTSTRAP_TOOL: ${{ matrix.tool }}
+        run: >-
+          node scripts/supply-chain/lock-update.mjs propose
+          --tool "$BOOTSTRAP_TOOL"
+          --workspace "$RUNNER_TEMP/auto-world-native-$BOOTSTRAP_TOOL"
+          --output "$RUNNER_TEMP/native-lock-$BOOTSTRAP_TOOL.json"
+      - name: Retain diagnostic proposal
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-lock-${{ matrix.tool }}
+          path: |
+            ${{ runner.temp }}/native-lock-${{ matrix.tool }}.json
+            ${{ runner.temp }}/auto-world-native-${{ matrix.tool }}/proposal-assets
+          if-no-files-found: error
+          retention-days: 30
+      - name: Refuse installation without committed native acceptance
+        run: node scripts/supply-chain/dormant.mjs installation
