@@ -1,6 +1,6 @@
 # TASK-0005 — Local data infrastructure
 
-Status: IN_PROGRESS — ADR-0004 accepted after independent Architect/Critic planning review; implementation and validation pending
+Status: IN_PROGRESS — implementation on draft PR #7; real integration, image audit and final reviews not accepted (see validation evidence)
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
@@ -17,6 +17,7 @@ Provide reproducible development and CI data services for PostgreSQL, OpenSearch
 - `docs/DEFINITION_OF_DONE.md`
 - TASK-0002 through TASK-0004 storage, raw and connector contracts
 - `docs/decisions/ADR-0004-local-data-infrastructure.md`
+- `docs/validation/TASK-0005.md` — current evidence, failed gates and remaining work
 
 ## Scope
 - Add version-pinned local orchestration and CI service containers for PostgreSQL, OpenSearch, Redis and S3-compatible storage.

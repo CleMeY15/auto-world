@@ -332,23 +332,28 @@ export function createBackupRuntime(options = {}) {
   }
 
   async function assertEmptyVolume(state, volume) {
+    const service = Object.entries(VOLUME_BY_SERVICE)
+      .find(([, name]) => volume === `${state.project}_${name}`)?.[0];
+    if (service === undefined) throw new InfraError("backup_volume_unexpected");
     const result = await runHelper(
       state,
       [
         "--mount",
-        `type=volume,src=${safeMountSource(volume)},dst=/source,readonly`,
+        `type=volume,src=${safeMountSource(volume)},dst=/source,readonly,volume-nocopy`,
         `${images.postgres.repository}@${images.postgres.manifestDigest}`,
         "find",
         "/source",
         "-mindepth",
         "1",
-        "-print",
+        "-printf",
+        "%y\\n",
         "-quit",
       ],
       15_000,
       { capabilities: ["DAC_OVERRIDE"] },
     );
-    if (result.stdout.trim().length > 0) throw new InfraError("restore_target_nonempty");
+    // Only a fixed service name is exposed, never a volume path or entry name.
+    if (result.stdout.trim().length > 0) throw new InfraError(`restore_target_nonempty_${service}`);
   }
 
   async function runHelper(

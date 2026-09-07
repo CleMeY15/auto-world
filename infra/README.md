@@ -1,6 +1,6 @@
 # Local and CI data foundation
 
-TASK-0005 implementation in progress. Passing static tests does not prove Docker startup, recovery or image safety. Acceptance evidence is recorded separately before the task becomes Done.
+TASK-0005 implementation in progress. Passing static tests does not prove Docker startup, recovery or image safety. [Current validation and blockers](../docs/validation/TASK-0005.md) are recorded separately before the task becomes Done. The current image set fails the security gate and must not be treated as an accepted development baseline.
 
 This stack implements [ADR-0004](../docs/decisions/ADR-0004-local-data-infrastructure.md): PostgreSQL canonical evidence/outbox, SeaweedFS raw bytes, rebuildable OpenSearch index and Redis cache. No real source is authorized or fetched, no connector runs, and no production infrastructure is deployed.
 
@@ -28,6 +28,8 @@ pnpm infra:status
 
 Use `--project aw-local-<name>` consistently on commands if the default name/ports are unsuitable for the current checkout. Project names do not grant ownership: labels and a per-checkout token are checked before mutation. Parallel development stacks currently need separate Docker hosts or an explicit reviewed port configuration change; the supported CLI does not accept arbitrary endpoints/paths. CI uses unique test names and ephemeral loopback ports.
 
+One project-owned non-internal bridge is required for these published localhost endpoints. Both its default host binding and each explicit service port use127.0.0.1. Ordinary container egress is possible: this is not an outbound firewall. No host-network mode, proxy, additional image or production capability is introduced. Host probes check PostgreSQL's SCRAM challenge (not completed host authentication), authenticated Redis PING, OpenSearch HTTP and anonymous S3 denial; full authenticated SQL/signed S3 probes use the same services internally.
+
 `infra:status` emits fixed service/phase/status/code/duration fields and exits nonzero if a dependency is unusable. It never emits credentials, resolved Compose configuration, query rows or raw content. Do not publish `docker inspect`, resolved Compose output or unsanitized service logs; those may contain secrets or source values. Container json-file logs are bounded to3×10MiB per service. No production dashboards/alerts are implemented.
 
 ## Stop, resume and reset
@@ -50,6 +52,8 @@ pnpm infra:reset
 Reset is explicitly destructive: it removes only this project's enumerated, label-verified four data volumes after shutdown. It cannot recover those volumes without a separate backup. Credentials and `.local-data/backups/` remain. It does not call Docker prune, delete unrelated volumes or recursively delete workstation directories. Integration creates and verifies an independent sentinel survives reset, then removes that sentinel itself.
 
 Every lifecycle/writer command acquires a project operation lock. Overlapping operations fail. SIGINT/SIGTERM request cooperative cancellation: work stops and bounded cleanup/recovery runs before exit. After a forcibly killed process, do not blindly remove a lock: first establish that its recorded PID no longer runs and no helper/writer remains. SIGKILL, host failure or daemon loss can prevent in-process cleanup; inspect owned resources and recover the prior service state. Ordinary reported failures run bounded recovery.
+
+Cancellation/timeout waits for subprocess closure, with a separate5s termination limit. Named helper cleanup then requires two absence observations separated by250ms and removes a late observed helper only after verifying ownership. These bounded observations are not a distributed daemon-fencing guarantee. Unverified termination or cleanup is reported as failure. Partial new-project initialization removes only its verified newly created credential directory; synthetic negative-test backup copies are removed in protected cleanup while the valid source backup remains.
 
 ## Schema, raw evidence and rollback
 
@@ -95,3 +99,9 @@ Integration has20min overall including pulls: config10s, pulls600s, usable start
 The separate image audit scans all six immutable service/tool pins remotely without a Docker socket. Complete HIGH/CRITICAL reports retain unfixed findings and scanner/database timestamps. Every CRITICAL and fixable HIGH blocks; unfixed HIGH needs an exact package/version/image-specific, dated independent disposition, maximum30days. The initial disposition list is empty. Never use blanket ignores or change the gate to obtain green. Audit per-image cap5min, job cap30min. This does not replace a broader security review.
 
 Only `.local-data/integration/*/evidence/*.json` and `.local-data/audits/*/evidence/*.json` are CI artifact inputs. Secrets, raw files, database archives, generated environment and resolved Compose output are excluded.
+
+Additional official Alpine candidates in `image-candidates.json` are audited alongside all six shipped images and explicitly labelled not adopted. Candidate scans never replace the baseline audit or change its threshold.
+
+## Third-party licensing boundary
+
+Redis8 is offered under RSALv2, SSPLv1 or AGPLv3, not the older BSD licence ([upstream licences](https://redis.io/legal/licenses/)). Local/CI evaluation does not establish licence compatibility for future public distribution or managed operation. Select and review applicable obligations before that later topology; no legal approval is inferred here. PostgreSQL, OpenSearch, SeaweedFS, AWS CLI and Trivy retain their upstream licences and notices; exact image scans do not replace a licence review.
