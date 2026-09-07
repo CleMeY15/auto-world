@@ -66,9 +66,12 @@ test("native build CLI has no target, activation, registry or credential input",
   }
 });
 
-test("native candidate execution refuses the credential-bearing local workstation", async () => {
+test("native candidate execution refuses a non-owned workspace before reading inputs", async () => {
+  const expected = process.platform === "linux" && process.env.GITHUB_ACTIONS === "true" && process.env.ImageVersion
+    ? /native_build_owned_path_invalid/u
+    : /requires_secret_free_github_actions_linux/u;
   await assert.rejects(
     buildNativeCandidate({ tool: "oras", lock, workspace: path.join(root, ".tmp-build"), output: path.join(root, ".tmp-build.json"), repeat: 1 }),
-    /requires_secret_free_github_actions_linux/u,
+    expected,
   );
 });
