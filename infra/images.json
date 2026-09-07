@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "images": {
+    "postgres": {
+      "repository": "postgres",
+      "version": "17.11",
+      "manifestDigest": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:d13db94ae661d517c5ed57c509a578d5ea64aae639871ba25294f4f42d83de28"
+      }
+    },
+    "opensearch": {
+      "repository": "opensearchproject/opensearch",
+      "version": "3.8.0",
+      "manifestDigest": "sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:39a8f8c63028e8b5d6b70539af1d0339b15a6729002dd5b3f4a65f520376fd30"
+      }
+    },
+    "redis": {
+      "repository": "redis",
+      "version": "8.4.6",
+      "manifestDigest": "sha256:8df317692c59703c19ecfa90a8cb17703089f3c8e12c2bd0cd6b3c31005e69d8",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:84025030277f4e008a6fceb9f816aff783e88667ff7bc94efdaa97d8ea7ba53f"
+      }
+    },
+    "seaweedfs": {
+      "repository": "chrislusf/seaweedfs",
+      "version": "4.45",
+      "manifestDigest": "sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:0a94aac557ead0a6b3350df86b2d4fea0a5793590e1fbf5f35d41cac0dc22b40"
+      }
+    },
+    "awsCli": {
+      "repository": "amazon/aws-cli",
+      "version": "2.36.40",
+      "manifestDigest": "sha256:b6aeb95d19d7f5a8cae4eb814cb16739b6b2a4f2f46f427ada6a8c9a20d9881d",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:5b3fa9da281ab658171716b2c01beff540614f6697ac6d6ebd8e369aca75fb9c"
+      }
+    },
+    "trivy": {
+      "repository": "aquasec/trivy",
+      "version": "0.74.0",
+      "manifestDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
+      }
+    }
+  }
+}

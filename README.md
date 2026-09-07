@@ -62,11 +62,13 @@ Copy `.env.example` to `.env` and keep local values out of Git. The example cont
 cp .env.example .env
 ```
 
-The services are placeholders in TASK-0001, so no local data infrastructure is started by this bootstrap.
+The local/CI data foundation is being implemented in TASK-0005. Its [operations guide](infra/README.md) describes the isolated Compose stack and explicit lifecycle commands. Check the delivery ledger and validation evidence before treating a task as accepted. This foundation is not a production deployment or a ConnectorStorePort implementation.
 
 ## CI
 
 Pull requests and pushes to `main` run the frozen install and each quality gate as a separate GitHub Actions step. The CI runtime is read from `.nvmrc`; the pnpm action version must stay aligned with `packageManager` in `package.json`.
+
+TASK-0005 adds separate mandatory real-container integration and immutable-image audit jobs. Only sanitized health records and upstream image vulnerability reports are uploaded; local credentials, database archives and raw payloads are excluded.
 
 ## First Codex instruction
 `Read AGENTS.md and ROADMAP.md. Then inspect roadmap/epics/EPIC-000-foundation.md and execute only the first READY task, respecting dependencies and Definition of Done.`
