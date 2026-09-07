@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { access, lstat, mkdir, readlink, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, lstat, mkdir, readFile, readlink, readdir, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
@@ -10,6 +10,7 @@ import {
   MATERIAL_LIMITS,
   materialError,
   readBoundedJsonFile,
+  releaseEvidenceProvenance,
   sha256File,
   sourceEvidenceProvenance,
   validateMaterialLock,
@@ -364,6 +365,70 @@ export async function collectSourceEvidence(sourceDirectory) {
   return { licenseFiles, noticeFiles, noticeStatus: noticeFiles.length > 0 ? "present" : "absent-in-pinned-source" };
 }
 
+export async function verifyOrasReleaseEvidence(selected, sourceTree, workspace) {
+  if (selected.name !== "oras" || !selected.orasVerification) materialError("oras_release_selection_invalid");
+  const verification = selected.orasVerification;
+  const materialRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/materials/oras");
+  const evidenceInput = path.join(workspace, "oras-release-evidence");
+  await mkdir(evidenceInput);
+  const materialPaths = new Map();
+  for (const material of verification.materials) {
+    const absolute = path.resolve(REPOSITORY_ROOT, material.path);
+    if (!absolute.startsWith(`${materialRoot}${path.sep}`)) materialError("oras_release_material_path_refused");
+    const digest = await sha256File(absolute, 1024 * 1024);
+    if (digest.sha256 !== material.sha256 || digest.size !== material.size) materialError("oras_release_material_drift");
+    const copied = path.join(evidenceInput, material.name);
+    await copyFile(absolute, copied);
+    const copiedDigest = await sha256File(copied, 1024 * 1024);
+    if (copiedDigest.sha256 !== material.sha256 || copiedDigest.size !== material.size) materialError("oras_release_material_copy_drift");
+    materialPaths.set(material.name, copied);
+  }
+
+  const tag = readBoundedJsonFile(materialPaths.get("tag.json"));
+  if (tag.sha !== verification.tagObject || tag.tag !== "v1.3.4" || tag.object?.sha !== verification.tagTarget || tag.object?.type !== "commit" ||
+      tag.verification?.verified !== true || tag.verification?.reason !== "valid" ||
+      typeof tag.verification?.payload !== "string" || !tag.verification.payload.startsWith(`object ${verification.tagTarget}\ntype commit\ntag v1.3.4\n`)) {
+    materialError("oras_release_tag_evidence_invalid");
+  }
+  const commit = readBoundedJsonFile(materialPaths.get("commit.json"));
+  if (commit.sha !== verification.tagTarget || commit.tree?.sha !== sourceTree || commit.verification?.verified !== true || commit.verification?.reason !== "valid" ||
+      typeof commit.verification?.payload !== "string" || !commit.verification.payload.startsWith(`tree ${sourceTree}\n`)) {
+    materialError("oras_release_commit_evidence_invalid");
+  }
+
+  const checksums = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(materialPaths.get("oras_1.3.4_checksums.txt")));
+  const expectedChecksumLine = `${verification.referenceArchiveSha256}  oras_1.3.4_linux_amd64.tar.gz`;
+  if (checksums.split(/\r?\n/u).filter((line) => line === expectedChecksumLine).length !== 1) materialError("oras_release_checksum_entry_invalid");
+
+  const gpgHome = path.join(workspace, "oras-gpg");
+  await mkdir(gpgHome);
+  await chmod(gpgHome, 0o700);
+  const gpgArgs = ["--homedir", gpgHome, "--no-options", "--batch", "--no-autostart", "--no-auto-key-retrieve", "--status-fd=1"];
+  await runCommand(LINUX_BINARIES.gpg, [...gpgArgs, "--import", materialPaths.get("KEYS")], {
+    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const signature = await runCommand(LINUX_BINARIES.gpg, [...gpgArgs, "--verify", materialPaths.get("oras_1.3.4_checksums.txt.asc"), materialPaths.get("oras_1.3.4_checksums.txt")], {
+    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const fingerprints = [...signature.stdout.toString("utf8").matchAll(/^\[GNUPG:\] VALIDSIG ([0-9A-F]{40}) /gmu)].map((match) => match[1]);
+  if (fingerprints.length !== 1 || fingerprints[0] !== verification.releaseKeyFingerprint) materialError("oras_release_gpg_identity_invalid");
+
+  const assets = path.join(workspace, "proposal-assets", "oras");
+  await mkdir(assets, { recursive: true });
+  const referencePath = path.join(assets, "oras_1.3.4_linux_amd64.tar.gz");
+  const referenceArchive = await download(verification.referenceArchiveUrl, referencePath, workspace, MATERIAL_LIMITS.binaryBytes);
+  if (referenceArchive.sha256 !== verification.referenceArchiveSha256) materialError("oras_release_reference_archive_mismatch");
+  const releaseEvidence = {
+    materials: verification.materials,
+    referenceArchive: { url: verification.referenceArchiveUrl, ...referenceArchive },
+    gpg: { fingerprint: verification.releaseKeyFingerprint, verified: true },
+    tag: { recordSha256: verification.materials[1].sha256, object: tag.sha, target: tag.object.sha, verified: true, reason: "valid" },
+    commit: { recordSha256: verification.materials[2].sha256, commit: commit.sha, tree: commit.tree.sha, verified: true, reason: "valid" },
+    provenanceSha256: "0".repeat(64),
+  };
+  return releaseEvidence;
+}
+
 async function prepareTrivyTestMaterials(workspace, epoch) {
   const assets = path.join(workspace, "proposal-assets", "trivy");
   await mkdir(assets, { recursive: true });
@@ -443,12 +508,12 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
 
   const blockers = [];
   if (tool === "trivy") blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
-  if (tool === "oras") blockers.push("oras-release-gpg-and-github-signature-evidence-not-yet-byte-locked");
   const recipe = await collectRecipeFiles(selected);
   if (recipe.missing) blockers.push("required-native-test-harness-not-yet-committed");
   const sourceDateEpoch = sourceIdentity.sourceDateEpoch;
   const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory);
   if (selected.requiredEvidence.includes("license") && sourceEvidenceFiles.licenseFiles.length === 0) blockers.push("source-license-evidence-missing");
+  const releaseEvidence = tool === "oras" ? await runPhase("source_evidence", () => verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace)) : undefined;
   const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
   const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials(workspace, sourceDateEpoch) : Promise.resolve([]));
   const proposal = {
@@ -472,13 +537,15 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     })),
     requiredEvidence: selected.requiredEvidence,
     sourceEvidence: { ...sourceEvidenceFiles, provenanceSha256: "0".repeat(64) },
+    ...(releaseEvidence ? { releaseEvidence } : {}),
     managedRunner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion, utilities: await utilityInventory(workspace) },
     complete: blockers.length === 0,
     blockers: [...new Set(blockers)].sort(),
   };
   proposal.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(proposal);
+  if (proposal.releaseEvidence) proposal.releaseEvidence.provenanceSha256 = releaseEvidenceProvenance(proposal);
   await runPhase("proposal_write", async () => {
-    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
+    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds, selected.requiredEvidence, selected.orasVerification);
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, canonicalJsonBuffer(proposal));
   });
@@ -492,7 +559,7 @@ export async function mergeMaterialProposals({ proposals: proposalPaths, output,
     const candidate = readBoundedJsonFile(proposalPath);
     const selected = selection.tools.find((entry) => entry.name === candidate?.tool);
     if (!selected) materialError("merge_tool_not_selected");
-    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
+    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence, selected.orasVerification);
   });
   proposals.sort((left, right) => left.tool.localeCompare(right.tool, "en"));
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) materialError("merge_tool_set_invalid");

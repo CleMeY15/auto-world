@@ -21,6 +21,13 @@ const TRIVY_SOURCE_SYMLINKS = Object.freeze([
   { path: "pkg/fanal/analyzer/language/rust/binary/testdata/symlink", target: "foo", blob: "19102815663d23f8b75a47e7a01965dcdc96468c", size: 3 },
   { path: "pkg/fanal/walker/testdata/fs/sym.txt", target: "bar", blob: "ba0e162e1c47469e3fe4b393a8bf8c569f302116", size: 3 },
 ]);
+const ORAS_EVIDENCE_MATERIALS = Object.freeze([
+  { name: "KEYS", path: "infra/supply-chain/materials/oras/KEYS", url: "https://raw.githubusercontent.com/oras-project/oras/db9e29505c3059f2b8fde34ae8cae266c5c765e9/KEYS", sha256: "3420b86b255693414e73422a09a2c86334ec902496a2fb84c938a47637fc5ea3", size: 5324 },
+  { name: "tag.json", path: "infra/supply-chain/materials/oras/tag.json", url: "https://api.github.com/repos/oras-project/oras/git/tags/2f11c9ec2d4816bf0a7a709f7a51ed5ca5d2d5c5", sha256: "ce80be58b6babf8b0d35e20783f059ac39339eb20af46350ff0489bc83a7c3a7", size: 3284 },
+  { name: "commit.json", path: "infra/supply-chain/materials/oras/commit.json", url: "https://api.github.com/repos/oras-project/oras/git/commits/db9e29505c3059f2b8fde34ae8cae266c5c765e9", sha256: "1c0efb500f636fb143dcc7168ae83c6e26f7dfa5249c2a3c44369e5f3fb59912", size: 2304 },
+  { name: "oras_1.3.4_checksums.txt", path: "infra/supply-chain/materials/oras/oras_1.3.4_checksums.txt", url: "https://github.com/oras-project/oras/releases/download/v1.3.4/oras_1.3.4_checksums.txt", sha256: "19d479e497fb5e30c7de3c621e3ed337e3857de0d96542021a73e2d8016dbe5a", size: 2240 },
+  { name: "oras_1.3.4_checksums.txt.asc", path: "infra/supply-chain/materials/oras/oras_1.3.4_checksums.txt.asc", url: "https://github.com/oras-project/oras/releases/download/v1.3.4/oras_1.3.4_checksums.txt.asc", sha256: "a26dd27f65d9f44b5ca24ff40b960e2de150c61541cafb20b78fb84d60e9293f", size: 228 },
+]);
 
 function fail(message) {
   throw new Error(`material_contract:${message}`);
@@ -136,6 +143,54 @@ export function sourceEvidenceProvenance(proposal) {
   }));
 }
 
+export function releaseEvidenceProvenance(proposal) {
+  const releaseEvidence = { ...proposal.releaseEvidence };
+  delete releaseEvidence.provenanceSha256;
+  return sha256(canonicalJsonBuffer({
+    selectionSha256: proposal.selectionSha256,
+    tool: proposal.tool,
+    sourceTree: proposal.sourceTree,
+    recipeSha256: proposal.recipeSha256,
+    releaseEvidence,
+  }));
+}
+
+function validateReleaseEvidence(value, expected, sourceTree) {
+  const record = closed(value, ["materials", "referenceArchive", "gpg", "tag", "commit", "provenanceSha256"], [], "proposal_release_evidence");
+  if (!Array.isArray(record.materials) || record.materials.length !== ORAS_EVIDENCE_MATERIALS.length) fail("proposal_release_materials_invalid");
+  record.materials.forEach((entry, index) => {
+    const material = closed(entry, ["name", "path", "url", "sha256", "size"], [], `proposal_release_material_${index}`);
+    string(material.name, `proposal_release_material_${index}_name`);
+    sourcePath(material.path, `proposal_release_material_${index}_path`);
+    if (!material.path.startsWith("infra/supply-chain/materials/oras/")) fail("proposal_release_material_path_invalid");
+    fixedHttpsUrl(material.url, `proposal_release_material_${index}_url`);
+    string(material.sha256, `proposal_release_material_${index}_sha256`, SHA256);
+    integer(material.size, `proposal_release_material_${index}_size`, 1, 1024 * 1024);
+  });
+  if (canonicalJsonBuffer(record.materials).compare(canonicalJsonBuffer(expected?.materials ?? ORAS_EVIDENCE_MATERIALS)) !== 0) fail("proposal_release_materials_mismatch");
+  const archive = closed(record.referenceArchive, ["url", "sha256", "size"], [], "proposal_release_archive");
+  fixedHttpsUrl(archive.url, "proposal_release_archive_url");
+  string(archive.sha256, "proposal_release_archive_sha256", SHA256);
+  integer(archive.size, "proposal_release_archive_size", 1, MATERIAL_LIMITS.archiveBytes);
+  if (expected && (archive.url !== expected.referenceArchiveUrl || archive.sha256 !== expected.referenceArchiveSha256)) fail("proposal_release_archive_mismatch");
+  const gpg = closed(record.gpg, ["fingerprint", "verified"], [], "proposal_release_gpg");
+  string(gpg.fingerprint, "proposal_release_gpg_fingerprint", /^[0-9A-F]{40}$/u);
+  if (gpg.verified !== true || (expected && gpg.fingerprint !== expected.releaseKeyFingerprint)) fail("proposal_release_gpg_invalid");
+  const tag = closed(record.tag, ["recordSha256", "object", "target", "verified", "reason"], [], "proposal_release_tag");
+  string(tag.recordSha256, "proposal_release_tag_record", SHA256);
+  string(tag.object, "proposal_release_tag_object", COMMIT);
+  string(tag.target, "proposal_release_tag_target", COMMIT);
+  if (tag.verified !== true || tag.reason !== "valid" || (expected && (tag.object !== expected.tagObject || tag.target !== expected.tagTarget))) fail("proposal_release_tag_invalid");
+  const commit = closed(record.commit, ["recordSha256", "commit", "tree", "verified", "reason"], [], "proposal_release_commit");
+  string(commit.recordSha256, "proposal_release_commit_record", SHA256);
+  string(commit.commit, "proposal_release_commit_identity", COMMIT);
+  string(commit.tree, "proposal_release_commit_tree", COMMIT);
+  if (commit.verified !== true || commit.reason !== "valid" || commit.commit !== (expected?.tagTarget ?? commit.commit) || commit.tree !== sourceTree) fail("proposal_release_commit_invalid");
+  if (expected && (tag.recordSha256 !== expected.materials[1].sha256 || commit.recordSha256 !== expected.materials[2].sha256)) fail("proposal_release_record_mismatch");
+  string(record.provenanceSha256, "proposal_release_provenance", SHA256);
+  return record;
+}
+
 function compilerArchive(value, name) {
   const record = closed(value, ["goos", "url", "sha256"], [], name);
   if (!new Set(["linux", "windows"]).has(record.goos)) fail(`${name}_goos_unsupported`);
@@ -177,14 +232,27 @@ function validateSelectionTool(value, index) {
   strings(record.upstreamTests, `${name}_upstream_tests`);
   strings(record.requiredEvidence, `${name}_required_evidence`);
   if (record.knownFixtureBlockers !== undefined) strings(record.knownFixtureBlockers, `${name}_fixture_blockers`);
+  if ((record.name === "oras") !== (record.orasVerification !== undefined)) fail(`${name}_oras_verification_presence_invalid`);
   if (record.orasVerification !== undefined) {
-    const verification = closed(record.orasVerification, ["tagObject", "tagTarget", "releaseKeyFingerprint", "referenceArchiveSha256", "signingEvidenceSha256"], [], `${name}_oras_verification`);
+    const verification = closed(record.orasVerification, ["tagObject", "tagTarget", "releaseKeyFingerprint", "referenceArchiveUrl", "referenceArchiveSha256", "materials"], [], `${name}_oras_verification`);
     string(verification.tagObject, `${name}_tag_object`, COMMIT);
     string(verification.tagTarget, `${name}_tag_target`, COMMIT);
     if (verification.tagTarget !== record.commit) fail(`${name}_tag_target_mismatch`);
     string(verification.releaseKeyFingerprint, `${name}_release_key`, /^[0-9A-F]{40}$/);
+    fixedHttpsUrl(verification.referenceArchiveUrl, `${name}_reference_archive_url`);
+    if (verification.referenceArchiveUrl !== "https://github.com/oras-project/oras/releases/download/v1.3.4/oras_1.3.4_linux_amd64.tar.gz") fail(`${name}_reference_archive_url_invalid`);
     string(verification.referenceArchiveSha256, `${name}_reference_archive`, SHA256);
-    string(verification.signingEvidenceSha256, `${name}_signing_evidence`, SHA256);
+    if (!Array.isArray(verification.materials) || verification.materials.length !== ORAS_EVIDENCE_MATERIALS.length) fail(`${name}_evidence_materials_invalid`);
+    verification.materials.forEach((entry, materialIndex) => {
+      const material = closed(entry, ["name", "path", "url", "sha256", "size"], [], `${name}_evidence_material_${materialIndex}`);
+      string(material.name, `${name}_evidence_material_${materialIndex}_name`);
+      sourcePath(material.path, `${name}_evidence_material_${materialIndex}_path`);
+      if (!material.path.startsWith("infra/supply-chain/materials/oras/")) fail(`${name}_evidence_material_path_invalid`);
+      fixedHttpsUrl(material.url, `${name}_evidence_material_${materialIndex}_url`);
+      string(material.sha256, `${name}_evidence_material_${materialIndex}_sha256`, SHA256);
+      integer(material.size, `${name}_evidence_material_${materialIndex}_size`, 1, 1024 * 1024);
+    });
+    if (canonicalJsonBuffer(verification.materials).compare(canonicalJsonBuffer(ORAS_EVIDENCE_MATERIALS)) !== 0) fail(`${name}_evidence_materials_mismatch`);
   }
   return record;
 }
@@ -235,8 +303,8 @@ function validatePatch(value, index) {
   return record;
 }
 
-export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds, expectedRequiredEvidence) {
-  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "requiredEvidence", "sourceEvidence", "managedRunner", "complete", "blockers"], [], "proposal");
+export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds, expectedRequiredEvidence, expectedOrasVerification) {
+  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "requiredEvidence", "sourceEvidence", "managedRunner", "complete", "blockers"], ["releaseEvidence"], "proposal");
   if (root.schemaVersion !== 1 || root.state !== "material_lock_proposal") fail("proposal_header_invalid");
   string(root.selectionSha256, "proposal_selection_sha256", SHA256);
   if (expectedSelectionSha256 && root.selectionSha256 !== expectedSelectionSha256) fail("proposal_selection_mismatch");
@@ -283,6 +351,15 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
       (sourceEvidence.noticeStatus === "present") !== (sourceEvidence.noticeFiles.length > 0)) fail("proposal_notice_status_invalid");
   string(sourceEvidence.provenanceSha256, "proposal_source_provenance", SHA256);
   if (sourceEvidence.provenanceSha256 !== sourceEvidenceProvenance(root)) fail("proposal_source_provenance_mismatch");
+  const requiresReleaseEvidence = ["release-checksum-signature", "tag-verification", "commit-verification"].some((item) => root.requiredEvidence.includes(item));
+  if (requiresReleaseEvidence !== (root.releaseEvidence !== undefined)) fail("proposal_release_evidence_presence_invalid");
+  if (root.releaseEvidence !== undefined) {
+    const releaseEvidence = validateReleaseEvidence(root.releaseEvidence, expectedOrasVerification, root.sourceTree);
+    const releaseBytes = releaseEvidence.materials.reduce((total, entry) => total + entry.size, releaseEvidence.referenceArchive.size);
+    if (root.modules.length + root.testMaterials.length + root.patches.length + releaseEvidence.materials.length + 1 > MATERIAL_LIMITS.closureEntries) fail("proposal_closure_entries_exceeded");
+    if (!Number.isSafeInteger(releaseBytes) || releaseBytes + closureBytes > MATERIAL_LIMITS.closureBytes) fail("proposal_closure_bytes_exceeded");
+    if (root.releaseEvidence.provenanceSha256 !== releaseEvidenceProvenance(root)) fail("proposal_release_provenance_mismatch");
+  }
   if (!Array.isArray(root.recipeFiles) || root.recipeFiles.length === 0) fail("proposal_recipe_files_invalid");
   root.recipeFiles.forEach((entry, index) => {
     const recipe = closed(entry, ["path", "sha256", "size"], [], `recipe_file_${index}`);
@@ -319,13 +396,15 @@ export function validateMaterialLock(value, selection) {
   const proposals = root.proposals.map((entry) => {
     const selected = selection.tools.find((tool) => tool.name === entry?.tool);
     if (!selected) fail("lock_proposal_tool_not_selected");
-    return validateMaterialProposal(entry, selectionSha, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
+    return validateMaterialProposal(entry, selectionSha, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence, selected.orasVerification);
   });
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) fail("lock_proposal_duplicate");
   if (proposals.some((entry) => !entry.complete)) fail("lock_proposal_incomplete");
   for (const proposal of proposals) {
-    const expected = selection.tools.find((entry) => entry.name === proposal.tool).recipeFiles;
-    if (canonicalJsonBuffer(proposal.recipeFiles.map((entry) => entry.path)).compare(canonicalJsonBuffer(expected)) !== 0) fail("lock_recipe_files_mismatch");
+    const selected = selection.tools.find((entry) => entry.name === proposal.tool);
+    const expectedCompiler = selection.compiler.archives.find((entry) => entry.goos === "linux");
+    if (proposal.compilerArchive.sha256 !== expectedCompiler.sha256) fail("lock_compiler_archive_mismatch");
+    if (canonicalJsonBuffer(proposal.recipeFiles.map((entry) => entry.path)).compare(canonicalJsonBuffer(selected.recipeFiles)) !== 0) fail("lock_recipe_files_mismatch");
   }
   return parseBoundedJson(canonicalJsonBuffer(root));
 }

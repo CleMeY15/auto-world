@@ -1,0 +1,4 @@
+# Material and patch identities bind the exact reviewed bytes on every checkout.
+infra/supply-chain/materials/** -text
+infra/supply-chain/patches/** -text
+infra/supply-chain/native-materials.lock.json -text

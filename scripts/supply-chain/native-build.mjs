@@ -6,12 +6,13 @@ import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, validateCheckedOutSource } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertDigest,
   materialError,
   readBoundedJsonFile,
+  releaseEvidenceProvenance,
   sha256File,
   validateMaterialLock,
   validateSourceSelection,
@@ -104,6 +105,10 @@ async function ensureCommittedInputs(inputPaths, workspace) {
 async function requireBuildRuntime(tool, repeat, workspace, output) {
   if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || !process.env.ImageVersion ||
       !process.env.RUNNER_TEMP || !path.isAbsolute(process.env.RUNNER_TEMP)) materialError("native_build_requires_secret_free_github_actions_linux");
+  if (!/^[1-9][0-9]*$/u.test(process.env.GITHUB_RUN_ID ?? "") || !/^[1-9][0-9]*$/u.test(process.env.GITHUB_RUN_ATTEMPT ?? "") ||
+      !/^[0-9a-f]{40}$/u.test(process.env.GITHUB_WORKFLOW_SHA ?? "") || !/^[0-9a-f]{40}$/u.test(process.env.GITHUB_SHA ?? "")) {
+    materialError("native_build_run_identity_invalid");
+  }
   const runnerTemp = await realpath(process.env.RUNNER_TEMP);
   if (path.dirname(workspace) !== runnerTemp || path.basename(workspace) !== `auto-world-native-build-${tool}-${repeat}` ||
       path.dirname(output) !== runnerTemp || path.basename(output) !== `native-build-${tool}-${repeat}.json`) materialError("native_build_owned_path_invalid");
@@ -232,6 +237,7 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   if (!proposal || proposal.managedRunner.imageVersion !== process.env.ImageVersion) materialError("native_build_runner_identity_mismatch");
   await ensureCommittedInputs([
     ...selected.recipeFiles.map((relative) => path.join(REPOSITORY_ROOT, relative)),
+    ...(selected.orasVerification?.materials ?? []).map((entry) => path.join(REPOSITORY_ROOT, entry.path)),
     ...proposal.patches.map((entry) => path.join(REPOSITORY_ROOT, entry.path)),
     ...proposal.testMaterials.map((entry) => path.join(REPOSITORY_ROOT, entry.path)),
   ], workspace);
@@ -258,7 +264,13 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   })) !== 0) {
     materialError("native_build_source_evidence_drift");
   }
+  if (tool === "oras") {
+    const releaseEvidence = await verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace);
+    releaseEvidence.provenanceSha256 = releaseEvidenceProvenance({ ...proposal, releaseEvidence });
+    if (canonicalJsonBuffer(releaseEvidence).compare(canonicalJsonBuffer(proposal.releaseEvidence)) !== 0) materialError("native_build_release_evidence_drift");
+  }
   const compilerSelection = selection.compiler.archives.find((entry) => entry.goos === "linux");
+  if (proposal.compilerArchive.sha256 !== compilerSelection.sha256) materialError("native_build_compiler_selection_drift");
   assertDigest(await download(compilerSelection.url, compilerArchive, workspace), proposal.compilerArchive, "compiler_archive");
   await validateGoCompilerGzipTar(compilerArchive);
   await mkdir(path.join(workspace, "compiler"));
@@ -293,8 +305,15 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
     selectionSha256: lock.selectionSha256, materialLockSha256: (await sha256File(lockPath, MATERIAL_LIMITS.receiptBytes)).sha256,
     recipeSha256: proposal.recipeSha256, compilerVersion: selection.compiler.version,
     runner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion },
+    run: {
+      id: process.env.GITHUB_RUN_ID,
+      attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+      workflowSha: process.env.GITHUB_WORKFLOW_SHA,
+      sourceSha: process.env.GITHUB_SHA,
+    },
     versionOutputSha256: sha256(versionResult.stdout), outputs,
   };
+  if (!Number.isSafeInteger(record.run.attempt) || record.run.sourceSha !== repositoryCommit) materialError("native_build_run_identity_mismatch");
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, canonicalJsonBuffer(record));
   return record;

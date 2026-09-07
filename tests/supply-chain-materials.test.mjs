@@ -6,6 +6,7 @@ import {
   validateMaterialLock,
   validateMaterialProposal,
   validateSourceSelection,
+  releaseEvidenceProvenance,
   sourceEvidenceProvenance,
 } from "../scripts/supply-chain/materials.mjs";
 
@@ -46,7 +47,19 @@ function proposal(tool, overrides = {}) {
     blockers: [],
     ...overrides,
   };
+  if (tool === "oras" && !Object.hasOwn(overrides, "releaseEvidence")) {
+    const verification = selection.tools.find((entry) => entry.name === "oras").orasVerification;
+    value.releaseEvidence = {
+      materials: verification.materials,
+      referenceArchive: { url: verification.referenceArchiveUrl, sha256: verification.referenceArchiveSha256, size: 1 },
+      gpg: { fingerprint: verification.releaseKeyFingerprint, verified: true },
+      tag: { recordSha256: verification.materials[1].sha256, object: verification.tagObject, target: verification.tagTarget, verified: true, reason: "valid" },
+      commit: { recordSha256: verification.materials[2].sha256, commit: verification.tagTarget, tree: value.sourceTree, verified: true, reason: "valid" },
+      provenanceSha256: "0".repeat(64),
+    };
+  }
   if (!overrides.sourceEvidence) value.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(value);
+  if (value.releaseEvidence) value.releaseEvidence.provenanceSha256 = releaseEvidenceProvenance(value);
   return value;
 }
 
@@ -57,7 +70,7 @@ test("the committed source selection binds exact source and compiler identities"
     ["cosign", "11926fa5bbbbde47e88fc006b625a17769b743b2"],
     ["trivy", "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"],
   ]);
-  assert.equal(selection.tools[0].orasVerification.signingEvidenceSha256, "c5594003712122fcfc17a3b7f7b818fd7a0919d3dffaca38c219f669fae8db96");
+  assert.equal(selection.tools[0].orasVerification.materials.length, 5);
 });
 
 test("source selection rejects mutable or substituted source URLs", () => {
@@ -69,6 +82,9 @@ test("source selection rejects mutable or substituted source URLs", () => {
   const symlinkDrift = JSON.parse(JSON.stringify(selection));
   symlinkDrift.tools.find((entry) => entry.name === "trivy").sourceSymlinks[0].target = "other";
   assert.throws(() => validateSourceSelection(symlinkDrift), /source_symlinks_mismatch/u);
+  const evidenceDrift = JSON.parse(JSON.stringify(selection));
+  evidenceDrift.tools.find((entry) => entry.name === "oras").orasVerification.materials[0].size += 1;
+  assert.throws(() => validateSourceSelection(evidenceDrift), /evidence_materials_mismatch/u);
 });
 
 test("proposal rejects closure, patch order, runner and completion drift", () => {
@@ -106,6 +122,13 @@ test("proposal rejects closure, patch order, runner and completion drift", () =>
   const evidenceDrift = proposal("cosign");
   evidenceDrift.recipeSha256 = "9".repeat(64);
   assert.throws(() => validateMaterialProposal(evidenceDrift, selectionSha256, "cosign"), /source_provenance_mismatch/u);
+  const missingReleaseEvidence = proposal("oras");
+  delete missingReleaseEvidence.releaseEvidence;
+  assert.throws(() => validateMaterialProposal(missingReleaseEvidence, selectionSha256, "oras"), /release_evidence_presence_invalid/u);
+  const invalidTagEvidence = proposal("oras");
+  invalidTagEvidence.releaseEvidence.tag.verified = false;
+  invalidTagEvidence.releaseEvidence.provenanceSha256 = releaseEvidenceProvenance(invalidTagEvidence);
+  assert.throws(() => validateMaterialProposal(invalidTagEvidence, selectionSha256, "oras"), /release_tag_invalid/u);
 });
 
 test("strict schemas reject unknown fields without reflecting their names", () => {
@@ -126,8 +149,12 @@ test("aggregate material lock requires one complete proposal for every tool", ()
   };
   for (const item of lock.proposals) {
     item.recipeFiles = selection.tools.find((entry) => entry.name === item.tool).recipeFiles.map((file, index) => ({ path: file, sha256: String(index % 10).repeat(64), size: 1 }));
+    item.compilerArchive.sha256 = selection.compiler.archives.find((entry) => entry.goos === "linux").sha256;
   }
   assert.doesNotThrow(() => validateMaterialLock(lock, selection));
+  const compilerDrift = JSON.parse(JSON.stringify(lock));
+  compilerDrift.proposals[0].compilerArchive.sha256 = "9".repeat(64);
+  assert.throws(() => validateMaterialLock(compilerDrift, selection), /lock_compiler_archive_mismatch/u);
   lock.proposals[2] = proposal("cosign");
   assert.throws(() => validateMaterialLock(lock, selection), /lock_proposal_duplicate/u);
 });
