@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { link, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { evaluateNativeAudit, hashFileBounded, readFileBounded, verifyNativeAuditFiles } from "../scripts/supply-chain/native-audit.mjs";
@@ -17,14 +17,14 @@ function fixture() {
   const scanner = { name: "trivy", version: "0.74.0-autoworld.1", sha256: hash };
   const repositories = { vulnerability: "ghcr.io/aquasecurity/trivy-db:2", java: "ghcr.io/aquasecurity/trivy-java-db:1" };
   const receipt = { schemaVersion: 1, kind: "native_binary", state: "audited_candidate", run, subject, scanner, databases: ["vulnerability", "java"].map((name) => ({ name, repository: repositories[name], sha256: hash, metadataSha256: hash, updatedAt: "2026-09-06T12:00:00Z", downloadedAt: "2026-09-07T11:00:00Z" })), evidence: { scannerVersionSha256: hash, sbomSha256: hash, reportSha256: hash } };
-  const report = { SchemaVersion: 2, ArtifactType: "filesystem", ArtifactName: "subject", Trivy: { Version: scanner.version }, CreatedAt: "2026-09-07T11:30:00Z", Results: [{ Class: "lang-pkgs", Type: "gobinary", Target: "subject/oras", Packages: [{ Name: "oras.land/oras" }, { Name: "stdlib", Version: "v1.26.8" }], Vulnerabilities: [] }] };
+  const report = { SchemaVersion: 2, ArtifactType: "filesystem", ArtifactName: "subject", Trivy: { Version: scanner.version }, CreatedAt: "2026-09-07T11:30:00Z", Results: [{ Class: "lang-pkgs", Type: "gobinary", Target: "oras", Packages: [{ Name: "oras.land/oras" }, { Name: "stdlib", Version: "v1.26.8" }], Vulnerabilities: [] }] };
   const properties = (values) => Object.entries(values).map(([name, value]) => ({ name, value }));
   const sbom = { bomFormat: "CycloneDX", metadata: { component: { type: "application", name: "subject" }, tools: { components: [{ type: "application", name: "trivy" }] } }, components: [
-    { type: "application", name: "subject/oras", properties: properties({ "aquasecurity:trivy:Type": "gobinary", "aquasecurity:trivy:Class": "lang-pkgs" }) },
+    { type: "application", name: "oras", properties: properties({ "aquasecurity:trivy:Type": "gobinary", "aquasecurity:trivy:Class": "lang-pkgs" }) },
     { type: "library", name: "oras.land/oras", properties: properties({ "aquasecurity:trivy:PkgType": "gobinary" }) },
     { type: "library", name: "stdlib", version: "v1.26.8", properties: properties({ "aquasecurity:trivy:PkgType": "gobinary" }) },
   ] };
-  const expected = globalThis.structuredClone({ run, subject, scanner, databases: receipt.databases.map(({ name, repository, sha256, metadataSha256 }) => ({ name, repository, sha256, metadataSha256 })), artifactName: report.ArtifactName, scanTarget: "subject/oras", requiredPackages: [{ name: "oras.land/oras", version: "" }, { name: "stdlib", version: "v1.26.8" }] });
+  const expected = globalThis.structuredClone({ run, subject, scanner, databases: receipt.databases.map(({ name, repository, sha256, metadataSha256 }) => ({ name, repository, sha256, metadataSha256 })), artifactName: report.ArtifactName, scanTarget: "oras", requiredPackages: [{ name: "oras.land/oras", version: "" }, { name: "stdlib", version: "v1.26.8" }] });
   const metadata = receipt.databases.map((entry, index) => ({ Version: index === 0 ? 2 : 1, UpdatedAt: entry.updatedAt, NextUpdate: "2026-09-08T12:00:00Z", DownloadedAt: entry.downloadedAt }));
   return { receipt, report, sbom, expected, metadata };
 }
@@ -32,6 +32,19 @@ const evaluate = ({ receipt, report, sbom, expected, metadata }) => evaluateNati
 
 test("native evidence contract produces a proposal, never admitted state", () => {
   assert.equal(evaluate(fixture()).state, "audit_proposal");
+});
+
+test("native evidence readers refuse actual hard-linked files", async () => {
+  const owned = await createOwnedDirectory();
+  try {
+    const file = path.join(owned.path, "evidence.json");
+    await writeFile(file, "{}");
+    await link(file, path.join(owned.path, "alias.json"));
+    await assert.rejects(hashFileBounded(file, 1024), { code: "evidence_path_invalid" });
+    await assert.rejects(readFileBounded(file, 1024), { code: "evidence_path_invalid" });
+  } finally {
+    await removeOwnedDirectory(owned);
+  }
 });
 
 test("all critical/high findings block, including unfixed high without disposition", () => {

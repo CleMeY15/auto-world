@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { test } from "node:test";
 import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json.mjs";
 import {
@@ -79,6 +80,30 @@ test("the committed source selection binds exact source and compiler identities"
     ["trivy", "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"],
   ]);
   assert.equal(selection.tools[0].orasVerification.materials.length, 5);
+});
+
+test("all three recipes contain exactly the transitive local execution modules", () => {
+  const pending = ["lock-update", "native-build", "candidate-artifacts", "native-cli", "native-scan"]
+    .map((name) => `scripts/supply-chain/${name}.mjs`);
+  const closure = new Set();
+  while (pending.length) {
+    const file = pending.pop();
+    if (closure.has(file)) continue;
+    closure.add(file);
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    // This repository uses static ESM imports. Fail if that convention changes
+    // instead of silently omitting executable dynamic dependencies.
+    assert.doesNotMatch(source, /\b(?:import|require)\s*\(/u, file);
+    for (const match of source.matchAll(/(?:^|\n)\s*(?:import|export)\s+(?:[^;]*?\s+from\s+)?["']([^"']+)["']/gu)) {
+      const specifier = match[1];
+      if (specifier.startsWith("node:")) continue;
+      assert.ok(specifier.startsWith("./"), `${file}: ${specifier}`);
+      const dependency = path.posix.normalize(path.posix.join(path.posix.dirname(file), specifier));
+      assert.ok(dependency.startsWith("scripts/supply-chain/"), dependency);
+      pending.push(dependency);
+    }
+  }
+  for (const tool of selection.tools) assert.deepEqual([...tool.recipeFiles].sort(), [...closure].sort(), tool.name);
 });
 
 test("source selection rejects mutable or substituted source URLs", () => {

@@ -32,7 +32,7 @@
       "targets": ["linux-amd64"],
       "timeoutMinutes": 30,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/audit-artifacts.mjs", "scripts/supply-chain/candidate-artifacts.mjs", "scripts/supply-chain/candidate-records.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-cli.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/scanner-fixtures.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
       "upstreamTests": ["make-test", "upstream-e2e-pending-separate-registry-fixture-review", "project-layout-auth-log-contract"],
       "requiredEvidence": ["license", "notice", "module-closure", "release-checksum-signature", "tag-verification", "commit-verification"],
       "orasVerification": {
@@ -61,7 +61,7 @@
       "targets": ["linux-amd64", "windows-amd64"],
       "timeoutMinutes": 60,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/audit-artifacts.mjs", "scripts/supply-chain/candidate-artifacts.mjs", "scripts/supply-chain/candidate-records.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-cli.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/scanner-fixtures.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
       "upstreamTests": ["go-test-sign-verify", "legacy-bundle-public-key-bypass", "make-test"],
       "requiredEvidence": ["license", "notice", "module-closure", "source-date-epoch"]
     },
@@ -80,7 +80,7 @@
       "targets": ["linux-amd64"],
       "timeoutMinutes": 90,
       "patchPolicy": {"allowedKinds": ["grpc-1.83.1", "fixture-locking"], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/audit-artifacts.mjs", "scripts/supply-chain/candidate-artifacts.mjs", "scripts/supply-chain/candidate-records.mjs", "scripts/supply-chain/ci-identity.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/go-inventory.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/native-cli.mjs", "scripts/supply-chain/native-scan.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/scanner-fixtures.mjs", "scripts/supply-chain/strict-json.mjs", "scripts/supply-chain/workflow-policy.mjs"],
       "upstreamTests": ["mage-test-unit-with-locked-fixtures", "wasm-generation"],
       "requiredEvidence": ["license", "notice", "module-closure", "mage-1.17.2", "git-fixture-closure", "rpm-fixture", "wasm-prerequisites"],
       "knownFixtureBlockers": ["trivy-test-repo-exact-object-closure", "socat-rpm-exact-byte-identity", "fixture-loader-patch-exact-diff"]

@@ -7,7 +7,7 @@ import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, runPhase, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertManagedRunnerUtilitiesMatch,
@@ -272,9 +272,9 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   );
   const utilityInventorySha256 = sha256(canonicalJsonBuffer(actualUtilities));
   const compilerArchive = path.join(workspace, "go.tar.gz");
-  const sourceIdentity = await fetchExactSource(selected, workspace);
+  const sourceIdentity = await fetchExactSource(selected, workspace, runPhase);
   if (sourceIdentity.sourceTree !== proposal.sourceTree || sourceIdentity.sourceDateEpoch !== proposal.sourceDateEpoch) materialError("native_build_source_identity_drift");
-  const sourceArchive = await canonicalSourceArchive(sourceIdentity, workspace);
+  const sourceArchive = await canonicalSourceArchive(sourceIdentity, workspace, runPhase);
   assertDigest(sourceArchive.digest, proposal.sourceArchive, "source_archive");
   const sourceEvidence = await collectSourceEvidence(sourceIdentity.sourceDirectory, tool);
   if (canonicalJsonBuffer(sourceEvidence).compare(canonicalJsonBuffer({
@@ -286,14 +286,14 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
     materialError("native_build_source_evidence_drift");
   }
   if (tool === "oras") {
-    const releaseEvidence = await verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace);
+    const releaseEvidence = await runPhase("release_evidence", () => verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace));
     releaseEvidence.provenanceSha256 = releaseEvidenceProvenance({ ...proposal, releaseEvidence });
     if (canonicalJsonBuffer(releaseEvidence).compare(canonicalJsonBuffer(proposal.releaseEvidence)) !== 0) materialError("native_build_release_evidence_drift");
   }
   const compilerSelection = selection.compiler.archives.find((entry) => entry.goos === "linux");
   if (proposal.compilerArchive.sha256 !== compilerSelection.sha256) materialError("native_build_compiler_selection_drift");
-  assertDigest(await download(compilerSelection.url, compilerArchive, workspace), proposal.compilerArchive, "compiler_archive");
-  await validateGoCompilerGzipTar(compilerArchive);
+  assertDigest(await runPhase("compiler_download", () => download(compilerSelection.url, compilerArchive, workspace)), proposal.compilerArchive, "compiler_archive");
+  await runPhase("compiler_archive", () => validateGoCompilerGzipTar(compilerArchive));
   await mkdir(path.join(workspace, "compiler"));
   await runCommand(BIN.tar, ["-xzf", compilerArchive, "-C", path.join(workspace, "compiler"), "--no-same-owner", "--no-same-permissions"], { cwd: workspace, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 120_000 });
   const source = sourceIdentity.sourceDirectory;
@@ -320,12 +320,12 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   const env = environment(workspace, path.join(workspace, "compiler/go"), { SOURCE_DATE_EPOCH: String(proposal.sourceDateEpoch) });
   const version = await runGo(go, ["version"], source, env, 60_000);
   if (!version.stdout.toString("utf8").includes("go1.26.8 linux/amd64")) materialError("native_build_compiler_identity_mismatch");
-  await verifyModules(go, source, env, proposal.modules);
-  await runUpstreamTests(tool, selected, go, source, env);
-  const outputs = await buildOutputs(tool, selected, proposal, go, source, env, path.join(workspace, "out"));
+  await runPhase("module_closure", () => verifyModules(go, source, env, proposal.modules));
+  await runPhase("upstream_tests", () => runUpstreamTests(tool, selected, go, source, env));
+  const outputs = await runPhase("native_outputs", () => buildOutputs(tool, selected, proposal, go, source, env, path.join(workspace, "out")));
   const linuxOutput = path.join(workspace, outputs.find((entry) => entry.target === "linux-amd64").path);
   const versionArgs = tool === "trivy" ? ["--version"] : ["version"];
-  const versionResult = await runCommand(linuxOutput, versionArgs, { cwd: workspace, env, timeoutMs: 60_000, maxOutputBytes: 1024 * 1024 });
+  const versionResult = await runPhase("native_version", () => runCommand(linuxOutput, versionArgs, { cwd: workspace, env, timeoutMs: 60_000, maxOutputBytes: 1024 * 1024 }));
   const versionText = versionResult.stdout.toString("utf8");
   if (!versionText.includes(selected.modifiedVersion) || versionText.includes(`${selected.version}+${selected.modifiedVersion}`)) materialError("native_build_version_identity_mismatch");
   const record = {
@@ -342,7 +342,8 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
 }
 
 async function main() {
-  await buildNativeCandidate(parseNativeBuildArgs(process.argv.slice(2)));
+  const args = parseNativeBuildArgs(process.argv.slice(2));
+  await runPhase("native_build", () => buildNativeCandidate(args));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

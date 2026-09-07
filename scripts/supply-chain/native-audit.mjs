@@ -23,7 +23,7 @@ function same(actual, expected) {
 async function inspectFile(file, maxBytes, collect = false) {
   requireTrue(typeof file === "string" && path.isAbsolute(file) && Number.isSafeInteger(maxBytes) && maxBytes > 0, "evidence_path_invalid");
   const stat = await lstat(file);
-  requireTrue(stat.isFile() && !stat.isSymbolicLink() && await realpath(file) === path.resolve(file), "evidence_path_invalid");
+  requireTrue(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1 && await realpath(file) === path.resolve(file), "evidence_path_invalid");
   requireTrue(stat.size > 0 && stat.size <= maxBytes, "evidence_size_invalid");
   const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   const hash = createHash("sha256");
@@ -32,7 +32,7 @@ async function inspectFile(file, maxBytes, collect = false) {
   const chunks = [];
   try {
     const opened = await handle.stat();
-    requireTrue(opened.ino === stat.ino && opened.dev === stat.dev && opened.size === stat.size, "evidence_changed");
+    requireTrue(opened.ino === stat.ino && opened.dev === stat.dev && opened.size === stat.size && opened.nlink === 1, "evidence_changed");
     for (;;) {
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
       if (!bytesRead) break;
@@ -42,7 +42,7 @@ async function inspectFile(file, maxBytes, collect = false) {
       if (collect) chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
     }
     const end = await handle.stat();
-    requireTrue(size === stat.size && end.size === stat.size && end.mtimeMs === stat.mtimeMs, "evidence_changed");
+    requireTrue(size === stat.size && end.size === stat.size && end.mtimeMs === stat.mtimeMs && end.nlink === 1, "evidence_changed");
   } finally { await handle.close(); }
   return Object.freeze({ sha256: hash.digest("hex"), size, ...(collect ? { bytes: Buffer.concat(chunks) } : {}) });
 }

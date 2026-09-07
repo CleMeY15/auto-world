@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { link, mkdir, readdir, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
-import { assertCandidateTransferBudget, packageCandidateArtifact, parseCandidateArtifactArgs, verifyCandidateArtifact, verifyCandidateArtifactMatrix } from "../scripts/supply-chain/candidate-artifacts.mjs";
+import { assertCandidateTransferBudget, loadVerifiedCandidateRecords, packageCandidateArtifact, parseCandidateArtifactArgs, verifyCandidateArtifact, verifyCandidateArtifactMatrix } from "../scripts/supply-chain/candidate-artifacts.mjs";
+import { nativeAuditPreflightBudget } from "../scripts/supply-chain/native-scan.mjs";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json.mjs";
 
@@ -122,6 +123,31 @@ test("matrix receiver hashes all six artifacts and all four target executables",
   } finally { await removeOwnedDirectory(owned); }
 });
 
+test("rewritten candidate record cannot redefine a validated matrix subject", async () => {
+  const owned = await createOwnedDirectory();
+  try {
+    const data = ["oras", "cosign", "trivy"].flatMap((tool) => [1, 2].map((repeat) => fixture(tool, repeat)));
+    const directory = path.join(owned.path, "matrix");
+    await mkdir(directory);
+    for (const item of data) await materialize(path.join(directory, `native-candidate-${item.record.tool}-${item.record.repeat}`), item);
+    const expectations = data.map((item) => item.expected);
+    const sources = Object.fromEntries(data.map((item) => [item.record.tool, item.sourceArchive]));
+    const matrix = await verifyCandidateArtifactMatrix(directory, expectations, sources);
+    const snapshot = await loadVerifiedCandidateRecords(directory, matrix, expectations);
+    const preflight = nativeAuditPreflightBudget(matrix, snapshot);
+    assert.deepEqual(preflight.binarySizes, [4, 6, 6, 5]);
+    assert.ok(preflight.budget.databaseCapacityBytes > 0);
+    const original = snapshot[0].outputs[0].sha256;
+    const forged = globalThis.structuredClone(data[0].record);
+    forged.outputs[0].sha256 = sha256(Buffer.from("evil"));
+    await writeFile(path.join(directory, "native-candidate-oras-1/out/oras"), "evil");
+    await writeFile(path.join(directory, "native-candidate-oras-1/record.json"), canonicalJsonBuffer(forged));
+    assert.equal(snapshot[0].outputs[0].sha256, original);
+    assert.throws(() => { snapshot[0].outputs[0].sha256 = forged.outputs[0].sha256; }, TypeError);
+    await assert.rejects(loadVerifiedCandidateRecords(directory, matrix, expectations), { code: "candidate_record_changed_after_matrix" });
+  } finally { await removeOwnedDirectory(owned); }
+});
+
 test("CLI has fixed paths and refuses candidate execution, enable flags and arbitrary artifacts", () => {
   assert.deepEqual(parseCandidateArtifactArgs(["verify"]), { mode: "verify" });
   assert.deepEqual(parseCandidateArtifactArgs(["package", "--tool", "cosign", "--repeat", "2"]), { mode: "package", tool: "cosign", repeat: 2 });
@@ -161,7 +187,7 @@ test("packager refuses hard-linked records, source archives and executable input
       await link(path.join(buildDirectory, relative), path.join(owned.path, "input-alias"));
       await assert.rejects(packageCandidateArtifact({ buildDirectory, recordFile: path.join(buildDirectory, "record.json"),
         sourceFile: path.join(buildDirectory, "source.tar.gz"), destination: path.join(owned.path, "artifact"),
-        expected: data.expected, sourceArchive: data.sourceArchive }), { code: "candidate_copy_source_invalid" });
+        expected: data.expected, sourceArchive: data.sourceArchive }), { code: relative === "out/oras" ? "evidence_path_invalid" : "candidate_copy_source_invalid" });
     } finally { await removeOwnedDirectory(owned); }
   }
 });

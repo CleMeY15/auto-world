@@ -42,7 +42,7 @@ function emitDiagnostic(phase, status, code, durationMs) {
   process.stdout.write(`${canonicalJsonBuffer({ phase, status, code, durationMs }).toString("utf8")}\n`);
 }
 
-async function runPhase(phase, operation) {
+export async function runPhase(phase, operation) {
   const started = Date.now();
   emitDiagnostic(phase, "started", "ok", 0);
   try {

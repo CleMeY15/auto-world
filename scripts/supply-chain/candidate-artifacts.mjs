@@ -94,7 +94,26 @@ export async function verifyCandidateArtifactMatrix(directory, expectations, sou
     records: expectations.map((expected, index) => ({ artifact: artifactName(expected), sha256: inventories[index].recordSha256 })), consumedBytes: total };
 }
 
-async function copyExpectedFile(source, destination, expected, cap) {
+// Snapshot the exact records hashed by the matrix verifier before executing any
+// candidate. A later rewritten record must never become a new expected subject.
+export async function loadVerifiedCandidateRecords(directory, matrix, expectations) {
+  if (!Array.isArray(matrix?.records) || matrix.records.length !== 6 || !Array.isArray(expectations) || expectations.length !== 6) fail("candidate_matrix_invalid");
+  const records = [];
+  for (const expected of expectations) {
+    const name = artifactName(expected);
+    const identities = matrix.records.filter((entry) => entry.artifact === name);
+    if (identities.length !== 1 || !/^[a-f0-9]{64}$/u.test(identities[0].sha256)) fail("candidate_matrix_invalid");
+    const bytes = await readFileBounded(path.join(directory, name, "record.json"), 8 * MiB);
+    if (sha256(bytes) !== identities[0].sha256) fail("candidate_record_changed_after_matrix");
+    const record = validateNativeBuildRecord(parseBoundedJson(bytes), expected);
+    records.push(Object.freeze({ ...record, runner: Object.freeze(record.runner), run: Object.freeze(record.run),
+      outputs: Object.freeze(record.outputs.map((output) => Object.freeze({ ...output, buildInfo: Object.freeze(output.buildInfo) }))) }));
+  }
+  if (new Set(records.map(artifactName)).size !== 6) fail("candidate_matrix_invalid");
+  return Object.freeze(records);
+}
+
+export async function copyExpectedFile(source, destination, expected, cap) {
   if (!Number.isSafeInteger(expected.size) || expected.size < 1 || expected.size > cap || !/^[a-f0-9]{64}$/u.test(expected.sha256)) fail("candidate_copy_identity_invalid");
   const info = await lstat(source);
   if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size !== expected.size || await realpath(source) !== source) fail("candidate_copy_source_invalid");
