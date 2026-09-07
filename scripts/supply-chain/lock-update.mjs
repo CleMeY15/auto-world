@@ -113,7 +113,7 @@ export function validateGitTree(bytes) {
   let totalBytes = 0;
   const paths = new Set();
   for (const record of records) {
-    const match = /^(100644|100755) blob ([0-9a-f]{40}) ([0-9]+)\t([^\0]+)$/u.exec(record);
+    const match = /^(100644|100755) blob ([0-9a-f]{40}) +([0-9]+)\t([^\0]+)$/u.exec(record);
     if (!match) materialError("source_git_tree_entry_refused");
     const name = match[4];
     const hasControl = [...name].some((character) => character.codePointAt(0) <= 0x1f || character.codePointAt(0) === 0x7f);

@@ -35,7 +35,7 @@ test("lock merge requires three explicit absolute proposal paths", () => {
 });
 
 test("Git source inventory refuses traversal, links, gitlinks and duplicates before checkout", () => {
-  const blob = `100644 blob ${"a".repeat(40)} 12\tcmd/main.go\0`;
+  const blob = `100644 blob ${"a".repeat(40)}      12\tcmd/main.go\0`;
   assert.doesNotThrow(() => validateGitTree(Buffer.from(blob)));
   for (const hostile of [
     `100644 blob ${"a".repeat(40)} 12\t../outside\0`,
