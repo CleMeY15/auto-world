@@ -3,14 +3,14 @@ import path from "node:path";
 import { copyExpectedFile } from "./candidate-artifacts.mjs";
 import { hashFileBounded } from "./native-audit.mjs";
 import { createOwnedDirectory, policyError, removeOwnedDirectory } from "./process.mjs";
-import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
+import { assertClosedObject, canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 
 const MiB = 1024 ** 2;
 const PHASES = ["staging", "scanner", "databases", "subjects", "fixtures", "complete"];
 const SUBJECTS = ["oras-linux-amd64", "cosign-linux-amd64", "cosign-windows-amd64", "trivy-linux-amd64"];
 const MATERIALS = ["gomod/go.mod", "gomod/go.sum", "gomod/submod/go.mod", "gomod/submod/go.sum",
   "gomod/submod2/go.mod", "gomod/submod2/go.sum", "java/test.war", "java/jackson-core-2.15.0.jar"];
-const FILES = [
+export const NATIVE_AUDIT_ARTIFACT_FILES = Object.freeze([
   ...SUBJECTS.map((subject) => ["staging", `${subject}/${subject.startsWith("cosign-windows") ? "cosign.exe" : subject.split("-")[0]}`, 512 * MiB]),
   ["scanner", "scanner-version.json", 8 * MiB],
   ...["vulnerability", "java"].flatMap((name) => [["databases", `databases/${name}.db`, 2048 * MiB], ["databases", `databases/${name}.metadata.json`, 8 * MiB]]),
@@ -19,7 +19,7 @@ const FILES = [
   ...MATERIALS.map((name) => ["fixtures", `fixtures/materials/${name}`, 4 * MiB]),
   ...["gomod-vulnerable", "java-war-vulnerable", "java-jar-clean-candidate"].map((name) => ["fixtures", `fixtures/reports/${name}.json`, 64 * MiB]),
   ["complete", "native-audit-results.json", 8 * MiB],
-];
+].map(([phase, path, cap]) => Object.freeze({ phase, path, cap })));
 const fail = (code) => { throw policyError(code); };
 
 async function verifyPublicDirectory(directory, expected) {
@@ -50,7 +50,7 @@ async function verifyPublicDirectory(directory, expected) {
 }
 
 export function assertAuditPackageBudget(sizes) {
-  if (!Array.isArray(sizes) || sizes.length > FILES.length || sizes.some((size) => !Number.isSafeInteger(size) || size < 1 || size > 2048 * MiB)) fail("audit_package_size_invalid");
+  if (!Array.isArray(sizes) || sizes.length > NATIVE_AUDIT_ARTIFACT_FILES.length || sizes.some((size) => !Number.isSafeInteger(size) || size < 1 || size > 2048 * MiB)) fail("audit_package_size_invalid");
   const total = sizes.reduce((sum, size) => sum + size, 64 * 1024);
   if (total > 6 * 1024 * MiB) fail("audit_package_size_exceeded");
   return total;
@@ -59,13 +59,24 @@ export function assertAuditPackageBudget(sizes) {
 // The already-loaded orchestrator calls this after candidate execution. It
 // never uploads the working directory. Ordinary failures retain a closed,
 // phase-bounded subset of public diagnostics; a killed process publishes none.
-export async function publishNativeAuditDiagnostics({ workspace, destination, phase, status }) {
+export async function publishNativeAuditDiagnostics({ workspace, destination, phase, status, expectedFiles }) {
   if (!path.isAbsolute(workspace) || !path.isAbsolute(destination) || path.dirname(workspace) !== path.dirname(destination) ||
       workspace === destination || !PHASES.includes(phase) || !["passed", "failed"].includes(status) ||
       status === "passed" && phase !== "complete") fail("audit_package_arguments_invalid");
   try { await lstat(destination); fail("audit_package_destination_exists"); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  const expected = new Map();
+  if (status === "passed") {
+    if (!Array.isArray(expectedFiles) || expectedFiles.length !== NATIVE_AUDIT_ARTIFACT_FILES.length) fail("audit_package_expected_inventory_invalid");
+    for (const entry of expectedFiles) {
+      assertClosedObject(entry, ["path", "sha256", "size", "cap"]);
+      const contract = NATIVE_AUDIT_ARTIFACT_FILES.find((file) => file.path === entry.path);
+      if (!contract || expected.has(entry.path) || entry.cap !== contract.cap || !/^[a-f0-9]{64}$/u.test(entry.sha256) ||
+          !Number.isSafeInteger(entry.size) || entry.size < 1 || entry.size > contract.cap) fail("audit_package_expected_inventory_invalid");
+      expected.set(entry.path, Object.freeze({ ...entry }));
+    }
+  }
   const inventory = [];
-  for (const [firstPhase, relative, cap] of FILES) {
+  for (const { phase: firstPhase, path: relative, cap } of NATIVE_AUDIT_ARTIFACT_FILES) {
     if (PHASES.indexOf(firstPhase) > PHASES.indexOf(phase)) continue;
     // A failed audit exports bounded reports/metadata only. Do not duplicate
     // large databases or executables when their job-budget gate itself failed.
@@ -75,7 +86,7 @@ export async function publishNativeAuditDiagnostics({ workspace, destination, ph
       if (error?.code === "ENOENT" && status === "failed") continue;
       throw error;
     }
-    const identity = await hashFileBounded(source, cap);
+    const identity = status === "passed" ? expected.get(relative) : await hashFileBounded(source, cap);
     inventory.push({ path: relative, ...identity, cap });
     assertAuditPackageBudget(inventory.map((entry) => entry.size));
   }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, link, mkdir, readFile, readdir, truncate, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
-import { assertAuditPackageBudget, publishNativeAuditDiagnostics } from "../scripts/supply-chain/audit-artifacts.mjs";
+import { assertAuditPackageBudget, NATIVE_AUDIT_ARTIFACT_FILES, publishNativeAuditDiagnostics } from "../scripts/supply-chain/audit-artifacts.mjs";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 import { sha256 } from "../scripts/supply-chain/strict-json.mjs";
 
@@ -55,12 +55,45 @@ test("successful packaging requires complete evidence and cannot overwrite an ex
     const workspace = path.join(owned.path, "work");
     const destination = path.join(owned.path, "public");
     await mkdir(workspace);
-    await assert.rejects(publishNativeAuditDiagnostics({ workspace, destination, phase: "complete", status: "passed" }), { code: "ENOENT" });
+    await assert.rejects(publishNativeAuditDiagnostics({ workspace, destination, phase: "complete", status: "passed" }), { code: "audit_package_expected_inventory_invalid" });
     await assert.rejects(access(destination), { code: "ENOENT" });
     await mkdir(destination);
     await writeFile(path.join(destination, "sentinel"), "preserve");
     await assert.rejects(publishNativeAuditDiagnostics({ workspace, destination, phase: "staging", status: "failed" }), { code: "audit_package_destination_exists" });
     assert.equal(await readFile(path.join(destination, "sentinel"), "utf8"), "preserve");
+  } finally { await removeOwnedDirectory(owned); }
+});
+
+test("successful transfer consumes established identities and refuses a later known-file substitution", async () => {
+  const owned = await createOwnedDirectory();
+  try {
+    for (const substitute of [false, true]) {
+      const workspace = path.join(owned.path, `work-${substitute}`);
+      const destination = path.join(owned.path, `public-${substitute}`);
+      await mkdir(workspace);
+      const expectedFiles = [];
+      for (const contract of NATIVE_AUDIT_ARTIFACT_FILES) {
+        const bytes = Buffer.from(contract.path);
+        const file = path.join(workspace, contract.path);
+        await mkdir(path.dirname(file), { recursive: true });
+        await writeFile(file, bytes);
+        expectedFiles.push(Object.freeze({ path: contract.path, cap: contract.cap, sha256: sha256(bytes), size: bytes.length }));
+      }
+      if (substitute) {
+        const changed = path.join(workspace, NATIVE_AUDIT_ARTIFACT_FILES[0].path);
+        const original = await readFile(changed);
+        await writeFile(changed, Buffer.alloc(original.length, "x"));
+        await assert.rejects(publishNativeAuditDiagnostics({ workspace, destination, phase: "complete", status: "passed", expectedFiles }),
+          { code: "candidate_copy_source_changed" });
+        await assert.rejects(access(destination), { code: "ENOENT" });
+      } else {
+        await publishNativeAuditDiagnostics({ workspace, destination, phase: "complete", status: "passed", expectedFiles });
+        const receipt = JSON.parse(await readFile(path.join(destination, "diagnostic-package.json"), "utf8"));
+        assert.equal(receipt.files.length, NATIVE_AUDIT_ARTIFACT_FILES.length);
+        assert.equal(receipt.executionStatus, "passed");
+        assert.deepEqual(receipt.files, expectedFiles.map(({ path: relative, sha256, size }) => ({ path: relative, sha256, size })));
+      }
+    }
   } finally { await removeOwnedDirectory(owned); }
 });
 
