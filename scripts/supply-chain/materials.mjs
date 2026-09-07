@@ -304,7 +304,7 @@ function validatePatch(value, index) {
 }
 
 export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds, expectedRequiredEvidence, expectedOrasVerification) {
-  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "requiredEvidence", "sourceEvidence", "managedRunner", "complete", "blockers"], ["releaseEvidence"], "proposal");
+  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "patchProposals", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "requiredEvidence", "sourceEvidence", "managedRunner", "complete", "blockers"], ["releaseEvidence"], "proposal");
   if (root.schemaVersion !== 1 || root.state !== "material_lock_proposal") fail("proposal_header_invalid");
   string(root.selectionSha256, "proposal_selection_sha256", SHA256);
   if (expectedSelectionSha256 && root.selectionSha256 !== expectedSelectionSha256) fail("proposal_selection_mismatch");
@@ -323,11 +323,21 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   const patches = root.patches.map(validatePatch);
   if (patches.some((entry, index) => entry.order !== index + 1)) fail("proposal_patch_order_invalid");
   if (expectedPatchKinds && patches.some((entry) => !expectedPatchKinds.includes(entry.kind))) fail("proposal_patch_kind_not_selected");
+  if (!Array.isArray(root.patchProposals) || root.patchProposals.length > 100) fail("proposal_patch_proposals_invalid");
+  root.patchProposals.forEach((entry, index) => {
+    const proposed = closed(entry, ["kind", "path", "sha256", "size"], [], `patch_proposal_${index}`);
+    string(proposed.kind, `patch_proposal_${index}_kind`, /^[a-z0-9_.-]+$/u);
+    if (expectedPatchKinds && !expectedPatchKinds.includes(proposed.kind)) fail("proposal_patch_kind_not_selected");
+    repositoryPath(proposed.path, `patch_proposal_${index}_path`, "proposal-assets/trivy");
+    string(proposed.sha256, `patch_proposal_${index}_sha256`, SHA256);
+    integer(proposed.size, `patch_proposal_${index}_size`, 1, 1024 * 1024);
+  });
   if (!Array.isArray(root.testMaterials) || root.testMaterials.length > MATERIAL_LIMITS.closureEntries) fail("proposal_test_materials_invalid");
   root.testMaterials.forEach((entry, index) => {
     const record = closed(entry, ["name", "kind", "origin", "path", "sha256", "size"], [], `test_material_${index}`);
     string(record.name, `test_material_${index}_name`, /^[a-z0-9_.-]+$/);
     string(record.kind, `test_material_${index}_kind`, /^[a-z0-9_-]+$/);
+    if (!new Set(["git-fixture-archive", "rpm-fixture"]).has(record.kind)) fail("test_material_kind_invalid");
     fixedHttpsUrl(record.origin, `test_material_${index}_origin`);
     const expectedOrigin = record.kind === "git-fixture-archive"
       ? "https://github.com/aquasecurity/trivy-test-repo"
@@ -336,9 +346,14 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
     repositoryPath(record.path, `test_material_${index}_path`, "infra/supply-chain/materials");
     string(record.sha256, `test_material_${index}_sha256`, SHA256);
     integer(record.size, `test_material_${index}_size`, 1, MATERIAL_LIMITS.archiveBytes);
+    if ((record.kind === "git-fixture-archive" && record.name !== "trivy-test-repo-git-worktree") ||
+        (record.kind === "rpm-fixture" && record.name !== "trivy-socat-rpm")) fail("test_material_identity_invalid");
+    if (record.name === "trivy-test-repo-git-worktree" && (record.sha256 !== "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76" || record.size !== 33_353)) fail("test_material_identity_invalid");
+    if (record.name === "trivy-socat-rpm" && (record.sha256 !== "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9" || record.size !== 296_692)) fail("test_material_identity_invalid");
   });
-  if (root.modules.length + root.testMaterials.length + root.patches.length > MATERIAL_LIMITS.closureEntries) fail("proposal_closure_entries_exceeded");
-  const closureBytes = [...root.modules.map((entry) => entry.zipSize), ...root.testMaterials.map((entry) => entry.size), ...root.patches.map((entry) => entry.size)]
+  if (new Set(root.testMaterials.map((entry) => entry.name)).size !== root.testMaterials.length) fail("proposal_test_material_duplicate");
+  if (root.modules.length + root.testMaterials.length + root.patches.length + root.patchProposals.length > MATERIAL_LIMITS.closureEntries) fail("proposal_closure_entries_exceeded");
+  const closureBytes = [...root.modules.map((entry) => entry.zipSize), ...root.testMaterials.map((entry) => entry.size), ...root.patches.map((entry) => entry.size), ...root.patchProposals.map((entry) => entry.size)]
     .reduce((total, size) => total + size, root.sourceArchive.size + root.compilerArchive.size);
   if (!Number.isSafeInteger(closureBytes) || closureBytes > MATERIAL_LIMITS.closureBytes) fail("proposal_closure_bytes_exceeded");
   integer(root.sourceDateEpoch, "proposal_source_date_epoch", 1, 4_102_444_800);
@@ -381,6 +396,12 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   });
   if (typeof root.complete !== "boolean") fail("proposal_complete_invalid");
   strings(root.blockers, "proposal_blockers");
+  if (root.patchProposals.length > 0 && root.complete) fail("proposal_patch_proposals_unresolved");
+  if (root.complete && expectedPatchKinds && canonicalJsonBuffer(patches.map((entry) => entry.kind)).compare(canonicalJsonBuffer(expectedPatchKinds)) !== 0) fail("proposal_patches_incomplete");
+  if (root.complete && root.requiredEvidence.includes("git-fixture-closure") && !root.testMaterials.some((entry) => entry.name === "trivy-test-repo-git-worktree")) fail("proposal_git_fixture_evidence_missing");
+  if (root.complete && root.requiredEvidence.includes("rpm-fixture") && !root.testMaterials.some((entry) => entry.name === "trivy-socat-rpm")) fail("proposal_rpm_fixture_evidence_missing");
+  if (root.complete && root.requiredEvidence.includes("mage-1.17.2") && !root.modules.some((entry) => entry.path === "github.com/magefile/mage" && entry.version === "v1.17.2")) fail("proposal_mage_evidence_missing");
+  if (root.complete && patches.some((entry) => entry.kind === "grpc-1.83.1") && !root.modules.some((entry) => entry.path === "google.golang.org/grpc" && entry.version === "v1.83.1")) fail("proposal_grpc_evidence_missing");
   if (root.requiredEvidence.includes("license") && sourceEvidence.licenseFiles.length === 0 && !root.blockers.includes("source-license-evidence-missing")) fail("proposal_license_evidence_unaccounted");
   if (root.complete !== (root.blockers.length === 0)) fail("proposal_completion_mismatch");
   return parseBoundedJson(canonicalJsonBuffer(root));

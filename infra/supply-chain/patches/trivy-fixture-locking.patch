@@ -1,0 +1,940 @@
+diff --git a/internal/gittest/testdata/fixture.go b/internal/gittest/testdata/fixture.go
+index 708c059..41e0c61 100644
+--- a/internal/gittest/testdata/fixture.go
++++ b/internal/gittest/testdata/fixture.go
+@@ -1,60 +1,546 @@
+ package gittest
+ 
+ import (
++	"archive/tar"
++	"bytes"
++	"compress/gzip"
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
+ 	"errors"
+-	"log/slog"
++	"fmt"
++	"io"
++	"os"
+ 	"path/filepath"
+ 	"runtime"
++	"sort"
++	"strings"
+ 
+ 	"github.com/go-git/go-git/v5"
+-	"github.com/magefile/mage/target"
++	"github.com/go-git/go-git/v5/plumbing"
++	"github.com/go-git/go-git/v5/plumbing/filemode"
++	"github.com/go-git/go-git/v5/plumbing/object"
+ 	"golang.org/x/xerrors"
+ )
+ 
+ const (
+-	repoURL = "https://github.com/aquasecurity/trivy-test-repo/"
+-	repoDir = "test-repo" // subdirectory for the cloned repository
++	repoURL       = "https://github.com/aquasecurity/trivy-test-repo.git"
++	repoDir       = "test-repo"
++	manifestPath  = "locked/fixture-manifest.json"
++	trivyCommit   = "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
++	archiveSHA256 = "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76"
++	archiveSize   = 33353
++	fixtureCommit = "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
++	fixtureTree   = "028f8b12792c2084211d02d883e3368ca87cc92f"
++	fixtureParent = "d8920bebc6dceeadbf15f246eb9201fa387c70da"
++	rpmPath       = "locked/socat-1.7.3.2-2.el7.x86_64.rpm"
++	rpmSHA256     = "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9"
++	rpmSize       = 296692
++	rpmURL        = "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm"
++	maxArchive    = 64 * 1024 * 1024
++	maxExtracted  = 256 * 1024 * 1024
++	maxEntries    = 10_000
+ )
+ 
+-// Fixtures clones a Git repository for unit tests
+-func Fixtures() error {
+-	_, filePath, _, _ := runtime.Caller(0)
+-	dir := filepath.Dir(filePath)
+-	cloneDir := filepath.Join(dir, repoDir)
++type fixtureManifest struct {
++	SchemaVersion int    `json:"schemaVersion"`
++	TrivyCommit   string `json:"trivyCommit"`
++	Git           struct {
++		ArchivePath   string `json:"archivePath"`
++		ArchiveSHA256 string `json:"archiveSha256"`
++		ArchiveSize   int64  `json:"archiveSize"`
++		Provenance    string `json:"provenance"`
++		Head          string `json:"head"`
++		Refs          struct {
++			Main        string `json:"refs/heads/main"`
++			ValidBranch string `json:"refs/heads/valid-branch"`
++			Tag         string `json:"refs/tags/v0.0.1"`
++		} `json:"refs"`
++		Absent []string `json:"absent"`
++		Commit string   `json:"commit"`
++		Tree   string   `json:"tree"`
++		Parent string   `json:"parent"`
++	} `json:"git"`
++	RPM struct {
++		Path       string `json:"path"`
++		SHA256     string `json:"sha256"`
++		Size       int64  `json:"size"`
++		Provenance string `json:"provenance"`
++	} `json:"rpm"`
++}
+ 
+-	// Check if the directory already exists and is up to date
+-	if updated, err := target.Path(cloneDir, filePath); err != nil {
++func rejectDuplicateKeys(data []byte) error {
++	decoder := json.NewDecoder(strings.NewReader(string(data)))
++	var consume func() error
++	consume = func() error {
++		token, err := decoder.Token()
++		if err != nil {
++			return err
++		}
++		delim, ok := token.(json.Delim)
++		if !ok {
++			return nil
++		}
++		switch delim {
++		case '{':
++			seen := map[string]struct{}{}
++			for decoder.More() {
++				keyToken, err := decoder.Token()
++				if err != nil {
++					return err
++				}
++				key, ok := keyToken.(string)
++				if !ok {
++					return errors.New("manifest object key is not a string")
++				}
++				if _, exists := seen[key]; exists {
++					return fmt.Errorf("duplicate manifest key %q", key)
++				}
++				seen[key] = struct{}{}
++				if err = consume(); err != nil {
++					return err
++				}
++			}
++		case '[':
++			for decoder.More() {
++				if err := consume(); err != nil {
++					return err
++				}
++			}
++		default:
++			return errors.New("unexpected manifest delimiter")
++		}
++		_, err = decoder.Token()
+ 		return err
+-	} else if !updated {
+-		return nil
+ 	}
++	if err := consume(); err != nil {
++		return err
++	}
++	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
++		return errors.New("manifest has trailing JSON data")
++	}
++	return nil
++}
++
++func loadManifest(dir string) (fixtureManifest, error) {
++	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(manifestPath)))
++	if err != nil {
++		return fixtureManifest{}, xerrors.Errorf("read fixture manifest: %w", err)
++	}
++	if len(data) > 16*1024 {
++		return fixtureManifest{}, errors.New("fixture manifest exceeds 16 KiB")
++	}
++	if err = rejectDuplicateKeys(data); err != nil {
++		return fixtureManifest{}, xerrors.Errorf("validate fixture manifest JSON: %w", err)
++	}
++	var manifest fixtureManifest
++	decoder := json.NewDecoder(strings.NewReader(string(data)))
++	decoder.DisallowUnknownFields()
++	if err = decoder.Decode(&manifest); err != nil {
++		return fixtureManifest{}, xerrors.Errorf("decode fixture manifest: %w", err)
++	}
++	if err = decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
++		return fixtureManifest{}, errors.New("fixture manifest has trailing data")
++	}
++	expectedAbsent := []string{
++		"6ac152fe2b87cb5e243414df71790a32912e778e",
++		"refs/heads/invalid-branch",
++		"refs/tags/v1.0.9",
++	}
++	if manifest.SchemaVersion != 1 || manifest.TrivyCommit != trivyCommit ||
++		manifest.Git.ArchivePath != "locked/test-repo-git-worktree.tar.gz" ||
++		manifest.Git.ArchiveSHA256 != archiveSHA256 || manifest.Git.ArchiveSize != archiveSize ||
++		manifest.Git.Provenance != repoURL || manifest.Git.Head != "refs/heads/main" ||
++		manifest.Git.Refs.Main != fixtureCommit || manifest.Git.Refs.ValidBranch != fixtureCommit ||
++		manifest.Git.Refs.Tag != fixtureCommit || manifest.Git.Commit != fixtureCommit ||
++		manifest.Git.Tree != fixtureTree || manifest.Git.Parent != fixtureParent ||
++		len(manifest.Git.Absent) != len(expectedAbsent) || manifest.RPM.Path != rpmPath ||
++		manifest.RPM.SHA256 != rpmSHA256 || manifest.RPM.Size != rpmSize || manifest.RPM.Provenance != rpmURL {
++		return fixtureManifest{}, errors.New("fixture manifest identity mismatch")
++	}
++	for i, value := range expectedAbsent {
++		if manifest.Git.Absent[i] != value {
++			return fixtureManifest{}, errors.New("fixture manifest absence set mismatch")
++		}
++	}
++	if strings.ToLower(manifest.Git.ArchiveSHA256) != manifest.Git.ArchiveSHA256 {
++		return fixtureManifest{}, errors.New("fixture archive SHA-256 is invalid")
++	}
++	if _, err = hex.DecodeString(manifest.Git.ArchiveSHA256); err != nil {
++		return fixtureManifest{}, errors.New("fixture archive SHA-256 is invalid")
++	}
++	return manifest, nil
++}
+ 
+-	// Pull the repository if it already exists
+-	if repo, err := git.PlainOpen(cloneDir); err == nil {
+-		slog.Info("Pulling...", slog.String("url", repoURL))
+-		w, err := repo.Worktree()
++func openVerifiedFile(file, expectedSHA256 string, expectedSize int64) (*os.File, error) {
++	pathInfo, err := os.Lstat(file)
++	if err != nil {
++		return nil, err
++	}
++	if !pathInfo.Mode().IsRegular() {
++		return nil, errors.New("fixture material type mismatch")
++	}
++	handle, err := os.Open(file)
++	if err != nil {
++		return nil, err
++	}
++	info, err := handle.Stat()
++	if err != nil {
++		handle.Close()
++		return nil, err
++	}
++	if !info.Mode().IsRegular() || !os.SameFile(pathInfo, info) || info.Size() != expectedSize {
++		handle.Close()
++		return nil, errors.New("fixture material size or type mismatch")
++	}
++	hash := sha256.New()
++	if _, err = io.Copy(hash, handle); err != nil {
++		handle.Close()
++		return nil, err
++	}
++	if hex.EncodeToString(hash.Sum(nil)) != expectedSHA256 {
++		handle.Close()
++		return nil, errors.New("fixture material SHA-256 mismatch")
++	}
++	if _, err = handle.Seek(0, io.SeekStart); err != nil {
++		handle.Close()
++		return nil, err
++	}
++	return handle, nil
++}
++
++func extractRepository(archive io.Reader, destination string) error {
++	gzipReader, err := gzip.NewReader(archive)
++	if err != nil {
++		return err
++	}
++	defer gzipReader.Close()
++
++	reader := tar.NewReader(gzipReader)
++	seen := map[string]struct{}{}
++	var entries int
++	var total int64
++	for {
++		header, err := reader.Next()
++		if errors.Is(err, io.EOF) {
++			break
++		}
+ 		if err != nil {
+-			return xerrors.Errorf("error getting worktree: %w", err)
++			return err
+ 		}
+-		if err = w.Pull(&git.PullOptions{}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+-			return xerrors.Errorf("error pulling repository: %w", err)
++		entries++
++		if entries > maxEntries || header.Size < 0 || header.Size > maxExtracted || total > maxExtracted-header.Size {
++			return errors.New("fixture archive resource limit exceeded")
+ 		}
+-		if err = repo.Fetch(&git.FetchOptions{Tags: git.AllTags}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+-			return xerrors.Errorf("error fetching tags: %w", err)
++		total += header.Size
++		name := strings.TrimSuffix(header.Name, "/")
++		if header.Format != tar.FormatUSTAR || name == "" || strings.Contains(name, "\\") ||
++			filepath.IsAbs(name) || filepath.Clean(name) != name {
++			return errors.New("fixture archive path or format refused")
++		}
++		parts := strings.Split(filepath.ToSlash(name), "/")
++		if parts[0] != repoDir || (len(parts) == 1 && header.Typeflag != tar.TypeDir) {
++			return errors.New("fixture archive entry escapes repository root")
++		}
++		if _, duplicate := seen[name]; duplicate {
++			return errors.New("fixture archive has duplicate entry")
++		}
++		seen[name] = struct{}{}
++		target := filepath.Join(destination, filepath.FromSlash(name))
++		root := filepath.Join(destination, repoDir)
++		if target != root && !strings.HasPrefix(target, root+string(os.PathSeparator)) {
++			return errors.New("fixture archive traversal refused")
++		}
++		switch header.Typeflag {
++		case tar.TypeDir:
++			if header.Size != 0 {
++				return errors.New("fixture archive directory has data")
++			}
++			if err = os.MkdirAll(target, 0o755); err != nil {
++				return err
++			}
++		case tar.TypeReg, tar.TypeRegA:
++			if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
++				return err
++			}
++			mode := os.FileMode(0o644)
++			if header.Mode&0o111 != 0 {
++				mode = 0o755
++			}
++			output, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
++			if err != nil {
++				return err
++			}
++			written, copyErr := io.CopyN(output, reader, header.Size)
++			closeErr := output.Close()
++			if copyErr != nil || closeErr != nil || written != header.Size {
++				return errors.New("fixture archive entry write failed")
++			}
++		default:
++			return errors.New("fixture archive entry type refused")
+ 		}
+-		return nil
+ 	}
++	return nil
++}
+ 
+-	slog.Info("Cloning...", slog.String("url", repoURL))
++func verifyWorktree(directory string, commit *object.Commit) error {
++	tree, err := commit.Tree()
++	if err != nil {
++		return err
++	}
++	type expectedFile struct {
++		contents   []byte
++		executable bool
++		symlink    bool
++	}
++	expectedFiles := map[string]expectedFile{}
++	expectedDirs := map[string]struct{}{ ".": {} }
++	files := tree.Files()
++	err = files.ForEach(func(file *object.File) error {
++		contents, err := file.Contents()
++		if err != nil {
++			return err
++		}
++		symlink := file.Mode == filemode.Symlink
++		if file.Mode != filemode.Regular && file.Mode != filemode.Executable && !symlink {
++			return errors.New("fixture tree file mode refused")
++		}
++		name := filepath.FromSlash(file.Name)
++		expectedFiles[name] = expectedFile{
++			contents:   []byte(contents),
++			executable: file.Mode == filemode.Executable,
++			symlink:    symlink,
++		}
++		for parent := filepath.Dir(name); parent != "."; parent = filepath.Dir(parent) {
++			expectedDirs[parent] = struct{}{}
++		}
++		return nil
++	})
++	if err != nil {
++		return err
++	}
++	seen := map[string]struct{}{}
++	err = filepath.WalkDir(directory, func(path string, entry os.DirEntry, walkErr error) error {
++		if walkErr != nil {
++			return walkErr
++		}
++		relative, err := filepath.Rel(directory, path)
++		if err != nil {
++			return err
++		}
++		if relative == ".git" {
++			return filepath.SkipDir
++		}
++		if relative == "." {
++			return nil
++		}
++		if entry.IsDir() {
++			if _, ok := expectedDirs[relative]; !ok {
++				return errors.New("unexpected fixture worktree directory")
++			}
++			return nil
++		}
++		expected, ok := expectedFiles[relative]
++		if !ok {
++			return errors.New("unexpected fixture worktree file")
++		}
++		info, err := os.Lstat(path)
++		if err != nil {
++			return err
++		}
++		if expected.symlink {
++			if info.Mode()&os.ModeSymlink == 0 {
++				return errors.New("fixture worktree symlink mismatch")
++			}
++			target, err := os.Readlink(path)
++			if err != nil || !bytes.Equal([]byte(target), expected.contents) {
++				return errors.New("fixture worktree symlink mismatch")
++			}
++		} else {
++			if !info.Mode().IsRegular() || (info.Mode()&0o111 != 0) != expected.executable {
++				return errors.New("fixture worktree file mode mismatch")
++			}
++			contents, err := os.ReadFile(path)
++			if err != nil || !bytes.Equal(contents, expected.contents) {
++				return errors.New("fixture worktree content mismatch")
++			}
++		}
++		seen[relative] = struct{}{}
++		return nil
++	})
++	if err != nil || len(seen) != len(expectedFiles) {
++		return errors.New("fixture worktree inventory mismatch")
++	}
++	return nil
++}
+ 
+-	// Clone the repository with all branches and tags
+-	_, err := git.PlainClone(cloneDir, false, &git.CloneOptions{
+-		URL:  repoURL,
+-		Tags: git.AllTags,
++func verifyRepository(directory string) error {
++	repository, err := git.PlainOpen(directory)
++	if err != nil {
++		return err
++	}
++	head, err := repository.Storer.Reference(plumbing.HEAD)
++	if err != nil || head.Type() != plumbing.SymbolicReference || head.Target() != plumbing.NewBranchReferenceName("main") {
++		return errors.New("fixture HEAD mismatch")
++	}
++	headData, err := os.ReadFile(filepath.Join(directory, ".git", "HEAD"))
++	if err != nil || string(headData) != "ref: refs/heads/main\n" {
++		return errors.New("fixture HEAD file mismatch")
++	}
++	origHeadData, err := os.ReadFile(filepath.Join(directory, ".git", "ORIG_HEAD"))
++	if err != nil || string(origHeadData) != fixtureCommit+"\n" {
++		return errors.New("fixture ORIG_HEAD mismatch")
++	}
++	expectedRefs := map[plumbing.ReferenceName]plumbing.Hash{
++		plumbing.NewBranchReferenceName("main"):         plumbing.NewHash(fixtureCommit),
++		plumbing.NewBranchReferenceName("valid-branch"): plumbing.NewHash(fixtureCommit),
++		plumbing.NewTagReferenceName("v0.0.1"):           plumbing.NewHash(fixtureCommit),
++	}
++	for name, hash := range expectedRefs {
++		reference, err := repository.Reference(name, true)
++		if err != nil || reference.Hash() != hash {
++			return fmt.Errorf("fixture ref mismatch: %s", name)
++		}
++	}
++	for _, name := range []plumbing.ReferenceName{
++		plumbing.NewBranchReferenceName("invalid-branch"),
++		plumbing.NewTagReferenceName("v1.0.9"),
++	} {
++		if _, err = repository.Reference(name, true); !errors.Is(err, plumbing.ErrReferenceNotFound) {
++			return fmt.Errorf("unexpected fixture ref: %s", name)
++		}
++	}
++	commit, err := repository.CommitObject(plumbing.NewHash(fixtureCommit))
++	if err != nil || commit.TreeHash != plumbing.NewHash(fixtureTree) || commit.NumParents() != 1 ||
++		commit.ParentHashes[0] != plumbing.NewHash(fixtureParent) {
++		return errors.New("fixture commit closure mismatch")
++	}
++	if _, err = repository.CommitObject(plumbing.NewHash("6ac152fe2b87cb5e243414df71790a32912e778e"));
++		!errors.Is(err, plumbing.ErrObjectNotFound) {
++		return errors.New("unexpected invalid fixture commit")
++	}
++	worktree, err := repository.Worktree()
++	if err != nil {
++		return err
++	}
++	status, err := worktree.Status()
++	if err != nil || !status.IsClean() {
++		return errors.New("fixture worktree is not clean")
++	}
++	if err = verifyWorktree(directory, commit); err != nil {
++		return err
++	}
++	remote, err := repository.Remote("origin")
++	if err != nil || len(remote.Config().URLs) != 1 || remote.Config().URLs[0] != repoURL {
++		return errors.New("fixture origin mismatch")
++	}
++	references, err := repository.References()
++	if err != nil {
++		return err
++	}
++	var inventory []string
++	err = references.ForEach(func(reference *plumbing.Reference) error {
++		if reference.Name() == plumbing.HEAD || reference.Name() == plumbing.ReferenceName("ORIG_HEAD") {
++			return nil
++		}
++		if !strings.HasPrefix(reference.Name().String(), "refs/") {
++			return errors.New("unexpected pseudo-reference")
++		}
++		value := reference.Hash().String()
++		if reference.Type() == plumbing.SymbolicReference {
++			value = reference.Target().String()
++		}
++		inventory = append(inventory, reference.Name().String()+"="+value)
++		return nil
+ 	})
+ 	if err != nil {
+-		return xerrors.Errorf("error cloning repository: %w", err)
++		return err
++	}
++	sort.Strings(inventory)
++	expectedInventory := []string{
++		"refs/heads/main=" + fixtureCommit,
++		"refs/heads/valid-branch=" + fixtureCommit,
++		"refs/remotes/origin/HEAD=refs/remotes/origin/main",
++		"refs/remotes/origin/main=" + fixtureCommit,
++		"refs/remotes/origin/valid-branch=" + fixtureCommit,
++		"refs/tags/v0.0.1=" + fixtureCommit,
++	}
++	if strings.Join(inventory, "\n") != strings.Join(expectedInventory, "\n") {
++		return errors.New("fixture ref inventory mismatch")
++	}
++	config, err := os.ReadFile(filepath.Join(directory, ".git", "config"))
++	if err != nil || string(config) != "[core]\n\trepositoryformatversion = 0\n\tfilemode = true\n\tbare = false\n\tlogallrefupdates = true\n[remote \"origin\"]\n\turl = "+repoURL+"\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n[branch \"main\"]\n\tremote = origin\n\tmerge = refs/heads/main\n" {
++		return errors.New("fixture Git config mismatch")
++	}
++	if _, err = os.Lstat(filepath.Join(directory, ".git", "objects", "info", "alternates")); !errors.Is(err, os.ErrNotExist) {
++		return errors.New("fixture object alternates are forbidden")
++	}
++	hookEntries, err := os.ReadDir(filepath.Join(directory, ".git", "hooks"))
++	if err != nil {
++		return err
++	}
++	expectedHooks := []string{
++		"applypatch-msg.sample", "commit-msg.sample", "fsmonitor-watchman.sample", "post-update.sample",
++		"pre-applypatch.sample", "pre-commit.sample", "pre-merge-commit.sample", "pre-push.sample",
++		"pre-rebase.sample", "pre-receive.sample", "prepare-commit-msg.sample", "push-to-checkout.sample",
++		"sendemail-validate.sample", "update.sample",
++	}
++	if len(hookEntries) != len(expectedHooks) {
++		return errors.New("fixture hook inventory mismatch")
++	}
++	for i, entry := range hookEntries {
++		info, infoErr := entry.Info()
++		if infoErr != nil || entry.Name() != expectedHooks[i] || !info.Mode().IsRegular() {
++			return errors.New("fixture hook inventory mismatch")
++		}
+ 	}
++	return nil
++}
+ 
++// Fixtures installs the exact locked repository archive without network access.
++func Fixtures() error {
++	_, filePath, _, _ := runtime.Caller(0)
++	dir := filepath.Dir(filePath)
++	manifest, err := loadManifest(dir)
++	if err != nil {
++		return err
++	}
++	archive := filepath.Join(dir, filepath.FromSlash(manifest.Git.ArchivePath))
++	archiveHandle, err := openVerifiedFile(archive, manifest.Git.ArchiveSHA256, manifest.Git.ArchiveSize)
++	if err != nil {
++		return xerrors.Errorf("verify Git fixture archive: %w", err)
++	}
++	defer archiveHandle.Close()
++	temporary, err := os.MkdirTemp(dir, ".test-repo-fixture-")
++	if err != nil {
++		return err
++	}
++	defer os.RemoveAll(temporary)
++	if err = extractRepository(archiveHandle, temporary); err != nil {
++		return xerrors.Errorf("extract Git fixture archive: %w", err)
++	}
++	extracted := filepath.Join(temporary, repoDir)
++	if err = verifyRepository(extracted); err != nil {
++		return xerrors.Errorf("verify Git fixture repository: %w", err)
++	}
++	destination := filepath.Join(dir, repoDir)
++	backup := filepath.Join(temporary, "previous")
++	hadPrevious := false
++	if _, err = os.Lstat(destination); err == nil {
++		if err = os.Rename(destination, backup); err != nil {
++			return err
++		}
++		hadPrevious = true
++	} else if !errors.Is(err, os.ErrNotExist) {
++		return err
++	}
++	if err = os.Rename(extracted, destination); err != nil {
++		if hadPrevious {
++			if restoreErr := os.Rename(backup, destination); restoreErr != nil {
++				return xerrors.Errorf("install Git fixture failed (%v); restore previous fixture: %w", err, restoreErr)
++			}
++		}
++		return err
++	}
+ 	return nil
+ }
+diff --git a/pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go b/pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go
+index c9b1c07..396973e 100644
+--- a/pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go
++++ b/pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go
+@@ -1,63 +1,246 @@
+ package rpm
+ 
+ import (
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
+ 	"io"
+-	"log/slog"
+-	"net/http"
+ 	"os"
+-	"path"
+ 	"path/filepath"
+ 	"runtime"
++	"strings"
+ 
+-	"github.com/magefile/mage/target"
+ 	"golang.org/x/xerrors"
+ )
+ 
+-const url = "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm"
++const (
++	manifestPath  = "locked/fixture-manifest.json"
++	trivyCommit   = "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
++	repoURL       = "https://github.com/aquasecurity/trivy-test-repo.git"
++	archivePath   = "locked/test-repo-git-worktree.tar.gz"
++	archiveSHA256 = "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76"
++	archiveSize   = 33353
++	fixtureCommit = "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
++	fixtureTree   = "028f8b12792c2084211d02d883e3368ca87cc92f"
++	fixtureParent = "d8920bebc6dceeadbf15f246eb9201fa387c70da"
++	rpmName       = "socat-1.7.3.2-2.el7.x86_64.rpm"
++	rpmPath       = "locked/socat-1.7.3.2-2.el7.x86_64.rpm"
++	rpmSHA256     = "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9"
++	rpmSize       = 296692
++	rpmURL        = "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm"
++)
+ 
+-// Fixtures downloads RPM files for unit tests
+-func Fixtures() error {
+-	_, filePath, _, _ := runtime.Caller(0)
+-	dir := filepath.Dir(filePath)
+-	dst := filepath.Join(dir, path.Base(url))
++type fixtureManifest struct {
++	SchemaVersion int    `json:"schemaVersion"`
++	TrivyCommit   string `json:"trivyCommit"`
++	Git           struct {
++		ArchivePath   string `json:"archivePath"`
++		ArchiveSHA256 string `json:"archiveSha256"`
++		ArchiveSize   int64  `json:"archiveSize"`
++		Provenance    string `json:"provenance"`
++		Head          string `json:"head"`
++		Refs          struct {
++			Main        string `json:"refs/heads/main"`
++			ValidBranch string `json:"refs/heads/valid-branch"`
++			Tag         string `json:"refs/tags/v0.0.1"`
++		} `json:"refs"`
++		Absent []string `json:"absent"`
++		Commit string   `json:"commit"`
++		Tree   string   `json:"tree"`
++		Parent string   `json:"parent"`
++	} `json:"git"`
++	RPM struct {
++		Path       string `json:"path"`
++		SHA256     string `json:"sha256"`
++		Size       int64  `json:"size"`
++		Provenance string `json:"provenance"`
++	} `json:"rpm"`
++}
+ 
+-	// Download the file only when it is needed
+-	if updated, err := target.Path(dst, filePath); err != nil {
++func rejectDuplicateKeys(data []byte) error {
++	decoder := json.NewDecoder(strings.NewReader(string(data)))
++	var consume func() error
++	consume = func() error {
++		token, err := decoder.Token()
++		if err != nil {
++			return err
++		}
++		delim, ok := token.(json.Delim)
++		if !ok {
++			return nil
++		}
++		switch delim {
++		case '{':
++			seen := map[string]struct{}{}
++			for decoder.More() {
++				keyToken, err := decoder.Token()
++				if err != nil {
++					return err
++				}
++				key, ok := keyToken.(string)
++				if !ok {
++					return errors.New("manifest object key is not a string")
++				}
++				if _, exists := seen[key]; exists {
++					return fmt.Errorf("duplicate manifest key %q", key)
++				}
++				seen[key] = struct{}{}
++				if err = consume(); err != nil {
++					return err
++				}
++			}
++		case '[':
++			for decoder.More() {
++				if err := consume(); err != nil {
++					return err
++				}
++			}
++		default:
++			return errors.New("unexpected manifest delimiter")
++		}
++		_, err = decoder.Token()
++		return err
++	}
++	if err := consume(); err != nil {
+ 		return err
+-	} else if !updated {
+-		return nil
+ 	}
+-	return downloadFile(url, dst)
++	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
++		return errors.New("manifest has trailing JSON data")
++	}
++	return nil
+ }
+ 
+-// downloadFile downloads a file from the given URL and saves it with the original filename
+-// TODO: move this function to a common package for Mage
+-func downloadFile(url, dst string) error {
+-	slog.Info("Downloading...", slog.String("url", url))
+-
+-	// Send a GET request to the URL
+-	resp, err := http.Get(url)
++func loadManifest(dir string) (fixtureManifest, error) {
++	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(manifestPath)))
+ 	if err != nil {
+-		return xerrors.Errorf("error sending GET request: %v", err)
++		return fixtureManifest{}, xerrors.Errorf("read fixture manifest: %w", err)
+ 	}
+-	defer resp.Body.Close()
+-
+-	// Check if the response status code is OK (200)
+-	if resp.StatusCode != http.StatusOK {
+-		return xerrors.Errorf("unexpected status code: %d", resp.StatusCode)
++	if len(data) > 16*1024 {
++		return fixtureManifest{}, errors.New("fixture manifest exceeds 16 KiB")
++	}
++	if err = rejectDuplicateKeys(data); err != nil {
++		return fixtureManifest{}, xerrors.Errorf("validate fixture manifest JSON: %w", err)
+ 	}
++	var manifest fixtureManifest
++	decoder := json.NewDecoder(strings.NewReader(string(data)))
++	decoder.DisallowUnknownFields()
++	if err = decoder.Decode(&manifest); err != nil {
++		return fixtureManifest{}, xerrors.Errorf("decode fixture manifest: %w", err)
++	}
++	if err = decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
++		return fixtureManifest{}, errors.New("fixture manifest has trailing data")
++	}
++	expectedAbsent := []string{
++		"6ac152fe2b87cb5e243414df71790a32912e778e",
++		"refs/heads/invalid-branch",
++		"refs/tags/v1.0.9",
++	}
++	if manifest.SchemaVersion != 1 || manifest.TrivyCommit != trivyCommit ||
++		manifest.Git.ArchivePath != archivePath || manifest.Git.ArchiveSHA256 != archiveSHA256 ||
++		manifest.Git.ArchiveSize != archiveSize || manifest.Git.Provenance != repoURL ||
++		manifest.Git.Head != "refs/heads/main" || manifest.Git.Refs.Main != fixtureCommit ||
++		manifest.Git.Refs.ValidBranch != fixtureCommit || manifest.Git.Refs.Tag != fixtureCommit ||
++		manifest.Git.Commit != fixtureCommit || manifest.Git.Tree != fixtureTree ||
++		manifest.Git.Parent != fixtureParent || len(manifest.Git.Absent) != len(expectedAbsent) ||
++		manifest.RPM.Path != rpmPath || manifest.RPM.SHA256 != rpmSHA256 || manifest.RPM.Size != rpmSize ||
++		manifest.RPM.Provenance != rpmURL {
++		return fixtureManifest{}, errors.New("fixture manifest identity mismatch")
++	}
++	for i, value := range expectedAbsent {
++		if manifest.Git.Absent[i] != value {
++			return fixtureManifest{}, errors.New("fixture manifest absence set mismatch")
++		}
++	}
++	return manifest, nil
++}
+ 
+-	// Create a new file with the extracted filename
+-	out, err := os.Create(dst)
++func openVerifiedFile(file, expectedSHA256 string, expectedSize int64) (*os.File, error) {
++	pathInfo, err := os.Lstat(file)
+ 	if err != nil {
+-		return xerrors.Errorf("error creating file: %v", err)
++		return nil, err
++	}
++	if !pathInfo.Mode().IsRegular() {
++		return nil, errors.New("fixture material type mismatch")
++	}
++	handle, err := os.Open(file)
++	if err != nil {
++		return nil, err
++	}
++	info, err := handle.Stat()
++	if err != nil {
++		handle.Close()
++		return nil, err
++	}
++	if !info.Mode().IsRegular() || !os.SameFile(pathInfo, info) || info.Size() != expectedSize {
++		handle.Close()
++		return nil, errors.New("fixture material size or type mismatch")
+ 	}
+-	defer out.Close()
++	hash := sha256.New()
++	if _, err = io.Copy(hash, handle); err != nil {
++		handle.Close()
++		return nil, err
++	}
++	if hex.EncodeToString(hash.Sum(nil)) != expectedSHA256 {
++		handle.Close()
++		return nil, errors.New("fixture material SHA-256 mismatch")
++	}
++	if _, err = handle.Seek(0, io.SeekStart); err != nil {
++		handle.Close()
++		return nil, err
++	}
++	return handle, nil
++}
+ 
+-	// Copy the response body to the file
+-	if _, err = io.Copy(out, resp.Body); err != nil {
+-		return xerrors.Errorf("error writing to file: %v", err)
++func verifyFile(file, expectedSHA256 string, expectedSize int64) error {
++	handle, err := openVerifiedFile(file, expectedSHA256, expectedSize)
++	if err != nil {
++		return err
+ 	}
++	return handle.Close()
++}
+ 
+-	return nil
++// Fixtures copies the exact locked RPM without network access.
++func Fixtures() error {
++	_, filePath, _, _ := runtime.Caller(0)
++	dir := filepath.Dir(filePath)
++	manifest, err := loadManifest(dir)
++	if err != nil {
++		return err
++	}
++	source := filepath.Join(dir, filepath.FromSlash(manifest.RPM.Path))
++	input, err := openVerifiedFile(source, manifest.RPM.SHA256, manifest.RPM.Size)
++	if err != nil {
++		return xerrors.Errorf("verify locked RPM fixture: %w", err)
++	}
++	destination := filepath.Join(dir, rpmName)
++	temporary, err := os.CreateTemp(dir, ".rpm-fixture-")
++	if err != nil {
++		input.Close()
++		return err
++	}
++	temporaryPath := temporary.Name()
++	defer os.Remove(temporaryPath)
++	hash := sha256.New()
++	written, copyErr := io.Copy(io.MultiWriter(temporary, hash), io.LimitReader(input, rpmSize+1))
++	inputCloseErr := input.Close()
++	syncErr := temporary.Sync()
++	closeErr := temporary.Close()
++	if copyErr != nil || inputCloseErr != nil || syncErr != nil || closeErr != nil || written != rpmSize ||
++		hex.EncodeToString(hash.Sum(nil)) != rpmSHA256 {
++		return errors.New("copy locked RPM fixture failed")
++	}
++	if err = os.Chmod(temporaryPath, 0o644); err != nil {
++		return err
++	}
++	if err = os.Rename(temporaryPath, destination); err != nil {
++		if !errors.Is(err, os.ErrExist) {
++			return err
++		}
++		if err = verifyFile(destination, rpmSHA256, rpmSize); err != nil {
++			return xerrors.Errorf("verify existing RPM fixture: %w", err)
++		}
++	}
++	return verifyFile(destination, rpmSHA256, rpmSize)
+ }
+diff --git a/internal/gittest/testdata/locked/fixture-manifest.json b/internal/gittest/testdata/locked/fixture-manifest.json
+new file mode 100644
+index 0000000..a73d753
+--- /dev/null
++++ b/internal/gittest/testdata/locked/fixture-manifest.json
+@@ -0,0 +1,30 @@
++{
++  "schemaVersion": 1,
++  "trivyCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
++  "git": {
++    "archivePath": "locked/test-repo-git-worktree.tar.gz",
++    "archiveSha256": "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76",
++    "archiveSize": 33353,
++    "provenance": "https://github.com/aquasecurity/trivy-test-repo.git",
++    "head": "refs/heads/main",
++    "refs": {
++      "refs/heads/main": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++      "refs/heads/valid-branch": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++      "refs/tags/v0.0.1": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
++    },
++    "absent": [
++      "6ac152fe2b87cb5e243414df71790a32912e778e",
++      "refs/heads/invalid-branch",
++      "refs/tags/v1.0.9"
++    ],
++    "commit": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++    "tree": "028f8b12792c2084211d02d883e3368ca87cc92f",
++    "parent": "d8920bebc6dceeadbf15f246eb9201fa387c70da"
++  },
++  "rpm": {
++    "path": "locked/socat-1.7.3.2-2.el7.x86_64.rpm",
++    "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9",
++    "size": 296692,
++    "provenance": "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm"
++  }
++}
+diff --git a/pkg/fanal/analyzer/pkg/rpm/testdata/locked/fixture-manifest.json b/pkg/fanal/analyzer/pkg/rpm/testdata/locked/fixture-manifest.json
+new file mode 100644
+index 0000000..a73d753
+--- /dev/null
++++ b/pkg/fanal/analyzer/pkg/rpm/testdata/locked/fixture-manifest.json
+@@ -0,0 +1,30 @@
++{
++  "schemaVersion": 1,
++  "trivyCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
++  "git": {
++    "archivePath": "locked/test-repo-git-worktree.tar.gz",
++    "archiveSha256": "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76",
++    "archiveSize": 33353,
++    "provenance": "https://github.com/aquasecurity/trivy-test-repo.git",
++    "head": "refs/heads/main",
++    "refs": {
++      "refs/heads/main": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++      "refs/heads/valid-branch": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++      "refs/tags/v0.0.1": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
++    },
++    "absent": [
++      "6ac152fe2b87cb5e243414df71790a32912e778e",
++      "refs/heads/invalid-branch",
++      "refs/tags/v1.0.9"
++    ],
++    "commit": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
++    "tree": "028f8b12792c2084211d02d883e3368ca87cc92f",
++    "parent": "d8920bebc6dceeadbf15f246eb9201fa387c70da"
++  },
++  "rpm": {
++    "path": "locked/socat-1.7.3.2-2.el7.x86_64.rpm",
++    "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9",
++    "size": 296692,
++    "provenance": "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm"
++  }
++}
+

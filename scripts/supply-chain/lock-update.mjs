@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
-import { validateGoCompilerTarArchive, validateNativeSourceTarArchive, validateTarArchive } from "./archive.mjs";
+import { validateGoCompilerTarArchive, validateNativeSourceTarArchive } from "./archive.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 import {
   MATERIAL_LIMITS,
@@ -202,22 +202,6 @@ async function download(url, destination, cwd, maximumBytes = MATERIAL_LIMITS.ar
     cwd, env: safeEnvironment(cwd), timeoutMs: 10 * 60 * 1000, maxOutputBytes: 1024 * 1024,
   });
   return sha256File(destination, maximumBytes);
-}
-
-async function validateGzipTar(filePath, expectedPrefix) {
-  const source = createReadStream(filePath);
-  const gunzip = createGunzip();
-  const entries = await validateTarArchive(source.pipe(gunzip), {
-    maxArchiveBytes: MATERIAL_LIMITS.closureBytes,
-    maxEntries: MATERIAL_LIMITS.closureEntries,
-    maxFileBytes: MATERIAL_LIMITS.archiveBytes,
-    maxTotalFileBytes: MATERIAL_LIMITS.closureBytes,
-    closeStreams: [source],
-  });
-  if (entries.length === 0 || entries.some((entry) => entry.path !== expectedPrefix && !entry.path.startsWith(`${expectedPrefix}/`))) {
-    materialError("source_archive_path_invalid");
-  }
-  return entries;
 }
 
 async function validateGoCompilerGzipTar(filePath) {
@@ -429,44 +413,64 @@ export async function verifyOrasReleaseEvidence(selected, sourceTree, workspace)
   return releaseEvidence;
 }
 
-async function prepareTrivyTestMaterials(workspace, epoch) {
+const TRIVY_PATCHES = Object.freeze([
+  { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch" },
+  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch" },
+]);
+
+async function collectCommittedTrivyPatches() {
+  const patches = [];
+  for (const patch of TRIVY_PATCHES) {
+    try {
+      patches.push({ ...patch, ...await sha256File(path.join(REPOSITORY_ROOT, patch.path), 1024 * 1024) });
+    } catch (error) {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    }
+  }
+  return patches;
+}
+
+async function applyProposalPatches(patches, sourceDirectory, workspace) {
+  for (const patch of patches) {
+    const patchPath = path.join(REPOSITORY_ROOT, patch.path);
+    await runGit(["-C", sourceDirectory, "apply", "--check", "--whitespace=error-all", patchPath], workspace, workspace);
+    await runGit(["-C", sourceDirectory, "apply", "--whitespace=error-all", patchPath], workspace, workspace);
+  }
+}
+
+async function proposeTrivyGrpcPatch(goExecutable, sourceDirectory, workspace, goEnvironment) {
   const assets = path.join(workspace, "proposal-assets", "trivy");
   await mkdir(assets, { recursive: true });
+  await runCommand(goExecutable, ["get", "google.golang.org/grpc@v1.83.1"], {
+    cwd: sourceDirectory, env: { ...goEnvironment, GOFLAGS: "-mod=mod" }, timeoutMs: 20 * 60 * 1000, maxOutputBytes: 32 * 1024 * 1024,
+  });
+  const changed = (await runGit(["-C", sourceDirectory, "diff", "--name-only", "--no-ext-diff"], workspace, workspace)).stdout.toString("utf8").trim().split(/\r?\n/u);
+  if (canonicalJsonBuffer(changed).compare(canonicalJsonBuffer(["go.mod", "go.sum"])) !== 0) materialError("trivy_grpc_patch_files_invalid");
+  const goMod = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(path.join(sourceDirectory, "go.mod")));
+  if (!/^\s*google\.golang\.org\/grpc v1\.83\.1(?:\s+\/\/ indirect)?$/mu.test(goMod)) materialError("trivy_grpc_version_missing");
+  const diff = await runGit(["-C", sourceDirectory, "diff", "--binary", "--no-ext-diff", "--", "go.mod", "go.sum"], workspace, workspace);
+  if (diff.stdout.length < 1 || diff.stdout.length > 1024 * 1024) materialError("trivy_grpc_patch_size_invalid");
+  const output = path.join(assets, "trivy-grpc-1.83.1.patch");
+  await writeFile(output, diff.stdout);
+  await runGit(["-C", sourceDirectory, "reset", "--hard", "--quiet", "HEAD"], workspace, workspace);
+  const clean = (await runGit(["-C", sourceDirectory, "status", "--porcelain=v1", "--untracked-files=all"], workspace, workspace)).stdout;
+  if (clean.length !== 0) materialError("trivy_grpc_patch_cleanup_failed");
+  return { kind: "grpc-1.83.1", path: "proposal-assets/trivy/trivy-grpc-1.83.1.patch", ...await sha256File(output, 1024 * 1024) };
+}
+
+async function prepareTrivyTestMaterials() {
   const rpmName = "socat-1.7.3.2-2.el7.x86_64.rpm";
   const rpmUrl = `https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/${rpmName}`;
-  const rpmPath = path.join(assets, rpmName);
-  const rpm = await download(rpmUrl, rpmPath, workspace);
+  const materialRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/materials/trivy");
+  const rpm = await sha256File(path.join(materialRoot, rpmName));
   if (rpm.sha256 !== "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9" || rpm.size !== 296_692) {
     materialError("trivy_rpm_identity_mismatch");
   }
-
-  const fixtureCommit = "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35";
-  const fixtureDirectory = path.join(workspace, "test-repo");
-  await runCommand(LINUX_BINARIES.git, ["-c", "credential.helper=", "-c", "core.askPass=/bin/false", "clone", "--no-checkout", "https://github.com/aquasecurity/trivy-test-repo.git", fixtureDirectory], {
-    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 4 * 1024 * 1024,
-  });
-  const git = (args) => runCommand(LINUX_BINARIES.git, ["-C", fixtureDirectory, ...args], {
-    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 4 * 1024 * 1024,
-  });
-  await git(["checkout", "--detach", fixtureCommit]);
-  const remoteMain = (await git(["rev-parse", "refs/remotes/origin/main^{commit}"])).stdout.toString("utf8").trim();
-  const remoteBranch = (await git(["rev-parse", "refs/remotes/origin/valid-branch^{commit}"])).stdout.toString("utf8").trim();
-  const tag = (await git(["rev-parse", "refs/tags/v0.0.1^{commit}"])).stdout.toString("utf8").trim();
-  if ([remoteMain, remoteBranch, tag].some((identity) => identity !== fixtureCommit)) materialError("trivy_git_fixture_refs_mismatch");
-  await git(["branch", "-f", "main", fixtureCommit]);
-  await git(["branch", "-f", "valid-branch", fixtureCommit]);
-  await git(["symbolic-ref", "HEAD", "refs/heads/main"]);
-  await git(["reset", "--hard", fixtureCommit]);
-  const tree = (await git(["rev-parse", `${fixtureCommit}^{tree}`])).stdout.toString("utf8").trim();
-  const parent = (await git(["rev-parse", `${fixtureCommit}^`])).stdout.toString("utf8").trim();
-  if (tree !== "028f8b12792c2084211d02d883e3368ca87cc92f" || parent !== "d8920bebc6dceeadbf15f246eb9201fa387c70da") materialError("trivy_git_fixture_object_mismatch");
-  await git(["reflog", "expire", "--expire=now", "--all"]);
-  const gitArchivePath = path.join(assets, "test-repo-git-worktree.tar.gz");
-  await runCommand(LINUX_BINARIES.tar, ["--format=ustar", "--sort=name", `--mtime=@${epoch}`, "--owner=0", "--group=0", "--numeric-owner", "-czf", gitArchivePath, "test-repo"], {
-    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024,
-  });
-  const gitArchive = await sha256File(gitArchivePath);
-  await validateGzipTar(gitArchivePath, "test-repo");
+  const gitArchive = await sha256File(path.join(materialRoot, "test-repo-git-worktree.tar.gz"));
+  if (gitArchive.sha256 !== "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76" || gitArchive.size !== 33_353) {
+    materialError("trivy_git_fixture_identity_mismatch");
+  }
   return [
     { name: "trivy-test-repo-git-worktree", kind: "git-fixture-archive", origin: "https://github.com/aquasecurity/trivy-test-repo", path: "infra/supply-chain/materials/trivy/test-repo-git-worktree.tar.gz", ...gitArchive },
     { name: "trivy-socat-rpm", kind: "rpm-fixture", origin: rpmUrl, path: `infra/supply-chain/materials/trivy/${rpmName}`, ...rpm },
@@ -507,15 +511,23 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
   });
 
   const blockers = [];
-  if (tool === "trivy") blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
   const recipe = await collectRecipeFiles(selected);
   if (recipe.missing) blockers.push("required-native-test-harness-not-yet-committed");
   const sourceDateEpoch = sourceIdentity.sourceDateEpoch;
   const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory);
   if (selected.requiredEvidence.includes("license") && sourceEvidenceFiles.licenseFiles.length === 0) blockers.push("source-license-evidence-missing");
   const releaseEvidence = tool === "oras" ? await runPhase("source_evidence", () => verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace)) : undefined;
+  const patches = tool === "trivy" ? await collectCommittedTrivyPatches() : [];
+  const patchProposals = [];
+  if (tool === "trivy" && patches.length === 0) {
+    blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
+    patchProposals.push(await runPhase("patch_proposal", () => proposeTrivyGrpcPatch(goExecutable, sourceDirectory, workspace, goEnvironment)));
+  } else if (patches.length > 0) {
+    await runPhase("patches", () => applyProposalPatches(patches, sourceDirectory, workspace));
+    await validateCheckedOutSource(sourceDirectory, selected.sourceSymlinks);
+  }
   const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
-  const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials(workspace, sourceDateEpoch) : Promise.resolve([]));
+  const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials() : Promise.resolve([]));
   const proposal = {
     schemaVersion: 1,
     state: "material_lock_proposal",
@@ -525,7 +537,8 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     sourceArchive: sourceArchive.digest,
     compilerArchive: { goos: "linux", ...compilerArchive },
     modules,
-    patches: [],
+    patches,
+    patchProposals,
     testMaterials,
     sourceDateEpoch,
     recipeFiles: recipe.recipeFiles,

@@ -153,8 +153,7 @@ export function parseCandidateArtifactArgs(argv) {
   return { mode: "package", tool: argv[2], repeat: Number(argv[4]) };
 }
 
-async function main() {
-  const args = parseCandidateArtifactArgs(process.argv.slice(2));
+export async function loadCandidateContext() {
   if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || !/^[a-f0-9]{40}$/u.test(process.env.GITHUB_SHA ?? "") ||
       !/^[a-f0-9]{40}$/u.test(process.env.GITHUB_WORKFLOW_SHA ?? "") || !/^[1-9][0-9]*$/u.test(process.env.GITHUB_RUN_ID ?? "") ||
       !/^[1-9][0-9]*$/u.test(process.env.GITHUB_RUN_ATTEMPT ?? "") || !Number.isSafeInteger(Number(process.env.GITHUB_RUN_ATTEMPT)) ||
@@ -178,6 +177,12 @@ async function main() {
       compilerVersion: selection.compiler.version, runnerImageVersion: proposal.managedRunner.imageVersion,
       run: { id: process.env.GITHUB_RUN_ID, attempt: Number(process.env.GITHUB_RUN_ATTEMPT), workflowSha: process.env.GITHUB_WORKFLOW_SHA, sourceSha: process.env.GITHUB_SHA } };
   }));
+  return { runnerTemp, selection, lock, lockBytes, expectations, sources };
+}
+
+async function main() {
+  const args = parseCandidateArtifactArgs(process.argv.slice(2));
+  const { runnerTemp, selection, expectations, sources } = await loadCandidateContext();
   if (args.mode === "verify") {
     const result = await verifyCandidateArtifactMatrix(path.join(runnerTemp, "native-candidates"), expectations, sources);
     await writeFile(path.join(runnerTemp, "native-reproducibility.json"), canonicalJsonBuffer(result), { flag: "wx" });

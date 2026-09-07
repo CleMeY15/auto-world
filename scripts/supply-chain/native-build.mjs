@@ -286,6 +286,13 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
     await runCommand(BIN.git, ["apply", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 });
   }
   await validateCheckedOutSource(source, selected.sourceSymlinks);
+  if (tool === "trivy") {
+    const gofmt = path.join(workspace, "compiler/go/bin/gofmt");
+    const formatting = await runCommand(gofmt, ["-d", "internal/gittest/testdata/fixture.go", "pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go"], {
+      cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+    });
+    if (formatting.stdout.length !== 0) materialError("native_build_trivy_patch_not_gofmt");
+  }
   await materializeTestData(tool, proposal, source);
   const go = path.join(workspace, "compiler/go/bin/go");
   await chmod(go, 0o755);
