@@ -1,6 +1,6 @@
 # Local and CI data foundation
 
-TASK-0005 implementation in progress. Passing static tests does not prove Docker startup, recovery or image safety. [Current validation and blockers](../docs/validation/TASK-0005.md) are recorded separately before the task becomes Done. The current image set fails the security gate and must not be treated as an accepted development baseline.
+TASK-0005 implementation in progress. Quality and real Linux integration (including startup, recovery and isolated restore) passed at `932ad80`; this does not prove image safety or production readiness. [Current validation and blockers](../docs/validation/TASK-0005.md) are recorded separately before the task becomes Done. The current image set fails the security gate and must not be treated as an accepted development baseline.
 
 This stack implements [ADR-0004](../docs/decisions/ADR-0004-local-data-infrastructure.md): PostgreSQL canonical evidence/outbox, SeaweedFS raw bytes, rebuildable OpenSearch index and Redis cache. No real source is authorized or fetched, no connector runs, and no production infrastructure is deployed.
 
