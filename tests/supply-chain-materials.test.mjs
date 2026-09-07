@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json.mjs";
 import {
+  MANAGED_RUNNER_UTILITY_PATHS,
+  TRIVY_PATCH_IDENTITIES,
+  TRIVY_WASM_INPUTS,
+  assertManagedRunnerUtilitiesMatch,
   validateMaterialLock,
+  validateManagedRunnerUtilities,
   validateMaterialProposal,
   validateSourceSelection,
   releaseEvidenceProvenance,
@@ -13,6 +18,7 @@ import {
 const selectionBytes = readFileSync(new URL("../infra/supply-chain/native-sources.json", import.meta.url));
 const selection = validateSourceSelection(JSON.parse(selectionBytes));
 const selectionSha256 = sha256(canonicalJsonBuffer(selection));
+const runnerUtilities = Object.entries(MANAGED_RUNNER_UTILITY_PATHS).map(([name, utilityPath]) => ({ name, path: utilityPath, identity: `${name} fixed identity` }));
 
 function proposal(tool, overrides = {}) {
   const value = {
@@ -38,11 +44,12 @@ function proposal(tool, overrides = {}) {
       licenseFiles: [{ path: "LICENSE", sha256: "7".repeat(64), size: 1 }],
       noticeFiles: [{ path: "NOTICE", sha256: "8".repeat(64), size: 1 }],
       noticeStatus: "present",
+      wasmInputs: tool === "trivy" ? TRIVY_WASM_INPUTS.map((entry, index) => ({ ...entry, sha256: String(index + 1).repeat(64), size: 1 })) : [],
       provenanceSha256: "0".repeat(64),
     },
     managedRunner: {
       label: "ubuntu-24.04", imageVersion: "20260901.1",
-      utilities: [{ name: "git", path: "/usr/bin/git", identity: "git version fixed" }],
+      utilities: runnerUtilities,
     },
     complete: true,
     blockers: [],
@@ -86,6 +93,20 @@ test("source selection rejects mutable or substituted source URLs", () => {
   const evidenceDrift = JSON.parse(JSON.stringify(selection));
   evidenceDrift.tools.find((entry) => entry.name === "oras").orasVerification.materials[0].size += 1;
   assert.throws(() => validateSourceSelection(evidenceDrift), /evidence_materials_mismatch/u);
+});
+
+test("managed runner inventory closes names, order, paths and identities", () => {
+  assert.doesNotThrow(() => validateManagedRunnerUtilities(runnerUtilities, selection.managedRunner.requiredUtilities));
+  for (const hostile of [
+    runnerUtilities.slice(1),
+    [...runnerUtilities, runnerUtilities[0]],
+    runnerUtilities.map((entry, index) => index === 1 ? runnerUtilities[0] : entry),
+    runnerUtilities.map((entry) => entry.name === "git" ? { ...entry, path: "/attacker/substitute" } : entry),
+    runnerUtilities.map((entry) => entry.name === "git" ? { ...entry, identity: "" } : entry),
+  ]) assert.throws(() => validateManagedRunnerUtilities(hostile, selection.managedRunner.requiredUtilities), /runner_utilit/u);
+  assert.doesNotThrow(() => assertManagedRunnerUtilitiesMatch(runnerUtilities, runnerUtilities, selection.managedRunner.requiredUtilities));
+  const identityDrift = runnerUtilities.map((entry) => entry.name === "git" ? { ...entry, identity: "substituted" } : entry);
+  assert.throws(() => assertManagedRunnerUtilitiesMatch(runnerUtilities, identityDrift, selection.managedRunner.requiredUtilities), /native_build_runner_utility_drift/u);
 });
 
 test("proposal rejects closure, patch order, runner and completion drift", () => {
@@ -137,6 +158,14 @@ test("proposal rejects closure, patch order, runner and completion drift", () =>
     patchProposals: [{ kind: "grpc-1.83.1", path: "proposal-assets/trivy/trivy-grpc-1.83.1.patch", sha256: "5".repeat(64), size: 1 }],
   }), selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /patch_proposals_unresolved/u);
   assert.throws(() => validateMaterialProposal(proposal("trivy"), selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /patches_incomplete/u);
+  const missingWasm = proposal("trivy", { complete: false, blockers: ["patch-review-pending"] });
+  missingWasm.sourceEvidence.wasmInputs = [];
+  missingWasm.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(missingWasm);
+  assert.throws(() => validateMaterialProposal(missingWasm, selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /wasm_inputs_invalid/u);
+  const substitutedWasm = proposal("trivy", { complete: false, blockers: ["patch-review-pending"] });
+  substitutedWasm.sourceEvidence.wasmInputs[0].output = "pkg/module/testdata/analyzer/substitute.wasm";
+  substitutedWasm.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(substitutedWasm);
+  assert.throws(() => validateMaterialProposal(substitutedWasm, selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /wasm_input_identity_mismatch/u);
 });
 
 test("strict schemas reject unknown fields without reflecting their names", () => {
@@ -159,10 +188,7 @@ test("aggregate material lock requires one complete proposal for every tool", ()
     item.recipeFiles = selection.tools.find((entry) => entry.name === item.tool).recipeFiles.map((file, index) => ({ path: file, sha256: String(index % 10).repeat(64), size: 1 }));
     item.compilerArchive.sha256 = selection.compiler.archives.find((entry) => entry.goos === "linux").sha256;
     if (item.tool === "trivy") {
-      item.patches = [
-        { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch", sha256: "5".repeat(64), size: 1 },
-        { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "6".repeat(64), size: 1 },
-      ];
+      item.patches = TRIVY_PATCH_IDENTITIES;
       item.testMaterials = [
         { name: "trivy-test-repo-git-worktree", kind: "git-fixture-archive", origin: "https://github.com/aquasecurity/trivy-test-repo", path: "infra/supply-chain/materials/trivy/test-repo-git-worktree.tar.gz", sha256: "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76", size: 33_353 },
         { name: "trivy-socat-rpm", kind: "rpm-fixture", origin: "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm", path: "infra/supply-chain/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", sha256: "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9", size: 296_692 },
@@ -172,6 +198,20 @@ test("aggregate material lock requires one complete proposal for every tool", ()
     }
   }
   assert.doesNotThrow(() => validateMaterialLock(lock, selection));
+  const patchDrift = JSON.parse(JSON.stringify(lock));
+  patchDrift.proposals.find((entry) => entry.tool === "trivy").patches[0].sha256 = "0".repeat(64);
+  assert.throws(() => validateMaterialLock(patchDrift, selection), /patch_identity_mismatch/u);
+  for (const mutate of [
+    (utilities) => utilities.slice(1),
+    (utilities) => [...utilities, utilities[0]],
+    (utilities) => utilities.map((entry, index) => index === 1 ? utilities[0] : entry),
+    (utilities) => utilities.map((entry) => entry.name === "git" ? { ...entry, path: "/attacker/substitute" } : entry),
+    (utilities) => utilities.map((entry) => entry.name === "git" ? { ...entry, identity: "fabricated" } : entry),
+  ]) {
+    const runnerDrift = JSON.parse(JSON.stringify(lock));
+    runnerDrift.proposals[0].managedRunner.utilities = mutate(runnerDrift.proposals[0].managedRunner.utilities);
+    assert.throws(() => validateMaterialLock(runnerDrift, selection), /runner_utilit/u);
+  }
   const compilerDrift = JSON.parse(JSON.stringify(lock));
   compilerDrift.proposals[0].compilerArchive.sha256 = "9".repeat(64);
   assert.throws(() => validateMaterialLock(compilerDrift, selection), /lock_compiler_archive_mismatch/u);

@@ -21,6 +21,16 @@ Status: IN_PROGRESS; no native tool admitted, no dormant installation accepted, 
 
 ## Required pending evidence
 
+### Integrated review corrections (2026-09-07)
+
+Commit `8c0ca223eda24c2592c35cda7c35925146203e74` passes [general CI 34163349808](https://github.com/CleMeY15/auto-world/actions/runs/34163349808). Its [native collection 34163349743](https://github.com/CleMeY15/auto-world/actions/runs/34163349743) produced the exact gRPC correction: `bd2d0fcb63bf9956775d5ced20d9538b89f3485c4ec113e44b1d64c809d30f24`, 6,145 bytes. The patch changes only four module versions and adds eight checksums; the three transitive upgrades are gRPC 1.83.1 minimum requirements. This establishes the proposed bytes, not vulnerability clearance.
+
+Independent material/transport review of that commit requested changes for runner utility assertions, missing WASM evidence, workflow identity and hard-linked packaging inputs. The next integration closes those contracts and adds independent Go inventory derivation and a Linux-only scanner runner. The scanner compares full JSON and CycloneDX package inventories, binds the actual candidate/DB bytes, and applies the unchanged HIGH/CRITICAL policy. These implementations require independent rereview and actual Linux execution. Known-vulnerable Go/Java fixtures, the clean control and isolated failed-baseline comparison remain unimplemented runtime gates; the runner alone cannot establish scanner acceptance.
+
+All three material proposals must be recollected after these recipe/schema changes. Previously complete diagnostic proposals are stale for the new recipes and cannot be committed as the eligible lock.
+
+Local integration validation uses pinned Node 22.23.2: forced `pnpm check` passes lint/typecheck/tests/build (Turbo 9/11/18/9 tasks, none cached), vehicle/registry/SDK suites 99/77/157, secrets scan (174 files) and dependency audit. The final scanner tightening overlapped that run, so the complete supply-chain suite and ESLint were rerun after its freeze: 85 passed, zero failures, one explicitly Linux-only symbolic-link skip on Windows. No native execution is inferred from these results.
+
 Source/module/test-material closure; explicit patch review; native upstream tests; exact two-build hashes; native scanner identity/inventory/self-scan and known-vulnerable/clean fixtures; strict hostile policy tests; actual network-disabled disposable signatures; workflow capability audit; forced root/fresh-clone checks; independent final implementation/material reviews; final-head CI and main verification.
 
 Do not turn a pending, skipped or failed item into success. Native evidence must bind exact source/material/recipe/compiler/runner/build/run/output/scanner/database identities. Future service image and GHCR proofs are blocked and cannot be represented by blob or fixture tests.

@@ -4,6 +4,7 @@ import { lstat, mkdir, open, opendir, realpath, writeFile } from "node:fs/promis
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { compareNativeBuilds, validateNativeBuildRecord, verifyNativeBuildDirectory } from "./candidate-records.mjs";
+import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { validateMaterialLock, validateSourceSelection } from "./materials.mjs";
 import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
 import { policyError, runCommand } from "./process.mjs";
@@ -96,12 +97,12 @@ export async function verifyCandidateArtifactMatrix(directory, expectations, sou
 async function copyExpectedFile(source, destination, expected, cap) {
   if (!Number.isSafeInteger(expected.size) || expected.size < 1 || expected.size > cap || !/^[a-f0-9]{64}$/u.test(expected.sha256)) fail("candidate_copy_identity_invalid");
   const info = await lstat(source);
-  if (!info.isFile() || info.isSymbolicLink() || info.size !== expected.size || await realpath(source) !== source) fail("candidate_copy_source_invalid");
+  if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size !== expected.size || await realpath(source) !== source) fail("candidate_copy_source_invalid");
   const input = await open(source, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   let output;
   try {
     const opened = await input.stat();
-    if (opened.ino !== info.ino || opened.dev !== info.dev || opened.size !== info.size) fail("candidate_copy_source_changed");
+    if (opened.ino !== info.ino || opened.dev !== info.dev || opened.size !== info.size || opened.nlink !== 1) fail("candidate_copy_source_changed");
     output = await open(destination, "wx", 0o600);
     const buffer = Buffer.alloc(64 * 1024);
     const hash = createHash("sha256");
@@ -120,7 +121,7 @@ async function copyExpectedFile(source, destination, expected, cap) {
       }
     }
     const end = await input.stat();
-    if (total !== expected.size || hash.digest("hex") !== expected.sha256 || end.size !== info.size || end.mtimeMs !== info.mtimeMs) fail("candidate_copy_source_changed");
+    if (total !== expected.size || hash.digest("hex") !== expected.sha256 || end.size !== info.size || end.mtimeMs !== info.mtimeMs || end.nlink !== 1) fail("candidate_copy_source_changed");
   } finally {
     const closed = await Promise.allSettled([input.close(), ...(output ? [output.close()] : [])]);
     if (closed.some((entry) => entry.status === "rejected")) fail("candidate_copy_close_failed");
@@ -131,6 +132,7 @@ async function copyExpectedFile(source, destination, expected, cap) {
 // caches, test homes, credentials and disposable signing material are excluded.
 export async function packageCandidateArtifact({ buildDirectory, recordFile, sourceFile, destination, expected, sourceArchive }) {
   await directoryAt(buildDirectory);
+  if ((await lstat(recordFile)).nlink !== 1) fail("candidate_copy_source_invalid");
   const recordBytes = await readFileBounded(recordFile, 8 * MiB);
   const record = validateNativeBuildRecord(parseBoundedJson(recordBytes), expected);
   await verifyNativeBuildDirectory(buildDirectory, record, expected);
@@ -139,7 +141,7 @@ export async function packageCandidateArtifact({ buildDirectory, recordFile, sou
   await mkdir(destination, { recursive: false });
   await directoryAt(destination);
   await mkdir(path.join(destination, "out"));
-  await writeFile(path.join(destination, "record.json"), recordBytes, { flag: "wx", mode: 0o600 });
+  await copyExpectedFile(recordFile, path.join(destination, "record.json"), { sha256: sha256(recordBytes), size: recordBytes.length }, 8 * MiB);
   await copyExpectedFile(sourceFile, path.join(destination, "source.tar.gz"), sourceArchive, 2 * 1024 * MiB);
   for (const output of record.outputs) {
     await copyExpectedFile(path.join(buildDirectory, output.path), path.join(destination, output.path), output, 512 * MiB);
@@ -163,8 +165,9 @@ export async function loadCandidateContext() {
   const git = ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "-c", "diff.external=", "-C", ROOT];
   const invokeGit = async (tail) => (await runCommand("/usr/bin/git", [...git, ...tail], { cwd: ROOT, env })).stdout.toString("utf8").trim();
   if (await invokeGit(["rev-parse", "HEAD^{commit}"]) !== process.env.GITHUB_SHA || await invokeGit(["status", "--porcelain", "--untracked-files=no"])) fail("candidate_checkout_identity_mismatch");
-  const inputs = ["infra/supply-chain/native-sources.json", "infra/supply-chain/native-materials.lock.json"];
+  const inputs = ["infra/supply-chain/native-sources.json", "infra/supply-chain/native-materials.lock.json", NATIVE_WORKFLOW_PATH];
   await invokeGit(["ls-files", "--error-unmatch", "--", ...inputs]);
+  const run = createNativeCiIdentity(process.env, await readFileBounded(path.join(ROOT, NATIVE_WORKFLOW_PATH), 64 * 1024));
   const selection = validateSourceSelection(parseBoundedJson(await readFileBounded(path.join(ROOT, inputs[0]), 8 * MiB)));
   const lockBytes = await readFileBounded(path.join(ROOT, inputs[1]), 8 * MiB);
   const lock = validateMaterialLock(parseBoundedJson(lockBytes), selection);
@@ -175,7 +178,8 @@ export async function loadCandidateContext() {
     return { tool, repeat, sourceCommit: selected.commit, repositoryCommit: process.env.GITHUB_SHA,
       selectionSha256: lock.selectionSha256, materialLockSha256: sha256(lockBytes), recipeSha256: proposal.recipeSha256,
       compilerVersion: selection.compiler.version, runnerImageVersion: proposal.managedRunner.imageVersion,
-      run: { id: process.env.GITHUB_RUN_ID, attempt: Number(process.env.GITHUB_RUN_ATTEMPT), workflowSha: process.env.GITHUB_WORKFLOW_SHA, sourceSha: process.env.GITHUB_SHA } };
+      utilityInventorySha256: sha256(canonicalJsonBuffer(proposal.managedRunner.utilities)),
+      run };
   }));
   return { runnerTemp, selection, lock, lockBytes, expectations, sources };
 }

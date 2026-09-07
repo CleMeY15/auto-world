@@ -11,12 +11,13 @@ import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json
 function fixture(tool = "oras", repeat = 1) {
   const expected = { tool, repeat, sourceCommit: "a".repeat(40), repositoryCommit: "b".repeat(40),
     selectionSha256: "1".repeat(64), materialLockSha256: "2".repeat(64), recipeSha256: "3".repeat(64),
-    compilerVersion: "1.26.8", runnerImageVersion: "20260906.1.0",
-    run: { id: "123", attempt: 1, workflowSha: "b".repeat(40), sourceSha: "b".repeat(40) } };
+    compilerVersion: "1.26.8", runnerImageVersion: "20260906.1.0", utilityInventorySha256: "6".repeat(64),
+    run: { id: "123", attempt: 1, workflowSha: "b".repeat(40), sourceSha: "b".repeat(40),
+      workflowRef: "CleMeY15/auto-world/.github/workflows/native-bootstrap.yml@refs/pull/8/merge", event: "pull_request", workflowFileSha256: "8".repeat(64) } };
   const buildInfo = ["build CGO_ENABLED=0"];
-  const { runnerImageVersion, ...identity } = expected;
+  const { runnerImageVersion, utilityInventorySha256, ...identity } = expected;
   const record = { schemaVersion: 1, state: "built_candidate", ...identity,
-    runner: { label: "ubuntu-24.04", imageVersion: runnerImageVersion }, versionOutputSha256: "4".repeat(64),
+    runner: { label: "ubuntu-24.04", imageVersion: runnerImageVersion, utilityInventorySha256 }, versionOutputSha256: "4".repeat(64),
     outputs: (tool === "cosign" ? ["linux-amd64", "windows-amd64"] : ["linux-amd64"]).map((target) => ({
       target, path: `out/${tool}${target.startsWith("windows") ? ".exe" : ""}`, sha256: sha256(Buffer.from(tool)), size: tool.length,
       buildInfo, buildInfoSha256: sha256(canonicalJsonBuffer(buildInfo)),
@@ -148,6 +149,21 @@ test("receiver refuses a hard-linked payload even with matching content and inve
     await link(path.join(directory, "out/oras"), path.join(owned.path, "same-file"));
     await assert.rejects(verifyCandidateArtifact(directory, data.expected, data.sourceArchive), { code: "candidate_artifact_path_refused" });
   } finally { await removeOwnedDirectory(owned); }
+});
+
+test("packager refuses hard-linked records, source archives and executable inputs", async () => {
+  for (const relative of ["record.json", "source.tar.gz", "out/oras"]) {
+    const owned = await createOwnedDirectory();
+    try {
+      const data = fixture();
+      const buildDirectory = path.join(owned.path, "build");
+      await materialize(buildDirectory, data);
+      await link(path.join(buildDirectory, relative), path.join(owned.path, "input-alias"));
+      await assert.rejects(packageCandidateArtifact({ buildDirectory, recordFile: path.join(buildDirectory, "record.json"),
+        sourceFile: path.join(buildDirectory, "source.tar.gz"), destination: path.join(owned.path, "artifact"),
+        expected: data.expected, sourceArchive: data.sourceArchive }), { code: "candidate_copy_source_invalid" });
+    } finally { await removeOwnedDirectory(owned); }
+  }
 });
 
 test("Linux receiver refuses symbolic payloads and directories", { skip: process.platform === "win32" }, async () => {

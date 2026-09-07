@@ -11,14 +11,15 @@ function fixture() {
   const records = ["oras", "cosign", "trivy"].flatMap((tool) => [1, 2].map((repeat) => ({
     schemaVersion: 1, state: "built_candidate", tool, repeat, sourceCommit: "a".repeat(40), repositoryCommit: "b".repeat(40),
     selectionSha256: "1".repeat(64), materialLockSha256: "2".repeat(64), recipeSha256: "3".repeat(64), compilerVersion: "1.26.8",
-    runner: { label: "ubuntu-24.04", imageVersion: "20260906.1.0" }, versionOutputSha256: "4".repeat(64),
-    run: { id: "123", attempt: 1, workflowSha: "b".repeat(40), sourceSha: "b".repeat(40) },
+    runner: { label: "ubuntu-24.04", imageVersion: "20260906.1.0", utilityInventorySha256: "6".repeat(64) }, versionOutputSha256: "4".repeat(64),
+    run: { id: "123", attempt: 1, workflowSha: "b".repeat(40), sourceSha: "b".repeat(40),
+      workflowRef: "CleMeY15/auto-world/.github/workflows/native-bootstrap.yml@refs/pull/8/merge", event: "pull_request", workflowFileSha256: "8".repeat(64) },
     outputs: (tool === "cosign" ? ["linux-amd64", "windows-amd64"] : ["linux-amd64"]).map((target) => ({
       target, path: `out/${tool}${target === "windows-amd64" ? ".exe" : ""}`, sha256: sha256(Buffer.from(tool)), size: tool.length,
       buildInfo: ["build CGO_ENABLED=0"], buildInfoSha256: sha256(canonicalJsonBuffer(["build CGO_ENABLED=0"])),
     })),
   })));
-  const expectations = records.map((record) => ({ ...globalThis.structuredClone(record), runnerImageVersion: record.runner.imageVersion }));
+  const expectations = records.map((record) => ({ ...globalThis.structuredClone(record), runnerImageVersion: record.runner.imageVersion, utilityInventorySha256: record.runner.utilityInventorySha256 }));
   return { records, expectations };
 }
 
@@ -50,6 +51,7 @@ test("record validation binds external identities and refuses paths, duplicate t
     (record) => { record.outputs[0].buildInfo.push("dep hidden-module v9.9.9"); },
     (record) => { record.outputs.push(record.outputs[0]); },
     (record) => { record.runner.imageVersion = "20260905.1.0"; },
+    (record) => { record.runner.utilityInventorySha256 = "7".repeat(64); },
     (record) => { record.run.id = "124"; },
     (record) => { record.run.attempt = 2; },
     (record) => { record.run.workflowSha = "d".repeat(40); },

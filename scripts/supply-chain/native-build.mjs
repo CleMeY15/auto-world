@@ -1,23 +1,27 @@
 import { createReadStream } from "node:fs";
-import { access, chmod, copyFile, lstat, mkdir, realpath, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
+import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
+  assertManagedRunnerUtilitiesMatch,
   assertDigest,
   materialError,
   readBoundedJsonFile,
   releaseEvidenceProvenance,
   sha256File,
+  TRIVY_WASM_INPUTS,
   validateMaterialLock,
   validateSourceSelection,
 } from "./materials.mjs";
 import { runCommand } from "./process.mjs";
+import { readFileBounded } from "./native-audit.mjs";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SELECTION_PATH = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-sources.json");
@@ -176,7 +180,14 @@ async function runUpstreamTests(tool, selected, go, source, env) {
     await runCommand(BIN.make, [`GOEXE=${go}`, "test"], { cwd: source, env: { ...env, CGO_ENABLED: "0" }, timeoutMs: timeout, maxOutputBytes: 64 * 1024 * 1024 });
     await runGo(go, ["test", "-race", ...packages], source, { ...env, CGO_ENABLED: "1" }, timeout);
   } else {
+    for (const prerequisite of TRIVY_WASM_INPUTS) await rm(path.join(source, prerequisite.output), { force: true });
     await runGo(go, ["tool", "mage", "test:unit"], source, { ...env, CGO_ENABLED: "0", GOEXPERIMENT: "jsonv2" }, timeout);
+    for (const prerequisite of TRIVY_WASM_INPUTS) {
+      const output = path.join(source, prerequisite.output);
+      const metadata = await lstat(output);
+      if (!metadata.isFile() || metadata.size < 1 || metadata.size > MATERIAL_LIMITS.binaryBytes) materialError("native_build_wasm_output_invalid");
+      await sha256File(output, MATERIAL_LIMITS.binaryBytes);
+    }
   }
 }
 
@@ -229,7 +240,10 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   await requireBuildRuntime(tool, repeat, workspace, output);
   await mkdir(workspace, { recursive: false });
   await Promise.all(["home", "tmp", "gopath", "gocache", "gomodcache", "out"].map((item) => mkdir(path.join(workspace, item))));
-  const repositoryCommit = await ensureCommittedInputs([lockPath, SELECTION_PATH], workspace);
+  const workflowPath = path.join(REPOSITORY_ROOT, NATIVE_WORKFLOW_PATH);
+  const repositoryCommit = await ensureCommittedInputs([lockPath, SELECTION_PATH, workflowPath], workspace);
+  const runIdentity = createNativeCiIdentity(process.env, await readFileBounded(workflowPath, 64 * 1024));
+  if (runIdentity.sourceSha !== repositoryCommit) materialError("native_build_run_identity_mismatch");
   const selection = validateSourceSelection(readBoundedJsonFile(SELECTION_PATH));
   const lock = validateMaterialLock(readBoundedJsonFile(lockPath), selection);
   const selected = selection.tools.find((entry) => entry.name === tool);
@@ -251,16 +265,23 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   if (recipe.missing || canonicalJsonBuffer(recipe.recipeFiles).compare(canonicalJsonBuffer(proposal.recipeFiles)) !== 0 || recipeSha256 !== proposal.recipeSha256) {
     materialError("native_build_recipe_drift");
   }
+  const actualUtilities = assertManagedRunnerUtilitiesMatch(
+    proposal.managedRunner.utilities,
+    await utilityInventory(workspace),
+    selection.managedRunner.requiredUtilities,
+  );
+  const utilityInventorySha256 = sha256(canonicalJsonBuffer(actualUtilities));
   const compilerArchive = path.join(workspace, "go.tar.gz");
   const sourceIdentity = await fetchExactSource(selected, workspace);
   if (sourceIdentity.sourceTree !== proposal.sourceTree || sourceIdentity.sourceDateEpoch !== proposal.sourceDateEpoch) materialError("native_build_source_identity_drift");
   const sourceArchive = await canonicalSourceArchive(sourceIdentity, workspace);
   assertDigest(sourceArchive.digest, proposal.sourceArchive, "source_archive");
-  const sourceEvidence = await collectSourceEvidence(sourceIdentity.sourceDirectory);
+  const sourceEvidence = await collectSourceEvidence(sourceIdentity.sourceDirectory, tool);
   if (canonicalJsonBuffer(sourceEvidence).compare(canonicalJsonBuffer({
     licenseFiles: proposal.sourceEvidence.licenseFiles,
     noticeFiles: proposal.sourceEvidence.noticeFiles,
     noticeStatus: proposal.sourceEvidence.noticeStatus,
+    wasmInputs: proposal.sourceEvidence.wasmInputs,
   })) !== 0) {
     materialError("native_build_source_evidence_drift");
   }
@@ -311,16 +332,10 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
     schemaVersion: 1, state: "built_candidate", tool, repeat, sourceCommit: selected.commit, repositoryCommit,
     selectionSha256: lock.selectionSha256, materialLockSha256: (await sha256File(lockPath, MATERIAL_LIMITS.receiptBytes)).sha256,
     recipeSha256: proposal.recipeSha256, compilerVersion: selection.compiler.version,
-    runner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion },
-    run: {
-      id: process.env.GITHUB_RUN_ID,
-      attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
-      workflowSha: process.env.GITHUB_WORKFLOW_SHA,
-      sourceSha: process.env.GITHUB_SHA,
-    },
+    runner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion, utilityInventorySha256 },
+    run: runIdentity,
     versionOutputSha256: sha256(versionResult.stdout), outputs,
   };
-  if (!Number.isSafeInteger(record.run.attempt) || record.run.sourceSha !== repositoryCommit) materialError("native_build_run_identity_mismatch");
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, canonicalJsonBuffer(record));
   return record;

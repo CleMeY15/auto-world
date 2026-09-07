@@ -3,6 +3,7 @@ import path from "node:path";
 import { assertClosedObject, canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 import { hashFileBounded } from "./native-audit.mjs";
 import { policyError } from "./process.mjs";
+import { validateNativeCiIdentity } from "./ci-identity.mjs";
 
 const HASH = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -21,14 +22,14 @@ export function validateNativeBuildRecord(record, expected) {
   for (const key of ["tool", "repeat", "sourceCommit", "repositoryCommit", "selectionSha256", "materialLockSha256", "recipeSha256", "compilerVersion"]) equal(record[key], expected[key]);
   if (!COMMIT.test(record.sourceCommit) || !COMMIT.test(record.repositoryCommit) || record.compilerVersion !== "1.26.8" ||
       ![record.selectionSha256, record.materialLockSha256, record.recipeSha256, record.versionOutputSha256].every((value) => HASH.test(value))) fail("candidate_record_invalid");
-  assertClosedObject(record.run, ["id", "attempt", "workflowSha", "sourceSha"]);
-  for (const key of ["id", "attempt", "workflowSha", "sourceSha"]) equal(record.run[key], expected.run?.[key]);
-  if (typeof record.run.id !== "string" || !/^[1-9][0-9]*$/u.test(record.run.id) || !Number.isSafeInteger(record.run.attempt) ||
-      record.run.attempt < 1 || !COMMIT.test(record.run.workflowSha) || record.run.sourceSha !== record.repositoryCommit) fail("candidate_run_invalid");
-  assertClosedObject(record.runner, ["label", "imageVersion"]);
+  validateNativeCiIdentity(record.run, expected.run);
+  if (record.run.sourceSha !== record.repositoryCommit) fail("candidate_run_invalid");
+  assertClosedObject(record.runner, ["label", "imageVersion", "utilityInventorySha256"]);
   equal(record.runner.label, "ubuntu-24.04");
   equal(record.runner.imageVersion, expected.runnerImageVersion);
-  if (typeof record.runner.imageVersion !== "string" || !/^[0-9]{8}\.[0-9]+\.[0-9]+$/u.test(record.runner.imageVersion)) fail("candidate_runner_invalid");
+  equal(record.runner.utilityInventorySha256, expected.utilityInventorySha256);
+  if (typeof record.runner.imageVersion !== "string" || !/^[0-9]{8}\.[0-9]+\.[0-9]+$/u.test(record.runner.imageVersion) ||
+      !HASH.test(record.runner.utilityInventorySha256)) fail("candidate_runner_invalid");
   const targets = FILES[record.tool];
   if (!Array.isArray(record.outputs) || record.outputs.length !== Object.keys(targets).length) fail("candidate_outputs_invalid");
   const seen = new Set();
@@ -82,7 +83,7 @@ export function compareNativeBuilds(records, expectations) {
     for (const key of ["sourceCommit", "repositoryCommit", "selectionSha256", "materialLockSha256", "recipeSha256", "compilerVersion", "versionOutputSha256"]) {
       if (first[key] !== second[key]) fail("candidate_reproducibility_mismatch");
     }
-    if (first.runner.imageVersion !== second.runner.imageVersion) fail("candidate_reproducibility_mismatch");
+    if (first.runner.imageVersion !== second.runner.imageVersion || first.runner.utilityInventorySha256 !== second.runner.utilityInventorySha256) fail("candidate_reproducibility_mismatch");
     if (sha256(canonicalJsonBuffer(first.run)) !== sha256(canonicalJsonBuffer(second.run))) fail("candidate_reproducibility_mismatch");
     for (const output of first.outputs) {
       const twin = second.outputs.find((entry) => entry.target === output.target);

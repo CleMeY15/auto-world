@@ -16,10 +16,32 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const COMMIT = /^[0-9a-f]{40}$/;
 const TOOL_NAMES = new Set(["oras", "cosign", "trivy"]);
 const TARGETS = new Set(["linux-amd64", "windows-amd64"]);
+export const MANAGED_RUNNER_UTILITY_PATHS = Object.freeze({
+  bash: "/usr/bin/bash",
+  curl: "/usr/bin/curl",
+  gcc: "/usr/bin/gcc",
+  git: "/usr/bin/git",
+  gpg: "/usr/bin/gpg",
+  gzip: "/usr/bin/gzip",
+  make: "/usr/bin/make",
+  openssl: "/usr/bin/openssl",
+  tar: "/usr/bin/tar",
+  unshare: "/usr/bin/unshare",
+});
+const MANAGED_RUNNER_UTILITY_NAMES = Object.freeze(Object.keys(MANAGED_RUNNER_UTILITY_PATHS));
 const TRIVY_SOURCE_SYMLINKS = Object.freeze([
   { path: "pkg/fanal/analyzer/language/golang/binary/testdata/symlink", target: "foo", blob: "19102815663d23f8b75a47e7a01965dcdc96468c", size: 3 },
   { path: "pkg/fanal/analyzer/language/rust/binary/testdata/symlink", target: "foo", blob: "19102815663d23f8b75a47e7a01965dcdc96468c", size: 3 },
   { path: "pkg/fanal/walker/testdata/fs/sym.txt", target: "bar", blob: "ba0e162e1c47469e3fe4b393a8bf8c569f302116", size: 3 },
+]);
+export const TRIVY_WASM_INPUTS = Object.freeze([
+  { path: "pkg/module/testdata/analyzer/analyzer.go", output: "pkg/module/testdata/analyzer/analyzer.wasm", goos: "wasip1", goarch: "wasm", buildMode: "c-shared" },
+  { path: "pkg/module/testdata/happy/happy.go", output: "pkg/module/testdata/happy/happy.wasm", goos: "wasip1", goarch: "wasm", buildMode: "c-shared" },
+  { path: "pkg/module/testdata/scanner/scanner.go", output: "pkg/module/testdata/scanner/scanner.wasm", goos: "wasip1", goarch: "wasm", buildMode: "c-shared" },
+]);
+export const TRIVY_PATCH_IDENTITIES = Object.freeze([
+  { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch", sha256: "bd2d0fcb63bf9956775d5ced20d9538b89f3485c4ec113e44b1d64c809d30f24", size: 6145 },
+  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "a8002eb8f212475e8d6fc74f6a46b196b727fbacbba0c8168478dd99d6eea1c8", size: 33_047 },
 ]);
 const ORAS_EVIDENCE_MATERIALS = Object.freeze([
   { name: "KEYS", path: "infra/supply-chain/materials/oras/KEYS", url: "https://raw.githubusercontent.com/oras-project/oras/db9e29505c3059f2b8fde34ae8cae266c5c765e9/KEYS", sha256: "3420b86b255693414e73422a09a2c86334ec902496a2fb84c938a47637fc5ea3", size: 5324 },
@@ -140,7 +162,26 @@ export function sourceEvidenceProvenance(proposal) {
     licenseFiles: proposal.sourceEvidence.licenseFiles,
     noticeFiles: proposal.sourceEvidence.noticeFiles,
     noticeStatus: proposal.sourceEvidence.noticeStatus,
+    wasmInputs: proposal.sourceEvidence.wasmInputs,
   }));
+}
+
+function validateWasmInputs(value, required) {
+  if (!Array.isArray(value) || value.length !== (required ? TRIVY_WASM_INPUTS.length : 0)) fail("proposal_wasm_inputs_invalid");
+  value.forEach((entry, index) => {
+    const record = closed(entry, ["path", "output", "goos", "goarch", "buildMode", "sha256", "size"], [], `proposal_wasm_input_${index}`);
+    sourcePath(record.path, `proposal_wasm_input_${index}_path`);
+    sourcePath(record.output, `proposal_wasm_input_${index}_output`);
+    string(record.goos, `proposal_wasm_input_${index}_goos`);
+    string(record.goarch, `proposal_wasm_input_${index}_goarch`);
+    string(record.buildMode, `proposal_wasm_input_${index}_build_mode`);
+    string(record.sha256, `proposal_wasm_input_${index}_sha256`, SHA256);
+    integer(record.size, `proposal_wasm_input_${index}_size`, 1, 1024 * 1024);
+    const expected = TRIVY_WASM_INPUTS[index];
+    if (!expected || canonicalJsonBuffer({ path: record.path, output: record.output, goos: record.goos, goarch: record.goarch, buildMode: record.buildMode })
+      .compare(canonicalJsonBuffer(expected)) !== 0) fail("proposal_wasm_input_identity_mismatch");
+  });
+  return value;
 }
 
 export function releaseEvidenceProvenance(proposal) {
@@ -274,10 +315,35 @@ export function validateSourceSelection(value) {
   const runner = closed(root.managedRunner, ["label", "requiredUtilities"], [], "managed_runner");
   if (runner.label !== "ubuntu-24.04") fail("managed_runner_invalid");
   strings(runner.requiredUtilities, "managed_runner_utilities");
+  if (new Set(runner.requiredUtilities).size !== runner.requiredUtilities.length ||
+      canonicalJsonBuffer([...runner.requiredUtilities].sort()).compare(canonicalJsonBuffer([...MANAGED_RUNNER_UTILITY_NAMES].sort())) !== 0) fail("managed_runner_utilities_mismatch");
   if (!Array.isArray(root.tools) || root.tools.length !== 3) fail("tools_invalid");
   const tools = root.tools.map(validateSelectionTool);
   if (new Set(tools.map((entry) => entry.name)).size !== tools.length) fail("tool_duplicate");
   return parseBoundedJson(canonicalJsonBuffer(root));
+}
+
+export function validateManagedRunnerUtilities(value, expectedNames = MANAGED_RUNNER_UTILITY_NAMES) {
+  if (!Array.isArray(value) || value.length !== expectedNames.length) fail("proposal_runner_utilities_invalid");
+  if (new Set(expectedNames).size !== expectedNames.length ||
+      canonicalJsonBuffer([...expectedNames].sort()).compare(canonicalJsonBuffer([...MANAGED_RUNNER_UTILITY_NAMES].sort())) !== 0) fail("proposal_runner_utilities_expected_invalid");
+  const utilities = value.map((entry, index) => {
+    const utility = closed(entry, ["name", "path", "identity"], [], `runner_utility_${index}`);
+    string(utility.name, `runner_utility_${index}_name`);
+    string(utility.path, `runner_utility_${index}_path`, /^\//);
+    string(utility.identity, `runner_utility_${index}_identity`);
+    if (utility.name !== MANAGED_RUNNER_UTILITY_NAMES[index] || utility.path !== MANAGED_RUNNER_UTILITY_PATHS[utility.name]) fail("proposal_runner_utility_identity_mismatch");
+    return utility;
+  });
+  if (new Set(utilities.map((entry) => entry.name)).size !== utilities.length) fail("proposal_runner_utility_duplicate");
+  return utilities;
+}
+
+export function assertManagedRunnerUtilitiesMatch(expected, actual, expectedNames = MANAGED_RUNNER_UTILITY_NAMES) {
+  const locked = validateManagedRunnerUtilities(expected, expectedNames);
+  const observed = validateManagedRunnerUtilities(actual, expectedNames);
+  if (canonicalJsonBuffer(observed).compare(canonicalJsonBuffer(locked)) !== 0) fail("native_build_runner_utility_drift");
+  return observed;
 }
 
 function validateModule(value, index) {
@@ -359,9 +425,10 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   integer(root.sourceDateEpoch, "proposal_source_date_epoch", 1, 4_102_444_800);
   strings(root.requiredEvidence, "proposal_required_evidence");
   if (expectedRequiredEvidence && canonicalJsonBuffer(root.requiredEvidence).compare(canonicalJsonBuffer(expectedRequiredEvidence)) !== 0) fail("proposal_required_evidence_mismatch");
-  const sourceEvidence = closed(root.sourceEvidence, ["licenseFiles", "noticeFiles", "noticeStatus", "provenanceSha256"], [], "proposal_source_evidence");
+  const sourceEvidence = closed(root.sourceEvidence, ["licenseFiles", "noticeFiles", "noticeStatus", "wasmInputs", "provenanceSha256"], [], "proposal_source_evidence");
   validateEvidenceFiles(sourceEvidence.licenseFiles, "proposal_license_files");
   validateEvidenceFiles(sourceEvidence.noticeFiles, "proposal_notice_files");
+  validateWasmInputs(sourceEvidence.wasmInputs, root.requiredEvidence.includes("wasm-prerequisites"));
   if (!new Set(["present", "absent-in-pinned-source"]).has(sourceEvidence.noticeStatus) ||
       (sourceEvidence.noticeStatus === "present") !== (sourceEvidence.noticeFiles.length > 0)) fail("proposal_notice_status_invalid");
   string(sourceEvidence.provenanceSha256, "proposal_source_provenance", SHA256);
@@ -387,17 +454,12 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   const runner = closed(root.managedRunner, ["label", "imageVersion", "utilities"], [], "proposal_runner");
   if (runner.label !== "ubuntu-24.04") fail("proposal_runner_label_invalid");
   string(runner.imageVersion, "proposal_runner_image_version");
-  if (!Array.isArray(runner.utilities) || runner.utilities.length === 0) fail("proposal_runner_utilities_invalid");
-  runner.utilities.forEach((entry, index) => {
-    const utility = closed(entry, ["name", "path", "identity"], [], `runner_utility_${index}`);
-    string(utility.name, `runner_utility_${index}_name`);
-    string(utility.path, `runner_utility_${index}_path`, /^\//);
-    string(utility.identity, `runner_utility_${index}_identity`);
-  });
+  validateManagedRunnerUtilities(runner.utilities);
   if (typeof root.complete !== "boolean") fail("proposal_complete_invalid");
   strings(root.blockers, "proposal_blockers");
   if (root.patchProposals.length > 0 && root.complete) fail("proposal_patch_proposals_unresolved");
   if (root.complete && expectedPatchKinds && canonicalJsonBuffer(patches.map((entry) => entry.kind)).compare(canonicalJsonBuffer(expectedPatchKinds)) !== 0) fail("proposal_patches_incomplete");
+  if (root.complete && root.tool === "trivy" && canonicalJsonBuffer(patches).compare(canonicalJsonBuffer(TRIVY_PATCH_IDENTITIES)) !== 0) fail("proposal_patch_identity_mismatch");
   if (root.complete && root.requiredEvidence.includes("git-fixture-closure") && !root.testMaterials.some((entry) => entry.name === "trivy-test-repo-git-worktree")) fail("proposal_git_fixture_evidence_missing");
   if (root.complete && root.requiredEvidence.includes("rpm-fixture") && !root.testMaterials.some((entry) => entry.name === "trivy-socat-rpm")) fail("proposal_rpm_fixture_evidence_missing");
   if (root.complete && root.requiredEvidence.includes("mage-1.17.2") && !root.modules.some((entry) => entry.path === "github.com/magefile/mage" && entry.version === "v1.17.2")) fail("proposal_mage_evidence_missing");
@@ -421,6 +483,9 @@ export function validateMaterialLock(value, selection) {
   });
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) fail("lock_proposal_duplicate");
   if (proposals.some((entry) => !entry.complete)) fail("lock_proposal_incomplete");
+  if (proposals.some((entry) => canonicalJsonBuffer(entry.managedRunner.utilities)
+    .compare(canonicalJsonBuffer(proposals[0].managedRunner.utilities)) !== 0)) fail("lock_runner_utilities_mismatch");
+  if (proposals.some((entry) => entry.managedRunner.imageVersion !== proposals[0].managedRunner.imageVersion)) fail("lock_runner_identity_mismatch");
   for (const proposal of proposals) {
     const selected = selection.tools.find((entry) => entry.name === proposal.tool);
     const expectedCompiler = selection.compiler.archives.find((entry) => entry.goos === "linux");

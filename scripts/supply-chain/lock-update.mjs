@@ -8,11 +8,14 @@ import { validateGoCompilerTarArchive, validateNativeSourceTarArchive } from "./
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 import {
   MATERIAL_LIMITS,
+  MANAGED_RUNNER_UTILITY_PATHS,
   materialError,
   readBoundedJsonFile,
   releaseEvidenceProvenance,
   sha256File,
   sourceEvidenceProvenance,
+  TRIVY_PATCH_IDENTITIES,
+  TRIVY_WASM_INPUTS,
   validateMaterialLock,
   validateMaterialProposal,
   validateSourceSelection,
@@ -21,11 +24,7 @@ import { runCommand } from "./process.mjs";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_SELECTION = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-sources.json");
-const LINUX_BINARIES = Object.freeze({
-  bash: "/usr/bin/bash", curl: "/usr/bin/curl", git: "/usr/bin/git", gpg: "/usr/bin/gpg",
-  gzip: "/usr/bin/gzip", make: "/usr/bin/make", openssl: "/usr/bin/openssl", tar: "/usr/bin/tar",
-  gcc: "/usr/bin/gcc", unshare: "/usr/bin/unshare",
-});
+const LINUX_BINARIES = MANAGED_RUNNER_UTILITY_PATHS;
 
 function usage() {
   return "usage: lock-update.mjs propose --tool <oras|cosign|trivy> --workspace <absolute> --output <absolute.json> [--selection <absolute.json>] | merge --proposal <absolute.json> (three times) --output <absolute.json> [--selection <absolute.json>]";
@@ -295,7 +294,7 @@ async function moduleClosure(goExecutable, sourceDirectory, environment) {
   return modules;
 }
 
-async function utilityInventory(workspace) {
+export async function utilityInventory(workspace) {
   const utilities = [];
   for (const [name, executable] of Object.entries(LINUX_BINARIES)) {
     const args = name === "openssl" ? ["version"] : ["--version"];
@@ -323,7 +322,7 @@ export async function collectRecipeFiles(selected) {
   return { recipeFiles, missing };
 }
 
-export async function collectSourceEvidence(sourceDirectory) {
+export async function collectSourceEvidence(sourceDirectory, tool) {
   const licenseFiles = [];
   const noticeFiles = [];
   const pending = [sourceDirectory];
@@ -346,7 +345,13 @@ export async function collectSourceEvidence(sourceDirectory) {
   }
   licenseFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
   noticeFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
-  return { licenseFiles, noticeFiles, noticeStatus: noticeFiles.length > 0 ? "present" : "absent-in-pinned-source" };
+  const wasmInputs = [];
+  if (tool === "trivy") {
+    for (const input of TRIVY_WASM_INPUTS) {
+      wasmInputs.push({ ...input, ...await sha256File(path.join(sourceDirectory, input.path), 1024 * 1024) });
+    }
+  }
+  return { licenseFiles, noticeFiles, noticeStatus: noticeFiles.length > 0 ? "present" : "absent-in-pinned-source", wasmInputs };
 }
 
 export async function verifyOrasReleaseEvidence(selected, sourceTree, workspace) {
@@ -413,16 +418,13 @@ export async function verifyOrasReleaseEvidence(selected, sourceTree, workspace)
   return releaseEvidence;
 }
 
-const TRIVY_PATCHES = Object.freeze([
-  { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch" },
-  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch" },
-]);
-
 async function collectCommittedTrivyPatches() {
   const patches = [];
-  for (const patch of TRIVY_PATCHES) {
+  for (const patch of TRIVY_PATCH_IDENTITIES) {
     try {
-      patches.push({ ...patch, ...await sha256File(path.join(REPOSITORY_ROOT, patch.path), 1024 * 1024) });
+      const digest = await sha256File(path.join(REPOSITORY_ROOT, patch.path), 1024 * 1024);
+      if (digest.sha256 !== patch.sha256 || digest.size !== patch.size) materialError("trivy_patch_identity_mismatch");
+      patches.push({ ...patch });
     } catch (error) {
       if (error?.code === "ENOENT") return [];
       throw error;
@@ -514,7 +516,7 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
   const recipe = await collectRecipeFiles(selected);
   if (recipe.missing) blockers.push("required-native-test-harness-not-yet-committed");
   const sourceDateEpoch = sourceIdentity.sourceDateEpoch;
-  const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory);
+  const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory, tool);
   if (selected.requiredEvidence.includes("license") && sourceEvidenceFiles.licenseFiles.length === 0) blockers.push("source-license-evidence-missing");
   const releaseEvidence = tool === "oras" ? await runPhase("source_evidence", () => verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace)) : undefined;
   const patches = tool === "trivy" ? await collectCommittedTrivyPatches() : [];
