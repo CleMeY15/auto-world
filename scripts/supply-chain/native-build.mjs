@@ -6,7 +6,7 @@ import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, fetchExactSource, validateCheckedOutSource } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, validateCheckedOutSource } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertDigest,
@@ -239,6 +239,7 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   const recipeSha256 = sha256(canonicalJsonBuffer({
     tool, commit: selected.commit, modifiedVersion: selected.modifiedVersion, targets: selected.targets,
     compiler: selection.compiler.version, tests: selected.upstreamTests, patchPolicy: selected.patchPolicy,
+    requiredEvidence: selected.requiredEvidence,
     recipeFiles: recipe.recipeFiles,
   }));
   if (recipe.missing || canonicalJsonBuffer(recipe.recipeFiles).compare(canonicalJsonBuffer(proposal.recipeFiles)) !== 0 || recipeSha256 !== proposal.recipeSha256) {
@@ -249,6 +250,14 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   if (sourceIdentity.sourceTree !== proposal.sourceTree || sourceIdentity.sourceDateEpoch !== proposal.sourceDateEpoch) materialError("native_build_source_identity_drift");
   const sourceArchive = await canonicalSourceArchive(sourceIdentity, workspace);
   assertDigest(sourceArchive.digest, proposal.sourceArchive, "source_archive");
+  const sourceEvidence = await collectSourceEvidence(sourceIdentity.sourceDirectory);
+  if (canonicalJsonBuffer(sourceEvidence).compare(canonicalJsonBuffer({
+    licenseFiles: proposal.sourceEvidence.licenseFiles,
+    noticeFiles: proposal.sourceEvidence.noticeFiles,
+    noticeStatus: proposal.sourceEvidence.noticeStatus,
+  })) !== 0) {
+    materialError("native_build_source_evidence_drift");
+  }
   const compilerSelection = selection.compiler.archives.find((entry) => entry.goos === "linux");
   assertDigest(await download(compilerSelection.url, compilerArchive, workspace), proposal.compilerArchive, "compiler_archive");
   await validateGoCompilerGzipTar(compilerArchive);

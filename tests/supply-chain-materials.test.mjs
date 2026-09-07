@@ -6,6 +6,7 @@ import {
   validateMaterialLock,
   validateMaterialProposal,
   validateSourceSelection,
+  sourceEvidenceProvenance,
 } from "../scripts/supply-chain/materials.mjs";
 
 const selectionBytes = readFileSync(new URL("../infra/supply-chain/native-sources.json", import.meta.url));
@@ -13,7 +14,7 @@ const selection = validateSourceSelection(JSON.parse(selectionBytes));
 const selectionSha256 = sha256(canonicalJsonBuffer(selection));
 
 function proposal(tool, overrides = {}) {
-  return {
+  const value = {
     schemaVersion: 1,
     state: "material_lock_proposal",
     selectionSha256,
@@ -30,6 +31,13 @@ function proposal(tool, overrides = {}) {
     sourceDateEpoch: 1_700_000_000,
     recipeFiles: [{ path: "scripts/supply-chain/native-build.mjs", sha256: "6".repeat(64), size: 1 }],
     recipeSha256: "4".repeat(64),
+    requiredEvidence: selection.tools.find((entry) => entry.name === tool).requiredEvidence,
+    sourceEvidence: {
+      licenseFiles: [{ path: "LICENSE", sha256: "7".repeat(64), size: 1 }],
+      noticeFiles: [{ path: "NOTICE", sha256: "8".repeat(64), size: 1 }],
+      noticeStatus: "present",
+      provenanceSha256: "0".repeat(64),
+    },
     managedRunner: {
       label: "ubuntu-24.04", imageVersion: "20260901.1",
       utilities: [{ name: "git", path: "/usr/bin/git", identity: "git version fixed" }],
@@ -38,6 +46,8 @@ function proposal(tool, overrides = {}) {
     blockers: [],
     ...overrides,
   };
+  if (!overrides.sourceEvidence) value.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(value);
+  return value;
 }
 
 test("the committed source selection binds exact source and compiler identities", () => {
@@ -75,6 +85,27 @@ test("proposal rejects closure, patch order, runner and completion drift", () =>
     patches: [{ order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/../outside.patch", sha256: "5".repeat(64), size: 1 }],
   }), selectionSha256, "trivy", ["grpc-1.83.1", "fixture-locking"]), /patches_0_path_invalid/u);
   assert.throws(() => validateMaterialProposal(proposal("oras", { complete: true, blockers: ["pending"] }), selectionSha256, "oras"), /completion_mismatch/u);
+  const missingLicense = proposal("cosign", { complete: false, blockers: ["source-license-evidence-missing"] });
+  missingLicense.sourceEvidence.licenseFiles = [];
+  missingLicense.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(missingLicense);
+  assert.doesNotThrow(() => validateMaterialProposal(missingLicense, selectionSha256, "cosign"));
+  const missingNotice = proposal("cosign");
+  missingNotice.sourceEvidence.noticeFiles = [];
+  missingNotice.sourceEvidence.noticeStatus = "absent-in-pinned-source";
+  missingNotice.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(missingNotice);
+  assert.doesNotThrow(() => validateMaterialProposal(missingNotice, selectionSha256, "cosign"));
+  const inconsistentNotice = proposal("cosign");
+  inconsistentNotice.sourceEvidence.noticeFiles = [];
+  inconsistentNotice.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(inconsistentNotice);
+  assert.throws(() => validateMaterialProposal(inconsistentNotice, selectionSha256, "cosign"), /notice_status_invalid/u);
+  assert.throws(() => validateMaterialProposal(proposal("cosign", { requiredEvidence: ["license"] }), selectionSha256, "cosign", [], selection.tools.find((entry) => entry.name === "cosign").requiredEvidence), /required_evidence_mismatch/u);
+  const evidencePath = proposal("cosign");
+  evidencePath.sourceEvidence.licenseFiles[0].path = "third_party/@scope/package/LICENSE";
+  evidencePath.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(evidencePath);
+  assert.doesNotThrow(() => validateMaterialProposal(evidencePath, selectionSha256, "cosign"));
+  const evidenceDrift = proposal("cosign");
+  evidenceDrift.recipeSha256 = "9".repeat(64);
+  assert.throws(() => validateMaterialProposal(evidenceDrift, selectionSha256, "cosign"), /source_provenance_mismatch/u);
 });
 
 test("strict schemas reject unknown fields without reflecting their names", () => {

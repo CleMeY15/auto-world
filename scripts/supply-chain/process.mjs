@@ -37,17 +37,21 @@ export function cleanEnvironment(values = {}) {
 // Caller must select a verified executable and fixed command contract. This utility
 // never resolves executables through PATH or inherits the caller's credentials.
 export async function runCommand(executable, args, {
-  cwd, env = {}, timeoutMs = 60000, maxOutputBytes = 8 * 1024 * 1024,
+  cwd, env = {}, timeoutMs = 60000, maxOutputBytes = 8 * 1024 * 1024, forbiddenOutput = [],
 } = {}) {
   if (typeof executable !== "string" || !path.isAbsolute(executable) || executable.includes("\0") ||
       typeof cwd !== "string" || !path.isAbsolute(cwd) ||
       !Array.isArray(args) || args.length > 1000 ||
       args.some((arg) => typeof arg !== "string" || arg.includes("\0") || arg.length > 32768) ||
       !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 90 * 60 * 1000 ||
-      !Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1 || maxOutputBytes > 64 * 1024 * 1024) {
+      !Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1 || maxOutputBytes > 64 * 1024 * 1024 ||
+      !Array.isArray(forbiddenOutput) || forbiddenOutput.length > 16 ||
+      forbiddenOutput.some((value) => typeof value !== "string" || Buffer.byteLength(value) < 1 || Buffer.byteLength(value) > 4096)) {
     throw policyError("command_refused");
   }
   const environment = cleanEnvironment(env);
+  const forbidden = forbiddenOutput.map((value) => Buffer.from(value));
+  const tailLength = Math.max(0, ...forbidden.map((value) => value.length - 1));
   const started = Date.now();
   return new Promise((resolve, reject) => {
     let child;
@@ -74,10 +78,20 @@ export async function runCommand(executable, args, {
     }
     const timer = setTimeout(() => stop("command_timeout"), timeoutMs);
     timer.unref();
-    const capture = (chunks) => (chunk) => {
-      bytes += chunk.length;
-      if (bytes > maxOutputBytes) stop("command_output_limit");
-      else if (!failure) chunks.push(chunk);
+    const capture = (chunks) => {
+      let tail = Buffer.alloc(0);
+      return (chunk) => {
+        bytes += chunk.length;
+        if (bytes > maxOutputBytes) stop("command_output_limit");
+        if (failure) return;
+        const observed = Buffer.concat([tail, chunk]);
+        if (forbidden.some((value) => observed.includes(value))) {
+          stop("command_output_forbidden");
+          return;
+        }
+        tail = tailLength ? Buffer.from(observed.subarray(-tailLength)) : Buffer.alloc(0);
+        chunks.push(chunk);
+      };
     };
     child.stdout.on("data", capture(stdout));
     child.stderr.on("data", capture(stderr));

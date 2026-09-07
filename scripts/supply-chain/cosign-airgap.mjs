@@ -1,5 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { randomBytes } from "node:crypto";
 import {
   lstat,
   open,
@@ -25,6 +24,7 @@ import {
   parseBoundedJson,
   sha256,
 } from "./strict-json.mjs";
+import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
 
 const HASH = /^[0-9a-f]{64}$/u;
 const MAX_BINARY_BYTES = 512 * 1024 * 1024;
@@ -109,19 +109,10 @@ export function validateSignatureLedger(bytes, expected) {
   return Object.freeze({ status: "active" });
 }
 
-async function hashFile(file) {
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
-  return hash.digest("hex");
-}
-
 async function validateInputFile(file, expectedHash, maximum, invalidCode, mismatchCode) {
-  const info = await lstat(file).catch(() => fail(invalidCode));
-  if (!info.isFile() || info.isSymbolicLink() || info.size < 1 || info.size > maximum || await realpath(file) !== file) {
-    fail(invalidCode);
-  }
-  if (await hashFile(file) !== expectedHash) fail(mismatchCode);
-  return Object.freeze({ bytes: info.size, sha256: expectedHash });
+  const actual = await hashFileBounded(file, maximum).catch(() => fail(invalidCode));
+  if (actual.sha256 !== expectedHash) fail(mismatchCode);
+  return Object.freeze({ bytes: actual.size, sha256: expectedHash });
 }
 
 async function validateWorkspace(workspace, output, runnerTemp) {
@@ -140,10 +131,7 @@ async function validateWorkspace(workspace, output, runnerTemp) {
 }
 
 async function validateEvidenceFile(file) {
-  const info = await lstat(file).catch(() => fail("cosign_evidence_missing"));
-  if (!info.isFile() || info.isSymbolicLink() || info.size < 1 || info.size > MAX_EVIDENCE_BYTES ||
-      await realpath(file) !== file) fail("cosign_evidence_invalid");
-  return readFile(file);
+  return readFileBounded(file, MAX_EVIDENCE_BYTES);
 }
 
 function runCosign(binary, args, cwd) {

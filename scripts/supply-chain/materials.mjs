@@ -99,6 +99,43 @@ function repositoryPath(value, name, prefix) {
   return candidate;
 }
 
+function sourcePath(value, name) {
+  const candidate = string(value, name);
+  const hasControl = [...candidate].some((character) => character.codePointAt(0) <= 31 || character.codePointAt(0) === 127);
+  if (candidate.includes("\\") || hasControl || candidate.startsWith("/") || /^[A-Za-z]:/u.test(candidate) ||
+      candidate.split("/").some((part) => part === "" || part === "." || part === "..")) fail(`${name}_invalid`);
+  return candidate;
+}
+
+function validateEvidenceFiles(value, name) {
+  if (!Array.isArray(value) || value.length > MATERIAL_LIMITS.closureEntries) fail(`${name}_invalid`);
+  const records = value.map((entry, index) => {
+    const record = closed(entry, ["path", "sha256", "size"], [], `${name}_${index}`);
+    sourcePath(record.path, `${name}_${index}_path`);
+    string(record.sha256, `${name}_${index}_sha256`, SHA256);
+    integer(record.size, `${name}_${index}_size`, 1, MATERIAL_LIMITS.archiveBytes);
+    return record;
+  });
+  const paths = records.map((entry) => entry.path);
+  if (new Set(paths).size !== paths.length || paths.some((entry, index) => index > 0 && paths[index - 1].localeCompare(entry, "en") >= 0)) fail(`${name}_order_invalid`);
+  return records;
+}
+
+export function sourceEvidenceProvenance(proposal) {
+  return sha256(canonicalJsonBuffer({
+    selectionSha256: proposal.selectionSha256,
+    tool: proposal.tool,
+    sourceTree: proposal.sourceTree,
+    sourceArchive: proposal.sourceArchive,
+    sourceDateEpoch: proposal.sourceDateEpoch,
+    recipeSha256: proposal.recipeSha256,
+    requiredEvidence: proposal.requiredEvidence,
+    licenseFiles: proposal.sourceEvidence.licenseFiles,
+    noticeFiles: proposal.sourceEvidence.noticeFiles,
+    noticeStatus: proposal.sourceEvidence.noticeStatus,
+  }));
+}
+
 function compilerArchive(value, name) {
   const record = closed(value, ["goos", "url", "sha256"], [], name);
   if (!new Set(["linux", "windows"]).has(record.goos)) fail(`${name}_goos_unsupported`);
@@ -198,8 +235,8 @@ function validatePatch(value, index) {
   return record;
 }
 
-export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds) {
-  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "managedRunner", "complete", "blockers"], [], "proposal");
+export function validateMaterialProposal(value, expectedSelectionSha256, expectedTool, expectedPatchKinds, expectedRequiredEvidence) {
+  const root = closed(value, ["schemaVersion", "state", "selectionSha256", "tool", "sourceTree", "sourceArchive", "compilerArchive", "modules", "patches", "testMaterials", "sourceDateEpoch", "recipeFiles", "recipeSha256", "requiredEvidence", "sourceEvidence", "managedRunner", "complete", "blockers"], [], "proposal");
   if (root.schemaVersion !== 1 || root.state !== "material_lock_proposal") fail("proposal_header_invalid");
   string(root.selectionSha256, "proposal_selection_sha256", SHA256);
   if (expectedSelectionSha256 && root.selectionSha256 !== expectedSelectionSha256) fail("proposal_selection_mismatch");
@@ -237,6 +274,15 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
     .reduce((total, size) => total + size, root.sourceArchive.size + root.compilerArchive.size);
   if (!Number.isSafeInteger(closureBytes) || closureBytes > MATERIAL_LIMITS.closureBytes) fail("proposal_closure_bytes_exceeded");
   integer(root.sourceDateEpoch, "proposal_source_date_epoch", 1, 4_102_444_800);
+  strings(root.requiredEvidence, "proposal_required_evidence");
+  if (expectedRequiredEvidence && canonicalJsonBuffer(root.requiredEvidence).compare(canonicalJsonBuffer(expectedRequiredEvidence)) !== 0) fail("proposal_required_evidence_mismatch");
+  const sourceEvidence = closed(root.sourceEvidence, ["licenseFiles", "noticeFiles", "noticeStatus", "provenanceSha256"], [], "proposal_source_evidence");
+  validateEvidenceFiles(sourceEvidence.licenseFiles, "proposal_license_files");
+  validateEvidenceFiles(sourceEvidence.noticeFiles, "proposal_notice_files");
+  if (!new Set(["present", "absent-in-pinned-source"]).has(sourceEvidence.noticeStatus) ||
+      (sourceEvidence.noticeStatus === "present") !== (sourceEvidence.noticeFiles.length > 0)) fail("proposal_notice_status_invalid");
+  string(sourceEvidence.provenanceSha256, "proposal_source_provenance", SHA256);
+  if (sourceEvidence.provenanceSha256 !== sourceEvidenceProvenance(root)) fail("proposal_source_provenance_mismatch");
   if (!Array.isArray(root.recipeFiles) || root.recipeFiles.length === 0) fail("proposal_recipe_files_invalid");
   root.recipeFiles.forEach((entry, index) => {
     const recipe = closed(entry, ["path", "sha256", "size"], [], `recipe_file_${index}`);
@@ -258,6 +304,7 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
   });
   if (typeof root.complete !== "boolean") fail("proposal_complete_invalid");
   strings(root.blockers, "proposal_blockers");
+  if (root.requiredEvidence.includes("license") && sourceEvidence.licenseFiles.length === 0 && !root.blockers.includes("source-license-evidence-missing")) fail("proposal_license_evidence_unaccounted");
   if (root.complete !== (root.blockers.length === 0)) fail("proposal_completion_mismatch");
   return parseBoundedJson(canonicalJsonBuffer(root));
 }
@@ -272,7 +319,7 @@ export function validateMaterialLock(value, selection) {
   const proposals = root.proposals.map((entry) => {
     const selected = selection.tools.find((tool) => tool.name === entry?.tool);
     if (!selected) fail("lock_proposal_tool_not_selected");
-    return validateMaterialProposal(entry, selectionSha, selected.name, selected.patchPolicy.allowedKinds);
+    return validateMaterialProposal(entry, selectionSha, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
   });
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) fail("lock_proposal_duplicate");
   if (proposals.some((entry) => !entry.complete)) fail("lock_proposal_incomplete");

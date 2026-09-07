@@ -54,6 +54,20 @@ test("Cosign receives only an explicit disposable password and never inherits on
   }
 });
 
+test("forbidden native output is detected across chunks on successful and failed commands without exposure", async () => {
+  for (const stream of ["stdout", "stderr"]) {
+    for (const exitCode of [0, 3]) {
+      await assert.rejects(runCommand(process.execPath, ["-e",
+        `process.${stream}.write('disposable-');setTimeout(()=>{process.${stream}.write('sentinel');process.exit(${exitCode})},20)`],
+      { cwd: process.cwd(), forbiddenOutput: ["disposable-sentinel"] }), (error) => {
+        assert.equal(error.code, "command_output_forbidden");
+        assert.doesNotMatch(error.message + JSON.stringify(error), /disposable-sentinel/u);
+        return true;
+      });
+    }
+  }
+});
+
 test("owned cleanup refuses forged handles and preserves unrelated sentinel", async () => {
   const parent = await createOwnedDirectory();
   const child = await createOwnedDirectory(parent.path);

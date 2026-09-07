@@ -11,6 +11,7 @@ import {
   materialError,
   readBoundedJsonFile,
   sha256File,
+  sourceEvidenceProvenance,
   validateMaterialLock,
   validateMaterialProposal,
   validateSourceSelection,
@@ -337,6 +338,32 @@ export async function collectRecipeFiles(selected) {
   return { recipeFiles, missing };
 }
 
+export async function collectSourceEvidence(sourceDirectory) {
+  const licenseFiles = [];
+  const noticeFiles = [];
+  const pending = [sourceDirectory];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      if (current === sourceDirectory && entry.name === ".git") continue;
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(absolute);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const base = entry.name.toLowerCase();
+      const target = /^(license|licence|copying)(\.|$)/u.test(base) ? licenseFiles : /^(notice)(\.|$)/u.test(base) ? noticeFiles : null;
+      if (!target) continue;
+      const relative = path.relative(sourceDirectory, absolute).replaceAll("\\", "/");
+      target.push({ path: relative, ...await sha256File(absolute, MATERIAL_LIMITS.archiveBytes) });
+    }
+  }
+  licenseFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
+  noticeFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
+  return { licenseFiles, noticeFiles, noticeStatus: noticeFiles.length > 0 ? "present" : "absent-in-pinned-source" };
+}
+
 async function prepareTrivyTestMaterials(workspace, epoch) {
   const assets = path.join(workspace, "proposal-assets", "trivy");
   await mkdir(assets, { recursive: true });
@@ -414,12 +441,14 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     GOPROXY: "https://proxy.golang.org", GOSUMDB: "sum.golang.org", GOFLAGS: "-mod=readonly",
   });
 
-  const blockers = ["required-source-evidence-closure-not-yet-implemented"];
+  const blockers = [];
   if (tool === "trivy") blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
   if (tool === "oras") blockers.push("oras-release-gpg-and-github-signature-evidence-not-yet-byte-locked");
   const recipe = await collectRecipeFiles(selected);
   if (recipe.missing) blockers.push("required-native-test-harness-not-yet-committed");
   const sourceDateEpoch = sourceIdentity.sourceDateEpoch;
+  const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory);
+  if (selected.requiredEvidence.includes("license") && sourceEvidenceFiles.licenseFiles.length === 0) blockers.push("source-license-evidence-missing");
   const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
   const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials(workspace, sourceDateEpoch) : Promise.resolve([]));
   const proposal = {
@@ -438,14 +467,18 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
     recipeSha256: sha256(canonicalJsonBuffer({
       tool, commit: selected.commit, modifiedVersion: selected.modifiedVersion, targets: selected.targets,
       compiler: selection.compiler.version, tests: selected.upstreamTests, patchPolicy: selected.patchPolicy,
+      requiredEvidence: selected.requiredEvidence,
       recipeFiles: recipe.recipeFiles,
     })),
+    requiredEvidence: selected.requiredEvidence,
+    sourceEvidence: { ...sourceEvidenceFiles, provenanceSha256: "0".repeat(64) },
     managedRunner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion, utilities: await utilityInventory(workspace) },
     complete: blockers.length === 0,
     blockers: [...new Set(blockers)].sort(),
   };
+  proposal.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(proposal);
   await runPhase("proposal_write", async () => {
-    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds);
+    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(output, canonicalJsonBuffer(proposal));
   });
@@ -459,7 +492,7 @@ export async function mergeMaterialProposals({ proposals: proposalPaths, output,
     const candidate = readBoundedJsonFile(proposalPath);
     const selected = selection.tools.find((entry) => entry.name === candidate?.tool);
     if (!selected) materialError("merge_tool_not_selected");
-    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds);
+    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence);
   });
   proposals.sort((left, right) => left.tool.localeCompare(right.tool, "en"));
   if (new Set(proposals.map((entry) => entry.tool)).size !== 3) materialError("merge_tool_set_invalid");

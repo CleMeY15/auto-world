@@ -50,6 +50,10 @@ export async function hashFileBounded(file, maxBytes) {
   return inspectFile(file, maxBytes);
 }
 
+export async function readFileBounded(file, maxBytes) {
+  return (await inspectFile(file, maxBytes, true)).bytes;
+}
+
 function validateDatabase(database, name, now, metadata, expected) {
   assertClosedObject(database, ["name", "sha256", "metadataSha256", "updatedAt", "downloadedAt"]);
   same(database.name, name);

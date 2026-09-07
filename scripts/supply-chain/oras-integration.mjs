@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { createReadStream } from "node:fs";
 import {
   lstat,
   mkdir,
@@ -11,6 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import https from "node:https";
+import { createConnection } from "node:net";
 import path from "node:path";
 import { clearTimeout, setTimeout } from "node:timers";
 import { pathToFileURL } from "node:url";
@@ -22,6 +22,7 @@ import {
   runCommand,
 } from "./process.mjs";
 import { createBootstrapFixture, validateBootstrapFixture } from "./oci.mjs";
+import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const MAX_BINARY_BYTES = 512 * 1024 * 1024;
@@ -76,18 +77,8 @@ export function assertOrasRuntime(platform = process.platform, environment = pro
   }
 }
 
-async function hashFile(file) {
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
-  return hash.digest("hex");
-}
-
 async function validateBinary(binary, expectedHash) {
-  const info = await lstat(binary).catch(() => fail("oras_binary_invalid"));
-  if (!info.isFile() || info.isSymbolicLink() || info.size < 1 || info.size > MAX_BINARY_BYTES) {
-    fail("oras_binary_invalid");
-  }
-  if (await realpath(binary) !== binary || await hashFile(binary) !== expectedHash) {
+  if ((await hashFileBounded(binary, MAX_BINARY_BYTES)).sha256 !== expectedHash) {
     fail("oras_binary_identity_mismatch");
   }
 }
@@ -139,7 +130,7 @@ export async function readFixture(directory, expectedNames) {
   };
   await walk(directory);
   if (found.sort().join("\n") !== names.sort().join("\n")) fail("oras_layout_graph_mismatch");
-  for (const name of names) files.set(name, await readFile(path.join(directory, ...name.split("/"))));
+  for (const name of names) files.set(name, await readFileBounded(path.join(directory, ...name.split("/")), 32 * 1024));
   return files;
 }
 
@@ -323,15 +314,44 @@ export function createRegistryHandler(state, { inspectForLeaks = false } = {}) {
 
 async function startTlsServer(key, cert, state, options) {
   const server = https.createServer({ key, cert }, createRegistryHandler(state, options));
+  const sockets = new Set();
+  const ownSocket = (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+    if (sockets.size > 128) { state.failure = "oras_socket_limit"; socket.destroy(); }
+  };
+  server.on("connection", ownSocket);
   server.requestTimeout = 10_000;
   server.headersTimeout = 10_000;
   server.maxHeadersCount = 32;
-  server.on("connect", (request, socket) => {
+  server.on("connect", (request, socket, head) => {
     state.requests += 1;
     recordRequest(state, request, Buffer.alloc(0), true);
-    if (state.mode !== "proxy" || request.url !== "oras-test.invalid:443" || state.requests > 128) {
+    if (!["proxy", "proxy-relay"].includes(state.mode) || request.url !== "oras-test.invalid:443" || state.requests > 128 || head.length > 16 * 1024) {
       state.failure = "oras_proxy_request_invalid";
-    } else state.challenges += 1;
+      socket.destroy();
+      return;
+    }
+    state.challenges += 1;
+    if (state.mode === "proxy-relay") {
+      if (!Number.isSafeInteger(state.tunnelPort) || state.tunnelPort < 1 || state.tunnelPort > 65535) {
+        state.failure = "oras_proxy_tunnel_invalid";
+        socket.destroy();
+        return;
+      }
+      const upstream = createConnection({ host: "127.0.0.1", port: state.tunnelPort });
+      ownSocket(upstream);
+      upstream.once("error", () => { state.failure = "oras_proxy_tunnel_failed"; socket.destroy(); });
+      socket.once("error", () => upstream.destroy());
+      socket.once("close", () => upstream.destroy());
+      upstream.once("connect", () => {
+        socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        if (head.length) upstream.write(head);
+        socket.pipe(upstream);
+        upstream.pipe(socket);
+      });
+      return;
+    }
     socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
   });
   await new Promise((resolve, reject) => {
@@ -339,9 +359,10 @@ async function startTlsServer(key, cert, state, options) {
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
+  let closing;
   return Object.freeze({
-    close: () => new Promise((resolve, reject) => {
-      const timer = setTimeout(() => server.closeAllConnections(), 1000);
+    close: () => closing ??= new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { server.closeAllConnections(); for (const socket of sockets) socket.destroy(); }, 1000);
       server.close((error) => {
         clearTimeout(timer);
         if (error) reject(error);
@@ -350,6 +371,7 @@ async function startTlsServer(key, cert, state, options) {
     }),
     host: `localhost:${address.port}`,
     origin: `https://localhost:${address.port}`,
+    port: address.port,
   });
 }
 
@@ -359,7 +381,7 @@ async function createTlsIdentity(directory, environment) {
   const openssl = "/usr/bin/openssl";
   await runCommand(openssl, [
     "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-    "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+    "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,DNS:oras-test.invalid,IP:127.0.0.1",
     "-keyout", key, "-out", cert,
   ], { cwd: directory, env: environment, timeoutMs: COMMAND_TIMEOUT_MS, maxOutputBytes: 64 * 1024 });
   return Object.freeze({ cert, certBytes: await readFile(cert), keyBytes: await readFile(key) });
@@ -369,18 +391,19 @@ function commandEnvironment(directory, cert) {
   return { ...SAFE_ENVIRONMENT, HOME: directory, TMPDIR: directory, SSL_CERT_FILE: cert };
 }
 
-async function runCp(binary, source, destination, options, environment, cwd) {
+async function runCp(binary, source, destination, options, environment, cwd, forbiddenOutput = []) {
   return runCommand(binary, ["cp", "--from-oci-layout", source, destination, ...options], {
     cwd,
     env: environment,
     maxOutputBytes: 1024 * 1024,
     timeoutMs: COMMAND_TIMEOUT_MS,
+    forbiddenOutput,
   });
 }
 
 // Deliberately tests ORAS's own proxy behavior in secret-free integration. The
 // production subprocess boundary continues to refuse every proxy environment.
-async function runNativeProxyNegative(binary, source, registryConfig, environment, cwd, proxyOrigin) {
+async function runNativeProxyCommand(binary, source, registryConfig, environment, cwd, proxyOrigin, expectSuccess, forbiddenOutput) {
   const proxy = new URL(proxyOrigin);
   if (proxy.protocol !== "https:" || proxy.hostname !== "localhost" || !proxy.port || proxy.username || proxy.password ||
       proxy.pathname !== "/" || proxy.search || proxy.hash) fail("oras_proxy_endpoint_refused");
@@ -390,22 +413,32 @@ async function runNativeProxyNegative(binary, source, registryConfig, environmen
       "--to-registry-config", registryConfig], { cwd, env, shell: false, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     let failure;
     let size = 0;
+    const forbidden = forbiddenOutput.map((value) => Buffer.from(value));
+    const tailLength = Math.max(...forbidden.map((value) => value.length - 1));
     const kill = (code) => {
       failure ??= code;
       try { process.kill(-child.pid, "SIGKILL"); } catch { /* Already exited. */ }
     };
     const timer = setTimeout(() => kill("oras_proxy_timeout"), COMMAND_TIMEOUT_MS);
-    const discard = (bytes) => {
-      size += bytes.length;
-      if (size > 1024 * 1024) kill("oras_proxy_output_limit");
+    const inspect = () => {
+      let tail = Buffer.alloc(0);
+      return (bytes) => {
+        size += bytes.length;
+        if (size > 1024 * 1024) kill("oras_proxy_output_limit");
+        if (failure) return;
+        const observed = Buffer.concat([tail, bytes]);
+        if (forbidden.some((value) => observed.includes(value))) kill("oras_proxy_output_forbidden");
+        tail = Buffer.from(observed.subarray(-tailLength));
+      };
     };
-    child.stdout.on("data", discard);
-    child.stderr.on("data", discard);
+    child.stdout.on("data", inspect());
+    child.stderr.on("data", inspect());
     child.once("error", () => { failure ??= "oras_proxy_start_failed"; });
     child.once("close", (exitCode) => {
       clearTimeout(timer);
       if (failure) reject(policyError(failure));
-      else if (exitCode === 0) reject(policyError("oras_proxy_negative_unexpected_success"));
+      else if (expectSuccess && exitCode !== 0) reject(policyError("oras_proxy_positive_failed"));
+      else if (!expectSuccess && exitCode === 0) reject(policyError("oras_proxy_negative_unexpected_success"));
       else resolve();
     });
   });
@@ -452,7 +485,14 @@ export async function runOrasIntegration(args, environment = process.env) {
   const workspace = await validateWorkspace(args.workspace, args.output, environment.RUNNER_TEMP);
   await validateBinary(args.binary, args.sha256);
   const owned = await createOwnedDirectory(workspace);
+  const ownedServers = [];
+  const createServer = async (...parameters) => {
+    const server = await startTlsServer(...parameters);
+    ownedServers.push(server);
+    return server;
+  };
   let result;
+  let operationFailure;
   try {
     const source = path.join(owned.path, "source");
     const destination = path.join(owned.path, "destination");
@@ -469,7 +509,7 @@ export async function runOrasIntegration(args, environment = process.env) {
     const tls = await createTlsIdentity(owned.path, baseEnvironment);
     const orasEnvironment = commandEnvironment(owned.path, tls.cert);
     const positiveState = createRegistryState();
-    const positive = await startTlsServer(tls.keyBytes, tls.certBytes, positiveState);
+    const positive = await createServer(tls.keyBytes, tls.certBytes, positiveState);
     const emptyAuth = path.join(owned.path, "empty-auth.json");
     await writeFile(emptyAuth, '{"auths":{}}\n', { flag: "wx", mode: 0o600 });
     try {
@@ -487,13 +527,13 @@ export async function runOrasIntegration(args, environment = process.env) {
       await writeFile(authFile, JSON.stringify({ auths: {} }), { flag: "w", mode: 0o600 });
       const forbidden = [credential, encodedCredential];
       const secondaryState = createRegistryState({ mode: "deny", sentinels: forbidden });
-      const secondary = await startTlsServer(tls.keyBytes, tls.certBytes, secondaryState, { inspectForLeaks: true });
+      const secondary = await createServer(tls.keyBytes, tls.certBytes, secondaryState, { inspectForLeaks: true });
       const primaryState = createRegistryState({ mode, secondaryOrigin: secondary.origin, credential: encodedCredential });
-      const primary = await startTlsServer(tls.keyBytes, tls.certBytes, primaryState);
+      const primary = await createServer(tls.keyBytes, tls.certBytes, primaryState);
       try {
         await writeFile(authFile, `${JSON.stringify({ auths: { [primary.host]: { auth: encodedCredential } } })}\n`, { flag: "w", mode: 0o600 });
         await expectFailure(() => runCp(args.binary, `${source}:bootstrap`, `${primary.host}/oras-test:bootstrap`,
-          ["--to-registry-config", authFile], orasEnvironment, owned.path), "command_failed", forbidden);
+          ["--to-registry-config", authFile], orasEnvironment, owned.path, forbidden), "command_failed", forbidden);
         if (secondaryState.leaks.length !== 0) {
           fail("oras_credential_transfer");
         }
@@ -506,8 +546,10 @@ export async function runOrasIntegration(args, environment = process.env) {
       }
     }
 
+    const relayState = createRegistryState({ credential: encodedCredential });
+    const relay = await createServer(tls.keyBytes, tls.certBytes, relayState);
     const proxyState = createRegistryState({ mode: "proxy", sentinels: [credential, encodedCredential] });
-    const proxy = await startTlsServer(tls.keyBytes, tls.certBytes, proxyState, { inspectForLeaks: true });
+    const proxy = await createServer(tls.keyBytes, tls.certBytes, proxyState, { inspectForLeaks: true });
     try {
       await expectFailure(() => runCp(args.binary, `${source}:bootstrap`, `${proxy.host}/oras-test:bootstrap`,
         ["--to-registry-config", authFile], { ...orasEnvironment, HTTPS_PROXY: `https://autoworld:${credential}@${proxy.host}` }, owned.path),
@@ -515,12 +557,22 @@ export async function runOrasIntegration(args, environment = process.env) {
       if (proxyState.requests !== 0 || proxyState.leaks.length !== 0) fail("oras_proxy_boundary_failed");
       negatives.push(Object.freeze({ code: "proxy_environment_refused", scope: "subprocess_environment_boundary", nativeCommandExecuted: false, secondaryRequests: 0 }));
       await writeFile(authFile, `${JSON.stringify({ auths: { "oras-test.invalid": { auth: encodedCredential } } })}\n`, { flag: "w", mode: 0o600 });
-      await runNativeProxyNegative(args.binary, `${source}:bootstrap`, authFile, orasEnvironment, owned.path, proxy.origin);
+      proxyState.mode = "proxy-relay";
+      proxyState.tunnelPort = relay.port;
+      await runNativeProxyCommand(args.binary, `${source}:bootstrap`, authFile, orasEnvironment, owned.path, proxy.origin, true, [credential, encodedCredential]);
+      verifyRegistryGraph(relayState, fixture);
+      if (proxyState.failure || relayState.authenticatedRequests === 0 || proxyState.challenges === 0 || proxyState.leaks.length !== 0) fail("oras_native_proxy_not_proven");
+      negatives.push(Object.freeze({ code: "native_proxy_auth_scoped", scope: "native_cli", nativeCommandExecuted: true,
+        authenticatedRequests: relayState.authenticatedRequests, proxyConnects: proxyState.challenges }));
+      const priorChallenges = proxyState.challenges;
+      proxyState.mode = "proxy";
+      await runNativeProxyCommand(args.binary, `${source}:bootstrap`, authFile, orasEnvironment, owned.path, proxy.origin, false, [credential, encodedCredential]);
+      if (proxyState.challenges <= priorChallenges) fail("oras_native_proxy_not_proven");
       if (proxyState.failure || proxyState.challenges === 0 || proxyState.requests === 0 || proxyState.leaks.length !== 0) fail("oras_native_proxy_not_proven");
       negatives.push(Object.freeze({ code: "native_proxy_connect_refused", scope: "native_cli", nativeCommandExecuted: true,
         challenges: proxyState.challenges, secondaryRequests: proxyState.requests }));
     } finally {
-      await proxy.close();
+      await Promise.allSettled([proxy.close(), relay.close()]);
     }
 
     if (Date.now() - started > INTEGRATION_TIMEOUT_MS) fail("oras_integration_timeout");
@@ -533,8 +585,13 @@ export async function runOrasIntegration(args, environment = process.env) {
       phase: "oras_cli_integration",
       status: "passed",
     });
+  } catch (error) {
+    operationFailure = error;
+    throw error;
   } finally {
+    const closed = await Promise.allSettled(ownedServers.map((server) => server.close()));
     await removeOwnedDirectory(owned);
+    if (!operationFailure && closed.some((entry) => entry.status === "rejected")) fail("oras_cleanup_failed");
   }
   const outputHandle = await open(args.output, "wx", 0o600);
   try {

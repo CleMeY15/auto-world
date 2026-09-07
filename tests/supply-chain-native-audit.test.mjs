@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
-import { evaluateNativeAudit, hashFileBounded, verifyNativeAuditFiles } from "../scripts/supply-chain/native-audit.mjs";
+import { evaluateNativeAudit, hashFileBounded, readFileBounded, verifyNativeAuditFiles } from "../scripts/supply-chain/native-audit.mjs";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 
 // Synthetic contract tests only. These records are never native runtime proof.
@@ -77,6 +77,8 @@ test("bounded file hashing accepts exact cap and rejects one over", async () => 
     const file = path.join(directory.path, "subject.bin");
     await writeFile(file, Buffer.alloc(128, 42));
     assert.equal((await hashFileBounded(file, 128)).size, 128);
+    assert.deepEqual(await readFileBounded(file, 128), Buffer.alloc(128, 42));
+    await assert.rejects(readFileBounded(file, 127), { code: "evidence_size_invalid" });
     await assert.rejects(hashFileBounded(file, 127), { code: "evidence_size_invalid" });
   } finally { await removeOwnedDirectory(directory); }
 });

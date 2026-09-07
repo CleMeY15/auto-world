@@ -32,7 +32,7 @@
       "targets": ["linux-amd64"],
       "timeoutMinutes": 30,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/oci.mjs", "scripts/supply-chain/oras-integration.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
       "upstreamTests": ["make-test", "upstream-e2e-pending-separate-registry-fixture-review", "project-layout-auth-log-contract"],
       "requiredEvidence": ["license", "notice", "module-closure", "release-checksum-signature", "tag-verification", "commit-verification"],
       "orasVerification": {
@@ -54,7 +54,7 @@
       "targets": ["linux-amd64", "windows-amd64"],
       "timeoutMinutes": 60,
       "patchPolicy": {"allowedKinds": [], "additionalPatchReviewRequired": true},
-      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
+      "recipeFiles": ["scripts/supply-chain/archive.mjs", "scripts/supply-chain/cosign-airgap.mjs", "scripts/supply-chain/lock-update.mjs", "scripts/supply-chain/materials.mjs", "scripts/supply-chain/native-audit.mjs", "scripts/supply-chain/native-build.mjs", "scripts/supply-chain/process.mjs", "scripts/supply-chain/strict-json.mjs"],
       "upstreamTests": ["go-test-sign-verify", "legacy-bundle-public-key-bypass", "make-test"],
       "requiredEvidence": ["license", "notice", "module-closure", "source-date-epoch"]
     },
