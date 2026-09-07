@@ -370,7 +370,7 @@ async function prepareTrivyTestMaterials(workspace, epoch) {
   if (tree !== "028f8b12792c2084211d02d883e3368ca87cc92f" || parent !== "d8920bebc6dceeadbf15f246eb9201fa387c70da") materialError("trivy_git_fixture_object_mismatch");
   await git(["reflog", "expire", "--expire=now", "--all"]);
   const gitArchivePath = path.join(assets, "test-repo-git-worktree.tar.gz");
-  await runCommand(LINUX_BINARIES.tar, ["--sort=name", `--mtime=@${epoch}`, "--owner=0", "--group=0", "--numeric-owner", "-czf", gitArchivePath, "test-repo"], {
+  await runCommand(LINUX_BINARIES.tar, ["--format=ustar", "--sort=name", `--mtime=@${epoch}`, "--owner=0", "--group=0", "--numeric-owner", "-czf", gitArchivePath, "test-repo"], {
     cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024,
   });
   const gitArchive = await sha256File(gitArchivePath);

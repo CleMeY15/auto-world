@@ -171,7 +171,7 @@ async function runUpstreamTests(tool, selected, go, source, env) {
     await runCommand(BIN.make, [`GOEXE=${go}`, "test"], { cwd: source, env: { ...env, CGO_ENABLED: "0" }, timeoutMs: timeout, maxOutputBytes: 64 * 1024 * 1024 });
     await runGo(go, ["test", "-race", ...packages], source, { ...env, CGO_ENABLED: "1" }, timeout);
   } else {
-    await runGo(go, ["run", "tool", "mage", "test:unit"], source, { ...env, CGO_ENABLED: "0", GOEXPERIMENT: "jsonv2" }, timeout);
+    await runGo(go, ["tool", "mage", "test:unit"], source, { ...env, CGO_ENABLED: "0", GOEXPERIMENT: "jsonv2" }, timeout);
   }
 }
 
