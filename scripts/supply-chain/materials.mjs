@@ -41,7 +41,7 @@ export const TRIVY_WASM_INPUTS = Object.freeze([
 ]);
 export const TRIVY_PATCH_IDENTITIES = Object.freeze([
   { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch", sha256: "bd2d0fcb63bf9956775d5ced20d9538b89f3485c4ec113e44b1d64c809d30f24", size: 6145 },
-  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "a8002eb8f212475e8d6fc74f6a46b196b727fbacbba0c8168478dd99d6eea1c8", size: 33_047 },
+  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "ae5f442f57fe6929cf7d605c1cd7c6e5c6a664a1838c95eb41f90b11930db3d4", size: 33_041 },
 ]);
 const ORAS_EVIDENCE_MATERIALS = Object.freeze([
   { name: "KEYS", path: "infra/supply-chain/materials/oras/KEYS", url: "https://raw.githubusercontent.com/oras-project/oras/db9e29505c3059f2b8fde34ae8cae266c5c765e9/KEYS", sha256: "3420b86b255693414e73422a09a2c86334ec902496a2fb84c938a47637fc5ea3", size: 5324 },

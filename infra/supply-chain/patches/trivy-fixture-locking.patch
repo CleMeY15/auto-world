@@ -1,8 +1,8 @@
 diff --git a/internal/gittest/testdata/fixture.go b/internal/gittest/testdata/fixture.go
-index 708c059..41e0c61 100644
+index 708c059..771fe32 100644
 --- a/internal/gittest/testdata/fixture.go
 +++ b/internal/gittest/testdata/fixture.go
-@@ -1,60 +1,546 @@
+@@ -1,60 +1,545 @@
  package gittest
  
  import (
@@ -323,7 +323,7 @@ index 708c059..41e0c61 100644
 +		symlink    bool
 +	}
 +	expectedFiles := map[string]expectedFile{}
-+	expectedDirs := map[string]struct{}{ ".": {} }
++	expectedDirs := map[string]struct{}{".": {}}
 +	files := tree.Files()
 +	err = files.ForEach(func(file *object.File) error {
 +		contents, err := file.Contents()
@@ -427,7 +427,7 @@ index 708c059..41e0c61 100644
 +	expectedRefs := map[plumbing.ReferenceName]plumbing.Hash{
 +		plumbing.NewBranchReferenceName("main"):         plumbing.NewHash(fixtureCommit),
 +		plumbing.NewBranchReferenceName("valid-branch"): plumbing.NewHash(fixtureCommit),
-+		plumbing.NewTagReferenceName("v0.0.1"):           plumbing.NewHash(fixtureCommit),
++		plumbing.NewTagReferenceName("v0.0.1"):          plumbing.NewHash(fixtureCommit),
 +	}
 +	for name, hash := range expectedRefs {
 +		reference, err := repository.Reference(name, true)
@@ -448,8 +448,7 @@ index 708c059..41e0c61 100644
 +		commit.ParentHashes[0] != plumbing.NewHash(fixtureParent) {
 +		return errors.New("fixture commit closure mismatch")
 +	}
-+	if _, err = repository.CommitObject(plumbing.NewHash("6ac152fe2b87cb5e243414df71790a32912e778e"));
-+		!errors.Is(err, plumbing.ErrObjectNotFound) {
++	if _, err = repository.CommitObject(plumbing.NewHash("6ac152fe2b87cb5e243414df71790a32912e778e")); !errors.Is(err, plumbing.ErrObjectNotFound) {
 +		return errors.New("unexpected invalid fixture commit")
 +	}
 +	worktree, err := repository.Worktree()

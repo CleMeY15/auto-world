@@ -7,7 +7,7 @@ import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, runPhase, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence, verifyTrivyPatchFormatting } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, readOrasModuleState, runPhase, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence, verifyTrivyPatchFormatting } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertManagedRunnerUtilitiesMatch,
@@ -20,7 +20,7 @@ import {
   validateMaterialLock,
   validateSourceSelection,
 } from "./materials.mjs";
-import { runCommand } from "./process.mjs";
+import { createOwnedDirectory, removeOwnedDirectory, runCommand } from "./process.mjs";
 import { readFileBounded } from "./native-audit.mjs";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -148,8 +148,43 @@ function jsonSequence(bytes) {
   return records;
 }
 
-async function verifyModules(go, source, env, expected) {
-  const result = await runCommand(go, ["mod", "download", "-json", "all"], { cwd: source, env, timeoutMs: 20 * 60 * 1000, maxOutputBytes: 64 * 1024 * 1024 });
+async function assertOrasWithoutWorkspace(source) {
+  // Go discovers an automatic workspace by searching ancestor directories too.
+  for (let directory = path.resolve(source); ; directory = path.dirname(directory)) {
+    for (const filename of ["go.work", "go.work.sum"]) {
+      try { await lstat(path.join(directory, filename)); }
+      catch (error) { if (error?.code === "ENOENT") continue; throw error; }
+      materialError("oras_module_workspace_refused");
+    }
+    if (path.dirname(directory) === directory) break;
+  }
+}
+
+// Go download all writes extra sums. Keep those writes in an owned modfile pair;
+// make test and output builds still consume the untouched original source pair.
+export async function withOrasModuleSnapshot(source, workspace, operation) {
+  await assertOrasWithoutWorkspace(source);
+  const original = await readOrasModuleState(source);
+  const scratch = await createOwnedDirectory(workspace);
+  try {
+    const modfile = path.join(scratch.path, "oras.mod");
+    await writeFile(modfile, original["go.mod"], { flag: "wx", mode: 0o600 });
+    await writeFile(path.join(scratch.path, "oras.sum"), original["go.sum"], { flag: "wx", mode: 0o600 });
+    try {
+      return await operation(modfile);
+    } finally {
+      await assertOrasWithoutWorkspace(source);
+      const after = await readOrasModuleState(source);
+      if (Object.keys(original).some((file) => !original[file].equals(after[file]))) materialError("oras_module_verification_changed_source");
+    }
+  } finally {
+    await removeOwnedDirectory(scratch);
+  }
+}
+
+async function verifyModules(go, source, env, expected, modfile) {
+  const modfileArgs = modfile ? [`-modfile=${modfile}`] : [];
+  const result = await runCommand(go, ["mod", "download", ...modfileArgs, "-json", "all"], { cwd: source, env, timeoutMs: 20 * 60 * 1000, maxOutputBytes: 64 * 1024 * 1024 });
   const actual = [];
   for (const item of jsonSequence(result.stdout)) {
     if (item.Error || !item.Path || !item.Version || !item.Sum || !item.GoModSum || !item.Zip) materialError("native_build_module_closure_incomplete");
@@ -158,20 +193,31 @@ async function verifyModules(go, source, env, expected) {
   }
   actual.sort((left, right) => `${left.path}@${left.version}`.localeCompare(`${right.path}@${right.version}`, "en"));
   if (canonicalJsonBuffer(actual).compare(canonicalJsonBuffer(expected)) !== 0) materialError("native_build_module_closure_drift");
-  await runCommand(go, ["mod", "verify"], { cwd: source, env, timeoutMs: 10 * 60 * 1000, maxOutputBytes: 8 * 1024 * 1024 });
+  await runCommand(go, ["mod", "verify", ...modfileArgs], { cwd: source, env, timeoutMs: 10 * 60 * 1000, maxOutputBytes: 8 * 1024 * 1024 });
 }
 
 async function runGo(go, args, cwd, env, timeoutMs) {
   return runCommand(go, args, { cwd, env, timeoutMs, maxOutputBytes: 64 * 1024 * 1024 });
 }
 
+export async function withOrasUpstreamIntegrity(source, operation) {
+  await assertOrasWithoutWorkspace(source);
+  const before = await readOrasModuleState(source);
+  try {
+    return await operation();
+  } finally {
+    await assertOrasWithoutWorkspace(source);
+    const after = await readOrasModuleState(source);
+    if (Object.keys(before).some((file) => !before[file].equals(after[file]))) materialError("oras_upstream_test_changed_module_lock");
+  }
+}
+
 async function runUpstreamTests(tool, selected, go, source, env) {
   const timeout = selected.timeoutMinutes * 60 * 1000;
   if (tool === "oras") {
-    const before = await Promise.all([sha256File(path.join(source, "go.mod")), sha256File(path.join(source, "go.sum"))]);
-    await runCommand(BIN.make, [`GO_EXE=${go}`, "test"], { cwd: source, env: { ...env, CGO_ENABLED: "1", GOFLAGS: "" }, timeoutMs: timeout, maxOutputBytes: 64 * 1024 * 1024 });
-    const after = await Promise.all([sha256File(path.join(source, "go.mod")), sha256File(path.join(source, "go.sum"))]);
-    if (canonicalJsonBuffer(before).compare(canonicalJsonBuffer(after)) !== 0) materialError("oras_upstream_test_changed_module_lock");
+    await withOrasUpstreamIntegrity(source, () => runCommand(BIN.make, [`GO_EXE=${go}`, "test"], {
+      cwd: source, env: { ...env, CGO_ENABLED: "1", GOFLAGS: "" }, timeoutMs: timeout, maxOutputBytes: 64 * 1024 * 1024,
+    }));
   } else if (tool === "cosign") {
     await runGo(go, ["test", "./cmd/cosign/cli/generate", "./cmd/cosign/cli/sign", "./cmd/cosign/cli/verify"], source, { ...env, CGO_ENABLED: "0" }, timeout);
     const list = await runGo(go, ["list", "./..."], source, env, 5 * 60 * 1000);
@@ -314,7 +360,9 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   const env = environment(workspace, path.join(workspace, "compiler/go"), { SOURCE_DATE_EPOCH: String(proposal.sourceDateEpoch) });
   const version = await runPhase("compiler_version", () => runGo(go, ["version"], source, env, 60_000));
   if (!version.stdout.toString("utf8").includes("go1.26.8 linux/amd64")) materialError("native_build_compiler_identity_mismatch");
-  await runPhase("module_closure", () => verifyModules(go, source, env, proposal.modules));
+  await runPhase("module_closure", () => tool === "oras"
+    ? withOrasModuleSnapshot(source, workspace, (modfile) => verifyModules(go, source, env, proposal.modules, modfile))
+    : verifyModules(go, source, env, proposal.modules));
   await runPhase("upstream_tests", () => runUpstreamTests(tool, selected, go, source, env));
   const outputs = await runPhase("native_outputs", () => buildOutputs(tool, selected, proposal, go, source, env, path.join(workspace, "out")));
   const linuxOutput = path.join(workspace, outputs.find((entry) => entry.target === "linux-amd64").path);

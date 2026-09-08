@@ -320,7 +320,7 @@ export function orasModuleDiagnostics(original, downloaded, tidied) {
     tidyMatchesOriginal: matches(original, tidied), states };
 }
 
-async function readOrasModuleState(sourceDirectory) {
+export async function readOrasModuleState(sourceDirectory) {
   return { "go.mod": await readFileBounded(path.join(sourceDirectory, "go.mod"), 64 * 1024),
     "go.sum": await readFileBounded(path.join(sourceDirectory, "go.sum"), 512 * 1024) };
 }
@@ -370,6 +370,7 @@ async function collectOrasModuleDiagnostics(goExecutable, sourceDirectory, works
   const bytes = canonicalJsonBuffer(record);
   if (bytes.length > MATERIAL_LIMITS.receiptBytes) materialError("oras_module_diagnostic_receipt_exceeded");
   await writeFile(path.join(workspace, "proposal-assets/oras/module-diagnostics.json"), bytes, { flag: "wx" });
+  return record;
 }
 
 export async function utilityInventory(workspace) {
@@ -650,9 +651,9 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
   const originalOrasModules = tool === "oras" ? await readOrasModuleState(sourceDirectory) : undefined;
   const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
   if (tool === "oras") {
-    await runPhase("module_diagnostics", () => collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace,
+    const diagnostic = await runPhase("module_diagnostics", () => collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace,
       goEnvironment, originalOrasModules, selected, { version: selection.compiler.version, ...compilerArchive }));
-    blockers.push("oras-module-mutation-diagnostic-requires-review");
+    if (!diagnostic.tidyMatchesOriginal) blockers.push("oras-module-mutation-diagnostic-requires-review");
   }
   const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials() : Promise.resolve([]));
   const proposal = {

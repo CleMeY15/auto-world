@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { orasModuleDiagnostics, parseLockUpdateArgs, parseTrivyFormattingCapture, trivyFormattingArguments, validateGitTree, withRestoredOrasModules } from "../scripts/supply-chain/lock-update.mjs";
-import { buildNativeCandidate, parseNativeBuildArgs } from "../scripts/supply-chain/native-build.mjs";
+import { buildNativeCandidate, parseNativeBuildArgs, withOrasModuleSnapshot, withOrasUpstreamIntegrity } from "../scripts/supply-chain/native-build.mjs";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -74,6 +74,106 @@ test("ORAS diagnostic failure restores source bytes and never publishes an incom
       assert.equal(error.cause.message, "injected restore check failure");
       return true;
     });
+  } finally {
+    await removeOwnedDirectory(owned);
+  }
+});
+
+test("ORAS module verification isolates downloaded sums and refuses source or workspace mutations", async () => {
+  const owned = await createOwnedDirectory();
+  const source = path.join(owned.path, "source");
+  const original = { "go.mod": Buffer.from("module example.invalid\n"), "go.sum": Buffer.from("original sum\n") };
+  await mkdir(source);
+  const reset = async () => {
+    for (const [file, bytes] of Object.entries(original)) await writeFile(path.join(source, file), bytes);
+  };
+  const assertClean = async () => {
+    assert.deepEqual(await readdir(owned.path), ["source"]);
+    assert.deepEqual((await readdir(source)).sort(), ["go.mod", "go.sum"]);
+    for (const [file, bytes] of Object.entries(original)) assert.deepEqual(await readFile(path.join(source, file)), bytes);
+  };
+  try {
+    await reset();
+    assert.equal(await withOrasModuleSnapshot(source, owned.path, async (modfile) => {
+      assert.equal(path.dirname(path.dirname(modfile)), owned.path);
+      assert.notEqual(path.dirname(modfile), source);
+      assert.deepEqual(await readFile(modfile), original["go.mod"]);
+      const sumfile = modfile.replace(/\.mod$/u, ".sum");
+      assert.deepEqual(await readFile(sumfile), original["go.sum"]);
+      await writeFile(sumfile, "original sum\nextra downloaded sum\n");
+      return "verified closure";
+    }), "verified closure");
+    await assertClean();
+    const failure = new Error("module closure mismatch");
+    await assert.rejects(withOrasModuleSnapshot(source, owned.path, async () => { throw failure; }), (error) => error === failure);
+    await assertClean();
+    for (const file of ["go.mod", "go.sum"]) {
+      await assert.rejects(withOrasModuleSnapshot(source, owned.path, async () => {
+        await writeFile(path.join(source, file), "mutated source");
+      }), /oras_module_verification_changed_source/u);
+      await reset();
+      await assertClean();
+    }
+    for (const file of ["go.work", "go.work.sum"]) {
+      await assert.rejects(withOrasModuleSnapshot(source, owned.path, async () => {
+        await writeFile(path.join(source, file), "unexpected workspace");
+      }), /oras_module_workspace_refused/u);
+      await assert.rejects(withOrasModuleSnapshot(source, owned.path, async () => {
+        assert.fail("existing workspace must refuse before operation");
+      }), /oras_module_workspace_refused/u);
+      await unlink(path.join(source, file));
+      await assertClean();
+    }
+    for (const file of ["go.work", "go.work.sum"]) {
+      await assert.rejects(withOrasModuleSnapshot(source, owned.path, async () => {
+        await writeFile(path.join(owned.path, file), "unexpected ancestor workspace");
+      }), /oras_module_workspace_refused/u);
+      await assert.rejects(withOrasUpstreamIntegrity(source, async () => {
+        assert.fail("ancestor workspace must refuse before make");
+      }), /oras_module_workspace_refused/u);
+      await unlink(path.join(owned.path, file));
+      await assertClean();
+      for (const fails of [false, true]) {
+        await assert.rejects(withOrasUpstreamIntegrity(source, async () => {
+          await writeFile(path.join(owned.path, file), "unexpected ancestor workspace");
+          if (fails) throw new Error("make failed");
+        }), /oras_module_workspace_refused/u);
+        await unlink(path.join(owned.path, file));
+        await assertClean();
+      }
+    }
+  } finally {
+    await removeOwnedDirectory(owned);
+  }
+});
+
+test("ORAS upstream integrity refuses new workspaces or module edits even after a failed make", async () => {
+  const owned = await createOwnedDirectory();
+  const original = { "go.mod": "module example.invalid\n", "go.sum": "original sum\n" };
+  const failure = new Error("make failed");
+  const reset = async () => {
+    for (const [file, bytes] of Object.entries(original)) await writeFile(path.join(owned.path, file), bytes);
+  };
+  try {
+    await reset();
+    assert.equal(await withOrasUpstreamIntegrity(owned.path, async () => "make passed"), "make passed");
+    await assert.rejects(withOrasUpstreamIntegrity(owned.path, async () => { throw failure; }), (error) => error === failure);
+    for (const fails of [false, true]) {
+      for (const file of ["go.work", "go.work.sum", "go.mod", "go.sum"]) {
+        const workspaceFile = file.startsWith("go.work");
+        await assert.rejects(withOrasUpstreamIntegrity(owned.path, async () => {
+          await writeFile(path.join(owned.path, file), "unexpected module input\n");
+          if (fails) throw failure;
+        }), workspaceFile ? /oras_module_workspace_refused/u : /oras_upstream_test_changed_module_lock/u);
+        if (workspaceFile) {
+          await assert.rejects(withOrasUpstreamIntegrity(owned.path, async () => {
+            assert.fail("workspace present before make");
+          }), /oras_module_workspace_refused/u);
+          await unlink(path.join(owned.path, file));
+        }
+        await reset();
+      }
+    }
   } finally {
     await removeOwnedDirectory(owned);
   }
