@@ -1,6 +1,6 @@
 # TASK-0005 — Local data infrastructure
 
-Status: READY; queued behind TASK-0002, TASK-0003 and TASK-0004 by the singular execution frontier
+Status: IN_PROGRESS; TASK-0001 through TASK-0004 accepted, draft PR #7 image audit fails
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
@@ -9,6 +9,10 @@ Provide reproducible development and CI data services for PostgreSQL, OpenSearch
 
 ## Dependencies
 - TASK-0001 merged on `main`; execution order remains after TASK-0004 unless the roadmap is explicitly amended.
+
+## Current split and blocker
+
+Accepted main is `b9d22a2`. Existing draft PR #7 remains the service implementation, with quality/integration passing and image audit failing. [TASK-0005A](TASK-0005A-native-bootstrap.md) prepares source-locked native tooling and a capability-free dormant installation on a standalone branch; [TASK-0005B](TASK-0005B-owned-data-images.md) resumes owned corrected services only after actual 5A activation. [ADR-0005](../../docs/decisions/ADR-0005-native-image-chain-bootstrap.md) records the independently reviewed preparation scope and real GitHub protection/ruleset 403 blocker. This is an explicit within-task multi-PR sequence; no dependent task starts early. Preparation, dormant merge, plan approval or public keys do not complete TASK-0005A or parent TASK-0005.
 
 ## Relevant contracts
 - `docs/architecture/ARCHITECTURE.md`
@@ -46,4 +50,4 @@ Provide reproducible development and CI data services for PostgreSQL, OpenSearch
 - Config lint/static checks, integration tests, migration checks, root quality gates, secrets scan and dependency/container audit pass.
 - Operational notes cover resources, logs/health, backup/restore, failure isolation and rollback.
 - Independent infra/security review and CI evidence are linked in `docs/validation/TASK-0005.md`.
-- Mark `BLOCKED` only if neither local nor CI runtime can supply real services; otherwise set `DONE` after green review/CI, rerun CI, then merge.
+- Local Docker absence alone is not a blocker while CI supplies real services. Image/audit/activation/review failures also block acceptance; record their exact evidence. Set `DONE` only after all acceptance gates pass, rerun final-head CI, merge and verify main.

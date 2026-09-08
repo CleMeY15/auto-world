@@ -1,0 +1,6 @@
+# Material and patch identities bind the exact reviewed bytes on every checkout.
+infra/supply-chain/materials/** -text
+infra/supply-chain/patches/** -text
+# Unified-diff context markers are data; added source lines are checked by git apply.
+infra/supply-chain/patches/*.patch -whitespace
+infra/supply-chain/native-materials.lock.json -text

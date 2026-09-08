@@ -1,0 +1,311 @@
+name: Native bootstrap preparation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Validate dormant policy and data contracts
+        run: node --test tests/supply-chain-*.test.mjs
+      - name: Report dormant status
+        run: node scripts/supply-chain/dormant.mjs status
+
+  lock-proposal:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - tool: oras
+            timeout: 30
+          - tool: cosign
+            timeout: 60
+          - tool: trivy
+            timeout: 90
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Propose material lock without promotion
+        env:
+          BOOTSTRAP_TOOL: ${{ matrix.tool }}
+        run: >-
+          node scripts/supply-chain/lock-update.mjs propose
+          --tool "$BOOTSTRAP_TOOL"
+          --workspace "$RUNNER_TEMP/auto-world-native-$BOOTSTRAP_TOOL"
+          --output "$RUNNER_TEMP/native-lock-$BOOTSTRAP_TOOL.json"
+      - name: Retain diagnostic proposal
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-lock-${{ matrix.tool }}
+          path: |
+            ${{ runner.temp }}/native-lock-${{ matrix.tool }}.json
+            ${{ runner.temp }}/auto-world-native-${{ matrix.tool }}/proposal-assets
+          if-no-files-found: error
+          retention-days: 30
+      - name: Verify dormant installation and activation refusal
+        run: node --test tests/supply-chain-dormant.test.mjs
+
+  native-build:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - tool: oras
+            repeat: 1
+            timeout: 30
+          - tool: oras
+            repeat: 2
+            timeout: 30
+          - tool: cosign
+            repeat: 1
+            timeout: 60
+          - tool: cosign
+            repeat: 2
+            timeout: 60
+          - tool: trivy
+            repeat: 1
+            timeout: 90
+          - tool: trivy
+            repeat: 2
+            timeout: 90
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Build and test from committed material lock
+        env:
+          BOOTSTRAP_TOOL: ${{ matrix.tool }}
+          BOOTSTRAP_REPEAT: ${{ matrix.repeat }}
+        run: >-
+          node scripts/supply-chain/native-build.mjs build
+          --tool "$BOOTSTRAP_TOOL"
+          --repeat "$BOOTSTRAP_REPEAT"
+          --lock "$GITHUB_WORKSPACE/infra/supply-chain/native-materials.lock.json"
+          --workspace "$RUNNER_TEMP/aw-build-$BOOTSTRAP_TOOL-$BOOTSTRAP_REPEAT"
+          --output "$RUNNER_TEMP/native-build-$BOOTSTRAP_TOOL-$BOOTSTRAP_REPEAT.json"
+      - name: Package only verified public candidate files
+        env:
+          BOOTSTRAP_TOOL: ${{ matrix.tool }}
+          BOOTSTRAP_REPEAT: ${{ matrix.repeat }}
+        run: >-
+          node scripts/supply-chain/candidate-artifacts.mjs package
+          --tool "$BOOTSTRAP_TOOL" --repeat "$BOOTSTRAP_REPEAT"
+      - name: Retain verified candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-candidate-${{ matrix.tool }}-${{ matrix.repeat }}
+          path: ${{ runner.temp }}/native-candidate-${{ matrix.tool }}-${{ matrix.repeat }}
+          if-no-files-found: error
+          retention-days: 30
+
+  native-reproducibility:
+    needs: native-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Retrieve six candidates from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: native-candidate-*
+          path: ${{ runner.temp }}/native-candidates
+          merge-multiple: false
+      - name: Verify complete matrix and exact binary reproducibility
+        run: node scripts/supply-chain/candidate-artifacts.mjs verify
+      - name: Retain comparison evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-reproducibility
+          path: ${{ runner.temp }}/native-reproducibility.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native-cli:
+    needs: native-reproducibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Retrieve six candidates from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: native-candidate-*
+          path: ${{ runner.temp }}/native-candidates
+          merge-multiple: false
+      - name: Run native ORAS and isolated Cosign tests
+        run: node scripts/supply-chain/native-cli.mjs
+      - name: Retain public CLI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-cli
+          path: ${{ runner.temp }}/native-cli
+          if-no-files-found: error
+          retention-days: 30
+
+  native-audit:
+    needs: native-reproducibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Retrieve six candidates from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: native-candidate-*
+          path: ${{ runner.temp }}/native-candidates
+          merge-multiple: false
+      - name: Scan exact native candidates and scanner
+        run: node scripts/supply-chain/native-scan.mjs
+      - name: Retain native audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-audit
+          path: ${{ runner.temp }}/native-audit
+          if-no-files-found: error
+          retention-days: 30
+
+  baseline-inventory:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Inventory managed Docker and acquire failed baseline data
+        run: node scripts/supply-chain/baseline-scanner.mjs inventory
+      - name: Retain diagnostic TCB proposal
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: baseline-inventory
+          path: ${{ runner.temp }}/baseline-inventory
+          if-no-files-found: error
+          retention-days: 30
+
+  baseline-comparison:
+    needs: [native-audit, baseline-inventory]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Retrieve six candidates from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: native-candidate-*
+          path: ${{ runner.temp }}/native-candidates
+          merge-multiple: false
+      - name: Retrieve native audit from this run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: native-audit
+          path: ${{ runner.temp }}/native-audit
+      - name: Require independent diagnostic TCB review before comparison
+        run: node scripts/supply-chain/baseline-scanner.mjs compare
+      - name: Retain baseline comparison diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: baseline-comparison
+          path: ${{ runner.temp }}/baseline-comparison
+          if-no-files-found: error
+          retention-days: 30
+
+  installation:
+    needs: [native-reproducibility, native-cli, native-audit, baseline-comparison]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact event commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up pinned Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.2
+      - name: Refuse installation without independent acceptance
+        run: node --test tests/supply-chain-dormant.test.mjs

@@ -1,0 +1,495 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "aquasecurity/trivy",
+    "commit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
+    "rawBaseUrl": "https://raw.githubusercontent.com/aquasecurity/trivy/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
+  },
+  "derivation": {
+    "method": "Static parsing of pinned go.mod/go.sum bytes and nested ZIP/WAR pom.properties; no Trivy, Go, Docker, or fixture executable was run.",
+    "purlRule": "Trivy pkg/purl/purl.go uses packageurl-go v0.1.6. Go module names are lower-cased and split at final slash; Maven names split groupId:artifactId. The PURL canonical string percent-encodes + as %2B.",
+    "targetRule": "Targets are paths relative to each standalone fixture subject root. A harness scanning a parent directory must transform the target path consistently before set comparison.",
+    "goSumRule": "The pinned Go analyzer merges go.sum only when the go directive is below 1.17. The Go 1.17 root go.sum is deliberately not an inventory source.",
+    "reportJsonPurlRule": "For a local filesystem artifact, application packages are not passed through the Docker applier PURL-enrichment loop. `purl` therefore records the expected JSON PkgIdentifier.PURL (null); `canonicalPurl` records the deterministic packageurl-go value for an independent SBOM/identity diagnostic, not a report-JSON requirement."
+  },
+  "materials": {
+    "gomod/go.mod": {
+      "materialPath": "../scanner-fixtures/gomod/go.mod",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/go.mod",
+      "upstreamGitBlob": "f59c97baf941ab84b48535edbc3b3373022a87eb",
+      "size": 1069,
+      "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f"
+    },
+    "gomod/go.sum": {
+      "materialPath": "../scanner-fixtures/gomod/go.sum",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/go.sum",
+      "upstreamGitBlob": "43be8bf10ceca25732601013e0f9489c5cf03802",
+      "size": 129439,
+      "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527"
+    },
+    "gomod/submod/go.mod": {
+      "materialPath": "../scanner-fixtures/gomod/submod/go.mod",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/submod/go.mod",
+      "upstreamGitBlob": "f1f3268e1fbcfc03ce498e02210f8cb35a658e0a",
+      "size": 117,
+      "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954"
+    },
+    "gomod/submod/go.sum": {
+      "materialPath": "../scanner-fixtures/gomod/submod/go.sum",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/submod/go.sum",
+      "upstreamGitBlob": "38efa1d61ad4b934d42bbf71f57ae8921eb9af2a",
+      "size": 1048,
+      "sha256": "40841aa4376c744fdbe69526232cd205ffd9bb3abdf243ea6c11d9836f9c4804"
+    },
+    "gomod/submod2/go.mod": {
+      "materialPath": "../scanner-fixtures/gomod/submod2/go.mod",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/submod2/go.mod",
+      "upstreamGitBlob": "08f06b0e7227d6431eced1489c79cb00587faf5a",
+      "size": 101,
+      "sha256": "8689f776807a618b0f33a8d99b2dd9033cc7120f2f635b572951046f7aff3929"
+    },
+    "gomod/submod2/go.sum": {
+      "materialPath": "../scanner-fixtures/gomod/submod2/go.sum",
+      "upstreamPath": "integration/testdata/fixtures/repo/gomod/submod2/go.sum",
+      "upstreamGitBlob": "7e62d841138900d88995885b1c3916e7888e261c",
+      "size": 1404,
+      "sha256": "708f2019e08317d697dd0075b855ef8e1c843b33acfe56c45f5d106667800b2f"
+    },
+    "java/test.war": {
+      "materialPath": "../scanner-fixtures/java/test.war",
+      "upstreamPath": "pkg/fanal/analyzer/language/java/jar/testdata/test.war",
+      "upstreamGitBlob": "787d517174b773da1a8fbdba1bf878eddf95addd",
+      "size": 2525883,
+      "sha256": "b852f605a56a1e109bdd17aaa8d85007c4327708bf6e3b4b56a9876b4a1077ba"
+    }
+  },
+  "targets": [
+    {
+      "fixture": "gomod-vulnerable",
+      "scanSubjectRelativeTarget": "go.mod",
+      "resultClass": "lang-pkgs",
+      "resultType": "gomod",
+      "goDirective": "1.17",
+      "replaceDirectives": [],
+      "packages": [
+        {
+          "name": "github.com/testdata/testdata",
+          "version": "",
+          "relationship": "root",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/testdata/testdata",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/distribution",
+          "version": "v2.7.1+incompatible",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/distribution@v2.7.1%2Bincompatible",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/docker",
+          "version": "v20.10.11+incompatible",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/docker@v20.10.11%2Bincompatible",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/go-connections",
+          "version": "v0.4.0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/go-connections@v0.4.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/go-units",
+          "version": "v0.4.0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/go-units@v0.4.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/open-policy-agent/opa",
+          "version": "v0.35.0",
+          "relationship": "direct",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/github.com/open-policy-agent/opa@v0.35.0",
+          "purl": null
+        },
+        {
+          "name": "go.opencensus.io",
+          "version": "v0.23.0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/go.opencensus.io@v0.23.0",
+          "purl": null
+        },
+        {
+          "name": "go4.org/intern",
+          "version": "v0.0.0-20211027215823-ae77deb06f29",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/go4.org/intern@v0.0.0-20211027215823-ae77deb06f29",
+          "purl": null
+        },
+        {
+          "name": "go4.org/unsafe/assume-no-moving-gc",
+          "version": "v0.0.0-20211027215541-db492cf91b37",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/go4.org/unsafe/assume-no-moving-gc@v0.0.0-20211027215541-db492cf91b37",
+          "purl": null
+        },
+        {
+          "name": "golang.org/x/crypto",
+          "version": "v0.0.0-20201002170205-7f63de1d35b0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/golang.org/x/crypto@v0.0.0-20201002170205-7f63de1d35b0",
+          "purl": null
+        },
+        {
+          "name": "golang.org/x/net",
+          "version": "v0.0.0-20211111083644-e5c967477495",
+          "relationship": "direct",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/golang.org/x/net@v0.0.0-20211111083644-e5c967477495",
+          "purl": null
+        },
+        {
+          "name": "golang.org/x/sys",
+          "version": "v0.0.0-20211205182925-97ca703d548d",
+          "relationship": "direct",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/golang.org/x/sys@v0.0.0-20211205182925-97ca703d548d",
+          "purl": null
+        },
+        {
+          "name": "golang.org/x/text",
+          "version": "v0.3.6",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/golang.org/x/text@v0.3.6",
+          "purl": null
+        },
+        {
+          "name": "golang.org/x/time",
+          "version": "v0.0.0-20210723032227-1f47c861a9ac",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/golang.org/x/time@v0.0.0-20210723032227-1f47c861a9ac",
+          "purl": null
+        },
+        {
+          "name": "google.golang.org/genproto",
+          "version": "v0.0.0-20210602131652-f16073e35f0c",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/google.golang.org/genproto@v0.0.0-20210602131652-f16073e35f0c",
+          "purl": null
+        },
+        {
+          "name": "google.golang.org/grpc",
+          "version": "v1.38.0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/google.golang.org/grpc@v1.38.0",
+          "purl": null
+        },
+        {
+          "name": "google.golang.org/protobuf",
+          "version": "v1.27.1",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/google.golang.org/protobuf@v1.27.1",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/yaml.v2",
+          "version": "v2.4.0",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/yaml.v2@v2.4.0",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/yaml.v3",
+          "version": "v3.0.0-20210107192922-496545a6307b",
+          "relationship": "indirect",
+          "filePath": "go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/yaml.v3@v3.0.0-20210107192922-496545a6307b",
+          "purl": null
+        }
+      ],
+      "reportJsonRootPackage": {
+        "ID": "github.com/testdata/testdata",
+        "Name": "github.com/testdata/testdata",
+        "Relationship": "root"
+      },
+      "reportJsonRootPackageOmittedFields": [
+        "Version",
+        "Identifier"
+      ]
+    },
+    {
+      "fixture": "gomod-vulnerable",
+      "scanSubjectRelativeTarget": "submod/go.mod",
+      "resultClass": "lang-pkgs",
+      "resultType": "gomod",
+      "goDirective": "1.15",
+      "replaceDirectives": [],
+      "packages": [
+        {
+          "name": "github.com/testdata/testdata/submod",
+          "version": "",
+          "relationship": "root",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/testdata/testdata/submod",
+          "purl": null
+        },
+        {
+          "name": "github.com/davecgh/go-spew",
+          "version": "v1.1.0",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/davecgh/go-spew@v1.1.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/distribution",
+          "version": "v2.7.1+incompatible",
+          "relationship": "direct",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/distribution@v2.7.1%2Bincompatible",
+          "purl": null
+        },
+        {
+          "name": "github.com/pmezard/go-difflib",
+          "version": "v1.0.0",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/stretchr/objx",
+          "version": "v0.1.0",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/stretchr/objx@v0.1.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/stretchr/testify",
+          "version": "v1.7.0",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/stretchr/testify@v1.7.0",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/check.v1",
+          "version": "v0.0.0-20161208181325-20d25e280405",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/check.v1@v0.0.0-20161208181325-20d25e280405",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/yaml.v3",
+          "version": "v3.0.0-20200313102051-9f266ea9e77c",
+          "relationship": "indirect",
+          "filePath": "submod/go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/yaml.v3@v3.0.0-20200313102051-9f266ea9e77c",
+          "purl": null
+        }
+      ],
+      "reportJsonRootPackage": {
+        "ID": "github.com/testdata/testdata/submod",
+        "Name": "github.com/testdata/testdata/submod",
+        "Relationship": "root"
+      },
+      "reportJsonRootPackageOmittedFields": [
+        "Version",
+        "Identifier"
+      ]
+    },
+    {
+      "fixture": "gomod-vulnerable",
+      "scanSubjectRelativeTarget": "submod2/go.mod",
+      "resultClass": "lang-pkgs",
+      "resultType": "gomod",
+      "goDirective": "1.15",
+      "replaceDirectives": [],
+      "packages": [
+        {
+          "name": "github.com/testdata/testdata/submod2",
+          "version": "",
+          "relationship": "root",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/testdata/testdata/submod2",
+          "purl": null
+        },
+        {
+          "name": "github.com/davecgh/go-spew",
+          "version": "v1.1.0",
+          "relationship": "direct",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/davecgh/go-spew@v1.1.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/docker/distribution",
+          "version": "v2.7.1+incompatible",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/docker/distribution@v2.7.1%2Bincompatible",
+          "purl": null
+        },
+        {
+          "name": "github.com/pmezard/go-difflib",
+          "version": "v1.0.0",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/pmezard/go-difflib@v1.0.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/stretchr/objx",
+          "version": "v0.1.0",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/stretchr/objx@v0.1.0",
+          "purl": null
+        },
+        {
+          "name": "github.com/stretchr/testify",
+          "version": "v1.7.0",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/github.com/stretchr/testify@v1.7.0",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/check.v1",
+          "version": "v0.0.0-20161208181325-20d25e280405",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/check.v1@v0.0.0-20161208181325-20d25e280405",
+          "purl": null
+        },
+        {
+          "name": "gopkg.in/yaml.v3",
+          "version": "v3.0.0-20200313102051-9f266ea9e77c",
+          "relationship": "indirect",
+          "filePath": "submod2/go.mod",
+          "canonicalPurl": "pkg:golang/gopkg.in/yaml.v3@v3.0.0-20200313102051-9f266ea9e77c",
+          "purl": null
+        }
+      ],
+      "reportJsonRootPackage": {
+        "ID": "github.com/testdata/testdata/submod2",
+        "Name": "github.com/testdata/testdata/submod2",
+        "Relationship": "root"
+      },
+      "reportJsonRootPackageOmittedFields": [
+        "Version",
+        "Identifier"
+      ]
+    },
+    {
+      "fixture": "java-war-vulnerable",
+      "scanSubjectRelativeTarget": "test.war",
+      "resultClass": "lang-pkgs",
+      "resultType": "jar",
+      "packages": [
+        {
+          "name": "com.cronutils:cron-utils",
+          "version": "9.1.2",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/cron-utils-9.1.2.jar",
+          "metadataPath": "WEB-INF/lib/cron-utils-9.1.2.jar/META-INF/maven/com.cronutils/cron-utils/pom.properties",
+          "canonicalPurl": "pkg:maven/com.cronutils/cron-utils@9.1.2",
+          "purl": null
+        },
+        {
+          "name": "com.example:web-app",
+          "version": "1.0-SNAPSHOT",
+          "relationship": "unknown",
+          "filePath": "test.war",
+          "metadataPath": "META-INF/maven/com.example/web-app/pom.properties",
+          "canonicalPurl": "pkg:maven/com.example/web-app@1.0-SNAPSHOT",
+          "purl": null
+        },
+        {
+          "name": "com.fasterxml.jackson.core:jackson-annotations",
+          "version": "2.9.10",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/jackson-annotations-2.9.10.jar",
+          "metadataPath": "WEB-INF/lib/jackson-annotations-2.9.10.jar/META-INF/maven/com.fasterxml.jackson.core/jackson-annotations/pom.properties",
+          "canonicalPurl": "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.9.10",
+          "purl": null
+        },
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.9.10",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/jackson-core-2.9.10.jar",
+          "metadataPath": "WEB-INF/lib/jackson-core-2.9.10.jar/META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+          "canonicalPurl": "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.9.10",
+          "purl": null
+        },
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.9.10.6",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/jackson-databind-2.9.10.6.jar",
+          "metadataPath": "WEB-INF/lib/jackson-databind-2.9.10.6.jar/META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+          "canonicalPurl": "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.10.6",
+          "purl": null
+        },
+        {
+          "name": "org.apache.commons:commons-lang3",
+          "version": "3.11",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/commons-lang3-3.11.jar",
+          "metadataPath": "WEB-INF/lib/commons-lang3-3.11.jar/META-INF/maven/org.apache.commons/commons-lang3/pom.properties",
+          "canonicalPurl": "pkg:maven/org.apache.commons/commons-lang3@3.11",
+          "purl": null
+        },
+        {
+          "name": "org.glassfish:javax.el",
+          "version": "3.0.0",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/javax.el-3.0.0.jar",
+          "metadataPath": "WEB-INF/lib/javax.el-3.0.0.jar/META-INF/maven/org.glassfish/javax.el/pom.properties",
+          "canonicalPurl": "pkg:maven/org.glassfish/javax.el@3.0.0",
+          "purl": null
+        },
+        {
+          "name": "org.slf4j:slf4j-api",
+          "version": "1.7.30",
+          "relationship": "unknown",
+          "filePath": "test.war/WEB-INF/lib/slf4j-api-1.7.30.jar",
+          "metadataPath": "WEB-INF/lib/slf4j-api-1.7.30.jar/META-INF/maven/org.slf4j/slf4j-api/pom.properties",
+          "canonicalPurl": "pkg:maven/org.slf4j/slf4j-api@1.7.30",
+          "purl": null
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "targets": 4,
+    "packages": 43,
+    "packagesByTarget": {
+      "go.mod": 19,
+      "submod/go.mod": 8,
+      "submod2/go.mod": 8,
+      "test.war": 8
+    }
+  }
+}

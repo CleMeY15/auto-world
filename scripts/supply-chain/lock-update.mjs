@@ -1,0 +1,732 @@
+import { createReadStream } from "node:fs";
+import { access, chmod, copyFile, lstat, mkdir, readFile, readlink, readdir, realpath, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { TextDecoder } from "node:util";
+import { createGunzip } from "node:zlib";
+import { validateGoCompilerTarArchive, validateNativeSourceTarArchive } from "./archive.mjs";
+import { readFileBounded } from "./native-audit.mjs";
+import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
+import {
+  MATERIAL_LIMITS,
+  MANAGED_RUNNER_UTILITY_PATHS,
+  materialError,
+  readBoundedJsonFile,
+  releaseEvidenceProvenance,
+  sha256File,
+  sourceEvidenceProvenance,
+  TRIVY_PATCH_IDENTITIES,
+  TRIVY_WASM_INPUTS,
+  validateMaterialLock,
+  validateMaterialProposal,
+  validateSourceSelection,
+} from "./materials.mjs";
+import { runCommand } from "./process.mjs";
+
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const DEFAULT_SELECTION = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-sources.json");
+const LINUX_BINARIES = MANAGED_RUNNER_UTILITY_PATHS;
+const TRIVY_FORMAT_FILES = Object.freeze(["internal/gittest/testdata/fixture.go", "pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go"]);
+const FORMAT_CAPTURE = '"$1" -d "$2" "$3"; code=$?; printf "\\nAUTOWORLD_GOFMT_EXIT=%s\\n" "$code"';
+
+function usage() {
+  return "usage: lock-update.mjs propose --tool <oras|cosign|trivy> --workspace <absolute> --output <absolute.json> [--selection <absolute.json>] | merge --proposal <absolute.json> (three times) --output <absolute.json> [--selection <absolute.json>]";
+}
+
+function safeErrorCode(error) {
+  const materialPrefix = "material_contract:";
+  const candidate = typeof error?.code === "string" ? error.code
+    : typeof error?.message === "string" && error.message.startsWith(materialPrefix) ? error.message.slice(materialPrefix.length)
+      : "phase_failed";
+  return /^[A-Za-z0-9_]{1,96}$/u.test(candidate) ? candidate : "phase_failed";
+}
+
+function emitDiagnostic(phase, status, code, durationMs) {
+  process.stdout.write(`${canonicalJsonBuffer({ phase, status, code, durationMs }).toString("utf8")}\n`);
+}
+
+export async function runPhase(phase, operation) {
+  const started = Date.now();
+  emitDiagnostic(phase, "started", "ok", 0);
+  try {
+    const result = await operation();
+    emitDiagnostic(phase, "passed", "ok", Date.now() - started);
+    return result;
+  } catch (error) {
+    emitDiagnostic(phase, "failed", safeErrorCode(error), Date.now() - started);
+    if (error && typeof error === "object") error.diagnosticEmitted = true;
+    throw error;
+  }
+}
+
+export function parseLockUpdateArgs(argv) {
+  if (!Array.isArray(argv) || !new Set(["propose", "merge"]).has(argv[0])) materialError("lock_update_command_invalid");
+  const command = argv[0];
+  const values = new Map();
+  for (let index = 1; index < argv.length; index += 2) {
+    const flag = argv[index];
+    const value = argv[index + 1];
+    if (!flag?.startsWith("--") || value === undefined) materialError("lock_update_arguments_invalid");
+    const key = flag.slice(2);
+    if (!new Set(["tool", "workspace", "output", "selection", "proposal"]).has(key)) materialError("lock_update_argument_unknown");
+    if (key !== "proposal" && values.has(key)) materialError("lock_update_argument_duplicate");
+    if (key === "proposal") values.set(key, [...(values.get(key) ?? []), value]);
+    else values.set(key, value);
+  }
+  const selection = path.resolve(values.get("selection") ?? DEFAULT_SELECTION);
+  const output = values.get("output");
+  if (!output || !path.isAbsolute(output)) materialError("lock_update_output_must_be_absolute");
+  if (command === "propose") {
+    const tool = values.get("tool");
+    const workspace = values.get("workspace");
+    if (!new Set(["oras", "cosign", "trivy"]).has(tool) || !workspace || !path.isAbsolute(workspace) || values.has("proposal")) materialError("lock_update_propose_arguments_invalid");
+    return { command, tool, workspace: path.resolve(workspace), output: path.resolve(output), selection };
+  }
+  const proposals = values.get("proposal") ?? [];
+  if (proposals.length !== 3 || values.has("tool") || values.has("workspace") || proposals.some((item) => !path.isAbsolute(item))) materialError("lock_update_merge_arguments_invalid");
+  return { command, proposals: proposals.map((item) => path.resolve(item)), output: path.resolve(output), selection };
+}
+
+function safeEnvironment(workspace, extra = {}) {
+  return {
+    HOME: path.join(workspace, "home"), TMPDIR: path.join(workspace, "tmp"), LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC",
+    PATH: "/usr/local/bin:/usr/bin:/bin", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0", ...extra,
+  };
+}
+
+function gitArgs(args) {
+  return ["-c", "credential.helper=", "-c", "core.askPass=/bin/false", "-c", "core.hooksPath=/dev/null",
+    "-c", "protocol.file.allow=never", "-c", "submodule.recurse=false", ...args];
+}
+
+async function runGit(args, cwd, workspace, timeoutMs = 60_000) {
+  return runCommand(LINUX_BINARIES.git, gitArgs(args), {
+    cwd, env: safeEnvironment(workspace), timeoutMs, maxOutputBytes: 32 * 1024 * 1024,
+  });
+}
+
+export function validateGitTree(bytes, allowedSymlinks = []) {
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    materialError("source_git_tree_encoding_invalid");
+  }
+  const records = text.split("\0").filter(Boolean);
+  if (records.length === 0 || records.length > MATERIAL_LIMITS.closureEntries) materialError("source_git_tree_count_invalid");
+  let totalBytes = 0;
+  const paths = new Set();
+  const expectedSymlinks = new Map(allowedSymlinks.map((entry) => [entry.path, entry]));
+  const observedSymlinks = new Set();
+  for (const record of records) {
+    const match = /^(100644|100755|120000) blob ([0-9a-f]{40}) +([0-9]+)\t([^\0]+)$/u.exec(record);
+    if (!match) materialError("source_git_tree_entry_refused");
+    const name = match[4];
+    const hasControl = [...name].some((character) => character.codePointAt(0) <= 0x1f || character.codePointAt(0) === 0x7f);
+    if (name.startsWith("/") || name.includes("\\") || hasControl || /^[A-Za-z]:/u.test(name) ||
+        name.split("/").some((part) => part === "" || part === "." || part === "..") || paths.has(name)) {
+      materialError("source_git_tree_path_refused");
+    }
+    paths.add(name);
+    const size = Number(match[3]);
+    if (!Number.isSafeInteger(size) || size > MATERIAL_LIMITS.archiveBytes) materialError("source_git_tree_file_size_invalid");
+    if (match[1] === "120000") {
+      const expected = expectedSymlinks.get(name);
+      if (!expected || expected.blob !== match[2] || expected.size !== size || observedSymlinks.has(name)) materialError("source_git_tree_symlink_refused");
+      observedSymlinks.add(name);
+    }
+    totalBytes += size;
+    if (!Number.isSafeInteger(totalBytes) || totalBytes > MATERIAL_LIMITS.closureBytes) materialError("source_git_tree_bytes_exceeded");
+  }
+  if (observedSymlinks.size !== expectedSymlinks.size) materialError("source_git_tree_symlink_missing");
+  return records.length;
+}
+
+export async function fetchExactSource(selected, workspace, phase = (_name, operation) => operation()) {
+  const prefix = `${selected.repository.split("/")[1]}-${selected.commit}`;
+  const sourceDirectory = path.join(workspace, prefix);
+  await phase("source_fetch", async () => {
+    await mkdir(sourceDirectory);
+    await runGit(["init", "--quiet", "--template=", sourceDirectory], workspace, workspace);
+    await runGit(["-C", sourceDirectory, "remote", "add", "origin", selected.sourceRepositoryUrl], workspace, workspace);
+    await runGit(["-C", sourceDirectory, "fetch", "--quiet", "--depth=1", "--no-tags", "origin", selected.commit], workspace, workspace, 10 * 60 * 1000);
+    const fetched = (await runGit(["-C", sourceDirectory, "rev-parse", "FETCH_HEAD^{commit}"], workspace, workspace)).stdout.toString("utf8").trim();
+    if (fetched !== selected.commit) materialError("source_git_commit_mismatch");
+  });
+  return phase("tree_check", async () => {
+    const tree = (await runGit(["-C", sourceDirectory, "rev-parse", `${selected.commit}^{tree}`], workspace, workspace)).stdout.toString("utf8").trim();
+    if (!/^[0-9a-f]{40}$/u.test(tree)) materialError("source_git_tree_invalid");
+    const listing = await runGit(["-C", sourceDirectory, "ls-tree", "-r", "-l", "-z", "--full-tree", selected.commit], workspace, workspace);
+    validateGitTree(listing.stdout, selected.sourceSymlinks);
+    await runGit(["-C", sourceDirectory, "checkout", "--quiet", "--detach", selected.commit], workspace, workspace);
+    await validateCheckedOutSource(sourceDirectory, selected.sourceSymlinks);
+    const epochText = (await runGit(["-C", sourceDirectory, "show", "-s", "--format=%ct", selected.commit], workspace, workspace)).stdout.toString("utf8").trim();
+    const sourceDateEpoch = Number(epochText);
+    if (!Number.isSafeInteger(sourceDateEpoch) || sourceDateEpoch < 1) materialError("source_date_epoch_invalid");
+    return { prefix, sourceDirectory, sourceDateEpoch, sourceTree: tree, tool: selected.name };
+  });
+}
+
+export async function canonicalSourceArchive({ prefix, sourceDateEpoch, tool }, workspace, phase = (_name, operation) => operation()) {
+  return phase("archive", async () => {
+    const tarPath = path.join(workspace, `${prefix}.tar`);
+    await runCommand(LINUX_BINARIES.tar, ["--format=ustar", "--sort=name", `--mtime=@${sourceDateEpoch}`, "--owner=0", "--group=0", "--numeric-owner", `--exclude=${prefix}/.git`, "-cf", tarPath, prefix], {
+      cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024,
+    });
+    const source = createReadStream(tarPath);
+    await validateNativeSourceTarArchive(source, { closeStreams: [source], expectedPrefix: prefix, tool });
+    await runCommand(LINUX_BINARIES.gzip, ["-n", "-9", tarPath], { cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024 });
+    const archivePath = `${tarPath}.gz`;
+    await validateNativeGzipTar(archivePath, prefix, tool);
+    return { archivePath, digest: await sha256File(archivePath) };
+  });
+}
+
+async function requireLinuxProposalRuntime(tool, workspace, output) {
+  if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || !process.env.ImageVersion) {
+    materialError("proposal_requires_secret_free_github_actions_linux");
+  }
+  if (!process.env.RUNNER_TEMP || !path.isAbsolute(process.env.RUNNER_TEMP)) materialError("proposal_runner_temp_invalid");
+  const runnerTemp = await realpath(process.env.RUNNER_TEMP);
+  if (path.dirname(workspace) !== runnerTemp || path.basename(workspace) !== `auto-world-native-${tool}` ||
+      path.dirname(output) !== runnerTemp || path.basename(output) !== `native-lock-${tool}.json`) materialError("proposal_owned_path_invalid");
+  try {
+    await lstat(workspace);
+    materialError("proposal_workspace_exists");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  for (const executable of Object.values(LINUX_BINARIES)) await access(executable);
+}
+
+async function download(url, destination, cwd, maximumBytes = MATERIAL_LIMITS.archiveBytes) {
+  await runCommand(LINUX_BINARIES.curl, ["--fail", "--location", "--proto", "=https", "--tlsv1.2", "--max-filesize", String(maximumBytes), "--max-time", "600", "--output", destination, url], {
+    cwd, env: safeEnvironment(cwd), timeoutMs: 10 * 60 * 1000, maxOutputBytes: 1024 * 1024,
+  });
+  return sha256File(destination, maximumBytes);
+}
+
+async function validateGoCompilerGzipTar(filePath) {
+  const source = createReadStream(filePath);
+  const gunzip = createGunzip();
+  return validateGoCompilerTarArchive(source.pipe(gunzip), { closeStreams: [source] });
+}
+
+async function validateNativeGzipTar(filePath, expectedPrefix, tool) {
+  const source = createReadStream(filePath);
+  const gunzip = createGunzip();
+  return validateNativeSourceTarArchive(source.pipe(gunzip), { closeStreams: [source], expectedPrefix, tool });
+}
+
+export async function validateCheckedOutSource(directory, allowedSymlinks = []) {
+  let entries = 0;
+  let bytes = 0;
+  const pending = [directory];
+  const expectedSymlinks = new Map(allowedSymlinks.map((entry) => [entry.path, entry]));
+  const observedSymlinks = new Set();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      entries += 1;
+      if (entries > MATERIAL_LIMITS.closureEntries) materialError("source_closure_entries_exceeded");
+      const target = path.join(current, entry.name);
+      if (entry.isSymbolicLink()) {
+        const relative = path.relative(directory, target).replaceAll("\\", "/");
+        const expected = expectedSymlinks.get(relative);
+        const linkTarget = await readlink(target);
+        if (!expected || observedSymlinks.has(relative) || linkTarget !== expected.target || Buffer.byteLength(linkTarget) !== expected.size) {
+          materialError("source_closure_symlink_refused");
+        }
+        observedSymlinks.add(relative);
+        bytes += expected.size;
+        continue;
+      }
+      if (!entry.isDirectory() && !entry.isFile()) materialError("source_closure_unsupported_entry");
+      if (entry.isDirectory()) pending.push(target);
+      else {
+        bytes += (await stat(target)).size;
+        if (bytes > MATERIAL_LIMITS.closureBytes) materialError("source_closure_bytes_exceeded");
+      }
+    }
+  }
+  if (observedSymlinks.size !== expectedSymlinks.size) materialError("source_closure_symlink_missing");
+  return { entries, bytes };
+}
+
+function parseJsonSequence(bytes) {
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const values = [];
+  let start = -1;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') quoted = false;
+      continue;
+    }
+    if (character === '"') quoted = true;
+    else if (character === "{") { if (depth === 0) start = index; depth += 1; }
+    else if (character === "}") {
+      depth -= 1;
+      if (depth < 0) materialError("module_json_invalid");
+      if (depth === 0) values.push(JSON.parse(text.slice(start, index + 1)));
+    } else if (depth === 0 && !/\s/u.test(character)) materialError("module_json_invalid");
+  }
+  if (depth !== 0 || quoted || values.length === 0) materialError("module_json_invalid");
+  return values;
+}
+
+async function moduleClosure(goExecutable, sourceDirectory, environment) {
+  const result = await runCommand(goExecutable, ["mod", "download", "-json", "all"], {
+    cwd: sourceDirectory, env: environment, timeoutMs: 20 * 60 * 1000, maxOutputBytes: 64 * 1024 * 1024,
+  });
+  const modules = [];
+  for (const entry of parseJsonSequence(result.stdout)) {
+    if (entry.Error || typeof entry.Path !== "string" || typeof entry.Version !== "string" || typeof entry.Sum !== "string" || typeof entry.GoModSum !== "string" || typeof entry.Zip !== "string") {
+      materialError("module_closure_incomplete");
+    }
+    const zip = await sha256File(entry.Zip);
+    modules.push({ path: entry.Path, version: entry.Version, sum: entry.Sum, goModSum: entry.GoModSum, zipSha256: zip.sha256, zipSize: zip.size });
+  }
+  modules.sort((left, right) => `${left.path}@${left.version}`.localeCompare(`${right.path}@${right.version}`, "en"));
+  if (new Set(modules.map((entry) => `${entry.path}@${entry.version}`)).size !== modules.length) materialError("module_closure_duplicate");
+  return modules;
+}
+
+export function orasModuleDiagnostics(original, downloaded, tidied) {
+  const states = {};
+  for (const [name, state] of Object.entries({ original, downloaded, tidied })) {
+    if (!state || canonicalJsonBuffer(Object.keys(state).sort()).compare(canonicalJsonBuffer(["go.mod", "go.sum"])) !== 0) {
+      materialError("oras_module_diagnostic_files_invalid");
+    }
+    states[name] = {};
+    for (const filename of ["go.mod", "go.sum"]) {
+      const bytes = state[filename];
+      const cap = filename === "go.mod" ? 64 * 1024 : 512 * 1024;
+      if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > cap) materialError("oras_module_diagnostic_size_invalid");
+      let text;
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      catch { materialError("oras_module_diagnostic_encoding_invalid"); }
+      states[name][filename] = { size: bytes.length, sha256: sha256(bytes), text };
+    }
+  }
+  const matches = (left, right) => ["go.mod", "go.sum"].every((file) => left[file].equals(right[file]));
+  return { schemaVersion: 1, state: "diagnostic_only", sourceRestored: true,
+    downloadChangedSource: !matches(original, downloaded), tidyChangedDownload: !matches(downloaded, tidied),
+    tidyMatchesOriginal: matches(original, tidied), states };
+}
+
+export async function readOrasModuleState(sourceDirectory) {
+  return { "go.mod": await readFileBounded(path.join(sourceDirectory, "go.mod"), 64 * 1024),
+    "go.sum": await readFileBounded(path.join(sourceDirectory, "go.sum"), 512 * 1024) };
+}
+
+export async function withRestoredOrasModules(sourceDirectory, original, operation, verifyRestored) {
+  let primary, restorationFailure, value;
+  let succeeded = false;
+  try {
+    value = await operation();
+    succeeded = true;
+  } catch (error) {
+    primary = error;
+  } finally {
+    try {
+      for (const filename of ["go.mod", "go.sum"]) await writeFile(path.join(sourceDirectory, filename), original[filename]);
+      await verifyRestored();
+    } catch (error) {
+      restorationFailure = new Error("material_contract:oras_module_diagnostic_restore_failed", { cause: error });
+      restorationFailure.primaryError = primary;
+    }
+  }
+  if (restorationFailure) throw restorationFailure;
+  if (!succeeded) throw primary;
+  return value;
+}
+
+async function collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace, environment, original, selected, compiler) {
+  const { downloaded, tidied, diff } = await withRestoredOrasModules(sourceDirectory, original, async () => {
+    const downloaded = await readOrasModuleState(sourceDirectory);
+    await runCommand(goExecutable, ["mod", "tidy"], { cwd: sourceDirectory,
+      env: { ...environment, CGO_ENABLED: "1", GOFLAGS: "" }, timeoutMs: 5 * 60_000, maxOutputBytes: 8 * 1024 * 1024 });
+    const tidied = await readOrasModuleState(sourceDirectory);
+    const changed = (await runGit(["-C", sourceDirectory, "diff", "--name-only", "--no-ext-diff"], workspace, workspace))
+      .stdout.toString("utf8").trim().split(/\r?\n/u).filter(Boolean);
+    if (changed.some((file) => !["go.mod", "go.sum"].includes(file))) materialError("oras_module_diagnostic_source_changed");
+    const diff = (await runGit(["-C", sourceDirectory, "diff", "--no-ext-diff", "--", "go.mod", "go.sum"], workspace, workspace)).stdout;
+    if (diff.length > 1024 * 1024) materialError("oras_module_diagnostic_diff_exceeded");
+    return { downloaded, tidied, diff };
+  }, async () => {
+    if ((await runGit(["-C", sourceDirectory, "status", "--porcelain=v1", "--untracked-files=all"], workspace, workspace)).stdout.length) {
+      materialError("oras_module_diagnostic_restore_failed");
+    }
+  });
+  const record = { ...orasModuleDiagnostics(original, downloaded, tidied), sourceCommit: selected.commit,
+    compiler, diagnosticRecipe: await sha256File(fileURLToPath(import.meta.url), 1024 * 1024),
+    tidyDiff: { sha256: sha256(diff), size: diff.length, text: new TextDecoder("utf-8", { fatal: true }).decode(diff) } };
+  const bytes = canonicalJsonBuffer(record);
+  if (bytes.length > MATERIAL_LIMITS.receiptBytes) materialError("oras_module_diagnostic_receipt_exceeded");
+  await writeFile(path.join(workspace, "proposal-assets/oras/module-diagnostics.json"), bytes, { flag: "wx" });
+  return record;
+}
+
+export async function utilityInventory(workspace) {
+  const utilities = [];
+  for (const [name, executable] of Object.entries(LINUX_BINARIES)) {
+    const args = name === "openssl" ? ["version"] : ["--version"];
+    const result = await runCommand(executable, args, { cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 10_000, maxOutputBytes: 256 * 1024 });
+    const identity = result.stdout.toString("utf8").split(/\r?\n/u)[0].slice(0, 500);
+    if (!identity) materialError("runner_utility_identity_missing");
+    utilities.push({ name, path: executable, identity });
+  }
+  return utilities;
+}
+
+export async function collectRecipeFiles(selected) {
+  const recipeFiles = [];
+  let missing = false;
+  for (const relative of selected.recipeFiles) {
+    const absolute = path.join(REPOSITORY_ROOT, relative);
+    if (!absolute.startsWith(`${path.join(REPOSITORY_ROOT, "scripts/supply-chain")}${path.sep}`)) materialError("recipe_path_refused");
+    try {
+      recipeFiles.push({ path: relative, ...await sha256File(absolute, 1024 * 1024) });
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      missing = true;
+    }
+  }
+  return { recipeFiles, missing };
+}
+
+export async function collectSourceEvidence(sourceDirectory, tool) {
+  const licenseFiles = [];
+  const noticeFiles = [];
+  const pending = [sourceDirectory];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      if (current === sourceDirectory && entry.name === ".git") continue;
+      const absolute = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(absolute);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const base = entry.name.toLowerCase();
+      const target = /^(license|licence|copying)(\.|$)/u.test(base) ? licenseFiles : /^(notice)(\.|$)/u.test(base) ? noticeFiles : null;
+      if (!target) continue;
+      const relative = path.relative(sourceDirectory, absolute).replaceAll("\\", "/");
+      target.push({ path: relative, ...await sha256File(absolute, MATERIAL_LIMITS.archiveBytes) });
+    }
+  }
+  licenseFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
+  noticeFiles.sort((left, right) => left.path.localeCompare(right.path, "en"));
+  const wasmInputs = [];
+  if (tool === "trivy") {
+    for (const input of TRIVY_WASM_INPUTS) {
+      wasmInputs.push({ ...input, ...await sha256File(path.join(sourceDirectory, input.path), 1024 * 1024) });
+    }
+  }
+  return { licenseFiles, noticeFiles, noticeStatus: noticeFiles.length > 0 ? "present" : "absent-in-pinned-source", wasmInputs };
+}
+
+export async function verifyOrasReleaseEvidence(selected, sourceTree, workspace) {
+  if (selected.name !== "oras" || !selected.orasVerification) materialError("oras_release_selection_invalid");
+  const verification = selected.orasVerification;
+  const materialRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/materials/oras");
+  const evidenceInput = path.join(workspace, "oras-release-evidence");
+  await mkdir(evidenceInput);
+  const materialPaths = new Map();
+  for (const material of verification.materials) {
+    const absolute = path.resolve(REPOSITORY_ROOT, material.path);
+    if (!absolute.startsWith(`${materialRoot}${path.sep}`)) materialError("oras_release_material_path_refused");
+    const digest = await sha256File(absolute, 1024 * 1024);
+    if (digest.sha256 !== material.sha256 || digest.size !== material.size) materialError("oras_release_material_drift");
+    const copied = path.join(evidenceInput, material.name);
+    await copyFile(absolute, copied);
+    const copiedDigest = await sha256File(copied, 1024 * 1024);
+    if (copiedDigest.sha256 !== material.sha256 || copiedDigest.size !== material.size) materialError("oras_release_material_copy_drift");
+    materialPaths.set(material.name, copied);
+  }
+
+  const tag = readBoundedJsonFile(materialPaths.get("tag.json"));
+  if (tag.sha !== verification.tagObject || tag.tag !== "v1.3.4" || tag.object?.sha !== verification.tagTarget || tag.object?.type !== "commit" ||
+      tag.verification?.verified !== true || tag.verification?.reason !== "valid" ||
+      typeof tag.verification?.payload !== "string" || !tag.verification.payload.startsWith(`object ${verification.tagTarget}\ntype commit\ntag v1.3.4\n`)) {
+    materialError("oras_release_tag_evidence_invalid");
+  }
+  const commit = readBoundedJsonFile(materialPaths.get("commit.json"));
+  if (commit.sha !== verification.tagTarget || commit.tree?.sha !== sourceTree || commit.verification?.verified !== true || commit.verification?.reason !== "valid" ||
+      typeof commit.verification?.payload !== "string" || !commit.verification.payload.startsWith(`tree ${sourceTree}\n`)) {
+    materialError("oras_release_commit_evidence_invalid");
+  }
+
+  const checksums = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(materialPaths.get("oras_1.3.4_checksums.txt")));
+  const expectedChecksumLine = `${verification.referenceArchiveSha256}  oras_1.3.4_linux_amd64.tar.gz`;
+  if (checksums.split(/\r?\n/u).filter((line) => line === expectedChecksumLine).length !== 1) materialError("oras_release_checksum_entry_invalid");
+
+  const gpgHome = path.join(workspace, "oras-gpg");
+  await mkdir(gpgHome);
+  await chmod(gpgHome, 0o700);
+  const gpgArgs = ["--homedir", gpgHome, "--no-options", "--batch", "--no-autostart", "--no-auto-key-retrieve", "--status-fd=1"];
+  await runCommand(LINUX_BINARIES.gpg, [...gpgArgs, "--import", materialPaths.get("KEYS")], {
+    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const signature = await runCommand(LINUX_BINARIES.gpg, [...gpgArgs, "--verify", materialPaths.get("oras_1.3.4_checksums.txt.asc"), materialPaths.get("oras_1.3.4_checksums.txt")], {
+    cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const fingerprints = [...signature.stdout.toString("utf8").matchAll(/^\[GNUPG:\] VALIDSIG ([0-9A-F]{40}) /gmu)].map((match) => match[1]);
+  if (fingerprints.length !== 1 || fingerprints[0] !== verification.releaseKeyFingerprint) materialError("oras_release_gpg_identity_invalid");
+
+  const assets = path.join(workspace, "proposal-assets", "oras");
+  await mkdir(assets, { recursive: true });
+  const referencePath = path.join(assets, "oras_1.3.4_linux_amd64.tar.gz");
+  const referenceArchive = await download(verification.referenceArchiveUrl, referencePath, workspace, MATERIAL_LIMITS.binaryBytes);
+  if (referenceArchive.sha256 !== verification.referenceArchiveSha256) materialError("oras_release_reference_archive_mismatch");
+  const releaseEvidence = {
+    materials: verification.materials,
+    referenceArchive: { url: verification.referenceArchiveUrl, ...referenceArchive },
+    gpg: { fingerprint: verification.releaseKeyFingerprint, verified: true },
+    tag: { recordSha256: verification.materials[1].sha256, object: tag.sha, target: tag.object.sha, verified: true, reason: "valid" },
+    commit: { recordSha256: verification.materials[2].sha256, commit: commit.sha, tree: commit.tree.sha, verified: true, reason: "valid" },
+    provenanceSha256: "0".repeat(64),
+  };
+  return releaseEvidence;
+}
+
+async function collectCommittedTrivyPatches() {
+  const patches = [];
+  for (const patch of TRIVY_PATCH_IDENTITIES) {
+    try {
+      const digest = await sha256File(path.join(REPOSITORY_ROOT, patch.path), 1024 * 1024);
+      if (digest.sha256 !== patch.sha256 || digest.size !== patch.size) materialError("trivy_patch_identity_mismatch");
+      patches.push({ ...patch });
+    } catch (error) {
+      if (error?.code === "ENOENT") return [];
+      throw error;
+    }
+  }
+  return patches;
+}
+
+export function trivyFormattingArguments(goRoot, sourceDirectory) {
+  if (!path.isAbsolute(goRoot) || !path.isAbsolute(sourceDirectory)) materialError("trivy_formatter_path_invalid");
+  return ["--noprofile", "--norc", "-c", FORMAT_CAPTURE, "auto-world-gofmt",
+    path.join(goRoot, "bin/gofmt"), ...TRIVY_FORMAT_FILES.map((file) => path.join(sourceDirectory, file))];
+}
+
+export function parseTrivyFormattingCapture(stdout, stderr) {
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length + stderr.length > 1024 * 1024) materialError("trivy_formatter_output_invalid");
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(stdout);
+  const errorText = new TextDecoder("utf-8", { fatal: true }).decode(stderr);
+  const marker = /\nAUTOWORLD_GOFMT_EXIT=([0-9]{1,3})\n$/u.exec(text);
+  if (!marker || Number(marker[1]) > 255) materialError("trivy_formatter_status_invalid");
+  return { exitCode: Number(marker[1]), diff: text.slice(0, marker.index), stderr: errorText };
+}
+
+// Only two byte-bounded public fixture sources enter this formatter. The fixed
+// shell captures its real exit status without changing generic child-failure
+// handling; the caller still refuses every nonzero result or formatting diff.
+export async function verifyTrivyPatchFormatting(goRoot, sourceDirectory, workspace) {
+  const inputs = [];
+  for (const file of TRIVY_FORMAT_FILES) inputs.push({ path: file, ...await sha256File(path.join(sourceDirectory, file), 1024 * 1024) });
+  const result = await runCommand(LINUX_BINARIES.bash, trivyFormattingArguments(goRoot, sourceDirectory), {
+    cwd: sourceDirectory, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const capture = parseTrivyFormattingCapture(result.stdout, result.stderr);
+  for (const input of inputs) {
+    const after = await sha256File(path.join(sourceDirectory, input.path), 1024 * 1024);
+    if (after.sha256 !== input.sha256 || after.size !== input.size) materialError("trivy_formatter_source_changed");
+  }
+  const bytes = canonicalJsonBuffer({ schemaVersion: 1, state: "diagnostic_only", inputs,
+    formatter: await sha256File(path.join(goRoot, "bin/gofmt"), MATERIAL_LIMITS.binaryBytes),
+    sourceUnchanged: true, ...capture });
+  if (bytes.length > MATERIAL_LIMITS.receiptBytes) materialError("trivy_formatter_receipt_exceeded");
+  const directory = path.join(workspace, "proposal-assets/trivy");
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "gofmt-diagnostics.json"), bytes, { flag: "wx" });
+  if (capture.exitCode !== 0 || capture.stderr.length !== 0) materialError("trivy_patch_gofmt_failed");
+  if (capture.diff.length !== 0) materialError("trivy_patch_not_gofmt");
+}
+
+async function applyProposalPatches(patches, sourceDirectory, workspace) {
+  for (const patch of patches) {
+    const patchPath = path.join(REPOSITORY_ROOT, patch.path);
+    await runGit(["-C", sourceDirectory, "apply", "--check", "--whitespace=error-all", patchPath], workspace, workspace);
+    await runGit(["-C", sourceDirectory, "apply", "--whitespace=error-all", patchPath], workspace, workspace);
+  }
+}
+
+async function proposeTrivyGrpcPatch(goExecutable, sourceDirectory, workspace, goEnvironment) {
+  const assets = path.join(workspace, "proposal-assets", "trivy");
+  await mkdir(assets, { recursive: true });
+  await runCommand(goExecutable, ["get", "google.golang.org/grpc@v1.83.1"], {
+    cwd: sourceDirectory, env: { ...goEnvironment, GOFLAGS: "-mod=mod" }, timeoutMs: 20 * 60 * 1000, maxOutputBytes: 32 * 1024 * 1024,
+  });
+  const changed = (await runGit(["-C", sourceDirectory, "diff", "--name-only", "--no-ext-diff"], workspace, workspace)).stdout.toString("utf8").trim().split(/\r?\n/u);
+  if (canonicalJsonBuffer(changed).compare(canonicalJsonBuffer(["go.mod", "go.sum"])) !== 0) materialError("trivy_grpc_patch_files_invalid");
+  const goMod = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(path.join(sourceDirectory, "go.mod")));
+  if (!/^\s*google\.golang\.org\/grpc v1\.83\.1(?:\s+\/\/ indirect)?$/mu.test(goMod)) materialError("trivy_grpc_version_missing");
+  const diff = await runGit(["-C", sourceDirectory, "diff", "--binary", "--no-ext-diff", "--", "go.mod", "go.sum"], workspace, workspace);
+  if (diff.stdout.length < 1 || diff.stdout.length > 1024 * 1024) materialError("trivy_grpc_patch_size_invalid");
+  const output = path.join(assets, "trivy-grpc-1.83.1.patch");
+  await writeFile(output, diff.stdout);
+  await runGit(["-C", sourceDirectory, "reset", "--hard", "--quiet", "HEAD"], workspace, workspace);
+  const clean = (await runGit(["-C", sourceDirectory, "status", "--porcelain=v1", "--untracked-files=all"], workspace, workspace)).stdout;
+  if (clean.length !== 0) materialError("trivy_grpc_patch_cleanup_failed");
+  return { kind: "grpc-1.83.1", path: "proposal-assets/trivy/trivy-grpc-1.83.1.patch", ...await sha256File(output, 1024 * 1024) };
+}
+
+async function prepareTrivyTestMaterials() {
+  const rpmName = "socat-1.7.3.2-2.el7.x86_64.rpm";
+  const rpmUrl = `https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/${rpmName}`;
+  const materialRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/materials/trivy");
+  const rpm = await sha256File(path.join(materialRoot, rpmName));
+  if (rpm.sha256 !== "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9" || rpm.size !== 296_692) {
+    materialError("trivy_rpm_identity_mismatch");
+  }
+  const gitArchive = await sha256File(path.join(materialRoot, "test-repo-git-worktree.tar.gz"));
+  if (gitArchive.sha256 !== "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393" || gitArchive.size !== 34_282) {
+    materialError("trivy_git_fixture_identity_mismatch");
+  }
+  return [
+    { name: "trivy-test-repo-git-worktree", kind: "git-fixture-archive", origin: "https://github.com/aquasecurity/trivy-test-repo", path: "infra/supply-chain/materials/trivy/test-repo-git-worktree.tar.gz", ...gitArchive },
+    { name: "trivy-socat-rpm", kind: "rpm-fixture", origin: rpmUrl, path: `infra/supply-chain/materials/trivy/${rpmName}`, ...rpm },
+  ];
+}
+
+export async function proposeMaterialLock({ tool, workspace, output, selection: selectionPath }) {
+  await requireLinuxProposalRuntime(tool, workspace, output);
+  const selection = validateSourceSelection(readBoundedJsonFile(selectionPath));
+  const selectionSha256 = sha256(canonicalJsonBuffer(selection));
+  const selected = selection.tools.find((entry) => entry.name === tool);
+  await mkdir(workspace, { recursive: false });
+  await Promise.all([mkdir(path.join(workspace, "home")), mkdir(path.join(workspace, "tmp"))]);
+  const compilerArchivePath = path.join(workspace, "go-linux.tar.gz");
+  const sourceIdentity = await fetchExactSource(selected, workspace, runPhase);
+  const sourceArchive = await canonicalSourceArchive(sourceIdentity, workspace, runPhase);
+  const compilerSelection = selection.compiler.archives.find((entry) => entry.goos === "linux");
+  const compilerArchive = await runPhase("compiler_verify", async () => {
+    const digest = await download(compilerSelection.url, compilerArchivePath, workspace);
+    if (digest.sha256 !== compilerSelection.sha256) materialError("compiler_archive_digest_mismatch");
+    await validateGoCompilerGzipTar(compilerArchivePath);
+    return digest;
+  });
+
+  const sourceDirectory = sourceIdentity.sourceDirectory;
+
+  const compilerDirectory = path.join(workspace, "compiler");
+  await mkdir(compilerDirectory);
+  await runCommand(LINUX_BINARIES.tar, ["-xzf", compilerArchivePath, "-C", compilerDirectory, "--no-same-owner", "--no-same-permissions"], { cwd: workspace, env: safeEnvironment(workspace), timeoutMs: 120_000, maxOutputBytes: 1024 * 1024 });
+  const goExecutable = path.join(compilerDirectory, "go/bin/go");
+  const goPath = path.join(workspace, "gopath");
+  const goCache = path.join(workspace, "gocache");
+  const goModCache = path.join(workspace, "gomodcache");
+  await Promise.all([mkdir(goPath), mkdir(goCache), mkdir(goModCache)]);
+  const goEnvironment = safeEnvironment(workspace, {
+    GOPATH: goPath, GOCACHE: goCache, GOMODCACHE: goModCache, GOTOOLCHAIN: "local",
+    GOPROXY: "https://proxy.golang.org", GOSUMDB: "sum.golang.org", GOFLAGS: "-mod=readonly",
+  });
+
+  const blockers = [];
+  const recipe = await collectRecipeFiles(selected);
+  if (recipe.missing) blockers.push("required-native-test-harness-not-yet-committed");
+  const sourceDateEpoch = sourceIdentity.sourceDateEpoch;
+  const sourceEvidenceFiles = await collectSourceEvidence(sourceDirectory, tool);
+  if (selected.requiredEvidence.includes("license") && sourceEvidenceFiles.licenseFiles.length === 0) blockers.push("source-license-evidence-missing");
+  const releaseEvidence = tool === "oras" ? await runPhase("source_evidence", () => verifyOrasReleaseEvidence(selected, sourceIdentity.sourceTree, workspace)) : undefined;
+  const patches = tool === "trivy" ? await collectCommittedTrivyPatches() : [];
+  const patchProposals = [];
+  if (tool === "trivy" && patches.length === 0) {
+    blockers.push("grpc-1.83.1-and-local-fixture-loader-exact-patches-not-yet-committed");
+    patchProposals.push(await runPhase("patch_proposal", () => proposeTrivyGrpcPatch(goExecutable, sourceDirectory, workspace, goEnvironment)));
+  } else if (patches.length > 0) {
+    await runPhase("patches", () => applyProposalPatches(patches, sourceDirectory, workspace));
+    await validateCheckedOutSource(sourceDirectory, selected.sourceSymlinks);
+    if (tool === "trivy") await runPhase("patch_formatting", () => verifyTrivyPatchFormatting(path.join(compilerDirectory, "go"), sourceDirectory, workspace));
+  }
+  const originalOrasModules = tool === "oras" ? await readOrasModuleState(sourceDirectory) : undefined;
+  const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
+  if (tool === "oras") {
+    const diagnostic = await runPhase("module_diagnostics", () => collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace,
+      goEnvironment, originalOrasModules, selected, { version: selection.compiler.version, ...compilerArchive }));
+    if (!diagnostic.tidyMatchesOriginal) blockers.push("oras-module-mutation-diagnostic-requires-review");
+  }
+  const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials() : Promise.resolve([]));
+  const proposal = {
+    schemaVersion: 1,
+    state: "material_lock_proposal",
+    selectionSha256,
+    tool,
+    sourceTree: sourceIdentity.sourceTree,
+    sourceArchive: sourceArchive.digest,
+    compilerArchive: { goos: "linux", ...compilerArchive },
+    modules,
+    patches,
+    patchProposals,
+    testMaterials,
+    sourceDateEpoch,
+    recipeFiles: recipe.recipeFiles,
+    recipeSha256: sha256(canonicalJsonBuffer({
+      tool, commit: selected.commit, modifiedVersion: selected.modifiedVersion, targets: selected.targets,
+      compiler: selection.compiler.version, tests: selected.upstreamTests, patchPolicy: selected.patchPolicy,
+      requiredEvidence: selected.requiredEvidence,
+      recipeFiles: recipe.recipeFiles,
+    })),
+    requiredEvidence: selected.requiredEvidence,
+    sourceEvidence: { ...sourceEvidenceFiles, provenanceSha256: "0".repeat(64) },
+    ...(releaseEvidence ? { releaseEvidence } : {}),
+    managedRunner: { label: selection.managedRunner.label, imageVersion: process.env.ImageVersion, utilities: await utilityInventory(workspace) },
+    complete: blockers.length === 0,
+    blockers: [...new Set(blockers)].sort(),
+  };
+  proposal.sourceEvidence.provenanceSha256 = sourceEvidenceProvenance(proposal);
+  if (proposal.releaseEvidence) proposal.releaseEvidence.provenanceSha256 = releaseEvidenceProvenance(proposal);
+  await runPhase("proposal_write", async () => {
+    validateMaterialProposal(proposal, selectionSha256, tool, selected.patchPolicy.allowedKinds, selected.requiredEvidence, selected.orasVerification);
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, canonicalJsonBuffer(proposal));
+  });
+  return proposal;
+}
+
+export async function mergeMaterialProposals({ proposals: proposalPaths, output, selection: selectionPath }) {
+  const selection = validateSourceSelection(readBoundedJsonFile(selectionPath));
+  const selectionSha256 = sha256(canonicalJsonBuffer(selection));
+  const proposals = proposalPaths.map((proposalPath) => {
+    const candidate = readBoundedJsonFile(proposalPath);
+    const selected = selection.tools.find((entry) => entry.name === candidate?.tool);
+    if (!selected) materialError("merge_tool_not_selected");
+    return validateMaterialProposal(candidate, selectionSha256, selected.name, selected.patchPolicy.allowedKinds, selected.requiredEvidence, selected.orasVerification);
+  });
+  proposals.sort((left, right) => left.tool.localeCompare(right.tool, "en"));
+  if (new Set(proposals.map((entry) => entry.tool)).size !== 3) materialError("merge_tool_set_invalid");
+  if (proposals.some((entry) => !entry.complete)) materialError("merge_incomplete_proposal_refused");
+  const lock = { schemaVersion: 1, state: "material_locked", selectionSha256, proposals };
+  validateMaterialLock(lock, selection);
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, canonicalJsonBuffer(lock));
+  return lock;
+}
+
+async function main() {
+  const args = parseLockUpdateArgs(process.argv.slice(2));
+  if (args.command === "propose") {
+    const proposal = await proposeMaterialLock(args);
+    if (!proposal.complete) {
+      process.stderr.write(`material_proposal_incomplete:${proposal.blockers.join(",")}\n`);
+      process.exitCode = 2;
+    }
+  } else await mergeMaterialProposals(args);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    if (!error?.diagnosticEmitted) emitDiagnostic("bootstrap", "failed", safeErrorCode(error), 0);
+    process.stderr.write(`${error?.message?.startsWith("material_contract:") ? error.message : "material_lock_update_failed"}\n${usage()}\n`);
+    process.exitCode = 1;
+  });
+}
