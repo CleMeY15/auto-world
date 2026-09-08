@@ -1,11 +1,13 @@
 # TASK-0005 — Local data infrastructure
 
-Status: READY; queued behind TASK-0002, TASK-0003 and TASK-0004 by the singular execution frontier
+Status: IN_PROGRESS; data PR #7 and native preparation PR #8 remain draft and unaccepted
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
 ## Goal
 Provide reproducible development and CI data services for PostgreSQL, OpenSearch, Redis and S3-compatible raw storage with tested lifecycle and rollback behavior.
+
+The separately consented [ADR-0006 diagnostic canary](../../docs/decisions/ADR-0006-public-attestation-canary.md) tests only public fixed-file attestation verification. Its [evidence](../../docs/validation/TASK-0005-CANARY.md) cannot accept the data foundation, admit any image or unblock TASK-0006. The full-roadmap heartbeat remains PAUSED; stop after the canary verdict and reviewed workflow retirement.
 
 ## Dependencies
 - TASK-0001 merged on `main`; execution order remains after TASK-0004 unless the roadmap is explicitly amended.
