@@ -26,7 +26,7 @@ import { readFileBounded } from "./native-audit.mjs";
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SELECTION_PATH = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-sources.json");
 const LOCK_PATH = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-materials.lock.json");
-const BIN = Object.freeze({ curl: "/usr/bin/curl", git: "/usr/bin/git", make: "/usr/bin/make", tar: "/usr/bin/tar" });
+const BIN = Object.freeze({ bash: "/usr/bin/bash", curl: "/usr/bin/curl", git: "/usr/bin/git", make: "/usr/bin/make", tar: "/usr/bin/tar" });
 
 function environment(workspace, goRoot, extra = {}) {
   return {
@@ -212,6 +212,119 @@ export async function withOrasUpstreamIntegrity(source, operation) {
   }
 }
 
+const TRIVY_CAPTURE_LIMIT = 64 * 1024 * 1024;
+const TRIVY_PACKAGE = "github.com/aquasecurity/trivy";
+const TRIVY_EXIT = /\nAUTOWORLD_TRIVY_UNIT_EXIT=([0-9]{1,3})\n$/u;
+
+export function trivyUnitArguments(go) {
+  if (typeof go !== "string" || !path.isAbsolute(go) || go.includes("\0")) materialError("trivy_unit_arguments_invalid");
+  return ["--noprofile", "--norc", "-c", '"$@" 2>&1; code=$?; printf "\\nAUTOWORLD_TRIVY_UNIT_EXIT=%s\\n" "$code"',
+    "--", go, "tool", "mage", "test:unit"];
+}
+
+export function trivyTestInventory(files) {
+  if (!Array.isArray(files) || files.length < 1 || files.length > 4096) materialError("trivy_test_inventory_invalid");
+  const names = new Set();
+  const packages = new Set();
+  const paths = new Set();
+  const identities = [];
+  let size = 0;
+  for (const file of files) {
+    if (!file || typeof file.path !== "string" || file.path.length > 512 ||
+        !/^(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+_test\.go$/u.test(file.path) ||
+        file.path.split("/").some((part) => part === "." || part === "..") || paths.has(file.path) ||
+        !Buffer.isBuffer(file.bytes) || file.bytes.length < 1 || file.bytes.length > 8 * 1024 * 1024) materialError("trivy_test_inventory_invalid");
+    paths.add(file.path);
+    size += file.bytes.length;
+    if (size > TRIVY_CAPTURE_LIMIT) materialError("trivy_test_inventory_invalid");
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes);
+    const directory = path.posix.dirname(file.path);
+    packages.add(directory === "." ? TRIVY_PACKAGE : `${TRIVY_PACKAGE}/${directory}`);
+    for (const match of text.matchAll(/^func\s+(Test[A-Za-z0-9_]{1,150})\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s+\*testing\.T\s*\)/gmu)) names.add(match[1]);
+    identities.push({ path: file.path, sha256: sha256(file.bytes), size: file.bytes.length });
+  }
+  if (names.size < 1 || names.size > 20_000) materialError("trivy_test_inventory_invalid");
+  identities.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  return Object.freeze({ names: Object.freeze([...names].sort()), packages: Object.freeze([...packages].sort()),
+    sha256: sha256(canonicalJsonBuffer(identities)), files: identities.length, size });
+}
+
+export function summarizeTrivyUnitCapture(stdout, stderr, inventory) {
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length > TRIVY_CAPTURE_LIMIT || stderr.length !== 0) materialError("trivy_unit_capture_invalid");
+  const text = stdout.toString("utf8");
+  const marker = TRIVY_EXIT.exec(text);
+  if (!marker || Number(marker[1]) > 255 || !inventory || !/^[a-f0-9]{64}$/u.test(inventory.sha256) ||
+      !Array.isArray(inventory.names) || !Array.isArray(inventory.packages)) materialError("trivy_unit_capture_invalid");
+  // Only the last, terminal wrapper marker is control data. Earlier source/test
+  // output, including spoofed markers and assertions, is never published.
+  const body = stdout.subarray(0, stdout.length - Buffer.byteLength(marker[0]));
+  const output = body.toString("utf8");
+  const knownNames = new Set(inventory.names);
+  const knownPackages = new Set(inventory.packages);
+  const failedTests = new Set();
+  const failedPackages = new Set();
+  let unknownFailures = 0;
+  let omittedIdentities = 0;
+  const add = (set, value, limit) => {
+    if (!set.has(value) && set.size >= limit) omittedIdentities += 1;
+    else set.add(value);
+  };
+  for (const match of output.matchAll(/^\s*--- FAIL: (Test[A-Za-z0-9_]{1,150})(?=[/ (])/gmu)) {
+    if (knownNames.has(match[1])) add(failedTests, match[1], 128); else unknownFailures += 1;
+  }
+  for (const match of output.matchAll(/^FAIL[\t ]+(github\.com\/aquasecurity\/trivy(?:\/[A-Za-z0-9_.-]+)*)(?=[\t \r\n]|$)/gmu)) {
+    if (knownPackages.has(match[1])) add(failedPackages, match[1], 64); else unknownFailures += 1;
+  }
+  const classes = [];
+  if (/panic: test timed out after /u.test(output)) classes.push("test_timeout");
+  if (/\[build failed\]|^# github\.com\/aquasecurity\/trivy(?:\/|\s)/mu.test(output)) classes.push("compilation_failure");
+  if (/Error Trace:|^\s*Error:|Not equal:|Should be /mu.test(output)) classes.push("assertion_failure");
+  if (/no such file or directory|file does not exist/u.test(output)) classes.push("missing_fixture");
+  if (/unexpected EOF|checksum mismatch|SECURITY ERROR/u.test(output)) classes.push("input_integrity_failure");
+  if (Number(marker[1]) !== 0 && classes.length === 0) classes.push("unclassified_failure");
+  const summary = { schemaVersion: 1, state: "diagnostic_only", tool: "trivy", exitCode: Number(marker[1]),
+    output: { sha256: sha256(body), size: body.length }, testInventorySha256: inventory.sha256,
+    failedPackages: [...failedPackages].sort(), failedTests: [...failedTests].sort(), classes,
+    unknownFailures, omittedIdentities };
+  if (canonicalJsonBuffer(summary).length > 64 * 1024) materialError("trivy_unit_diagnostic_limit");
+  return Object.freeze(summary);
+}
+
+export async function runTrivyUnitTests(go, source, env, timeoutMs) {
+  const listing = await runCommand(BIN.git, ["ls-files", "-z", "--", "*_test.go"], { cwd: source, env, maxOutputBytes: 4 * 1024 * 1024 });
+  const paths = listing.stdout.toString("utf8").split("\0");
+  if (paths.pop() !== "" || paths.length < 1 || paths.length > 4096) materialError("trivy_test_inventory_invalid");
+  let preflightSize = 0;
+  for (const relative of paths) {
+    if (relative.length > 512 || !/^(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+_test\.go$/u.test(relative) ||
+        relative.split("/").some((part) => part === "." || part === "..")) materialError("trivy_test_inventory_invalid");
+    const metadata = await lstat(path.join(source, relative));
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.nlink !== 1 ||
+        metadata.size < 1 || metadata.size > 8 * 1024 * 1024) materialError("trivy_test_inventory_invalid");
+    preflightSize += metadata.size;
+    if (preflightSize > TRIVY_CAPTURE_LIMIT) materialError("trivy_test_inventory_invalid");
+  }
+  const files = [];
+  let size = 0;
+  for (const relative of paths) {
+    const bytes = await readFileBounded(path.join(source, relative), 8 * 1024 * 1024);
+    size += bytes.length;
+    if (size > TRIVY_CAPTURE_LIMIT) materialError("trivy_test_inventory_invalid");
+    files.push({ path: relative, bytes });
+  }
+  const inventory = trivyTestInventory(files);
+  const result = await runCommand(BIN.bash, trivyUnitArguments(go), {
+    cwd: source, env: { ...env, CGO_ENABLED: "0", GOEXPERIMENT: "jsonv2" }, timeoutMs, maxOutputBytes: TRIVY_CAPTURE_LIMIT,
+  });
+  const diagnostic = summarizeTrivyUnitCapture(result.stdout, result.stderr, inventory);
+  const receipt = { ...diagnostic, durationMs: result.durationMs };
+  const receiptBytes = canonicalJsonBuffer(receipt);
+  // The existing candidate upload runs only on success. Emit only this bounded
+  // public identity summary before rejecting; raw child bytes stay private.
+  process.stdout.write(`${canonicalJsonBuffer({ phase: "trivy_upstream_diagnostic", sha256: sha256(receiptBytes), receipt }).toString("utf8")}\n`);
+  if (diagnostic.exitCode !== 0) materialError("trivy_upstream_tests_failed");
+}
+
 async function runUpstreamTests(tool, selected, go, source, env) {
   const timeout = selected.timeoutMinutes * 60 * 1000;
   if (tool === "oras") {
@@ -227,7 +340,7 @@ async function runUpstreamTests(tool, selected, go, source, env) {
     await runGo(go, ["test", "-race", ...packages], source, { ...env, CGO_ENABLED: "1" }, timeout);
   } else {
     for (const prerequisite of TRIVY_WASM_INPUTS) await rm(path.join(source, prerequisite.output), { force: true });
-    await runGo(go, ["tool", "mage", "test:unit"], source, { ...env, CGO_ENABLED: "0", GOEXPERIMENT: "jsonv2" }, timeout);
+    await runTrivyUnitTests(go, source, env, timeout);
     for (const prerequisite of TRIVY_WASM_INPUTS) {
       const output = path.join(source, prerequisite.output);
       const metadata = await lstat(output);
