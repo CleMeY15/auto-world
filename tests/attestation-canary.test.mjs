@@ -152,20 +152,33 @@ test("bundle collection, missing/truncated input and substitution fail closed", 
 test("real-negative classification requires a valid own-identity control and the intended perturbation", async (t) => {
   const options = await inputs(t);
   const control = await verifyPair(options, async () => success());
-  const branchControl = await verifyPair({ ...options, sha: branchSha, ref: branchRef }, async () => success());
+  const branchBundle = options.bundle + ".branch";
+  await writeFile(branchBundle, JSON.stringify({ mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json", testRun: "branch" }));
+  const branchOptions = { ...options, bundle: branchBundle, sha: branchSha, ref: branchRef };
+  const branchControl = await verifyPair(branchOptions, async () => success());
   let count = 0;
-  const branchRejected = await verifyPair(options, async () => rejected(++count === 2));
-  assert.equal(negativeProved("branch", branchControl, branchRejected), true);
-  assert.equal(negativeProved("branch", control, branchRejected), false);
-  assert.equal(negativeProved("branch", { ...branchControl, status: "ERROR" }, branchRejected), false);
-  assert.equal(negativeProved("branch", branchControl, { ...branchRejected, bundleSha256: "other" }), false);
-  assert.equal(negativeProved("branch", branchControl, { ...branchRejected, invocations: [] }), false);
+  const branchRejected = await verifyPair({ ...branchOptions, sha: mainSha, ref: mainRef }, async () => rejected(++count === 2));
+  assert.equal(negativeProved("branch", branchControl, branchRejected, control), true);
+  assert.equal(negativeProved("branch", control, branchRejected, control), false);
+  assert.equal(negativeProved("branch", { ...branchControl, status: "ERROR" }, branchRejected, control), false);
+  assert.equal(negativeProved("branch", branchControl, { ...branchRejected, bundleSha256: "other" }, control), false);
+  assert.equal(negativeProved("branch", branchControl, { ...branchRejected, invocations: [] }, control), false);
+  const arbitraryCommit = { ...branchRejected, policy: { ...branchRejected.policy, sha: "c".repeat(40) } };
+  assert.equal(negativeProved("branch", branchControl, arbitraryCommit, control), false);
+  for (const invalidMain of [
+    undefined, { ...control, status: "ERROR" },
+    { ...control, policy: { ...control.policy, ref: branchRef } },
+    { ...control, policy: { ...control.policy, wrongIdentity: true } },
+    { ...control, invocations: [] }, { ...control, invocations: [control.invocations[0]] },
+    { ...control, invocations: [{ status: "ERROR" }, control.invocations[1]] },
+    { ...control, fileSha256: "another-file" }, { ...control, bundleSha256: branchControl.bundleSha256 },
+  ]) assert.equal(negativeProved("branch", branchControl, branchRejected, invalidMain), false);
   const wrong = await verifyPair({ ...options, wrongIdentity: true }, async () => rejected());
-  assert.equal(negativeProved("wrong-workflow", control, wrong), true);
-  assert.equal(negativeProved("wrong-workflow", control, branchRejected), false);
+  assert.equal(negativeProved("wrong-workflow", control, wrong, control), true);
+  assert.equal(negativeProved("wrong-workflow", control, branchRejected, control), false);
   await writeFile(options.file, "changed public bytes\n");
   const tamper = await verifyPair(options, async () => rejected());
-  assert.equal(negativeProved("tamper", control, tamper), true);
-  assert.equal(negativeProved("wrong-workflow", control, tamper), false);
-  assert.equal(negativeProved("tamper", control, { ...tamper, status: "ERROR" }), false);
+  assert.equal(negativeProved("tamper", control, tamper, control), true);
+  assert.equal(negativeProved("wrong-workflow", control, tamper, control), false);
+  assert.equal(negativeProved("tamper", control, { ...tamper, status: "ERROR" }, control), false);
 });

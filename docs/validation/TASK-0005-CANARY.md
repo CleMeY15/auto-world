@@ -20,6 +20,8 @@ The forced root check passed: 16/16 root tests, zero skips; lint9/typecheck11/te
 
 The real CLI incompatibility was reproduced before any issuance: gh2.98.0 rejects combined `--cert-identity`/`--signer-workflow`. ADR-0006 records the coordinator-approved two-call correction. The exact public fixture SHA256 is `d8bacf5b23f03435e17bde784994c671270c6bc8b610aabe7883e304c8346663`.
 
+Initial independent code/security and architecture reviews of `14973ee` found one exact-M binding defect. The classifier now requires a separately verified main control, the same fixed file, exact equality with M and distinct main/B bundles; arbitrary C and invalid main-control regressions are included. This correction requires fresh gates and differential reviews before merge or dispatch; the prior passing checks do not clear it.
+
 | Required real result | State |
 | --- | --- |
 | Main M run and exact bundle | NOT RUN |
@@ -34,7 +36,7 @@ The real CLI incompatibility was reproduced before any issuance: gh2.98.0 reject
 
 ## Reproduction boundary
 
-`scripts/verify-attestation-canary.mjs` exports `verifyPair({ file, bundle, sha, ref })`, using official gh on the exact local file/bundle. Both checks retain all common constraints. Use `mainRef` for M, `branchRef` for the genuine branch control, and `wrongIdentity:true` only for the controlled wrong-workflow negative. `negativeProved` accepts no raw CLI error without the valid same-bundle control and expected perturbation. The final evidence PR will bind calls to actual run IDs and immutable inputs; no placeholders count as completed proof.
+`scripts/verify-attestation-canary.mjs` exports `verifyPair({ file, bundle, sha, ref })`, using official gh on the exact local file/bundle. Both checks retain all common constraints. Use `mainRef` for M, `branchRef` for the genuine branch control, and `wrongIdentity:true` only for the controlled wrong-workflow negative. `negativeProved(kind, ownControl, rejectedPair, mainControl)` requires the genuine dual-positive main control on every call. It accepts no raw CLI error without that exact M, the valid same-bundle control and expected perturbation. The final evidence PR will bind calls to actual run IDs and immutable inputs; no placeholders count as completed proof.
 
 Verification outputs and source/ref/runner certificate bindings are distinct from workflow-controlled provenance predicate fields. Manual event origin requires actual run evidence and the exact reviewed workflow; no cryptographic event-binding claim is made.
 

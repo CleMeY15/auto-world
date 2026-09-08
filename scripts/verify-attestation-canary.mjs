@@ -120,20 +120,26 @@ export async function verifyPair(options, execute = runGh) {
 
 // A failed command alone is never an accepted security negative. The genuine
 // bundle must first have passed BOTH policies under its own expected identity.
-export function negativeProved(kind, control, result) {
-  if (control.status !== "VERIFIED" || result.status !== "REJECTED" ||
+export function negativeProved(kind, control, result, mainControl) {
+  if (mainControl?.status !== "VERIFIED" || mainControl.policy?.ref !== mainRef ||
+      mainControl.policy?.wrongIdentity !== false || mainControl.invocations?.length !== 2 ||
+      !mainControl.invocations.every((entry) => entry.status === "VERIFIED")) return false;
+  if (control?.status !== "VERIFIED" || result?.status !== "REJECTED" ||
       control.bundleSha256 !== result.bundleSha256 ||
+      control.fileSha256 !== mainControl.fileSha256 || result.policy?.sha !== mainControl.policy.sha ||
       control.policy?.wrongIdentity !== false || result.policy?.ref !== mainRef ||
       control.invocations?.length !== 2 || result.invocations?.length !== 2 ||
       !control.invocations.every((entry) => entry.status === "VERIFIED") ||
       !result.invocations.every((entry) => entry.status === "REJECTED")) return false;
   if (kind === "branch") {
     return control.fileSha256 === result.fileSha256 &&
+      control.bundleSha256 !== mainControl.bundleSha256 &&
       control.policy.ref === branchRef && control.policy.sha !== result.policy.sha &&
       result.policy.wrongIdentity === false &&
       result.invocations[1].code === "certificate_source_mismatch";
   }
-  if (control.policy.ref !== mainRef || control.policy.sha !== result.policy.sha) return false;
+  if (control.policy.ref !== mainRef || control.policy.sha !== result.policy.sha ||
+      control.bundleSha256 !== mainControl.bundleSha256) return false;
   if (kind === "tamper") return control.fileSha256 !== result.fileSha256 && !result.policy.wrongIdentity;
   if (kind === "wrong-workflow") return control.fileSha256 === result.fileSha256 && result.policy.wrongIdentity;
   return false;
