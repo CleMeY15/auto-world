@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { assertNativeAdmissionBudget, createNativeAdmissionReviewReceipt, NATIVE_ADMISSION_IMPORT_PATHS,
   validateCosignAdmissionEvidence, validateNativeAdmissionPayload, validateNativeAdmissionRepositoryContext,
   validateOrasAdmissionEvidence, validateReviewedNativeAdmissionProposal } from "../scripts/supply-chain/native-admission.mjs";
@@ -67,7 +68,7 @@ function reviewedEnvelope(value = payload(), reviewers = ["/root/bootstrap_mater
 const clone = (value) => globalThis.structuredClone(value);
 
 async function repositoryFixture() {
-  const root = await realpath(path.resolve(new URL("..", import.meta.url).pathname.slice(1)));
+  const root = await realpath(fileURLToPath(new URL("..", import.meta.url)));
   const selection = JSON.parse(await readFile(path.join(root, "infra/supply-chain/native-sources.json"), "utf8"));
   const nativePaths = selection.tools[0].recipeFiles;
   const allPaths = [...new Set(["infra/supply-chain/native-sources.json", "infra/supply-chain/native-materials.lock.json",
@@ -92,7 +93,7 @@ async function repositoryFixture() {
 }
 
 test("admission import closure is fixed and includes every static transitive policy dependency", async () => {
-  const root = await realpath(path.resolve(new URL("..", import.meta.url).pathname.slice(1)));
+  const root = await realpath(fileURLToPath(new URL("..", import.meta.url)));
   const pending = ["scripts/supply-chain/native-admission.mjs", "scripts/supply-chain/baseline-scanner.mjs"];
   const closure = new Set();
   while (pending.length) {
