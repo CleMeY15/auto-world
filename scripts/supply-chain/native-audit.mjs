@@ -188,11 +188,21 @@ export function evaluateNativeAudit(receipt, report, sbom, expected, now = Date.
   return Object.freeze({ state: blockers.length ? "rejected" : "audit_proposal", findings, blockers, packageCount: packages.size });
 }
 
-export async function verifyNativeAuditFiles(files, expected, now = Date.now()) {
+export async function verifyNativeAuditFiles(files, expected, now = Date.now(), expectedFileIdentities) {
   assertClosedObject(files, ["receipt", "binary", "scanner", "scannerVersion", "buildInfo", "moduleGraph", "material", "recipe", "sbom", "report", "database", "javaDatabase", "databaseMetadata", "javaDatabaseMetadata"]);
   const caps = { receipt: 8 * MiB, binary: 512 * MiB, scanner: 512 * MiB, scannerVersion: 8 * MiB, buildInfo: 8 * MiB, moduleGraph: 8 * MiB, material: 8 * MiB, recipe: 8 * MiB, sbom: 64 * MiB, report: 64 * MiB, database: 2 * 1024 * MiB, javaDatabase: 2 * 1024 * MiB, databaseMetadata: 8 * MiB, javaDatabaseMetadata: 8 * MiB };
+  if (expectedFileIdentities !== undefined) assertClosedObject(expectedFileIdentities, Object.keys(caps));
   const hashes = Object.create(null);
-  for (const [key, file] of Object.entries(files)) hashes[key] = await inspectFile(file, caps[key], ["receipt", "scannerVersion", "report", "sbom", "databaseMetadata", "javaDatabaseMetadata"].includes(key));
+  for (const [key, file] of Object.entries(files)) {
+    hashes[key] = await inspectFile(file, caps[key], ["receipt", "scannerVersion", "report", "sbom", "databaseMetadata", "javaDatabaseMetadata"].includes(key));
+    if (expectedFileIdentities !== undefined) {
+      const identity = expectedFileIdentities[key];
+      assertClosedObject(identity, ["sha256", "size"]);
+      requireTrue(digestPattern.test(identity.sha256) && Number.isSafeInteger(identity.size) && identity.size > 0 && identity.size <= caps[key], "native_expected_identity_invalid");
+      same(hashes[key].sha256, identity.sha256);
+      same(hashes[key].size, identity.size);
+    }
+  }
   const receipt = parseBoundedJson(hashes.receipt.bytes, { maxBytes: caps.receipt });
   const report = parseBoundedJson(hashes.report.bytes, { maxBytes: caps.report });
   const sbom = parseBoundedJson(hashes.sbom.bytes, { maxBytes: caps.sbom });

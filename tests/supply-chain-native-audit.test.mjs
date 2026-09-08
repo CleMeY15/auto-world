@@ -134,7 +134,14 @@ test("file verification independently binds every evidence byte and detects subs
     data.expected.scanner = globalThis.structuredClone(data.receipt.scanner);
     data.expected.databases = data.receipt.databases.map(({ name, repository, sha256, metadataSha256 }) => ({ name, repository, sha256, metadataSha256 }));
     await writeFile(files.receipt, JSON.stringify(data.receipt));
-    assert.equal((await verifyNativeAuditFiles(files, data.expected, now)).state, "audit_proposal");
+    const captured = {};
+    for (const [name, file] of Object.entries(files)) captured[name] = await hashFileBounded(file, 8 * 1024 * 1024);
+    assert.equal((await verifyNativeAuditFiles(files, data.expected, now, captured)).state, "audit_proposal");
+    await assert.rejects(verifyNativeAuditFiles(files, data.expected, now,
+      { ...captured, report: { ...captured.report, sha256: "f".repeat(64) } }), { code: "native_identity_mismatch" });
+    const { report: omitted, ...incomplete } = captured;
+    assert.ok(omitted);
+    await assert.rejects(verifyNativeAuditFiles(files, data.expected, now, incomplete));
     for (const name of ["binary", "scanner", "scannerVersion", "buildInfo", "moduleGraph", "material", "recipe", "database", "javaDatabase"]) {
       await writeFile(files[name], "altered-byte-identity");
       await assert.rejects(verifyNativeAuditFiles(files, data.expected, now));

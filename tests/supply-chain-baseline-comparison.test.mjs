@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { NATIVE_AUDIT_ARTIFACT_FILES } from "../scripts/supply-chain/audit-artifacts.mjs";
 import { baselineDockerArguments, compareBaselineReports, normalizeBaselineComparisonReport,
   loadBaselineExpectedInventory, validateBaselineDockerArguments, validateBaselineExpectedInventory,
-  validateNativeAuditComparisonArtifact } from "../scripts/supply-chain/baseline-comparison.mjs";
+  readVerifiedNativeAuditSummary, validateNativeAuditComparisonArtifact } from "../scripts/supply-chain/baseline-comparison.mjs";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json.mjs";
 
@@ -79,6 +79,22 @@ function auditArtifactBytes(contract) {
   return canonicalJsonBuffer({ schemaVersion: 1, budget: {}, results: [{}, {}, {}, {}], fixtures: {} });
 }
 
+test("audit summary semantic bytes must match the captured identity despite replacement and restoration", async () => {
+  const owned = await createOwnedDirectory();
+  try {
+    const file = path.join(owned.path, "native-audit-results.json");
+    const original = auditArtifactBytes({ path: "native-audit-results.json" });
+    const identity = { sha256: sha256(original), size: original.length };
+    await writeFile(file, original);
+    const expected = await readVerifiedNativeAuditSummary(file, identity);
+    const replacement = canonicalJsonBuffer({ ...expected, budget: { altered: true } });
+    await writeFile(file, replacement);
+    await assert.rejects(readVerifiedNativeAuditSummary(file, identity), { code: "baseline_audit_artifact_changed" });
+    await writeFile(file, original);
+    assert.deepEqual(await readVerifiedNativeAuditSummary(file, identity), expected);
+  } finally { await removeOwnedDirectory(owned); }
+});
+
 test("pure baseline comparison requires full source inventory and reports package, version and CVE drift", () => {
   const candidate = ["gomod-vulnerable", "java-war-vulnerable"].map((id) => normalizeBaselineComparisonReport(id, report(id, "0.74.0-autoworld.1"), "0.74.0-autoworld.1"));
   const baseline = ["gomod-vulnerable", "java-war-vulnerable"].map((id) => normalizeBaselineComparisonReport(id, report(id, "0.74.0"), "0.74.0"));
@@ -150,10 +166,12 @@ test("native audit input requires the exact 49-file passed package and rejects a
       await writeFile(path.join(artifact, contract.path), bytes);
       files.push({ path: contract.path, sha256: sha256(bytes), size: bytes.length });
     }
-    await writeFile(path.join(artifact, "diagnostic-package.json"), canonicalJsonBuffer({ schemaVersion: 1, state: "diagnostic_only",
-      executionStatus: "passed", phase: "complete", files }));
+    const packageBytes = canonicalJsonBuffer({ schemaVersion: 1, state: "diagnostic_only",
+      executionStatus: "passed", phase: "complete", files });
+    await writeFile(path.join(artifact, "diagnostic-package.json"), packageBytes);
     const validated = await validateNativeAuditComparisonArtifact(artifact);
     assert.equal(validated.identities.size, 49);
+    assert.deepEqual(validated.packageIdentity, { sha256: sha256(packageBytes), size: packageBytes.length });
     await writeFile(path.join(artifact, "unexpected"), "x");
     await assert.rejects(validateNativeAuditComparisonArtifact(artifact), { code: "baseline_audit_artifact_invalid" });
   } finally { await removeOwnedDirectory(owned); }

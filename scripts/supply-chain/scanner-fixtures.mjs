@@ -105,7 +105,11 @@ export function validateScannerFixtureManifest(manifest) {
   }
 }
 
-export async function loadScannerFixtureManifest() {
+export async function loadScannerFixtureManifest(expectedIdentity) {
+  if (expectedIdentity !== undefined) {
+    assertClosedObject(expectedIdentity, ["sha256", "size"]);
+    sameDigest(expectedIdentity, MANIFEST_IDENTITY);
+  }
   const bytes = await readFileBounded(MANIFEST_PATH, 64 * 1024);
   sameDigest({ sha256: sha256(bytes), size: bytes.length }, MANIFEST_IDENTITY);
   return validateScannerFixtureManifest(parseBoundedJson(bytes, {

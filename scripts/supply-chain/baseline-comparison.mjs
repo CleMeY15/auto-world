@@ -191,6 +191,16 @@ function expectedAuditPaths() {
   return new Map(NATIVE_AUDIT_ARTIFACT_FILES.map((entry) => [entry.path, entry.cap]));
 }
 
+export async function readVerifiedNativeAuditSummary(file, identity) {
+  const bytes = await readFileBounded(file, 8 * MiB);
+  if (!identity || sha256(bytes) !== identity.sha256 || bytes.length !== identity.size) fail("baseline_audit_artifact_changed");
+  const summary = parseBoundedJson(bytes, { maxBytes: 8 * MiB, maxDepth: 32, maxMembers: 100_000 });
+  if (canonicalJsonBuffer(summary).compare(bytes) !== 0) fail("baseline_audit_summary_invalid");
+  assertClosedObject(summary, ["schemaVersion", "budget", "results", "fixtures"]);
+  if (summary.schemaVersion !== 1 || !Array.isArray(summary.results) || summary.results.length !== 4) fail("baseline_audit_summary_invalid");
+  return summary;
+}
+
 export async function validateNativeAuditComparisonArtifact(directory) {
   if (!path.isAbsolute(directory) || await realpath(directory) !== directory) fail("baseline_audit_artifact_invalid");
   const rootInfo = await lstat(directory);
@@ -240,12 +250,8 @@ export async function validateNativeAuditComparisonArtifact(directory) {
   }
   const totalBytes = [...identities.values()].reduce((sum, entry) => sum + entry.size, packageBytes.length);
   if (totalBytes > 6 * GiB) fail("baseline_audit_artifact_budget_exceeded");
-  const summaryBytes = await readFileBounded(path.join(directory, "native-audit-results.json"), 8 * MiB);
-  const summary = parseBoundedJson(summaryBytes, { maxBytes: 8 * MiB, maxDepth: 32, maxMembers: 100_000 });
-  if (canonicalJsonBuffer(summary).compare(summaryBytes) !== 0) fail("baseline_audit_summary_invalid");
-  assertClosedObject(summary, ["schemaVersion", "budget", "results", "fixtures"]);
-  if (summary.schemaVersion !== 1 || !Array.isArray(summary.results) || summary.results.length !== 4) fail("baseline_audit_summary_invalid");
-  return Object.freeze({ identities, totalBytes, summary });
+  const summary = await readVerifiedNativeAuditSummary(path.join(directory, "native-audit-results.json"), identities.get("native-audit-results.json"));
+  return Object.freeze({ identities, totalBytes, summary, packageIdentity: Object.freeze({ sha256: sha256(packageBytes), size: packageBytes.length }) });
 }
 
 function auditFiles(directory, prefix) {
@@ -283,9 +289,15 @@ async function verifyAuditReceipts(context, directory, records, identities) {
       sha256: output.sha256, size: output.size, sourceCommit: selected.commit, materialSha256: sha256(context.lockBytes),
       recipeSha256: proposal.recipeSha256, buildInfoSha256: sha256(canonicalJsonBuffer(output.buildInfo)),
       moduleGraphSha256: sha256(canonicalJsonBuffer(proposal.modules)) };
-    const evaluation = await verifyNativeAuditFiles(auditFiles(directory, prefix), { run: expectation.run, subject,
+    const files = auditFiles(directory, prefix);
+    const expectedFiles = Object.fromEntries(Object.entries(files).map(([key, file]) => {
+      const identity = identities.get(path.relative(directory, file).replaceAll("\\", "/"));
+      if (!identity) fail("baseline_audit_artifact_invalid");
+      return [key, { sha256: identity.sha256, size: identity.size }];
+    }));
+    const evaluation = await verifyNativeAuditFiles(files, { run: expectation.run, subject,
       scanner: { name: "trivy", version: CANDIDATE_VERSION, sha256: scannerOutput.sha256 }, databases,
-      artifactName: "subject", scanTarget: path.basename(output.path), requiredPackages: inventory.packages });
+      artifactName: "subject", scanTarget: path.basename(output.path), requiredPackages: inventory.packages }, Date.now(), expectedFiles);
     if (evaluation.state !== "audit_proposal") fail("baseline_candidate_audit_not_passed");
     evaluations.push(Object.freeze({ tool, target, evaluation }));
   }

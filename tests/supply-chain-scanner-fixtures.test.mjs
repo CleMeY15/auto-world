@@ -92,7 +92,10 @@ test("Go fixture JSON accepts only the three source-derived roots without versio
 });
 
 test("scanner fixture manifest is byte-pinned and closes exactly eight local inputs", async () => {
-  const manifest = await loadScannerFixtureManifest();
+  const expected = { sha256: "68dfb6e1fdd196b23eb36256119a3050ea104a8a11c5109f34c1a389c34f2a30", size: 6184 };
+  const manifest = await loadScannerFixtureManifest(expected);
+  await assert.rejects(loadScannerFixtureManifest({ ...expected, sha256: "f".repeat(64) }),
+    { code: "scanner_fixture_material_changed" });
   assert.deepEqual(manifest.fixtures.map(({ id }) => id), [
     "gomod-vulnerable", "java-war-vulnerable", "java-jar-clean-candidate",
   ]);
