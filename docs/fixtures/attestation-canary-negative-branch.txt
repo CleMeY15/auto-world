@@ -1,0 +1,1 @@
+Auto World TASK-0005: metadata-only negative branch for the consented fixed-file canary.
