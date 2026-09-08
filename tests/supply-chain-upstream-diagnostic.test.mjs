@@ -2,13 +2,33 @@ import assert from "node:assert/strict";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
-import { runTrivyUnitTests, summarizeTrivyUnitCapture, trivyTestInventory, trivyUnitArguments } from "../scripts/supply-chain/native-build.mjs";
+import { assertTrivyUnitTempPath, runTrivyUnitTests, summarizeTrivyUnitCapture, trivyTestInventory, trivyUnitArguments } from "../scripts/supply-chain/native-build.mjs";
 import { createOwnedDirectory, removeOwnedDirectory, runCommand } from "../scripts/supply-chain/process.mjs";
 import { canonicalJsonBuffer, sha256 } from "../scripts/supply-chain/strict-json.mjs";
 
 const source = Buffer.from('package demo\nimport "testing"\nfunc TestTiny(t *testing.T) {}\nfunc TestOther(t *testing.T) {}\n');
 const inventory = () => trivyTestInventory([{ path: "pkg/demo/demo_test.go", bytes: source }]);
 const capture = (output, exit = 1) => Buffer.from(`${output}\nAUTOWORLD_TRIVY_UNIT_EXIT=${exit}\n`);
+
+test("Trivy's owned temporary path fits the pinned Podman Unix socket on every random suffix", async () => {
+  const oldRoot = "/home/runner/work/_temp/auto-world-native-build-trivy-2/tmp";
+  const currentRoot = "/home/runner/work/_temp/aw-build-trivy-2/tmp";
+  assert.equal(Buffer.byteLength(oldRoot), 59);
+  assert.equal(Buffer.byteLength(currentRoot), 44);
+  assert.throws(() => assertTrivyUnitTempPath(oldRoot), /trivy_unit_temp_path_too_long_or_invalid/u);
+  assert.doesNotThrow(() => assertTrivyUnitTempPath(currentRoot));
+  // Go 1.26 t.TempDir: test name + decimal uint32 + /001, then Podman's suffix.
+  const socket = `${currentRoot}/TestPodmanImage4294967295/001/podman/podman.sock`;
+  assert.equal(Buffer.byteLength(socket), 93);
+  assert.doesNotThrow(() => assertTrivyUnitTempPath(`/${"a".repeat(57)}`));
+  assert.throws(() => assertTrivyUnitTempPath(`/${"a".repeat(58)}`));
+  assert.doesNotThrow(() => assertTrivyUnitTempPath(`/a${"é".repeat(28)}`));
+  assert.throws(() => assertTrivyUnitTempPath(`/${"é".repeat(29)}`));
+  for (const invalid of [undefined, "", "relative", "/nul\0"]) assert.throws(() => assertTrivyUnitTempPath(invalid));
+  // Refuse the known bad path before Git, Bash, source or compiler execution.
+  await assert.rejects(() => runTrivyUnitTests("/missing-go", "/missing-source", { TMPDIR: oldRoot }, 1),
+    /trivy_unit_temp_path_too_long_or_invalid/u);
+});
 
 test("Trivy diagnostic passes the unchanged unit command only through quoted positional arguments", () => {
   const executable = path.resolve("go ' $(not-a-command)");

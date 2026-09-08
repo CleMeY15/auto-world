@@ -215,7 +215,7 @@ test("aggregate material lock requires one complete proposal for every tool", ()
     if (item.tool === "trivy") {
       item.patches = TRIVY_PATCH_IDENTITIES;
       item.testMaterials = [
-        { name: "trivy-test-repo-git-worktree", kind: "git-fixture-archive", origin: "https://github.com/aquasecurity/trivy-test-repo", path: "infra/supply-chain/materials/trivy/test-repo-git-worktree.tar.gz", sha256: "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76", size: 33_353 },
+        { name: "trivy-test-repo-git-worktree", kind: "git-fixture-archive", origin: "https://github.com/aquasecurity/trivy-test-repo", path: "infra/supply-chain/materials/trivy/test-repo-git-worktree.tar.gz", sha256: "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393", size: 34_282 },
         { name: "trivy-socat-rpm", kind: "rpm-fixture", origin: "https://mirror.openshift.com/pub/openshift-v4/amd64/dependencies/rpms/4.10-beta/socat-1.7.3.2-2.el7.x86_64.rpm", path: "infra/supply-chain/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", sha256: "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9", size: 296_692 },
       ];
       item.modules.push({ path: "github.com/magefile/mage", version: "v1.17.2", sum: `h1:${"C".repeat(43)}=`, goModSum: `h1:${"D".repeat(43)}=`, zipSha256: "9".repeat(64), zipSize: 1 });

@@ -589,7 +589,7 @@ async function prepareTrivyTestMaterials() {
     materialError("trivy_rpm_identity_mismatch");
   }
   const gitArchive = await sha256File(path.join(materialRoot, "test-repo-git-worktree.tar.gz"));
-  if (gitArchive.sha256 !== "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76" || gitArchive.size !== 33_353) {
+  if (gitArchive.sha256 !== "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393" || gitArchive.size !== 34_282) {
     materialError("trivy_git_fixture_identity_mismatch");
   }
   return [

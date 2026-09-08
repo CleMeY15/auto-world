@@ -41,7 +41,7 @@ export const TRIVY_WASM_INPUTS = Object.freeze([
 ]);
 export const TRIVY_PATCH_IDENTITIES = Object.freeze([
   { order: 1, kind: "grpc-1.83.1", path: "infra/supply-chain/patches/trivy-grpc-1.83.1.patch", sha256: "bd2d0fcb63bf9956775d5ced20d9538b89f3485c4ec113e44b1d64c809d30f24", size: 6145 },
-  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "ae5f442f57fe6929cf7d605c1cd7c6e5c6a664a1838c95eb41f90b11930db3d4", size: 33_041 },
+  { order: 2, kind: "fixture-locking", path: "infra/supply-chain/patches/trivy-fixture-locking.patch", sha256: "b582332ae15a26bbc8939bb4ffbee8a74001ed979cbea44316c7c12b406169d4", size: 33029 },
 ]);
 const ORAS_EVIDENCE_MATERIALS = Object.freeze([
   { name: "KEYS", path: "infra/supply-chain/materials/oras/KEYS", url: "https://raw.githubusercontent.com/oras-project/oras/db9e29505c3059f2b8fde34ae8cae266c5c765e9/KEYS", sha256: "3420b86b255693414e73422a09a2c86334ec902496a2fb84c938a47637fc5ea3", size: 5324 },
@@ -414,7 +414,7 @@ export function validateMaterialProposal(value, expectedSelectionSha256, expecte
     integer(record.size, `test_material_${index}_size`, 1, MATERIAL_LIMITS.archiveBytes);
     if ((record.kind === "git-fixture-archive" && record.name !== "trivy-test-repo-git-worktree") ||
         (record.kind === "rpm-fixture" && record.name !== "trivy-socat-rpm")) fail("test_material_identity_invalid");
-    if (record.name === "trivy-test-repo-git-worktree" && (record.sha256 !== "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76" || record.size !== 33_353)) fail("test_material_identity_invalid");
+    if (record.name === "trivy-test-repo-git-worktree" && (record.sha256 !== "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393" || record.size !== 34_282)) fail("test_material_identity_invalid");
     if (record.name === "trivy-socat-rpm" && (record.sha256 !== "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9" || record.size !== 296_692)) fail("test_material_identity_invalid");
   });
   if (new Set(root.testMaterials.map((entry) => entry.name)).size !== root.testMaterials.length) fail("proposal_test_material_duplicate");

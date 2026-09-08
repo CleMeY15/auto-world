@@ -212,7 +212,7 @@ async function main() {
   } else {
     const expected = expectations.find((entry) => entry.tool === args.tool && entry.repeat === args.repeat);
     const selected = selection.tools.find((entry) => entry.name === args.tool);
-    const buildDirectory = path.join(runnerTemp, `auto-world-native-build-${args.tool}-${args.repeat}`);
+    const buildDirectory = path.join(runnerTemp, `aw-build-${args.tool}-${args.repeat}`);
     await packageCandidateArtifact({ buildDirectory,
       recordFile: path.join(runnerTemp, `native-build-${args.tool}-${args.repeat}.json`),
       sourceFile: path.join(buildDirectory, `${selected.repository.split("/")[1]}-${selected.commit}.tar.gz`),

@@ -33,12 +33,12 @@ index 708c059..771fe32 100644
  const (
 -	repoURL = "https://github.com/aquasecurity/trivy-test-repo/"
 -	repoDir = "test-repo" // subdirectory for the cloned repository
-+	repoURL       = "https://github.com/aquasecurity/trivy-test-repo.git"
++	repoURL       = "https://github.com/aquasecurity/trivy-test-repo/"
 +	repoDir       = "test-repo"
 +	manifestPath  = "locked/fixture-manifest.json"
 +	trivyCommit   = "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
-+	archiveSHA256 = "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76"
-+	archiveSize   = 33353
++	archiveSHA256 = "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393"
++	archiveSize   = 34282
 +	fixtureCommit = "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
 +	fixtureTree   = "028f8b12792c2084211d02d883e3368ca87cc92f"
 +	fixtureParent = "d8920bebc6dceeadbf15f246eb9201fa387c70da"
@@ -607,10 +607,10 @@ index c9b1c07..396973e 100644
 +const (
 +	manifestPath  = "locked/fixture-manifest.json"
 +	trivyCommit   = "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
-+	repoURL       = "https://github.com/aquasecurity/trivy-test-repo.git"
++	repoURL       = "https://github.com/aquasecurity/trivy-test-repo/"
 +	archivePath   = "locked/test-repo-git-worktree.tar.gz"
-+	archiveSHA256 = "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76"
-+	archiveSize   = 33353
++	archiveSHA256 = "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393"
++	archiveSize   = 34282
 +	fixtureCommit = "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35"
 +	fixtureTree   = "028f8b12792c2084211d02d883e3368ca87cc92f"
 +	fixtureParent = "d8920bebc6dceeadbf15f246eb9201fa387c70da"
@@ -875,9 +875,9 @@ index 0000000..a73d753
 +  "trivyCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
 +  "git": {
 +    "archivePath": "locked/test-repo-git-worktree.tar.gz",
-+    "archiveSha256": "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76",
-+    "archiveSize": 33353,
-+    "provenance": "https://github.com/aquasecurity/trivy-test-repo.git",
++    "archiveSha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393",
++    "archiveSize": 34282,
++    "provenance": "https://github.com/aquasecurity/trivy-test-repo/",
 +    "head": "refs/heads/main",
 +    "refs": {
 +      "refs/heads/main": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",
@@ -911,9 +911,9 @@ index 0000000..a73d753
 +  "trivyCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
 +  "git": {
 +    "archivePath": "locked/test-repo-git-worktree.tar.gz",
-+    "archiveSha256": "082504160f61c7539bf67e3c85c0f614c4536b2e2a09a5fcb76461b3c81b6d76",
-+    "archiveSize": 33353,
-+    "provenance": "https://github.com/aquasecurity/trivy-test-repo.git",
++    "archiveSha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393",
++    "archiveSize": 34282,
++    "provenance": "https://github.com/aquasecurity/trivy-test-repo/",
 +    "head": "refs/heads/main",
 +    "refs": {
 +      "refs/heads/main": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35",

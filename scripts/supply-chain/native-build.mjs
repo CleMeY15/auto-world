@@ -114,7 +114,7 @@ async function requireBuildRuntime(tool, repeat, workspace, output) {
     materialError("native_build_run_identity_invalid");
   }
   const runnerTemp = await realpath(process.env.RUNNER_TEMP);
-  if (path.dirname(workspace) !== runnerTemp || path.basename(workspace) !== `auto-world-native-build-${tool}-${repeat}` ||
+  if (path.dirname(workspace) !== runnerTemp || path.basename(workspace) !== `aw-build-${tool}-${repeat}` ||
       path.dirname(output) !== runnerTemp || path.basename(output) !== `native-build-${tool}-${repeat}.json`) materialError("native_build_owned_path_invalid");
   try {
     await lstat(workspace);
@@ -290,7 +290,15 @@ export function summarizeTrivyUnitCapture(stdout, stderr, inventory) {
   return Object.freeze(summary);
 }
 
+export function assertTrivyUnitTempPath(tempDirectory) {
+  // Pinned TestPodmanImage adds at most 49 bytes to TMPDIR (Go's decimal
+  // uint32 suffix included). Linux Unix socket pathnames must stay below 108.
+  if (typeof tempDirectory !== "string" || !path.posix.isAbsolute(tempDirectory) || tempDirectory.includes("\0") ||
+      Buffer.byteLength(tempDirectory, "utf8") > 58) materialError("trivy_unit_temp_path_too_long_or_invalid");
+}
+
 export async function runTrivyUnitTests(go, source, env, timeoutMs) {
+  assertTrivyUnitTempPath(env.TMPDIR);
   const listing = await runCommand(BIN.git, ["ls-files", "-z", "--", "*_test.go"], { cwd: source, env, maxOutputBytes: 4 * 1024 * 1024 });
   const paths = listing.stdout.toString("utf8").split("\0");
   if (paths.pop() !== "" || paths.length < 1 || paths.length > 4096) materialError("trivy_test_inventory_invalid");

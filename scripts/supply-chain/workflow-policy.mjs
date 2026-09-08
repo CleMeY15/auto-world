@@ -133,7 +133,7 @@ const bodies = {
           --tool "$BOOTSTRAP_TOOL"
           --repeat "$BOOTSTRAP_REPEAT"
           --lock "$GITHUB_WORKSPACE/infra/supply-chain/native-materials.lock.json"
-          --workspace "$RUNNER_TEMP/auto-world-native-build-$BOOTSTRAP_TOOL-$BOOTSTRAP_REPEAT"
+          --workspace "$RUNNER_TEMP/aw-build-$BOOTSTRAP_TOOL-$BOOTSTRAP_REPEAT"
           --output "$RUNNER_TEMP/native-build-$BOOTSTRAP_TOOL-$BOOTSTRAP_REPEAT.json"`,
   package: `        env:
           BOOTSTRAP_TOOL: \${{ matrix.tool }}

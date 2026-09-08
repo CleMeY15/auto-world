@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { NATIVE_ADMISSION_IMPORT_PATHS } from "../../scripts/supply-chain/native-admission.mjs";
+import { TRIVY_PATCH_IDENTITIES } from "../../scripts/supply-chain/materials.mjs";
 import { canonicalJsonBuffer, sha256 } from "../../scripts/supply-chain/strict-json.mjs";
 
 // This fixture exercises the production validators with deterministic local data.
@@ -152,6 +153,13 @@ export async function createNativeAdmissionFixture() {
     const sourceBytes = Object.fromEntries(lock.proposals.map(({ tool }) => [tool, Buffer.from(`synthetic-source-${tool}`)]));
     for (const proposal of lock.proposals) {
       const selected = selection.tools.find((entry) => entry.name === proposal.tool);
+      if (proposal.tool === "trivy") {
+        proposal.patches = TRIVY_PATCH_IDENTITIES.map((entry) => ({ ...entry }));
+        proposal.testMaterials = await Promise.all(proposal.testMaterials.map(async (entry) => {
+          const bytes = await readFile(path.join(REPOSITORY_ROOT, entry.path));
+          return { ...entry, sha256: sha256(bytes), size: bytes.length };
+        }));
+      }
       proposal.recipeFiles = [];
       for (const relative of selected.recipeFiles) {
         const bytes = await readFile(path.join(root, relative));
