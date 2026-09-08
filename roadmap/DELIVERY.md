@@ -1,12 +1,13 @@
 # Auto World delivery ledger
 
-Status: ACTIVE — full roadmap P0 through P5 remains NOT DONE
+Status: PAUSED — only the separately consented TASK-0005 attestation canary is authorized; full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome
 Operate as a continuous development team that selects the single first READY task, completes it through review and CI, merges it, refreshes the roadmap state, then selects again until the roadmap outcome is delivered.
 
 ## Current checkpoint
+- Priority update, 2026-09-08: PR #6 is merged into accepted main `b9d22a2`; TASK-0005 data PR #7 and native preparation PR #8 remain draft/unaccepted. Execute only [ADR-0006](../docs/decisions/ADR-0006-public-attestation-canary.md): two fixed-file attestation runs at most, exact verification, reviewed evidence/workflow-removal PR, then stop. The hourly heartbeat is PAUSED; TASK-0005B and TASK-0006 remain blocked. Historical checkpoints below do not override this boundary.
 - TASK-0001 is merged to `main` at `d479482`; issue #1 is closed.
 - TASK-0002 through TASK-0006 contracts are integrated through PR #3 at `9fcdeae`; merge CI passed.
 - TASK-0002 implementation is validated at `900ce34`: 88 runtime tests, type fixtures, all root gates, fresh remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0002.md`; integration and final-head CI: PR #4.

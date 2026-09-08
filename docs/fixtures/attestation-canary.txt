@@ -1,0 +1,3 @@
+Auto World
+TASK-0005 public attestation canary.
+Harmless fixed text; no vehicle, customer or source data.

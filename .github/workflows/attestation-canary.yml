@@ -1,0 +1,55 @@
+{
+  "name": "TASK-0005 attestation canary",
+  "on": { "workflow_dispatch": {} },
+  "permissions": {},
+  "concurrency": { "group": "task-0005-attestation-canary", "cancel-in-progress": false },
+  "jobs": {
+    "canary": {
+      "if": "github.repository == 'CleMeY15/auto-world' && github.run_attempt == 1 && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/task-0005-attestation-negative')",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": { "contents": "read", "id-token": "write", "attestations": "write" },
+      "defaults": { "run": { "shell": "bash --noprofile --norc -euo pipefail {0}" } },
+      "steps": [
+        {
+          "name": "Read the reviewed public fixture and workflow",
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "persist-credentials": false,
+            "fetch-depth": 1,
+            "sparse-checkout-cone-mode": false,
+            "sparse-checkout": ".github/workflows/attestation-canary.yml\ndocs/fixtures/attestation-canary.txt\n.gitattributes"
+          }
+        },
+        {
+          "name": "Check the fixed public bytes",
+          "run": "printf '%s  %s\n' 'd8bacf5b23f03435e17bde784994c671270c6bc8b610aabe7883e304c8346663' 'docs/fixtures/attestation-canary.txt' | sha256sum --check --status"
+        },
+        {
+          "name": "Record managed runner and official CLI interface",
+          "run": "gh --version > \"$RUNNER_TEMP/canary-gh-version.txt\"\ngh attestation verify --help > \"$RUNNER_TEMP/canary-gh-help.txt\"\nfor flag in cert-identity cert-oidc-issuer source-ref source-digest signer-digest signer-workflow deny-self-hosted-runners predicate-type bundle format; do grep -Fq -- \"--$flag\" \"$RUNNER_TEMP/canary-gh-help.txt\"; done\nsha256sum -- \"$(command -v gh)\" > \"$RUNNER_TEMP/canary-gh-sha256.txt\"\nsha256sum -- docs/fixtures/attestation-canary.txt .github/workflows/attestation-canary.yml > \"$RUNNER_TEMP/canary-input-sha256.txt\"\nprintf 'repository=%s\nref=%s\nsha=%s\nrun_id=%s\nrun_attempt=%s\nrunner_os=%s\nrunner_arch=%s\nimage_os=%s\nimage_version=%s\n' \"$GITHUB_REPOSITORY\" \"$GITHUB_REF\" \"$GITHUB_SHA\" \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\" \"$RUNNER_OS\" \"$RUNNER_ARCH\" \"$ImageOS\" \"$ImageVersion\" > \"$RUNNER_TEMP/canary-run.txt\""
+        },
+        {
+          "id": "attest",
+          "name": "Attest only the fixed public text",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-path": "docs/fixtures/attestation-canary.txt",
+            "push-to-registry": false,
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "Retain the genuine bundle for this exact run",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "attestation-canary-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ steps.attest.outputs.bundle-path }}\ndocs/fixtures/attestation-canary.txt\n${{ runner.temp }}/canary-gh-version.txt\n${{ runner.temp }}/canary-gh-help.txt\n${{ runner.temp }}/canary-gh-sha256.txt\n${{ runner.temp }}/canary-input-sha256.txt\n${{ runner.temp }}/canary-run.txt",
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}
