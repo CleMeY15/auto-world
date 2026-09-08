@@ -30,7 +30,7 @@ const GO_ROOT_PACKAGES = Object.freeze(new Map([
   ["submod2/go.mod", "github.com/testdata/testdata/submod2"],
 ]));
 const EXPECTED_INVENTORY_PATH = fileURLToPath(new URL("../../infra/supply-chain/materials/baseline-fixtures/expected-inventory.json", import.meta.url));
-const EXPECTED_INVENTORY_IDENTITY = Object.freeze({ sha256: "8fc03ae83b60481286f864b4b5daefb9dc3c5ed693a1174a7a8786f7b20989c6", size: 19799 });
+const EXPECTED_INVENTORY_IDENTITY = Object.freeze({ sha256: "94d004fa9835aebd81b19c5ff4835554f58eef1da176d2dd0d6b2c15ed8936fd", size: 19304 });
 const fail = (code) => { throw policyError(code); };
 
 function fixedPath(value) {
