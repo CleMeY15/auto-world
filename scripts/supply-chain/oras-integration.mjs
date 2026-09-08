@@ -21,7 +21,7 @@ import {
   removeOwnedDirectory,
   runCommand,
 } from "./process.mjs";
-import { createBootstrapFixture, validateBootstrapFixture } from "./oci.mjs";
+import { createBootstrapFixture, validateBootstrapFixture, validateOrasCopiedFixture } from "./oci.mjs";
 import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
 
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -132,13 +132,6 @@ export async function readFixture(directory, expectedNames) {
   if (found.sort().join("\n") !== names.sort().join("\n")) fail("oras_layout_graph_mismatch");
   for (const name of names) files.set(name, await readFileBounded(path.join(directory, ...name.split("/")), 32 * 1024));
   return files;
-}
-
-function exactFixtureEqual(expected, actual) {
-  if (expected.size !== actual.size) fail("oras_layout_graph_mismatch");
-  for (const [name, bytes] of expected) {
-    if (!actual.get(name)?.equals(bytes)) fail("oras_layout_graph_mismatch");
-  }
 }
 
 const collectBody = (request) => new Promise((resolve, reject) => {
@@ -503,8 +496,12 @@ export async function runOrasIntegration(args, environment = process.env) {
     const baseEnvironment = { ...SAFE_ENVIRONMENT, HOME: owned.path, TMPDIR: owned.path };
     await runCp(args.binary, `${source}:bootstrap`, `${destination}:bootstrap`, ["--to-oci-layout"], baseEnvironment, owned.path);
     const copied = await readFixture(destination, fixture.files.keys());
-    validateBootstrapFixture(copied);
-    exactFixtureEqual(fixture.files, copied);
+    // Only fixed public fixture paths and bounded byte identities reach the log.
+    // In particular, retain no copied JSON, temporary path or authentication data.
+    process.stdout.write(`${JSON.stringify({ phase: "oras_copy_diagnostic", files: [...fixture.files.keys()].map((name) => ({
+      path: name, sha256: digest(copied.get(name)).slice(7), size: copied.get(name).length,
+    })) })}\n`);
+    validateOrasCopiedFixture(copied);
 
     const tls = await createTlsIdentity(owned.path, baseEnvironment);
     const orasEnvironment = commandEnvironment(owned.path, tls.cert);

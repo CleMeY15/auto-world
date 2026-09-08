@@ -14,6 +14,40 @@ const DB_REPOSITORIES = Object.freeze({
   vulnerability: "ghcr.io/aquasecurity/trivy-db:2",
   java: "ghcr.io/aquasecurity/trivy-java-db:1",
 });
+const BASH = "/usr/bin/bash";
+const DATABASE_CAPTURE_LIMIT = 64 * MiB;
+const DATABASE_DIAGNOSTIC_LIMIT = 64 * 1024;
+const DATABASE_EXIT_TOKEN = "AUTOWORLD_DATABASE_EXIT=";
+const DATABASE_EXIT = /\nAUTOWORLD_DATABASE_EXIT=([0-9]{1,3})\n$/u;
+const DATABASE_COMMANDS = Object.freeze({
+  vulnerability: Object.freeze({
+    commandClass: "trivy_vulnerability_database_download",
+    args: (cacheDirectory) => ["fs", "--cache-dir", cacheDirectory, "--db-repository", DB_REPOSITORIES.vulnerability, "--download-db-only", "--quiet"],
+  }),
+  java: Object.freeze({
+    commandClass: "trivy_java_database_download",
+    args: (cacheDirectory) => ["fs", "--cache-dir", cacheDirectory, "--java-db-repository", DB_REPOSITORIES.java, "--download-java-db-only", "--quiet"],
+  }),
+});
+const COMMAND_FAILURE_CODES = new Set(["command_refused", "command_start_failed", "command_timeout", "command_output_limit", "command_output_forbidden", "command_failed"]);
+const DATABASE_ERROR_CLASSES = Object.freeze([
+  ["authentication", /(?:unauthorized|authentication required|access denied|forbidden)/iu],
+  ["rate_limit", /(?:too many requests|rate[ -]?limit)/iu],
+  ["name_resolution", /(?:no such host|name resolution|temporary failure in name resolution)/iu],
+  ["connection", /(?:connection refused|connection reset|network is unreachable|i\/o timeout|context deadline exceeded|tls handshake timeout)/iu],
+  ["tls", /(?:x509:|certificate|tls:)/iu],
+  ["registry_not_found", /(?:manifest unknown|blob unknown|not found)/iu],
+  ["registry_response", /(?:unexpected status|unexpected response|invalid manifest)/iu],
+  ["filesystem", /(?:permission denied|no space left on device|read-only file system)/iu],
+]);
+const DATABASE_STATUS_HINTS = Object.freeze([401, 403, 404, 408, 429, 500, 502, 503, 504]);
+const DATABASE_SUBPHASE_ERRORS = Object.freeze({
+  inventory: "native_database_inventory_refused",
+  budget: "native_database_budget_refused",
+  identity: "native_database_identity_refused",
+  materialize: "native_database_materialize_refused",
+  metadata: "native_database_metadata_refused",
+});
 const SUBJECTS = Object.freeze([
   ["oras", "linux-amd64"], ["cosign", "linux-amd64"], ["cosign", "windows-amd64"], ["trivy", "linux-amd64"],
 ]);
@@ -28,6 +62,103 @@ export function nativeScanArguments(format, cacheDirectory, target = "subject") 
   if (!new Set(["cyclonedx", "json"]).has(format) || !path.isAbsolute(cacheDirectory) || target !== "subject") fail("native_scan_arguments_refused");
   return ["fs", "--cache-dir", cacheDirectory, "--skip-db-update", "--skip-java-db-update", "--offline-scan", "--quiet",
     "--cache-backend", "memory", "--scanners", "vuln", "--format", format, ...(format === "json" ? ["--list-all-pkgs"] : []), target];
+}
+
+export function databaseDownloadArguments(scanner, cacheDirectory, kind) {
+  if (typeof kind !== "string" || !Object.hasOwn(DATABASE_COMMANDS, kind)) fail("native_database_arguments_refused");
+  const command = DATABASE_COMMANDS[kind];
+  if (typeof scanner !== "string" || !path.isAbsolute(scanner) || scanner.includes("\0") ||
+      typeof cacheDirectory !== "string" || !path.isAbsolute(cacheDirectory) || cacheDirectory.includes("\0")) fail("native_database_arguments_refused");
+  return ["--noprofile", "--norc", "-c", '"$@"; code=$?; printf "\\nAUTOWORLD_DATABASE_EXIT=%s\\n" "$code"',
+    "--", scanner, ...command.args(cacheDirectory)];
+}
+
+function databaseCommand(kind) {
+  if (typeof kind !== "string" || !Object.hasOwn(DATABASE_COMMANDS, kind)) fail("native_database_diagnostic_invalid");
+  return DATABASE_COMMANDS[kind];
+}
+
+function databaseStreamIdentity(bytes) {
+  return Object.freeze({ sha256: sha256(bytes), size: bytes.length });
+}
+
+export function summarizeDatabaseDownloadCapture(stdout, stderr, kind, durationMs) {
+  const command = databaseCommand(kind);
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length + stderr.length > DATABASE_CAPTURE_LIMIT ||
+      !Number.isSafeInteger(durationMs) || durationMs < 0 || durationMs > 45 * 60 * 1000) fail("native_database_capture_invalid");
+  const text = stdout.toString("utf8");
+  const marker = DATABASE_EXIT.exec(text);
+  const firstMarker = text.indexOf(DATABASE_EXIT_TOKEN);
+  if (!marker || firstMarker < 0 || firstMarker !== text.lastIndexOf(DATABASE_EXIT_TOKEN) ||
+      stderr.includes(Buffer.from(DATABASE_EXIT_TOKEN)) || Number(marker[1]) > 255) fail("native_database_capture_invalid");
+  const body = stdout.subarray(0, stdout.length - Buffer.byteLength(marker[0]));
+  const streams = [body.toString("utf8"), stderr.toString("utf8")];
+  const originalExitCode = Number(marker[1]);
+  const errorClasses = DATABASE_ERROR_CLASSES.filter(([, expression]) => streams.some((stream) => expression.test(stream))).map(([name]) => name).sort();
+  if (originalExitCode !== 0 && errorClasses.length === 0) errorClasses.push("unclassified_failure");
+  const statusHints = DATABASE_STATUS_HINTS.filter((status) => streams.some((stream) => new RegExp(`(?:^|[^0-9])${status}(?:[^0-9]|$)`, "u").test(stream))).map((status) => `http_${status}`);
+  const diagnostic = Object.freeze({ schemaVersion: 1, state: "diagnostic_only", phase: "databases", subphase: "download",
+    database: kind, commandClass: command.commandClass, captureStatus: "complete", originalExitCode, durationMs,
+    stdout: databaseStreamIdentity(body), stderr: databaseStreamIdentity(stderr), errorClasses, statusHints });
+  if (canonicalJsonBuffer(diagnostic).length > DATABASE_DIAGNOSTIC_LIMIT) fail("native_database_diagnostic_too_large");
+  return diagnostic;
+}
+
+export function unavailableDatabaseDiagnostic(kind, commandFailureCode, durationMs) {
+  const command = databaseCommand(kind);
+  if (!COMMAND_FAILURE_CODES.has(commandFailureCode) && commandFailureCode !== "capture_invalid") fail("native_database_diagnostic_invalid");
+  const diagnostic = { schemaVersion: 1, state: "diagnostic_only", phase: "databases", subphase: "download",
+    database: kind, commandClass: command.commandClass, captureStatus: "unavailable", originalExitCode: null, commandFailureCode };
+  if (Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 45 * 60 * 1000) diagnostic.durationMs = durationMs;
+  return Object.freeze(diagnostic);
+}
+
+function emitDatabaseDiagnostic(diagnostic) {
+  const bytes = canonicalJsonBuffer(diagnostic);
+  if (bytes.length > DATABASE_DIAGNOSTIC_LIMIT) fail("native_database_diagnostic_too_large");
+  process.stdout.write(`${bytes.toString("utf8")}\n`);
+}
+
+export async function runDatabaseDownload(scanner, cacheDirectory, kind, options) {
+  let result;
+  try {
+    result = await runCommand(BASH, databaseDownloadArguments(scanner, cacheDirectory, kind),
+      { ...options, maxOutputBytes: DATABASE_CAPTURE_LIMIT });
+  } catch (error) {
+    const code = COMMAND_FAILURE_CODES.has(error?.code) ? error.code : "command_failed";
+    emitDatabaseDiagnostic(unavailableDatabaseDiagnostic(kind, code, error?.durationMs));
+    throw error;
+  }
+  let diagnostic;
+  try {
+    diagnostic = summarizeDatabaseDownloadCapture(result.stdout, result.stderr, kind, result.durationMs);
+  } catch (error) {
+    emitDatabaseDiagnostic(unavailableDatabaseDiagnostic(kind, "capture_invalid", result.durationMs));
+    throw error;
+  }
+  if (diagnostic.originalExitCode !== 0) {
+    emitDatabaseDiagnostic(diagnostic);
+    throw Object.assign(policyError("command_failed"), { exitCode: diagnostic.originalExitCode, durationMs: diagnostic.durationMs });
+  }
+  return diagnostic;
+}
+
+async function databaseSubphase(subphase, operation) {
+  if (typeof operation !== "function") fail("native_database_diagnostic_invalid");
+  try {
+    return await operation();
+  } catch (error) {
+    emitDatabaseDiagnostic(databaseSubphaseDiagnostic(subphase));
+    throw error;
+  }
+}
+
+export function databaseSubphaseDiagnostic(subphase) {
+  if (typeof subphase !== "string" || !Object.hasOwn(DATABASE_SUBPHASE_ERRORS, subphase)) fail("native_database_diagnostic_invalid");
+  const commandFailureCode = DATABASE_SUBPHASE_ERRORS[subphase];
+  return Object.freeze({ schemaVersion: 1, state: "diagnostic_only", phase: "databases", subphase,
+    database: "all", commandClass: "postdownload_validation", captureStatus: "unavailable", originalExitCode: null,
+    commandFailureCode });
 }
 
 // Reserve every bounded report/receipt before copying database or subject bytes.
@@ -223,53 +354,54 @@ async function collectNativeScans(context, audit, progress) {
   if (scannerVersion.Version !== selectedScanner.modifiedVersion) fail("native_scanner_version_mismatch");
 
   progress.phase = "databases";
-  await runCommand(scanner, ["fs", "--cache-dir", cache.path, "--db-repository", DB_REPOSITORIES.vulnerability, "--download-db-only", "--quiet"],
-    { ...common, timeoutMs: remaining(started), maxOutputBytes: 64 * MiB });
-  await verifyStagedSubjects(staged);
-  await runCommand(scanner, ["fs", "--cache-dir", cache.path, "--java-db-repository", DB_REPOSITORIES.java, "--download-java-db-only", "--quiet"],
-    { ...common, timeoutMs: remaining(started), maxOutputBytes: 64 * MiB });
-  await verifyStagedSubjects(staged);
+  await runDatabaseDownload(scanner, cache.path, "vulnerability", { ...common, timeoutMs: remaining(started) });
+  await databaseSubphase("identity", () => verifyStagedSubjects(staged));
+  await runDatabaseDownload(scanner, cache.path, "java", { ...common, timeoutMs: remaining(started) });
+  await databaseSubphase("identity", () => verifyStagedSubjects(staged));
   const cacheDatabasePaths = {
     database: path.join(cache.path, "db/trivy.db"), databaseMetadata: path.join(cache.path, "db/metadata.json"),
     javaDatabase: path.join(cache.path, "java-db/trivy-java.db"), javaDatabaseMetadata: path.join(cache.path, "java-db/metadata.json"),
   };
-  const databaseSizes = await Promise.all(Object.values(cacheDatabasePaths).map(async (file) => (await lstat(file)).size));
-  const budget = assertNativeAuditBudget({ matrixBytes: matrix.consumedBytes,
-    binarySizes,
-    databaseSizes });
-  if (budget.databaseCapacityBytes !== preflightBudget.databaseCapacityBytes) fail("native_audit_budget_changed");
+  const databaseSizes = await databaseSubphase("inventory", () => Promise.all(Object.values(cacheDatabasePaths).map(async (file) => (await lstat(file)).size)));
+  const budget = await databaseSubphase("budget", async () => {
+    const value = assertNativeAuditBudget({ matrixBytes: matrix.consumedBytes, binarySizes, databaseSizes });
+    if (value.databaseCapacityBytes !== preflightBudget.databaseCapacityBytes) fail("native_audit_budget_changed");
+    return value;
+  });
   const databaseDirectory = path.join(audit.path, "databases");
-  await mkdir(databaseDirectory);
   const databasePaths = {
     database: path.join(databaseDirectory, "vulnerability.db"), databaseMetadata: path.join(databaseDirectory, "vulnerability.metadata.json"),
     javaDatabase: path.join(databaseDirectory, "java.db"), javaDatabaseMetadata: path.join(databaseDirectory, "java.metadata.json"),
   };
-  const vulnerabilityMetadataBytes = await readFileBounded(cacheDatabasePaths.databaseMetadata, 8 * MiB);
-  const javaMetadataBytes = await readFileBounded(cacheDatabasePaths.javaDatabaseMetadata, 8 * MiB);
-  const databaseHashes = {
-    database: await hashFileBounded(cacheDatabasePaths.database, 2 * 1024 * MiB),
-    databaseMetadata: { sha256: sha256(vulnerabilityMetadataBytes), size: vulnerabilityMetadataBytes.length },
-    javaDatabase: await hashFileBounded(cacheDatabasePaths.javaDatabase, 2 * 1024 * MiB),
-    javaDatabaseMetadata: { sha256: sha256(javaMetadataBytes), size: javaMetadataBytes.length },
-  };
-  expectedInventory.capture("databases/vulnerability.db", databaseHashes.database);
-  expectedInventory.capture("databases/vulnerability.metadata.json", databaseHashes.databaseMetadata);
-  expectedInventory.capture("databases/java.db", databaseHashes.javaDatabase);
-  expectedInventory.capture("databases/java.metadata.json", databaseHashes.javaDatabaseMetadata);
-  await copyFile(cacheDatabasePaths.database, databasePaths.database);
-  await writeFile(databasePaths.databaseMetadata, vulnerabilityMetadataBytes, { flag: "wx" });
-  await copyFile(cacheDatabasePaths.javaDatabase, databasePaths.javaDatabase);
-  await writeFile(databasePaths.javaDatabaseMetadata, javaMetadataBytes, { flag: "wx" });
-  requireDigest(await hashFileBounded(databasePaths.database, 2 * 1024 * MiB), databaseHashes.database);
-  requireDigest(await hashFileBounded(databasePaths.javaDatabase, 2 * 1024 * MiB), databaseHashes.javaDatabase);
-  const metadata = {
-    vulnerability: parseBoundedJson(vulnerabilityMetadataBytes),
-    java: parseBoundedJson(javaMetadataBytes),
-  };
-  const databases = [
-    databaseRecord("vulnerability", databaseHashes.database, databaseHashes.databaseMetadata, metadata.vulnerability),
-    databaseRecord("java", databaseHashes.javaDatabase, databaseHashes.javaDatabaseMetadata, metadata.java),
-  ];
+  const { vulnerabilityMetadataBytes, javaMetadataBytes, databaseHashes } = await databaseSubphase("identity", async () => {
+    const vulnerabilityBytes = await readFileBounded(cacheDatabasePaths.databaseMetadata, 8 * MiB);
+    const javaBytes = await readFileBounded(cacheDatabasePaths.javaDatabaseMetadata, 8 * MiB);
+    const hashes = {
+      database: await hashFileBounded(cacheDatabasePaths.database, 2 * 1024 * MiB),
+      databaseMetadata: { sha256: sha256(vulnerabilityBytes), size: vulnerabilityBytes.length },
+      javaDatabase: await hashFileBounded(cacheDatabasePaths.javaDatabase, 2 * 1024 * MiB),
+      javaDatabaseMetadata: { sha256: sha256(javaBytes), size: javaBytes.length },
+    };
+    expectedInventory.capture("databases/vulnerability.db", hashes.database);
+    expectedInventory.capture("databases/vulnerability.metadata.json", hashes.databaseMetadata);
+    expectedInventory.capture("databases/java.db", hashes.javaDatabase);
+    expectedInventory.capture("databases/java.metadata.json", hashes.javaDatabaseMetadata);
+    return { vulnerabilityMetadataBytes: vulnerabilityBytes, javaMetadataBytes: javaBytes, databaseHashes: hashes };
+  });
+  await databaseSubphase("materialize", async () => {
+    await mkdir(databaseDirectory);
+    await copyFile(cacheDatabasePaths.database, databasePaths.database);
+    await writeFile(databasePaths.databaseMetadata, vulnerabilityMetadataBytes, { flag: "wx" });
+    await copyFile(cacheDatabasePaths.javaDatabase, databasePaths.javaDatabase);
+    await writeFile(databasePaths.javaDatabaseMetadata, javaMetadataBytes, { flag: "wx" });
+    requireDigest(await hashFileBounded(databasePaths.database, 2 * 1024 * MiB), databaseHashes.database);
+    requireDigest(await hashFileBounded(databasePaths.javaDatabase, 2 * 1024 * MiB), databaseHashes.javaDatabase);
+  });
+  const databases = await databaseSubphase("metadata", async () => {
+    const metadata = { vulnerability: parseBoundedJson(vulnerabilityMetadataBytes), java: parseBoundedJson(javaMetadataBytes) };
+    return [databaseRecord("vulnerability", databaseHashes.database, databaseHashes.databaseMetadata, metadata.vulnerability),
+      databaseRecord("java", databaseHashes.javaDatabase, databaseHashes.javaDatabaseMetadata, metadata.java)];
+  });
 
   const results = [];
   const audits = [];

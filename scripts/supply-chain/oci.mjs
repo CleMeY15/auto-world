@@ -188,6 +188,32 @@ export function validateBootstrapFixture(files) {
   });
 }
 
+// oras-go/v2.6.2 rewrites only the transport index using Go struct field order.
+// Match that exact fixed profile; the canonical source graph stays unchanged.
+export function validateOrasCopiedFixture(files) {
+  const fixture = createBootstrapFixture();
+  const graph = validateBootstrapFixture(fixture.files);
+  const expected = new Map(fixture.files);
+  expected.set("index.json", Buffer.from(JSON.stringify({
+    schemaVersion: 2,
+    mediaType: OCI_INDEX_MEDIA,
+    manifests: [{
+      mediaType: OCI_INDEX_MEDIA,
+      digest: fixture.parentDigest,
+      size: fixture.files.get(blobPath(fixture.parentDigest)).length,
+      annotations: { [REF_ANNOTATION]: "bootstrap" },
+    }],
+  })));
+  if (!(files instanceof Map) || files.size !== expected.size) fail("OCI_COPIED_PROFILE_MISMATCH");
+  let total = 0;
+  for (const [name, bytes] of files) {
+    if (!expected.has(name) || !Buffer.isBuffer(bytes) || bytes.length > ASSET_LIMIT) fail("OCI_COPIED_PROFILE_MISMATCH");
+    total += bytes.length;
+    if (total > LAYOUT_LIMIT || !bytes.equals(expected.get(name))) fail("OCI_COPIED_PROFILE_MISMATCH");
+  }
+  return graph;
+}
+
 export const OCI_MEDIA_TYPES = Object.freeze({
   config: OCI_CONFIG_MEDIA,
   index: OCI_INDEX_MEDIA,
