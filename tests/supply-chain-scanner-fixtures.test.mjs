@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
@@ -9,6 +9,7 @@ import {
   scannerFixtureArtifactInventory,
   scannerFixtureArguments,
   validateScannerFixtureArtifact,
+  verifyScannerFixtureScratch,
   verifyScannerFixtureReportFile,
   validateScannerFixtureReport,
 } from "../scripts/supply-chain/scanner-fixtures.mjs";
@@ -140,6 +141,51 @@ test("fixture artifact admits only eight materials and three reports without scr
     await writeFile(path.join(artifact, "unbounded-cache"), "unexpected");
     await assert.rejects(validateScannerFixtureArtifact(artifact), { code: "scanner_fixture_artifact_invalid" });
   } finally { await removeOwnedDirectory(owned); }
+});
+
+test("fixture scratch is a precreated empty sibling and remains five exact empty directories", async () => {
+  const parent = await createOwnedDirectory();
+  let workspace;
+  let scratch;
+  try {
+    workspace = await createOwnedDirectory(parent.path);
+    scratch = await createOwnedDirectory(parent.path);
+    assert.equal(await verifyScannerFixtureScratch({ scratch: scratch.path, workspace: workspace.path, initialized: false }), true);
+    for (const name of ["home", "tmp", "gopath", "gocache", "gomodcache"]) await mkdir(path.join(scratch.path, name));
+    assert.equal(await verifyScannerFixtureScratch({ scratch: scratch.path, workspace: workspace.path, initialized: true }), true);
+    await writeFile(path.join(scratch.path, "home", "growth"), "sentinel");
+    await assert.rejects(verifyScannerFixtureScratch({ scratch: scratch.path, workspace: workspace.path, initialized: true }),
+      { code: "scanner_fixture_scratch_invalid" });
+    await rm(path.join(scratch.path, "home", "growth"));
+    await mkdir(path.join(scratch.path, "extra"));
+    await assert.rejects(verifyScannerFixtureScratch({ scratch: scratch.path, workspace: workspace.path, initialized: true }),
+      { code: "scanner_fixture_scratch_invalid" });
+    await assert.rejects(verifyScannerFixtureScratch({ scratch: workspace.path, workspace: workspace.path, initialized: false }),
+      { code: "scanner_fixture_scratch_invalid" });
+  } finally {
+    if (scratch) await removeOwnedDirectory(scratch);
+    if (workspace) await removeOwnedDirectory(workspace);
+    await removeOwnedDirectory(parent);
+  }
+});
+
+test("fixture scratch refuses an expected directory replaced by a link", { skip: process.platform === "win32" }, async () => {
+  const parent = await createOwnedDirectory();
+  let workspace;
+  let scratch;
+  try {
+    workspace = await createOwnedDirectory(parent.path);
+    scratch = await createOwnedDirectory(parent.path);
+    for (const name of ["home", "tmp", "gopath", "gocache", "gomodcache"]) await mkdir(path.join(scratch.path, name));
+    await rm(path.join(scratch.path, "home"), { recursive: true });
+    await symlink(workspace.path, path.join(scratch.path, "home"), "dir");
+    await assert.rejects(verifyScannerFixtureScratch({ scratch: scratch.path, workspace: workspace.path, initialized: true }),
+      { code: "scanner_fixture_scratch_invalid" });
+  } finally {
+    if (scratch) await removeOwnedDirectory(scratch);
+    if (workspace) await removeOwnedDirectory(workspace);
+    await removeOwnedDirectory(parent);
+  }
 });
 
 test("pure fixture validator accepts the selected package and vulnerability contracts", () => {

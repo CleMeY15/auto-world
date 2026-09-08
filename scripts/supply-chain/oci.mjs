@@ -188,7 +188,8 @@ export function validateBootstrapFixture(files) {
   });
 }
 
-// oras-go/v2.6.2 rewrites only the transport index using Go struct field order.
+// oras-go/v2.6.2 indexes both the tagged parent and its digest-only child,
+// serializing them in Go struct field order in the transport index.
 // Match that exact fixed profile; the canonical source graph stays unchanged.
 export function validateOrasCopiedFixture(files) {
   const fixture = createBootstrapFixture();
@@ -202,6 +203,11 @@ export function validateOrasCopiedFixture(files) {
       digest: fixture.parentDigest,
       size: fixture.files.get(blobPath(fixture.parentDigest)).length,
       annotations: { [REF_ANNOTATION]: "bootstrap" },
+    }, {
+      mediaType: OCI_MANIFEST_MEDIA,
+      digest: graph.childDigest,
+      size: fixture.files.get(blobPath(graph.childDigest)).length,
+      platform: { architecture: "amd64", os: "linux" },
     }],
   })));
   if (!(files instanceof Map) || files.size !== expected.size) fail("OCI_COPIED_PROFILE_MISMATCH");

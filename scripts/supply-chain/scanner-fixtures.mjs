@@ -2,7 +2,7 @@ import { copyFile, lstat, mkdir, opendir, realpath, writeFile } from "node:fs/pr
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
-import { createOwnedDirectory, policyError, removeOwnedDirectory, runCommand } from "./process.mjs";
+import { policyError, runCommand } from "./process.mjs";
 import { assertClosedObject, canonicalJsonBuffer, parseBoundedJson, sha256 } from "./strict-json.mjs";
 
 const MiB = 1024 * 1024;
@@ -45,10 +45,44 @@ const GO_FINDINGS = Object.freeze([
   ["submod2/go.mod", "GMS-2022-20", "github.com/docker/distribution", "v2.7.1+incompatible", "v2.8.0"],
 ]);
 const CLEAN_JAR_PACKAGES = Object.freeze(["com.fasterxml.jackson.core:jackson-core@2.15.0"]);
+const SCRATCH_DIRECTORIES = Object.freeze(["home", "tmp", "gopath", "gocache", "gomodcache"]);
 const fail = (code = "scanner_fixture_invalid") => { throw policyError(code); };
 
 export function scannerFixtureArtifactInventory() {
   return ARTIFACT_INVENTORY;
+}
+
+async function exactDirectoryEntries(directory, expected) {
+  const remaining = new Set(expected);
+  for await (const entry of await opendir(directory)) {
+    if (!remaining.delete(entry.name) || entry.isSymbolicLink()) fail("scanner_fixture_scratch_invalid");
+    const child = path.join(directory, entry.name);
+    const info = await lstat(child);
+    if (!info.isDirectory() || info.isSymbolicLink() || await realpath(child) !== child) fail("scanner_fixture_scratch_invalid");
+  }
+  if (remaining.size) fail("scanner_fixture_scratch_invalid");
+}
+
+export async function verifyScannerFixtureScratch({ scratch, workspace, initialized }) {
+  if (typeof scratch !== "string" || !path.isAbsolute(scratch) || typeof workspace !== "string" || !path.isAbsolute(workspace) ||
+      typeof initialized !== "boolean" || scratch === workspace || path.dirname(scratch) !== path.dirname(workspace)) {
+    fail("scanner_fixture_scratch_invalid");
+  }
+  try {
+    if (await realpath(scratch) !== scratch || await realpath(workspace) !== workspace) fail("scanner_fixture_scratch_invalid");
+    const [scratchInfo, workspaceInfo] = await Promise.all([lstat(scratch), lstat(workspace)]);
+    if (!scratchInfo.isDirectory() || scratchInfo.isSymbolicLink() || !workspaceInfo.isDirectory() || workspaceInfo.isSymbolicLink()) {
+      fail("scanner_fixture_scratch_invalid");
+    }
+    await exactDirectoryEntries(scratch, initialized ? SCRATCH_DIRECTORIES : []);
+    if (initialized) {
+      for (const name of SCRATCH_DIRECTORIES) await exactDirectoryEntries(path.join(scratch, name), []);
+    }
+    return true;
+  } catch (error) {
+    if (error?.code === "scanner_fixture_scratch_invalid") throw error;
+    fail("scanner_fixture_scratch_invalid");
+  }
 }
 
 export async function validateScannerFixtureArtifact(directory) {
@@ -186,16 +220,23 @@ export async function verifyScannerFixtureReportFile({ fixtureId, reportPath, st
   return Object.freeze({ fixtureId, path: reportPath, ...identity });
 }
 
-async function ensureCommittedMaterials(files, workspace) {
-  const env = { PATH: "/usr/bin:/bin", HOME: path.join(workspace, "home"), TMPDIR: path.join(workspace, "tmp"), LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
+async function ensureCommittedMaterials(files, scratch, workspace) {
+  const env = { PATH: "/usr/bin:/bin", HOME: path.join(scratch, "home"), TMPDIR: path.join(scratch, "tmp"), LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
     GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_TERMINAL_PROMPT: "0" };
   const prefix = ["-c", "credential.helper=", "-c", "core.askPass=/bin/false", "-c", "core.hooksPath=/dev/null", "-c", "diff.external=", "-C", REPOSITORY_ROOT];
   for (const file of files) {
     const relative = path.relative(REPOSITORY_ROOT, file).replaceAll("\\", "/");
     try {
       await runCommand("/usr/bin/git", [...prefix, "ls-files", "--error-unmatch", "--", relative], { cwd: REPOSITORY_ROOT, env, timeoutMs: 10_000, maxOutputBytes: 64 * 1024 });
-      for (const staged of [false, true]) await runCommand("/usr/bin/git", [...prefix, "diff", ...(staged ? ["--cached"] : []), "--no-ext-diff", "--no-textconv", "--quiet", "--exit-code", "--", relative], { cwd: REPOSITORY_ROOT, env, timeoutMs: 10_000, maxOutputBytes: 64 * 1024 });
-    } catch { fail("scanner_fixture_material_not_committed"); }
+      await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+      for (const staged of [false, true]) {
+        await runCommand("/usr/bin/git", [...prefix, "diff", ...(staged ? ["--cached"] : []), "--no-ext-diff", "--no-textconv", "--quiet", "--exit-code", "--", relative], { cwd: REPOSITORY_ROOT, env, timeoutMs: 10_000, maxOutputBytes: 64 * 1024 });
+        await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+      }
+    } catch (error) {
+      if (error?.code === "scanner_fixture_scratch_invalid") throw error;
+      fail("scanner_fixture_material_not_committed");
+    }
   }
 }
 
@@ -205,7 +246,7 @@ function remaining(deadline) {
   return Math.min(10 * 60 * 1000, value);
 }
 
-export async function runScannerFixtures({ scanner, cacheDirectory, workspace, environment, deadline }) {
+export async function runScannerFixtures({ scanner, cacheDirectory, workspace, scratch, environment, deadline }) {
   if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || typeof scanner !== "string" || !path.isAbsolute(scanner) ||
       typeof cacheDirectory !== "string" || !path.isAbsolute(cacheDirectory) || typeof workspace !== "string" || !path.isAbsolute(workspace) ||
       !environment || typeof environment !== "object" || Array.isArray(environment)) fail("scanner_fixtures_require_linux_actions");
@@ -214,60 +255,63 @@ export async function runScannerFixtures({ scanner, cacheDirectory, workspace, e
   const [scannerStat, workspaceStat, cacheStat] = await Promise.all([lstat(scanner), lstat(workspace), lstat(cacheDirectory)]);
   if (!scannerStat.isFile() || scannerStat.isSymbolicLink() || !workspaceStat.isDirectory() || workspaceStat.isSymbolicLink() || !cacheStat.isDirectory() || cacheStat.isSymbolicLink()) fail("scanner_fixture_path_invalid");
   const scannerIdentity = await hashFileBounded(scanner, 512 * MiB);
+  await verifyScannerFixtureScratch({ scratch, workspace, initialized: false });
   const root = path.join(workspace, "fixtures");
   const fixtures = path.join(root, "materials");
   const reportsDirectory = path.join(root, "reports");
   await mkdir(root, { recursive: false });
   await Promise.all(ARTIFACT_INVENTORY.directories.map((name) => mkdir(path.join(root, name))));
-  const scratch = await createOwnedDirectory(path.dirname(workspace));
-  try {
-    await Promise.all(["home", "tmp", "gopath", "gocache", "gomodcache"].map((name) => mkdir(path.join(scratch.path, name))));
-    const materialFiles = MATERIALS.map((entry) => path.join(MATERIAL_ROOT, entry.path));
-    await ensureCommittedMaterials([MANIFEST_PATH, ...materialFiles], scratch.path);
-    const manifest = await loadScannerFixtureManifest();
-    for (const material of MATERIALS) {
-      const source = path.join(MATERIAL_ROOT, material.path);
-      sameDigest(await hashFileBounded(source, 4 * MiB), material);
-      const destination = path.join(fixtures, material.path);
-      await mkdir(path.dirname(destination), { recursive: true });
-      await copyFile(source, destination);
-      sameDigest(await hashFileBounded(destination, 4 * MiB), material);
-    }
-    const verifyCopiedMaterials = async () => {
-      for (const material of MATERIALS) sameDigest(await hashFileBounded(path.join(fixtures, material.path), 4 * MiB), material);
-    };
-    const env = { ...environment, HOME: path.join(scratch.path, "home"), TMPDIR: path.join(scratch.path, "tmp"),
-      GOPATH: path.join(scratch.path, "gopath"), GOCACHE: path.join(scratch.path, "gocache"), GOMODCACHE: path.join(scratch.path, "gomodcache") };
-    const scans = [
-      { id: "gomod-vulnerable", cwd: fixtures, target: "gomod" },
-      { id: "java-war-vulnerable", cwd: path.join(fixtures, "java"), target: "test.war" },
-      { id: "java-jar-clean-candidate", cwd: path.join(fixtures, "java"), target: "jackson-core-2.15.0.jar" },
-    ];
-    const reports = [];
-    for (const scan of scans) {
-      const result = await runCommand(scanner, scannerFixtureArguments(cacheDirectory, scan.target), {
-        cwd: scan.cwd, env, timeoutMs: remaining(deadline), maxOutputBytes: 64 * MiB,
-      });
-      sameDigest(await hashFileBounded(scanner, 512 * MiB), scannerIdentity);
-      await verifyCopiedMaterials();
-      const reportPath = path.join(reportsDirectory, `${scan.id}.json`);
-      await writeFile(reportPath, result.stdout, { flag: "wx", mode: 0o600 });
-      reports.push({ fixtureId: scan.id, path: reportPath,
-        stdoutIdentity: Object.freeze({ sha256: sha256(result.stdout), size: result.stdout.length }) });
-    }
-    const verifiedReports = [];
-    for (const report of reports) {
-      verifiedReports.push(await verifyScannerFixtureReportFile({
-        fixtureId: report.fixtureId, reportPath: report.path, stdoutIdentity: report.stdoutIdentity,
-      }));
-    }
+  await Promise.all(SCRATCH_DIRECTORIES.map((name) => mkdir(path.join(scratch, name))));
+  await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+  const materialFiles = MATERIALS.map((entry) => path.join(MATERIAL_ROOT, entry.path));
+  await ensureCommittedMaterials([MANIFEST_PATH, ...materialFiles], scratch, workspace);
+  await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+  const manifest = await loadScannerFixtureManifest();
+  for (const material of MATERIALS) {
+    const source = path.join(MATERIAL_ROOT, material.path);
+    sameDigest(await hashFileBounded(source, 4 * MiB), material);
+    const destination = path.join(fixtures, material.path);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await copyFile(source, destination);
+    sameDigest(await hashFileBounded(destination, 4 * MiB), material);
+  }
+  const verifyCopiedMaterials = async () => {
+    for (const material of MATERIALS) sameDigest(await hashFileBounded(path.join(fixtures, material.path), 4 * MiB), material);
+  };
+  const env = { ...environment, HOME: path.join(scratch, "home"), TMPDIR: path.join(scratch, "tmp"),
+    GOPATH: path.join(scratch, "gopath"), GOCACHE: path.join(scratch, "gocache"), GOMODCACHE: path.join(scratch, "gomodcache") };
+  const scans = [
+    { id: "gomod-vulnerable", cwd: fixtures, target: "gomod" },
+    { id: "java-war-vulnerable", cwd: path.join(fixtures, "java"), target: "test.war" },
+    { id: "java-jar-clean-candidate", cwd: path.join(fixtures, "java"), target: "jackson-core-2.15.0.jar" },
+  ];
+  const reports = [];
+  for (const scan of scans) {
+    const result = await runCommand(scanner, scannerFixtureArguments(cacheDirectory, scan.target), {
+      cwd: scan.cwd, env, timeoutMs: remaining(deadline), maxOutputBytes: 64 * MiB,
+    });
+    sameDigest(await hashFileBounded(scanner, 512 * MiB), scannerIdentity);
     await verifyCopiedMaterials();
-    await validateScannerFixtureArtifact(await realpath(root));
-    return Object.freeze({ directory: await realpath(root), manifest,
-      manifestIdentity: Object.freeze({ path: "infra/supply-chain/materials/scanner-fixtures/manifest.json", ...MANIFEST_IDENTITY }),
-      materials: Object.freeze(MATERIALS.map(({ path: materialPath, sha256: materialSha256, size }) => Object.freeze({
-        path: `materials/${materialPath}`, sha256: materialSha256, size,
-      }))),
-      reports: Object.freeze(verifiedReports) });
-  } finally { await removeOwnedDirectory(scratch); }
+    await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+    const reportPath = path.join(reportsDirectory, `${scan.id}.json`);
+    await writeFile(reportPath, result.stdout, { flag: "wx", mode: 0o600 });
+    reports.push({ fixtureId: scan.id, path: reportPath,
+      stdoutIdentity: Object.freeze({ sha256: sha256(result.stdout), size: result.stdout.length }) });
+  }
+  const verifiedReports = [];
+  for (const report of reports) {
+    verifiedReports.push(await verifyScannerFixtureReportFile({
+      fixtureId: report.fixtureId, reportPath: report.path, stdoutIdentity: report.stdoutIdentity,
+    }));
+  }
+  await verifyCopiedMaterials();
+  await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+  await validateScannerFixtureArtifact(await realpath(root));
+  await verifyScannerFixtureScratch({ scratch, workspace, initialized: true });
+  return Object.freeze({ directory: await realpath(root), manifest,
+    manifestIdentity: Object.freeze({ path: "infra/supply-chain/materials/scanner-fixtures/manifest.json", ...MANIFEST_IDENTITY }),
+    materials: Object.freeze(MATERIALS.map(({ path: materialPath, sha256: materialSha256, size }) => Object.freeze({
+      path: `materials/${materialPath}`, sha256: materialSha256, size,
+    }))),
+    reports: Object.freeze(verifiedReports) });
 }

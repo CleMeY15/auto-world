@@ -1,4 +1,4 @@
-import { chmod, copyFile, lstat, mkdir, realpath, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, opendir, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { NATIVE_AUDIT_ARTIFACT_FILES, publishNativeAuditDiagnostics } from "./audit-artifacts.mjs";
@@ -165,27 +165,66 @@ export function databaseSubphaseDiagnostic(subphase) {
 // Repeated hash reads are not new artifacts; distinct on-disk copies count here.
 // This accounts admitted files and fixed command outputs; it cannot impose an
 // operating-system quota on arbitrary writes by the untrusted candidate.
-export function assertNativeAuditBudget({ matrixBytes, binarySizes, databaseSizes, fixtureBytes = 4 * MiB }) {
+function nativeAuditBudgetValues({ matrixBytes, binarySizes, databaseSizes, fixtureBytes = 4 * MiB }) {
   const validSize = (value) => Number.isSafeInteger(value) && value > 0;
   if (!validSize(matrixBytes) || !Array.isArray(binarySizes) || binarySizes.length !== 4 ||
       binarySizes.some((size) => !validSize(size) || size > 512 * MiB) || databaseSizes !== undefined && (!Array.isArray(databaseSizes) ||
-      databaseSizes.length !== 4 || databaseSizes.some((size, index) => !validSize(size) || size > (index % 2 ? 8 : 2048) * MiB)) ||
+      databaseSizes.length !== 4 || databaseSizes.some((size) => !validSize(size))) ||
       !validSize(fixtureBytes) || fixtureBytes > 4 * MiB) fail("native_audit_budget_invalid");
   const binaries = binarySizes.reduce((sum, value) => sum + value, 0);
   const artifactBaseBytes = binaries + 880 * MiB + fixtureBytes;
-  // The public packager copies one verified source leaf at a time and releases
-  // it after validation, so one maximum-size database is the transfer peak.
-  const transferPeakBytes = 2 * 1024 * MiB;
-  const jobBaseBytes = matrixBytes + artifactBaseBytes + binaries + fixtureBytes + transferPeakBytes;
+  const maxBinaryBytes = Math.max(...binarySizes);
+  const packageTransferBytes = 2 * 1024 * MiB;
+  const scanBaseBytes = matrixBytes + artifactBaseBytes + maxBinaryBytes + fixtureBytes;
+  const packageBaseBytes = matrixBytes + artifactBaseBytes + packageTransferBytes;
   const databaseCapacityBytes = Math.min(6 * 1024 * MiB - artifactBaseBytes,
-    Math.floor((8 * 1024 * MiB - jobBaseBytes) / 2));
+    Math.floor((8 * 1024 * MiB - scanBaseBytes) / 2), 8 * 1024 * MiB - packageBaseBytes);
   if (databaseCapacityBytes < 4) fail("native_audit_budget_exceeded");
-  if (databaseSizes === undefined) return Object.freeze({ artifactBaseBytes, jobBaseBytes, transferPeakBytes, databaseCapacityBytes });
+  const base = { artifactBaseBytes, scanBaseBytes, packageBaseBytes, packageTransferBytes, databaseCapacityBytes };
+  if (databaseSizes === undefined) return Object.freeze(base);
   const databases = databaseSizes.reduce((sum, value) => sum + value, 0);
   const artifactBytes = artifactBaseBytes + databases;
-  const jobBytes = jobBaseBytes + 2 * databases;
-  if (databases > databaseCapacityBytes || artifactBytes > 6 * 1024 * MiB || jobBytes > 8 * 1024 * MiB) fail("native_audit_budget_exceeded");
-  return Object.freeze({ artifactBaseBytes, jobBaseBytes, transferPeakBytes, databaseCapacityBytes, databaseBytes: databases, artifactBytes, jobBytes });
+  const scanBytes = scanBaseBytes + 2 * databases;
+  const packageBytes = packageBaseBytes + databases;
+  const values = { ...base, databaseBytes: databases, artifactBytes, scanBytes, packageBytes, jobBytes: Math.max(scanBytes, packageBytes) };
+  if (Object.values(values).some((value) => !Number.isSafeInteger(value))) fail("native_audit_budget_invalid");
+  return Object.freeze(values);
+}
+
+function classifyNativeAuditBudget(databaseSizes, totals) {
+  if (!Array.isArray(databaseSizes) || databaseSizes.length !== 4 || databaseSizes.some((size) => !Number.isSafeInteger(size) || size < 1) ||
+      !totals || typeof totals !== "object" || Array.isArray(totals) ||
+      !["artifactBytes", "scanBytes", "packageBytes"].every((key) => Number.isSafeInteger(totals[key]) && totals[key] >= 0)) {
+    fail("native_audit_budget_invalid");
+  }
+  if (databaseSizes.some((size, index) => size > (index % 2 ? 8 : 2048) * MiB)) return "per_file";
+  if (totals.artifactBytes > 6 * 1024 * MiB) return "artifact_total";
+  if (totals.scanBytes > 8 * 1024 * MiB) return "scan_total";
+  if (totals.packageBytes > 8 * 1024 * MiB) return "package_total";
+  return null;
+}
+
+export function assertNativeAuditBudget(input) {
+  const values = nativeAuditBudgetValues(input);
+  if (input.databaseSizes !== undefined && classifyNativeAuditBudget(input.databaseSizes, values) !== null) fail("native_audit_budget_exceeded");
+  return values;
+}
+
+export function databaseBudgetDiagnostic(input) {
+  let totals;
+  try { totals = nativeAuditBudgetValues(input); } catch { fail("native_database_diagnostic_invalid"); }
+  if (!Array.isArray(input.databaseSizes) || input.databaseSizes.length !== 4) fail("native_database_diagnostic_invalid");
+  const reason = classifyNativeAuditBudget(input.databaseSizes, totals);
+  if (reason === null) fail("native_database_diagnostic_invalid");
+  const [vulnerability, vulnerabilityMetadata, java, javaMetadata] = input.databaseSizes;
+  const diagnostic = Object.freeze({ schemaVersion: 1, state: "diagnostic_only", phase: "databases", subphase: "budget",
+    database: "all", commandClass: "postdownload_validation", captureStatus: "unavailable", originalExitCode: null,
+    commandFailureCode: "native_database_budget_refused",
+    databaseSizes: Object.freeze({ vulnerability, vulnerabilityMetadata, java, javaMetadata }),
+    totals: Object.freeze({ databaseBytes: totals.databaseBytes, artifactBytes: totals.artifactBytes,
+      scanBytes: totals.scanBytes, packageBytes: totals.packageBytes, jobBytes: totals.jobBytes }), reason });
+  if (canonicalJsonBuffer(diagnostic).length > DATABASE_DIAGNOSTIC_LIMIT) fail("native_database_diagnostic_too_large");
+  return diagnostic;
 }
 
 export function nativeAuditSummaryBytes({ budget, results, fixtureManifest, fixtureMaterials, fixtureReports }) {
@@ -233,6 +272,127 @@ function databaseRecord(name, database, metadataFile, metadata) {
 
 function requireDigest(actual, expected, code = "native_database_changed") {
   if (actual.sha256 !== expected.sha256 || actual.size !== expected.size) fail(code);
+}
+
+async function verifyExactDirectory(directory, expected, code) {
+  try {
+    if (!path.isAbsolute(directory) || await realpath(directory) !== directory) fail(code);
+    const info = await lstat(directory);
+    if (!info.isDirectory() || info.isSymbolicLink()) fail(code);
+    const remaining = new Map(expected);
+    for await (const entry of await opendir(directory)) {
+      const kind = remaining.get(entry.name);
+      if (!kind || !remaining.delete(entry.name)) fail(code);
+      const child = path.join(directory, entry.name);
+      const childInfo = await lstat(child);
+      if (childInfo.isSymbolicLink() || await realpath(child) !== child ||
+          kind === "directory" && !childInfo.isDirectory() ||
+          kind === "file" && (!childInfo.isFile() || childInfo.nlink !== 1)) fail(code);
+    }
+    if (remaining.size) fail(code);
+  } catch (error) {
+    if (error?.code === code) throw error;
+    fail(code);
+  }
+}
+
+export async function verifyNativeEmptyDirectory(directory) {
+  await verifyExactDirectory(directory, [], "native_audit_scratch_inventory_refused");
+}
+
+export async function verifyNativeSubjectWork(directory, filename, expectedIdentity) {
+  if (typeof filename !== "string" || filename !== path.basename(filename) || !filename ||
+      !expectedIdentity || !/^[a-f0-9]{64}$/u.test(expectedIdentity.sha256 ?? "") ||
+      !Number.isSafeInteger(expectedIdentity.size) || expectedIdentity.size < 1 || expectedIdentity.size > 512 * MiB) {
+    fail("native_audit_scratch_inventory_refused");
+  }
+  await verifyExactDirectory(directory, [["subject", "directory"]], "native_audit_scratch_inventory_refused");
+  const subject = path.join(directory, "subject");
+  await verifyExactDirectory(subject, [[filename, "file"]], "native_audit_scratch_inventory_refused");
+  requireDigest(await hashFileBounded(path.join(subject, filename), 512 * MiB), expectedIdentity, "native_audit_subject_changed");
+  await verifyExactDirectory(directory, [["subject", "directory"]], "native_audit_scratch_inventory_refused");
+  await verifyExactDirectory(subject, [[filename, "file"]], "native_audit_scratch_inventory_refused");
+}
+
+const DATABASE_CACHE_FILES = Object.freeze({
+  database: Object.freeze({ directory: "db", filename: "trivy.db", cap: 2048 * MiB }),
+  databaseMetadata: Object.freeze({ directory: "db", filename: "metadata.json", cap: 8 * MiB }),
+  javaDatabase: Object.freeze({ directory: "java-db", filename: "trivy-java.db", cap: 2048 * MiB }),
+  javaDatabaseMetadata: Object.freeze({ directory: "java-db", filename: "metadata.json", cap: 8 * MiB }),
+});
+
+export async function verifyNativeDatabaseCache(directory, identities) {
+  if (identities !== undefined && (!identities || typeof identities !== "object" || Array.isArray(identities) ||
+      Object.keys(identities).length !== 4 || Object.keys(DATABASE_CACHE_FILES).some((key) => !Object.hasOwn(identities, key)))) {
+    fail("native_database_identity_refused");
+  }
+  await verifyExactDirectory(directory, [["db", "directory"], ["java-db", "directory"]], "native_database_inventory_refused");
+  for (const name of ["db", "java-db"]) {
+    const files = Object.values(DATABASE_CACHE_FILES).filter((entry) => entry.directory === name);
+    await verifyExactDirectory(path.join(directory, name), files.map((entry) => [entry.filename, "file"]), "native_database_inventory_refused");
+  }
+  if (identities !== undefined) {
+    for (const [key, contract] of Object.entries(DATABASE_CACHE_FILES)) {
+      try {
+        requireDigest(await hashFileBounded(path.join(directory, contract.directory, contract.filename), contract.cap), identities[key], "native_database_identity_refused");
+      } catch (error) {
+        if (error?.code === "native_database_identity_refused") throw error;
+        fail("native_database_identity_refused");
+      }
+    }
+    await verifyNativeDatabaseCache(directory);
+  }
+}
+
+const AUDIT_LIFECYCLES = new WeakMap();
+
+function createAuditLifecycle() {
+  const lifecycle = Object.freeze({});
+  AUDIT_LIFECYCLES.set(lifecycle, { active: 0, releaseFailed: false });
+  return lifecycle;
+}
+
+function auditLifecycleState(lifecycle) {
+  const state = AUDIT_LIFECYCLES.get(lifecycle);
+  if (!state) fail("native_audit_lifecycle_invalid");
+  return state;
+}
+
+export async function runOwnedAuditWork(base, operation, lifecycle) {
+  if (typeof operation !== "function") fail("native_audit_lifecycle_invalid");
+  const state = lifecycle === undefined ? undefined : auditLifecycleState(lifecycle);
+  const owned = await createOwnedDirectory(base);
+  if (state) state.active += 1;
+  try { return await operation(owned); }
+  finally {
+    try { await removeOwnedDirectory(owned); }
+    catch {
+      if (state) state.releaseFailed = true;
+      fail("native_audit_cleanup_failed");
+    } finally {
+      if (state) state.active -= 1;
+    }
+  }
+}
+
+const TRACKED_FIXTURE_INPUT_KEYS = Object.freeze([
+  "cacheDirectory", "deadline", "environment", "runnerTemp", "scanner", "workspace",
+]);
+
+export async function runTrackedScannerFixtures(input, lifecycle, executeFixture = runScannerFixtures) {
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      JSON.stringify(Object.keys(input).sort()) !== JSON.stringify(TRACKED_FIXTURE_INPUT_KEYS) ||
+      typeof input.runnerTemp !== "string" || !path.isAbsolute(input.runnerTemp) ||
+      typeof input.scanner !== "string" || !path.isAbsolute(input.scanner) ||
+      typeof input.cacheDirectory !== "string" || !path.isAbsolute(input.cacheDirectory) ||
+      typeof input.workspace !== "string" || !path.isAbsolute(input.workspace) ||
+      !input.environment || typeof input.environment !== "object" || Array.isArray(input.environment) ||
+      !Number.isSafeInteger(input.deadline) || typeof executeFixture !== "function") fail("native_audit_lifecycle_invalid");
+  auditLifecycleState(lifecycle);
+  const { runnerTemp, scanner, cacheDirectory, workspace, environment, deadline } = input;
+  return runOwnedAuditWork(runnerTemp, ({ path: scratch }) => executeFixture(Object.freeze({
+    scanner, cacheDirectory, workspace, scratch, environment, deadline,
+  })), lifecycle);
 }
 
 function createExpectedFileInventory() {
@@ -303,25 +463,43 @@ async function capture(executable, args, options, destination, started) {
 // verified six-artifact matrix and retains raw scanner output before evaluation.
 export async function runNativeScans() {
   const context = await loadCandidateContext();
-  const audit = await createOwnedDirectory(context.runnerTemp);
-  const progress = { phase: "staging" };
   const destination = path.join(context.runnerTemp, "native-audit");
-  let status = "failed";
-  let expectedFiles;
-  try {
-    const result = await collectNativeScans(context, audit, progress);
-    expectedFiles = result.expectedFiles;
-    status = "passed";
-    return { ...result, directory: destination };
-  } finally {
-    try {
-      await publishNativeAuditDiagnostics({ workspace: audit.path, destination, phase: progress.phase, status,
-        ...(status === "passed" ? { expectedFiles } : {}) });
-    } finally { await removeOwnedDirectory(audit); }
-  }
+  return runNativeAuditOrchestration({ runnerTemp: context.runnerTemp, destination,
+    collect: (audit, progress, lifecycle) => collectNativeScans(context, audit, progress, lifecycle) });
 }
 
-async function collectNativeScans(context, audit, progress) {
+export async function runNativeAuditOrchestration({ runnerTemp, destination, collect, publish = publishNativeAuditDiagnostics }) {
+  if (typeof runnerTemp !== "string" || !path.isAbsolute(runnerTemp) || typeof destination !== "string" || !path.isAbsolute(destination) ||
+      typeof collect !== "function" || typeof publish !== "function") fail("native_audit_lifecycle_invalid");
+  const audit = await createOwnedDirectory(runnerTemp);
+  const lifecycle = createAuditLifecycle();
+  const progress = { phase: "staging" };
+  let status = "failed";
+  let expectedFiles;
+  let result;
+  let failure;
+  try {
+    result = await collect(audit, progress, lifecycle);
+    expectedFiles = result.expectedFiles;
+    status = "passed";
+  } catch (error) { failure = error; }
+  const state = auditLifecycleState(lifecycle);
+  const released = state.active === 0 && !state.releaseFailed;
+  if (!released && !failure) failure = policyError("native_audit_cleanup_failed");
+  try {
+    if (released) await publish({ workspace: audit.path, destination, phase: progress.phase, status,
+      ...(status === "passed" ? { expectedFiles } : {}) });
+  } catch (error) { failure = error; }
+  finally {
+    try {
+      await removeOwnedDirectory(audit);
+    } catch (error) { failure = error; }
+  }
+  if (failure) throw failure;
+  return { ...result, directory: destination };
+}
+
+async function collectNativeScans(context, audit, progress, lifecycle) {
   const started = Date.now();
   const expectedInventory = createExpectedFileInventory();
   const matrixDirectory = path.join(context.runnerTemp, "native-candidates");
@@ -331,8 +509,13 @@ async function collectNativeScans(context, audit, progress) {
   const staged = await stageNativeAuditSubjects({ matrixDirectory, auditDirectory: audit.path, records });
   for (const entry of staged) expectedInventory.capture(`${entry.tool}-${entry.target}/${entry.filename}`, entry.output);
   await verifyStagedSubjects(staged);
-  const cache = await createOwnedDirectory(context.runnerTemp);
-  const home = await createOwnedDirectory(context.runnerTemp);
+  return runOwnedAuditWork(context.runnerTemp, (cache) => runOwnedAuditWork(context.runnerTemp, (home) =>
+    collectNativeScansWithScratch({ context, audit, progress, started, expectedInventory, matrix, binarySizes,
+      preflightBudget, staged, cache, home, lifecycle }), lifecycle), lifecycle);
+}
+
+async function collectNativeScansWithScratch({ context, audit, progress, started, expectedInventory, matrix, binarySizes,
+  preflightBudget, staged, cache, home, lifecycle }) {
   const scannerSubject = staged.find((entry) => entry.tool === "trivy");
   if (!scannerSubject) fail("native_scanner_missing");
   const scanner = scannerSubject.binary;
@@ -352,6 +535,7 @@ async function collectNativeScans(context, audit, progress) {
   const scannerVersion = parseBoundedJson(scannerVersionBytes, { maxBytes: 8 * MiB });
   const selectedScanner = context.selection.tools.find((entry) => entry.name === "trivy");
   if (scannerVersion.Version !== selectedScanner.modifiedVersion) fail("native_scanner_version_mismatch");
+  await verifyNativeEmptyDirectory(home.path);
 
   progress.phase = "databases";
   await runDatabaseDownload(scanner, cache.path, "vulnerability", { ...common, timeoutMs: remaining(started) });
@@ -362,12 +546,19 @@ async function collectNativeScans(context, audit, progress) {
     database: path.join(cache.path, "db/trivy.db"), databaseMetadata: path.join(cache.path, "db/metadata.json"),
     javaDatabase: path.join(cache.path, "java-db/trivy-java.db"), javaDatabaseMetadata: path.join(cache.path, "java-db/metadata.json"),
   };
+  await databaseSubphase("inventory", () => verifyNativeDatabaseCache(cache.path));
+  await verifyNativeEmptyDirectory(home.path);
   const databaseSizes = await databaseSubphase("inventory", () => Promise.all(Object.values(cacheDatabasePaths).map(async (file) => (await lstat(file)).size)));
-  const budget = await databaseSubphase("budget", async () => {
-    const value = assertNativeAuditBudget({ matrixBytes: matrix.consumedBytes, binarySizes, databaseSizes });
-    if (value.databaseCapacityBytes !== preflightBudget.databaseCapacityBytes) fail("native_audit_budget_changed");
-    return value;
-  });
+  const budgetInput = { matrixBytes: matrix.consumedBytes, binarySizes, databaseSizes };
+  let budget;
+  try {
+    budget = assertNativeAuditBudget(budgetInput);
+    if (budget.databaseCapacityBytes !== preflightBudget.databaseCapacityBytes) fail("native_audit_budget_changed");
+  } catch (error) {
+    if (error?.code === "native_audit_budget_exceeded") emitDatabaseDiagnostic(databaseBudgetDiagnostic(budgetInput));
+    else emitDatabaseDiagnostic(databaseSubphaseDiagnostic("budget"));
+    throw error;
+  }
   const databaseDirectory = path.join(audit.path, "databases");
   const databasePaths = {
     database: path.join(databaseDirectory, "vulnerability.db"), databaseMetadata: path.join(databaseDirectory, "vulnerability.metadata.json"),
@@ -382,17 +573,20 @@ async function collectNativeScans(context, audit, progress) {
       javaDatabase: await hashFileBounded(cacheDatabasePaths.javaDatabase, 2 * 1024 * MiB),
       javaDatabaseMetadata: { sha256: sha256(javaBytes), size: javaBytes.length },
     };
+    const identitySizes = [hashes.database.size, hashes.databaseMetadata.size, hashes.javaDatabase.size, hashes.javaDatabaseMetadata.size];
+    if (identitySizes.some((size, index) => size !== databaseSizes[index])) fail("native_database_identity_refused");
     expectedInventory.capture("databases/vulnerability.db", hashes.database);
     expectedInventory.capture("databases/vulnerability.metadata.json", hashes.databaseMetadata);
     expectedInventory.capture("databases/java.db", hashes.javaDatabase);
     expectedInventory.capture("databases/java.metadata.json", hashes.javaDatabaseMetadata);
     return { vulnerabilityMetadataBytes: vulnerabilityBytes, javaMetadataBytes: javaBytes, databaseHashes: hashes };
   });
+  await databaseSubphase("identity", () => verifyNativeDatabaseCache(cache.path, databaseHashes));
   await databaseSubphase("materialize", async () => {
     await mkdir(databaseDirectory);
-    await copyFile(cacheDatabasePaths.database, databasePaths.database);
+    await copyExpectedFile(cacheDatabasePaths.database, databasePaths.database, databaseHashes.database, 2 * 1024 * MiB);
     await writeFile(databasePaths.databaseMetadata, vulnerabilityMetadataBytes, { flag: "wx" });
-    await copyFile(cacheDatabasePaths.javaDatabase, databasePaths.javaDatabase);
+    await copyExpectedFile(cacheDatabasePaths.javaDatabase, databasePaths.javaDatabase, databaseHashes.javaDatabase, 2 * 1024 * MiB);
     await writeFile(databasePaths.javaDatabaseMetadata, javaMetadataBytes, { flag: "wx" });
     requireDigest(await hashFileBounded(databasePaths.database, 2 * 1024 * MiB), databaseHashes.database);
     requireDigest(await hashFileBounded(databasePaths.javaDatabase, 2 * 1024 * MiB), databaseHashes.javaDatabase);
@@ -411,76 +605,82 @@ async function collectNativeScans(context, audit, progress) {
     const expectation = context.expectations.find((entry) => entry.tool === tool && entry.repeat === 1);
     const selected = context.selection.tools.find((entry) => entry.name === tool);
     const proposal = context.lock.proposals.find((entry) => entry.tool === tool);
-    const work = await createOwnedDirectory(context.runnerTemp);
-    const subjectDirectory = path.join(work.path, "subject");
-    await mkdir(subjectDirectory);
-    const scannedBinary = path.join(subjectDirectory, filename);
-    await copyExpectedFile(binary, scannedBinary, output, 512 * MiB);
-    const binaryHash = Object.freeze({ sha256: output.sha256, size: output.size });
-    await verifyStagedSubjects(staged);
-    const sbomFile = path.join(evidenceDirectory, "sbom.json");
-    const reportFile = path.join(evidenceDirectory, "report.json");
-    const sbomBytes = await capture(scanner, nativeScanArguments("cyclonedx", cache.path), { cwd: work.path, env: environment }, sbomFile, started);
-    requireDigest(await hashFileBounded(scannedBinary, 512 * MiB), binaryHash, "native_audit_subject_changed");
-    await verifyStagedSubjects(staged);
-    const reportBytes = await capture(scanner, nativeScanArguments("json", cache.path), { cwd: work.path, env: environment }, reportFile, started);
-    requireDigest(await hashFileBounded(scannedBinary, 512 * MiB), binaryHash, "native_audit_subject_changed");
-    await verifyStagedSubjects(staged);
-    const inventory = deriveGoInventory({ tool, buildInfo: output.buildInfo, lockedModules: proposal.modules,
-      goVersion: context.selection.compiler.version });
-    const buildInfoFile = path.join(evidenceDirectory, "build-info.json");
-    const moduleGraphFile = path.join(evidenceDirectory, "module-graph.json");
-    const materialFile = path.join(evidenceDirectory, "material-lock.json");
-    const recipeFile = path.join(evidenceDirectory, "recipe.json");
-    const buildInfoBytes = canonicalJsonBuffer(output.buildInfo);
-    const moduleGraphBytes = canonicalJsonBuffer(proposal.modules);
-    await writeFile(buildInfoFile, buildInfoBytes, { flag: "wx" });
-    await writeFile(moduleGraphFile, moduleGraphBytes, { flag: "wx" });
-    await writeFile(materialFile, context.lockBytes, { flag: "wx" });
-    const recipe = canonicalJsonBuffer(recipeEvidence(tool, selected, proposal, context.selection.compiler.version));
-    if (sha256(recipe) !== proposal.recipeSha256) fail("native_audit_recipe_mismatch");
-    await writeFile(recipeFile, recipe, { flag: "wx" });
-    const evidenceHashes = {
-      buildInfo: bytesIdentity(buildInfoBytes), moduleGraph: bytesIdentity(moduleGraphBytes),
-      material: bytesIdentity(context.lockBytes), recipe: bytesIdentity(recipe),
-      sbom: bytesIdentity(sbomBytes), report: bytesIdentity(reportBytes),
-      scannerVersion: scannerVersionIdentity, scanner: scannerOutput,
-    };
-    const subject = { name: tool, version: selected.modifiedVersion, os: target.startsWith("windows") ? "windows" : "linux",
-      architecture: "amd64", ...binaryHash, sourceCommit: selected.commit, materialSha256: evidenceHashes.material.sha256,
-      recipeSha256: evidenceHashes.recipe.sha256, buildInfoSha256: evidenceHashes.buildInfo.sha256,
-      moduleGraphSha256: evidenceHashes.moduleGraph.sha256 };
-    const receipt = { schemaVersion: 1, kind: "native_binary", state: "audited_candidate", run: expectation.run, subject,
-      scanner: { name: "trivy", version: selectedScanner.modifiedVersion, sha256: evidenceHashes.scanner.sha256 }, databases,
-      evidence: { scannerVersionSha256: evidenceHashes.scannerVersion.sha256, sbomSha256: evidenceHashes.sbom.sha256, reportSha256: evidenceHashes.report.sha256 } };
-    const receiptFile = path.join(evidenceDirectory, "receipt.json");
-    const receiptBytes = canonicalJsonBuffer(receipt);
-    await writeFile(receiptFile, receiptBytes, { flag: "wx" });
-    const prefix = `${tool}-${target}`;
-    expectedInventory.capture(`${prefix}/build-info.json`, evidenceHashes.buildInfo);
-    expectedInventory.capture(`${prefix}/module-graph.json`, evidenceHashes.moduleGraph);
-    expectedInventory.capture(`${prefix}/material-lock.json`, evidenceHashes.material);
-    expectedInventory.capture(`${prefix}/recipe.json`, evidenceHashes.recipe);
-    expectedInventory.capture(`${prefix}/receipt.json`, bytesIdentity(receiptBytes));
-    expectedInventory.capture(`${prefix}/sbom.json`, evidenceHashes.sbom);
-    expectedInventory.capture(`${prefix}/report.json`, evidenceHashes.report);
-    const files = { receipt: receiptFile, binary, scanner, scannerVersion: scannerVersionFile, buildInfo: buildInfoFile,
-      moduleGraph: moduleGraphFile, material: materialFile, recipe: recipeFile, sbom: sbomFile, report: reportFile, ...databasePaths };
-    const expected = { run: expectation.run, subject, scanner: receipt.scanner,
-      databases: databases.map(({ name, repository, sha256, metadataSha256 }) => ({ name, repository, sha256, metadataSha256 })),
-      artifactName: "subject", scanTarget: filename, requiredPackages: inventory.packages };
-    const evaluation = await verifyNativeAuditFiles(files, expected);
-    results.push({ tool, target, ...evaluation });
-    audits.push({ tool, target, files, expected, evaluation });
+    const item = await runOwnedAuditWork(context.runnerTemp, async (work) => {
+      const subjectDirectory = path.join(work.path, "subject");
+      await mkdir(subjectDirectory);
+      const scannedBinary = path.join(subjectDirectory, filename);
+      await copyExpectedFile(binary, scannedBinary, output, 512 * MiB);
+      const binaryHash = Object.freeze({ sha256: output.sha256, size: output.size });
+      await verifyNativeSubjectWork(work.path, filename, binaryHash);
+      await verifyStagedSubjects(staged);
+      const sbomFile = path.join(evidenceDirectory, "sbom.json");
+      const reportFile = path.join(evidenceDirectory, "report.json");
+      const sbomBytes = await capture(scanner, nativeScanArguments("cyclonedx", cache.path), { cwd: work.path, env: environment }, sbomFile, started);
+      await verifyNativeSubjectWork(work.path, filename, binaryHash);
+      await verifyNativeDatabaseCache(cache.path, databaseHashes);
+      await verifyNativeEmptyDirectory(home.path);
+      await verifyStagedSubjects(staged);
+      const reportBytes = await capture(scanner, nativeScanArguments("json", cache.path), { cwd: work.path, env: environment }, reportFile, started);
+      await verifyNativeSubjectWork(work.path, filename, binaryHash);
+      await verifyNativeDatabaseCache(cache.path, databaseHashes);
+      await verifyNativeEmptyDirectory(home.path);
+      await verifyStagedSubjects(staged);
+      const inventory = deriveGoInventory({ tool, buildInfo: output.buildInfo, lockedModules: proposal.modules,
+        goVersion: context.selection.compiler.version });
+      const buildInfoFile = path.join(evidenceDirectory, "build-info.json");
+      const moduleGraphFile = path.join(evidenceDirectory, "module-graph.json");
+      const materialFile = path.join(evidenceDirectory, "material-lock.json");
+      const recipeFile = path.join(evidenceDirectory, "recipe.json");
+      const buildInfoBytes = canonicalJsonBuffer(output.buildInfo);
+      const moduleGraphBytes = canonicalJsonBuffer(proposal.modules);
+      await writeFile(buildInfoFile, buildInfoBytes, { flag: "wx" });
+      await writeFile(moduleGraphFile, moduleGraphBytes, { flag: "wx" });
+      await writeFile(materialFile, context.lockBytes, { flag: "wx" });
+      const recipe = canonicalJsonBuffer(recipeEvidence(tool, selected, proposal, context.selection.compiler.version));
+      if (sha256(recipe) !== proposal.recipeSha256) fail("native_audit_recipe_mismatch");
+      await writeFile(recipeFile, recipe, { flag: "wx" });
+      const evidenceHashes = {
+        buildInfo: bytesIdentity(buildInfoBytes), moduleGraph: bytesIdentity(moduleGraphBytes),
+        material: bytesIdentity(context.lockBytes), recipe: bytesIdentity(recipe),
+        sbom: bytesIdentity(sbomBytes), report: bytesIdentity(reportBytes),
+        scannerVersion: scannerVersionIdentity, scanner: scannerOutput,
+      };
+      const subject = { name: tool, version: selected.modifiedVersion, os: target.startsWith("windows") ? "windows" : "linux",
+        architecture: "amd64", ...binaryHash, sourceCommit: selected.commit, materialSha256: evidenceHashes.material.sha256,
+        recipeSha256: evidenceHashes.recipe.sha256, buildInfoSha256: evidenceHashes.buildInfo.sha256,
+        moduleGraphSha256: evidenceHashes.moduleGraph.sha256 };
+      const receipt = { schemaVersion: 1, kind: "native_binary", state: "audited_candidate", run: expectation.run, subject,
+        scanner: { name: "trivy", version: selectedScanner.modifiedVersion, sha256: evidenceHashes.scanner.sha256 }, databases,
+        evidence: { scannerVersionSha256: evidenceHashes.scannerVersion.sha256, sbomSha256: evidenceHashes.sbom.sha256, reportSha256: evidenceHashes.report.sha256 } };
+      const receiptFile = path.join(evidenceDirectory, "receipt.json");
+      const receiptBytes = canonicalJsonBuffer(receipt);
+      await writeFile(receiptFile, receiptBytes, { flag: "wx" });
+      const prefix = `${tool}-${target}`;
+      expectedInventory.capture(`${prefix}/build-info.json`, evidenceHashes.buildInfo);
+      expectedInventory.capture(`${prefix}/module-graph.json`, evidenceHashes.moduleGraph);
+      expectedInventory.capture(`${prefix}/material-lock.json`, evidenceHashes.material);
+      expectedInventory.capture(`${prefix}/recipe.json`, evidenceHashes.recipe);
+      expectedInventory.capture(`${prefix}/receipt.json`, bytesIdentity(receiptBytes));
+      expectedInventory.capture(`${prefix}/sbom.json`, evidenceHashes.sbom);
+      expectedInventory.capture(`${prefix}/report.json`, evidenceHashes.report);
+      const files = { receipt: receiptFile, binary, scanner, scannerVersion: scannerVersionFile, buildInfo: buildInfoFile,
+        moduleGraph: moduleGraphFile, material: materialFile, recipe: recipeFile, sbom: sbomFile, report: reportFile, ...databasePaths };
+      const expected = { run: expectation.run, subject, scanner: receipt.scanner,
+        databases: databases.map(({ name, repository, sha256, metadataSha256 }) => ({ name, repository, sha256, metadataSha256 })),
+        artifactName: "subject", scanTarget: filename, requiredPackages: inventory.packages };
+      const evaluation = await verifyNativeAuditFiles(files, expected);
+      await verifyNativeSubjectWork(work.path, filename, binaryHash);
+      return { result: { tool, target, ...evaluation }, audit: { tool, target, files, expected, evaluation } };
+    }, lifecycle);
+    results.push(item.result);
+    audits.push(item.audit);
   }
   progress.phase = "fixtures";
-  const fixtureResult = await runScannerFixtures({ scanner, cacheDirectory: cache.path, workspace: audit.path,
-    environment, deadline: started + 45 * 60 * 1000 });
+  const fixtureResult = await runTrackedScannerFixtures({ runnerTemp: context.runnerTemp, scanner,
+    cacheDirectory: cache.path, workspace: audit.path, environment, deadline: started + 45 * 60 * 1000 }, lifecycle);
   await verifyStagedSubjects(staged);
-  requireDigest(await hashFileBounded(cacheDatabasePaths.database, 2 * 1024 * MiB), databaseHashes.database);
-  requireDigest(await hashFileBounded(cacheDatabasePaths.databaseMetadata, 8 * MiB), databaseHashes.databaseMetadata);
-  requireDigest(await hashFileBounded(cacheDatabasePaths.javaDatabase, 2 * 1024 * MiB), databaseHashes.javaDatabase);
-  requireDigest(await hashFileBounded(cacheDatabasePaths.javaDatabaseMetadata, 8 * MiB), databaseHashes.javaDatabaseMetadata);
+  await verifyNativeDatabaseCache(cache.path, databaseHashes);
+  await verifyNativeEmptyDirectory(home.path);
   for (const item of audits) {
     if (canonicalJsonBuffer(await verifyNativeAuditFiles(item.files, item.expected)).compare(canonicalJsonBuffer(item.evaluation)) !== 0) fail("native_audit_evidence_changed");
   }
@@ -503,6 +703,8 @@ async function collectNativeScans(context, audit, progress) {
   if (results.some((entry) => entry.state !== "audit_proposal")) fail("native_audit_blocked");
   const expectedFiles = expectedInventory.finish();
   await verifyExpectedFiles(audit.path, expectedFiles);
+  await verifyNativeDatabaseCache(cache.path, databaseHashes);
+  await verifyNativeEmptyDirectory(home.path);
   return { directory: await realpath(audit.path), results, expectedFiles };
 }
 
