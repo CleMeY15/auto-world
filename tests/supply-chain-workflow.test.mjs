@@ -8,7 +8,7 @@ const workflow = readFileSync(new URL("../.github/workflows/native-bootstrap.yml
 test("actual new workflow has bounded read-only dormant preparation capability", () => {
   assert.deepEqual(validatePreparationWorkflow(workflow).capabilities, []);
   assert.match(workflow, /persist-credentials: false/u);
-  assert.match(workflow, /dormant\.mjs installation/u);
+  assert.match(workflow, /node --test tests\/supply-chain-dormant\.test\.mjs/u);
 });
 
 test("workflow policy rejects privilege, trigger, action and runner mutations", () => {
@@ -46,5 +46,8 @@ test("workflow policy rejects privilege, trigger, action and runner mutations", 
     workflow.replace("path: ${{ runner.temp }}/native-audit", "path: ${{ runner.temp }}"),
     workflow.replace("run: node scripts/supply-chain/native-scan.mjs", "continue-on-error: true\n        run: node scripts/supply-chain/native-scan.mjs"),
     workflow.replace("timeout-minutes: 45", "timeout-minutes: 90"),
+    workflow.replace("run: node --test tests/supply-chain-dormant.test.mjs", "run: node scripts/supply-chain/dormant.mjs status"),
+    workflow.replace("run: node --test tests/supply-chain-dormant.test.mjs", "run: node -e 'process.exit(0)'"),
+    workflow.replace("needs: [native-reproducibility, native-cli, native-audit, baseline-comparison]", "needs: policy"),
   ]) assert.throws(() => validatePreparationWorkflow(mutated));
 });

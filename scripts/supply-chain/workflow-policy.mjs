@@ -108,7 +108,7 @@ const bodies = {
           node-version: 22.23.2`,
   tests: "        run: node --test tests/supply-chain-*.test.mjs",
   status: "        run: node scripts/supply-chain/dormant.mjs status",
-  refusal: "        run: node scripts/supply-chain/dormant.mjs installation",
+  refusal: "        run: node --test tests/supply-chain-dormant.test.mjs",
   proposal: `        env:
           BOOTSTRAP_TOOL: \${{ matrix.tool }}
         run: >-

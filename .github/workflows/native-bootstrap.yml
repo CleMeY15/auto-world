@@ -74,8 +74,8 @@ jobs:
             ${{ runner.temp }}/auto-world-native-${{ matrix.tool }}/proposal-assets
           if-no-files-found: error
           retention-days: 30
-      - name: Refuse installation without committed native acceptance
-        run: node scripts/supply-chain/dormant.mjs installation
+      - name: Verify dormant installation and activation refusal
+        run: node --test tests/supply-chain-dormant.test.mjs
 
   native-build:
     needs: policy
@@ -308,4 +308,4 @@ jobs:
         with:
           node-version: 22.23.2
       - name: Refuse installation without independent acceptance
-        run: node scripts/supply-chain/dormant.mjs installation
+        run: node --test tests/supply-chain-dormant.test.mjs

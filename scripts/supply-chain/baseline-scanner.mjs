@@ -3,6 +3,9 @@ import https from "node:https";
 import path from "node:path";
 import { clearTimeout, setTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
+import { runBaselineComparison } from "./baseline-comparison.mjs";
+import { assertReviewedBaselineManaged, assertReviewedBaselineTools, validateBaselineTcbReceipt } from "./baseline-tcb.mjs";
+import { loadCandidateContext } from "./candidate-artifacts.mjs";
 import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { hashFileBounded, readFileBounded } from "./native-audit.mjs";
 import { createOwnedDirectory, policyError, removeOwnedDirectory, runCommand } from "./process.mjs";
@@ -88,7 +91,7 @@ function imageInventory(bytes) {
 
 // Inventory is an explicit managed-Docker TCB proposal. It never runs, creates
 // or builds a container. Actual comparison needs a separately reviewed receipt.
-export async function inventoryBaseline() {
+export async function inventoryBaseline({ expectedRun } = {}) {
   if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || !path.isAbsolute(process.env.RUNNER_TEMP ?? "")) fail("baseline_requires_secret_free_linux_ci");
   if (!/^[0-9]{8}\.[0-9]+\.[0-9]+$/u.test(process.env.ImageVersion ?? "")) fail("baseline_runner_identity_missing");
   const runnerTemp = await realpath(process.env.RUNNER_TEMP);
@@ -104,12 +107,17 @@ export async function inventoryBaseline() {
     const git = ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "-C", ROOT];
     const head = (await runCommand("/usr/bin/git", [...git, "rev-parse", "HEAD^{commit}"], options)).stdout.toString("utf8").trim();
     if (head !== process.env.GITHUB_SHA) fail("baseline_checkout_identity_mismatch");
-    await runCommand("/usr/bin/git", [...git, "ls-files", "--error-unmatch", "--", NATIVE_WORKFLOW_PATH, "scripts/supply-chain/baseline-scanner.mjs"], options);
+    await runCommand("/usr/bin/git", [...git, "ls-files", "--error-unmatch", "--", NATIVE_WORKFLOW_PATH,
+      "scripts/supply-chain/baseline-scanner.mjs", "scripts/supply-chain/baseline-tcb.mjs",
+      "scripts/supply-chain/baseline-comparison.mjs", "infra/supply-chain/materials/baseline-docker/reference.json",
+      "infra/supply-chain/materials/baseline-fixtures/expected-inventory.json"], options);
     if ((await runCommand("/usr/bin/git", [...git, "status", "--porcelain", "--untracked-files=no"], options)).stdout.length) fail("baseline_checkout_identity_mismatch");
     const run = createNativeCiIdentity(process.env, await readFileBounded(path.join(ROOT, NATIVE_WORKFLOW_PATH), 64 * 1024));
     const dockerIdentity = await hashFileBounded(DOCKER, 512 * 1024 * 1024);
     const dpkgIdentity = await hashFileBounded("/usr/bin/dpkg-query", 16 * 1024 * 1024);
     const aptIdentity = await hashFileBounded("/usr/bin/apt-cache", 16 * 1024 * 1024);
+    if (expectedRun) await assertReviewedBaselineTools({ cli: { path: DOCKER, ...dockerIdentity },
+      metadataTools: { dpkg: dpkgIdentity, apt: aptIdentity }, runnerImageVersion: process.env.ImageVersion });
     const owner = (await runCommand("/usr/bin/dpkg-query", ["--search", DOCKER], options)).stdout.toString("utf8").trim();
     const packageName = owner.split(": ")[0];
     if (!["docker-ce-cli", "docker.io", "moby-cli"].includes(packageName) || owner !== `${packageName}: ${DOCKER}`) fail("baseline_docker_package_unknown");
@@ -125,9 +133,11 @@ export async function inventoryBaseline() {
     const runtime = { version, info: { ID: info.ID, Driver: info.Driver, DockerRootDir: info.DockerRootDir,
       SecurityOptions: info.SecurityOptions, Runtimes: info.Runtimes, DefaultRuntime: info.DefaultRuntime,
       KernelVersion: info.KernelVersion, OperatingSystem: info.OperatingSystem, Architecture: info.Architecture } };
-    await writeFile(path.join(evidence, "managed-docker.json"), canonicalJsonBuffer({ run, runnerImageVersion: process.env.ImageVersion,
+    const managed = { run, runnerImageVersion: process.env.ImageVersion,
       cli: { path: DOCKER, ...dockerIdentity }, packageName, packageInfo: packageInfo.toString("utf8"), packageOrigin: packageOrigin.toString("utf8"),
-      metadataTools: { dpkg: dpkgIdentity, apt: aptIdentity }, runtime }), { flag: "wx" });
+      metadataTools: { dpkg: dpkgIdentity, apt: aptIdentity }, runtime };
+    await writeFile(path.join(evidence, "managed-docker.json"), canonicalJsonBuffer(managed), { flag: "wx" });
+    if (expectedRun) await assertReviewedBaselineManaged(managed, expectedRun);
 
     const auth = parseBoundedJson(await registryBytes("https://auth.docker.io/token?service=registry.docker.io&scope=repository:aquasec/trivy:pull"));
     if (typeof auth.token !== "string" || auth.token.length > 16384) fail("baseline_registry_auth_invalid");
@@ -148,21 +158,42 @@ export async function inventoryBaseline() {
         !image.RepoDigests?.includes(IMAGE) || !Number.isSafeInteger(image.Size) || image.Size < 1 || image.Size > 2 * GiB) fail("baseline_image_identity_mismatch");
     const after = imageInventory((await invoke("images")).stdout);
     if (before.some((id) => !after.includes(id)) || after.some((id) => !before.includes(id) && id !== image.Id)) fail("baseline_image_store_changed");
-    await writeFile(path.join(evidence, "inventory.json"), canonicalJsonBuffer({ schemaVersion: 1, state: "diagnostic_tcb_proposal",
+    const inventory = { schemaVersion: 1, state: "diagnostic_tcb_proposal",
       baselineState: "failed_non_admitted", run, recipeSha256: sha256(await readFileBounded(fileURLToPath(import.meta.url), 1024 * 1024)),
       manifests, localImage: { id: image.Id, size: image.Size, os: image.Os, architecture: image.Architecture,
-        user: image.Config?.User, entrypoint: image.Config?.Entrypoint, command: image.Config?.Cmd },
-      imageStore: { before, after }, availableBytesBeforePull: String(freeBytes), containersExecuted: 0 }), { flag: "wx" });
+        user: image.Config?.User, entrypoint: image.Config?.Entrypoint, command: image.Config?.Cmd,
+        volumes: image.Config?.Volumes ?? null },
+      imageStore: { before, after }, availableBytesBeforePull: String(freeBytes), containersExecuted: 0 };
+    await writeFile(path.join(evidence, "inventory.json"), canonicalJsonBuffer(inventory), { flag: "wx" });
+    if (expectedRun) return await validateBaselineTcbReceipt(managed, inventory,
+      { expectedRun, expectedRecipeSha256: sha256(await readFileBounded(fileURLToPath(import.meta.url), 1024 * 1024)) });
+    return undefined;
   } finally {
     await removeOwnedDirectory(work);
+  }
+}
+
+export async function compareBaseline() {
+  const context = await loadCandidateContext();
+  // This job re-inventories its own daemon and image immediately before any
+  // comparison. A different job's downloaded inventory cannot authorize it.
+  const baselineTcb = await inventoryBaseline({ expectedRun: context.expectations[0].run });
+  const workspace = await createOwnedDirectory(context.runnerTemp);
+  const outputDirectory = path.join(context.runnerTemp, "baseline-comparison");
+  try {
+    await mkdir(outputDirectory, { recursive: false });
+    return await runBaselineComparison({ context, baselineTcb, workspace: workspace.path,
+      nativeAuditDirectory: path.join(context.runnerTemp, "native-audit"), outputDirectory });
+  } finally {
+    await removeOwnedDirectory(workspace);
   }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = parseBaselineArgs(process.argv.slice(2));
-    if (args.mode === "compare") fail("baseline_comparison_review_required");
-    await inventoryBaseline();
+    if (args.mode === "compare") await compareBaseline();
+    else await inventoryBaseline();
   } catch (error) {
     process.stderr.write(`${typeof error?.code === "string" ? error.code : "baseline_inventory_failed"}\n`);
     process.exitCode = 1;

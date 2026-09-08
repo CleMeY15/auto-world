@@ -7,7 +7,7 @@ import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive } from "./archive.mjs";
 import { createNativeCiIdentity, NATIVE_WORKFLOW_PATH } from "./ci-identity.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
-import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, runPhase, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence } from "./lock-update.mjs";
+import { canonicalSourceArchive, collectRecipeFiles, collectSourceEvidence, fetchExactSource, runPhase, utilityInventory, validateCheckedOutSource, verifyOrasReleaseEvidence, verifyTrivyPatchFormatting } from "./lock-update.mjs";
 import {
   MATERIAL_LIMITS,
   assertManagedRunnerUtilitiesMatch,
@@ -295,30 +295,24 @@ export async function buildNativeCandidate({ tool, lock: lockPath, workspace, ou
   assertDigest(await runPhase("compiler_download", () => download(compilerSelection.url, compilerArchive, workspace)), proposal.compilerArchive, "compiler_archive");
   await runPhase("compiler_archive", () => validateGoCompilerGzipTar(compilerArchive));
   await mkdir(path.join(workspace, "compiler"));
-  await runCommand(BIN.tar, ["-xzf", compilerArchive, "-C", path.join(workspace, "compiler"), "--no-same-owner", "--no-same-permissions"], { cwd: workspace, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 120_000 });
+  await runPhase("compiler_extract", () => runCommand(BIN.tar, ["-xzf", compilerArchive, "-C", path.join(workspace, "compiler"), "--no-same-owner", "--no-same-permissions"], { cwd: workspace, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 120_000 }));
   const source = sourceIdentity.sourceDirectory;
-  await validateCheckedOutSource(source, selected.sourceSymlinks);
+  await runPhase("source_check", () => validateCheckedOutSource(source, selected.sourceSymlinks));
   const patchRoot = path.join(REPOSITORY_ROOT, "infra/supply-chain/patches");
   for (const patch of proposal.patches) {
     const patchPath = path.resolve(REPOSITORY_ROOT, patch.path);
     if (!patchPath.startsWith(`${patchRoot}${path.sep}`)) materialError("native_build_patch_path_refused");
     assertDigest(await sha256File(patchPath, 1024 * 1024), patch, `patch_${patch.order}`);
-    await runCommand(BIN.git, ["apply", "--check", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 });
-    await runCommand(BIN.git, ["apply", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 });
+    await runPhase(`patch_${patch.order}_check`, () => runCommand(BIN.git, ["apply", "--check", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 }));
+    await runPhase(`patch_${patch.order}_apply`, () => runCommand(BIN.git, ["apply", "--whitespace=error-all", patchPath], { cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000 }));
   }
-  await validateCheckedOutSource(source, selected.sourceSymlinks);
-  if (tool === "trivy") {
-    const gofmt = path.join(workspace, "compiler/go/bin/gofmt");
-    const formatting = await runCommand(gofmt, ["-d", "internal/gittest/testdata/fixture.go", "pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go"], {
-      cwd: source, env: environment(workspace, path.join(workspace, "compiler/go")), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
-    });
-    if (formatting.stdout.length !== 0) materialError("native_build_trivy_patch_not_gofmt");
-  }
-  await materializeTestData(tool, proposal, source);
+  await runPhase("patched_source_check", () => validateCheckedOutSource(source, selected.sourceSymlinks));
+  if (tool === "trivy") await runPhase("patch_formatting", () => verifyTrivyPatchFormatting(path.join(workspace, "compiler/go"), source, workspace));
+  await runPhase("test_materials", () => materializeTestData(tool, proposal, source));
   const go = path.join(workspace, "compiler/go/bin/go");
   await chmod(go, 0o755);
   const env = environment(workspace, path.join(workspace, "compiler/go"), { SOURCE_DATE_EPOCH: String(proposal.sourceDateEpoch) });
-  const version = await runGo(go, ["version"], source, env, 60_000);
+  const version = await runPhase("compiler_version", () => runGo(go, ["version"], source, env, 60_000));
   if (!version.stdout.toString("utf8").includes("go1.26.8 linux/amd64")) materialError("native_build_compiler_identity_mismatch");
   await runPhase("module_closure", () => verifyModules(go, source, env, proposal.modules));
   await runPhase("upstream_tests", () => runUpstreamTests(tool, selected, go, source, env));

@@ -16,6 +16,11 @@ const SOURCE = Object.freeze({
   rawBaseUrl: "https://raw.githubusercontent.com/aquasecurity/trivy/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
 });
 const SCANNER_VERSION = "0.74.0-autoworld.1";
+const GO_ROOTS = Object.freeze({
+  "go.mod": "github.com/testdata/testdata",
+  "submod/go.mod": "github.com/testdata/testdata/submod",
+  "submod2/go.mod": "github.com/testdata/testdata/submod2",
+});
 const MATERIALS = Object.freeze([
   { path: "gomod/go.mod", sourcePath: "integration/testdata/fixtures/repo/gomod/go.mod", gitBlob: "f59c97baf941ab84b48535edbc3b3373022a87eb", sha256: "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f", size: 1069 },
   { path: "gomod/go.sum", sourcePath: "integration/testdata/fixtures/repo/gomod/go.sum", gitBlob: "43be8bf10ceca25732601013e0f9489c5cf03802", sha256: "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527", size: 129439 },
@@ -112,7 +117,14 @@ function normalizedResult(result) {
   if (!result || typeof result !== "object" || Array.isArray(result) || typeof result.Target !== "string" ||
       result.Class !== "lang-pkgs" || !Array.isArray(result.Packages) || result.Packages.length === 0 || result.Packages.length > 10_000) fail("scanner_fixture_report_invalid");
   const packages = result.Packages.map((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item) || typeof item.Name !== "string" || !item.Name || typeof item.Version !== "string" || !item.Version) fail("scanner_fixture_report_invalid");
+    if (!item || typeof item !== "object" || Array.isArray(item) || typeof item.Name !== "string" || !item.Name) fail("scanner_fixture_report_invalid");
+    // The pinned Go parser includes these exact module roots. Its JSON marshal
+    // omits Version and Identifier for roots in a local filesystem scan.
+    if (result.Type === "gomod" && Object.hasOwn(GO_ROOTS, result.Target) && item.Name === GO_ROOTS[result.Target]) {
+      if (Object.hasOwn(item, "Version") || Object.hasOwn(item, "Identifier") || item.ID !== item.Name || item.Relationship !== "root") fail("scanner_fixture_report_invalid");
+      return `${item.Name}@`;
+    }
+    if (typeof item.Version !== "string" || !item.Version) fail("scanner_fixture_report_invalid");
     return `${item.Name}@${item.Version}`;
   });
   if (new Set(packages).size !== packages.length) fail("scanner_fixture_report_invalid");
@@ -137,7 +149,8 @@ export function validateScannerFixtureReport(fixtureId, report) {
   if (new Set(results.map((entry) => entry.target)).size !== results.length) fail("scanner_fixture_report_invalid");
   if (fixtureId === "gomod-vulnerable") {
     const targets = results.map((entry) => entry.target).sort();
-    if (!sameCanonical(targets, ["go.mod", "submod/go.mod", "submod2/go.mod"]) || results.some((entry) => entry.type !== "gomod")) fail("scanner_fixture_report_invalid");
+    if (!sameCanonical(targets, ["go.mod", "submod/go.mod", "submod2/go.mod"]) ||
+        results.some((entry) => entry.type !== "gomod" || !entry.packages.includes(`${GO_ROOTS[entry.target]}@`))) fail("scanner_fixture_report_invalid");
     const findings = results.flatMap((entry) => entry.findings).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right), "en"));
     const expected = [...GO_FINDINGS].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right), "en"));
     if (!expected.every((entry) => findings.some((actual) => sameCanonical(actual, entry)))) fail("scanner_fixture_report_invalid");

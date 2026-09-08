@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { createGunzip } from "node:zlib";
 import { validateGoCompilerTarArchive, validateNativeSourceTarArchive } from "./archive.mjs";
+import { readFileBounded } from "./native-audit.mjs";
 import { canonicalJsonBuffer, sha256 } from "./strict-json.mjs";
 import {
   MATERIAL_LIMITS,
@@ -25,6 +26,8 @@ import { runCommand } from "./process.mjs";
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_SELECTION = path.join(REPOSITORY_ROOT, "infra/supply-chain/native-sources.json");
 const LINUX_BINARIES = MANAGED_RUNNER_UTILITY_PATHS;
+const TRIVY_FORMAT_FILES = Object.freeze(["internal/gittest/testdata/fixture.go", "pkg/fanal/analyzer/pkg/rpm/testdata/fixture.go"]);
+const FORMAT_CAPTURE = '"$1" -d "$2" "$3"; code=$?; printf "\\nAUTOWORLD_GOFMT_EXIT=%s\\n" "$code"';
 
 function usage() {
   return "usage: lock-update.mjs propose --tool <oras|cosign|trivy> --workspace <absolute> --output <absolute.json> [--selection <absolute.json>] | merge --proposal <absolute.json> (three times) --output <absolute.json> [--selection <absolute.json>]";
@@ -294,6 +297,81 @@ async function moduleClosure(goExecutable, sourceDirectory, environment) {
   return modules;
 }
 
+export function orasModuleDiagnostics(original, downloaded, tidied) {
+  const states = {};
+  for (const [name, state] of Object.entries({ original, downloaded, tidied })) {
+    if (!state || canonicalJsonBuffer(Object.keys(state).sort()).compare(canonicalJsonBuffer(["go.mod", "go.sum"])) !== 0) {
+      materialError("oras_module_diagnostic_files_invalid");
+    }
+    states[name] = {};
+    for (const filename of ["go.mod", "go.sum"]) {
+      const bytes = state[filename];
+      const cap = filename === "go.mod" ? 64 * 1024 : 512 * 1024;
+      if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > cap) materialError("oras_module_diagnostic_size_invalid");
+      let text;
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      catch { materialError("oras_module_diagnostic_encoding_invalid"); }
+      states[name][filename] = { size: bytes.length, sha256: sha256(bytes), text };
+    }
+  }
+  const matches = (left, right) => ["go.mod", "go.sum"].every((file) => left[file].equals(right[file]));
+  return { schemaVersion: 1, state: "diagnostic_only", sourceRestored: true,
+    downloadChangedSource: !matches(original, downloaded), tidyChangedDownload: !matches(downloaded, tidied),
+    tidyMatchesOriginal: matches(original, tidied), states };
+}
+
+async function readOrasModuleState(sourceDirectory) {
+  return { "go.mod": await readFileBounded(path.join(sourceDirectory, "go.mod"), 64 * 1024),
+    "go.sum": await readFileBounded(path.join(sourceDirectory, "go.sum"), 512 * 1024) };
+}
+
+export async function withRestoredOrasModules(sourceDirectory, original, operation, verifyRestored) {
+  let primary, restorationFailure, value;
+  let succeeded = false;
+  try {
+    value = await operation();
+    succeeded = true;
+  } catch (error) {
+    primary = error;
+  } finally {
+    try {
+      for (const filename of ["go.mod", "go.sum"]) await writeFile(path.join(sourceDirectory, filename), original[filename]);
+      await verifyRestored();
+    } catch (error) {
+      restorationFailure = new Error("material_contract:oras_module_diagnostic_restore_failed", { cause: error });
+      restorationFailure.primaryError = primary;
+    }
+  }
+  if (restorationFailure) throw restorationFailure;
+  if (!succeeded) throw primary;
+  return value;
+}
+
+async function collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace, environment, original, selected, compiler) {
+  const { downloaded, tidied, diff } = await withRestoredOrasModules(sourceDirectory, original, async () => {
+    const downloaded = await readOrasModuleState(sourceDirectory);
+    await runCommand(goExecutable, ["mod", "tidy"], { cwd: sourceDirectory,
+      env: { ...environment, CGO_ENABLED: "1", GOFLAGS: "" }, timeoutMs: 5 * 60_000, maxOutputBytes: 8 * 1024 * 1024 });
+    const tidied = await readOrasModuleState(sourceDirectory);
+    const changed = (await runGit(["-C", sourceDirectory, "diff", "--name-only", "--no-ext-diff"], workspace, workspace))
+      .stdout.toString("utf8").trim().split(/\r?\n/u).filter(Boolean);
+    if (changed.some((file) => !["go.mod", "go.sum"].includes(file))) materialError("oras_module_diagnostic_source_changed");
+    const diff = (await runGit(["-C", sourceDirectory, "diff", "--no-ext-diff", "--", "go.mod", "go.sum"], workspace, workspace)).stdout;
+    if (diff.length > 1024 * 1024) materialError("oras_module_diagnostic_diff_exceeded");
+    return { downloaded, tidied, diff };
+  }, async () => {
+    if ((await runGit(["-C", sourceDirectory, "status", "--porcelain=v1", "--untracked-files=all"], workspace, workspace)).stdout.length) {
+      materialError("oras_module_diagnostic_restore_failed");
+    }
+  });
+  const record = { ...orasModuleDiagnostics(original, downloaded, tidied), sourceCommit: selected.commit,
+    compiler, diagnosticRecipe: await sha256File(fileURLToPath(import.meta.url), 1024 * 1024),
+    tidyDiff: { sha256: sha256(diff), size: diff.length, text: new TextDecoder("utf-8", { fatal: true }).decode(diff) } };
+  const bytes = canonicalJsonBuffer(record);
+  if (bytes.length > MATERIAL_LIMITS.receiptBytes) materialError("oras_module_diagnostic_receipt_exceeded");
+  await writeFile(path.join(workspace, "proposal-assets/oras/module-diagnostics.json"), bytes, { flag: "wx" });
+}
+
 export async function utilityInventory(workspace) {
   const utilities = [];
   for (const [name, executable] of Object.entries(LINUX_BINARIES)) {
@@ -433,6 +511,46 @@ async function collectCommittedTrivyPatches() {
   return patches;
 }
 
+export function trivyFormattingArguments(goRoot, sourceDirectory) {
+  if (!path.isAbsolute(goRoot) || !path.isAbsolute(sourceDirectory)) materialError("trivy_formatter_path_invalid");
+  return ["--noprofile", "--norc", "-c", FORMAT_CAPTURE, "auto-world-gofmt",
+    path.join(goRoot, "bin/gofmt"), ...TRIVY_FORMAT_FILES.map((file) => path.join(sourceDirectory, file))];
+}
+
+export function parseTrivyFormattingCapture(stdout, stderr) {
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length + stderr.length > 1024 * 1024) materialError("trivy_formatter_output_invalid");
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(stdout);
+  const errorText = new TextDecoder("utf-8", { fatal: true }).decode(stderr);
+  const marker = /\nAUTOWORLD_GOFMT_EXIT=([0-9]{1,3})\n$/u.exec(text);
+  if (!marker || Number(marker[1]) > 255) materialError("trivy_formatter_status_invalid");
+  return { exitCode: Number(marker[1]), diff: text.slice(0, marker.index), stderr: errorText };
+}
+
+// Only two byte-bounded public fixture sources enter this formatter. The fixed
+// shell captures its real exit status without changing generic child-failure
+// handling; the caller still refuses every nonzero result or formatting diff.
+export async function verifyTrivyPatchFormatting(goRoot, sourceDirectory, workspace) {
+  const inputs = [];
+  for (const file of TRIVY_FORMAT_FILES) inputs.push({ path: file, ...await sha256File(path.join(sourceDirectory, file), 1024 * 1024) });
+  const result = await runCommand(LINUX_BINARIES.bash, trivyFormattingArguments(goRoot, sourceDirectory), {
+    cwd: sourceDirectory, env: safeEnvironment(workspace), timeoutMs: 60_000, maxOutputBytes: 1024 * 1024,
+  });
+  const capture = parseTrivyFormattingCapture(result.stdout, result.stderr);
+  for (const input of inputs) {
+    const after = await sha256File(path.join(sourceDirectory, input.path), 1024 * 1024);
+    if (after.sha256 !== input.sha256 || after.size !== input.size) materialError("trivy_formatter_source_changed");
+  }
+  const bytes = canonicalJsonBuffer({ schemaVersion: 1, state: "diagnostic_only", inputs,
+    formatter: await sha256File(path.join(goRoot, "bin/gofmt"), MATERIAL_LIMITS.binaryBytes),
+    sourceUnchanged: true, ...capture });
+  if (bytes.length > MATERIAL_LIMITS.receiptBytes) materialError("trivy_formatter_receipt_exceeded");
+  const directory = path.join(workspace, "proposal-assets/trivy");
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, "gofmt-diagnostics.json"), bytes, { flag: "wx" });
+  if (capture.exitCode !== 0 || capture.stderr.length !== 0) materialError("trivy_patch_gofmt_failed");
+  if (capture.diff.length !== 0) materialError("trivy_patch_not_gofmt");
+}
+
 async function applyProposalPatches(patches, sourceDirectory, workspace) {
   for (const patch of patches) {
     const patchPath = path.join(REPOSITORY_ROOT, patch.path);
@@ -527,8 +645,15 @@ export async function proposeMaterialLock({ tool, workspace, output, selection: 
   } else if (patches.length > 0) {
     await runPhase("patches", () => applyProposalPatches(patches, sourceDirectory, workspace));
     await validateCheckedOutSource(sourceDirectory, selected.sourceSymlinks);
+    if (tool === "trivy") await runPhase("patch_formatting", () => verifyTrivyPatchFormatting(path.join(compilerDirectory, "go"), sourceDirectory, workspace));
   }
+  const originalOrasModules = tool === "oras" ? await readOrasModuleState(sourceDirectory) : undefined;
   const modules = await runPhase("modules", () => moduleClosure(goExecutable, sourceDirectory, goEnvironment));
+  if (tool === "oras") {
+    await runPhase("module_diagnostics", () => collectOrasModuleDiagnostics(goExecutable, sourceDirectory, workspace,
+      goEnvironment, originalOrasModules, selected, { version: selection.compiler.version, ...compilerArchive }));
+    blockers.push("oras-module-mutation-diagnostic-requires-review");
+  }
   const testMaterials = await runPhase("fixtures", () => tool === "trivy" ? prepareTrivyTestMaterials() : Promise.resolve([]));
   const proposal = {
     schemaVersion: 1,

@@ -1,12 +1,83 @@
 import assert from "node:assert/strict";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseLockUpdateArgs, validateGitTree } from "../scripts/supply-chain/lock-update.mjs";
+import { orasModuleDiagnostics, parseLockUpdateArgs, parseTrivyFormattingCapture, trivyFormattingArguments, validateGitTree, withRestoredOrasModules } from "../scripts/supply-chain/lock-update.mjs";
 import { buildNativeCandidate, parseNativeBuildArgs } from "../scripts/supply-chain/native-build.mjs";
+import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lock = path.join(root, "infra/supply-chain/native-materials.lock.json");
+
+test("Trivy formatter captures only fixed public source arguments and preserves the actual failure status", () => {
+  const args = trivyFormattingArguments(path.join(root, "go ' $()"), path.join(root, "source ' $()"));
+  assert.deepEqual(args.slice(0, 3), ["--noprofile", "--norc", "-c"]);
+  assert.equal(args[3], '"$1" -d "$2" "$3"; code=$?; printf "\\nAUTOWORLD_GOFMT_EXIT=%s\\n" "$code"');
+  assert.ok(args[5].endsWith(path.join("go ' $()", "bin/gofmt")));
+  assert.ok(args[6].endsWith(path.join("internal/gittest/testdata", "fixture.go")));
+  assert.ok(args[7].endsWith(path.join("pkg/fanal/analyzer/pkg/rpm/testdata", "fixture.go")));
+  assert.deepEqual(parseTrivyFormattingCapture(Buffer.from("\nAUTOWORLD_GOFMT_EXIT=0\n"), Buffer.alloc(0)), { exitCode: 0, diff: "", stderr: "" });
+  assert.deepEqual(parseTrivyFormattingCapture(Buffer.from("\nAUTOWORLD_GOFMT_EXIT=2\n"), Buffer.from("public syntax error")), {
+    exitCode: 2, diff: "", stderr: "public syntax error",
+  });
+  const injected = parseTrivyFormattingCapture(Buffer.from("+AUTOWORLD_GOFMT_EXIT=0\n\nAUTOWORLD_GOFMT_EXIT=2\n"), Buffer.alloc(0));
+  assert.equal(injected.exitCode, 2);
+  assert.equal(injected.diff, "+AUTOWORLD_GOFMT_EXIT=0\n");
+  assert.throws(() => parseTrivyFormattingCapture(Buffer.alloc(1024 * 1024 + 1), Buffer.alloc(0)), /trivy_formatter_output_invalid/u);
+  for (const invalid of ["", "AUTOWORLD_GOFMT_EXIT=0", "\nAUTOWORLD_GOFMT_EXIT=256\n", "\nAUTOWORLD_GOFMT_EXIT=0\nextra"]) {
+    assert.throws(() => parseTrivyFormattingCapture(Buffer.from(invalid), Buffer.alloc(0)), /trivy_formatter_status_invalid/u);
+  }
+});
+
+test("ORAS diagnostics distinguish download side effects from source changes without accepting either", () => {
+  const original = { "go.mod": Buffer.from("module example.invalid\n"), "go.sum": Buffer.from("original sum\n") };
+  const downloaded = { ...original, "go.sum": Buffer.from("original sum\nextra sum\n") };
+  const restored = orasModuleDiagnostics(original, downloaded, original);
+  assert.equal(restored.downloadChangedSource, true);
+  assert.equal(restored.tidyChangedDownload, true);
+  assert.equal(restored.tidyMatchesOriginal, true);
+  assert.equal(restored.state, "diagnostic_only");
+  assert.equal(restored.states.downloaded["go.sum"].text, "original sum\nextra sum\n");
+  assert.equal(orasModuleDiagnostics(original, downloaded, downloaded).tidyMatchesOriginal, false);
+  for (const bad of [
+    { ...original, "other.txt": Buffer.from("unexpected") },
+    { ...original, "go.mod": Buffer.alloc(64 * 1024 + 1) },
+    { ...original, "go.sum": Buffer.from([255]) },
+  ]) assert.throws(() => orasModuleDiagnostics(original, bad, original), /oras_module_diagnostic_/u);
+});
+
+test("ORAS diagnostic failure restores source bytes and never publishes an incomplete receipt", async () => {
+  const owned = await createOwnedDirectory();
+  const original = { "go.mod": Buffer.from("original module\n"), "go.sum": Buffer.from("original checksum\n") };
+  const primary = new Error("injected tidy failure");
+  let checked = false;
+  const verifyRestored = async () => {
+    for (const file of Object.keys(original)) assert.deepEqual(await readFile(path.join(owned.path, file)), original[file]);
+    checked = true;
+  };
+  try {
+    const mutate = async () => {
+      for (const file of Object.keys(original)) await writeFile(path.join(owned.path, file), "mutated");
+      throw primary;
+    };
+    const collect = async (verify) => {
+      await withRestoredOrasModules(owned.path, original, mutate, verify);
+      await writeFile(path.join(owned.path, "module-diagnostics.json"), "never published");
+    };
+    await assert.rejects(collect(verifyRestored), (error) => error === primary);
+    assert.equal(checked, true);
+    assert.deepEqual((await readdir(owned.path)).sort(), ["go.mod", "go.sum"]);
+    await assert.rejects(collect(async () => { throw new Error("injected restore check failure"); }), (error) => {
+      assert.equal(error.message, "material_contract:oras_module_diagnostic_restore_failed");
+      assert.equal(error.primaryError, primary);
+      assert.equal(error.cause.message, "injected restore check failure");
+      return true;
+    });
+  } finally {
+    await removeOwnedDirectory(owned);
+  }
+});
 
 test("lock proposal CLI accepts only the bounded explicit contract", () => {
   const parsed = parseLockUpdateArgs([

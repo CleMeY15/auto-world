@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { createOwnedDirectory, removeOwnedDirectory } from "../scripts/supply-chain/process.mjs";
@@ -25,7 +25,7 @@ const report = (ArtifactName, Results) => ({
 });
 
 function goReport() {
-  return report("gomod", [
+  const value = report("gomod", [
     result("go.mod", "gomod", [
       ["github.com/docker/distribution", "v2.7.1+incompatible"],
       ["github.com/open-policy-agent/opa", "v0.35.0"],
@@ -42,6 +42,12 @@ function goReport() {
       finding("GMS-2022-20", "github.com/docker/distribution", "v2.7.1+incompatible", "v2.8.0"),
     ]),
   ]);
+  for (const entry of value.Results) {
+    const suffix = entry.Target === "go.mod" ? "" : `/${entry.Target.split("/")[0]}`;
+    const Name = `github.com/testdata/testdata${suffix}`;
+    entry.Packages.push({ ID: Name, Name, Relationship: "root" });
+  }
+  return value;
 }
 
 function warReport() {
@@ -59,6 +65,31 @@ const rejected = (fixtureId, value) => assert.throws(
   () => validateScannerFixtureReport(fixtureId, value),
   { code: "scanner_fixture_report_invalid" },
 );
+
+test("Go fixture JSON accepts only the three source-derived roots without version or identifier", async () => {
+  const value = goReport();
+  for (const entry of value.Results) {
+    const bytes = await readFile(new URL(`../infra/supply-chain/materials/scanner-fixtures/gomod/${entry.Target}`, import.meta.url));
+    const name = /^module (.+)$/mu.exec(bytes.toString("utf8"))[1].trim();
+    assert.equal(entry.Packages.at(-1).Name, name);
+  }
+  assert.doesNotThrow(() => validateScannerFixtureReport("gomod-vulnerable", value));
+  for (const mutate of [
+    (entry) => { entry.Packages.pop(); },
+    (entry) => { entry.Packages.at(-1).Version = ""; },
+    (entry) => { entry.Packages.at(-1).Version = undefined; },
+    (entry) => { entry.Packages.at(-1).Version = "v1.0.0"; },
+    (entry) => { entry.Packages.at(-1).Identifier = {}; },
+    (entry) => { entry.Packages.at(-1).ID = "other"; },
+    (entry) => { entry.Packages.at(-1).Relationship = "direct"; },
+    (entry) => { entry.Packages.at(-1).Name += "/other"; },
+    (entry) => { delete entry.Packages[0].Version; },
+  ]) {
+    const changed = goReport();
+    mutate(changed.Results[0]);
+    rejected("gomod-vulnerable", changed);
+  }
+});
 
 test("scanner fixture manifest is byte-pinned and closes exactly eight local inputs", async () => {
   const manifest = await loadScannerFixtureManifest();
