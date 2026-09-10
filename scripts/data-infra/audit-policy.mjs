@@ -14,10 +14,16 @@ export function auditSubjects(shipped, candidates) {
 }
 
 export function evaluateImageReport(report, pin, dispositions = [], now = new Date()) {
+  const artifactName = report?.ArtifactName;
+  const expectedArtifact = typeof pin?.repository === "string"
+    ? [pin.manifestDigest, pin.platform?.digest]
+      .filter((digest) => typeof digest === "string")
+      .map((digest) => `${pin.repository}@${digest}`)
+    : [];
   if (report?.SchemaVersion !== 2 || report.Trivy?.Version !== "0.74.0" ||
       !Number.isFinite(Date.parse(report.CreatedAt)) || !Array.isArray(report.Results) || !report.Results.length ||
       report.ArtifactType !== "container_image" ||
-      ![pin.manifestDigest, pin.platform.digest].some((digest) => report.ArtifactName?.endsWith(`@${digest}`)) ||
+      !expectedArtifact.includes(artifactName) ||
       report.Metadata?.ImageConfig?.architecture !== pin.platform.architecture ||
       report.Metadata?.ImageConfig?.os !== pin.platform.os) {
     throw new Error("infra_audit_report_invalid");
