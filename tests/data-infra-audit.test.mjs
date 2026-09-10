@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { auditSubjects, evaluateImageReport } from "../scripts/data-infra/audit-policy.mjs";
 
-const pin = { manifestDigest: `sha256:${"a".repeat(64)}`, platform: { digest: `sha256:${"b".repeat(64)}`, os: "linux", architecture: "amd64" } };
+const pin = { repository: "synthetic/image", manifestDigest: `sha256:${"a".repeat(64)}`, platform: { digest: `sha256:${"b".repeat(64)}`, os: "linux", architecture: "amd64" } };
 const now = new Date("2026-09-06T00:00:00Z");
-const report = (findings = []) => ({ SchemaVersion: 2, Trivy: { Version: "0.74.0" }, CreatedAt: now.toISOString(), ArtifactType: "container_image", ArtifactName: `synthetic@${pin.manifestDigest}`, Metadata: { ImageConfig: { os: "linux", architecture: "amd64" } }, Results: [{ Target: "synthetic", Vulnerabilities: findings }] });
+const report = (findings = []) => ({ SchemaVersion: 2, Trivy: { Version: "0.74.0" }, CreatedAt: now.toISOString(), ArtifactType: "container_image", ArtifactName: `${pin.repository}@${pin.manifestDigest}`, Metadata: { ImageConfig: { os: "linux", architecture: "amd64" } }, Results: [{ Target: "synthetic", Vulnerabilities: findings }] });
 const finding = { Severity: "HIGH", VulnerabilityID: "CVE-2099-0001", PkgName: "synthetic", InstalledVersion: "1", FixedVersion: "" };
 const disposition = { imageDigest: pin.manifestDigest, target: "synthetic", vulnerabilityId: finding.VulnerabilityID, packageName: finding.PkgName, installedVersion: "1", decision: "unfixed_local_ci_only", reason: "Synthetic reviewed risk test, never a real exception.", independentReview: "https://github.com/CleMeY15/auto-world/pull/7", reviewedAt: "2026-09-05T00:00:00Z", expiresAt: "2026-09-12T00:00:00Z" };
 
@@ -28,9 +28,14 @@ test("candidate scans cannot replace shipped subjects or accept arbitrary regist
   }
 });
 
-test("image audit fails closed on wrong image/platform/tool or empty report", () => {
+test("image audit binds the report to the pinned repository, image and platform", () => {
   assert.equal(evaluateImageReport(report(), pin, [], now).blockers.length, 0);
-  for (const changed of [{ SchemaVersion: 0 }, { Results: [] }, { ArtifactName: "synthetic:latest" }, { Trivy: { Version: "other" } }, { Metadata: { ImageConfig: { os: "linux", architecture: "arm64" } } }]) {
+  for (const changed of [
+    { SchemaVersion: 0 }, { Results: [] }, { ArtifactName: "synthetic:latest" },
+    { ArtifactName: `other/image@${pin.manifestDigest}` },
+    { ArtifactName: `synthetic/image@sha256:${"c".repeat(64)}` },
+    { Trivy: { Version: "other" } }, { Metadata: { ImageConfig: { os: "linux", architecture: "arm64" } } },
+  ]) {
     assert.throws(() => evaluateImageReport({ ...report(), ...changed }, pin), /invalid/u);
   }
 });
