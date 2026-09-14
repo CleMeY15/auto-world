@@ -11,8 +11,8 @@ const LOCK_PATH = path.join(ROOT, "infra/scanner/scanner-lock.json");
 const DOCKER = "/usr/bin/docker";
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
-const DATABASE_DOWNLOAD_TMPFS_BYTES = 1536 * MiB;
-const DATABASE_DOWNLOAD_MEMORY_BYTES = 2 * GiB;
+const DATABASE_DOWNLOAD_TMPFS_BYTES = 3 * GiB;
+const DATABASE_DOWNLOAD_MEMORY_BYTES = 4 * GiB;
 
 function fail(code) { throw new Error(code); }
 
@@ -112,7 +112,8 @@ export function validateDatabaseRegistryManifest(manifest) {
         !Number.isSafeInteger(layer.size) || layer.size < 1) fail("scanner_database_registry_manifest_invalid");
     layerBytes += layer.size;
   }
-  if (!Number.isSafeInteger(layerBytes) || layerBytes >= GiB || DATABASE_DOWNLOAD_TMPFS_BYTES - layerBytes < 512 * MiB) fail("scanner_database_layer_budget_exceeded");
+  // Trivy retains the OCI layer while go-getter copies it to getter*/archive, then streams decompression to the cache.
+  if (!Number.isSafeInteger(layerBytes) || layerBytes >= GiB || DATABASE_DOWNLOAD_TMPFS_BYTES - (2 * layerBytes) < GiB) fail("scanner_database_layer_budget_exceeded");
   return { digest: `sha256:${sha256(manifest)}`, size: manifest.length, layerBytes };
 }
 
@@ -123,8 +124,8 @@ export function databaseDownloadDockerArguments({ baseline, cache, user, registr
   const references = registries.map((entry) => `${entry?.repository}@${entry?.digest}`);
   if (references.some((entry) => !/^[a-z0-9.]+(?:[._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$/u.test(entry))) fail("scanner_database_download_arguments_invalid");
   return ["run", "--rm", "--pull=never", "--platform", "linux/amd64", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges=true",
-    "--user", user, "--pids-limit", "256", "--memory", "2g", "--memory-swap", "2g", "--cpus", "1",
-    "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=1536m,mode=1777", "--mount", `type=bind,src=${cache},dst=/cache`, baseline, "image", "--cache-dir", "/cache",
+    "--user", user, "--pids-limit", "256", "--memory", "4g", "--memory-swap", "4g", "--cpus", "1",
+    "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=3g,mode=1777", "--mount", `type=bind,src=${cache},dst=/cache`, baseline, "image", "--cache-dir", "/cache",
     "--db-repository", references[0], "--java-db-repository", references[1], kind === "vulnerability" ? "--download-db-only" : "--download-java-db-only"];
 }
 

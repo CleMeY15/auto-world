@@ -64,18 +64,18 @@ test("candidate scanner runs isolated without host or Docker socket access", () 
   assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
 });
 
-test("database downloader reserves bounded Java layer headroom and remains isolated", () => {
+test("database downloader reserves two bounded archive copies and remains isolated", () => {
   const registries = ["trivy-db", "trivy-java-db"].map((name) => ({ repository: `ghcr.io/aquasecurity/${name}`, digest: `sha256:${"a".repeat(64)}` }));
   const args = databaseDownloadDockerArguments({ baseline: `aquasec/trivy@sha256:${"b".repeat(64)}`, cache: path.resolve("cache"), user: "1001:1001", registries, kind: "java" });
   const joined = args.join(" ");
-  assert.match(joined, /--memory 2g --memory-swap 2g/u);
-  assert.match(joined, /--tmpfs \/tmp:rw,nosuid,nodev,noexec,size=1536m,mode=1777/u);
+  assert.match(joined, /--memory 4g --memory-swap 4g/u);
+  assert.match(joined, /--tmpfs \/tmp:rw,nosuid,nodev,noexec,size=3g,mode=1777/u);
   assert.match(joined, /--read-only --cap-drop=ALL --security-opt=no-new-privileges=true/u);
   assert.match(joined, /--download-java-db-only$/u);
   assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
 });
 
-test("database manifest preflight rejects layers without 512 MiB download headroom", () => {
+test("database manifest preflight budgets two layer copies and one GiB headroom", () => {
   const manifest = (size) => Buffer.from(JSON.stringify({ schemaVersion: 2, layers: [{
     mediaType: "application/vnd.aquasecurity.trivy.db.layer.v1.tar+gzip", digest: `sha256:${"a".repeat(64)}`, size,
   }] }));
