@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-  chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
+  copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
   realpathSync, rmSync, statfsSync, writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -8,6 +8,8 @@ import process from "node:process";
 import { TextDecoder } from "node:util";
 import { stableModuleClosure } from "../scanner/build.mjs";
 import { runMonitoredCommand as defaultRunner } from "./command-monitor.mjs";
+import { removeOwnedTree, removeOwnedWorkEntry, workTreeBytes } from "./work-tree.mjs";
+export { removeOwnedTree } from "./work-tree.mjs";
 export { commandMonitorScript, runMonitoredCommand } from "./command-monitor.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -96,23 +98,6 @@ export function assertResourceBudget({ workBytes, retainedBytes, freeBytes, logB
   if (retainedBytes > limits.retainedBytes) throw new Error("seaweed_retained_budget_exceeded");
   if (freeBytes < limits.minimumFreeBytes) throw new Error("seaweed_free_space_reserve_failed");
   if (logBytes > limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
-}
-
-export function removeOwnedTree(work, root = "/tmp") {
-  const target = path.resolve(work);
-  if (target !== path.join(path.resolve(root), "auto-world-seaweed-source-diagnostic") || !existsSync(target) || lstatSync(target).isSymbolicLink() || realpathSync(target) !== target) {
-    throw new Error("seaweed_cleanup_path_invalid");
-  }
-  const makeWritable = (directory) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const absolute = path.join(directory, entry.name);
-      if (entry.isSymbolicLink()) throw new Error("seaweed_cleanup_symlink_invalid");
-      if (entry.isDirectory()) makeWritable(absolute);
-      chmodSync(absolute, entry.isDirectory() ? 0o700 : 0o600);
-    }
-  };
-  makeWritable(target);
-  rmSync(target, { recursive: true, force: false });
 }
 
 function jsonSequence(bytes) {
@@ -443,7 +428,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
   const logs = path.join(output, "logs"); const materials = path.join(output, "materials");
   mkdirSync(logs); mkdirSync(materials);
   const baseEnv = safeBaseEnvironment(workRoot);
-  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; const redisLifecycle = createRedisLifecycle();
+  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; let workCleanupSafe = true; const redisLifecycle = createRedisLifecycle();
   const receipt = { schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "FAILED", repeat, sourceCommit: lock.source.commit,
     sourceTree: lock.source.tree, sourceVersion: lock.source.version, derivativeCommit: lock.build.commitValue, buildTags: [],
     platform: "linux/amd64", cgoEnabled: "0", notRun: lock.notRun, lock: materialIdentity(lockBytes), patch: materialIdentity(patch),
@@ -457,22 +442,31 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const monitorPrefix = path.join(workRoot, "tmp", `command-${String(runnerIndex).padStart(3, "0")}`);
     const result = commandRunner(command, args, { cwd: options.cwd ?? workRoot, env: options.env ?? baseEnv, maxBuffer: lock.limits.logBytes, timeout,
       monitor: { stdout: `${monitorPrefix}.stdout`, stderr: `${monitorPrefix}.stderr`, marker: `${monitorPrefix}.marker`, work: workRoot, retained: output, limits: lock.limits } });
+    if (result?.groupAbsent === false || result?.monitorReason === "seaweed_process_group_cleanup_failed") {
+      workCleanupSafe = false;
+      throw new Error("seaweed_process_group_cleanup_failed");
+    }
     const stdout = Buffer.isBuffer(result?.stdout) ? result.stdout : Buffer.alloc(0);
     const stderr = Buffer.isBuffer(result?.stderr) ? result.stderr : Buffer.alloc(0);
     const logBytes = Buffer.concat([stdout, stderr]);
     if (logBytes.length > lock.limits.logBytes) throw new Error("seaweed_command_log_exceeded");
-    if (/^seaweed_[a-z0-9_]+$/u.test(result?.monitorReason ?? "")) throw new Error(result.monitorReason);
+    options.onOutput?.({ stdout, stderr, logBytes });
+    if (/^seaweed_[a-z0-9_]+$/u.test(result?.monitorReason ?? "")) {
+      if (result.resourceUsage) receipt.resourceFailure = { command: options.phaseName ?? "redis_helper", ...result.resourceUsage };
+      throw new Error(result.monitorReason);
+    }
     if (options.budget !== false) budget();
     return { result, stdout, stderr, logBytes };
   };
   const run = (phaseName, command, args, options = {}) => {
-    const { result, stdout, stderr, logBytes } = invoke(command, args, options);
-    if (options.log !== false) {
-      aggregateLogs += logBytes.length;
-      if (aggregateLogs > lock.limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
-      writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}.log`), options.separateStderr ? stdout : logBytes, { flag: "wx" });
-      if (options.separateStderr && stderr.length > 0) writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}_stderr.log`), stderr, { flag: "wx" });
-    }
+    const { result, stdout } = invoke(command, args, { ...options, phaseName, onOutput: ({ stdout: outputBytes, stderr, logBytes }) => {
+      if (options.log !== false) {
+        aggregateLogs += logBytes.length;
+        if (aggregateLogs > lock.limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
+        writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}.log`), options.separateStderr ? outputBytes : logBytes, { flag: "wx" });
+        if (options.separateStderr && stderr.length > 0) writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}_stderr.log`), stderr, { flag: "wx" });
+      }
+    } });
     if (result?.error || result?.status !== 0) throw new Error(`seaweed_${phaseName}_failed`);
     return stdout;
   };
@@ -483,7 +477,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
   };
   const budget = () => {
     const stats = statfsSync(workRoot);
-    assertResourceBudget({ workBytes: treeBytes(workRoot, lock.limits.workBytes), retainedBytes: treeBytes(output, lock.limits.retainedBytes),
+    assertResourceBudget({ workBytes: workTreeBytes(workRoot, lock.limits.workBytes), retainedBytes: treeBytes(output, lock.limits.retainedBytes),
       freeBytes: Number(stats.bavail) * Number(stats.bsize), logBytes: aggregateLogs, limits: lock.limits });
   };
   let primaryFailure; let cleanupFailure;
@@ -497,6 +491,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const go = path.join(workRoot, "go/bin/go");
     receipt.compiler = { archive: compilerIdentity, version: phase("compiler_identity", () => run("compiler_identity", go, ["version"], { log: false }).toString("utf8").trim()) };
     if (receipt.compiler.version !== "go version go1.26.8 linux/amd64") throw new Error("seaweed_compiler_identity_invalid");
+    phase("compiler_work_cleanup", () => removeOwnedWorkEntry(workRoot, "go.tar.gz"));
     const source = path.join(workRoot, "source");
     const gitEnv = { ...baseEnv, GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" };
     receipt.tools = {
@@ -558,6 +553,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const restoredChanged = run("source_restore_scope", "/usr/bin/git", ["-C", restored, "diff", "--name-only"], { env: gitEnv, log: false }).toString("utf8").trim().split("\n").sort();
     validateRestoredSource({ fsck: "PASSED", head: restoredHead, tree: restoredTree, commitUnixTime: restoredTime, pristine: lock.moduleFiles.before, corrected: lock.moduleFiles.after, changed: restoredChanged }, lock);
     receipt.sourceRetention = { bundle: bundleIdentity, shallow: materialIdentity(shallow), restoration: "PASSED", commitUnixTime: restoredTime };
+    phase("source_restore_cleanup", () => removeOwnedWorkEntry(workRoot, "restored-source"));
     phase("patch_apply", () => run("patch_apply", "/usr/bin/git", ["-C", source, "apply", "--whitespace=error-all", appliedPatch], { env: gitEnv }));
     checkModuleFiles(lock.moduleFiles.after);
     const changed = run("patch_scope", "/usr/bin/git", ["-C", source, "diff", "--name-only"], { env: gitEnv, log: false }).toString("utf8").trim().split("\n").sort();
@@ -623,7 +619,8 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     receipt.moduleCount = moduleInventory.length;
     const binary = path.join(workRoot, "bin/weed"); mkdirSync(path.dirname(binary));
     phase("production_build", () => run("production_build", go, ["build", "-p=2", "-buildvcs=true", "-ldflags", lock.build.ldflags, "-o", binary, "./weed"], { cwd: source, env: prodEnv, timeout: 45 * 60_000 }));
-    copyFileSync(binary, path.join(output, "weed")); receipt.binary = identity(path.join(output, "weed"), 1024 ** 3);
+    const retainedBinary = path.join(output, "weed");
+    receipt.binary = identity(binary, 1024 ** 3);
     const buildInfo = run("build_info", go, ["version", "-m", binary], { cwd: source, env: prodEnv, log: false }).toString("utf8");
     validateBuildInfo(buildInfo, lock, binary); writeFileSync(path.join(output, "go-build-info.txt"), buildInfo, { flag: "wx" });
     const versionOutput = run("version_output", binary, ["version"], { cwd: source, env: prodEnv }).toString("utf8").trim();
@@ -668,6 +665,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const finalGrpc = validatePostTestState(stable, finalClosure, moduleFileIdentities(), lock);
     receipt.moduleIsolation.result = "PASSED";
     receipt.moduleClosure = { result: "UNCHANGED_AFTER_TESTS", count: stable.length, grpcVersion: finalGrpc.version };
+    if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
+    copyFileSync(binary, retainedBinary);
+    if (JSON.stringify(identity(retainedBinary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_copy_changed");
+    phase("binary_work_cleanup", () => removeOwnedWorkEntry(workRoot, "bin"));
     const inventory = artifactInventory(output).filter((entry) => entry.path !== "material-inventory.json" && entry.path !== "build-receipt.json");
     validateArtifactAllowlist(inventory.map((entry) => entry.path));
     writeFileSync(path.join(output, "material-inventory.json"), `${JSON.stringify(inventory, null, 2)}\n`, { flag: "wx" });
@@ -683,12 +684,16 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
         const cleanupTimeout = clippedFinalizationTimeout({ deadlineMs: lock.limits.innerDeadlineMs }, now() - started, 60_000);
         const result = commandRunner("/usr/bin/docker", ["rm", "--force", name], { cwd: workRoot, env: baseEnv, maxBuffer: 1024 ** 2, timeout: cleanupTimeout, cleanup: "redis_container",
           monitor: { stdout: `${prefix}.stdout`, stderr: `${prefix}.stderr`, marker: `${prefix}.marker`, work: workRoot, retained: output, limits: lock.limits } });
+        if (result?.groupAbsent === false || result?.monitorReason === "seaweed_process_group_cleanup_failed") workCleanupSafe = false;
         if (/^seaweed_[a-z0-9_]+$/u.test(result?.monitorReason ?? "")) throw new Error(result.monitorReason);
         if ((result.error || result.status !== 0) && !isMissingRedisContainer(result, name)) throw new Error("seaweed_redis_cleanup_failed");
       });
     };
   }
-  cleanupOperations.work_cleanup = () => removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot)));
+  cleanupOperations.work_cleanup = () => {
+    if (!workCleanupSafe) throw new Error("seaweed_work_cleanup_unproven_processes");
+    removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot)));
+  };
   cleanupFailure = cleanupBuildResources(receipt, cleanupOperations, now);
   receipt.aggregateLogBytes = aggregateLogs;
   try {
