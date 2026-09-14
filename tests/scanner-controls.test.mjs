@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
-import { baselineFixtureArguments, candidateDockerArguments, databaseDownloadDockerArguments, fixtureScanMode, parseAuditArguments, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
+import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, fixtureScanMode, parseAuditArguments, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
 
 function receipt(repeat, sha = "a".repeat(64)) {
@@ -58,10 +58,22 @@ test("candidate scanner runs isolated without host or Docker socket access", () 
   const joined = args.join(" ");
   assert.match(joined, /--network=none/u);
   assert.match(joined, /--read-only --cap-drop=ALL --security-opt=no-new-privileges=true --user 65532:65532/u);
+  assert.match(joined, /--memory 4g --memory-swap 4g --cpus 2 --tmpfs \/tmp:rw,nosuid,nodev,noexec,size=2g/u);
   assert.match(joined, /dst=\/scanner,readonly/u);
   assert.match(joined, /dst=\/cache,readonly/u);
   assert.match(joined, /dst=\/subject,readonly/u);
   assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
+});
+
+test("sequential scanner resource budget includes temporary memory and enforces the job cap", () => {
+  const inputs = { buildInputBytes: 339354509, materialBytes: 3633608, databaseBytes: 2905628977,
+    baselineImageBytes: 190307614, versionProbeBytes: 98 };
+  const budget = projectAuditBudget(inputs);
+  assert.equal(budget.projectedJobBytes, 7733892102);
+  assert.equal(budget.transientJobBytes, 4 * 1024 ** 3);
+  assert.ok(budget.candidateTmpfsBytes < budget.transientCandidateBytes);
+  assert.throws(() => projectAuditBudget({ ...inputs, databaseBytes: 4 * 1024 ** 3 }), /scanner_audit_job_budget_exceeded/u);
+  assert.throws(() => projectAuditBudget({ ...inputs, databaseBytes: -1 }), /scanner_audit_job_budget_invalid/u);
 });
 
 test("fixture mode routing keeps Go in fs and gives candidate and baseline Java rootfs parity", () => {
@@ -83,6 +95,60 @@ test("fixture mode routing keeps Go in fs and gives candidate and baseline Java 
     assert.equal(baseline[baseline.indexOf(carrier) + 1], expectedMode);
   }
   assert.throws(() => fixtureScanMode({ id: "unknown" }), /scanner_fixture_mode_invalid/u);
+});
+
+test("image collector continues after local rejection and preserves raw identity and reason", async () => {
+  const images = [{ role: "first" }, { role: "second" }];
+  const scans = [];
+  const frozenChecks = [];
+  const result = await collectImageAudits(images, {
+    beforeScan: async () => undefined,
+    scan: async (image) => { scans.push(image.role); if (image.role === "first") throw new Error("synthetic_command_rejection"); },
+    afterScan: async (image) => { frozenChecks.push(image.role); },
+    captureReport: async (image) => ({ identity: { sha256: image.role === "first" ? "a".repeat(64) : "b".repeat(64), size: 10 }, path: image.role }),
+    readReport: async (_image, report) => ({ path: report.path }),
+    evaluate: async () => ({ findings: [], blockers: [] }),
+  });
+  assert.deepEqual(scans, ["first", "second"]);
+  assert.deepEqual(frozenChecks, ["first", "second"]);
+  assert.deepEqual(result.reports[0], { role: "first", result: "rejected", stage: "command", reason: "synthetic_command_rejection",
+    report: { sha256: "a".repeat(64), size: 10 } });
+  assert.equal(result.reports[1].result, "passed");
+  assert.equal(result.rejections.length, 1);
+});
+
+test("image collector records JSON and semantic rejection without invented counts", async () => {
+  const images = [{ role: "json" }, { role: "semantic" }, { role: "last" }];
+  const result = await collectImageAudits(images, {
+    beforeScan: async () => undefined, scan: async () => undefined, afterScan: async () => undefined,
+    captureReport: async (image) => ({ identity: { sha256: (image.role === "json" ? "a" : "b").repeat(64), size: 12 }, path: image.role }),
+    readReport: async (image) => { if (image.role === "json") throw new Error("scanner_json_file_invalid"); return { role: image.role }; },
+    evaluate: async (image) => { if (image.role === "semantic") throw new Error("scanner_report_subject_mismatch"); return { findings: [], blockers: [] }; },
+  });
+  assert.deepEqual(result.reports.map(({ role, result: state, stage, reason, findingCount }) => ({ role, state, stage, reason, findingCount })), [
+    { role: "json", state: "rejected", stage: "json", reason: "scanner_json_file_invalid", findingCount: undefined },
+    { role: "semantic", state: "rejected", stage: "policy", reason: "scanner_report_subject_mismatch", findingCount: undefined },
+    { role: "last", state: "passed", stage: undefined, reason: undefined, findingCount: 0 },
+  ]);
+});
+
+test("image collector stops on global database or frozen-input failure", async () => {
+  let scans = 0;
+  await assert.rejects(collectImageAudits([{ role: "first" }, { role: "second" }], {
+    beforeScan: async () => { throw new Error("scanner_database_changed"); },
+    scan: async () => { scans += 1; }, afterScan: async () => undefined, captureReport: async () => undefined,
+    readReport: async () => undefined, evaluate: async () => undefined,
+  }), /scanner_database_changed/u);
+  assert.equal(scans, 0);
+
+  const attempted = [];
+  await assert.rejects(collectImageAudits([{ role: "first" }, { role: "second" }], {
+    beforeScan: async () => undefined,
+    scan: async (image) => { attempted.push(image.role); throw new Error("local_command_error"); },
+    afterScan: async () => { throw new Error("scanner_frozen_input_changed"); },
+    captureReport: async () => undefined, readReport: async () => undefined, evaluate: async () => undefined,
+  }), /scanner_frozen_input_changed/u);
+  assert.deepEqual(attempted, ["first"]);
 });
 
 test("database downloader reserves two bounded archive copies and remains isolated", () => {

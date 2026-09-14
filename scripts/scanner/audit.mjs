@@ -13,6 +13,23 @@ const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
 const DATABASE_DOWNLOAD_TMPFS_BYTES = 3 * GiB;
 const DATABASE_DOWNLOAD_MEMORY_BYTES = 4 * GiB;
+const SCANNER_CANDIDATE_TMPFS_SIZE = "2g";
+const SCANNER_CANDIDATE_MEMORY_SIZE = "4g";
+
+export function projectAuditBudget({ buildInputBytes, materialBytes, databaseBytes, baselineImageBytes, versionProbeBytes: probeBytes }) {
+  const inputs = [buildInputBytes, materialBytes, databaseBytes, baselineImageBytes, probeBytes];
+  if (inputs.some((value) => !Number.isSafeInteger(value) || value < 0)) fail("scanner_audit_job_budget_invalid");
+  const transientDownloadBytes = DATABASE_DOWNLOAD_MEMORY_BYTES;
+  const candidateTmpfsBytes = 2 * GiB;
+  const transientCandidateBytes = 4 * GiB; // Includes tmpfs pages charged to the container memory limit.
+  // Downloads and candidate scans are sequential, including the eight independent image scans.
+  const transientJobBytes = Math.max(transientDownloadBytes, transientCandidateBytes);
+  const projectedJobBytes = inputs.reduce((sum, value) => sum + value, transientJobBytes);
+  if (projectedJobBytes > 8 * GiB) fail("scanner_audit_job_budget_exceeded");
+  return { buildInputBytes, materialBytes, databaseBytes, baselineImageBytes, versionProbeBytes: probeBytes,
+    transientDownloadBytes, candidateTmpfsBytes, transientCandidateBytes, transientJobBytes,
+    projectedJobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
+}
 
 function fail(code) { throw new Error(code); }
 
@@ -151,8 +168,8 @@ export function candidateDockerArguments({ carrier, scanner, cache, mode, target
   const containerTarget = filesystem ? `/${path.basename(target)}` : target;
   if (filesystem && !/^\/[A-Za-z0-9_.-]{1,255}$/u.test(containerTarget)) fail("scanner_candidate_arguments_invalid");
   const args = ["run", "--rm", "--pull=never", "--platform", "linux/amd64", `--network=${filesystem ? "none" : "bridge"}`, "--read-only",
-    "--cap-drop=ALL", "--security-opt=no-new-privileges=true", "--user", "65532:65532", "--pids-limit", "256", "--memory", "2g",
-    "--memory-swap", "2g", "--cpus", "2", "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=512m", "--mount", `type=bind,src=${scanner},dst=/scanner,readonly`,
+    "--cap-drop=ALL", "--security-opt=no-new-privileges=true", "--user", "65532:65532", "--pids-limit", "256", "--memory", SCANNER_CANDIDATE_MEMORY_SIZE,
+    "--memory-swap", SCANNER_CANDIDATE_MEMORY_SIZE, "--cpus", "2", "--tmpfs", `/tmp:rw,nosuid,nodev,noexec,size=${SCANNER_CANDIDATE_TMPFS_SIZE}`, "--mount", `type=bind,src=${scanner},dst=/scanner,readonly`,
     "--mount", `type=bind,src=${cache},dst=/cache,readonly`];
   if (filesystem) args.push("--mount", `type=bind,src=${target},dst=${containerTarget},readonly`);
   args.push("--entrypoint", "/scanner", carrier, mode, "--cache-dir", "/cache", "--skip-db-update", "--skip-java-db-update", "--skip-version-check",
@@ -169,6 +186,62 @@ function candidateScan(carrier, scanner, cache, mode, target, output, extra = []
 export function versionProbeBytes(lock) {
   if (!/^\d+\.\d+\.\d+$/u.test(lock?.scanner?.upstreamVersion ?? "") || !/^\d+\.\d+\.\d+$/u.test(lock?.compiler?.version ?? "")) fail("scanner_version_probe_lock_invalid");
   return Buffer.from(`module auto.world/scanner-version-probe\n\ngo ${lock.compiler.version}\n\nrequire github.com/aquasecurity/trivy v${lock.scanner.upstreamVersion}\n`, "utf8");
+}
+
+function imageRejection(image, stage, error, report) {
+  return { role: image.role, result: "rejected", stage, reason: typeof error?.message === "string" ? error.message : "scanner_image_rejected",
+    ...(report ? { report } : {}), ...(error?.diagnostic ? { diagnostic: error.diagnostic } : {}) };
+}
+
+export async function collectImageAudits(images, operations) {
+  if (!Array.isArray(images) || images.length < 1 || !operations) fail("scanner_image_collector_invalid");
+  const reports = [];
+  const blockers = [];
+  const rejections = [];
+  for (const image of images) {
+    await operations.beforeScan(image); // Database freshness and identity failures are global.
+    let commandError;
+    try { await operations.scan(image); }
+    catch (error) { commandError = error; }
+    finally { await operations.afterScan(image); } // Frozen input mutation is global, including failed scans.
+
+    let report;
+    try { report = await operations.captureReport(image); }
+    catch (error) {
+      const rejection = imageRejection(image, commandError ? "command" : "report_identity", commandError ?? error);
+      reports.push(rejection); rejections.push(rejection);
+      continue;
+    }
+    if (commandError) {
+      const rejection = imageRejection(image, "command", commandError, report.identity);
+      reports.push(rejection); rejections.push(rejection);
+      continue;
+    }
+    let value;
+    try { value = await operations.readReport(image, report); }
+    catch (error) {
+      const rejection = imageRejection(image, "json", error, report.identity);
+      reports.push(rejection); rejections.push(rejection);
+      continue;
+    }
+    let evaluation;
+    try { evaluation = await operations.evaluate(image, value); }
+    catch (error) {
+      const rejection = imageRejection(image, "policy", error, report.identity);
+      reports.push(rejection); rejections.push(rejection);
+      continue;
+    }
+    if (!Array.isArray(evaluation?.findings) || !Array.isArray(evaluation.blockers)) fail("scanner_image_policy_result_invalid");
+    const record = { role: image.role, result: evaluation.blockers.length ? "rejected" : "passed", report: report.identity,
+      findingCount: evaluation.findings.length, blockerCount: evaluation.blockers.length };
+    reports.push(record);
+    blockers.push(...evaluation.blockers.map((entry) => ({ role: image.role, ...entry })));
+    if (evaluation.blockers.length) {
+      const rejection = { ...record, stage: "policy", reason: "scanner_image_policy_blocked" };
+      reports[reports.length - 1] = rejection; rejections.push(rejection);
+    }
+  }
+  return { reports, blockers, rejections };
 }
 
 async function databaseEvidence(cache, now) {
@@ -266,11 +339,8 @@ export async function auditScanner({ buildRoot, output }) {
     if (JSON.stringify(registryBefore) !== JSON.stringify(registryAfter)) fail("scanner_database_registry_changed");
     const now = new Date();
     const database = await phase("database_freeze", async () => databaseEvidence(cache, now));
-    const transientDownloadBytes = DATABASE_DOWNLOAD_TMPFS_BYTES + (DATABASE_DOWNLOAD_MEMORY_BYTES - DATABASE_DOWNLOAD_TMPFS_BYTES);
-    const jobBytes = buildInputBytes + treeSize(path.join(ROOT, "infra/scanner")) + treeSize(cache) + baselineImageBytes + transientDownloadBytes + versionProbeSnapshot.size;
-    if (jobBytes > 8 * GiB) fail("scanner_audit_job_budget_exceeded");
-    receipt.budget = { buildInputBytes, baselineImageBytes, transientDownloadBytes, versionProbeBytes: versionProbeSnapshot.size,
-      projectedJobBytes: jobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
+    receipt.budget = projectAuditBudget({ buildInputBytes, materialBytes: treeSize(path.join(ROOT, "infra/scanner")),
+      databaseBytes: treeSize(cache), baselineImageBytes, versionProbeBytes: versionProbeSnapshot.size });
     makeReadOnly(cache);
     const fixtureFiles = lock.fixtures.filter((entry) => entry.path.includes("scanner-fixtures/")).map((entry) => ({ path: path.join(ROOT, entry.path), cap: 4 * MiB }));
     const buildEvidenceFiles = builds.flatMap((directory) => [
@@ -338,19 +408,33 @@ export async function auditScanner({ buildRoot, output }) {
     });
 
     await phase("image_audits", async () => {
-      for (const image of [...lock.images, ...lock.alternatives]) {
-        const current = await databaseEvidence(cache, new Date());
-        if (JSON.stringify(current.files) !== JSON.stringify(database.files)) fail("scanner_database_changed");
-        const reportPath = path.join(output, `image-${image.role}.json`);
-        candidateScan(baseline, scanner, cache, "image", `${image.repository}@${image.platform.digest}`, reportPath,
-          ["--image-src", "remote", "--severity", "HIGH,CRITICAL"]);
-        const reportFile = await readBoundedJson(reportPath);
-        const evaluation = evaluateImageReport(reportFile.value, image, [], new Date());
-        receipt.reports.push({ role: image.role, report: reportFile.identity, findingCount: evaluation.findings.length, blockerCount: evaluation.blockers.length });
-        receipt.blockers.push(...evaluation.blockers.map((entry) => ({ role: image.role, ...entry })));
-        await assertFilesUnchanged(frozen);
-      }
-      if (receipt.blockers.length) fail("scanner_image_audit_blocked");
+      const reportPaths = new Map();
+      const collected = await collectImageAudits([...lock.images, ...lock.alternatives], {
+        beforeScan: async () => {
+          const current = await databaseEvidence(cache, new Date());
+          if (JSON.stringify(current.files) !== JSON.stringify(database.files)) fail("scanner_database_changed");
+        },
+        scan: async (image) => {
+          const reportPath = path.join(output, `image-${image.role}.json`); reportPaths.set(image.role, reportPath);
+          candidateScan(baseline, scanner, cache, "image", `${image.repository}@${image.platform.digest}`, reportPath,
+            ["--image-src", "remote", "--severity", "HIGH,CRITICAL"]);
+        },
+        afterScan: async () => assertFilesUnchanged(frozen),
+        captureReport: async (image) => {
+          const [snapshot] = await captureFiles([{ path: reportPaths.get(image.role), cap: 64 * MiB }]);
+          return { identity: { sha256: snapshot.sha256, size: snapshot.size }, path: snapshot.path };
+        },
+        readReport: async (_image, report) => {
+          const parsed = await readBoundedJson(report.path, 64 * MiB);
+          if (parsed.identity.sha256 !== report.identity.sha256 || parsed.identity.size !== report.identity.size) fail("scanner_image_report_changed");
+          return parsed.value;
+        },
+        evaluate: async (image, report) => evaluateImageReport(report, image, [], new Date()),
+      });
+      receipt.reports.push(...collected.reports);
+      receipt.blockers.push(...collected.blockers);
+      receipt.imageRejections = collected.rejections;
+      if (collected.rejections.length) fail("scanner_image_audit_blocked");
     });
     receipt.result = "passed";
   } finally {
