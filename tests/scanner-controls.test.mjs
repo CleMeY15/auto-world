@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
-import { candidateDockerArguments, parseAuditArguments } from "../scripts/scanner/audit.mjs";
+import { candidateDockerArguments, databaseDownloadDockerArguments, parseAuditArguments, validateDatabaseRegistryManifest } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport } from "../scripts/scanner/controls.mjs";
 
 function receipt(repeat, sha = "a".repeat(64)) {
@@ -62,6 +62,26 @@ test("candidate scanner runs isolated without host or Docker socket access", () 
   assert.match(joined, /dst=\/cache,readonly/u);
   assert.match(joined, /dst=\/subject,readonly/u);
   assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
+});
+
+test("database downloader reserves bounded Java layer headroom and remains isolated", () => {
+  const registries = ["trivy-db", "trivy-java-db"].map((name) => ({ repository: `ghcr.io/aquasecurity/${name}`, digest: `sha256:${"a".repeat(64)}` }));
+  const args = databaseDownloadDockerArguments({ baseline: `aquasec/trivy@sha256:${"b".repeat(64)}`, cache: path.resolve("cache"), user: "1001:1001", registries, kind: "java" });
+  const joined = args.join(" ");
+  assert.match(joined, /--memory 2g --memory-swap 2g/u);
+  assert.match(joined, /--tmpfs \/tmp:rw,nosuid,nodev,noexec,size=1536m,mode=1777/u);
+  assert.match(joined, /--read-only --cap-drop=ALL --security-opt=no-new-privileges=true/u);
+  assert.match(joined, /--download-java-db-only$/u);
+  assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
+});
+
+test("database manifest preflight rejects layers without 512 MiB download headroom", () => {
+  const manifest = (size) => Buffer.from(JSON.stringify({ schemaVersion: 2, layers: [{
+    mediaType: "application/vnd.aquasecurity.trivy.db.layer.v1.tar+gzip", digest: `sha256:${"a".repeat(64)}`, size,
+  }] }));
+  assert.equal(validateDatabaseRegistryManifest(manifest(966074582)).layerBytes, 966074582);
+  assert.throws(() => validateDatabaseRegistryManifest(manifest(1024 ** 3)), /scanner_database_layer_budget_exceeded/u);
+  assert.throws(() => validateDatabaseRegistryManifest(manifest(0)), /scanner_database_registry_manifest_invalid/u);
 });
 
 test("known vulnerable fixture must retain its expected detection", () => {

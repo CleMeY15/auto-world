@@ -11,6 +11,8 @@ const LOCK_PATH = path.join(ROOT, "infra/scanner/scanner-lock.json");
 const DOCKER = "/usr/bin/docker";
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
+const DATABASE_DOWNLOAD_TMPFS_BYTES = 1536 * MiB;
+const DATABASE_DOWNLOAD_MEMORY_BYTES = 2 * GiB;
 
 function fail(code) { throw new Error(code); }
 
@@ -99,6 +101,33 @@ function baselineFixture(lock, cache, fixtures, target, output) {
     "--cache-backend", "memory", "--quiet", "--scanners", "vuln", "--format", "json", "--list-all-pkgs", `/fixtures/${target}`], { output });
 }
 
+export function validateDatabaseRegistryManifest(manifest) {
+  if (!Buffer.isBuffer(manifest) || manifest.length < 64 || manifest.length > 8 * MiB) fail("scanner_database_registry_manifest_invalid");
+  let document;
+  try { document = JSON.parse(manifest.toString("utf8")); } catch { fail("scanner_database_registry_manifest_invalid"); }
+  if (document?.schemaVersion !== 2 || !Array.isArray(document.layers) || document.layers.length < 1 || document.layers.length > 8) fail("scanner_database_registry_manifest_invalid");
+  let layerBytes = 0;
+  for (const layer of document.layers) {
+    if (!/^sha256:[a-f0-9]{64}$/u.test(layer?.digest ?? "") || typeof layer.mediaType !== "string" || !layer.mediaType ||
+        !Number.isSafeInteger(layer.size) || layer.size < 1) fail("scanner_database_registry_manifest_invalid");
+    layerBytes += layer.size;
+  }
+  if (!Number.isSafeInteger(layerBytes) || layerBytes >= GiB || DATABASE_DOWNLOAD_TMPFS_BYTES - layerBytes < 512 * MiB) fail("scanner_database_layer_budget_exceeded");
+  return { digest: `sha256:${sha256(manifest)}`, size: manifest.length, layerBytes };
+}
+
+export function databaseDownloadDockerArguments({ baseline, cache, user, registries, kind }) {
+  if (!/^[a-z0-9]+(?:[._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$/u.test(baseline ?? "") ||
+      typeof cache !== "string" || !path.isAbsolute(cache) || !/^\d+:\d+$/u.test(user ?? "") ||
+      !Array.isArray(registries) || registries.length !== 2 || !["vulnerability", "java"].includes(kind)) fail("scanner_database_download_arguments_invalid");
+  const references = registries.map((entry) => `${entry?.repository}@${entry?.digest}`);
+  if (references.some((entry) => !/^[a-z0-9.]+(?:[._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$/u.test(entry))) fail("scanner_database_download_arguments_invalid");
+  return ["run", "--rm", "--pull=never", "--platform", "linux/amd64", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges=true",
+    "--user", user, "--pids-limit", "256", "--memory", "2g", "--memory-swap", "2g", "--cpus", "1",
+    "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=1536m,mode=1777", "--mount", `type=bind,src=${cache},dst=/cache`, baseline, "image", "--cache-dir", "/cache",
+    "--db-repository", references[0], "--java-db-repository", references[1], kind === "vulnerability" ? "--download-db-only" : "--download-java-db-only"];
+}
+
 export function candidateDockerArguments({ carrier, scanner, cache, mode, target, format = "json", extra = [] }) {
   const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !value.includes("\0") && !value.includes(",");
   if (!/^[a-z0-9]+(?:[._/-][a-z0-9]+)*@sha256:[a-f0-9]{64}$/u.test(carrier ?? "") ||
@@ -141,9 +170,8 @@ function databaseRegistryEvidence(output, checkpoint) {
     { name: "java", repository: "ghcr.io/aquasecurity/trivy-java-db", tag: "1", reference: "ghcr.io/aquasecurity/trivy-java-db:1" },
   ].map((entry) => {
     const manifest = command(DOCKER, ["buildx", "imagetools", "inspect", "--raw", entry.reference]);
-    if (manifest.length < 64 || manifest.length > 8 * MiB) fail("scanner_database_registry_manifest_invalid");
     writeFileSync(path.join(output, `database-${entry.name}-${checkpoint}-manifest.json`), manifest, { flag: "wx" });
-    return { ...entry, digest: `sha256:${sha256(manifest)}`, size: manifest.length };
+    return { ...entry, ...validateDatabaseRegistryManifest(manifest) };
   });
 }
 
@@ -205,21 +233,17 @@ export async function auditScanner({ buildRoot, output }) {
     const registryBefore = await phase("database_registry_before", async () => databaseRegistryEvidence(output, "before"));
     await phase("database_download", async () => {
       const user = `${process.getuid()}:${process.getgid()}`;
-      const common = ["run", "--rm", "--pull=never", "--platform", "linux/amd64", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges=true",
-        "--user", user, "--pids-limit", "256", "--memory", "1g", "--memory-swap", "1g", "--cpus", "1", "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777",
-        "--mount", `type=bind,src=${cache},dst=/cache`, baseline, "image", "--cache-dir", "/cache",
-        "--db-repository", `${registryBefore[0].repository}@${registryBefore[0].digest}`,
-        "--java-db-repository", `${registryBefore[1].repository}@${registryBefore[1].digest}`];
-      command(DOCKER, [...common, "--download-db-only"], { timeout: 10 * 60_000 });
-      command(DOCKER, [...common, "--download-java-db-only"], { timeout: 10 * 60_000 });
+      command(DOCKER, databaseDownloadDockerArguments({ baseline, cache, user, registries: registryBefore, kind: "vulnerability" }), { timeout: 10 * 60_000 });
+      command(DOCKER, databaseDownloadDockerArguments({ baseline, cache, user, registries: registryBefore, kind: "java" }), { timeout: 10 * 60_000 });
     });
     const registryAfter = await phase("database_registry_after", async () => databaseRegistryEvidence(output, "after"));
     if (JSON.stringify(registryBefore) !== JSON.stringify(registryAfter)) fail("scanner_database_registry_changed");
     const now = new Date();
     const database = await phase("database_freeze", async () => databaseEvidence(cache, now));
-    const jobBytes = buildInputBytes + treeSize(path.join(ROOT, "infra/scanner")) + treeSize(cache) + baselineImageBytes + 768 * MiB;
+    const transientDownloadBytes = DATABASE_DOWNLOAD_TMPFS_BYTES + (DATABASE_DOWNLOAD_MEMORY_BYTES - DATABASE_DOWNLOAD_TMPFS_BYTES);
+    const jobBytes = buildInputBytes + treeSize(path.join(ROOT, "infra/scanner")) + treeSize(cache) + baselineImageBytes + transientDownloadBytes;
     if (jobBytes > 8 * GiB) fail("scanner_audit_job_budget_exceeded");
-    receipt.budget = { buildInputBytes, baselineImageBytes, projectedJobBytes: jobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
+    receipt.budget = { buildInputBytes, baselineImageBytes, transientDownloadBytes, projectedJobBytes: jobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
     makeReadOnly(cache);
     const fixtureFiles = lock.fixtures.filter((entry) => entry.path.includes("scanner-fixtures/")).map((entry) => ({ path: path.join(ROOT, entry.path), cap: 4 * MiB }));
     const buildEvidenceFiles = builds.flatMap((directory) => [
