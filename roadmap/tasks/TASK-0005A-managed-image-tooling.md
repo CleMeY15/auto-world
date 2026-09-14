@@ -1,6 +1,6 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
-Status: IN_PROGRESS — corrected-scanner diagnostic capability VERIFIED; private publication and image admission BLOCKED
+Status: IN_PROGRESS — scanner diagnostics VERIFIED; external fork access test SKIPPED_BY_USER; private publication/admission pending remaining gates
 Priority: P0, supporting TASK-0005
 Owner role: Platform/SRE executor; independent code/security and architecture reviewers
 
@@ -32,7 +32,7 @@ Stages 1-2 have contents:read only, no private data, package write, OIDC or sign
 - Both vulnerability and Java database bytes and update/download times are recorded; updates are non-future and at most 48 hours old at the scan.
 - Every audited subject matches exact repository and manifest/platform digest. Image tags, alternate repositories, stale reports, missing helper roles and unrelated green jobs cannot pass.
 - Runtime/signing/consumer boundaries, private first write, authenticated read, anonymous denial and retention/restore are separately proven before any image admission. Current local read:packages absence is not silently bypassed or expanded.
-- Before candidate layers/private evidence are written, prove that package inheritance/linkage and Actions grants exclude untrusted public readers and authenticated fork/PR contexts. Inventory all workflows/jobs with package-read access; none may execute PR/fork-controlled code or inputs. Real fork/PR denied-read probes using harmless initial content and a valid authorized control are mandatory. A public-repository GITHUB_TOKEN is not assumed safe; if its topology cannot meet this gate, publication remains blocked pending a separately authorized solution.
+- Record the external authenticated fork/PR denied-read test as `SKIPPED_BY_USER` following "Zap le test d’accès"; fork read isolation remains `NOT_VERIFIED`. Its absence and the lack of a second account are no longer blockers. Inventory actual package inheritance/linkage, Actions grants and reviewed package-read workflows; those jobs must not execute PR/fork-controlled inputs. Retain private visibility, anonymous denial and authorized-read controls. Limit candidate contents/evidence to already-public software and non-sensitive technical material; no private source, credentials, listing payloads, business or user data. Follow the amended ADR-0007 without claiming proven fork isolation or creating another publisher solely for this waived test.
 - Official gh handles cryptography. Actual valid, wrong-expectation and corrupted/missing-output controls distinguish VERIFIED, REJECTED and ERROR.
 - Consumers use a reviewed main inventory and exact supported digest; missing/revoked/expired evidence blocks before execution, with no skip or tag fallback.
 - Private evidence closure and second private local archive are retrievable/restorable before activation, with support dates and supported lifetime plus 365 days retention policy. No immutable storage guarantee is claimed.
@@ -42,6 +42,8 @@ Stages 1-2 have contents:read only, no private data, package write, OIDC or sign
 Current implementation evidence: [scanner validation](../../docs/validation/TASK-0005A-SCANNER.md). The contract was accepted through [PR12](https://github.com/CleMeY15/auto-world/pull/12), merge `3d4d251a9c19a5f03fae923dc3419b8a6bc1061d`, with passing main CI `34830801370`. No scanner build, current image audit or native admission is inferred from that documentation milestone.
 
 Stage II now has actual [Linux evidence34851464078](https://github.com/CleMeY15/auto-world/actions/runs/34851464078) at code head `2730fd1789a26f6c3031072194cbf87e22f90b40`: both builds, complete self/SBOM, version probe, fixtures, same-database controls and all eight native image reports passed their execution/integrity controls. Seven images retain 276 blocking finding occurrences; AWS CLI alone passes this audit. The image diagnostic remains failed. Independent code review, full uncached fresh-checkout gates and quality CI passed; PR13 records final evidence review and documentation-head/main checks. This completes only the scanner/evidence increment, with no publication or admission right.
+
+The subsequent user waiver removes only the external fork access probe described above. The historical pre-write stop for a missing independent account is superseded; it is not a passed privacy test. Continue the concrete publication plan in the existing repository, subject to the remaining first-write review, actual access functionality and image admission gates. No vulnerability finding is waived by this instruction.
 
 Targeted unit tests cover subject substitution, schema/resource bounds, scan freshness, changed DB, dispositions, incomplete reports, verifier failures and revocation. Real integration covers scanner/upstream tests and fixture detection, then actual private package/attestation/restore controls. TASK-0005 additionally proves service cold start, migration, transactions/raw/outbox, restart, failure, backup and restore against admitted digests.
 
