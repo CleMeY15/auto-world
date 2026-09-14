@@ -81,7 +81,7 @@ function validateOwnedPaths(output, context, env) {
 }
 
 function commandEnvironment(env, dockerConfig, temporaryDirectory) {
-  const clean = { DOCKER_CONFIG: dockerConfig, LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TMPDIR: temporaryDirectory, TZ: "UTC" };
+  const clean = { BUILDX_CONFIG: path.join(dockerConfig, "buildx"), DOCKER_CONFIG: dockerConfig, LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TMPDIR: temporaryDirectory, TZ: "UTC" };
   for (const name of ["PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "XDG_CONFIG_HOME"]) {
     if (typeof env[name] === "string") clean[name] = env[name];
   }
@@ -100,13 +100,18 @@ function defaultCommandRunner(command, args, options) {
   });
 }
 
-function run(commandRunner, command, args, options, expectedStatuses = [0]) {
+function observeCommand(commandRunner, command, args, options) {
   const result = commandRunner(command, args, options);
   const stdout = typeof result?.stdout === "string" ? result.stdout : "";
   const stderr = typeof result?.stderr === "string" ? result.stderr : "";
   if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > MAX_OUTPUT) throw new Error("package_registry_command_output_exceeded");
-  if (result?.error || !expectedStatuses.includes(result?.status)) throw new Error("package_registry_command_failed");
-  return { status: result.status, stdout, stderr };
+  return { error: result?.error, status: result?.status, stdout, stderr };
+}
+
+function run(commandRunner, command, args, options, expectedStatuses = [0]) {
+  const result = observeCommand(commandRunner, command, args, options);
+  if (result.error || !expectedStatuses.includes(result.status)) throw new Error("package_registry_command_failed");
+  return result;
 }
 
 function boundedVersion(value) {
@@ -126,15 +131,26 @@ export function parsePublishedDigest(metadata) {
   return validateDigest(metadata["containerimage.digest"]);
 }
 
-export function classifyAnonymousPull(result) {
-  const combined = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`.toLowerCase();
-  if (Buffer.byteLength(combined) > MAX_OUTPUT) throw new Error("package_registry_anonymous_pull_error");
-  if (result?.status === 0) throw new Error("package_registry_anonymous_pull_succeeded");
+export function classifyAnonymousRemoteRead(result) {
+  const stdout = typeof result?.stdout === "string" ? result.stdout : "";
+  const stderr = typeof result?.stderr === "string" ? result.stderr : "";
+  const combined = `${stdout}\n${stderr}`.toLowerCase();
+  if (Buffer.byteLength(combined) > MAX_OUTPUT) throw new Error("package_registry_anonymous_remote_read_error");
+  if (result?.status === 0) throw new Error("package_registry_anonymous_remote_read_succeeded");
   if (result?.error || result?.status !== 1 || /(dial tcp|no such host|network|timed? out|timeout|tls|certificate|connection refused|connection reset|temporary failure)/u.test(combined)) {
-    throw new Error("package_registry_anonymous_pull_error");
+    throw new Error("package_registry_anonymous_remote_read_error");
   }
   if (/(unauthorized|authentication required|requested access.*denied|denied:\s*(?:denied|.*permission))/u.test(combined)) return "AUTHORIZATION_DENIED";
-  throw new Error("package_registry_anonymous_pull_error");
+  throw new Error("package_registry_anonymous_remote_read_error");
+}
+
+export function validateRemoteManifest(raw, digest) {
+  if (typeof raw !== "string") throw new Error("package_registry_remote_manifest_invalid");
+  const bytes = Buffer.from(raw, "utf8");
+  if (bytes.length < 1 || bytes.length > MAX_OUTPUT || `sha256:${sha256(bytes)}` !== digest) {
+    throw new Error("package_registry_remote_manifest_invalid");
+  }
+  return { sha256: digest, size: bytes.length };
 }
 
 async function verifyMainRef(fetchImpl, context) {
@@ -222,6 +238,8 @@ export async function runRegistryProof({
   const anonymousConfig = path.join(work, "docker-anonymous");
   mkdirSync(authConfig, { mode: 0o700 });
   mkdirSync(anonymousConfig, { mode: 0o700 });
+  mkdirSync(path.join(authConfig, "buildx"), { mode: 0o700 });
+  mkdirSync(path.join(anonymousConfig, "buildx"), { mode: 0o700 });
   const tag = `${REGISTRY_PROOF.image}:proof-${context.runId}`;
   const digest = parsed.digest;
   const subject = digest ? `${REGISTRY_PROOF.image}@${digest}` : undefined;
@@ -309,12 +327,22 @@ export async function runRegistryProof({
     } else {
       receipt.manifestDigest = digest;
       receipt.subject = subject;
+      receipt.remoteManifestBefore = await phase("remote_manifest_before", () => {
+        const remote = run(commandRunner, "docker", ["buildx", "imagetools", "inspect", "--raw", subject], authOptions);
+        return validateRemoteManifest(remote.stdout, digest);
+      });
+      await phase("anonymous_manifest_denied", () => {
+        const remote = observeCommand(commandRunner, "docker", ["buildx", "imagetools", "inspect", "--raw", subject], anonymousOptions);
+        return classifyAnonymousRemoteRead(remote);
+      });
+      receipt.remoteManifestAfter = await phase("remote_manifest_after", () => {
+        const remote = run(commandRunner, "docker", ["buildx", "imagetools", "inspect", "--raw", subject], authOptions);
+        return validateRemoteManifest(remote.stdout, digest);
+      });
       const existing = await phase("local_collision_check", () => !inspectAbsent(run(commandRunner, "docker", ["image", "inspect", subject], authOptions, [0, 1]), "image"));
-      await phase("authorized_pull_before_control", () => run(commandRunner, "docker", ["pull", "--platform", BOOTSTRAP.platform, subject], authOptions));
+      await phase("authorized_image_pull", () => run(commandRunner, "docker", ["pull", "--platform", BOOTSTRAP.platform, subject], authOptions));
       ownedImage = !existing;
       receipt.image = await phase("exact_image_inspection", () => validateInspection(run(commandRunner, "docker", ["image", "inspect", "--format", "{{json .}}", subject], authOptions).stdout, subject, digest));
-      await phase("anonymous_pull_denied", () => classifyAnonymousPull(run(commandRunner, "docker", ["pull", "--platform", BOOTSTRAP.platform, subject], anonymousOptions, [0, 1])));
-      await phase("authorized_pull_after_control", () => run(commandRunner, "docker", ["pull", "--platform", BOOTSTRAP.platform, subject], authOptions));
       await phase("stopped_container_create", () => {
         const collision = run(commandRunner, "docker", ["container", "inspect", container], authOptions, [0, 1]);
         if (!inspectAbsent(collision, "container")) throw new Error("package_registry_container_collision");
@@ -328,9 +356,8 @@ export async function runRegistryProof({
         if (!info.isFile() || info.isSymbolicLink() || info.size > BOOTSTRAP.payloadSizeLimit) throw new Error("package_registry_payload_integrity_failed");
         try { return assertPayloadIntegrity(readFileSync(copied), Buffer.from(BOOTSTRAP.payload)); } catch { throw new Error("package_registry_payload_integrity_failed"); }
       });
-      receipt.authorizedPositiveBefore = "PASSED";
-      receipt.anonymousDenied = "PASSED";
-      receipt.authorizedPositiveAfter = "PASSED";
+      receipt.anonymousManifestDenied = "PASSED";
+      receipt.authorizedImagePull = "PASSED";
       receipt.state = "PRIVATE_READ_PROOF";
       receipt.result = "PASSED";
     }
