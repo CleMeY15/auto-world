@@ -1,0 +1,108 @@
+name: Corrected scanner diagnostic
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/scanner-audit.yml
+      - infra/scanner/**
+      - scripts/scanner/**
+      - tests/scanner-*.test.mjs
+      - package.json
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/scanner-audit.yml
+      - infra/scanner/**
+      - scripts/scanner/**
+      - tests/scanner-*.test.mjs
+      - package.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corrected-scanner-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Independent scanner build ${{ matrix.repeat }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2]
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.2
+          cache: ""
+
+      - name: Build and run upstream assertions
+        id: scanner-build
+        continue-on-error: true
+        run: node scripts/scanner/build.mjs --repeat ${{ matrix.repeat }} --output "${RUNNER_TEMP}/scanner-build-${{ matrix.repeat }}"
+
+      - name: Retain bounded public diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scanner-build-${{ matrix.repeat }}
+          path: ${{ runner.temp }}/scanner-build-${{ matrix.repeat }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Enforce build result
+        if: ${{ steps.scanner-build.outcome != 'success' }}
+        run: exit 1
+
+  audit:
+    name: Frozen scanner and image audits
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.2
+          cache: ""
+
+      - name: Retrieve both independent builds
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: scanner-build-*
+          path: ${{ runner.temp }}/scanner-builds
+
+      - name: Audit frozen scanner, fixtures, six exact roles, and two Alpine alternatives
+        id: scanner-audit
+        continue-on-error: true
+        run: node scripts/scanner/audit.mjs --build-root "${RUNNER_TEMP}/scanner-builds" --output "${RUNNER_TEMP}/scanner-audit"
+
+      - name: Retain bounded public diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scanner-audit
+          path: ${{ runner.temp }}/scanner-audit
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Enforce audit result
+        if: ${{ steps.scanner-audit.outcome != 'success' }}
+        run: exit 1

@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "aquasecurity/trivy",
+    "commit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
+    "rawBaseUrl": "https://raw.githubusercontent.com/aquasecurity/trivy/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
+  },
+  "fixtures": [
+    {
+      "id": "gomod-vulnerable",
+      "kind": "go-module",
+      "sourcePath": "integration/testdata/fixtures/repo/gomod",
+      "material": [
+        {
+          "path": "gomod/go.mod",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/go.mod",
+          "gitBlob": "f59c97baf941ab84b48535edbc3b3373022a87eb",
+          "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f",
+          "size": 1069
+        },
+        {
+          "path": "gomod/go.sum",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/go.sum",
+          "gitBlob": "43be8bf10ceca25732601013e0f9489c5cf03802",
+          "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527",
+          "size": 129439
+        },
+        {
+          "path": "gomod/submod/go.mod",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/submod/go.mod",
+          "gitBlob": "f1f3268e1fbcfc03ce498e02210f8cb35a658e0a",
+          "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954",
+          "size": 117
+        },
+        {
+          "path": "gomod/submod/go.sum",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/submod/go.sum",
+          "gitBlob": "38efa1d61ad4b934d42bbf71f57ae8921eb9af2a",
+          "sha256": "40841aa4376c744fdbe69526232cd205ffd9bb3abdf243ea6c11d9836f9c4804",
+          "size": 1048
+        },
+        {
+          "path": "gomod/submod2/go.mod",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/submod2/go.mod",
+          "gitBlob": "08f06b0e7227d6431eced1489c79cb00587faf5a",
+          "sha256": "8689f776807a618b0f33a8d99b2dd9033cc7120f2f635b572951046f7aff3929",
+          "size": 101
+        },
+        {
+          "path": "gomod/submod2/go.sum",
+          "sourcePath": "integration/testdata/fixtures/repo/gomod/submod2/go.sum",
+          "gitBlob": "7e62d841138900d88995885b1c3916e7888e261c",
+          "sha256": "708f2019e08317d697dd0075b855ef8e1c843b33acfe56c45f5d106667800b2f",
+          "size": 1404
+        }
+      ],
+      "expected": {
+        "source": "integration/testdata/gomod.json.golden",
+        "advisoryRefresh": {
+          "date": "2026-09-14",
+          "note": "GMS-2022-20 references the same GHSA now used by the fresh database; its fixed version is emitted as 2.8.0. The OPA publisher records 0.37.2. Fixture module bytes and positive detection requirements are unchanged.",
+          "sources": [
+            "https://advisories.gitlab.com/golang/github.com/docker/distribution/GMS-2022-20/",
+            "https://github.com/advisories/GHSA-qq97-vm5h-rrhg",
+            "https://github.com/open-policy-agent/opa/security/advisories/GHSA-hcw3-j74m-qc58"
+          ]
+        },
+        "targets": [
+          "go.mod",
+          "submod/go.mod",
+          "submod2/go.mod"
+        ],
+        "findings": [
+          {
+            "target": "go.mod",
+            "id": "GHSA-qq97-vm5h-rrhg",
+            "package": "github.com/docker/distribution",
+            "version": "v2.7.1+incompatible",
+            "fixedVersion": "2.8.0"
+          },
+          {
+            "target": "go.mod",
+            "id": "CVE-2022-23628",
+            "package": "github.com/open-policy-agent/opa",
+            "version": "v0.35.0",
+            "fixedVersion": "0.37.2"
+          },
+          {
+            "target": "go.mod",
+            "id": "CVE-2021-38561",
+            "package": "golang.org/x/text",
+            "version": "v0.3.6",
+            "fixedVersion": "0.3.7"
+          },
+          {
+            "target": "submod/go.mod",
+            "id": "GHSA-qq97-vm5h-rrhg",
+            "package": "github.com/docker/distribution",
+            "version": "v2.7.1+incompatible",
+            "fixedVersion": "2.8.0"
+          },
+          {
+            "target": "submod2/go.mod",
+            "id": "GHSA-qq97-vm5h-rrhg",
+            "package": "github.com/docker/distribution",
+            "version": "v2.7.1+incompatible",
+            "fixedVersion": "2.8.0"
+          }
+        ]
+      },
+      "networkExpectation": "local go.mod/go.sum parsing; use owned empty GOPATH for the offline comparison"
+    },
+    {
+      "id": "java-war-vulnerable",
+      "kind": "jar-analyzer-war",
+      "sourcePath": "pkg/fanal/analyzer/language/java/jar/testdata/test.war",
+      "material": [
+        {
+          "path": "java/test.war",
+          "sourcePath": "pkg/fanal/analyzer/language/java/jar/testdata/test.war",
+          "gitBlob": "787d517174b773da1a8fbdba1bf878eddf95addd",
+          "sha256": "b852f605a56a1e109bdd17aaa8d85007c4327708bf6e3b4b56a9876b4a1077ba",
+          "size": 2525883
+        }
+      ],
+      "expected": {
+        "source": "pkg/fanal/analyzer/language/java/jar/jar_test.go and integration/testdata/fixtures/db/java.yaml",
+        "package": "com.fasterxml.jackson.core:jackson-databind",
+        "version": "2.9.10.6",
+        "finding": {
+          "id": "CVE-2021-20190",
+          "fixedVersion": "2.9.10.7, 2.6.7.5",
+          "derivation": "source DB range [2.9.0,2.9.10.7) contains 2.9.10.6; the fresh DB also lists the publisher-confirmed 2.6.7.5 backport",
+          "advisoryRefresh": "2026-09-14: https://github.com/FasterXML/jackson-databind/issues/2854 confirms both fixed releases"
+        }
+      },
+      "networkExpectation": "local JAR-analyzer archive; the CVE expectation is source-derived against the captured local DB, not a promise about a fresh mutable DB"
+    },
+    {
+      "id": "java-jar-clean-candidate",
+      "kind": "jar-analyzer-jar",
+      "source": {
+        "artifactUrl": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar",
+        "sha1Url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar.sha1",
+        "provenance": "Maven Central release artifact fetched 2026-09-14; publisher SHA-1 and embedded Maven coordinates checked, LICENSE and NOTICE retained; external test data only, never a runtime dependency"
+      },
+      "material": [
+        {
+          "path": "java/jackson-core-2.18.8.jar",
+          "sha256": "ab865e39f01403598748b090a3bf528616e701913a71afc37a227daa0fabb4ae",
+          "sha1": "459eb2c4bb30bd6898eb9bbe9d7a4c4140529b8b",
+          "size": 588007
+        }
+      ],
+      "expected": {
+        "source": "FasterXML advisories https://github.com/advisories/GHSA-r7wm-3cxj-wff9 and https://github.com/advisories/GHSA-72hv-8253-57qq plus Trivy JAR analyzer semantics",
+        "package": "com.fasterxml.jackson.core:jackson-core",
+        "version": "2.18.8",
+        "fixedFor": [
+          "CVE-2025-52999",
+          "CVE-2026-18401",
+          "GHSA-r7wm-3cxj-wff9"
+        ],
+        "findingExpectation": "must be zero only after first Linux scan with a freshly downloaded then frozen DB; any finding blocks without waiver"
+      },
+      "networkExpectation": "local JAR-analyzer archive; acquisition provenance is pinned above, scanning is offline"
+    }
+  ]
+}

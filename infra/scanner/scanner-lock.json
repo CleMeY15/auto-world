@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "state": "diagnostic_only",
+  "scanner": {
+    "name": "trivy",
+    "version": "0.74.0-autoworld.2",
+    "upstreamVersion": "0.74.0",
+    "repositoryUrl": "https://github.com/aquasecurity/trivy.git",
+    "sourceCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994"
+  },
+  "compiler": {
+    "name": "go",
+    "version": "1.26.8",
+    "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
+    "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b",
+    "size": 66897291
+  },
+  "patches": [
+    {
+      "order": 1,
+      "kind": "upstream-reviewed-grpc-1.83.1-closure",
+      "path": "infra/scanner/patches/trivy-grpc-1.83.1.patch",
+      "sha256": "beb6b6f91cf20220e3fc990ae9c609769c4a468ef5c85534898e6ea396ddbe4d",
+      "size": 6145
+    },
+    {
+      "order": 2,
+      "kind": "locked-upstream-test-fixtures",
+      "path": "infra/scanner/patches/trivy-fixture-locking.patch",
+      "sha256": "b582332ae15a26bbc8939bb4ffbee8a74001ed979cbea44316c7c12b406169d4",
+      "size": 33029
+    },
+    {
+      "order": 3,
+      "kind": "official-trivy-grpc-1.83.2-follow-up",
+      "path": "infra/scanner/patches/trivy-grpc-1.83.2.patch",
+      "sha256": "0aed009d8405d7d0c63d7e500122fc1272ef6b17d0791f42b376f9418125fdf0",
+      "size": 2259,
+      "upstreamCommit": "8c905373332df11a268a0cebc07627cc08485fee"
+    }
+  ],
+  "fixtures": [
+    { "path": "infra/scanner/materials/scanner-fixtures/manifest.json", "sha256": "989a90bf5ef2111a2e7d0a7f486a198a162e063865b66d91462c56d6e6d93e0d", "size": 7269 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.mod", "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f", "size": 1069 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.sum", "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527", "size": 129439 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod/go.mod", "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954", "size": 117 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod/go.sum", "sha256": "40841aa4376c744fdbe69526232cd205ffd9bb3abdf243ea6c11d9836f9c4804", "size": 1048 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod2/go.mod", "sha256": "8689f776807a618b0f33a8d99b2dd9033cc7120f2f635b572951046f7aff3929", "size": 101 },
+    { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod2/go.sum", "sha256": "708f2019e08317d697dd0075b855ef8e1c843b33acfe56c45f5d106667800b2f", "size": 1404 },
+    { "path": "infra/scanner/materials/scanner-fixtures/java/jackson-core-2.18.8.jar", "sha256": "ab865e39f01403598748b090a3bf528616e701913a71afc37a227daa0fabb4ae", "size": 588007 },
+    { "path": "infra/scanner/materials/scanner-fixtures/java/test.war", "sha256": "b852f605a56a1e109bdd17aaa8d85007c4327708bf6e3b4b56a9876b4a1077ba", "size": 2525883 },
+    { "path": "infra/scanner/materials/trivy/test-repo-git-worktree.tar.gz", "sha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393", "size": 34282 },
+    { "path": "infra/scanner/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9", "size": 296692 }
+  ],
+  "upstreamTestMaterials": [
+    { "source": "infra/scanner/materials/trivy/test-repo-git-worktree.tar.gz", "destination": "internal/gittest/testdata/locked/test-repo-git-worktree.tar.gz", "sha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393", "size": 34282 },
+    { "source": "infra/scanner/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", "destination": "pkg/fanal/analyzer/pkg/rpm/testdata/locked/socat-1.7.3.2-2.el7.x86_64.rpm", "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9", "size": 296692 }
+  ],
+  "baseline": {
+    "repository": "aquasec/trivy",
+    "version": "0.74.0",
+    "manifestDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+    "platformDigest": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
+  },
+  "images": [
+    { "role": "postgres", "repository": "postgres", "version": "17.11", "manifestDigest": "sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:d13db94ae661d517c5ed57c509a578d5ea64aae639871ba25294f4f42d83de28" } },
+    { "role": "opensearch", "repository": "opensearchproject/opensearch", "version": "3.8.0", "manifestDigest": "sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:39a8f8c63028e8b5d6b70539af1d0339b15a6729002dd5b3f4a65f520376fd30" } },
+    { "role": "redis", "repository": "redis", "version": "8.10.1", "manifestDigest": "sha256:298e5b3bc566bade82f46ad5511777a4a07a294097ce16ada2f6a42be5239df5", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:76961cd2a0f40ef6fdd334b6b1b3a76a2bad1848d89f3030ca30a7521d4a9493" } },
+    { "role": "seaweedfs", "repository": "chrislusf/seaweedfs", "version": "4.47", "manifestDigest": "sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362" } },
+    { "role": "aws-cli", "repository": "amazon/aws-cli", "version": "2.36.44", "manifestDigest": "sha256:e8467f2c319f9bc9a1471808a69949a76915e9c95eaf4a09ece9f9e85fd32747", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:79979622af70b30fee35ef8b7dc105734709525e081f80810e51c2546bd89f4c" } },
+    { "role": "baseline-trivy", "repository": "aquasec/trivy", "version": "0.74.0", "manifestDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9" } }
+  ],
+  "alternatives": [
+    { "role": "postgres-alpine", "alternativeFor": "postgres", "repository": "postgres", "version": "17.11-alpine", "manifestDigest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee" } },
+    { "role": "redis-alpine", "alternativeFor": "redis", "repository": "redis", "version": "8.10.1-alpine", "manifestDigest": "sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354" } }
+  ]
+}
