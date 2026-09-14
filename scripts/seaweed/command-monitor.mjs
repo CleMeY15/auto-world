@@ -279,6 +279,7 @@ export function runMonitoredCommand(command, args, options) {
       const info = lstatSync(resources);
       if (!info.isFile() || info.isSymbolicLink() || info.size > 256) throw new Error("seaweed_resource_snapshot_invalid");
       resourceUsage = readResourceUsageSnapshot(resources);
+      if (monitorReason === undefined) monitorReason = "seaweed_resource_snapshot_invalid";
     } catch { monitorReason = "seaweed_resource_snapshot_invalid"; }
   }
   if (result.error?.code === "ETIMEDOUT" && monitorReason === undefined) monitorReason = "seaweed_monitor_wrapper_timeout";

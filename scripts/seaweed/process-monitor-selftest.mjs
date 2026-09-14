@@ -60,6 +60,12 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     const measurementResult = runProbe("measurement", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "rmdir -- \"$1\"; sleep 300", "measurement-probe", missingWork], missingWork, 10_000);
     if (measurementResult.monitorReason !== "seaweed_measure_du_work_exit_1_attempt_2" || measurementResult.resourceUsage !== undefined) throw new Error("seaweed_monitor_measurement_selftest_failed");
 
+    const orphanWork = path.join(work, "orphan-snapshot"); mkdirSync(orphanWork);
+    const orphanSnapshot = path.join(temporary, "orphan-snapshot.marker.resources");
+    const orphanResult = runProbe("orphan-snapshot", "/usr/bin/bash", ["--noprofile", "--norc", "-c",
+      "printf '%s' '{\"workBytes\":0,\"retainedBytes\":0,\"freeBytes\":1}' >\"$1\"", "orphan-probe", orphanSnapshot], orphanWork, 10_000);
+    if (orphanResult.status !== 0 || orphanResult.monitorReason !== "seaweed_resource_snapshot_invalid") throw new Error("seaweed_monitor_orphan_snapshot_selftest_failed");
+
     const cancellationWork = path.join(work, "cancellation"); mkdirSync(cancellationWork);
     const cancellationResult = runProbe("cancellation", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "printf '%s\\n' \"$$\"; kill -TERM \"$PPID\"; sleep 300"], cancellationWork, 10_000);
     const cancellationPid = Number(cancellationResult.stdout?.toString("utf8").trim());
