@@ -5,7 +5,13 @@
     "repositoryUrl": "https://github.com/seaweedfs/seaweedfs.git",
     "commit": "c5073360007d28385a33426a42ac3e4ec504c5a3",
     "tree": "bce9e3f66721208f35888124183f80bd76d64f90",
-    "version": "4.47"
+    "version": "4.47",
+    "commitUnixTime": 1789349515,
+    "shallowBoundary": {
+      "sha256": "85485d485c3fb431c98532676da79828422e8b94102790984f473d14c8fc6300",
+      "size": 41
+    },
+    "bundleMaximumBytes": 268435456
   },
   "compiler": {
     "version": "1.26.8",

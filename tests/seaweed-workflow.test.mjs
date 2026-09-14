@@ -24,6 +24,11 @@ function validateWorkflow(value) {
   assert.equal(value.jobs.build["timeout-minutes"], 90);
   assert.deepEqual(value.jobs.compare.needs, ["build"]);
   const steps = value.jobs.build.steps;
+  const monitor = steps.findIndex((step) => step.run === "node scripts/seaweed/process-monitor-selftest.mjs");
+  const build = steps.findIndex((step) => step.id === "build");
+  assert.ok(monitor > 0 && monitor < build);
+  assert.equal(steps[monitor]["continue-on-error"], undefined);
+  assert.equal(steps[monitor].if, undefined);
   const gate = steps.findIndex((step) => step.id === "artifact_gate");
   const upload = steps.findIndex((step) => step.with?.name === "seaweed-build-${{ matrix.repeat }}");
   assert.ok(gate > 0 && upload > gate);
@@ -44,6 +49,7 @@ test("Seaweed workflow rejects privilege escalation, unguarded upload and cross-
   for (const mutate of [
     (value) => { value.jobs.build.permissions = { packages: "write" }; },
     (value) => { value.on.pull_request = {}; },
+    (value) => { value.jobs.build.steps.find((step) => step.run === "node scripts/seaweed/process-monitor-selftest.mjs")["continue-on-error"] = true; },
     (value) => { value.jobs.build.steps.find((step) => step.with?.name === "seaweed-build-${{ matrix.repeat }}").if = "${{ always() }}"; },
     (value) => { value.jobs.compare.steps.find((step) => step.uses?.startsWith("actions/download-artifact@" )).with["run-id"] = "other-run"; },
   ]) {

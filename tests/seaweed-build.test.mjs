@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-  assertResourceBudget, canonicalMaterial, clippedTimeout, parseArguments, removeOwnedTree, sha256,
-  summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateSeaweedLock,
+  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, clippedFinalizationTimeout, clippedTimeout, createRedisLifecycle, finalizeRedisCleanup,
+  isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
+  sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure, validatePostTestState, validateRestoredSource,
+  validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
 } from "../scripts/seaweed/build.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -31,10 +33,12 @@ test("bounded arguments, deadlines, resources, and artifact paths fail closed", 
   assert.throws(() => parseArguments(["--repeat", "3", "--output", output]), /seaweed_arguments_invalid/u);
   assert.equal(clippedTimeout({ deadlineMs: 100, finalizationReserveMs: 20 }, 10, 90), 70);
   assert.throws(() => clippedTimeout({ deadlineMs: 100, finalizationReserveMs: 20 }, 80, 1), /seaweed_inner_deadline_exceeded/u);
+  assert.equal(clippedFinalizationTimeout({ deadlineMs: 100 }, 80, 60), 20);
+  assert.throws(() => clippedFinalizationTimeout({ deadlineMs: 100 }, 100, 1), /seaweed_inner_deadline_exceeded/u);
   const limits = { workBytes: 10, retainedBytes: 10, minimumFreeBytes: 5, aggregateLogBytes: 10 };
-  assert.doesNotThrow(() => assertResourceBudget({ workBytes: 10, retainedBytes: 10, freeBytes: 5, logBytes: 10, limits }));
-  for (const changed of [{ workBytes: 11 }, { retainedBytes: 11 }, { freeBytes: 4 }, { logBytes: 11 }]) {
-    assert.throws(() => assertResourceBudget({ workBytes: 10, retainedBytes: 10, freeBytes: 5, logBytes: 10, limits, ...changed }), /seaweed_.+_failed|seaweed_.+_exceeded/u);
+  assert.doesNotThrow(() => assertResourceBudget({ workBytes: 5, retainedBytes: 5, freeBytes: 5, logBytes: 10, limits }));
+  for (const changed of [{ workBytes: 6 }, { retainedBytes: 11 }, { freeBytes: 4 }, { logBytes: 11 }]) {
+    assert.throws(() => assertResourceBudget({ workBytes: 5, retainedBytes: 5, freeBytes: 5, logBytes: 10, limits, ...changed }), /seaweed_.+_failed|seaweed_.+_exceeded/u);
   }
   assert.equal(validateArtifactAllowlist(["weed", "materials/required-tests.json", "materials/modules/" + "a".repeat(64) + "/source.zip"]), true);
   assert.throws(() => validateArtifactAllowlist(["weed", "../secret"]), /seaweed_artifact_allowlist_invalid/u);
@@ -52,10 +56,56 @@ test("required go test events bind package plus top-level name and retain skips"
 });
 
 test("build metadata requires corrected dependency, platform, VCS revision, modified state, and no tags", () => {
-  const info = ["/tmp/auto-world-seaweed-source-diagnostic/bin/weed", `\tdep\tgoogle.golang.org/grpc\t${lock.grpc.version}\th1:x`, "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", "\tbuild\tGOAMD64=v1", `\tbuild\tvcs.revision=${lock.source.commit}`, "\tbuild\tvcs.modified=true"].join("\n");
+  const binary = "/tmp/auto-world-seaweed-source-diagnostic/bin/weed";
+  const info = [`${binary}: go${lock.compiler.version}`, `\tdep\tgoogle.golang.org/grpc\t${lock.grpc.version}\t${lock.grpc.sum}`, "\tbuild\t-compiler=gc", `\tbuild\t-ldflags=${JSON.stringify(lock.build.ldflags)}`, "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", "\tbuild\tGOAMD64=v1", `\tbuild\tvcs.revision=${lock.source.commit}`, "\tbuild\tvcs.modified=true"].join("\n");
   assert.equal(validateBuildInfo(info, lock), true);
   assert.throws(() => validateBuildInfo(info.replace("vcs.modified=true", "vcs.modified=false"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace("GOARCH=amd64", "GOARCH=amd64evil"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(lock.grpc.version, `${lock.grpc.version}-evil`), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(lock.build.commitValue, "wrong-commit"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(`go${lock.compiler.version}`, "go0.0.0"), lock), /seaweed_build_info_invalid/u);
   assert.throws(() => validateBuildInfo(`${info}\n\tbuild\t-tags=elastic`, lock), /seaweed_build_tags_invalid/u);
+});
+
+test("subprocess base environment is credential-free and Redis is bounded before creation", () => {
+  const work = path.resolve(tmpdir(), "owned");
+  assert.deepEqual(Object.keys(safeBaseEnvironment(work)).sort(), ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"]);
+  assert.equal(safeBaseEnvironment(work).TZ, "UTC");
+  const args = redisRunArguments("aw-seaweed-redis-1", lock.redis.subject);
+  for (const pair of [["--cpus", "1"], ["--memory", "256m"], ["--memory-swap", "256m"], ["--pids-limit", "128"], ["--publish", "127.0.0.1:6379:6379"]]) {
+    assert.equal(args[args.indexOf(pair[0]) + 1], pair[1]);
+  }
+  assert.equal(isMissingRedisContainer({ status: 1, stderr: Buffer.from("Error: No such object: aw-seaweed-redis-1\n") }, "aw-seaweed-redis-1"), true);
+  assert.equal(isMissingRedisContainer({ status: 1, stderr: Buffer.from("network timeout") }, "aw-seaweed-redis-1"), false);
+  const lifecycle = createRedisLifecycle(); let cleaned = 0;
+  try { armRedisCleanup(lifecycle); throw new Error("synthetic_start_timeout"); }
+  catch (error) { assert.match(error.message, /synthetic_start_timeout/u); }
+  finally { finalizeRedisCleanup(lifecycle, () => { cleaned += 1; }); }
+  assert.equal(cleaned, 1);
+});
+
+test("final module validation requires the complete unchanged closure and exact effective gRPC", () => {
+  const grpc = { path: "google.golang.org/grpc", version: lock.grpc.version, sum: lock.grpc.sum, goModSum: lock.grpc.goModSum, zip: { sha256: "a".repeat(64), size: 1 } };
+  const closure = [{ path: "example.test/module", version: "v1.0.0", sum: "h1:a", goModSum: "h1:b", zip: { sha256: "b".repeat(64), size: 1 } }, grpc];
+  const copied = JSON.parse(JSON.stringify(closure));
+  assert.deepEqual(validateFinalModuleClosure(closure, copied, lock), grpc);
+  assert.throws(() => validateFinalModuleClosure(closure, closure.slice(1), lock), /seaweed_module_closure_changed/u);
+  const changed = JSON.parse(JSON.stringify(closure)); changed[1].version += "-substituted";
+  assert.throws(() => validateFinalModuleClosure(changed, changed, lock), /seaweed_grpc_module_invalid/u);
+  assert.deepEqual(validatePostTestState(closure, copied, lock.moduleFiles.after, lock), grpc);
+  assert.throws(() => validatePostTestState(closure, copied, { ...lock.moduleFiles.after, "go.sum": { ...lock.moduleFiles.after["go.sum"], size: 1 } }, lock), /seaweed_module_files_changed/u);
+});
+
+test("retained shallow boundary, offline restore identity, and exact normal version fail closed", () => {
+  const shallow = Buffer.from(`${lock.source.commit}\n`);
+  assert.equal(validateShallowBoundary(shallow, lock), true);
+  assert.throws(() => validateShallowBoundary(Buffer.from(`${"0".repeat(40)}\n`), lock), /seaweed_material_changed/u);
+  const restored = { fsck: "PASSED", head: lock.source.commit, tree: lock.source.tree, commitUnixTime: String(lock.source.commitUnixTime), pristine: lock.moduleFiles.before, corrected: lock.moduleFiles.after, changed: ["go.mod", "go.sum"] };
+  assert.equal(validateRestoredSource(restored, lock), true);
+  for (const mutation of [{ ...restored, fsck: "FAILED" }, { ...restored, head: "0".repeat(40) }, { ...restored, tree: "0".repeat(40) }, { ...restored, changed: ["go.mod"] }]) assert.throws(() => validateRestoredSource(mutation, lock), /seaweed_source_restore_invalid/u);
+  const version = `version 30GB ${lock.source.version} ${lock.build.commitValue} linux amd64`;
+  assert.equal(validateVersionOutput(version, lock), true);
+  assert.throws(() => validateVersionOutput(`${version} substituted`, lock), /seaweed_version_output_invalid/u);
 });
 
 test("cleanup removes only the exact owned nonsymlink tree", () => {
@@ -79,4 +129,22 @@ test("artifact validation permits only bounded failure logs or a complete passed
   writeFileSync(path.join(failed, "weed"), "partial");
   assert.throws(() => validateArtifactDirectory(failed), /seaweed_failed_artifact_unsafe/u);
   rmSync(failed, { recursive: true, force: true });
+});
+
+test("main build orchestration filters parent secrets, cleans owned work, and writes a top-level failure receipt", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-orchestration-")); const output = path.join(runnerTemp, "seaweed-build-1");
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  assert.equal(existsSync(workRoot), false, "owned test work path must be unused");
+  const seen = [];
+  const commandRunner = (command, args, options) => { seen.push({ command, args, options }); return { status: 1, stdout: Buffer.alloc(0), stderr: Buffer.from("synthetic failure") }; };
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp, SUPER_SECRET: "must-not-propagate" };
+  assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_compiler_download_failed/u);
+  assert.equal(seen.length, 1); assert.equal(Object.hasOwn(seen[0].options.env, "SUPER_SECRET"), false);
+  assert.deepEqual(Object.keys(seen[0].options.env).sort(), ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"]);
+  assert.equal(existsSync(workRoot), false);
+  const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json"), "utf8"));
+  assert.equal(receipt.result, "FAILED"); assert.equal(receipt.reason, "seaweed_compiler_download_failed");
+  assert.equal(receipt.phases.at(-1).name, "cleanup"); assert.equal(receipt.phases.at(-1).result, "PASSED");
+  assert.deepEqual(readdirSync(output).sort(), ["build-receipt.json", "logs"]);
+  rmSync(runnerTemp, { recursive: true, force: true });
 });
