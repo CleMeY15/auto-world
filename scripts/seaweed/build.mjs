@@ -428,7 +428,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
   const logs = path.join(output, "logs"); const materials = path.join(output, "materials");
   mkdirSync(logs); mkdirSync(materials);
   const baseEnv = safeBaseEnvironment(workRoot);
-  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; const redisLifecycle = createRedisLifecycle();
+  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; let workCleanupSafe = true; const redisLifecycle = createRedisLifecycle();
   const receipt = { schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "FAILED", repeat, sourceCommit: lock.source.commit,
     sourceTree: lock.source.tree, sourceVersion: lock.source.version, derivativeCommit: lock.build.commitValue, buildTags: [],
     platform: "linux/amd64", cgoEnabled: "0", notRun: lock.notRun, lock: materialIdentity(lockBytes), patch: materialIdentity(patch),
@@ -442,6 +442,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const monitorPrefix = path.join(workRoot, "tmp", `command-${String(runnerIndex).padStart(3, "0")}`);
     const result = commandRunner(command, args, { cwd: options.cwd ?? workRoot, env: options.env ?? baseEnv, maxBuffer: lock.limits.logBytes, timeout,
       monitor: { stdout: `${monitorPrefix}.stdout`, stderr: `${monitorPrefix}.stderr`, marker: `${monitorPrefix}.marker`, work: workRoot, retained: output, limits: lock.limits } });
+    if (result?.groupAbsent === false || result?.monitorReason === "seaweed_process_group_cleanup_failed") {
+      workCleanupSafe = false;
+      throw new Error("seaweed_process_group_cleanup_failed");
+    }
     const stdout = Buffer.isBuffer(result?.stdout) ? result.stdout : Buffer.alloc(0);
     const stderr = Buffer.isBuffer(result?.stderr) ? result.stderr : Buffer.alloc(0);
     const logBytes = Buffer.concat([stdout, stderr]);
@@ -680,12 +684,16 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
         const cleanupTimeout = clippedFinalizationTimeout({ deadlineMs: lock.limits.innerDeadlineMs }, now() - started, 60_000);
         const result = commandRunner("/usr/bin/docker", ["rm", "--force", name], { cwd: workRoot, env: baseEnv, maxBuffer: 1024 ** 2, timeout: cleanupTimeout, cleanup: "redis_container",
           monitor: { stdout: `${prefix}.stdout`, stderr: `${prefix}.stderr`, marker: `${prefix}.marker`, work: workRoot, retained: output, limits: lock.limits } });
+        if (result?.groupAbsent === false || result?.monitorReason === "seaweed_process_group_cleanup_failed") workCleanupSafe = false;
         if (/^seaweed_[a-z0-9_]+$/u.test(result?.monitorReason ?? "")) throw new Error(result.monitorReason);
         if ((result.error || result.status !== 0) && !isMissingRedisContainer(result, name)) throw new Error("seaweed_redis_cleanup_failed");
       });
     };
   }
-  cleanupOperations.work_cleanup = () => removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot)));
+  cleanupOperations.work_cleanup = () => {
+    if (!workCleanupSafe) throw new Error("seaweed_work_cleanup_unproven_processes");
+    removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot)));
+  };
   cleanupFailure = cleanupBuildResources(receipt, cleanupOperations, now);
   receipt.aggregateLogBytes = aggregateLogs;
   try {

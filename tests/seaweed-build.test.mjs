@@ -218,3 +218,22 @@ test("monitored failures retain bounded command output before propagating the pr
     assert.equal(validateArtifactDirectory(output).result, "FAILED");
   } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
 });
+
+test("unproven process cleanup prevents recursive work removal and remains a failed cleanup phase", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-unproven-cleanup-"));
+  const output = path.join(runnerTemp, "seaweed-build-1");
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp };
+  try {
+    const commandRunner = () => {
+      writeFileSync(path.join(workRoot, "sentinel"), "unproven owned process");
+      return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), groupAbsent: false };
+    };
+    assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_process_group_cleanup_failed/u);
+    assert.equal(readFileSync(path.join(workRoot, "sentinel"), "utf8"), "unproven owned process");
+    const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json"), "utf8"));
+    assert.equal(receipt.reason, "seaweed_process_group_cleanup_failed");
+    assert.equal(receipt.cleanupReason, "seaweed_work_cleanup_unproven_processes");
+    assert.equal(receipt.phases.find(({ name }) => name === "work_cleanup").result, "FAILED");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-import { isAllowedMonitorReason, normalizeMonitorReason, parseResourceUsageSnapshot, validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
+import { isAllowedMonitorReason, normalizeMonitorReason, parseResourceUsageSnapshot, parseTrustedMonitorStatus, validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
 import { processIsAbsent, runProcessMonitorSelftest } from "../scripts/seaweed/process-monitor-selftest.mjs";
 
 test("process monitor absence check distinguishes ESRCH from a live process and other errors", () => {
@@ -79,4 +79,24 @@ test("resource snapshots accept only an exact bounded numeric object", () => {
     Buffer.from('{"workBytes":12,"workBytes":13,"retainedBytes":3,"freeBytes":99}'),
     Buffer.alloc(257, 0x20),
   ]) assert.throws(() => parseResourceUsageSnapshot(value), /seaweed_resource_snapshot_invalid/u);
+});
+
+test("trusted monitor status accepts one bounded allowlisted line", () => {
+  assert.equal(parseTrustedMonitorStatus(undefined), undefined);
+  assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_work_budget_exceeded:written:absent\n")),
+    { reason: "seaweed_work_budget_exceeded", resourceWritten: true, groupAbsent: true });
+  assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_command_timeout:none:absent\n")),
+    { reason: "seaweed_command_timeout", resourceWritten: false, groupAbsent: true });
+  assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_process_group_cleanup_failed:none:unknown\n")),
+    { reason: "seaweed_process_group_cleanup_failed", resourceWritten: false, groupAbsent: false });
+  assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:ok:none:absent\n")),
+    { reason: undefined, resourceWritten: false, groupAbsent: true });
+  for (const value of [
+    Buffer.from("seaweed-monitor-status:seaweed_command_timeout:none:absent\nsecret\n"),
+    Buffer.from("seaweed-monitor-status:seaweed_private_path:none:absent\n"),
+    Buffer.from("seaweed-monitor-status:ok:written:absent\n"),
+    Buffer.from("seaweed-monitor-status:seaweed_command_timeout:none:unknown\n"),
+    Buffer.alloc(129, 0x61),
+    "seaweed-monitor-status:seaweed_command_timeout:none:absent\n",
+  ]) assert.deepEqual(parseTrustedMonitorStatus(value), { reason: "seaweed_monitor_wrapper_failed", resourceWritten: false, groupAbsent: false });
 });
