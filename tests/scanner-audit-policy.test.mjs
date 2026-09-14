@@ -91,6 +91,25 @@ test("future, ambiguous or expired scan dates and invalid clocks fail", () => {
   assert.throws(() => evaluateImageReport(report(), pin, [], new Date("invalid")), /scanner_audit_clock_invalid/u);
 });
 
+test("calendar overflow and 24-hour normalization cannot make reports or DB records fresh", () => {
+  const at = new Date("2026-03-03T01:00:00Z");
+  for (const impossible of ["2026-02-31T00:00:00Z", "2026-03-02T24:00:00Z"]) {
+    assert.throws(() => evaluateImageReport({ ...report(), CreatedAt: impossible }, pin, [], at), /scanner_image_report_invalid/u);
+    assert.throws(() => validateDatabaseMetadata({ Version: 2, UpdatedAt: impossible, DownloadedAt: at.toISOString() }, { now: at, expectedVersion: 2 }), /scanner_database_metadata_invalid/u);
+    const value = { ...report([finding]), CreatedAt: at.toISOString() };
+    const exception = { ...disposition, reviewedAt: impossible, expiresAt: "2026-03-04T00:00:00Z" };
+    assert.equal(evaluateImageReport(value, pin, [exception], at).blockers.length, 1);
+  }
+});
+
+test("valid leap-day, timezone offset and fractional timestamps remain supported", () => {
+  const at = new Date("2024-03-01T00:00:00Z");
+  const CreatedAt = "2024-02-29T23:00:00.123456789+01:00";
+  assert.equal(evaluateImageReport({ ...report(), CreatedAt }, pin, [], at).blockers.length, 0);
+  const metadata = { Version: 2, UpdatedAt: "2024-02-29T01:00:00Z", DownloadedAt: CreatedAt };
+  assert.equal(validateDatabaseMetadata(metadata, { now: at, expectedVersion: 2 }).version, 2);
+});
+
 test("both database metadata records must be ordered and fresh", () => {
   for (const Version of [2, 1]) {
     const metadata = { Version, UpdatedAt: "2026-09-13T10:00:00Z", DownloadedAt: "2026-09-14T09:00:00Z" };

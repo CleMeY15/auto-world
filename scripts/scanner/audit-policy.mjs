@@ -4,7 +4,7 @@ export const SCANNER_VERSION = "0.74.0-autoworld.2";
 export const MAX_DATABASE_AGE_MS = 48 * 60 * 60 * 1000;
 const MAX_DISPOSITION_MS = 30 * 24 * 60 * 60 * 1000;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
+const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/u;
 
 function invalid(code = "scanner_image_report_invalid") {
   throw new Error(code);
@@ -28,7 +28,14 @@ function packageIdentity(pkg) {
 }
 
 function timestamp(value) {
-  return typeof value === "string" && TIMESTAMP.test(value) ? Date.parse(value) : NaN;
+  const match = typeof value === "string" ? TIMESTAMP.exec(value) : null;
+  if (!match) return NaN;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1] ||
+      hour > 23 || minute > 59 || second > 59 || Number(match[10] ?? 0) > 23 || Number(match[11] ?? 0) > 59) return NaN;
+  return Date.parse(value);
 }
 
 function clock(now) {
