@@ -37,8 +37,8 @@
   },
   "moduleFiles": {
     "before": {
-      "go.mod": {"sha256": "81182de1c78fc0a326f82ffc0a439e7fd3bb0ebb403980a86c244e917864aa42", "size": 27025},
-      "go.sum": {"sha256": "c59560626f27bf715b085ee46bf455310fae5b56cc5609e71d78940a8424b0ec", "size": 289547}
+      "go.mod": {"sha256": "f42c31cb12a4b537d254c38c189d0c5985b4d88876c4a3dbf08dfbda73d49292", "size": 27025},
+      "go.sum": {"sha256": "d0da511e41d4013cbcc31d959d7533edb8312cfefa8722919085d5cbc6eb8fe2", "size": 289547}
     },
     "after": {
       "go.mod": {"sha256": "7a1d96559ebe8b9d8511d7a7dd15ee5318af173800d96aa14056e9dfc8b20a44", "size": 27055},
@@ -60,11 +60,11 @@
     "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.804c8ac03c3e"
   },
   "upstreamMaterials": [
-    {"path": ".github/workflows/container_release_unified.yml", "sha256": "7ba730a8e13b668d66b289775fe8e62b06b27ea746be0916f2586e95b431bfd6", "size": 26221},
-    {"path": ".github/workflows/go.yml", "sha256": "abcd9350a5ee2dfca9d6ab293b4489435c968ce6576f86a1120b8c5646b52ebe", "size": 4895},
-    {"path": "docker/Dockerfile.go_build", "sha256": "11a241820f964d1b5a03ce85289266d2eb76d0f62f4fe9459d546454d2acf064", "size": 5463},
-    {"path": "LICENSE", "sha256": "7094898c0a92745e8e2c053e8c7f03bfc023bd9901249cb4df2f42fa92a6ee17", "size": 11537},
-    {"path": "weed/glog/LICENSE", "sha256": "dc1f5d2d43c5531dfe0acaf4e950ea5dbe3e61e1850cf0e983bda7efc10d6693", "size": 10464}
+    {"path": ".github/workflows/container_release_unified.yml", "sha256": "1d671a6559ebc436fca48a7a062be2a6dfbd5981110c6758ad3ae3e995589680", "size": 25668},
+    {"path": ".github/workflows/go.yml", "sha256": "682dfed9a7986001c6a1157097a162536282c3ffa3c2666f381c8a414a93ff70", "size": 4745},
+    {"path": "docker/Dockerfile.go_build", "sha256": "7aaef5a601c36f764db354f73c636d45f14f8e8a6ce184fa912303c57d4a758c", "size": 5343},
+    {"path": "LICENSE", "sha256": "d789d433cc11da163273d1e39be2e8fa67642f9a58ef220d3f258fa9c14ef613", "size": 11337},
+    {"path": "weed/glog/LICENSE", "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68", "size": 10273}
   ],
   "redis": {
     "subject": "redis@sha256:76961cd2a0f40ef6fdd334b6b1b3a76a2bad1848d89f3030ca30a7521d4a9493",
