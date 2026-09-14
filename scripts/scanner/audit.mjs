@@ -4,7 +4,7 @@ import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync
 import path from "node:path";
 import process from "node:process";
 import { evaluateImageReport, validateDatabaseMetadata } from "./audit-policy.mjs";
-import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, readBoundedJson, validateBuildPair, validateFixtureReport, validateSelfReport } from "./controls.mjs";
+import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, readBoundedJson, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "./controls.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const LOCK_PATH = path.join(ROOT, "infra/scanner/scanner-lock.json");
@@ -154,6 +154,11 @@ function candidateScan(carrier, scanner, cache, mode, target, output, extra = []
   command(DOCKER, candidateDockerArguments({ carrier, scanner, cache, mode, target, format, extra }), { output });
 }
 
+export function versionProbeBytes(lock) {
+  if (!/^\d+\.\d+\.\d+$/u.test(lock?.scanner?.upstreamVersion ?? "") || !/^\d+\.\d+\.\d+$/u.test(lock?.compiler?.version ?? "")) fail("scanner_version_probe_lock_invalid");
+  return Buffer.from(`module auto.world/scanner-version-probe\n\ngo ${lock.compiler.version}\n\nrequire github.com/aquasecurity/trivy v${lock.scanner.upstreamVersion}\n`, "utf8");
+}
+
 async function databaseEvidence(cache, now) {
   const files = cacheFiles(cache);
   const snapshot = await captureFiles(files);
@@ -213,6 +218,14 @@ export async function auditScanner({ buildRoot, output }) {
     if (buildBinaries.some((entry) => entry.sha256 !== binaryIdentity.sha256 || entry.size !== binaryIdentity.size)) fail("scanner_build_binary_changed");
     const subject = path.join(work, "subject"); mkdirSync(subject);
     const scanner = path.join(subject, "trivy"); copyFileSync(buildBinaries[0].path, scanner); chmodSync(scanner, 0o555);
+    const versionProbe = path.join(work, "scanner-version-probe"); mkdirSync(versionProbe);
+    const probeBytes = versionProbeBytes(lock);
+    const versionProbeFile = path.join(versionProbe, "go.mod"); writeFileSync(versionProbeFile, probeBytes, { flag: "wx" });
+    const retainedVersionProbe = path.join(output, "scanner-main-version-probe.go.mod"); writeFileSync(retainedVersionProbe, probeBytes, { flag: "wx" });
+    chmodSync(versionProbeFile, 0o444); chmodSync(versionProbe, 0o555);
+    const [versionProbeSnapshot] = await captureFiles([{ path: versionProbeFile, cap: 8 * MiB }]);
+    const [retainedVersionProbeSnapshot] = await captureFiles([{ path: retainedVersionProbe, cap: 8 * MiB }]);
+    if (versionProbeSnapshot.sha256 !== retainedVersionProbeSnapshot.sha256 || versionProbeSnapshot.size !== retainedVersionProbeSnapshot.size) fail("scanner_version_probe_evidence_changed");
     const fixtureRoot = path.join(ROOT, "infra/scanner/materials/scanner-fixtures");
     const fixtureManifest = JSON.parse(readFileSync(path.join(fixtureRoot, "manifest.json"), "utf8"));
 
@@ -242,17 +255,20 @@ export async function auditScanner({ buildRoot, output }) {
     const now = new Date();
     const database = await phase("database_freeze", async () => databaseEvidence(cache, now));
     const transientDownloadBytes = DATABASE_DOWNLOAD_TMPFS_BYTES + (DATABASE_DOWNLOAD_MEMORY_BYTES - DATABASE_DOWNLOAD_TMPFS_BYTES);
-    const jobBytes = buildInputBytes + treeSize(path.join(ROOT, "infra/scanner")) + treeSize(cache) + baselineImageBytes + transientDownloadBytes;
+    const jobBytes = buildInputBytes + treeSize(path.join(ROOT, "infra/scanner")) + treeSize(cache) + baselineImageBytes + transientDownloadBytes + versionProbeSnapshot.size;
     if (jobBytes > 8 * GiB) fail("scanner_audit_job_budget_exceeded");
-    receipt.budget = { buildInputBytes, baselineImageBytes, transientDownloadBytes, projectedJobBytes: jobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
+    receipt.budget = { buildInputBytes, baselineImageBytes, transientDownloadBytes, versionProbeBytes: versionProbeSnapshot.size,
+      projectedJobBytes: jobBytes, artifactLimitBytes: 6 * GiB, jobLimitBytes: 8 * GiB };
     makeReadOnly(cache);
     const fixtureFiles = lock.fixtures.filter((entry) => entry.path.includes("scanner-fixtures/")).map((entry) => ({ path: path.join(ROOT, entry.path), cap: 4 * MiB }));
     const buildEvidenceFiles = builds.flatMap((directory) => [
       { path: path.join(directory, "module-closure.json"), cap: 16 * MiB },
       { path: path.join(directory, "go-build-info.txt"), cap: 8 * MiB },
     ]);
-    const frozen = await captureFiles([{ path: scanner, cap: 512 * MiB }, ...buildEvidenceFiles, ...cacheFiles(cache), ...fixtureFiles]);
+    const frozen = await captureFiles([{ path: scanner, cap: 512 * MiB }, { path: versionProbeFile, cap: 8 * MiB }, ...buildEvidenceFiles, ...cacheFiles(cache), ...fixtureFiles]);
     receipt.subject = binaryIdentity;
+    receipt.versionProbe = { input: { sha256: versionProbeSnapshot.sha256, size: versionProbeSnapshot.size },
+      retained: { sha256: retainedVersionProbeSnapshot.sha256, size: retainedVersionProbeSnapshot.size } };
     receipt.databases = { ...database, registry: registryBefore };
 
     await phase("self_audit", async () => {
@@ -260,23 +276,51 @@ export async function auditScanner({ buildRoot, output }) {
       candidateScan(baseline, scanner, cache, "rootfs", subject, reportPath, ["--offline-scan", "--severity", "HIGH,CRITICAL"]);
       const sbomPath = path.join(output, "scanner-sbom.cdx.json");
       candidateScan(baseline, scanner, cache, "rootfs", subject, sbomPath, ["--offline-scan"], "cyclonedx");
-      validateSelfReport((await readBoundedJson(reportPath)).value, (await readBoundedJson(sbomPath)).value, buildInfos[0].value);
+      validateSelfReport((await readBoundedJson(reportPath)).value, (await readBoundedJson(sbomPath)).value, buildInfos[0].value, lock.scanner.upstreamVersion);
+      await assertFilesUnchanged(frozen);
+    });
+
+    await phase("main_version_probe", async () => {
+      const reportPath = path.join(output, "scanner-main-version-probe.json");
+      candidateScan(baseline, scanner, cache, "fs", versionProbe, reportPath, ["--offline-scan", "--severity", "HIGH,CRITICAL"]);
+      const report = await readBoundedJson(reportPath);
+      receipt.versionProbe.report = report.identity;
+      validateVersionProbeReport(report.value, lock.scanner.upstreamVersion);
       await assertFilesUnchanged(frozen);
     });
 
     await phase("fixture_controls", async () => {
+      const failures = [];
       for (const fixture of fixtureManifest.fixtures) {
         const target = fixture.material[0].path.startsWith("gomod/") ? "gomod" : fixture.material[0].path.replace(/^java\//u, "java/");
         const candidatePath = path.join(output, `fixture-${fixture.id}-candidate.json`);
-        candidateScan(baseline, scanner, cache, "fs", path.join(fixtureRoot, target), candidatePath, ["--offline-scan"]);
-        const candidate = validateFixtureReport(fixture, (await readBoundedJson(candidatePath)).value);
+        let candidateError;
+        try { candidateScan(baseline, scanner, cache, "fs", path.join(fixtureRoot, target), candidatePath, ["--offline-scan"]); }
+        catch (error) { candidateError = error; }
+        await assertFilesUnchanged(frozen);
+        let baselinePath;
+        let baselineError;
         if (fixture.id !== "java-jar-clean-candidate") {
-          const baselinePath = path.join(output, `fixture-${fixture.id}-baseline.json`);
-          baselineFixture(lock, cache, fixtureRoot, target, baselinePath);
-          const baselineInventory = validateFixtureReport(fixture, (await readBoundedJson(baselinePath)).value, lock.baseline.version);
-          compareSameDatabase(candidate, baselineInventory);
+          baselinePath = path.join(output, `fixture-${fixture.id}-baseline.json`);
+          try { baselineFixture(lock, cache, fixtureRoot, target, baselinePath); }
+          catch (error) { baselineError = error; }
+        }
+        try {
+          if (candidateError) throw candidateError;
+          if (baselineError) throw baselineError;
+          const candidate = validateFixtureReport(fixture, (await readBoundedJson(candidatePath)).value);
+          if (baselinePath) {
+            const baselineInventory = validateFixtureReport(fixture, (await readBoundedJson(baselinePath)).value, lock.baseline.version);
+            compareSameDatabase(candidate, baselineInventory);
+          }
+        } catch (error) {
+          failures.push({ id: fixture.id, reason: error.message, diagnostic: error.diagnostic });
         }
         await assertFilesUnchanged(frozen);
+      }
+      receipt.fixtureControls = failures;
+      if (failures.length) {
+        const error = new Error("scanner_fixture_controls_blocked"); error.diagnostic = { failures }; throw error;
       }
     });
 

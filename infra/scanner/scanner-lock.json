@@ -40,7 +40,7 @@
     }
   ],
   "fixtures": [
-    { "path": "infra/scanner/materials/scanner-fixtures/manifest.json", "sha256": "68dfb6e1fdd196b23eb36256119a3050ea104a8a11c5109f34c1a389c34f2a30", "size": 6184 },
+    { "path": "infra/scanner/materials/scanner-fixtures/manifest.json", "sha256": "7b06986a3aafb185368f187b90f6a54283dc50c3c09fe3aece05ac08cb57d606", "size": 6803 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.mod", "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f", "size": 1069 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.sum", "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527", "size": 129439 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod/go.mod", "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954", "size": 117 },

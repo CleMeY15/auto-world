@@ -56,6 +56,15 @@
       ],
       "expected": {
         "source": "integration/testdata/gomod.json.golden",
+        "advisoryRefresh": {
+          "date": "2026-09-14",
+          "note": "GMS-2022-20 references the same GHSA now used by the fresh database; its fixed version is emitted as 2.8.0. The OPA publisher records 0.37.2. Fixture module bytes and positive detection requirements are unchanged.",
+          "sources": [
+            "https://advisories.gitlab.com/golang/github.com/docker/distribution/GMS-2022-20/",
+            "https://github.com/advisories/GHSA-qq97-vm5h-rrhg",
+            "https://github.com/open-policy-agent/opa/security/advisories/GHSA-hcw3-j74m-qc58"
+          ]
+        },
         "targets": [
           "go.mod",
           "submod/go.mod",
@@ -64,17 +73,17 @@
         "findings": [
           {
             "target": "go.mod",
-            "id": "GMS-2022-20",
+            "id": "GHSA-qq97-vm5h-rrhg",
             "package": "github.com/docker/distribution",
             "version": "v2.7.1+incompatible",
-            "fixedVersion": "v2.8.0"
+            "fixedVersion": "2.8.0"
           },
           {
             "target": "go.mod",
             "id": "CVE-2022-23628",
             "package": "github.com/open-policy-agent/opa",
             "version": "v0.35.0",
-            "fixedVersion": "0.37.0"
+            "fixedVersion": "0.37.2"
           },
           {
             "target": "go.mod",
@@ -85,17 +94,17 @@
           },
           {
             "target": "submod/go.mod",
-            "id": "GMS-2022-20",
+            "id": "GHSA-qq97-vm5h-rrhg",
             "package": "github.com/docker/distribution",
             "version": "v2.7.1+incompatible",
-            "fixedVersion": "v2.8.0"
+            "fixedVersion": "2.8.0"
           },
           {
             "target": "submod2/go.mod",
-            "id": "GMS-2022-20",
+            "id": "GHSA-qq97-vm5h-rrhg",
             "package": "github.com/docker/distribution",
             "version": "v2.7.1+incompatible",
-            "fixedVersion": "v2.8.0"
+            "fixedVersion": "2.8.0"
           }
         ]
       },

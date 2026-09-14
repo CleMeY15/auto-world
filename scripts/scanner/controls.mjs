@@ -169,17 +169,20 @@ function sbomProperty(component, name) {
   return matches[0].value;
 }
 
-export function validateSelfReport(report, sbom, buildInventory) {
+export function validateSelfReport(report, sbom, buildInventory, upstreamVersion) {
   if (report?.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION || report.ArtifactType !== "filesystem" ||
       !Array.isArray(report.Results) || report.Results.length !== 1 || report.Results[0]?.Type !== "gobinary" ||
-      report.Results[0]?.Class !== "lang-pkgs" || !buildInventory?.main || !Array.isArray(buildInventory.dependencies)) fail("scanner_self_report_invalid");
+      report.Results[0]?.Class !== "lang-pkgs" || !buildInventory?.main || !Array.isArray(buildInventory.dependencies) ||
+      !/^\d+\.\d+\.\d+$/u.test(upstreamVersion ?? "")) fail("scanner_self_report_invalid");
   const inventory = normalized(report);
   const reportPackages = new Set(inventory.packages.map((entry) => {
     const [, , name, version] = JSON.parse(entry); return JSON.stringify([name, version]);
   }));
   const expected = [buildInventory.stdlib, ...buildInventory.dependencies].map((entry) => JSON.stringify([entry.path, entry.version]));
   const mainPackages = [...reportPackages].filter((entry) => JSON.parse(entry)[0] === buildInventory.main.path);
-  if (mainPackages.length !== 1 || reportPackages.size !== expected.length + 1 || expected.some((entry) => !reportPackages.has(entry))) fail("scanner_self_inventory_missing");
+  const mainVersion = mainPackages.length === 1 ? JSON.parse(mainPackages[0])[1] : null;
+  if (mainPackages.length !== 1 || !["", `v${upstreamVersion}`].includes(mainVersion) || reportPackages.size !== expected.length + 1 ||
+      expected.some((entry) => !reportPackages.has(entry))) fail("scanner_self_inventory_missing");
   if (inventory.findings.length) fail("scanner_self_audit_blocked");
   const root = sbom?.metadata?.component;
   if (sbom?.bomFormat !== "CycloneDX" || root?.type !== "application" || root.name !== report.ArtifactName || !Array.isArray(sbom.components)) fail("scanner_sbom_invalid");
@@ -195,4 +198,20 @@ export function validateSelfReport(report, sbom, buildInventory) {
   }));
   if (sbomPackages.size !== reportPackages.size || [...reportPackages].some((entry) => !sbomPackages.has(entry))) fail("scanner_sbom_inventory_mismatch");
   return { ...inventory, expectedModuleCount: expected.length, main: JSON.parse(mainPackages[0]) };
+}
+
+export function validateVersionProbeReport(report, upstreamVersion) {
+  if (!/^\d+\.\d+\.\d+$/u.test(upstreamVersion ?? "") || report?.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION ||
+      report.ArtifactName !== "/scanner-version-probe" || report.ArtifactType !== "filesystem" || !Array.isArray(report.Results) ||
+      report.Results.length !== 1 || report.Results[0]?.Target !== "go.mod" || report.Results[0]?.Type !== "gomod" ||
+      report.Results[0]?.Class !== "lang-pkgs" || !Array.isArray(report.Results[0].Packages) || report.Results[0].Packages.length !== 2) fail("scanner_version_probe_invalid");
+  const inventory = normalized(report);
+  const packages = new Set(report.Results[0].Packages.map((entry) => JSON.stringify([entry?.Name, entry?.Version ?? ""])));
+  const expected = new Set([
+    JSON.stringify(["auto.world/scanner-version-probe", ""]),
+    JSON.stringify(["github.com/aquasecurity/trivy", `v${upstreamVersion}`]),
+  ]);
+  if (packages.size !== expected.size || [...expected].some((entry) => !packages.has(entry))) fail("scanner_version_probe_invalid");
+  if (inventory.findings.length) fail("scanner_version_probe_blocked");
+  return inventory;
 }

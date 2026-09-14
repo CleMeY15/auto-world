@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
-import { candidateDockerArguments, databaseDownloadDockerArguments, parseAuditArguments, validateDatabaseRegistryManifest } from "../scripts/scanner/audit.mjs";
-import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport } from "../scripts/scanner/controls.mjs";
+import { candidateDockerArguments, databaseDownloadDockerArguments, parseAuditArguments, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
+import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
 
 function receipt(repeat, sha = "a".repeat(64)) {
   return { schemaVersion: 1, state: "diagnostic_only", result: "passed", repeat, scannerVersion: "0.74.0-autoworld.2",
@@ -134,16 +134,42 @@ test("self report and SBOM must contain the complete compiled Go inventory", () 
       type: "library", name: entry.Name, version: entry.Version, properties: [{ name: "aquasecurity:trivy:PkgType", value: "gobinary" }],
     })),
   ] };
-  assert.equal(validateSelfReport(report, sbom, buildInventory).packages.length, 3);
+  assert.equal(validateSelfReport(report, sbom, buildInventory, "0.74.0").packages.length, 3);
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const missingReport = clone(report); missingReport.Results[0].Packages.pop();
-  assert.throws(() => validateSelfReport(missingReport, sbom, buildInventory), /scanner_self_inventory_missing/u);
+  assert.throws(() => validateSelfReport(missingReport, sbom, buildInventory, "0.74.0"), /scanner_self_inventory_missing/u);
   const substitutedReport = clone(report); substitutedReport.Results[0].Packages[2].Version = "v9.9.9";
-  assert.throws(() => validateSelfReport(substitutedReport, sbom, buildInventory), /scanner_self_inventory_missing/u);
+  assert.throws(() => validateSelfReport(substitutedReport, sbom, buildInventory, "0.74.0"), /scanner_self_inventory_missing/u);
   const missingSbom = clone(sbom); missingSbom.components.pop();
-  assert.throws(() => validateSelfReport(report, missingSbom, buildInventory), /scanner_sbom_inventory_mismatch/u);
+  assert.throws(() => validateSelfReport(report, missingSbom, buildInventory, "0.74.0"), /scanner_sbom_inventory_mismatch/u);
   const substitutedSbom = clone(sbom); substitutedSbom.components[3].version = "v9.9.9";
-  assert.throws(() => validateSelfReport(report, substitutedSbom, buildInventory), /scanner_sbom_inventory_mismatch/u);
+  assert.throws(() => validateSelfReport(report, substitutedSbom, buildInventory, "0.74.0"), /scanner_sbom_inventory_mismatch/u);
   report.Results[0].Vulnerabilities = [{ VulnerabilityID: "CVE-X", PkgName: "github.com/aquasecurity/trivy", InstalledVersion: "v0.74.0", Severity: "HIGH" }];
-  assert.throws(() => validateSelfReport(report, sbom, buildInventory), /scanner_self_audit_blocked/u);
+  assert.throws(() => validateSelfReport(report, sbom, buildInventory, "0.74.0"), /scanner_self_audit_blocked/u);
+});
+
+test("self report main version is empty or tied to the locked upstream version", () => {
+  const inventory = { stdlib: { path: "stdlib", version: "v1.26.8" }, main: { path: "github.com/aquasecurity/trivy", version: null }, dependencies: [] };
+  const report = { SchemaVersion: 2, ArtifactName: "subject", ArtifactType: "filesystem", Trivy: { Version: "0.74.0-autoworld.2" }, Results: [{
+    Target: "subject", Type: "gobinary", Class: "lang-pkgs", Packages: [{ Name: "stdlib", Version: "v1.26.8" }, { Name: "github.com/aquasecurity/trivy", Version: "v9.9.9" }],
+  }] };
+  const props = [{ name: "aquasecurity:trivy:Type", value: "gobinary" }, { name: "aquasecurity:trivy:Class", value: "lang-pkgs" }];
+  const sbom = { bomFormat: "CycloneDX", metadata: { component: { type: "application", name: "subject" } }, components: [
+    { type: "application", name: "subject", properties: props }, ...report.Results[0].Packages.map((entry) => ({ type: "library", name: entry.Name, version: entry.Version,
+      properties: [{ name: "aquasecurity:trivy:PkgType", value: "gobinary" }] })),
+  ] };
+  assert.throws(() => validateSelfReport(report, sbom, inventory, "0.74.0"), /scanner_self_inventory_missing/u);
+});
+
+test("version probe bytes and report bind the root identity and locked Trivy version", () => {
+  const lock = { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.8" } };
+  assert.equal(versionProbeBytes(lock).toString("utf8"), "module auto.world/scanner-version-probe\n\ngo 1.26.8\n\nrequire github.com/aquasecurity/trivy v0.74.0\n");
+  const report = { SchemaVersion: 2, ArtifactName: "/scanner-version-probe", ArtifactType: "filesystem", Trivy: { Version: "0.74.0-autoworld.2" }, Results: [{
+    Target: "go.mod", Type: "gomod", Class: "lang-pkgs", Packages: [{ Name: "auto.world/scanner-version-probe" }, { Name: "github.com/aquasecurity/trivy", Version: "v0.74.0" }],
+  }] };
+  assert.equal(validateVersionProbeReport(report, "0.74.0").packages.length, 2);
+  const substituted = JSON.parse(JSON.stringify(report)); substituted.Results[0].Packages[1].Version = "v0.73.0";
+  assert.throws(() => validateVersionProbeReport(substituted, "0.74.0"), /scanner_version_probe_invalid/u);
+  report.Results[0].Vulnerabilities = [{ VulnerabilityID: "CVE-X", PkgName: "github.com/aquasecurity/trivy", InstalledVersion: "v0.74.0", Severity: "HIGH" }];
+  assert.throws(() => validateVersionProbeReport(report, "0.74.0"), /scanner_version_probe_blocked/u);
 });
