@@ -1,0 +1,59 @@
+{
+  "name": "Package preparation diagnostic",
+  "on": {
+    "workflow_dispatch": {},
+    "pull_request": {
+      "paths": [".github/workflows/package-bootstrap.yml", "scripts/package-bootstrap/**", "tests/package-bootstrap*.test.mjs"]
+    },
+    "push": {
+      "branches": ["main"],
+      "paths": [".github/workflows/package-bootstrap.yml", "scripts/package-bootstrap/**", "tests/package-bootstrap*.test.mjs"]
+    }
+  },
+  "permissions": {"contents": "read"},
+  "concurrency": {
+    "group": "package-preparation-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "prepare": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "steps": [
+        {
+          "name": "Check out source without stored credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Build and inspect public technical payload locally",
+          "id": "prepare",
+          "continue-on-error": true,
+          "run": "node scripts/package-bootstrap/prepare.mjs --output \"${RUNNER_TEMP}/package-bootstrap\""
+        },
+        {
+          "name": "Retain public diagnostic receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "package-preparation-receipt",
+            "path": "${{ runner.temp }}/package-bootstrap/receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce preparation result",
+          "if": "${{ steps.prepare.outcome != 'success' }}",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}

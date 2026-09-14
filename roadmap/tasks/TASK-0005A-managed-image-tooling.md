@@ -51,6 +51,8 @@ Use fixed diagnostic codes and duration/hash/run identifiers; keep complete non-
 
 ## Operational boundary and rollback
 
+The next bounded increment is [local package preparation](../../docs/validation/TASK-0005A-PACKAGE-PREPARATION.md): build and inspect the public technical scratch payload on Linux with source-read permission only. Its implementation and native evidence are pending. It does not publish, prove package configuration or admit an image; the later concrete first-write review remains required.
+
 No production source, service deployment, paid resource, new account or token expansion. The retired fixed-file canary stays retired; its 2/2 budget cannot be reused. The scheduled heartbeat stays paused. Local Docker absence does not block Linux Actions evidence.
 
 Rollback by reviewed code/inventory revert to another valid supported digest or stop. Preserve existing data, volumes, backups, private evidence and historical branches. Failed scanner/image findings are diagnostic blockers, never automatic exceptions.
