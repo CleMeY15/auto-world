@@ -1,0 +1,2 @@
+d8bacf5b23f03435e17bde784994c671270c6bc8b610aabe7883e304c8346663  docs/fixtures/attestation-canary.txt
+013bf0a12942d74efa631e715a4b8d19c05f422814a184b7e831babd9331b9bd  .github/workflows/attestation-canary.yml
