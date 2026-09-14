@@ -200,6 +200,7 @@ export function buildScanner({ repeat, output }) {
     receipt.binary = fileIdentity(binary, 512 * 1024 * 1024);
     const buildInfo = run(go, ["version", "-m", binary], { cwd: source, env });
     writeFileSync(path.join(output, "go-build-info.txt"), buildInfo, { flag: "wx" });
+    receipt.buildInfo = fileIdentity(path.join(output, "go-build-info.txt"), 8 * 1024 * 1024);
     receipt.versionOutput = run(binary, ["--version"], { cwd: source, env }).toString("utf8").trim();
     if (!receipt.versionOutput.includes(lock.scanner.version)) throw new Error("scanner_version_mismatch");
     receipt.modules = { before: moduleBefore, after: moduleAfter, closure: fileIdentity(path.join(output, "module-closure.json"), 16 * 1024 * 1024) };

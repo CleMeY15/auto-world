@@ -69,5 +69,9 @@
     { "role": "seaweedfs", "repository": "chrislusf/seaweedfs", "version": "4.47", "manifestDigest": "sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362" } },
     { "role": "aws-cli", "repository": "amazon/aws-cli", "version": "2.36.44", "manifestDigest": "sha256:e8467f2c319f9bc9a1471808a69949a76915e9c95eaf4a09ece9f9e85fd32747", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:79979622af70b30fee35ef8b7dc105734709525e081f80810e51c2546bd89f4c" } },
     { "role": "baseline-trivy", "repository": "aquasec/trivy", "version": "0.74.0", "manifestDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9" } }
+  ],
+  "alternatives": [
+    { "role": "postgres-alpine", "alternativeFor": "postgres", "repository": "postgres", "version": "17.11-alpine", "manifestDigest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee" } },
+    { "role": "redis-alpine", "alternativeFor": "redis", "repository": "redis", "version": "8.10.1-alpine", "manifestDigest": "sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576", "platform": { "os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354" } }
   ]
 }

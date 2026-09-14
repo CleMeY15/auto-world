@@ -59,4 +59,8 @@ test("scanner lock binds corrected source, compiler, patches, fixtures, baseline
   assert.equal(lock.patches[2].upstreamCommit, "8c905373332df11a268a0cebc07627cc08485fee");
   assert.equal(lock.baseline.platformDigest, "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9");
   assert.deepEqual(lock.images.map((entry) => entry.role), ["postgres", "opensearch", "redis", "seaweedfs", "aws-cli", "baseline-trivy"]);
+  assert.deepEqual(lock.alternatives.map((entry) => [entry.role, entry.alternativeFor, entry.manifestDigest, entry.platform.digest]), [
+    ["postgres-alpine", "postgres", "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73", "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"],
+    ["redis-alpine", "redis", "sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576", "sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354"],
+  ]);
 });

@@ -12,7 +12,30 @@ Twelve targeted Node22.23.2 tests pass. A regression based on real historical De
 
 Report policy validates semantics only. Authenticating the scanner, binding actual subject/database bytes and establishing reviewer authority are separate required controls. A JSON report cannot prove its own authenticity or completeness.
 
-## Selected correction, still requiring real build and audit
+## Build implementation and observed validation
+
+The scanner-only workflow now runs two isolated Linux builds with pinned source, Go compiler, patch and fixture bytes. Managed action release commits were checked against their official repositories. Git preserves the locked material bytes across Windows and Linux; fourteen staged materials matched their declared SHA-256 and length.
+
+The selected [upstream `test:unit` target](https://github.com/aquasecurity/trivy/blob/e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994/magefiles/magefile.go) generates WASM modules, prepares the Git/RPM fixtures and runs `go test -v -short -coverprofile=coverage.txt -covermode=atomic ./...`. This is the upstream short unit suite, not its separate container/Kubernetes integration targets. The scanner-specific real fixtures and image audits provide additional integration checks in this increment.
+
+Observed runs, kept as diagnostic failures rather than success evidence:
+
+- [34833355808](https://github.com/CleMeY15/auto-world/actions/runs/34833355808), commit `088ff6c348849bf7110d48ee0327da86ffc2c3ee`: both builds passed source/compiler checks and stopped at the final patch's go.sum context. The same dependency delta was rebased to the selected source; actual patch application then passed.
+- [34833582867](https://github.com/CleMeY15/auto-world/actions/runs/34833582867), commit `4982f0811e599399436994985bf0cc4bec753eef`: both builds applied all patches, then tidy detected stale sums and sums added by downloading the broader module graph. The recipe now checks tidy first and downloads the main module dependencies; only eight obsolete sums for the four already replaced module versions were removed. This run also exposed cleanup failure on Go's readonly cache directories.
+
+Commit `2035eaf030991121c5f773383b0451e74d48c1d5` handles owned readonly directories without following links, preserves the original build failure and records cleanup separately. Module evidence binds archive bytes while excluding machine-specific cache paths. Four targeted build tests and lint pass; [root CI34834124303](https://github.com/CleMeY15/auto-world/actions/runs/34834124303) and both [Linux builds34834124307](https://github.com/CleMeY15/auto-world/actions/runs/34834124307) pass. The independent build reviewer approved this delta after observing the actual runs.
+
+Both downloaded executables were independently hashed and matched: SHA-256 `1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d`, 168288382 bytes. Both module closures contain 473 modules and have SHA-256 `f9419872bb2f97a3ddbf84c011df54e0b090d94f76581f62a941d3382480a240`. go.mod/go.sum hashes remain unchanged through preparation; upstream unit and cleanup phases pass in both receipts. Each upstream log reports 362 passing packages and 83 packages without tests, with no package failure. This proves repeatability of this build, not the scanner's detection quality or admission.
+
+A fresh HTTPS clone at `4982f0811e599399436994985bf0cc4bec753eef` passed the complete pinned-toolchain `pnpm check` without Turbo cache: 32 root tests, package lint/typecheck/tests/build, secrets183 and dependency audit. Its initial Windows workflow-test failure was fixed by normalizing line endings before semantic assertions. Later combined changes still require fresh complete gates. None of these root checks proves a native build or a clean service image.
+
+## Audit implementation awaiting Linux validation
+
+The separate audit job checks both actual build binaries, module closures and compiler-produced build inventories. It freezes the fresh vulnerability and Java databases, then runs the corrected scanner with readonly mounts, no Docker socket and no network for self/fixture scans. The self-report and CycloneDX inventory must include every compiled Go dependency and the standard library; missing or substituted modules fail. Same-database controls must preserve the old scanner's package and vulnerability detections. Full reports are retained for the six required roles and the pinned PostgreSQL/Redis Alpine alternatives.
+
+Twenty-seven targeted scanner tests and lint pass locally, including negative tests for truncated inventories, changed build information, mutated frozen inputs, lost detections and job-level permission escalation. The combined pinned-toolchain `pnpm check` also passes without Turbo cache: 44 root tests, all package lint/typecheck/tests/build tasks, secrets check across 186 files and dependency audit. The real compiler inventories from both earlier Linux builds normalize to the same 375 dependencies plus the standard library and main module. These checks do not replace actual Linux self-audit and fixture results.
+
+## Selected dependency correction
 
 Trivy source: `e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994` (v0.74.0). The candidate carries the previously prepared dependency update to gRPC1.83.1 plus the minimal [upstream update to1.83.2](https://github.com/aquasecurity/trivy/commit/8c905373332df11a268a0cebc07627cc08485fee). The upstream delta changes only go.mod/go.sum. Static module comparison found its minimum Go/x/net/x/sync/x/sys/x/text/x/crypto requirements already satisfied by the selected source plus first patch; only actual readonly module checks and tests can establish build compatibility.
 
@@ -20,7 +43,7 @@ The historical Trivy image report identified blocking gRPC findings and a fixed 
 
 ## Gates not yet satisfied
 
-- Actual pinned source/compiler/module/patch preparation, independent repeat builds and upstream tests.
+- Revalidation of the final combined workflow after later audit/evidence changes; the diagnostic build slice above has passed.
 - Built-binary identity, self inventory/SBOM and full audit; exact fresh vulnerability and Java database bytes before/after execution.
 - Known-vulnerable controls and same-database diagnostic comparison with the old, non-admitted scanner.
 - Fresh exact-subject service/helper image audits, with every blocking finding retained.
