@@ -14,7 +14,8 @@ const codeSha = "b".repeat(40);
 const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, lock.requiredTests.path)));
 const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
-const phases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const phases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 
 function goLog(required) { return Buffer.from(required.map((key) => { const split = key.lastIndexOf(":"); return JSON.stringify({ Action: "pass", Package: key.slice(0, split), Test: key.slice(split + 1) }); }).join("\n") + "\n"); }
 
@@ -48,6 +49,7 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
     workflowRun: { runId: "123", attempt: "1", job: "build" }, runtime: { node: "v22.23.2", platform: "linux", architecture: "x64", imageOS: "ubuntu24", imageVersion: "1" },
     tools: { curl: "curl 1", docker: "28", git: "git 2", tar: "tar 1", unzip: "UnZip 1" },
     moduleClosure: { result: "UNCHANGED_AFTER_TESTS", count: 1, grpcVersion: lock.grpc.version },
+    moduleIsolation: { result: "PASSED", checkpoints: isolationSteps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", alternateSum: { sha256: "c".repeat(64), size: 289700 }, additionalSumLines: 2 })) },
     sourceRetention: { bundle: { sha256: sha256(files.get("materials/seaweedfs-source.bundle")), size: files.get("materials/seaweedfs-source.bundle").length }, shallow: { sha256: sha256(files.get("materials/seaweedfs-source-shallow.txt")), size: files.get("materials/seaweedfs-source-shallow.txt").length }, restoration: "PASSED", commitUnixTime: String(lock.source.commitUnixTime) },
     phases: phases.map((name) => ({ name, result: "PASSED", durationMs: 1 })),
   };
@@ -110,6 +112,7 @@ test("comparison rejects fabricated phases, tools, test summaries, build metadat
   const cases = [
     (directory) => { const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); receipt.phases = []; writeFileSync(file, JSON.stringify(receipt)); },
     (directory) => { const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); receipt.tools = {}; writeFileSync(file, JSON.stringify(receipt)); },
+    (directory) => { const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); receipt.moduleIsolation.checkpoints.pop(); writeFileSync(file, JSON.stringify(receipt)); },
     (directory) => { writeFileSync(path.join(directory, "test-summary.json"), JSON.stringify({ normal: { requiredPassed: 31, skips: ["fabricated"] }, fullTags: { requiredPassed: 31, skips: [] }, projectGrpc: { requiredPassed: 12, skips: [] } })); rewriteInventoryEntry(directory, "test-summary.json"); },
     (directory) => { writeFileSync(path.join(directory, "go-build-info.txt"), "fabricated"); rewriteInventoryEntry(directory, "go-build-info.txt"); },
     (directory) => { writeFileSync(path.join(directory, "materials/seaweedfs-grpc.patch"), "fabricated"); rewriteInventoryEntry(directory, "materials/seaweedfs-grpc.patch"); },

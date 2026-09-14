@@ -25,7 +25,8 @@ const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, expected
 const testKeys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const requiredGroups = { normal: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)],
   fullTags: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)], projectGrpc: testKeys(requiredTests.required.seaweedGrpc) };
-const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const requiredIsolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
 
 function validateBuildEvidence(directory, receipt, inventory, materialContract) {
@@ -36,6 +37,13 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
       JSON.stringify(receipt.sourceRetention?.bundle) !== JSON.stringify(inventoryMap.get("materials/seaweedfs-source.bundle") && { sha256: inventoryMap.get("materials/seaweedfs-source.bundle").sha256, size: inventoryMap.get("materials/seaweedfs-source.bundle").size })) throw new Error("seaweed_compare_source_restore_invalid");
   const phases = new Map((receipt.phases ?? []).map((phase) => [phase.name, phase.result]));
   if (phases.size !== receipt.phases?.length || requiredPhases.some((name) => phases.get(name) !== "PASSED")) throw new Error("seaweed_compare_phases_invalid");
+  const checkpoints = receipt.moduleIsolation?.checkpoints;
+  if (receipt.moduleIsolation?.result !== "PASSED" || !Array.isArray(checkpoints) || checkpoints.length !== requiredIsolationSteps.length ||
+      checkpoints.some((checkpoint, index) => checkpoint?.name !== requiredIsolationSteps[index] || checkpoint.result !== "PASSED" || checkpoint.source !== "UNCHANGED" ||
+        checkpoint.alternateMod !== "UNCHANGED" || !/^[a-f0-9]{64}$/u.test(checkpoint.alternateSum?.sha256 ?? "") || !Number.isSafeInteger(checkpoint.alternateSum?.size) ||
+        checkpoint.alternateSum.size < 1 || checkpoint.alternateSum.size > 8 * 1024 ** 2 || !Number.isSafeInteger(checkpoint.additionalSumLines) || checkpoint.additionalSumLines < 0)) {
+    throw new Error("seaweed_compare_module_isolation_invalid");
+  }
   const buildInfo = readFileSync(path.join(directory, "go-build-info.txt"), "utf8"); validateBuildInfo(buildInfo, expectedLock);
   const summary = JSON.parse(readFileSync(path.join(directory, "test-summary.json"), "utf8"));
   if (JSON.stringify(Object.keys(summary).sort()) !== JSON.stringify(Object.keys(requiredGroups).sort())) throw new Error("seaweed_compare_test_summary_invalid");
@@ -94,7 +102,7 @@ function verifiedBuild(directory, expectedRepeat, expected, materialContract) {
 
 export function compareBuilds(firstDirectory, secondDirectory, expected = {}, materialContract = productionMaterialContract()) {
   const first = verifiedBuild(firstDirectory, 1, expected, materialContract); const second = verifiedBuild(secondDirectory, 2, expected, materialContract);
-  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure"]) {
+  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation"]) {
     if (JSON.stringify(first.receipt[key]) !== JSON.stringify(second.receipt[key])) throw new Error("seaweed_compare_provenance_changed");
   }
   const deterministic = [...first.inventory.keys()].filter((name) => !name.startsWith("logs/")).sort();

@@ -5,6 +5,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { TextDecoder } from "node:util";
 import { stableModuleClosure } from "../scanner/build.mjs";
 import { runMonitoredCommand as defaultRunner } from "./command-monitor.mjs";
 export { commandMonitorScript, runMonitoredCommand } from "./command-monitor.mjs";
@@ -263,6 +264,61 @@ export function validatePostTestState(initialClosure, finalClosure, moduleFiles,
   return grpc;
 }
 
+const MODULE_ISOLATION_STEPS = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+
+function checkedModuleDirectory(directory, expectedParent, expectedName) {
+  const resolved = path.resolve(directory);
+  if (resolved !== path.join(path.resolve(expectedParent), expectedName) || !existsSync(resolved) || lstatSync(resolved).isSymbolicLink() ||
+      !lstatSync(resolved).isDirectory() || realpathSync(resolved) !== resolved) throw new Error("seaweed_module_isolation_path_invalid");
+  return resolved;
+}
+
+function goSumLines(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 8 * 1024 ** 2 || bytes.at(-1) !== 0x0a) throw new Error("seaweed_module_isolation_sum_invalid");
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new Error("seaweed_module_isolation_sum_invalid"); }
+  const lines = text.trimEnd().split("\n");
+  if (lines.some((line) => !/^\S+ \S+ h1:[A-Za-z0-9+/]{43}=$/u.test(line)) || new Set(lines).size !== lines.length) throw new Error("seaweed_module_isolation_sum_invalid");
+  return lines;
+}
+
+function canonicalModuleFile(file, descriptor) {
+  const actual = identity(file, 8 * 1024 ** 2);
+  if (JSON.stringify(actual) !== JSON.stringify({ sha256: descriptor.sha256, size: descriptor.size })) throw new Error("seaweed_material_changed");
+  return readFileSync(file);
+}
+
+export function createModuleIsolation(sourceDirectory, workDirectory, lock) {
+  const work = checkedModuleDirectory(workDirectory, path.dirname(path.resolve(workDirectory)), "auto-world-seaweed-source-diagnostic");
+  const source = checkedModuleDirectory(sourceDirectory, work, "source");
+  const modFile = path.join(work, "module-isolation.mod"); const sumFile = path.join(work, "module-isolation.sum");
+  if (existsSync(modFile) || existsSync(sumFile)) throw new Error("seaweed_module_isolation_path_invalid");
+  const sourceMod = canonicalModuleFile(path.join(source, "go.mod"), lock.moduleFiles.after["go.mod"]);
+  const sourceSum = canonicalModuleFile(path.join(source, "go.sum"), lock.moduleFiles.after["go.sum"]);
+  writeFileSync(modFile, sourceMod, { flag: "wx", mode: 0o600 }); writeFileSync(sumFile, sourceSum, { flag: "wx", mode: 0o600 });
+  return { source, work, modFile, sumFile, modIdentity: materialIdentity(sourceMod), originalSumLines: goSumLines(sourceSum) };
+}
+
+export function moduleIsolationArguments(step, modFile) {
+  if (!MODULE_ISOLATION_STEPS.includes(step) || !path.isAbsolute(modFile) || path.basename(modFile) !== "module-isolation.mod" ||
+      path.basename(path.dirname(modFile)) !== "auto-world-seaweed-source-diagnostic") throw new Error("seaweed_module_isolation_arguments_invalid");
+  return step.endsWith("download") ? ["mod", "download", `-modfile=${modFile}`, "-json", "all"] : ["mod", "verify", `-modfile=${modFile}`];
+}
+
+export function validateModuleIsolationCheckpoint(state, lock, step) {
+  if (!MODULE_ISOLATION_STEPS.includes(step) || state?.modFile !== path.join(state.work ?? "", "module-isolation.mod") ||
+      state?.sumFile !== path.join(state.work ?? "", "module-isolation.sum")) throw new Error("seaweed_module_isolation_path_invalid");
+  const work = checkedModuleDirectory(state.work, path.dirname(path.resolve(state.work)), "auto-world-seaweed-source-diagnostic");
+  const source = checkedModuleDirectory(state.source, work, "source");
+  canonicalModuleFile(path.join(source, "go.mod"), lock.moduleFiles.after["go.mod"]);
+  canonicalModuleFile(path.join(source, "go.sum"), lock.moduleFiles.after["go.sum"]);
+  const mod = identity(state.modFile, 8 * 1024 ** 2);
+  if (JSON.stringify(mod) !== JSON.stringify(state.modIdentity)) throw new Error("seaweed_module_isolation_mod_changed");
+  const sum = identity(state.sumFile, 8 * 1024 ** 2); const sumBytes = readFileSync(state.sumFile); const sumLines = goSumLines(sumBytes); const present = new Set(sumLines);
+  if (state.originalSumLines.some((line) => !present.has(line))) throw new Error("seaweed_module_isolation_sum_invalid");
+  return { name: step, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", alternateSum: sum, additionalSumLines: sumLines.length - state.originalSumLines.length };
+}
+
 export function validateShallowBoundary(bytes, lock) {
   if (!canonicalMaterial(bytes, lock.source.shallowBoundary).equals(Buffer.from(`${lock.source.commit}\n`, "utf8"))) throw new Error("seaweed_shallow_boundary_invalid");
   return true;
@@ -519,12 +575,18 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const prodEnv = commandEnvironment(workRoot, go, false); const testEnv = commandEnvironment(workRoot, go, true);
     const tidy = phase("tidy_diff", () => run("tidy_diff", go, ["mod", "tidy", "-diff"], { cwd: source, env: { ...testEnv, GOFLAGS: "" }, timeout: 20 * 60_000 }));
     if (tidy.length !== 0) throw new Error("seaweed_tidy_diff_changed");
-    const moduleOutput = phase("module_download", () => run("module_download", go, ["mod", "download", "-json", "all"], { cwd: source, env: prodEnv, timeout: 30 * 60_000 }));
+    const moduleIsolation = phase("module_isolation_prepare", () => createModuleIsolation(source, workRoot, lock));
+    receipt.moduleIsolation = { result: "PREPARED", checkpoints: [] };
+    const isolatedModuleCommand = (step, timeout) => phase(step, () => {
+      const value = run(step, go, moduleIsolationArguments(step, moduleIsolation.modFile), { cwd: source, env: prodEnv, ...(timeout ? { timeout } : {}) });
+      receipt.moduleIsolation.checkpoints.push(validateModuleIsolationCheckpoint(moduleIsolation, lock, step));
+      return value;
+    });
+    const moduleOutput = isolatedModuleCommand("module_download", 30 * 60_000);
     const stable = stableModuleClosure(moduleOutput);
     const rawModules = jsonSequence(moduleOutput);
     if (stable.length !== rawModules.length) throw new Error("seaweed_module_output_invalid");
-    phase("module_verify", () => run("module_verify", go, ["mod", "verify"], { cwd: source, env: prodEnv }));
-    checkModuleFiles(lock.moduleFiles.after);
+    isolatedModuleCommand("module_verify");
     const moduleDirectory = path.join(materials, "modules"); mkdirSync(moduleDirectory);
     const moduleInventory = [];
     let grpcNotices = new Set();
@@ -592,10 +654,11 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     if (!path.isAbsolute(grpcDir) || !grpcDir.startsWith(path.join(workRoot, "gomodcache"))) throw new Error("seaweed_grpc_directory_invalid");
     receipt.grpcTransport = { directory: grpcDir, version: lock.grpc.version, closure: "seaweed_mvs" };
     phase("grpc_transport_tests", () => run("grpc_transport_tests", go, ["test", "-count=1", "-p=2", "-v", "google.golang.org/grpc/internal/transport"], { cwd: source, env: testEnv, timeout: 30 * 60_000 }));
-    const finalModuleOutput = phase("post_test_module_download", () => run("post_test_module_download", go, ["mod", "download", "-json", "all"], { cwd: source, env: prodEnv, timeout: 30 * 60_000 }));
+    const finalModuleOutput = isolatedModuleCommand("post_test_module_download", 30 * 60_000);
     const finalClosure = stableModuleClosure(finalModuleOutput);
-    phase("post_test_module_verify", () => run("post_test_module_verify", go, ["mod", "verify"], { cwd: source, env: prodEnv }));
+    isolatedModuleCommand("post_test_module_verify");
     const finalGrpc = validatePostTestState(stable, finalClosure, moduleFileIdentities(), lock);
+    receipt.moduleIsolation.result = "PASSED";
     receipt.moduleClosure = { result: "UNCHANGED_AFTER_TESTS", count: stable.length, grpcVersion: finalGrpc.version };
     const inventory = artifactInventory(output).filter((entry) => entry.path !== "material-inventory.json" && entry.path !== "build-receipt.json");
     validateArtifactAllowlist(inventory.map((entry) => entry.path));
