@@ -1,6 +1,6 @@
 # TASK-0005A — First private package proof
 
-Status: REMOTE_READ_CONTROL_IMPLEMENTATION. The first-write and read-only outcomes are recorded below and in [PR18](https://github.com/CleMeY15/auto-world/pull/18) and [PR19](https://github.com/CleMeY15/auto-world/pull/19); the focused correction PR records its own dated verification evidence. No runtime image is admitted.
+Status: PRIVATE_READ_VERIFIED on 2026-09-14 for the fixed technical proof object. Historical failures remain recorded in [PR18](https://github.com/CleMeY15/auto-world/pull/18) and [PR19](https://github.com/CleMeY15/auto-world/pull/19); [PR20](https://github.com/CleMeY15/auto-world/pull/20) records the corrected implementation and actual successful native proof. No runtime image is admitted.
 
 ## Concrete first-write plan
 
@@ -63,6 +63,14 @@ The cause is established in the exact managed Docker source. Moby's [manifest st
 The correction uses three separate `docker buildx imagetools inspect --raw <repository@digest>` processes with authenticated, empty and authenticated Docker configurations, before the daemon pull. Buildx's [resolver](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/util/imagetools/inspect.go#L57-L124) queries the registry instead of the daemon image store. Its [raw printer](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/util/imagetools/printers.go#L35-L68) emits exact bytes without an added newline; each positive response must hash to the fixed expected manifest digest. Authentication comes from each process's [Docker configuration](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/store/storeutil/storeutil.go#L105-L107). Only after this remote sequence does one authenticated Docker pull support the existing image inspection and stopped-container byte comparison.
 
 Keep all permissions read-only, preserve owned cleanup and failure classification, and add regression coverage for a cached local pull returning success while the remote registry denies anonymous access. Actual corrected native evidence must be recorded before accepting the private-read proof or proceeding to candidate publication. No signing, new package, credential or waived fork test is introduced.
+
+## Corrected native result
+
+[PR20](https://github.com/CleMeY15/auto-world/pull/20) merged as `90f7b83a8a252de5a4561e5db546afbb99a357d1` after independent code/security approval, 24 targeted tests, a full uncached separate-checkout check with 78 root tests, and final-head quality. The reviewed blobs were preserved by the protected merge; [main quality 34869608030](https://github.com/CleMeY15/auto-world/actions/runs/34869608030) passed.
+
+The new read-only [native run 34870194646](https://github.com/CleMeY15/auto-world/actions/runs/34870194646), attempt 1 on that exact main, PASSED all 12 phases. Both authenticated remote reads returned the exact 523-byte manifest with digest `sha256:eac8525e2bae0875846d4ee9f6fe75908b2ac4724e49b56653e4aa3fe8bd61b6`; the intervening anonymous remote read was denied. Authorized image retrieval, repository/config/platform/source inspection, the stopped-container 39-byte payload comparison and owned cleanup passed. The downloaded verification receipt has SHA-256 `7a83390b6b6fd82089d2e35ffd608cfdad621c55a8d7d3896fcbd99e08b4497c`.
+
+The receipt correctly leaves package UI configuration separate; the authenticated Settings observations above established Private, inherited access and the sole `auto-world` Actions grant. This run changed no package settings and performed no publication or signing. It proves current native private retrieval for this exact harmless object. Neither earlier failure is relabelled successful, and no service image, scratch attestation, archive restoration or fork isolation is inferred. The fork test stays `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`.
 
 ## Official references
 
