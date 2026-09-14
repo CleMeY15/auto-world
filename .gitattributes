@@ -1,3 +1,5 @@
 docs/validation/attestation-canary/** -text
 docs/validation/attestation-canary/runs/** -whitespace
 docs/fixtures/attestation-canary.txt text eol=lf
+infra/scanner/patches/** -text -whitespace
+infra/scanner/materials/** -text
