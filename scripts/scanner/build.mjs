@@ -1,12 +1,30 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const LOCK_PATH = path.join(ROOT, "infra/scanner/scanner-lock.json");
 const MAX_LOG = 64 * 1024 * 1024;
+const MiB = 1024 * 1024;
+
+export function removeOwnedBuildTree(work, runnerTemp) {
+  const target = path.resolve(work);
+  if (path.dirname(target) !== path.resolve(runnerTemp) || !/^aw-scanner-build-[12]$/u.test(path.basename(target))) {
+    throw new Error("scanner_cleanup_path_invalid");
+  }
+  if (!existsSync(target)) return;
+  if (lstatSync(target).isSymbolicLink()) throw new Error("scanner_cleanup_path_invalid");
+  const makeDirectoriesWritable = (directory) => {
+    chmodSync(directory, 0o700);
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.isSymbolicLink()) makeDirectoriesWritable(path.join(directory, entry.name));
+    }
+  };
+  makeDirectoriesWritable(target);
+  rmSync(target, { recursive: true, force: true });
+}
 
 export function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -77,6 +95,36 @@ function directoryBytes(directory) {
   return total;
 }
 
+function jsonSequence(bytes) {
+  const text = bytes.toString("utf8");
+  const records = [];
+  let start = -1; let depth = 0; let quoted = false; let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') quoted = true;
+    else if (char === "{") { if (depth === 0) start = index; depth += 1; }
+    else if (char === "}") { depth -= 1; if (depth === 0) records.push(JSON.parse(text.slice(start, index + 1))); }
+    else if (depth === 0 && !/\s/u.test(char)) throw new Error("scanner_module_output_invalid");
+    if (depth < 0) throw new Error("scanner_module_output_invalid");
+  }
+  if (depth !== 0 || quoted || records.length < 1) throw new Error("scanner_module_output_invalid");
+  return records;
+}
+
+export function stableModuleClosure(bytes) {
+  const closure = jsonSequence(bytes).map((entry) => {
+    if (entry.Error || typeof entry.Path !== "string" || typeof entry.Version !== "string" || typeof entry.Sum !== "string" ||
+        typeof entry.GoModSum !== "string" || typeof entry.Zip !== "string" || !path.isAbsolute(entry.Zip)) throw new Error("scanner_module_output_invalid");
+    return { path: entry.Path, version: entry.Version, sum: entry.Sum, goModSum: entry.GoModSum, zip: fileIdentity(entry.Zip, 256 * MiB) };
+  }).sort((left, right) => `${left.path}@${left.version}`.localeCompare(`${right.path}@${right.version}`, "en"));
+  if (new Set(closure.map((entry) => `${entry.path}@${entry.version}`)).size !== closure.length) throw new Error("scanner_module_output_invalid");
+  return closure;
+}
+
 export function buildScanner({ repeat, output }) {
   if (process.platform !== "linux" || process.env.GITHUB_ACTIONS !== "true" || !process.env.RUNNER_TEMP) {
     throw new Error("scanner_build_requires_linux_actions");
@@ -103,6 +151,7 @@ export function buildScanner({ repeat, output }) {
       throw error;
     }
   };
+  let primaryFailure;
   try {
     const goArchive = path.join(work, "go.tar.gz");
     phase("compiler_download", () => run("/usr/bin/curl", ["--fail", "--location", "--proto", "=https", "--tlsv1.2", "--max-filesize", "134217728", "--max-time", "600", "--output", goArchive, lock.compiler.url], { cwd: work, log: path.join(logs, "compiler-download.log") }));
@@ -137,12 +186,12 @@ export function buildScanner({ repeat, output }) {
       PATH: `${path.dirname(go)}:/usr/local/bin:/usr/bin:/bin` };
     mkdirSync(env.HOME); mkdirSync(env.TMPDIR);
     const moduleBefore = ["go.mod", "go.sum"].map((name) => ({ name, ...fileIdentity(path.join(source, name), 8 * 1024 * 1024) }));
+    phase("tidy_diff", () => run(go, ["mod", "tidy", "-diff"], { cwd: source, env: { ...env, GOFLAGS: "" }, timeout: 20 * 60_000, log: path.join(logs, "tidy-diff.log") }));
     phase("module_download", () => {
-      const modules = run(go, ["mod", "download", "-json", "all"], { cwd: source, env, timeout: 25 * 60_000, log: path.join(logs, "module-download.log") });
-      writeFileSync(path.join(output, "module-closure.jsonseq"), modules, { flag: "wx" });
+      const modules = run(go, ["mod", "download", "-json"], { cwd: source, env, timeout: 25 * 60_000, log: path.join(logs, "module-download.log") });
+      writeFileSync(path.join(output, "module-closure.json"), `${JSON.stringify(stableModuleClosure(modules), null, 2)}\n`, { flag: "wx" });
       run(go, ["mod", "verify"], { cwd: source, env, timeout: 10 * 60_000, log: path.join(logs, "module-verify.log") });
     });
-    phase("tidy_diff", () => run(go, ["mod", "tidy", "-diff"], { cwd: source, env: { ...env, GOFLAGS: "" }, timeout: 20 * 60_000, log: path.join(logs, "tidy-diff.log") }));
     const moduleAfter = ["go.mod", "go.sum"].map((name) => ({ name, ...fileIdentity(path.join(source, name), 8 * 1024 * 1024) }));
     if (JSON.stringify(moduleBefore) !== JSON.stringify(moduleAfter)) throw new Error("scanner_module_files_changed");
     phase("upstream_unit", () => run("/usr/bin/bash", ["--noprofile", "--norc", "-c", `"${go}" tool mage test:unit`], { cwd: source, env, timeout: 85 * 60_000, log: path.join(logs, "upstream-unit.log") }));
@@ -153,16 +202,29 @@ export function buildScanner({ repeat, output }) {
     writeFileSync(path.join(output, "go-build-info.txt"), buildInfo, { flag: "wx" });
     receipt.versionOutput = run(binary, ["--version"], { cwd: source, env }).toString("utf8").trim();
     if (!receipt.versionOutput.includes(lock.scanner.version)) throw new Error("scanner_version_mismatch");
-    receipt.modules = { before: moduleBefore, after: moduleAfter, closure: fileIdentity(path.join(output, "module-closure.jsonseq"), 16 * 1024 * 1024) };
+    receipt.modules = { before: moduleBefore, after: moduleAfter, closure: fileIdentity(path.join(output, "module-closure.json"), 16 * 1024 * 1024) };
     receipt.runner = { imageOS: process.env.ImageOS ?? "", imageVersion: process.env.ImageVersion ?? "", architecture: process.arch,
       git: run("/usr/bin/git", ["--version"], { cwd: work }).toString("utf8").trim(), tar: run("/usr/bin/tar", ["--version"], { cwd: work }).toString("utf8").split("\n")[0] };
     receipt.result = "passed";
-    return receipt;
-  } finally {
+  } catch (error) {
+    primaryFailure = error;
+  }
+  let finalizationFailure;
+  try {
+    phase("cleanup", () => removeOwnedBuildTree(work, process.env.RUNNER_TEMP));
+  } catch (error) {
+    receipt.result = "failed";
+    finalizationFailure = error;
+  }
+  try {
     receipt.artifactBytes = directoryBytes(output);
     writeFileSync(path.join(output, "build-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`, { flag: "wx" });
-    rmSync(work, { recursive: true, force: true });
+  } catch (error) {
+    finalizationFailure ??= error;
   }
+  if (primaryFailure) throw primaryFailure;
+  if (finalizationFailure) throw finalizationFailure;
+  return receipt;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {

@@ -20,7 +20,7 @@
       "order": 1,
       "kind": "upstream-reviewed-grpc-1.83.1-closure",
       "path": "infra/scanner/patches/trivy-grpc-1.83.1.patch",
-      "sha256": "bd2d0fcb63bf9956775d5ced20d9538b89f3485c4ec113e44b1d64c809d30f24",
+      "sha256": "beb6b6f91cf20220e3fc990ae9c609769c4a468ef5c85534898e6ea396ddbe4d",
       "size": 6145
     },
     {
@@ -34,8 +34,8 @@
       "order": 3,
       "kind": "official-trivy-grpc-1.83.2-follow-up",
       "path": "infra/scanner/patches/trivy-grpc-1.83.2.patch",
-      "sha256": "7683dc0c283ac204109c7910a488b4d6b572b952b31355009e777bfc79d52ad2",
-      "size": 2252,
+      "sha256": "0aed009d8405d7d0c63d7e500122fc1272ef6b17d0791f42b376f9418125fdf0",
+      "size": 2259,
       "upstreamCommit": "8c905373332df11a268a0cebc07627cc08485fee"
     }
   ],

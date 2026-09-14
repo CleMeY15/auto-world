@@ -1,10 +1,46 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { parseBuildArguments, validateBuildLock } from "../scripts/scanner/build.mjs";
+import { parseBuildArguments, removeOwnedBuildTree, stableModuleClosure, validateBuildLock } from "../scripts/scanner/build.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
+
+test("cleanup removes readonly Go cache directories only inside its owned build root", () => {
+  const runnerTemp = mkdtempSync(path.join(os.tmpdir(), "aw-cleanup-test-"));
+  const work = path.join(runnerTemp, "aw-scanner-build-1");
+  const module = path.join(work, "gomodcache", "fixture@v1.0.0");
+  mkdirSync(module, { recursive: true });
+  writeFileSync(path.join(module, "LICENSE"), "synthetic fixture");
+  chmodSync(path.join(module, "LICENSE"), 0o444);
+  chmodSync(module, 0o555);
+  try {
+    assert.throws(() => removeOwnedBuildTree(runnerTemp, runnerTemp), /scanner_cleanup_path_invalid/u);
+    assert.throws(() => removeOwnedBuildTree(work, path.join(runnerTemp, "other")), /scanner_cleanup_path_invalid/u);
+    removeOwnedBuildTree(work, runnerTemp);
+    assert.equal(existsSync(work), false);
+  } finally {
+    if (existsSync(module)) chmodSync(module, 0o700);
+    rmSync(runnerTemp, { recursive: true, force: true });
+  }
+});
+
+test("module closure binds archive bytes while ignoring independent cache paths", () => {
+  const temporary = mkdtempSync(path.join(os.tmpdir(), "aw-modules-test-"));
+  try {
+    const paths = ["one.zip", "two.zip"].map((name) => path.join(temporary, name));
+    for (const file of paths) writeFileSync(file, "synthetic module archive");
+    const record = (Zip) => Buffer.from(JSON.stringify({ Path: "example.test/module", Version: "v1.0.0", Sum: "h1:synthetic", GoModSum: "h1:synthetic-mod", Zip }));
+    assert.deepEqual(stableModuleClosure(record(paths[0])), stableModuleClosure(record(paths[1])));
+    writeFileSync(paths[1], "changed module archive");
+    assert.notDeepEqual(stableModuleClosure(record(paths[0])), stableModuleClosure(record(paths[1])));
+    assert.throws(() => stableModuleClosure(Buffer.from('{"Error":"download failed"}')), /scanner_module_output_invalid/u);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
 
 test("scanner build arguments require one explicit absolute output and repeat", () => {
   const output = path.resolve(root, "out");
