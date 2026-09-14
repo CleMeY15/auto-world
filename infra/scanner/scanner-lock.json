@@ -34,8 +34,8 @@
       "order": 3,
       "kind": "official-trivy-grpc-1.83.2-follow-up",
       "path": "infra/scanner/patches/trivy-grpc-1.83.2.patch",
-      "sha256": "55e02b17b6a3bd317e1f54889e5adaf325e87871417ec9c57ac8b5e4c57c0bee",
-      "size": 2210,
+      "sha256": "7683dc0c283ac204109c7910a488b4d6b572b952b31355009e777bfc79d52ad2",
+      "size": 2252,
       "upstreamCommit": "8c905373332df11a268a0cebc07627cc08485fee"
     }
   ],

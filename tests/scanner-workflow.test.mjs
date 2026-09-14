@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-const workflow = await readFile(path.resolve(import.meta.dirname, "../.github/workflows/scanner-audit.yml"), "utf8");
+const workflow = (await readFile(path.resolve(import.meta.dirname, "../.github/workflows/scanner-audit.yml"), "utf8")).replace(/\r\n/gu, "\n");
 
 test("scanner workflow has only read permission and two independent bounded builders", () => {
   assert.match(workflow, /^permissions:\n {2}contents: read$/mu);

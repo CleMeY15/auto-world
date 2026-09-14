@@ -4,6 +4,8 @@ Date: Wed, 9 Sep 2026 06:16:48 +0000
 Subject: [PATCH] chore(deps): bump google.golang.org/grpc from 1.83.1 to 1.83.2
 
 Upstream-Commit: https://github.com/aquasecurity/trivy/commit/8c905373332df11a268a0cebc07627cc08485fee
+Context-Rebase: Preserve the same dependency changes against the selected
+ v0.74.0 source plus the reviewed 1.83.1 closure patch.
 ---
  go.mod | 2 +-
  go.sum | 4 ++--
@@ -26,10 +28,10 @@ diff --git a/go.sum b/go.sum
 index f8257a81f4..e41730a97e 100644
 --- a/go.sum
 +++ b/go.sum
-@@ -1242,8 +1242,8 @@ google.golang.org/grpc v1.23.0/go.mod h1:Y5yQAOtifL1yxbo5wqy6BxZv8vAUGQwXBOALyac
- google.golang.org/grpc v1.25.1/go.mod h1:c3i+UQWmh7LiEpx4sFZnkU36qjEYZ0imhYfXVyQciAY=
- google.golang.org/grpc v1.27.0/go.mod h1:qbnxyOmOxrQa7FizSgH+ReBfzJrCY1pSN7KXBS8abTk=
+@@ -1248,8 +1248,8 @@
  google.golang.org/grpc v1.33.2/go.mod h1:JMHMWHQWaTccqQQlmk3MJZS+GWXOdAesneDmEnv2fbc=
+ google.golang.org/grpc v1.82.1 h1:NnAxzGRA0677vCa4BUkOAnO5+FfQqVl9iUXeD0IqcGE=
+ google.golang.org/grpc v1.82.1/go.mod h1:yzTZ1TB1Z3SG+LIYaI+WiE8D5+PZ3ArnrSp8zF3+/ZA=
 -google.golang.org/grpc v1.83.1 h1:HIO0+BEtBP6soyqvqC8sNUjZ7bTs+0hFQuFF+RAy++Y=
 -google.golang.org/grpc v1.83.1/go.mod h1:kDyl6SKsiHKt0uylY5gtn5cEjkrIOhQOGDgIc4JGwzQ=
 +google.golang.org/grpc v1.83.2 h1:EManeRomTObA0BU7I8vXgg/78uE5MJ9M8B39EX2WscU=
