@@ -1,6 +1,6 @@
 # TASK-0005A — First private package proof
 
-Status: FIRST_WRITE_PLAN. Dated execution, review and integration evidence is recorded in [PR18](https://github.com/CleMeY15/auto-world/pull/18); this plan is not itself proof of publication or admission.
+Status: FIRST_WRITE_RECORDED; read-only verification after a visibility correction is prepared below. Dated first-write execution, review and integration evidence is recorded in [PR18](https://github.com/CleMeY15/auto-world/pull/18). No runtime image is admitted.
 
 ## Concrete first-write plan
 
@@ -31,6 +31,24 @@ Rollback disables or reverts this workflow. Preserve an already-written proof an
 ## Acceptance evidence
 
 Record implementation, sequential reviews, exact-head/main quality, actual publication/read controls and post-write Settings observations separately in PR18. Required evidence is not inferred from this plan; `PUBLISHED_UNADMITTED` is never runtime admission. TASK-0005A and TASK-0005 remain incomplete until all later ADR-0007 and four-service lifecycle gates pass; TASK-0006 remains blocked.
+
+## Actual first write and visibility correction
+
+The exact first-write implementation received actual Architect then distinct Critic approval at `ce32b274e5cee0e53a84757ba5ef0cc05c833451`. Its fresh HTTPS checkout and quality gates passed. Protected merge `c302e812c31cdd2f8441054c8a88d3d7a5d0bec4` preserved all six reviewed blobs; merged-main [quality 34865447853](https://github.com/CleMeY15/auto-world/actions/runs/34865447853) and [local preparation 34865448082](https://github.com/CleMeY15/auto-world/actions/runs/34865448082) passed.
+
+The single [first-write run 34865612395](https://github.com/CleMeY15/auto-world/actions/runs/34865612395), attempt 1, published the fixed scratch payload at `ghcr.io/clemey15/auto-world-infra-proof@sha256:eac8525e2bae0875846d4ee9f6fe75908b2ac4724e49b56653e4aa3fe8bd61b6`. The publisher recorded eight passing phases and `PUBLISHED_UNADMITTED`. Its receipt is 1982 bytes, SHA-256 `e320e477166c492be0eb542dc37b28b4559935c6d151bf75fd319bfe72f8a5cc`.
+
+The overall run FAILED: the separate verifier successfully pulled that exact digest anonymously and reported `package_registry_anonymous_pull_succeeded`. Its receipt is 2428 bytes, SHA-256 `9608674ae4290f31c9478e5a470a2c7e19525b23fd03beb0aed8b25920ece857`. Authenticated package and Settings pages both explicitly showed PUBLIC. The cause of this first-publication visibility is not established; this actual result supersedes assumptions based on the documented default. The only exposed file was the reviewed 39-byte public technical payload. The failed run and package object are retained.
+
+The authenticated Settings dialog offered Private. Changing that setting on the existing object resulted in "This package is currently private." The package was not deleted, rebuilt or republished. Source linkage is `CleMeY15/auto-world`, inherited access remains checked, and Manage Actions access lists only `auto-world` with Admin role. There are no listed Codespaces repositories or explicit members. Only visibility changed. This does not undo earlier retrieval or establish fork isolation.
+
+## Bounded read-only continuation
+
+Retire the publisher job from the manual workflow after its one write. The remaining workflow has one `verify` job, `contents: read` and `packages: read`, no inputs, and the exact fixed manifest digest above. Reuse the reviewed verifier, pinned actions, ten-minute budget, attempt-one restriction, owned temporary credentials/objects, exact receipt-only upload and failure enforcement. It does not build, publish, sign or start the image.
+
+After review and protected-main quality, one fresh manual read-only run must prove authorized retrieval, anonymous denial, a second authorized positive and the exact file bytes copied from a stopped container. Its receipt's `sourceSha` identifies the verifier checkout; the image's build source remains `c302e812c31cdd2f8441054c8a88d3d7a5d0bec4` and original publication run `34865612395`. A later success does not change that first run's failure. Record actual continuation evidence in the focused PR; this plan alone does not establish a passed control.
+
+The observed privacy mismatch blocks candidate/service publication until corrected package settings and actual read controls pass. The user-waived fork probe remains `SKIPPED_BY_USER`, fork isolation `NOT_VERIFIED`. No local token expansion, new account, publisher, registry, archive claim or runtime admission is introduced.
 
 ## Official references
 
