@@ -1,6 +1,6 @@
 # TASK-0005 — Local data infrastructure
 
-Status: IN_PROGRESS; managed-image contract accepted for scanner preparation only; private admission BLOCKED
+Status: IN_PROGRESS; corrected-scanner diagnostics VERIFIED; image eligibility and private admission BLOCKED
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
@@ -10,6 +10,8 @@ Provide reproducible development and CI data services for PostgreSQL, OpenSearch
 The separately consented [ADR-0006 diagnostic canary](../../docs/decisions/ADR-0006-public-attestation-canary.md) passed real public fixed-file verification on 2026-09-14 after exactly two runs. Its [evidence and producer retirement](../../docs/validation/TASK-0005-CANARY.md) are merged; the workflow is retired and removed and its 2/2 budget is exhausted. It cannot accept the data foundation, admit an image or unblock TASK-0006, and it must not be restarted. The full-roadmap heartbeat remains PAUSED while current user-directed development is ACTIVE.
 
 [ADR-0007](../../docs/decisions/ADR-0007-private-image-admission.md) accepts the managed-tooling contract and [TASK-0005A](TASK-0005A-managed-image-tooling.md) for unprivileged corrected-scanner preparation. This contract-only increment introduces no image publication or admission capability; no new account, paid service or token expansion is authorized. Draft PRs #7, #8 and #10 remain unaccepted reference implementations. A future private-publication increment requires sequential Architect then Critic approval of its concrete workflow and package plan before any registry write.
+
+The supporting scanner/evidence increment now has [complete real diagnostics](../../docs/validation/TASK-0005A-SCANNER.md): two matching builds, successful self/fixture/database controls and eight native image reports. Seven images still fail the strict vulnerability policy; no image is admitted. This does not accept PR7's lifecycle or unblock TASK-0006. The next private-publication step remains subject to ADR7's separate identity/topology, permission and review gates.
 
 ## Dependencies
 - TASK-0001 through TASK-0004 are accepted on `main`. TASK-0004 merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency.

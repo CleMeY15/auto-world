@@ -1,6 +1,6 @@
 # TASK-0005A — Corrected scanner evidence
 
-Status: IN_PROGRESS; no scanner or image admitted. Date: 2026-09-14.
+Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Date: 2026-09-14.
 
 The [ADR7 contract](../decisions/ADR-0007-private-image-admission.md) is accepted through PR12, merge `3d4d251a9c19a5f03fae923dc3419b8a6bc1061d`, main CI [34830801370](https://github.com/CleMeY15/auto-world/actions/runs/34830801370) PASS. This supporting increment implements only the unprivileged corrected-scanner lane.
 
@@ -69,18 +69,38 @@ The follow-up collector retains each available raw report identity and distingui
 
 The candidate's temporary filesystem is bounded at 2 GiB and its memory/swap at 4 GiB, including tmpfs pages. This is a testable capacity increase after the observed OpenSearch ENOSPC, not a claim of a measured minimum or sufficient capacity before rerunning Linux. Downloads and scans execute sequentially, so the receipt reserves their maximum transient memory (4 GiB), rather than summing mutually exclusive phases. The same measured inputs project 7733892102 bytes, below the unchanged 8 GiB job cap; evidence remains capped at 6 GiB. Thirty-seven targeted tests and lint pass, including continuation, raw rejection identity, global failure boundaries and budget overflow. Complete Linux image diagnostics, final combined checks and independent delta review remain required.
 
+## Complete Stage II Linux evidence
+
+At `2730fd1789a26f6c3031072194cbf87e22f90b40`, independent code/security review approved the collector and resource delta with no findings. The fresh HTTPS checkout passed the full uncached check: 54 root tests, all package lint/typecheck/tests/build tasks, Secretlint on 186 files and dependency audit. Exact-head [quality CI34851463391](https://github.com/CleMeY15/auto-world/actions/runs/34851463391) passed.
+
+[Linux run34851464078](https://github.com/CleMeY15/auto-world/actions/runs/34851464078), synthetic PR merge `984b214661e7fe6b6052ab19d790141e4c9eaadd`, passed both independent builds and all scanner controls: reproducibility, fresh database registry/download/freeze, self/SBOM, upstream-version probe and all three fixtures with same-database comparisons. The downloaded binaries retain the SHA-256 above; both 473-module closures and compiled inventories match. Each upstream suite passed 362 packages with 83 packages without tests. Vulnerability/Java DB bytes match the immediately preceding run, remain fresh and were checked unchanged after every scan.
+
+All eight native image commands completed and their reports passed structural/subject validation. OpenSearch no longer exhausts temporary storage. There are no command, JSON, missing-inventory or frozen-input errors. The final `scanner_image_audit_blocked` failure preserves the following 276 blocking finding occurrences; counts are not unique CVE totals.
+
+| Exact locked role | HIGH/CRITICAL blockers | Diagnostic eligibility |
+| --- | ---: | --- |
+| PostgreSQL | 115 | Blocked |
+| OpenSearch | 58 | Blocked |
+| Redis | 57 | Blocked |
+| SeaweedFS | 1 | Blocked |
+| AWS CLI | 0 | Passed this audit |
+| Baseline Trivy | 6 | Blocked |
+| PostgreSQL Alpine | 31 | Blocked |
+| Redis Alpine | 8 | Blocked |
+
+The `scanner-audit` artifact retains all raw reports, each SHA-256/size and all exact blockers in its receipt. Projected consumption is 7733892081 bytes below the 8589934592-byte cap; retained diagnostic evidence is 6533225 bytes. The reviewed Stage II endpoint accepts the verified scanner/evidence capability while leaving the diagnostic workflow red for image eligibility. This is not an image admission, vulnerability disposition or completion of TASK-0005A/TASK-0005. Subsequent documentation changes do not alter scanner code, locks or workflow; their exact-head/merged-main checks are recorded in PR13.
+
 ## Selected dependency correction
 
 Trivy source: `e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994` (v0.74.0). The candidate carries the previously prepared dependency update to gRPC1.83.1 plus the minimal [upstream update to1.83.2](https://github.com/aquasecurity/trivy/commit/8c905373332df11a268a0cebc07627cc08485fee). The upstream delta changes only go.mod/go.sum. Static module comparison found its minimum Go/x/net/x/sync/x/sys/x/text/x/crypto requirements already satisfied by the selected source plus first patch; only actual readonly module checks and tests can establish build compatibility.
 
 The historical Trivy image report identified blocking gRPC findings and a fixed version1.83.2. The current MITRE lookup did not establish a record for CVE-2026-84445; do not claim a proved CVE-to-commit mapping. Fresh full scans must establish the candidate's result.
 
-## Gates not yet satisfied
+## Remaining delivery and admission gates
 
-- Revalidation of the final combined workflow after later audit/evidence changes; the diagnostic build slice above has passed.
-- Built-binary identity, self inventory/SBOM and full audit; exact fresh vulnerability and Java database bytes before/after execution.
-- Known-vulnerable controls and same-database diagnostic comparison with the old, non-admitted scanner.
-- Fresh exact-subject service/helper image audits, with every blocking finding retained.
-- Full combined repository gates, fresh remote checkout and independent implementation review, then final-head/merged-main CI.
+- Final evidence review and documentation-head/merged-main CI for PR13; earlier exact-code checks and native evidence are recorded above.
+- Corrected service/helper candidates and new fresh audits that satisfy the unchanged vulnerability thresholds.
+- A separately authorized private publisher identity/topology, concrete Architect then distinct Critic review before any first write, actual private/fork access controls, retention/restore and admission proof.
+- TASK-0005's complete four-service lifecycle on admitted digests; TASK-0006 remains blocked.
 
 No package write, OIDC, signing, private input, image admission, source activation, new publisher/token or resumed canary is part of this increment. Private storage/admission remains separately blocked by ADR7's concrete workflow and privacy/retention gates. TASK-0005 and TASK-0006 are not completed by local policy tests.
