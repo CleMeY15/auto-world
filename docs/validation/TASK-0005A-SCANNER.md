@@ -100,7 +100,7 @@ The historical Trivy image report identified blocking gRPC findings and a fixed 
 
 - Final evidence review and documentation-head/merged-main CI for PR13; earlier exact-code checks and native evidence are recorded above.
 - Corrected service/helper candidates and new fresh audits that satisfy the unchanged vulnerability thresholds.
-- A separately authorized private publisher identity/topology, concrete Architect then distinct Critic review before any first write, actual private/fork access controls, retention/restore and admission proof.
+- Concrete Architect then distinct Critic review of publication in the existing repository before any first write, applicable private visibility/configuration and retrieval controls, retention/restore and admission proof. The user subsequently waived the external fork denied-read test: `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`; no second GitHub account or new publisher is a prerequisite solely for that test. See amended ADR-0007.
 - TASK-0005's complete four-service lifecycle on admitted digests; TASK-0006 remains blocked.
 
 No package write, OIDC, signing, private input, image admission, source activation, new publisher/token or resumed canary is part of this increment. Private storage/admission remains separately blocked by ADR7's concrete workflow and privacy/retention gates. TASK-0005 and TASK-0006 are not completed by local policy tests.

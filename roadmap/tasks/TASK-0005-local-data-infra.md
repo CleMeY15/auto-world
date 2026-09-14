@@ -13,6 +13,8 @@ The separately consented [ADR-0006 diagnostic canary](../../docs/decisions/ADR-0
 
 The supporting scanner/evidence increment now has [complete real diagnostics](../../docs/validation/TASK-0005A-SCANNER.md): two matching builds, successful self/fixture/database controls and eight native image reports. Seven images still fail the strict vulnerability policy; no image is admitted. This does not accept PR7's lifecycle or unblock TASK-0006. The next private-publication step remains subject to ADR7's separate identity/topology, permission and review gates.
 
+User update, 2026-09-14: "Zap le test d’accès" waives the external authenticated fork/PR denied-read probe that required a second GitHub account. The amended ADR-0007 records `SKIPPED_BY_USER`/`NOT_VERIFIED`, removes that account as a blocker and retains the existing-repository publication route and remaining integrity/vulnerability/access controls. No new publisher or credential is required solely for the skipped test, and no image or data lifecycle is accepted by the waiver.
+
 ## Dependencies
 - TASK-0001 through TASK-0004 are accepted on `main`. TASK-0004 merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency.
 
