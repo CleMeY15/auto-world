@@ -71,6 +71,8 @@ No production source, service deployment, paid resource, new account or token ex
 
 Rollback by reviewed code/inventory revert to another valid supported digest or stop. Preserve existing data, volumes, backups, private evidence and historical branches. Failed scanner/image findings are diagnostic blockers, never automatic exceptions.
 
+The completed third source run compiled the normal production executable in job1, then failed during normal tests at the 12 GiB work budget and rejected a child link during cleanup. PR24 merged with passing independent review and final-head/main CI. The next focused resource-lifecycle repair removes redundant owned copies, safely cleans child links, retains bounded failure logs and verifies complete package coverage while limiting temporary test files. No further native build is launched until that repair is reviewed and integrated; source and image admission remain incomplete.
+
 ## Completion
 
 Keep this task incomplete through scanner-only success. Full DONE requires actual private admission acceptance, independent implementation review, complete retained evidence and final-head/main CI. TASK-0005 remains incomplete until the four-service lifecycle also passes; TASK-0006 remains blocked until then.
