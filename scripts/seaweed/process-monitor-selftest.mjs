@@ -35,6 +35,13 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     if (timeoutResult.monitorReason !== "seaweed_command_timeout" || timeoutPids.length !== 2 ||
         timeoutPids.some((pid) => !Number.isSafeInteger(pid) || pid < 2 || !processIsAbsent(pid)) || !processIsAbsent(-timeoutPids[0])) throw new Error("seaweed_monitor_timeout_selftest_failed");
 
+    const resistantWork = path.join(work, "resistant"); mkdirSync(resistantWork);
+    const resistantResult = runProbe("resistant", "/usr/bin/bash", ["--noprofile", "--norc", "-c",
+      "trap '' TERM; monitor=$PPID; sleep 300 & child=$!; (sleep 1.5; kill -TERM \"$monitor\") & signaler=$!; printf '%s %s %s\\n' \"$$\" \"$child\" \"$signaler\"; wait"], resistantWork, 1000);
+    const resistantPids = resistantResult.stdout?.toString("utf8").trim().split(/\s+/u).map(Number) ?? [];
+    if (resistantResult.monitorReason !== "seaweed_command_timeout" || resistantPids.length !== 3 ||
+        resistantPids.some((pid) => !Number.isSafeInteger(pid) || pid < 2 || !processIsAbsent(pid)) || !processIsAbsent(-resistantPids[0])) throw new Error("seaweed_monitor_interrupted_cleanup_selftest_failed");
+
     const capWork = path.join(work, "cap"); mkdirSync(capWork);
     const capResult = runProbe("cap", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "dd if=/dev/zero of=\"$1\" bs=1048576 count=4 status=none; sleep 300", "cap-probe", path.join(capWork, "payload")], capWork, 10_000,
       { workBytes: 2 * MiB, retainedBytes: MiB, minimumFreeBytes: 1, logBytes: MiB });

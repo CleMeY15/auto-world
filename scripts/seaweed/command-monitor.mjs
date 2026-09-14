@@ -3,7 +3,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from "node:
 import path from "node:path";
 
 const MiB = 1024 ** 2;
-const CLEANUP_GRACE_MS = 12_000;
+const CLEANUP_GRACE_MS = 30_000;
 
 export const commandMonitorScript = String.raw`
 set -u
@@ -22,6 +22,7 @@ group_state() {
   return 1
 }
 terminate_group() {
+  trap '' TERM INT HUP
   [ -n "$pid" ] || return 0
   terminating=1
   kill -TERM -- "-$pid" 2>/dev/null || true
@@ -42,7 +43,8 @@ terminate_group() {
   return 1
 }
 cancelled() {
-  trap - TERM INT HUP EXIT
+  trap '' TERM INT HUP
+  trap - EXIT
   reason=seaweed_command_cancelled
   if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
   write_reason "$reason"
@@ -50,7 +52,8 @@ cancelled() {
 }
 unexpected_exit() {
   status=$?
-  trap - TERM INT HUP EXIT
+  trap '' TERM INT HUP
+  trap - EXIT
   if [ "$terminating" -eq 0 ] && [ -n "$pid" ]; then
     reason=seaweed_monitor_wrapper_failed
     if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
@@ -113,7 +116,8 @@ while kill -0 "$pid" 2>/dev/null; do
     next_resource_check=$((SECONDS + 2))
   fi
   if [ -n "$reason" ]; then
-    trap - TERM INT HUP EXIT
+    trap '' TERM INT HUP
+    trap - EXIT
     if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
     write_reason "$reason"
     exit 125
