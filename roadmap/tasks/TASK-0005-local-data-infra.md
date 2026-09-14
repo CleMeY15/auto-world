@@ -1,22 +1,26 @@
 # TASK-0005 — Local data infrastructure
 
-Status: IN_PROGRESS; data PR #7 and native preparation PR #8 remain draft and unaccepted
+Status: IN_PROGRESS; managed-image contract accepted for scanner preparation only; private admission BLOCKED
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 
 ## Goal
 Provide reproducible development and CI data services for PostgreSQL, OpenSearch, Redis and S3-compatible raw storage with tested lifecycle and rollback behavior.
 
-The separately consented [ADR-0006 diagnostic canary](../../docs/decisions/ADR-0006-public-attestation-canary.md) passed real public fixed-file verification on 2026-09-14 after exactly two runs. Its [evidence and producer retirement](../../docs/validation/TASK-0005-CANARY.md) have dedicated review/merge gates; the workflow is disabled. This cannot accept the data foundation, admit any image or unblock TASK-0006. The full-roadmap heartbeat remains PAUSED; stop after reviewed workflow retirement.
+The separately consented [ADR-0006 diagnostic canary](../../docs/decisions/ADR-0006-public-attestation-canary.md) passed real public fixed-file verification on 2026-09-14 after exactly two runs. Its [evidence and producer retirement](../../docs/validation/TASK-0005-CANARY.md) are merged; the workflow is retired and removed and its 2/2 budget is exhausted. It cannot accept the data foundation, admit an image or unblock TASK-0006, and it must not be restarted. The full-roadmap heartbeat remains PAUSED while current user-directed development is ACTIVE.
+
+[ADR-0007](../../docs/decisions/ADR-0007-private-image-admission.md) accepts the managed-tooling contract and [TASK-0005A](TASK-0005A-managed-image-tooling.md) for unprivileged corrected-scanner preparation. This contract-only increment introduces no image publication or admission capability; no new account, paid service or token expansion is authorized. Draft PRs #7, #8 and #10 remain unaccepted reference implementations. A future private-publication increment requires sequential Architect then Critic approval of its concrete workflow and package plan before any registry write.
 
 ## Dependencies
-- TASK-0001 merged on `main`; execution order remains after TASK-0004 unless the roadmap is explicitly amended.
+- TASK-0001 through TASK-0004 are accepted on `main`. TASK-0004 merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency.
 
 ## Relevant contracts
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/data/DATA_PLATFORM.md`
 - `docs/security/SECURITY_LEGAL.md`
 - `docs/DEFINITION_OF_DONE.md`
+- `docs/decisions/ADR-0007-private-image-admission.md`
+- `roadmap/tasks/TASK-0005A-managed-image-tooling.md`
 - TASK-0002 through TASK-0004 storage, raw and connector contracts
 
 ## Scope

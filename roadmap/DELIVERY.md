@@ -1,20 +1,21 @@
 # Auto World delivery ledger
 
-Status: PAUSED — TASK-0005 attestation canary diagnostic PASS; producer retired in the evidence PR; full roadmap P0 through P5 remains NOT DONE
+Status: ACTIVE — TASK-0005 managed-image contract and scanner-preparation increment; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome
 Operate as a continuous development team that selects the single first READY task, completes it through review and CI, merges it, refreshes the roadmap state, then selects again until the roadmap outcome is delivered.
 
 ## Current checkpoint
-- Priority update, 2026-09-14: [ADR-0006](../docs/decisions/ADR-0006-public-attestation-canary.md) diagnostic PASS from exactly two real runs; [evidence](../docs/validation/TASK-0005-CANARY.md) and producer retirement delivered through their dedicated review/merge gates. Workflow is disabled, no more dispatches. TASK-0005 data PR #7, native PR #8 and audit PR #10 stay draft/unaccepted. The hourly heartbeat is PAUSED; TASK-0005B and TASK-0006 remain blocked. Historical checkpoints below do not override this boundary.
+- Current execution, 2026-09-14: [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md) accepts the managed-tooling contract and unprivileged scanner preparation only. [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) is READY for scanner preparation. Private publication and image admission remain BLOCKED until a future concrete workflow and package plan receives sequential Architect then Critic approval. Draft PRs #7, #8 and #10 remain unaccepted and untouched. TASK-0005 is incomplete and TASK-0006 remains blocked.
+- Canary state: [ADR-0006](../docs/decisions/ADR-0006-public-attestation-canary.md) diagnostic PASS from exactly two real runs; [evidence](../docs/validation/TASK-0005-CANARY.md) and producer retirement are merged. The workflow is retired and removed, its 2/2 budget is exhausted and it must not be restarted. The hourly heartbeat remains PAUSED while this user-directed execution is ACTIVE.
 - TASK-0001 is merged to `main` at `d479482`; issue #1 is closed.
 - TASK-0002 through TASK-0006 contracts are integrated through PR #3 at `9fcdeae`; merge CI passed.
 - TASK-0002 implementation is validated at `900ce34`: 88 runtime tests, type fixtures, all root gates, fresh remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0002.md`; integration and final-head CI: PR #4.
 - TASK-0002 PR #4 merged at `fe82aaf`; final-head CI `34018762556` and main CI `34018855938` passed.
 - TASK-0003 implementation is validated at `cdb1187`: 77 registry tests, 91 vehicle tests, all forced root gates, fresh corrected remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0003.md`. PR #5 final-head CI `34024559566` passed; merge `79e6ab0`, main CI `34024650605` and postmerge forced root gates passed. Its declared-policy contract does not authorize a real source.
-- Current frontier: TASK-0004 implementation is validated at `2e83e79` on `codex/task-0004-connector-sdk`: 157 SDK tests, all forced root gates, fresh HTTPS clone, independent code/spec/security APPROVE and architecture CLEAR, implementation CI `34030831131` green. Evidence: `docs/validation/TASK-0004.md`. PR #6 final-head CI, merge and main verification remain the integration gate. No real source or production store is enabled; authenticated rights, retention/takedown, dashboard and alerts remain real-source activation requirements.
-- TASK-0005 is dependency-ready but deliberately queued after TASK-0004 to preserve one ordered frontier.
+- TASK-0004 was merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency. Evidence: `docs/validation/TASK-0004.md`. No real source or production store is enabled; authenticated rights, retention and takedown, dashboard and alerts remain real-source activation requirements.
+- TASK-0005 is the current dependency-ready frontier and remains IN_PROGRESS.
 
 ## P0 sequence
 1. Publish the five DoR-complete task contracts and reconcile EPIC-000 statuses.
