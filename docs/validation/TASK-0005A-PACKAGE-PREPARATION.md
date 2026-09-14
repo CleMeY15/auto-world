@@ -1,6 +1,6 @@
 # TASK-0005A — Local package preparation
 
-Status: NATIVE_PREPARATION_VERIFIED; final review and integration gates pending. No registry write, package configuration proof or image admission.
+Status: NATIVE_PREPARATION_VERIFIED. Final review and integration evidence is recorded in PR17. No registry write, package configuration proof or image admission.
 
 ## Purpose and implementation plan
 
