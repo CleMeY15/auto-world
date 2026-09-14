@@ -51,7 +51,7 @@ Use fixed diagnostic codes and duration/hash/run identifiers; keep complete non-
 
 ## Operational boundary and rollback
 
-The [first private package proof](../../docs/validation/TASK-0005A-PRIVATE-PACKAGE-PROOF.md) prepares the fixed non-sensitive scratch payload for the existing registry namespace. The ordinary GitHub browser session is now connected. Exact first-write Architect then Critic review, actual publication/read controls and post-write package Settings observations remain pending; this does not restore the waived second-account test or authorize runtime admission.
+The [first private package proof](../../docs/validation/TASK-0005A-PRIVATE-PACKAGE-PROOF.md) prepares the fixed non-sensitive scratch payload for the existing registry namespace. The ordinary GitHub browser session is now connected. PR18 records the exact first-write Architect then Critic review, publication/read controls and post-write package Settings observations as each occurs; the plan alone proves none of them. This does not restore the waived second-account test or authorize runtime admission.
 
 The [local package preparation](../../docs/validation/TASK-0005A-PACKAGE-PREPARATION.md) builds and inspects the public technical scratch payload on Linux with source-read permission only. Native run 34859494132 passed all nine phases; final review and integration results are recorded in PR17. It does not publish, prove package configuration or admit an image; the later concrete first-write review remains required.
 

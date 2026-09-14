@@ -1,6 +1,6 @@
 # TASK-0005A — First private package proof
 
-Status: PREPARATION. No registry write has been performed by this increment.
+Status: FIRST_WRITE_PLAN. Dated execution, review and integration evidence is recorded in [PR18](https://github.com/CleMeY15/auto-world/pull/18); this plan is not itself proof of publication or admission.
 
 ## Concrete first-write plan
 
@@ -30,7 +30,7 @@ Rollback disables or reverts this workflow. Preserve an already-written proof an
 
 ## Acceptance evidence
 
-Implementation, sequential reviews, exact-head/main quality, actual publication/read controls and post-write Settings observations are pending. Record each separately; `PUBLISHED_UNADMITTED` is never runtime admission. TASK-0005A and TASK-0005 remain incomplete until all later ADR-0007 and four-service lifecycle gates pass; TASK-0006 remains blocked.
+Record implementation, sequential reviews, exact-head/main quality, actual publication/read controls and post-write Settings observations separately in PR18. Required evidence is not inferred from this plan; `PUBLISHED_UNADMITTED` is never runtime admission. TASK-0005A and TASK-0005 remain incomplete until all later ADR-0007 and four-service lifecycle gates pass; TASK-0006 remains blocked.
 
 ## Official references
 
