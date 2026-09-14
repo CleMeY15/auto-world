@@ -95,10 +95,22 @@ function dockerBase(lock, cache, mounts = []) {
     `${lock.baseline.repository}@${lock.baseline.platformDigest}`];
 }
 
-function baselineFixture(lock, cache, fixtures, target, output) {
+export function baselineFixtureArguments(lock, cache, fixtures, mode, target) {
+  if (!["fs", "rootfs"].includes(mode) || typeof fixtures !== "string" || !path.isAbsolute(fixtures) ||
+      typeof target !== "string" || !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/u.test(target)) fail("scanner_baseline_fixture_arguments_invalid");
   const args = dockerBase(lock, cache, ["--mount", `type=bind,src=${fixtures},dst=/fixtures,readonly`]);
-  command(DOCKER, [...args, "fs", "--cache-dir", "/cache", "--skip-db-update", "--skip-java-db-update", "--skip-version-check", "--offline-scan",
-    "--cache-backend", "memory", "--quiet", "--scanners", "vuln", "--format", "json", "--list-all-pkgs", `/fixtures/${target}`], { output });
+  return [...args, mode, "--cache-dir", "/cache", "--skip-db-update", "--skip-java-db-update", "--skip-version-check", "--offline-scan",
+    "--cache-backend", "memory", "--quiet", "--scanners", "vuln", "--format", "json", "--list-all-pkgs", `/fixtures/${target}`];
+}
+
+function baselineFixture(lock, cache, fixtures, mode, target, output) {
+  command(DOCKER, baselineFixtureArguments(lock, cache, fixtures, mode, target), { output });
+}
+
+export function fixtureScanMode(fixture) {
+  if (fixture?.id === "gomod-vulnerable") return "fs";
+  if (["java-war-vulnerable", "java-jar-clean-candidate"].includes(fixture?.id)) return "rootfs";
+  fail("scanner_fixture_mode_invalid");
 }
 
 export function validateDatabaseRegistryManifest(manifest) {
@@ -293,16 +305,17 @@ export async function auditScanner({ buildRoot, output }) {
       const failures = [];
       for (const fixture of fixtureManifest.fixtures) {
         const target = fixture.material[0].path.startsWith("gomod/") ? "gomod" : fixture.material[0].path.replace(/^java\//u, "java/");
+        const mode = fixtureScanMode(fixture);
         const candidatePath = path.join(output, `fixture-${fixture.id}-candidate.json`);
         let candidateError;
-        try { candidateScan(baseline, scanner, cache, "fs", path.join(fixtureRoot, target), candidatePath, ["--offline-scan"]); }
+        try { candidateScan(baseline, scanner, cache, mode, path.join(fixtureRoot, target), candidatePath, ["--offline-scan"]); }
         catch (error) { candidateError = error; }
         await assertFilesUnchanged(frozen);
         let baselinePath;
         let baselineError;
         if (fixture.id !== "java-jar-clean-candidate") {
           baselinePath = path.join(output, `fixture-${fixture.id}-baseline.json`);
-          try { baselineFixture(lock, cache, fixtureRoot, target, baselinePath); }
+          try { baselineFixture(lock, cache, fixtureRoot, mode, target, baselinePath); }
           catch (error) { baselineError = error; }
         }
         try {

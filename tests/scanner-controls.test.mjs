@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
-import { candidateDockerArguments, databaseDownloadDockerArguments, parseAuditArguments, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
+import { baselineFixtureArguments, candidateDockerArguments, databaseDownloadDockerArguments, fixtureScanMode, parseAuditArguments, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
 
 function receipt(repeat, sha = "a".repeat(64)) {
@@ -62,6 +62,27 @@ test("candidate scanner runs isolated without host or Docker socket access", () 
   assert.match(joined, /dst=\/cache,readonly/u);
   assert.match(joined, /dst=\/subject,readonly/u);
   assert.doesNotMatch(joined, /docker\.sock|--privileged/u);
+});
+
+test("fixture mode routing keeps Go in fs and gives candidate and baseline Java rootfs parity", () => {
+  const lock = { baseline: { repository: "aquasec/trivy", platformDigest: `sha256:${"a".repeat(64)}` } };
+  const cache = path.resolve("cache");
+  const fixtures = path.resolve("fixtures");
+  const scanner = path.resolve("trivy");
+  const carrier = `aquasec/trivy@sha256:${"a".repeat(64)}`;
+  for (const [id, expectedMode, target] of [
+    ["gomod-vulnerable", "fs", "gomod"],
+    ["java-war-vulnerable", "rootfs", "java/test.war"],
+    ["java-jar-clean-candidate", "rootfs", "java/jackson-core-2.15.0.jar"],
+  ]) {
+    const mode = fixtureScanMode({ id });
+    assert.equal(mode, expectedMode);
+    const candidate = candidateDockerArguments({ carrier, scanner, cache, mode, target: path.join(fixtures, target) });
+    const baseline = baselineFixtureArguments(lock, cache, fixtures, mode, target);
+    assert.equal(candidate[candidate.indexOf(carrier) + 1], expectedMode);
+    assert.equal(baseline[baseline.indexOf(carrier) + 1], expectedMode);
+  }
+  assert.throws(() => fixtureScanMode({ id: "unknown" }), /scanner_fixture_mode_invalid/u);
 });
 
 test("database downloader reserves two bounded archive copies and remains isolated", () => {
