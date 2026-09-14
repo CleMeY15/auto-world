@@ -1,0 +1,254 @@
+canary	Set up job	﻿2026-09-14T04:08:35.2560972Z Current runner version: '2.337.0'
+canary	Set up job	2026-09-14T04:08:35.2589021Z ##[group]Runner Image Provisioner
+canary	Set up job	2026-09-14T04:08:35.2590049Z Hosted Compute Agent
+canary	Set up job	2026-09-14T04:08:35.2590732Z Version: 20260828.587
+canary	Set up job	2026-09-14T04:08:35.2591479Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+canary	Set up job	2026-09-14T04:08:35.2592282Z Build Date: 2026-08-28T16:44:25Z
+canary	Set up job	2026-09-14T04:08:35.2592988Z Worker ID: {eb047122-879f-4346-8a50-7f685031a146}
+canary	Set up job	2026-09-14T04:08:35.2593795Z Azure Region: eastus2
+canary	Set up job	2026-09-14T04:08:35.2594401Z ##[endgroup]
+canary	Set up job	2026-09-14T04:08:35.2595883Z ##[group]Operating System
+canary	Set up job	2026-09-14T04:08:35.2596762Z Ubuntu
+canary	Set up job	2026-09-14T04:08:35.2597321Z 24.04.5
+canary	Set up job	2026-09-14T04:08:35.2597919Z LTS
+canary	Set up job	2026-09-14T04:08:35.2598474Z ##[endgroup]
+canary	Set up job	2026-09-14T04:08:35.2599150Z ##[group]Runner Image
+canary	Set up job	2026-09-14T04:08:35.2599847Z Image: ubuntu-24.04
+canary	Set up job	2026-09-14T04:08:35.2600446Z Version: 20260907.300.1
+canary	Set up job	2026-09-14T04:08:35.2601604Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md
+canary	Set up job	2026-09-14T04:08:35.2603513Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260907.300
+canary	Set up job	2026-09-14T04:08:35.2604565Z ##[endgroup]
+canary	Set up job	2026-09-14T04:08:35.2606283Z ##[group]GITHUB_TOKEN Permissions
+canary	Set up job	2026-09-14T04:08:35.2608765Z Attestations: write
+canary	Set up job	2026-09-14T04:08:35.2609511Z Contents: read
+canary	Set up job	2026-09-14T04:08:35.2610142Z Metadata: read
+canary	Set up job	2026-09-14T04:08:35.2610697Z ##[endgroup]
+canary	Set up job	2026-09-14T04:08:35.2613345Z Secret source: Actions
+canary	Set up job	2026-09-14T04:08:35.2614367Z Cache mode: write
+canary	Set up job	2026-09-14T04:08:35.2615563Z Prepare workflow directory
+canary	Set up job	2026-09-14T04:08:35.3014048Z Prepare all required actions
+canary	Set up job	2026-09-14T04:08:35.3064078Z Getting action download info
+canary	Set up job	2026-09-14T04:08:35.5201244Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+canary	Set up job	2026-09-14T04:08:35.6160864Z Download action repository 'actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6' (SHA:1e69f48acb82d1966a394da916b4c1698aa569d6)
+canary	Set up job	2026-09-14T04:08:35.8388559Z Download action repository 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+canary	Set up job	2026-09-14T04:08:36.0518718Z Complete job name: canary
+canary	Read the reviewed public fixture and workflow	﻿2026-09-14T04:08:36.1276918Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1285768Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1286871Z with:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1287329Z   persist-credentials: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1287858Z   fetch-depth: 1
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1288336Z   sparse-checkout-cone-mode: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1289310Z   sparse-checkout: .github/workflows/attestation-canary.yml
+canary	Read the reviewed public fixture and workflow	docs/fixtures/attestation-canary.txt
+canary	Read the reviewed public fixture and workflow	.gitattributes
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1290311Z   repository: CleMeY15/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1294572Z   token: ***
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1295020Z   ssh-strict: true
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1295537Z   ssh-user: git
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1295966Z   clean: true
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1296552Z   fetch-tags: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1297004Z   show-progress: true
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1297460Z   lfs: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1297884Z   submodules: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1298342Z   set-safe-directory: true
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1298844Z   allow-unsafe-pr-checkout: false
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.1299550Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2366220Z Syncing repository: CleMeY15/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2368868Z ##[group]Getting Git version info
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2369940Z Working directory is '/home/runner/work/auto-world/auto-world'
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2371095Z [command]/usr/bin/git version
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2417480Z git version 2.55.0
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2441639Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2459522Z Temporarily overriding HOME='/home/runner/work/_temp/778f7925-2e53-46ca-97b7-918a5f70fe07' before making global git config changes
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2462534Z Adding repository directory to the temporary git global config as a safe directory
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2467816Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/auto-world/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2534857Z Deleting the contents of '/home/runner/work/auto-world/auto-world'
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2540848Z ##[group]Initializing the repository
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2548120Z [command]/usr/bin/git init /home/runner/work/auto-world/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2680817Z hint: Using 'master' as the name for the initial branch. This default branch name
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2682845Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2684447Z hint: to use in all of your new repositories, which will suppress this warning,
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2687249Z hint: call:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2688257Z hint:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2690165Z hint: 	git config --global init.defaultBranch <name>
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2691515Z hint:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2692637Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2694290Z hint: 'development'. The just-created branch can be renamed via this command:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2695629Z hint:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2696658Z hint: 	git branch -m <name>
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2697638Z hint:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2698827Z hint: Disable this message with "git config set advice.defaultBranchName false"
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2700983Z Initialized empty Git repository in /home/runner/work/auto-world/auto-world/.git/
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2704255Z [command]/usr/bin/git remote add origin https://github.com/CleMeY15/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2754337Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2755762Z ##[group]Disabling automatic garbage collection
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2759640Z [command]/usr/bin/git config --local gc.auto 0
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2802322Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2803806Z ##[group]Setting up auth
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2811999Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.2852328Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.3305896Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.3358232Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.3674893Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.3709237Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.3972041Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.4015431Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.4016576Z ##[group]Fetching the repository
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.4026636Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --filter=blob:none --depth=1 origin +66af1435f4b8e92b302e7aa4e1edba84daa6a85e:refs/remotes/origin/main
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7745188Z From https://github.com/CleMeY15/auto-world
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7758223Z  * [new ref]         66af1435f4b8e92b302e7aa4e1edba84daa6a85e -> origin/main
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7762939Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7764130Z ##[group]Determining the checkout info
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7765454Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7766754Z ##[group]Setting up sparse checkout
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7767806Z [command]/usr/bin/git config core.sparseCheckout true
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7808325Z [command]/usr/bin/git rev-parse --git-path info/sparse-checkout
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7848343Z .git/info/sparse-checkout
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7858112Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7859087Z ##[group]Checking out the ref
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:36.7864073Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1371244Z Switched to a new branch 'main'
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1375168Z branch 'main' set up to track 'origin/main'.
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1392332Z ##[endgroup]
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1482664Z [command]/usr/bin/git log -1 --format=%H
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1517291Z 66af1435f4b8e92b302e7aa4e1edba84daa6a85e
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1531680Z ##[group]Removing auth
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1536824Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1583026Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1851143Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1890117Z http.https://github.com/.extraheader
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1900176Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.1945545Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.2205446Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.2246308Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+canary	Read the reviewed public fixture and workflow	2026-09-14T04:08:37.2500899Z ##[endgroup]
+canary	Check the fixed public bytes	﻿2026-09-14T04:08:37.2789056Z ##[group]Run printf '%s  %s
+canary	Check the fixed public bytes	2026-09-14T04:08:37.2790398Z ^[[36;1mprintf '%s  %s^[[0m
+canary	Check the fixed public bytes	2026-09-14T04:08:37.2793279Z ^[[36;1m' 'd8bacf5b23f03435e17bde784994c671270c6bc8b610aabe7883e304c8346663' 'docs/fixtures/attestation-canary.txt' | sha256sum --check --status^[[0m
+canary	Check the fixed public bytes	2026-09-14T04:08:37.2844104Z shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+canary	Check the fixed public bytes	2026-09-14T04:08:37.2845707Z ##[endgroup]
+canary	Record managed runner and official CLI interface	﻿2026-09-14T04:08:37.3150283Z ##[group]Run gh --version > "$RUNNER_TEMP/canary-gh-version.txt"
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3152262Z ^[[36;1mgh --version > "$RUNNER_TEMP/canary-gh-version.txt"^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3154193Z ^[[36;1mgh attestation verify --help > "$RUNNER_TEMP/canary-gh-help.txt"^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3158705Z ^[[36;1mfor flag in cert-identity cert-oidc-issuer source-ref source-digest signer-digest signer-workflow deny-self-hosted-runners predicate-type bundle format; do grep -Fq -- "--$flag" "$RUNNER_TEMP/canary-gh-help.txt"; done^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3162998Z ^[[36;1msha256sum -- "$(command -v gh)" > "$RUNNER_TEMP/canary-gh-sha256.txt"^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3166100Z ^[[36;1msha256sum -- docs/fixtures/attestation-canary.txt .github/workflows/attestation-canary.yml > "$RUNNER_TEMP/canary-input-sha256.txt"^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3168914Z ^[[36;1mprintf 'repository=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3170032Z ^[[36;1mref=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3170955Z ^[[36;1msha=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3171859Z ^[[36;1mrun_id=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3172880Z ^[[36;1mrun_attempt=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3173891Z ^[[36;1mrunner_os=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3174873Z ^[[36;1mrunner_arch=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3175868Z ^[[36;1mimage_os=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3177071Z ^[[36;1mimage_version=%s^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3179868Z ^[[36;1m' "$GITHUB_REPOSITORY" "$GITHUB_REF" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$RUNNER_OS" "$RUNNER_ARCH" "$ImageOS" "$ImageVersion" > "$RUNNER_TEMP/canary-run.txt"^[[0m
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3227348Z shell: /usr/bin/bash --noprofile --norc -euo pipefail {0}
+canary	Record managed runner and official CLI interface	2026-09-14T04:08:37.3228942Z ##[endgroup]
+canary	Attest only the fixed public text	﻿2026-09-14T04:08:37.6739695Z ##[group]Run actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6741248Z with:
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6742288Z   subject-path: docs/fixtures/attestation-canary.txt
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6743864Z   push-to-registry: false
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6744915Z   create-storage-record: false
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6745972Z   show-summary: true
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6755792Z   github-token: ***
+canary	Attest only the fixed public text	2026-09-14T04:08:37.6756885Z ##[endgroup]
+canary	Attest only the fixed public text	2026-09-14T04:08:37.8418575Z Attestation type: Build Provenance
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0002772Z Attestation created for attestation-canary.txt@sha256:d8bacf5b23f03435e17bde784994c671270c6bc8b610aabe7883e304c8346663
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0005712Z ##[group]^[[36mAttestation signed using certificate from Public Good Sigstore instance^[[39m
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0006815Z -----BEGIN CERTIFICATE-----
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0007512Z MIIHUzCCBtmgAwIBAgIUBdfHNNXi04/wc3OhsJdi7zMDyaIwCgYIKoZIzj0EAwMw
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0008546Z NzEVMBMGA1UEChMMc2lnc3RvcmUuZGV2MR4wHAYDVQQDExVzaWdzdG9yZS1pbnRl
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0009697Z cm1lZGlhdGUwHhcNMjYwOTE0MDQwODM4WhcNMjYwOTE0MDQxODM4WjAAMFkwEwYH
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0010649Z KoZIzj0CAQYIKoZIzj0DAQcDQgAEXca4FT70z5fnla7Oj+s1UkFmkdMr0AhfvhSE
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0011506Z AwY1UD9jZXojPlsHpnIuMy/tELqi0It7VmrwgaGsZfu20/J2YaOCBfgwggX0MA4G
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0012417Z A1UdDwEB/wQEAwIHgDATBgNVHSUEDDAKBggrBgEFBQcDAzAdBgNVHQ4EFgQUvPWL
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0013373Z 5HHqSPl/T/L0yFuuInq9OpswHwYDVR0jBBgwFoAU39Ppz1YkEZb5qNjpKFWixi4Y
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0014186Z ZD8wbQYDVR0RAQH/BGMwYYZfaHR0cHM6Ly9naXRodWIuY29tL0NsZU1lWTE1L2F1
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0015019Z dG8td29ybGQvLmdpdGh1Yi93b3JrZmxvd3MvYXR0ZXN0YXRpb24tY2FuYXJ5Lnlt
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0015872Z bEByZWZzL2hlYWRzL21haW4wOQYKKwYBBAGDvzABAQQraHR0cHM6Ly90b2tlbi5h
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0016851Z Y3Rpb25zLmdpdGh1YnVzZXJjb250ZW50LmNvbTAfBgorBgEEAYO/MAECBBF3b3Jr
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0017662Z Zmxvd19kaXNwYXRjaDA2BgorBgEEAYO/MAEDBCg2NmFmMTQzNWY0YjhlOTJiMzAy
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0018483Z ZTdhYTRlMWVkYmE4NGRhYTZhODVlMCoGCisGAQQBg78wAQQEHFRBU0stMDAwNSBh
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0019372Z dHRlc3RhdGlvbiBjYW5hcnkwIQYKKwYBBAGDvzABBQQTQ2xlTWVZMTUvYXV0by13
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0020204Z b3JsZDAdBgorBgEEAYO/MAEGBA9yZWZzL2hlYWRzL21haW4wOwYKKwYBBAGDvzAB
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0021051Z CAQtDCtodHRwczovL3Rva2VuLmFjdGlvbnMuZ2l0aHVidXNlcmNvbnRlbnQuY29t
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0021891Z MG8GCisGAQQBg78wAQkEYQxfaHR0cHM6Ly9naXRodWIuY29tL0NsZU1lWTE1L2F1
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0022732Z dG8td29ybGQvLmdpdGh1Yi93b3JrZmxvd3MvYXR0ZXN0YXRpb24tY2FuYXJ5Lnlt
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0023523Z bEByZWZzL2hlYWRzL21haW4wOAYKKwYBBAGDvzABCgQqDCg2NmFmMTQzNWY0Yjhl
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0024335Z OTJiMzAyZTdhYTRlMWVkYmE4NGRhYTZhODVlMB0GCisGAQQBg78wAQsEDwwNZ2l0
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0025145Z aHViLWhvc3RlZDA2BgorBgEEAYO/MAEMBCgMJmh0dHBzOi8vZ2l0aHViLmNvbS9D
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0025936Z bGVNZVkxNS9hdXRvLXdvcmxkMDgGCisGAQQBg78wAQ0EKgwoNjZhZjE0MzVmNGI4
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0027036Z ZTkyYjMwMmU3YWE0ZTFlZGJhODRkYWE2YTg1ZTAfBgorBgEEAYO/MAEOBBEMD3Jl
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0027873Z ZnMvaGVhZHMvbWFpbjAaBgorBgEEAYO/MAEPBAwMCjEzNTc1MTQ5MzkwKwYKKwYB
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0028734Z BAGDvzABEAQdDBtodHRwczovL2dpdGh1Yi5jb20vQ2xlTWVZMTUwGAYKKwYBBAGD
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0029542Z vzABEQQKDAg2MjY3Njg5MTBvBgorBgEEAYO/MAESBGEMX2h0dHBzOi8vZ2l0aHVi
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0030403Z LmNvbS9DbGVNZVkxNS9hdXRvLXdvcmxkLy5naXRodWIvd29ya2Zsb3dzL2F0dGVz
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0031294Z dGF0aW9uLWNhbmFyeS55bWxAcmVmcy9oZWFkcy9tYWluMDgGCisGAQQBg78wARME
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0032109Z KgwoNjZhZjE0MzVmNGI4ZTkyYjMwMmU3YWE0ZTFlZGJhODRkYWE2YTg1ZTAhBgor
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0032968Z BgEEAYO/MAEUBBMMEXdvcmtmbG93X2Rpc3BhdGNoMFoGCisGAQQBg78wARUETAxK
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0033769Z aHR0cHM6Ly9naXRodWIuY29tL0NsZU1lWTE1L2F1dG8td29ybGQvYWN0aW9ucy9y
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0034580Z dW5zLzM0ODA0OTUxNTczL2F0dGVtcHRzLzEwFgYKKwYBBAGDvzABFgQIDAZwdWJs
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0035421Z aWMwUAYKKwYBBAGDvzABGARCDEByZXBvOkNsZU1lWTE1QDYyNjc2ODkxL2F1dG8t
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0036245Z d29ybGRAMTM1NzUxNDkzOTpyZWY6cmVmcy9oZWFkcy9tYWluMIGKBgorBgEEAdZ5
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0037187Z AgQCBHwEegB4AHYA3T0wasbHETJjGR4cmWc3AqJKXrjePK3/h4pygC8p7o4AAAGg
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0038462Z nhpKQwAABAMARzBFAiBR4Wfb6HiL8fZJ0wJuGdMkXBV+v/+BB+78fePcqr4LxgIh
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0039300Z AO0uok+F7DSgMWYlxl8YqQc2mUtFcdu36+KvJ0FQMQVTMAoGCCqGSM49BAMDA2gA
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0040341Z MGUCMEpKRyraJJHwzScBKYm41zh782T5/K3rxLn5xg0ga9F44BwRwcdUuH8mY2pG
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0041115Z e4vt9AIxAJ2gsUjHE/yuYJs+Sx2psRbUZTeInmkCANe0ddgP0H+ChIez1RM5wD6M
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0041700Z JLAX1lztNg==
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0042033Z -----END CERTIFICATE-----
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0042287Z 
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0042927Z ##[endgroup]
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0043611Z ^[[36mAttestation signature uploaded to Rekor transparency log^[[39m
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0044361Z https://search.sigstore.dev?logIndex=2825839790
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0045008Z ^[[36mAttestation uploaded to repository^[[39m
+canary	Attest only the fixed public text	2026-09-14T04:08:39.0045714Z https://github.com/CleMeY15/auto-world/attestations/47248332
+canary	Retain the genuine bundle for this exact run	﻿2026-09-14T04:08:39.0491190Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0492603Z ##[group]Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0493002Z with:
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0493252Z   name: attestation-canary-34804951573-1
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0494424Z   path: /home/runner/work/_temp/5ZtQEN/attestation.json
+canary	Retain the genuine bundle for this exact run	docs/fixtures/attestation-canary.txt
+canary	Retain the genuine bundle for this exact run	/home/runner/work/_temp/canary-gh-version.txt
+canary	Retain the genuine bundle for this exact run	/home/runner/work/_temp/canary-gh-help.txt
+canary	Retain the genuine bundle for this exact run	/home/runner/work/_temp/canary-gh-sha256.txt
+canary	Retain the genuine bundle for this exact run	/home/runner/work/_temp/canary-input-sha256.txt
+canary	Retain the genuine bundle for this exact run	/home/runner/work/_temp/canary-run.txt
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0495583Z   if-no-files-found: error
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0495832Z   retention-days: 14
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0496066Z   compression-level: 6
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0496581Z   overwrite: false
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0496806Z   include-hidden-files: false
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.0497059Z ##[endgroup]
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2202803Z (node:2376) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2204316Z (Use `node --trace-deprecation ...` to show where the warning was created)
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2326826Z Multiple search paths detected. Calculating the least common ancestor of all paths
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2329612Z The least common ancestor is /home/runner/work. This will be the root directory of the artifact
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2330469Z With the provided path, there will be 7 files uploaded
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2331382Z Artifact name is valid!
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.2331893Z Root directory input is valid!
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.4584195Z Beginning upload of artifact content to blob storage
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.4850425Z (node:2376) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.5324121Z Uploaded bytes 11055
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.5516866Z Finished uploading artifact content to blob storage!
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.5518436Z SHA256 digest of uploaded artifact zip is 7105aac0f8d9d142dd5a0b5f183f40b5d5f2be2b7fe0eaf6914525c2faa26bd2
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.5519790Z Finalizing artifact upload
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.7370444Z Artifact attestation-canary-34804951573-1.zip successfully finalized. Artifact ID 10332139163
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.7371723Z Artifact attestation-canary-34804951573-1 has been successfully uploaded! Final size is 11055 bytes. Artifact ID is 10332139163
+canary	Retain the genuine bundle for this exact run	2026-09-14T04:08:39.7378532Z Artifact download URL: https://github.com/CleMeY15/auto-world/actions/runs/34804951573/artifacts/10332139163
+canary	Post Read the reviewed public fixture and workflow	﻿2026-09-14T04:08:39.7579410Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.7580650Z Post job cleanup.
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8465460Z [command]/usr/bin/git version
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8509555Z git version 2.55.0
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8547357Z Temporarily overriding HOME='/home/runner/work/_temp/ff917271-5c5e-467a-9c48-02cc3174befb' before making global git config changes
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8549113Z Adding repository directory to the temporary git global config as a safe directory
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8553326Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/auto-world/auto-world
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8597364Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8638322Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8918146Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.8957182Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.9241339Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+canary	Post Read the reviewed public fixture and workflow	2026-09-14T04:08:39.9285500Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+canary	Complete job	﻿2026-09-14T04:08:39.9702966Z Cleaning up orphan processes
+canary	Complete job	2026-09-14T04:08:40.0033282Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

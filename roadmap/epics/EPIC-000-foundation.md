@@ -11,7 +11,7 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 2. `TASK-0002-canonical-vehicle-schema.md` — DONE; PR #4 merged at `fe82aaf`, main CI green
 3. `TASK-0003-source-registry-contract.md` — DONE; PR #5 merged and main verified at `79e6ab0`
 4. `TASK-0004-connector-sdk-contract.md` — DONE; PR #6 merged into accepted main `b9d22a2`
-5. `TASK-0005-local-data-infra.md` — IN_PROGRESS; data/native drafts unaccepted; bounded attestation diagnostic only, no automatic continuation
+5. `TASK-0005-local-data-infra.md` — IN_PROGRESS; data/native drafts unaccepted; attestation diagnostic PASS, producer retired through evidence PR; no automatic continuation
 6. `TASK-0006-first-vertical-slice-plan.md` — BLOCKED by TASK-0004 + TASK-0005
 
 ## Exit gate

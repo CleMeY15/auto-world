@@ -9,7 +9,7 @@ import { branchRef, classifyResult, mainRef, negativeProved, verificationArgs, v
 const mainSha = "a".repeat(40);
 const branchSha = "b".repeat(40);
 const fixturePath = "docs/fixtures/attestation-canary.txt";
-const workflowPath = ".github/workflows/attestation-canary.yml";
+const workflowPath = "docs/validation/attestation-canary/workflow.json";
 const validEntry = {
   attestation: { bundle: { testOnly: true } },
   verificationResult: { signature: { certificate: { testOnly: true } }, statement: { testOnly: true } },
@@ -32,7 +32,9 @@ async function inputs(t) {
   return { file, bundle, sha: mainSha, ref: mainRef };
 }
 
-test("manual canary has exactly one bounded job and no extra capability", async () => {
+test("retired canary archive retains the exact bounded producer and no active workflow", async () => {
+  await assert.rejects(readFile(".github/workflows/attestation-canary.yml"), { code: "ENOENT" });
+  assert.equal(createHash("sha256").update(await readFile(workflowPath)).digest("hex"), "013bf0a12942d74efa631e715a4b8d19c05f422814a184b7e831babd9331b9bd");
   // JSON is a YAML subset, allowing the real workflow to be checked with the
   // built-in parser rather than a new dependency or an ad-hoc YAML parser.
   const workflow = JSON.parse(await readFile(workflowPath, "utf8"));
@@ -99,6 +101,28 @@ test("both official invocations keep every common binding without mutually exclu
   }
   assert.throws(() => verificationArgs({ sha: "main", ref: mainRef, mode: "identity" }), /canary_policy_invalid/u);
   assert.throws(() => verificationArgs({ sha: mainSha, ref: "refs/heads/other", mode: "identity" }), /canary_policy_invalid/u);
+});
+
+test("recorded gh 2.98 non-TTY results preserve verified content and numeric exits", async (t) => {
+  // Replay exact captured CLI outputs, not a new cryptographic verification.
+  const captured = JSON.parse(await readFile("docs/validation/attestation-canary/initial-verification.json", "utf8"));
+  const options = await inputs(t);
+  let index = 0;
+  const result = await verifyPair(options, async () => captured.rawProcesses[index++]);
+  assert.equal(result.status, "VERIFIED");
+  assert.deepEqual(result.invocations.map((entry) => entry.exitCode), [0, 0]);
+  for (const raw of captured.rawProcesses.slice(4)) {
+    assert.equal(classifyResult(raw).status, "REJECTED");
+    assert.equal(classifyResult({ ...raw, stderr: raw.stderr + "\nTLS connection timeout" }).status, "ERROR");
+  }
+  index = 0;
+  await assert.rejects(verifyPair(options, async () => {
+    const raw = captured.rawProcesses[index++];
+    if (index === 1) return raw;
+    const changed = JSON.parse(raw.stdout);
+    changed[0].verificationResult.statement.subject = [];
+    return { ...raw, stdout: JSON.stringify(changed) };
+  }), /canary_verification_disagrees/u);
 });
 
 test("unexpected CLI, transport, malformed or ambiguous results are errors, never verified negatives", () => {

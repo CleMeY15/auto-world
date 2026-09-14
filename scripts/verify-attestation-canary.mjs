@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 export const repository = "CleMeY15/auto-world";
 export const workflow = `${repository}/.github/workflows/attestation-canary.yml`;
@@ -59,14 +60,12 @@ export function classifyResult(result) {
     if (/error creating|error getting trust|failed to create TUF|failed to get trusted root|no such host|network|connection |dial |TLS|timeout|deadline exceeded|x509:|unknown flag|no such file|unexpected end|unauthorized|forbidden|HTTP [45][0-9]{2}/iu.test(result.stderr)) {
       return { status: "ERROR", code: "cli_operational_error" };
     }
-    // gh 2.98.0 emits this fixed phase only after local bundle loading and
-    // verifier initialization. It does not expose the inner Sigstore mismatch.
-    if (result.code === 1 && /Sigstore verification failed/u.test(result.stderr) &&
-        /Error: verifying with issuer "sigstore\.dev"/u.test(result.stderr)) {
+    // Non-TTY gh 2.98.0 omits the progress phase. Accept only its exact
+    // diagnostic; negativeProved still requires genuine positive controls.
+    if (result.code === 1 && /^(?:Sigstore verification failed\s+)?Error: verifying with issuer "sigstore\.dev"$/u.test(result.stderr.trim())) {
       return { status: "REJECTED", code: "sigstore_verification_failed" };
     }
-    if (result.code === 1 && /Policy verification failed/u.test(result.stderr) &&
-        /expected (?:BuildSignerDigest|SourceRepositoryDigest|SourceRepositoryRef) to be /u.test(result.stderr)) {
+    if (result.code === 1 && /^(?:Policy verification failed\s+)?Error: expected (?:BuildSignerDigest|SourceRepositoryDigest|SourceRepositoryRef) to be [^\r\n]+, got [^\r\n]+$/u.test(result.stderr.trim())) {
       return { status: "REJECTED", code: "certificate_source_mismatch" };
     }
     return { status: "ERROR", code: "cli_unexpected_error" };
@@ -99,7 +98,7 @@ export async function verifyPair(options, execute = runGh) {
     const args = verificationArgs({ ...options, mode });
     const processResult = await execute(args);
     const result = classifyResult(processResult);
-    invocations.push({ mode, args, ...processResult, ...result });
+    invocations.push({ mode, args, ...processResult, exitCode: processResult.code, ...result });
     const currentFile = await snapshot(options.file, 1024);
     const currentBundle = await snapshot(options.bundle, 1024 * 1024);
     if (currentFile.digest !== fileBefore.digest || currentBundle.digest !== bundleBefore.digest) {
@@ -107,7 +106,14 @@ export async function verifyPair(options, execute = runGh) {
     }
   }
   const bothVerified = invocations.every((entry) => entry.status === "VERIFIED");
-  if (bothVerified && JSON.stringify(invocations[0].entry) !== JSON.stringify(invocations[1].entry)) {
+  // verifiedIdentity echoes the caller's identity policy (exact SAN versus
+  // workflow regexp), not a different signed object. Compare everything else.
+  const verifiedContent = (entry) => {
+    const content = { ...entry, verificationResult: { ...entry.verificationResult } };
+    delete content.verificationResult.verifiedIdentity;
+    return content;
+  };
+  if (bothVerified && !isDeepStrictEqual(verifiedContent(invocations[0].entry), verifiedContent(invocations[1].entry))) {
     throw new Error("canary_verification_disagrees");
   }
   return {
