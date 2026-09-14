@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync, realpathSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 const MiB = 1024 ** 2;
@@ -9,10 +9,14 @@ export const commandMonitorScript = String.raw`
 set -u
 set -o pipefail
 command=$1; stdout=$2; stderr=$3; marker=$4; timeout_seconds=$5; work=$6; retained=$7; work_limit=$8; retained_limit=$9; shift 9
-free_limit=$1; log_limit=$2; resource_checks=$3; shift 3
-pid=; terminating=0; reason=; measured_value=; measurement_reason=
+free_limit=$1; log_limit=$2; resource_checks=$3; resources=$4; shift 4
+pid=; terminating=0; reason=; measured_value=; measurement_reason=; resource_sample_complete=0
 
 write_reason() { printf '%s' "$1" >"$marker"; }
+write_resource_snapshot() {
+  [ "$resource_sample_complete" -eq 1 ] || return 0
+  printf '{"workBytes":%s,"retainedBytes":%s,"freeBytes":%s}' "$sample_work_bytes" "$sample_retained_bytes" "$sample_free_bytes" >"$resources"
+}
 group_state() {
   groups=$(/usr/bin/timeout --signal=KILL 1s /usr/bin/ps -eo pgid= 2>/dev/null) || return 2
   for group in $groups; do
@@ -46,6 +50,7 @@ cancelled() {
   trap '' TERM INT HUP
   trap - EXIT
   reason=seaweed_command_cancelled
+  if ! write_resource_snapshot; then reason=seaweed_resource_snapshot_invalid; fi
   if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
   write_reason "$reason"
   exit 125
@@ -56,6 +61,7 @@ unexpected_exit() {
   trap - EXIT
   if [ "$terminating" -eq 0 ] && [ -n "$pid" ]; then
     reason=seaweed_monitor_wrapper_failed
+    if ! write_resource_snapshot; then reason=seaweed_resource_snapshot_invalid; fi
     if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
     write_reason "$reason"
     exit 125
@@ -115,6 +121,7 @@ check_resources() {
   measure_tree "$work" work || return 1; work_bytes=$measured_value
   measure_tree "$retained" retained || return 1; retained_bytes=$measured_value
   measure_free "$work" work || return 1; free_bytes=$measured_value
+  sample_work_bytes=$work_bytes; sample_retained_bytes=$retained_bytes; sample_free_bytes=$free_bytes; resource_sample_complete=1
   if [ "$retained_bytes" -gt "$retained_limit" ]; then reason=seaweed_retained_budget_exceeded
   elif [ "$work_bytes" -gt $((work_limit - retained_bytes)) ]; then reason=seaweed_work_budget_exceeded
   elif [ "$free_bytes" -lt "$free_limit" ]; then reason=seaweed_free_space_reserve_failed
@@ -134,6 +141,7 @@ while kill -0 "$pid" 2>/dev/null; do
   if [ -n "$reason" ]; then
     trap '' TERM INT HUP
     trap - EXIT
+    if ! write_resource_snapshot; then reason=seaweed_resource_snapshot_invalid; fi
     if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
     write_reason "$reason"
     exit 125
@@ -145,6 +153,7 @@ trap - EXIT
 wait "$pid"; status=$?
 if group_state; then
   reason=seaweed_descendant_process_survived
+  if ! write_resource_snapshot; then reason=seaweed_resource_snapshot_invalid; fi
   if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
   write_reason "$reason"
   exit 125
@@ -152,6 +161,7 @@ else
   state=$?
   if [ "$state" -gt 1 ]; then
     reason=seaweed_process_group_inspection_failed
+    if ! write_resource_snapshot; then reason=seaweed_resource_snapshot_invalid; fi
     if ! terminate_group; then reason=seaweed_process_group_cleanup_failed; fi
     write_reason "$reason"
     exit 125
@@ -160,15 +170,20 @@ fi
 exit "$status"
 `;
 
+function pathEntryExists(file) {
+  try { lstatSync(file); return true; }
+  catch (error) { if (error?.code === "ENOENT") return false; throw error; }
+}
+
 function ownedRegularFile(file, parent) {
-  if (!path.isAbsolute(file) || path.dirname(path.resolve(file)) !== parent || existsSync(file)) throw new Error("seaweed_command_monitor_path_invalid");
+  if (!path.isAbsolute(file) || path.dirname(path.resolve(file)) !== parent || pathEntryExists(file)) throw new Error("seaweed_command_monitor_path_invalid");
 }
 
 const fixedMonitorReasons = new Set([
   "seaweed_command_cancelled", "seaweed_command_log_exceeded", "seaweed_command_timeout", "seaweed_descendant_process_survived",
   "seaweed_free_space_reserve_failed", "seaweed_monitor_marker_invalid", "seaweed_monitor_wrapper_failed", "seaweed_monitor_wrapper_timeout",
   "seaweed_process_group_cleanup_failed",
-  "seaweed_process_group_inspection_failed", "seaweed_retained_budget_exceeded", "seaweed_work_budget_exceeded",
+  "seaweed_process_group_inspection_failed", "seaweed_resource_snapshot_invalid", "seaweed_retained_budget_exceeded", "seaweed_work_budget_exceeded",
 ]);
 const measurementReason = /^seaweed_measure_(?:stat_(?:stdout|stderr)|du_(?:work|retained)|df_work)_(?:(?:exit_(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|invalid_output)_attempt_[12]$/u;
 
@@ -178,6 +193,32 @@ export function isAllowedMonitorReason(value) {
 
 export function normalizeMonitorReason(value) {
   return isAllowedMonitorReason(value) ? value : "seaweed_monitor_marker_invalid";
+}
+
+export function parseResourceUsageSnapshot(value) {
+  if (!Buffer.isBuffer(value) || value.length === 0 || value.length > 256) throw new Error("seaweed_resource_snapshot_invalid");
+  const match = /^\{"workBytes":(0|[1-9][0-9]*),"retainedBytes":(0|[1-9][0-9]*),"freeBytes":(0|[1-9][0-9]*)\}$/u.exec(value.toString("utf8"));
+  if (!match) throw new Error("seaweed_resource_snapshot_invalid");
+  const [workBytes, retainedBytes, freeBytes] = match.slice(1).map(Number);
+  if (![workBytes, retainedBytes, freeBytes].every(Number.isSafeInteger)) throw new Error("seaweed_resource_snapshot_invalid");
+  return { workBytes, retainedBytes, freeBytes };
+}
+
+function readResourceUsageSnapshot(file) {
+  const descriptor = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const before = fstatSync(descriptor);
+    if (!before.isFile() || before.size < 1 || before.size > 256) throw new Error("seaweed_resource_snapshot_invalid");
+    const value = Buffer.alloc(before.size); let offset = 0;
+    while (offset < value.length) {
+      const count = readSync(descriptor, value, offset, value.length - offset, offset);
+      if (count === 0) throw new Error("seaweed_resource_snapshot_invalid");
+      offset += count;
+    }
+    const after = fstatSync(descriptor);
+    if (after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) throw new Error("seaweed_resource_snapshot_invalid");
+    return parseResourceUsageSnapshot(value);
+  } finally { closeSync(descriptor); }
 }
 
 export function validateMonitorOptions(command, args, options) {
@@ -196,8 +237,9 @@ export function validateMonitorOptions(command, args, options) {
   if (work === retained || retained.startsWith(`${work}${path.sep}`) || work.startsWith(`${retained}${path.sep}`) || lstatSync(work).dev !== lstatSync(retained).dev) throw new Error("seaweed_command_monitor_path_invalid");
   const outputParent = path.dirname(path.resolve(monitor.stdout));
   if (!existsSync(outputParent) || lstatSync(outputParent).isSymbolicLink() || realpathSync(outputParent) !== outputParent) throw new Error("seaweed_command_monitor_path_invalid");
-  for (const file of [monitor.stdout, monitor.stderr, monitor.marker]) ownedRegularFile(file, outputParent);
-  if (new Set([monitor.stdout, monitor.stderr, monitor.marker].map((file) => path.resolve(file))).size !== 3) throw new Error("seaweed_command_monitor_path_invalid");
+  const resources = `${monitor.marker}.resources`;
+  for (const file of [monitor.stdout, monitor.stderr, monitor.marker, resources]) ownedRegularFile(file, outputParent);
+  if (new Set([monitor.stdout, monitor.stderr, monitor.marker, resources].map((file) => path.resolve(file))).size !== 4) throw new Error("seaweed_command_monitor_path_invalid");
   const limits = monitor.limits;
   for (const key of ["workBytes", "retainedBytes", "minimumFreeBytes", "logBytes"]) {
     if (!Number.isSafeInteger(limits?.[key]) || limits[key] < 1) throw new Error("seaweed_command_monitor_limit_invalid");
@@ -211,11 +253,12 @@ export function validateMonitorOptions(command, args, options) {
 
 export function runMonitoredCommand(command, args, options) {
   const monitor = validateMonitorOptions(command, args, options);
+  const resources = `${monitor.marker}.resources`;
   const timeoutSeconds = Math.max(1, Math.ceil(options.timeout / 1000));
   const result = spawnSync("/usr/bin/bash", ["--noprofile", "--norc", "-c", commandMonitorScript, "seaweed-monitor", command,
     monitor.stdout, monitor.stderr, monitor.marker, String(timeoutSeconds), monitor.work, monitor.retained,
     String(monitor.limits.workBytes), String(monitor.limits.retainedBytes), String(monitor.limits.minimumFreeBytes), String(monitor.limits.logBytes),
-    options.cleanup === "redis_container" ? "0" : "1", ...args], {
+    options.cleanup === "redis_container" ? "0" : "1", resources, ...args], {
     cwd: options.cwd, encoding: null, env: options.env, maxBuffer: options.maxBuffer ?? MiB, windowsHide: true,
     timeout: options.timeout + CLEANUP_GRACE_MS, killSignal: "SIGTERM",
   });
@@ -230,7 +273,15 @@ export function runMonitoredCommand(command, args, options) {
   const markerSize = outputSize(monitor.marker);
   let monitorReason = oversized ? "seaweed_command_log_exceeded" : markerSize > 128 ? "seaweed_monitor_marker_invalid" : markerSize > 0 ? readFileSync(monitor.marker, "utf8") : undefined;
   if (monitorReason !== undefined) monitorReason = normalizeMonitorReason(monitorReason);
+  let resourceUsage;
+  if (pathEntryExists(resources)) {
+    try {
+      const info = lstatSync(resources);
+      if (!info.isFile() || info.isSymbolicLink() || info.size > 256) throw new Error("seaweed_resource_snapshot_invalid");
+      resourceUsage = readResourceUsageSnapshot(resources);
+    } catch { monitorReason = "seaweed_resource_snapshot_invalid"; }
+  }
   if (result.error?.code === "ETIMEDOUT" && monitorReason === undefined) monitorReason = "seaweed_monitor_wrapper_timeout";
-  for (const file of [monitor.stdout, monitor.stderr, monitor.marker]) if (existsSync(file)) rmSync(file, { force: false });
-  return { ...result, stdout, stderr, monitorReason };
+  for (const file of [monitor.stdout, monitor.stderr, monitor.marker, resources]) if (pathEntryExists(file)) unlinkSync(file);
+  return { ...result, stdout, stderr, monitorReason, resourceUsage };
 }

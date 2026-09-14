@@ -14,7 +14,7 @@ const codeSha = "b".repeat(40);
 const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, lock.requiredTests.path)));
 const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
-const phases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 
 function goLog(required) { return Buffer.from(required.map((key) => { const split = key.lastIndexOf(":"); return JSON.stringify({ Action: "pass", Package: key.slice(0, split), Test: key.slice(split + 1) }); }).join("\n") + "\n"); }
@@ -129,6 +129,7 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.phases = []; },
     (receipt) => { receipt.tools = {}; },
     (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "module_material_retention"); },
+    ...["compiler_work_cleanup", "source_restore_cleanup", "binary_work_cleanup"].map((required) => (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== required); }),
     (receipt) => { delete receipt.moduleMaterials; },
     (receipt) => { receipt.moduleMaterials.completed = 0; },
     (receipt) => { receipt.moduleMaterials.current = { module: 1, operation: "notice", notice: 1 }; },

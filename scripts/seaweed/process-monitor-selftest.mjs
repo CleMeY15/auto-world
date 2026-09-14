@@ -50,11 +50,15 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     const capWork = path.join(work, "cap"); mkdirSync(capWork);
     const capResult = runProbe("cap", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "dd if=/dev/zero of=\"$1\" bs=1048576 count=4 status=none; sleep 300", "cap-probe", path.join(capWork, "payload")], capWork, 10_000,
       { workBytes: 2 * MiB, retainedBytes: MiB, minimumFreeBytes: 1, logBytes: MiB });
-    if (capResult.monitorReason !== "seaweed_work_budget_exceeded") throw new Error("seaweed_monitor_cap_selftest_failed");
+    if (capResult.monitorReason !== "seaweed_work_budget_exceeded" || !Number.isSafeInteger(capResult.resourceUsage?.workBytes) ||
+        !Number.isSafeInteger(capResult.resourceUsage?.retainedBytes) || !Number.isSafeInteger(capResult.resourceUsage?.freeBytes) ||
+        capResult.resourceUsage.workBytes <= 2 * MiB || capResult.resourceUsage.retainedBytes < 0 || capResult.resourceUsage.freeBytes < 0) {
+      throw new Error("seaweed_monitor_cap_selftest_failed");
+    }
 
     const missingWork = path.join(work, "measurement"); mkdirSync(missingWork);
     const measurementResult = runProbe("measurement", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "rmdir -- \"$1\"; sleep 300", "measurement-probe", missingWork], missingWork, 10_000);
-    if (measurementResult.monitorReason !== "seaweed_measure_du_work_exit_1_attempt_2") throw new Error("seaweed_monitor_measurement_selftest_failed");
+    if (measurementResult.monitorReason !== "seaweed_measure_du_work_exit_1_attempt_2" || measurementResult.resourceUsage !== undefined) throw new Error("seaweed_monitor_measurement_selftest_failed");
 
     const cancellationWork = path.join(work, "cancellation"); mkdirSync(cancellationWork);
     const cancellationResult = runProbe("cancellation", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "printf '%s\\n' \"$$\"; kill -TERM \"$PPID\"; sleep 300"], cancellationWork, 10_000);
