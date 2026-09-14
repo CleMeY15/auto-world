@@ -13,14 +13,6 @@ function deferred() {
   return { promise, resolve };
 }
 
-async function waitFor(predicate, message) {
-  for (let turn = 0; turn < 2_000; turn += 1) {
-    if (predicate()) return;
-    await new Promise(nextTurn);
-  }
-  assert.fail(message);
-}
-
 function harness(options = {}) {
   const time = fakeTime();
   const trace = [];
@@ -265,15 +257,23 @@ test("cancellation while page commit is in flight resumes without refetching or 
   assert.equal(h.storage.snapshot().versions.size, 1);
 });
 
-test("cancellation during a rate-limit wait removes every scheduled timer", async () => {
+test("cancellation during a rate-limit wait removes every scheduled timer", { timeout: 10_000 }, async () => {
   const h = harness({ pages: [
     { items: [activeItem("a")] },
     { items: [activeItem("b")] },
   ], registry: { operations: { requestsPerMinute: 1 } } });
+  const waiting = deferred();
+  const schedule = h.ports.scheduler.schedule;
+  h.ports.scheduler.schedule = (ms, callback) => {
+    const timer = schedule(ms, callback);
+    if (h.events.some((event) => event.kind === "attempt.reserved" && event.pageOrdinal === 1)) waiting.resolve();
+    return timer;
+  };
   const controller = new globalThis.AbortController();
   const promise = sdk.runConnector(request(), h.ports, controller.signal);
-  await waitFor(() => h.trace.filter((entry) => entry === "store.attempt.reserved").length >= 2 && h.time.timers.size >= 1,
-    "rate-limit wait did not schedule its cancellable timers");
+  await waiting.promise;
+  assert.equal(fetchCount(h), 1);
+  assert.ok(h.time.timers.size >= 1, "rate-limit wait must have a cancellable timer");
   controller.abort("synthetic-private-reserve-cancel");
   const result = await h.time.drive(promise, { autoAdvance: false });
   assert.equal(result.status, "cancelled");
