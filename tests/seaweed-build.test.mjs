@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, clippedFinalizationTimeout, clippedTimeout, createRedisLifecycle, finalizeRedisCleanup,
+  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
   isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
-  sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure, validatePostTestState, validateRestoredSource,
+  moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure,
+  validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
   validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
 } from "../scripts/seaweed/build.mjs";
 
@@ -94,6 +95,35 @@ test("final module validation requires the complete unchanged closure and exact 
   assert.throws(() => validateFinalModuleClosure(changed, changed, lock), /seaweed_grpc_module_invalid/u);
   assert.deepEqual(validatePostTestState(closure, copied, lock.moduleFiles.after, lock), grpc);
   assert.throws(() => validatePostTestState(closure, copied, { ...lock.moduleFiles.after, "go.sum": { ...lock.moduleFiles.after["go.sum"], size: 1 } }, lock), /seaweed_module_files_changed/u);
+});
+
+test("module download and verification use an isolated modfile and validate all four checkpoints", () => {
+  const parent = mkdtempSync(path.join(tmpdir(), "seaweed-module-isolation-"));
+  const work = path.join(parent, "auto-world-seaweed-source-diagnostic"); const source = path.join(work, "source"); mkdirSync(source, { recursive: true });
+  const modBytes = Buffer.from("module example.test/isolation\n\ngo 1.26\n");
+  const sumBytes = Buffer.from(`example.test/dependency v1.0.0 h1:${"A".repeat(43)}=\n`);
+  writeFileSync(path.join(source, "go.mod"), modBytes); writeFileSync(path.join(source, "go.sum"), sumBytes);
+  const syntheticLock = { moduleFiles: { after: { "go.mod": { sha256: sha256(modBytes), size: modBytes.length }, "go.sum": { sha256: sha256(sumBytes), size: sumBytes.length } } } };
+  try {
+    const state = createModuleIsolation(source, work, syntheticLock);
+    const steps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+    for (const step of steps) assert.deepEqual(moduleIsolationArguments(step, state.modFile), step.endsWith("download") ? ["mod", "download", `-modfile=${state.modFile}`, "-json", "all"] : ["mod", "verify", `-modfile=${state.modFile}`]);
+    assert.throws(() => moduleIsolationArguments(steps[0], path.join(parent, "foreign.mod")), /seaweed_module_isolation_arguments_invalid/u);
+    writeFileSync(state.sumFile, Buffer.concat([sumBytes, Buffer.from(`example.test/added v1.0.0 h1:${"B".repeat(43)}=\n`)]));
+    const checkpoints = steps.map((step) => validateModuleIsolationCheckpoint(state, syntheticLock, step));
+    assert.deepEqual(checkpoints.map(({ name, result, source: sourceState, alternateMod, additionalSumLines }) => ({ name, result, source: sourceState, alternateMod, additionalSumLines })),
+      steps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", additionalSumLines: 1 })));
+    writeFileSync(path.join(source, "go.sum"), Buffer.concat([sumBytes, Buffer.from("mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_changed/u);
+    writeFileSync(path.join(source, "go.sum"), sumBytes); writeFileSync(path.join(source, "go.mod"), Buffer.concat([modBytes, Buffer.from("// mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_changed/u);
+    writeFileSync(path.join(source, "go.mod"), modBytes); writeFileSync(state.modFile, Buffer.concat([modBytes, Buffer.from("// mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_module_isolation_mod_changed/u);
+    writeFileSync(state.modFile, modBytes); writeFileSync(state.sumFile, Buffer.from(`example.test/substitute v1.0.0 h1:${"C".repeat(43)}=\n`));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_module_isolation_sum_invalid/u);
+    writeFileSync(state.sumFile, Buffer.alloc(8 * 1024 ** 2 + 1, 0x41));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_invalid/u);
+  } finally { rmSync(parent, { recursive: true, force: true }); }
 });
 
 test("retained shallow boundary, offline restore identity, and exact normal version fail closed", () => {
