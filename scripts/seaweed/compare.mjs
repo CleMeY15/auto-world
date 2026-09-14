@@ -25,7 +25,7 @@ const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, expected
 const testKeys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const requiredGroups = { normal: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)],
   fullTags: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)], projectGrpc: testKeys(requiredTests.required.seaweedGrpc) };
-const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "cleanup"];
+const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "patch_apply", "tidy_diff", "module_download", "module_verify", "production_build", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
 
 function validateBuildEvidence(directory, receipt, inventory, materialContract) {

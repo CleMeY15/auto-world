@@ -306,6 +306,29 @@ export function finalizeRedisCleanup(lifecycle, cleanup) {
   if (lifecycle.creationAttempted) cleanup();
 }
 
+export function cleanupBuildResources(receipt, operations, now = Date.now) {
+  const started = now(); let failure;
+  for (const [name, operation] of Object.entries(operations)) {
+    const phaseStarted = now();
+    try {
+      operation();
+      receipt.phases.push({ name, result: "PASSED", durationMs: now() - phaseStarted });
+    } catch (error) {
+      failure ??= error;
+      receipt.phases.push({ name, result: "FAILED", reason: sanitizedFailureReason(error), durationMs: now() - phaseStarted });
+    }
+  }
+  const summary = { name: "cleanup", result: failure ? "FAILED" : "PASSED", durationMs: now() - started };
+  if (failure) {
+    summary.reason = sanitizedFailureReason(failure);
+    receipt.result = "FAILED";
+    receipt.cleanupReason = summary.reason;
+    receipt.reason ??= summary.reason;
+  }
+  receipt.phases.push(summary);
+  return failure;
+}
+
 function validateOutput(output, runnerTemp, repeat) {
   const root = path.resolve(runnerTemp);
   const target = path.resolve(output);
@@ -580,8 +603,9 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     receipt.inventory = identity(path.join(output, "material-inventory.json"), 64 * 1024 ** 2);
     budget(); receipt.result = "PASSED";
   } catch (error) { primaryFailure = error; receipt.reason = sanitizedFailureReason(error); }
+  const cleanupOperations = {};
   if (redisLifecycle.creationAttempted) {
-    try {
+    cleanupOperations.redis_cleanup = () => {
       const name = `aw-seaweed-redis-${repeat}`;
       finalizeRedisCleanup(redisLifecycle, () => {
         runnerIndex += 1; const prefix = path.join(workRoot, "tmp", `command-${String(runnerIndex).padStart(3, "0")}-cleanup`);
@@ -591,11 +615,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
         if (/^seaweed_[a-z0-9_]+$/u.test(result?.monitorReason ?? "")) throw new Error(result.monitorReason);
         if ((result.error || result.status !== 0) && !isMissingRedisContainer(result, name)) throw new Error("seaweed_redis_cleanup_failed");
       });
-    }
-    catch (error) { cleanupFailure = error; receipt.result = "FAILED"; receipt.reason ??= sanitizedFailureReason(error); }
+    };
   }
-  try { removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot))); receipt.phases.push({ name: "cleanup", result: "PASSED", durationMs: 0 }); }
-  catch (error) { cleanupFailure ??= error; receipt.result = "FAILED"; receipt.reason ??= sanitizedFailureReason(error); receipt.phases.push({ name: "cleanup", result: "FAILED", reason: sanitizedFailureReason(error), durationMs: 0 }); }
+  cleanupOperations.work_cleanup = () => removeOwnedTree(workRoot, path.dirname(path.resolve(workRoot)));
+  cleanupFailure = cleanupBuildResources(receipt, cleanupOperations, now);
   receipt.aggregateLogBytes = aggregateLogs;
   try {
     if (receipt.result === "FAILED") {

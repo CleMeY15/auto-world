@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, clippedFinalizationTimeout, clippedTimeout, createRedisLifecycle, finalizeRedisCleanup,
+  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, clippedFinalizationTimeout, clippedTimeout, createRedisLifecycle, finalizeRedisCleanup,
   isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
   sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure, validatePostTestState, validateRestoredSource,
   validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
@@ -120,6 +120,27 @@ test("cleanup removes only the exact owned nonsymlink tree", () => {
   symlinkSync(target, linked, "junction");
   assert.throws(() => removeOwnedTree(linked, parent), /seaweed_cleanup_path_invalid/u);
   rmSync(parent, { recursive: true, force: true });
+});
+
+test("Redis cleanup failure remains visible while work cleanup runs and the primary failure is preserved", () => {
+  const receipt = { result: "FAILED", reason: "seaweed_normal_tests_failed", phases: [] };
+  const redisFailure = new Error("seaweed_redis_cleanup_failed"); let workRemoved = false;
+  const failure = cleanupBuildResources(receipt, {
+    redis_cleanup: () => { throw redisFailure; },
+    work_cleanup: () => { workRemoved = true; },
+  }, () => 100);
+  assert.equal(workRemoved, true);
+  assert.equal(failure, redisFailure);
+  assert.equal(receipt.reason, "seaweed_normal_tests_failed");
+  assert.equal(receipt.cleanupReason, "seaweed_redis_cleanup_failed");
+  assert.deepEqual(receipt.phases.map(({ name, result }) => ({ name, result })), [
+    { name: "redis_cleanup", result: "FAILED" }, { name: "work_cleanup", result: "PASSED" }, { name: "cleanup", result: "FAILED" },
+  ]);
+  const successfulBuild = { result: "PASSED", phases: [] };
+  cleanupBuildResources(successfulBuild, { work_cleanup: () => { throw new Error("private error details"); } }, () => 100);
+  assert.equal(successfulBuild.result, "FAILED");
+  assert.equal(successfulBuild.reason, "seaweed_operation_failed");
+  assert.doesNotMatch(JSON.stringify(successfulBuild), /private error/u);
 });
 
 test("artifact validation permits only bounded failure logs or a complete passed inventory", () => {
