@@ -1,6 +1,6 @@
 # TASK-0005A — First private package proof
 
-Status: FIRST_WRITE_RECORDED; read-only verification after a visibility correction is prepared below. Dated first-write execution, review and integration evidence is recorded in [PR18](https://github.com/CleMeY15/auto-world/pull/18). No runtime image is admitted.
+Status: REMOTE_READ_CONTROL_IMPLEMENTATION. The first-write and read-only outcomes are recorded below and in [PR18](https://github.com/CleMeY15/auto-world/pull/18) and [PR19](https://github.com/CleMeY15/auto-world/pull/19); the focused correction PR records its own dated verification evidence. No runtime image is admitted.
 
 ## Concrete first-write plan
 
@@ -49,6 +49,20 @@ Retire the publisher job from the manual workflow after its one write. The remai
 After review and protected-main quality, one fresh manual read-only run must prove authorized retrieval, anonymous denial, a second authorized positive and the exact file bytes copied from a stopped container. Its receipt's `sourceSha` identifies the verifier checkout; the image's build source remains `c302e812c31cdd2f8441054c8a88d3d7a5d0bec4` and original publication run `34865612395`. A later success does not change that first run's failure. Record actual continuation evidence in the focused PR; this plan alone does not establish a passed control.
 
 The observed privacy mismatch blocks candidate/service publication until corrected package settings and actual read controls pass. The user-waived fork probe remains `SKIPPED_BY_USER`, fork isolation `NOT_VERIFIED`. No local token expansion, new account, publisher, registry, archive claim or runtime admission is introduced.
+
+## Read-only result and remote-control diagnosis
+
+The verifier-only change was accepted in [PR19](https://github.com/CleMeY15/auto-world/pull/19) after actual Architect and distinct Critic approval at `6adf5fb704d0deb6d58d97ba349b00cc0560a71c`, ten targeted tests, a full uncached fresh-checkout check (77 root tests), and head quality. Protected merge `1ae9a6693c572e7c8824bcfe20dc1c5a68e4198e` preserved the reviewed workflow, tests, documentation and unchanged verifier; [main quality 34867058650](https://github.com/CleMeY15/auto-world/actions/runs/34867058650) passed.
+
+The one [read-only run 34867275879](https://github.com/CleMeY15/auto-world/actions/runs/34867275879), attempt 1, still FAILED with `package_registry_anonymous_pull_succeeded`. Its 2429-byte receipt has SHA-256 `899a6483bb880d8d36ba23107c048f90cd755887c797daa569cf9eb937e764ee`. No image was published. Reloaded authenticated Settings continued to show Private with the same repository linkage, inheritance and sole Actions grant.
+
+A separate anonymous HTTP diagnostic returned 401 for the exact registry manifest URL. Following its `WWW-Authenticate` challenge to `https://ghcr.io/token`, with the exact service and repository pull scope but no credentials, returned 401/UNAUTHORIZED with no token. A same-daemon `docker pull` after an authenticated pull is therefore not sufficient evidence of remote anonymous access merely because its client configuration is empty. The first two failed receipts establish command outcomes; they must not be interpreted as proving a remote anonymous fetch. The first package's PUBLIC Settings observation remains independent evidence.
+
+The cause is established in the exact managed Docker source. Moby's [manifest store](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/manifest.go#L100-L153) returns a cached manifest without checking the remote registry when its repository source label matches. The [pull path](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/pull_v2.go#L369-L377) uses that store. An empty client configuration does not isolate this daemon cache, and deleting an image reference alone would not prove complete cache eviction.
+
+The correction uses three separate `docker buildx imagetools inspect --raw <repository@digest>` processes with authenticated, empty and authenticated Docker configurations, before the daemon pull. Buildx's [resolver](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/util/imagetools/inspect.go#L57-L124) queries the registry instead of the daemon image store. Its [raw printer](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/util/imagetools/printers.go#L35-L68) emits exact bytes without an added newline; each positive response must hash to the fixed expected manifest digest. Authentication comes from each process's [Docker configuration](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/store/storeutil/storeutil.go#L105-L107). Only after this remote sequence does one authenticated Docker pull support the existing image inspection and stopped-container byte comparison.
+
+Keep all permissions read-only, preserve owned cleanup and failure classification, and add regression coverage for a cached local pull returning success while the remote registry denies anonymous access. Actual corrected native evidence must be recorded before accepting the private-read proof or proceeding to candidate publication. No signing, new package, credential or waived fork test is introduced.
 
 ## Official references
 

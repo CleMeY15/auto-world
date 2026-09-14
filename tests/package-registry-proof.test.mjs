@@ -3,17 +3,19 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { BOOTSTRAP } from "../scripts/package-bootstrap/prepare.mjs";
+import { BOOTSTRAP, sha256 } from "../scripts/package-bootstrap/prepare.mjs";
 import {
   REGISTRY_PROOF,
-  classifyAnonymousPull,
+  classifyAnonymousRemoteRead,
   parsePublishedDigest,
   parseRegistryArguments,
   runRegistryProof,
   validateRegistryContext,
+  validateRemoteManifest,
 } from "../scripts/package-bootstrap/registry-proof.mjs";
 
-const digest = `sha256:${"d".repeat(64)}`;
+const rawManifest = '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"layers":[]}';
+const digest = `sha256:${sha256(Buffer.from(rawManifest))}`;
 const configId = `sha256:${"c".repeat(64)}`;
 const sha = "a".repeat(40);
 
@@ -58,12 +60,19 @@ test("published metadata requires the registry manifest digest", () => {
 });
 
 test("anonymous denial is distinct from network and successful access", () => {
-  assert.equal(classifyAnonymousPull({ status: 1, stdout: "", stderr: "unauthorized: authentication required" }), "AUTHORIZATION_DENIED");
-  assert.equal(classifyAnonymousPull({ status: 1, stdout: "", stderr: "denied: denied" }), "AUTHORIZATION_DENIED");
-  assert.throws(() => classifyAnonymousPull({ status: 1, stdout: "", stderr: "dial tcp: no such host" }), /package_registry_anonymous_pull_error/u);
-  assert.throws(() => classifyAnonymousPull({ status: 1, stdout: "unauthorized", stderr: "TLS handshake timeout" }), /package_registry_anonymous_pull_error/u);
-  assert.throws(() => classifyAnonymousPull({ status: null, error: new Error("timeout"), stdout: "unauthorized", stderr: "" }), /package_registry_anonymous_pull_error/u);
-  assert.throws(() => classifyAnonymousPull({ status: 0, stdout: "ok", stderr: "" }), /package_registry_anonymous_pull_succeeded/u);
+  assert.equal(classifyAnonymousRemoteRead({ status: 1, stdout: "", stderr: "unauthorized: authentication required" }), "AUTHORIZATION_DENIED");
+  assert.equal(classifyAnonymousRemoteRead({ status: 1, stdout: "", stderr: "denied: denied" }), "AUTHORIZATION_DENIED");
+  assert.throws(() => classifyAnonymousRemoteRead({ status: 1, stdout: "", stderr: "dial tcp: no such host" }), /package_registry_anonymous_remote_read_error/u);
+  assert.throws(() => classifyAnonymousRemoteRead({ status: 1, stdout: "unauthorized", stderr: "TLS handshake timeout" }), /package_registry_anonymous_remote_read_error/u);
+  assert.throws(() => classifyAnonymousRemoteRead({ status: null, error: new Error("timeout"), stdout: "unauthorized", stderr: "" }), /package_registry_anonymous_remote_read_error/u);
+  assert.throws(() => classifyAnonymousRemoteRead({ status: 0, stdout: rawManifest, stderr: "" }), /package_registry_anonymous_remote_read_succeeded/u);
+});
+
+test("remote manifest bytes must hash to the exact requested registry digest", () => {
+  assert.deepEqual(validateRemoteManifest(rawManifest, digest), { sha256: digest, size: Buffer.byteLength(rawManifest) });
+  for (const invalid of [`${rawManifest}\n`, "", Buffer.from(rawManifest)]) {
+    assert.throws(() => validateRemoteManifest(invalid, digest), /package_registry_remote_manifest_invalid/u);
+  }
 });
 
 function publishRunner({ calls, wrongMetadata = false, failBuild = false }) {
@@ -123,20 +132,23 @@ test("publish failure writes redacted receipt, cleans owned files, and emits no 
   assert.equal(existsSync(path.join(item.runnerTemp, "aw-package-registry-publish-123456789-attempt-1")), false);
 });
 
-function verifyRunner({ calls, copiedPayload = BOOTSTRAP.payload, anonymousMessage = "unauthorized: authentication required", repoDigests } ) {
+function verifyRunner({ calls, copiedPayload = BOOTSTRAP.payload, anonymousMessage = "unauthorized: authentication required", anonymousRemoteSuccess = false, mutatedAuthorizedRaw = false, repoDigests } ) {
   const subject = `${REGISTRY_PROOF.image}@${digest}`;
   return (command, args, options) => {
-    calls.push({ command, args, config: options.env.DOCKER_CONFIG, input: options.input });
+    calls.push({ command, args, buildxConfig: options.env.BUILDX_CONFIG, config: options.env.DOCKER_CONFIG, input: options.input });
     if (command === "git") return { status: 0, stdout: `${sha}\n`, stderr: "" };
     if (args[0] === "version" && args[1] === "--format") return { status: 0, stdout: "28.0.4|28.0.4\n", stderr: "" };
     if (args[0] === "buildx" && args[1] === "version") return { status: 0, stdout: "github.com/docker/buildx v0.37.0\n", stderr: "" };
     if (args[0] === "buildx" && args[1] === "inspect") return { status: 0, stdout: "BuildKit: v0.20.2\n", stderr: "" };
+    if (args[0] === "buildx" && args[1] === "imagetools" && args[2] === "inspect") {
+      if (options.env.DOCKER_CONFIG.endsWith("docker-anonymous")) {
+        return anonymousRemoteSuccess ? { status: 0, stdout: rawManifest, stderr: "" } : { status: 1, stdout: "", stderr: anonymousMessage };
+      }
+      return { status: 0, stdout: mutatedAuthorizedRaw ? `${rawManifest} ` : rawManifest, stderr: "" };
+    }
     if (args[0] === "login") return { status: 0, stdout: "", stderr: "" };
     if (args[0] === "image" && args[1] === "inspect" && args[2] === subject) return { status: 1, stdout: "", stderr: "Error: No such image" };
-    if (args[0] === "pull") {
-      if (options.env.DOCKER_CONFIG.endsWith("docker-anonymous")) return { status: 1, stdout: "", stderr: anonymousMessage };
-      return { status: 0, stdout: "pulled", stderr: "" };
-    }
+    if (args[0] === "pull") return { status: 0, stdout: "pulled from same-daemon cache", stderr: "" };
     if (args[0] === "image" && args[1] === "inspect" && args[2] === "--format") return { status: 0, stdout: JSON.stringify({ Id: configId, Os: "linux", Architecture: "amd64", Size: 4096, RepoDigests: repoDigests ?? [subject], Config: { Labels: { "org.opencontainers.image.source": BOOTSTRAP.sourceUrl } } }), stderr: "" };
     if (args[0] === "container" && args[1] === "inspect") return { status: 1, stdout: "", stderr: "Error: No such container" };
     if (args[0] === "create") return { status: 0, stdout: "container", stderr: "" };
@@ -152,21 +164,37 @@ test("verify proves authorized-denied-authorized sequence and exact stopped-cont
   const calls = [];
   const receipt = await runRegistryProof({ argv: ["verify", "--digest", digest, "--output", item.output], env: item.env, platform: "linux", commandRunner: verifyRunner({ calls }) });
   assert.equal(receipt.result, "PASSED");
-  assert.equal(receipt.authorizedPositiveBefore, "PASSED");
-  assert.equal(receipt.anonymousDenied, "PASSED");
-  assert.equal(receipt.authorizedPositiveAfter, "PASSED");
+  assert.equal(receipt.anonymousManifestDenied, "PASSED");
+  assert.equal(receipt.authorizedImagePull, "PASSED");
+  assert.deepEqual(receipt.remoteManifestBefore, { sha256: digest, size: Buffer.byteLength(rawManifest) });
+  assert.deepEqual(receipt.remoteManifestAfter, receipt.remoteManifestBefore);
   assert.equal(receipt.image.localImageIdentity.value, configId);
   assert.notEqual(receipt.image.localImageIdentity.value, receipt.manifestDigest);
   assert.equal(receipt.copiedPayload.sha256, "d5e5e59eda3174b385ac04154621244178be55d1a7f69f6cc6f6dd1fda43355d");
+  const remoteReads = calls.filter(({ args }) => args[0] === "buildx" && args[1] === "imagetools" && args[2] === "inspect");
+  assert.equal(remoteReads.length, 3);
+  assert.deepEqual(remoteReads.map(({ args }) => args.slice(0, 5)), Array(3).fill(["buildx", "imagetools", "inspect", "--raw", `${REGISTRY_PROOF.image}@${digest}`]));
+  assert.notEqual(remoteReads[0].config, remoteReads[1].config);
+  assert.equal(remoteReads[0].config, remoteReads[2].config);
+  assert.notEqual(remoteReads[0].buildxConfig, remoteReads[1].buildxConfig);
+  assert.match(remoteReads[0].buildxConfig, /docker-auth[\\/]buildx$/u);
+  assert.match(remoteReads[1].buildxConfig, /docker-anonymous[\\/]buildx$/u);
   const pulls = calls.filter(({ args }) => args[0] === "pull");
-  assert.equal(pulls.length, 3);
-  assert.notEqual(pulls[0].config, pulls[1].config);
+  assert.equal(pulls.length, 1);
+  assert.equal(pulls[0].config, remoteReads[0].config);
+  assert.equal(remoteReads.every((remoteRead) => calls.indexOf(remoteRead) < calls.indexOf(pulls[0])), true);
   assert.equal(calls.some(({ args }) => args[0] === "start" || args[0] === "run"), false);
   assert.equal(calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), true);
 });
 
-test("verify rejects repository/payload substitution and network errors while still cleaning", async (context) => {
-  for (const variant of [{ copiedPayload: "changed\n" }, { anonymousMessage: "dial tcp: no such host" }, { repoDigests: [`ghcr.io/other/image@${digest}`] }]) {
+test("verify rejects remote manifest, repository, and payload substitution plus anonymous success/network errors while still cleaning", async (context) => {
+  for (const variant of [
+    { copiedPayload: "changed\n" },
+    { anonymousMessage: "dial tcp: no such host" },
+    { anonymousRemoteSuccess: true },
+    { mutatedAuthorizedRaw: true },
+    { repoDigests: [`ghcr.io/other/image@${digest}`] },
+  ]) {
     const item = fixture("verify");
     context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
     const calls = [];
