@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "state": "diagnostic_only",
+  "source": {
+    "repositoryUrl": "https://github.com/seaweedfs/seaweedfs.git",
+    "commit": "c5073360007d28385a33426a42ac3e4ec504c5a3",
+    "tree": "bce9e3f66721208f35888124183f80bd76d64f90",
+    "version": "4.47",
+    "commitUnixTime": 1789349515,
+    "shallowBoundary": {
+      "sha256": "85485d485c3fb431c98532676da79828422e8b94102790984f473d14c8fc6300",
+      "size": 41
+    },
+    "bundleMaximumBytes": 268435456
+  },
+  "compiler": {
+    "version": "1.26.8",
+    "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
+    "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b",
+    "size": 66897291
+  },
+  "patch": {
+    "path": "infra/seaweed/seaweedfs-grpc.patch",
+    "sha256": "804c8ac03c3e4e01de04c102ace1ad73186116de983b451f01056e4600f24168",
+    "size": 12782
+  },
+  "moduleChanges": {
+    "path": "infra/seaweed/module-changes.tsv",
+    "sha256": "95520ffc42a3841efb1a083e6d06587adb1c3de23cc8a5e3ff180723d154e2f9",
+    "size": 591,
+    "count": 8
+  },
+  "requiredTests": {
+    "path": "infra/seaweed/required-tests.json",
+    "sha256": "d8a5b9f48011d6a3b1ef89ac9824dbf8f116fd7dc05b46b1c8dca49464ee221a",
+    "size": 6134
+  },
+  "moduleFiles": {
+    "before": {
+      "go.mod": {"sha256": "81182de1c78fc0a326f82ffc0a439e7fd3bb0ebb403980a86c244e917864aa42", "size": 27025},
+      "go.sum": {"sha256": "c59560626f27bf715b085ee46bf455310fae5b56cc5609e71d78940a8424b0ec", "size": 289547}
+    },
+    "after": {
+      "go.mod": {"sha256": "7a1d96559ebe8b9d8511d7a7dd15ee5318af173800d96aa14056e9dfc8b20a44", "size": 27055},
+      "go.sum": {"sha256": "c08d65bcd30f67841cf3f04846d51478aaa66b030a94428a6148fc724e69028b", "size": 289607}
+    }
+  },
+  "grpc": {
+    "version": "v1.85.0-dev.0.20260825072537-93e31b48545e",
+    "sum": "h1:ar+feAPij1Znzug45m6AoShUCc5AaR8FLA3I6LZd94k=",
+    "goModSum": "h1:7aY/KlAHanMAVIWHnk8wloQsdlfwzDz/PP9vCbJG6CU="
+  },
+  "build": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "goamd64": "v1",
+    "cgoEnabled": "0",
+    "tags": [],
+    "commitValue": "c507336+aw.804c8ac03c3e",
+    "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.804c8ac03c3e"
+  },
+  "upstreamMaterials": [
+    {"path": ".github/workflows/container_release_unified.yml", "sha256": "7ba730a8e13b668d66b289775fe8e62b06b27ea746be0916f2586e95b431bfd6", "size": 26221},
+    {"path": ".github/workflows/go.yml", "sha256": "abcd9350a5ee2dfca9d6ab293b4489435c968ce6576f86a1120b8c5646b52ebe", "size": 4895},
+    {"path": "docker/Dockerfile.go_build", "sha256": "11a241820f964d1b5a03ce85289266d2eb76d0f62f4fe9459d546454d2acf064", "size": 5463},
+    {"path": "LICENSE", "sha256": "7094898c0a92745e8e2c053e8c7f03bfc023bd9901249cb4df2f42fa92a6ee17", "size": 11537},
+    {"path": "weed/glog/LICENSE", "sha256": "dc1f5d2d43c5531dfe0acaf4e950ea5dbe3e61e1850cf0e983bda7efc10d6693", "size": 10464}
+  ],
+  "redis": {
+    "subject": "redis@sha256:76961cd2a0f40ef6fdd334b6b1b3a76a2bad1848d89f3030ca30a7521d4a9493",
+    "requiredTests": [
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis:TestListDirectoryEntriesRemovesOrphanedIndexMembers",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis:TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis:TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis:TestDeleteFolderChildrenRemovesTheListing",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestListDirectoryEntriesRemovesOrphanedIndexMembers",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestRemoveOrphanedDirectoryListMemberSkipsSuperLargeDirectory",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestListDirectoryEntriesRemovesIndexMembersExpiredByRedis",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestListDirectoryEntriesDeletesLogicallyExpiredEntries",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestDeleteExpiredEntryKeepsRecreatedValue",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestDeleteIfUnchangedScriptOnlyDeletesSameBytes",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis2:TestDeleteEntryKeepsChildListing",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis3:TestDeleteEntryKeepsChildListing",
+      "github.com/seaweedfs/seaweedfs/weed/filer/redis3:TestRemovingTheLastChildDropsTheListing"
+    ]
+  },
+  "grpcProjectTests": [
+    "TestShouldInvalidateConnection_MarshalErrorIsPerRequest",
+    "TestShouldInvalidateConnection_CallerContextExpiryIsPerRequest",
+    "TestShouldInvalidateConnection_StaleChannelStillInvalidates",
+    "TestShouldInvalidateConnection_NonCancellableContextIsNoEvidence",
+    "TestShouldInvalidateConnection_ClientConnClosingIsNotStale",
+    "TestShouldInvalidateConnection_ResourceExhaustedIsPerRequest",
+    "TestShouldInvalidateConnection_GenuineInternalStillInvalidates",
+    "TestShouldInvalidateConnection_TransportErrorsStillInvalidate",
+    "TestIsClientSideMarshalError_RequiresGrpcStatus",
+    "TestWithGrpcClient_AbandonedRequestKeepsSharedConnection",
+    "TestWithGrpcClient_EndedStreamKeepsSharedConnection",
+    "TestWithGrpcClient_LogChunkReadFailureKeepsSharedConnection"
+  ],
+  "limits": {
+    "innerDeadlineMs": 5100000,
+    "finalizationReserveMs": 180000,
+    "workBytes": 12884901888,
+    "minimumFreeBytes": 1073741824,
+    "retainedBytes": 2147483648,
+    "logBytes": 67108864,
+    "aggregateLogBytes": 134217728
+  },
+  "notRun": ["linux/386", "windows", "freebsd", "darwin"]
+}
