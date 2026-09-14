@@ -123,7 +123,7 @@ export function parseBuildKitVersions(value) {
   if (typeof value !== "string" || Buffer.byteLength(value) > MAX_COMMAND_OUTPUT) {
     throw new Error("package_bootstrap_buildkit_identity_invalid");
   }
-  const versions = [...value.matchAll(/^\s*BuildKit:\s*(\S+)\s*$/gmu)].map((match) => match[1]);
+  const versions = [...value.matchAll(/^[\t ]*BuildKit(?: version)?:[\t ]*(\S+)[\t ]*$/gmu)].map((match) => match[1]);
   if (versions.length < 1 || versions.some((version) => !/^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/u.test(version))) {
     throw new Error("package_bootstrap_buildkit_identity_invalid");
   }

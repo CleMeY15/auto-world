@@ -113,6 +113,7 @@ test("local Docker config IDs cannot be confused with registry identities", () =
 });
 
 test("BuildKit identity parser requires actual per-node backend versions", () => {
+  assert.deepEqual(parseBuildKitVersions("Name: default\nBuildKit version: v0.20.0\n"), ["v0.20.0"]);
   assert.deepEqual(parseBuildKitVersions("Name: default\nNodes:\n  BuildKit: v0.17.3\n  BuildKit: v0.16.0-rc1\n"), ["v0.17.3", "v0.16.0-rc1"]);
   assert.throws(() => parseBuildKitVersions("github.com/docker/buildx v0.19.3\n"), /package_bootstrap_buildkit_identity_invalid/u);
   assert.throws(() => parseBuildKitVersions("BuildKit: unknown\n"), /package_bootstrap_buildkit_identity_invalid/u);
@@ -144,7 +145,7 @@ test("preparation emits a bounded local-only receipt and uses a stopped containe
     calls.push([command, ...args]);
     if (args[0] === "version") return { status: 0, stdout: "27.5.1|27.5.1\n", stderr: "" };
     if (args[0] === "buildx" && args[1] === "version") return { status: 0, stdout: "github.com/docker/buildx v0.19.3\n", stderr: "" };
-    if (args[0] === "buildx" && args[1] === "inspect") return { status: 0, stdout: "Name: default\n  BuildKit: v0.17.3\n", stderr: "" };
+    if (args[0] === "buildx" && args[1] === "inspect") return { status: 0, stdout: "Name: default\n  BuildKit version: v0.17.3\n", stderr: "" };
     if (args[0] === "image" && args[1] === "inspect" && args[2]?.startsWith("auto-world-bootstrap")) return { status: 1, stdout: "", stderr: "missing" };
     if (args[0] === "container" && args[1] === "inspect") return { status: 1, stdout: "", stderr: "missing" };
     if (args[0] === "image" && args[1] === "inspect" && args[2] === "--format") {

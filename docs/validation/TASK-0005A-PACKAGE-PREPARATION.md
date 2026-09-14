@@ -17,6 +17,8 @@ The workflow has `contents: read` only, no package permission, registry authenti
 
 Local tests and native Linux run evidence are pending. Publication is `NOT_ATTEMPTED`; actual package configuration is `NOT_VERIFIED`. The external authenticated fork access test remains `SKIPPED_BY_USER` and fork isolation `NOT_VERIFIED`, following the user's instruction "Zap le test d’accès". This preparation neither repeats nor replaces that waived probe.
 
+The initial Linux run [34859200995](https://github.com/CleMeY15/auto-world/actions/runs/34859200995) built the scratch image and cleaned its owned objects, but failed while parsing the backend version. The managed Buildx v0.37.0 [source](https://github.com/docker/buildx/blob/ac30b249211430b85fb8f37b6e7154b5c47ba0b6/commands/inspect.go#L91) emits `BuildKit version:`; Docker's documentation example still uses `BuildKit:`. The parser now covers both exact field names with a regression test. That failed run remains a failure; a fresh native run must prove the corrected path.
+
 Before a later first registry write, the concrete publication workflow and package/credential/retention plan still require Architect then distinct Critic review. Actual private package settings, anonymous denial and authorized retrieval remain separate controls. This increment grants no publication authority and does not reuse the retired ADR-0006 canary. TASK-0005A and TASK-0005 remain incomplete; TASK-0006 waits.
 
 ## Operations and rollback
