@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-import { validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
+import { isAllowedMonitorReason, normalizeMonitorReason, validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
 import { processIsAbsent, runProcessMonitorSelftest } from "../scripts/seaweed/process-monitor-selftest.mjs";
 
 test("process monitor absence check distinguishes ESRCH from a live process and other errors", () => {
@@ -40,4 +40,22 @@ test("process monitor validates owned disjoint paths and fixed resource limits",
     const linked = path.join(root, "linked"); symlinkSync(work, linked, "junction");
     assert.throws(() => validateMonitorOptions("/usr/bin/true", [], { ...options, monitor: { ...options.monitor, work: linked } }), /seaweed_command_monitor_path_invalid/u);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("process monitor accepts only bounded measurement evidence and fails closed on invalid markers", () => {
+  for (const reason of [
+    "seaweed_measure_stat_stdout_exit_0_attempt_1", "seaweed_measure_stat_stderr_exit_255_attempt_2",
+    "seaweed_measure_du_work_exit_124_attempt_2", "seaweed_measure_du_retained_invalid_output_attempt_1",
+    "seaweed_measure_df_work_exit_137_attempt_1", "seaweed_command_timeout",
+  ]) assert.equal(isAllowedMonitorReason(reason), true, reason);
+  for (const reason of [
+    "seaweed_measure_stat_work_exit_1_attempt_1", "seaweed_measure_df_retained_exit_1_attempt_1",
+    "seaweed_measure_du_work_exit_256_attempt_2", "seaweed_measure_du_work_exit_1_attempt_3",
+    "seaweed_measure_du_work_timeout_attempt_2", "seaweed_measure_du_work_exit_1_attempt_2\nsecret",
+    "seaweed_resource_measurement_failed", "seaweed_private_path_c_users_secret",
+  ]) {
+    assert.equal(isAllowedMonitorReason(reason), false, reason);
+    assert.equal(normalizeMonitorReason(reason), "seaweed_monitor_marker_invalid", reason);
+  }
+  assert.equal(normalizeMonitorReason("seaweed_measure_du_work_exit_137_attempt_2"), "seaweed_measure_du_work_exit_137_attempt_2");
 });

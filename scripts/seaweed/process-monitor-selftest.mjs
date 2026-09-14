@@ -42,6 +42,11 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     if (resistantResult.monitorReason !== "seaweed_command_timeout" || resistantPids.length !== 3 ||
         resistantPids.some((pid) => !Number.isSafeInteger(pid) || pid < 2 || !processIsAbsent(pid)) || !processIsAbsent(-resistantPids[0])) throw new Error("seaweed_monitor_interrupted_cleanup_selftest_failed");
 
+    const missingStdoutWork = path.join(work, "stdout-absent"); mkdirSync(missingStdoutWork);
+    const missingStdout = path.join(temporary, "stdout-absent.stdout");
+    const missingStdoutResult = runProbe("stdout-absent", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "rm -- \"$1\"; sleep 300", "stdout-probe", missingStdout], missingStdoutWork, 10_000);
+    if (missingStdoutResult.monitorReason !== "seaweed_measure_stat_stdout_exit_1_attempt_1") throw new Error("seaweed_monitor_stdout_measurement_selftest_failed");
+
     const capWork = path.join(work, "cap"); mkdirSync(capWork);
     const capResult = runProbe("cap", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "dd if=/dev/zero of=\"$1\" bs=1048576 count=4 status=none; sleep 300", "cap-probe", path.join(capWork, "payload")], capWork, 10_000,
       { workBytes: 2 * MiB, retainedBytes: MiB, minimumFreeBytes: 1, logBytes: MiB });
@@ -49,7 +54,7 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
 
     const missingWork = path.join(work, "measurement"); mkdirSync(missingWork);
     const measurementResult = runProbe("measurement", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "rmdir -- \"$1\"; sleep 300", "measurement-probe", missingWork], missingWork, 10_000);
-    if (measurementResult.monitorReason !== "seaweed_resource_measurement_failed") throw new Error("seaweed_monitor_measurement_selftest_failed");
+    if (measurementResult.monitorReason !== "seaweed_measure_du_work_exit_1_attempt_2") throw new Error("seaweed_monitor_measurement_selftest_failed");
 
     const cancellationWork = path.join(work, "cancellation"); mkdirSync(cancellationWork);
     const cancellationResult = runProbe("cancellation", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "printf '%s\\n' \"$$\"; kill -TERM \"$PPID\"; sleep 300"], cancellationWork, 10_000);

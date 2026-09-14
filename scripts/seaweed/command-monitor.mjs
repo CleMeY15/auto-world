@@ -10,7 +10,7 @@ set -u
 set -o pipefail
 command=$1; stdout=$2; stderr=$3; marker=$4; timeout_seconds=$5; work=$6; retained=$7; work_limit=$8; retained_limit=$9; shift 9
 free_limit=$1; log_limit=$2; resource_checks=$3; shift 3
-pid=; terminating=0; reason=
+pid=; terminating=0; reason=; measured_value=; measurement_reason=
 
 write_reason() { printf '%s' "$1" >"$marker"; }
 group_state() {
@@ -68,37 +68,53 @@ trap unexpected_exit EXIT
 /usr/bin/setsid -- "$command" "$@" >"$stdout" 2>"$stderr" & pid=$!
 started=$SECONDS; next_resource_check=$((SECONDS + 1))
 
+measurement_failed() {
+  tool=$1; target=$2; status=$3; attempt=$4
+  case "$status" in ''|*[!0-9]*) measurement_reason=$(printf 'seaweed_measure_%s_%s_invalid_output_attempt_%s' "$tool" "$target" "$attempt");;
+    *) measurement_reason=$(printf 'seaweed_measure_%s_%s_exit_%s_attempt_%s' "$tool" "$target" "$status" "$attempt");;
+  esac
+  return 1
+}
+measurement_invalid() {
+  measurement_reason=$(printf 'seaweed_measure_%s_%s_invalid_output_attempt_%s' "$1" "$2" "$3")
+  return 1
+}
 measure_file() {
-  measured=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/stat -c %s -- "$1" 2>/dev/null) || return 1
-  case "$measured" in ''|*[!0-9]*) return 1;; esac
-  printf '%s' "$measured"
+  measurement_reason=
+  measured_value=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/stat -c %s -- "$1" 2>/dev/null); status=$?
+  [ "$status" -eq 0 ] || measurement_failed stat "$2" "$status" 1 || return 1
+  case "$measured_value" in ''|*[!0-9]*) measurement_invalid stat "$2" 1 || return 1;; esac
+  return 0
 }
 measure_tree() {
-  attempt=0
+  attempt=0; measurement_reason=
   while [ "$attempt" -lt 2 ]; do
-    measured=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/du -sb -- "$1" 2>/dev/null) && {
-      read -r measured ignored <<SEAWEED_MEASURED
-$measured
-SEAWEED_MEASURED
-      case "$measured" in ''|*[!0-9]*) return 1;; esac
-      printf '%s' "$measured"
-      return 0
-    }
     attempt=$((attempt + 1))
+    measured_value=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/du -sb -- "$1" 2>/dev/null); status=$?
+    if [ "$status" -eq 0 ]; then
+      read -r measured_value ignored <<SEAWEED_MEASURED
+$measured_value
+SEAWEED_MEASURED
+      case "$measured_value" in ''|*[!0-9]*) measurement_invalid du "$2" "$attempt" || return 1;; esac
+      return 0
+    fi
+    measurement_failed du "$2" "$status" "$attempt" || true
     [ "$attempt" -lt 2 ] && /usr/bin/sleep 0.1
   done
   return 1
 }
 measure_free() {
-  measured=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/df --output=avail -B1 -- "$1" 2>/dev/null) || return 1
-  measured=$(printf '%s\n' "$measured" | /usr/bin/tail -n 1 | /usr/bin/tr -d '[:space:]')
-  case "$measured" in ''|*[!0-9]*) return 1;; esac
-  printf '%s' "$measured"
+  measurement_reason=
+  measured_value=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/df --output=avail -B1 -- "$1" 2>/dev/null); status=$?
+  [ "$status" -eq 0 ] || measurement_failed df "$2" "$status" 1 || return 1
+  measured_value=$(printf '%s\n' "$measured_value" | /usr/bin/tail -n 1 | /usr/bin/tr -d '[:space:]')
+  case "$measured_value" in ''|*[!0-9]*) measurement_invalid df "$2" 1 || return 1;; esac
+  return 0
 }
 check_resources() {
-  work_bytes=$(measure_tree "$work") || return 1
-  retained_bytes=$(measure_tree "$retained") || return 1
-  free_bytes=$(measure_free "$work") || return 1
+  measure_tree "$work" work || return 1; work_bytes=$measured_value
+  measure_tree "$retained" retained || return 1; retained_bytes=$measured_value
+  measure_free "$work" work || return 1; free_bytes=$measured_value
   if [ "$retained_bytes" -gt "$retained_limit" ]; then reason=seaweed_retained_budget_exceeded
   elif [ "$work_bytes" -gt $((work_limit - retained_bytes)) ]; then reason=seaweed_work_budget_exceeded
   elif [ "$free_bytes" -lt "$free_limit" ]; then reason=seaweed_free_space_reserve_failed
@@ -108,11 +124,11 @@ check_resources() {
 
 while kill -0 "$pid" 2>/dev/null; do
   if [ $((SECONDS - started)) -ge "$timeout_seconds" ]; then reason=seaweed_command_timeout; fi
-  if [ -z "$reason" ]; then stdout_bytes=$(measure_file "$stdout") || reason=seaweed_resource_measurement_failed; fi
-  if [ -z "$reason" ]; then stderr_bytes=$(measure_file "$stderr") || reason=seaweed_resource_measurement_failed; fi
+  if [ -z "$reason" ]; then measure_file "$stdout" stdout || reason=$measurement_reason; stdout_bytes=$measured_value; fi
+  if [ -z "$reason" ]; then measure_file "$stderr" stderr || reason=$measurement_reason; stderr_bytes=$measured_value; fi
   if [ -z "$reason" ] && [ "$stdout_bytes" -gt $((log_limit - stderr_bytes)) ]; then reason=seaweed_command_log_exceeded; fi
   if [ -z "$reason" ] && [ "$resource_checks" -eq 1 ] && [ "$SECONDS" -ge "$next_resource_check" ]; then
-    if ! check_resources; then reason=seaweed_resource_measurement_failed; fi
+    if ! check_resources; then reason=$measurement_reason; fi
     next_resource_check=$((SECONDS + 2))
   fi
   if [ -n "$reason" ]; then
@@ -146,6 +162,22 @@ exit "$status"
 
 function ownedRegularFile(file, parent) {
   if (!path.isAbsolute(file) || path.dirname(path.resolve(file)) !== parent || existsSync(file)) throw new Error("seaweed_command_monitor_path_invalid");
+}
+
+const fixedMonitorReasons = new Set([
+  "seaweed_command_cancelled", "seaweed_command_log_exceeded", "seaweed_command_timeout", "seaweed_descendant_process_survived",
+  "seaweed_free_space_reserve_failed", "seaweed_monitor_marker_invalid", "seaweed_monitor_wrapper_failed", "seaweed_monitor_wrapper_timeout",
+  "seaweed_process_group_cleanup_failed",
+  "seaweed_process_group_inspection_failed", "seaweed_retained_budget_exceeded", "seaweed_work_budget_exceeded",
+]);
+const measurementReason = /^seaweed_measure_(?:stat_(?:stdout|stderr)|du_(?:work|retained)|df_work)_(?:(?:exit_(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))|invalid_output)_attempt_[12]$/u;
+
+export function isAllowedMonitorReason(value) {
+  return typeof value === "string" && (fixedMonitorReasons.has(value) || measurementReason.test(value));
+}
+
+export function normalizeMonitorReason(value) {
+  return isAllowedMonitorReason(value) ? value : "seaweed_monitor_marker_invalid";
 }
 
 export function validateMonitorOptions(command, args, options) {
@@ -197,7 +229,7 @@ export function runMonitoredCommand(command, args, options) {
   const stderr = !oversized && existsSync(monitor.stderr) ? readFileSync(monitor.stderr) : Buffer.alloc(0);
   const markerSize = outputSize(monitor.marker);
   let monitorReason = oversized ? "seaweed_command_log_exceeded" : markerSize > 128 ? "seaweed_monitor_marker_invalid" : markerSize > 0 ? readFileSync(monitor.marker, "utf8") : undefined;
-  if (monitorReason !== undefined && !/^seaweed_[a-z0-9_]+$/u.test(monitorReason)) monitorReason = "seaweed_monitor_marker_invalid";
+  if (monitorReason !== undefined) monitorReason = normalizeMonitorReason(monitorReason);
   if (result.error?.code === "ETIMEDOUT" && monitorReason === undefined) monitorReason = "seaweed_monitor_wrapper_timeout";
   for (const file of [monitor.stdout, monitor.stderr, monitor.marker]) if (existsSync(file)) rmSync(file, { force: false });
   return { ...result, stdout, stderr, monitorReason };

@@ -590,24 +590,32 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const moduleDirectory = path.join(materials, "modules"); mkdirSync(moduleDirectory);
     const moduleInventory = [];
     let grpcNotices = new Set();
-    for (const module of rawModules) {
-      if (module.Error || typeof module.Path !== "string" || typeof module.Version !== "string" || typeof module.Zip !== "string" || typeof module.GoMod !== "string" || typeof module.Info !== "string") throw new Error("seaweed_module_output_invalid");
-      const key = `${module.Path}@${module.Version}`; const id = sha256(Buffer.from(key)); const target = path.join(moduleDirectory, id); mkdirSync(target);
-      const files = [["source.zip", module.Zip], ["module.mod", module.GoMod], ["module.info", module.Info]];
-      const retained = {};
-      for (const [name, sourceFile] of files) { copyFileSync(sourceFile, path.join(target, name)); retained[name] = identity(path.join(target, name), 256 * 1024 ** 2); }
-      const listing = run("module_license_list", "/usr/bin/unzip", ["-Z1", module.Zip], { env: gitEnv, log: false, budget: false }).toString("utf8").split("\n").filter((name) => /(^|\/)(?:license|notice|copying)(?:\.[^/]*)?$/iu.test(name));
-      const notices = [];
-      for (let index = 0; index < listing.length; index += 1) {
-        const bytes = run("module_notice", "/usr/bin/unzip", ["-p", module.Zip, listing[index]], { env: gitEnv, log: false, budget: false });
-        if (bytes.length < 1 || bytes.length > 1024 ** 2) throw new Error("seaweed_module_notice_invalid");
-        const name = `notice-${String(index + 1).padStart(3, "0")}.txt`; writeFileSync(path.join(target, name), bytes, { flag: "wx" });
-        notices.push({ archiveEntry: listing[index], file: name, ...materialIdentity(bytes) });
-        if (module.Path === "google.golang.org/grpc") grpcNotices.add(path.posix.basename(listing[index]).toLowerCase());
+    receipt.moduleMaterials = { total: rawModules.length, completed: 0, current: null };
+    phase("module_material_retention", () => {
+      for (const [moduleIndex, module] of rawModules.entries()) {
+        receipt.moduleMaterials.current = { module: moduleIndex + 1, operation: "module_files" };
+        if (module.Error || typeof module.Path !== "string" || typeof module.Version !== "string" || typeof module.Zip !== "string" || typeof module.GoMod !== "string" || typeof module.Info !== "string") throw new Error("seaweed_module_output_invalid");
+        const key = `${module.Path}@${module.Version}`; const id = sha256(Buffer.from(key)); const target = path.join(moduleDirectory, id); mkdirSync(target);
+        const files = [["source.zip", module.Zip], ["module.mod", module.GoMod], ["module.info", module.Info]];
+        const retained = {};
+        for (const [name, sourceFile] of files) { copyFileSync(sourceFile, path.join(target, name)); retained[name] = identity(path.join(target, name), 256 * 1024 ** 2); }
+        receipt.moduleMaterials.current = { module: moduleIndex + 1, operation: "license_list" };
+        const listing = run("module_license_list", "/usr/bin/unzip", ["-Z1", module.Zip], { env: gitEnv, log: false, budget: false }).toString("utf8").split("\n").filter((name) => /(^|\/)(?:license|notice|copying)(?:\.[^/]*)?$/iu.test(name));
+        const notices = [];
+        for (let index = 0; index < listing.length; index += 1) {
+          receipt.moduleMaterials.current = { module: moduleIndex + 1, operation: "notice", notice: index + 1 };
+          const bytes = run("module_notice", "/usr/bin/unzip", ["-p", module.Zip, listing[index]], { env: gitEnv, log: false, budget: false });
+          if (bytes.length < 1 || bytes.length > 1024 ** 2) throw new Error("seaweed_module_notice_invalid");
+          const name = `notice-${String(index + 1).padStart(3, "0")}.txt`; writeFileSync(path.join(target, name), bytes, { flag: "wx" });
+          notices.push({ archiveEntry: listing[index], file: name, ...materialIdentity(bytes) });
+          if (module.Path === "google.golang.org/grpc") grpcNotices.add(path.posix.basename(listing[index]).toLowerCase());
+        }
+        moduleInventory.push({ id, path: module.Path, version: module.Version, sum: module.Sum, goModSum: module.GoModSum, files: retained, notices });
+        receipt.moduleMaterials.completed = moduleInventory.length;
+        receipt.moduleMaterials.current = null;
+        if (moduleInventory.length % 25 === 0) budget();
       }
-      moduleInventory.push({ id, path: module.Path, version: module.Version, sum: module.Sum, goModSum: module.GoModSum, files: retained, notices });
-      if (moduleInventory.length % 25 === 0) budget();
-    }
+    });
     if (!grpcNotices.has("license") || !grpcNotices.has("notice.txt")) throw new Error("seaweed_grpc_notices_missing");
     const grpc = moduleInventory.find((entry) => entry.path === "google.golang.org/grpc");
     if (!grpc || grpc.version !== lock.grpc.version || grpc.sum !== lock.grpc.sum || grpc.goModSum !== lock.grpc.goModSum) throw new Error("seaweed_grpc_module_invalid");
