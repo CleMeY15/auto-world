@@ -129,8 +129,9 @@
         "version": "2.9.10.6",
         "finding": {
           "id": "CVE-2021-20190",
-          "fixedVersion": "2.9.10.7",
-          "derivation": "source DB range [2.9.0,2.9.10.7) contains 2.9.10.6"
+          "fixedVersion": "2.9.10.7, 2.6.7.5",
+          "derivation": "source DB range [2.9.0,2.9.10.7) contains 2.9.10.6; the fresh DB also lists the publisher-confirmed 2.6.7.5 backport",
+          "advisoryRefresh": "2026-09-14: https://github.com/FasterXML/jackson-databind/issues/2854 confirms both fixed releases"
         }
       },
       "networkExpectation": "local JAR-analyzer archive; the CVE expectation is source-derived against the captured local DB, not a promise about a fresh mutable DB"
@@ -139,24 +140,26 @@
       "id": "java-jar-clean-candidate",
       "kind": "jar-analyzer-jar",
       "source": {
-        "artifactUrl": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.15.0/jackson-core-2.15.0.jar",
-        "sha1Url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.15.0/jackson-core-2.15.0.jar.sha1",
-        "provenance": "Maven Central release artifact; external test data only, never a runtime dependency"
+        "artifactUrl": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar",
+        "sha1Url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar.sha1",
+        "provenance": "Maven Central release artifact fetched 2026-09-14; publisher SHA-1 and embedded Maven coordinates checked, LICENSE and NOTICE retained; external test data only, never a runtime dependency"
       },
       "material": [
         {
-          "path": "java/jackson-core-2.15.0.jar",
-          "sha256": "5b483f68fa9dd6aa37da37d1f79dd5c4b9464238f4f0660a242cb6b5c724950c",
-          "sha1": "12f334a1dc9c6d2854c43ae314024dde8b3ad572",
-          "size": 542635
+          "path": "java/jackson-core-2.18.8.jar",
+          "sha256": "ab865e39f01403598748b090a3bf528616e701913a71afc37a227daa0fabb4ae",
+          "sha1": "459eb2c4bb30bd6898eb9bbe9d7a4c4140529b8b",
+          "size": 588007
         }
       ],
       "expected": {
-        "source": "FasterXML GHSA-h46c-h94j-95f3 plus Trivy JAR analyzer semantics",
+        "source": "FasterXML advisories https://github.com/advisories/GHSA-r7wm-3cxj-wff9 and https://github.com/advisories/GHSA-72hv-8253-57qq plus Trivy JAR analyzer semantics",
         "package": "com.fasterxml.jackson.core:jackson-core",
-        "version": "2.15.0",
+        "version": "2.18.8",
         "fixedFor": [
-          "CVE-2025-52999"
+          "CVE-2025-52999",
+          "CVE-2026-18401",
+          "GHSA-r7wm-3cxj-wff9"
         ],
         "findingExpectation": "must be zero only after first Linux scan with a freshly downloaded then frozen DB; any finding blocks without waiver"
       },

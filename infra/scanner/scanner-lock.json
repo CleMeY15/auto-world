@@ -40,14 +40,14 @@
     }
   ],
   "fixtures": [
-    { "path": "infra/scanner/materials/scanner-fixtures/manifest.json", "sha256": "7b06986a3aafb185368f187b90f6a54283dc50c3c09fe3aece05ac08cb57d606", "size": 6803 },
+    { "path": "infra/scanner/materials/scanner-fixtures/manifest.json", "sha256": "989a90bf5ef2111a2e7d0a7f486a198a162e063865b66d91462c56d6e6d93e0d", "size": 7269 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.mod", "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f", "size": 1069 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/go.sum", "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527", "size": 129439 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod/go.mod", "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954", "size": 117 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod/go.sum", "sha256": "40841aa4376c744fdbe69526232cd205ffd9bb3abdf243ea6c11d9836f9c4804", "size": 1048 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod2/go.mod", "sha256": "8689f776807a618b0f33a8d99b2dd9033cc7120f2f635b572951046f7aff3929", "size": 101 },
     { "path": "infra/scanner/materials/scanner-fixtures/gomod/submod2/go.sum", "sha256": "708f2019e08317d697dd0075b855ef8e1c843b33acfe56c45f5d106667800b2f", "size": 1404 },
-    { "path": "infra/scanner/materials/scanner-fixtures/java/jackson-core-2.15.0.jar", "sha256": "5b483f68fa9dd6aa37da37d1f79dd5c4b9464238f4f0660a242cb6b5c724950c", "size": 542635 },
+    { "path": "infra/scanner/materials/scanner-fixtures/java/jackson-core-2.18.8.jar", "sha256": "ab865e39f01403598748b090a3bf528616e701913a71afc37a227daa0fabb4ae", "size": 588007 },
     { "path": "infra/scanner/materials/scanner-fixtures/java/test.war", "sha256": "b852f605a56a1e109bdd17aaa8d85007c4327708bf6e3b4b56a9876b4a1077ba", "size": 2525883 },
     { "path": "infra/scanner/materials/trivy/test-repo-git-worktree.tar.gz", "sha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393", "size": 34282 },
     { "path": "infra/scanner/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9", "size": 296692 }

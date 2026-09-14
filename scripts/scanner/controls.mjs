@@ -148,8 +148,12 @@ export function validateFixtureReport(fixture, report, expectedVersion = SCANNER
       const [, id, packageName, version, fixed] = JSON.parse(entry);
       return id === expected.id && packageName === fixture.expected.package && version === fixture.expected.version && fixed === expected.fixedVersion;
     })) fail("scanner_fixture_detection_missing");
-  } else if (fixture.id === "java-jar-clean-candidate" && inventory.findings.length !== 0) {
-    fail("scanner_clean_fixture_has_findings");
+  } else if (fixture.id === "java-jar-clean-candidate") {
+    if (!inventory.packages.some((entry) => {
+      const [, type, packageName, version] = JSON.parse(entry);
+      return type === "jar" && packageName === fixture.expected.package && version === fixture.expected.version;
+    })) fail("scanner_clean_fixture_inventory_missing");
+    if (inventory.findings.length !== 0) fail("scanner_clean_fixture_has_findings");
   }
   return inventory;
 }
