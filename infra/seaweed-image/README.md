@@ -19,7 +19,9 @@ diagnostic annotations, which are not output filesystem fields. It does not
 replace the original layer evidence. A future builder must authenticate all ten
 compressed descriptors and uncompressed DiffIDs, inspect complete streams,
 reject unsupported metadata and reproduce this inventory from actual bytes
-before using the plan. This increment does not implement that reader/writer.
+before using the plan. The [read-only replay library](../../docs/validation/TASK-0005A-SEAWEED-BASE-SCAN.md)
+implements the bounded reader and inventory comparison. A writer and authenticated
+source adapter remain separate requirements; replay alone builds no candidate.
 
 The two registry JSON files are preserved byte-for-byte. `.gitattributes` prevents
 Windows line-ending conversion for all three hash-bound metadata files. The

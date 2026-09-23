@@ -6,6 +6,8 @@ Owner role: Platform/SRE executor; independent code/security and architecture re
 
 ## Goal
 
+Latest preparation checkpoint: PR38's exact transformation/notice plan is merged at `5033fb847cf5a657d078c6a57bcb61fdd4714f5e`, with final-head/main CI passing 211 Linux root tests and all gates. The subsequent [read-only public base replay](../../docs/validation/TASK-0005A-SEAWEED-BASE-SCAN.md) validates streaming archive contents and overlays without construction or publication. Full source run35875100636 remains a separate pending gate.
+
 Produce a reviewed corrected scanner and fresh exact-subject image audits, then a separately reviewed managed private-image admission path, so TASK-0005 can finish its existing data infrastructure. Replace the unmerged all-native ORAS/Cosign bootstrap proposal with [ADR-0007](../../docs/decisions/ADR-0007-private-image-admission.md); preserve historical PR8 and its evidence.
 
 ## Dependencies and contracts
