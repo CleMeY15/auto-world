@@ -5,6 +5,14 @@ export const MAX_DATABASE_AGE_MS = 48 * 60 * 60 * 1000;
 const MAX_DISPOSITION_MS = 30 * 24 * 60 * 60 * 1000;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/u;
+// Byte-level evidence: docs/validation/TASK-0005A-SEAWEED-IMAGE-INVENTORY.md.
+// This immutable platform contains all three executables, independent of its tag/role.
+const SEAWEED_INVENTORIED_PLATFORM = "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362";
+const SEAWEED_EXECUTABLE_TARGETS = [
+  ["usr/bin/weed", "lang-pkgs", "gobinary"],
+  ["usr/bin/weed-volume", "lang-pkgs", "rustbinary"],
+  ["usr/bin/weed-worker", "lang-pkgs", "rustbinary"],
+];
 
 function invalid(code = "scanner_image_report_invalid") {
   throw new Error(code);
@@ -132,6 +140,13 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
         blockers.push({ ...identity, code: "image_vulnerability_blocked" });
       } else if (!dispositions.some((entry) => approvedDisposition(entry, identity, at))) {
         blockers.push({ ...identity, code: "unfixed_high_needs_independent_disposition" });
+      }
+    }
+  }
+  if (pin.platform.digest === SEAWEED_INVENTORIED_PLATFORM) {
+    for (const [target, resultClass, type] of SEAWEED_EXECUTABLE_TARGETS) {
+      if (!targets.has(JSON.stringify([target, resultClass, type]))) {
+        blockers.push({ code: "image_inventory_incomplete", imageDigest: pin.platform.digest, target, class: resultClass, type });
       }
     }
   }
