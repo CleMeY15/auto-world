@@ -1,5 +1,5 @@
 import {
-  close, constants, fstat, fsync, lstatSync, mkdirSync, openSync, realpathSync, write,
+  close, closeSync, constants, fchmodSync, fstat, fsync, lstatSync, mkdirSync, openSync, realpathSync, write,
 } from "node:fs";
 import {
   lstat, mkdir, open, readdir, realpath, rename, rmdir, unlink,
@@ -169,6 +169,7 @@ function extractionSink(root, uid, owned, staging, syncFile) {
     ensureOutputParent(root, entry.path, uid, owned, staging);
     const mode = entry.mode & 0o777;
     const fd = openSync(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
+    try { fchmodSync(fd, mode); } catch (error) { closeSync(fd); throw error; }
     let closed = false; let closing = false; const closeWaiters = [];
     const recordAndClose = (callback) => {
       if (closed) { callback(); return; }
