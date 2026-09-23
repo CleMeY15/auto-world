@@ -21,14 +21,14 @@
   },
   "patch": {
     "path": "infra/seaweed/seaweedfs-grpc.patch",
-    "sha256": "804c8ac03c3e4e01de04c102ace1ad73186116de983b451f01056e4600f24168",
-    "size": 12782
+    "sha256": "3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e",
+    "size": 14347
   },
   "moduleChanges": {
     "path": "infra/seaweed/module-changes.tsv",
-    "sha256": "95520ffc42a3841efb1a083e6d06587adb1c3de23cc8a5e3ff180723d154e2f9",
-    "size": 591,
-    "count": 8
+    "sha256": "7dfd9a9e7ce891613dd331c3bbfb61232280230ea1f2c16c8e33c63ed5df807f",
+    "size": 668,
+    "count": 9
   },
   "requiredTests": {
     "path": "infra/seaweed/required-tests.json",
@@ -41,14 +41,14 @@
       "go.sum": {"sha256": "d0da511e41d4013cbcc31d959d7533edb8312cfefa8722919085d5cbc6eb8fe2", "size": 289547}
     },
     "after": {
-      "go.mod": {"sha256": "7a1d96559ebe8b9d8511d7a7dd15ee5318af173800d96aa14056e9dfc8b20a44", "size": 27055},
-      "go.sum": {"sha256": "c08d65bcd30f67841cf3f04846d51478aaa66b030a94428a6148fc724e69028b", "size": 289607}
+      "go.mod": {"sha256": "6803ea39c1176404f6a1aac5c49e4d040c6accfd19ed55db212710ffcd951c5c", "size": 27085},
+      "go.sum": {"sha256": "dee7582180d7e55516b5ae224556769118716f502d33550c3c914a9f0c3b7f29", "size": 289667}
     }
   },
   "grpc": {
-    "version": "v1.85.0-dev.0.20260825072537-93e31b48545e",
-    "sum": "h1:ar+feAPij1Znzug45m6AoShUCc5AaR8FLA3I6LZd94k=",
-    "goModSum": "h1:7aY/KlAHanMAVIWHnk8wloQsdlfwzDz/PP9vCbJG6CU="
+    "version": "v1.85.0-dev.0.20260915183914-4e49413dcab7",
+    "sum": "h1:5+EEM1fC0yjOZID0NUZVrE2+8M/+1TclNrSz/l1xMYs=",
+    "goModSum": "h1:Ovl0ECo4xx5r4kn/6d4BPSNB7OIFuu6EAjOzjtVAKaM="
   },
   "build": {
     "goos": "linux",
@@ -56,8 +56,8 @@
     "goamd64": "v1",
     "cgoEnabled": "0",
     "tags": [],
-    "commitValue": "c507336+aw.804c8ac03c3e",
-    "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.804c8ac03c3e"
+    "commitValue": "c507336+aw.3930d2fef5a7",
+    "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.3930d2fef5a7"
   },
   "upstreamMaterials": [
     {"path": ".github/workflows/container_release_unified.yml", "sha256": "1d671a6559ebc436fca48a7a062be2a6dfbd5981110c6758ad3ae3e995589680", "size": 25668},

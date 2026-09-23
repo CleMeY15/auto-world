@@ -16,6 +16,8 @@ const lock = JSON.parse(readFileSync(path.join(root, "infra/seaweed/seaweed-lock
 
 test("Seaweed lock binds the exact reviewed source, compiler, patch, manifest, and production variant", () => {
   assert.equal(validateSeaweedLock(lock), lock);
+  assert.throws(() => validateSeaweedLock({ ...lock, grpc: { ...lock.grpc, version: "v1.85.0-dev.0.20260825072537-93e31b48545e" } }), /seaweed_lock_invalid/u);
+  assert.throws(() => validateSeaweedLock({ ...lock, build: { ...lock.build, commitValue: "c507336+aw.804c8ac03c3e" } }), /seaweed_lock_invalid/u);
   assert.throws(() => validateSeaweedLock({ ...lock, patch: { ...lock.patch, size: lock.patch.size + 1 } }), /seaweed_lock_invalid/u);
   for (const field of ["patch", "moduleChanges", "requiredTests"]) {
     const bytes = readFileSync(path.join(root, lock[field].path));

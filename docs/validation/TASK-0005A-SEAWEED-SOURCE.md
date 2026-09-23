@@ -4,24 +4,27 @@ Status: SOURCE_DIAGNOSTIC_REPAIR. This focused increment evaluates a correction 
 
 ## Inputs and derivative identity
 
-Use SeaweedFS 4.47 source commit `c5073360007d28385a33426a42ac3e4ec504c5a3`, tree `bce9e3f66721208f35888124183f80bd76d64f90`. The [official advisory](https://github.com/advisories/GHSA-2v4p-qf9q-27wj) identifies the affected gRPC development line; the [upstream correction](https://github.com/grpc/grpc-go/commit/93e31b48545e2a8aaeb6e06b47fb249f94e6297f) is selected as `v1.85.0-dev.0.20260825072537-93e31b48545e`. This preserves the selected development line rather than downgrading to an older release.
+Use SeaweedFS 4.47 source commit `c5073360007d28385a33426a42ac3e4ec504c5a3`, tree `bce9e3f66721208f35888124183f80bd76d64f90`. The [official advisory](https://github.com/advisories/GHSA-2v4p-qf9q-27wj) identifies the affected gRPC development line. The current candidate follows [SeaweedFS's upstream security update](https://github.com/seaweedfs/seaweedfs/commit/4fd67001d9204bcc12d00f4496d9bfc2fa88afb2) to `v1.85.0-dev.0.20260915183914-4e49413dcab7`, which includes the minimum `93e31b` security correction and later compatibility fixes. It remains an exact development-line pseudo-version, not a released gRPC tag. The previous candidate and its failed native outcomes remain recorded below.
 
-The generated patch changes only `go.mod` and `go.sum`: 12,782 bytes, SHA-256 `804c8ac03c3e4e01de04c102ace1ad73186116de983b451f01056e4600f24168`. Preparation with official Go 1.26.8 passed `go mod tidy -diff`, `go mod verify` and reverse patch checking; this preparation did not build or test the application. The before/after inventories each contain 1,160 modules with these eight version changes:
+The generated patch changes only `go.mod` and `go.sum`: 14,347 bytes, SHA-256 `3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e`. Preparation with official Go 1.26.8 passed `go mod tidy -diff` and `go mod verify`; patch/material tests independently apply it to exact original Git bytes. This preparation did not build or test the application. The before/after inventories each contain 1,160 modules with these nine version changes:
 
 | Module | Before | After |
 | --- | --- | --- |
 | `cel.dev/expr` | `v0.25.2` | `v0.25.3` |
 | `github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp` | `v1.34.0` | `v1.35.0` |
-| `github.com/envoyproxy/go-control-plane/envoy` | `v1.37.0` | `v1.39.0` |
+| `github.com/envoyproxy/go-control-plane/envoy` | `v1.37.0` | `v1.39.1-0.20260819172001-e6e3fd93e4be` |
 | `github.com/googleapis/enterprise-certificate-proxy` | `v0.3.20` | `v0.3.21` |
 | `go.opentelemetry.io/contrib/detectors/gcp` | `v1.44.0` | `v1.45.0` |
 | `go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp` | `v0.69.0` | `v0.70.0` |
+| `go.opentelemetry.io/proto/otlp` | `v1.10.0` | `v1.11.0` |
 | `google.golang.org/genproto/googleapis/api` | `v0.0.0-20260715232425-e75dac1f907d` | `v0.0.0-20260817212433-ac3dfec99bb1` |
-| `google.golang.org/grpc` | `v1.85.0-dev` | `v1.85.0-dev.0.20260825072537-93e31b48545e` |
+| `google.golang.org/grpc` | `v1.85.0-dev` | `v1.85.0-dev.0.20260915183914-4e49413dcab7` |
+
+Relative to the prior candidate, only gRPC, Envoy and OTLP advance. The exact [gRPC module](https://github.com/grpc/grpc-go/blob/4e49413dcab793ba19d466636d0535674928747a/go.mod) requires this Envoy version, whose [module file](https://github.com/envoyproxy/go-control-plane/blob/e6e3fd93e4be/envoy/go.mod) requires OTLP1.11.0. No module path is added or removed. Current gRPC module sum is `h1:5+EEM1fC0yjOZID0NUZVrE2+8M/+1TclNrSz/l1xMYs=` and module-file sum is `h1:Ovl0ECo4xx5r4kn/6d4BPSNB7OIFuu6EAjOzjtVAKaM=`; source before identities and all required test manifests are unchanged.
 
 The [upstream release matrix](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/.github/workflows/container_release_unified.yml) builds the normal Linux/amd64 variant with empty tags. Preserve that profile: no `5BytesOffset`, `CGO_ENABLED=0`, `GOAMD64=v1`, and the original static linker flags. The seven optional feature tags belong to the full variant and are used only for additional test coverage here.
 
-Two explicit provenance changes are applied to the [upstream build recipe](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/docker/Dockerfile.go_build): `-buildvcs=true` and the composite runtime marker `c507336+aw.804c8ac03c3e`. Keep the upstream version 4.47 and normal 30 GB semantics. Require the full original VCS revision and `vcs.modified=true`; retain the full patch identity separately. The marker identifies the derivative in both version output and metrics. No new upstream release number is invented.
+Two explicit provenance changes are applied to the [upstream build recipe](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/docker/Dockerfile.go_build): `-buildvcs=true` and the composite runtime marker `c507336+aw.3930d2fef5a7`. Keep the upstream version 4.47 and normal 30 GB semantics. Require the full original VCS revision and `vcs.modified=true`; retain the full patch identity separately. The marker identifies the derivative in both version output and metrics. No new upstream release number is invented.
 
 The compiler is the official Go 1.26.8 Linux/amd64 archive already locked for scanner work: 66,897,291 bytes, SHA-256 `d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b`. Original upstream packaging used a floating compiler image; equality with the published `/usr/bin/weed` cannot be established from that recipe. This diagnostic compares the two new pinned builds with each other.
 
