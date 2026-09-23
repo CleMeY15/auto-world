@@ -306,6 +306,32 @@ test("propagates sink failure, aborts before sinks, and rejects async sink opene
   assert.equal(calls, 0);
 });
 
+test("classifies caller abort during active delivery, awaits cleanup and never opens a later sink", async () => {
+  const bytes = zip([
+    { path: "weed", content: Buffer.alloc(256 * 1024, 0x61), mode: 0o100755 },
+    { path: "go-build-info.txt", content: "later", mode: 0o100644 },
+  ]);
+  const controller = new globalThis.AbortController();
+  const opened = [];
+  let destroyFinished = false;
+  await rejectsCode(scan(bytes, githubArtifactZipProfiles.build, (entry) => {
+    opened.push(entry.path);
+    return new Writable({
+      write() {
+        setTimeout(() => controller.abort(), 0);
+      },
+      destroy(error, callback) {
+        setTimeout(() => {
+          destroyFinished = true;
+          callback(error);
+        }, 10);
+      },
+    });
+  }, { signal: controller.signal }), "seaweed_artifact_zip_aborted");
+  assert.equal(destroyFinished, true);
+  assert.deepEqual(opened, ["weed"]);
+});
+
 test("rejects accessor source identities and short reads", async () => {
   const bytes = zip([{ path: "weed", content: "x", mode: 0o100755 }]);
   const accessor = { get size() { return bytes.length; }, readAt(position, length) { return bytes.subarray(position, position + length); } };
@@ -367,6 +393,7 @@ test("owned Linux wrapper rejects linked, hardlinked and writable workflow paths
 
     const writableRoot = path.join(outer, "writable-root");
     await mkdir(writableRoot, { mode: 0o720 });
+    await chmod(writableRoot, 0o720);
     const writableFile = path.join(writableRoot, "artifact.zip");
     await writeFile(writableFile, bytes, { mode: 0o600 });
     await assert.rejects(scanOwnedGitHubArtifactZip(options(writableFile, writableRoot)), /seaweed_artifact_zip_owned_path_invalid/u);

@@ -289,6 +289,9 @@ async function deliverEntry(source, entry, openEntrySink, signal) {
     if (inflater === undefined) await pipeline(input, verifier, sink);
     else await pipeline(input, inflater, verifier, sink);
   } catch (error) {
+    if (signal?.aborted === true && error?.name === "AbortError") {
+      throw zipError("seaweed_artifact_zip_aborted", error);
+    }
     throw ZIP_ERROR_CODES.has(error) ? error : zipError("seaweed_artifact_zip_entry_stream_invalid", error);
   }
   if (inflater !== undefined && inflater.bytesWritten !== entry.compressedSize) throw zipError("seaweed_artifact_zip_deflate_trailing_data");

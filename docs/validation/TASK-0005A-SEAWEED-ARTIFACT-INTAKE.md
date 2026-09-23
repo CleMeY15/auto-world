@@ -72,15 +72,16 @@ The pure reader accepted each exact one-file profile, and independent sinks
 matched the retained JSON bytes and PASSED semantics. The ignored
 `.omx/validation/zip-reader-tiny-real-corpus-proof.json` retains this local
 replay; it does not claim GitHub origin authority for a production caller.
-Pinned Node 22.23.2 local verification passes 11 targeted cases and skips
+Pinned Node 22.23.2 local verification passes 12 targeted cases and skips
 three Linux-only owned-file cases on Windows. The full forced `pnpm check`
-passes 262 root tests with five expected Windows-only skips, all package
+passes 263 root tests with five expected Windows-only skips, all package
 tests, lint, typecheck, nine builds, Secretlint over 279 repository files and
-dependency audit with no known findings. Independent Critic review found no
+dependency audit with no known findings. Independent Architect and distinct
+Critic reviews found no
 P0/P1/P2 issues on reader SHA-256
-`28389ef13cbf8b4bcd126add8f7ed87c1e6af19ee524be97122f57f7d1114978`
+`c7867b719031399b0de06cee4dc19e551e22f1088f11e08d77c1ee9f2f183b5e`
 and test SHA-256
-`c0d22933a9ee0100cbe8c85fa2b8999717e463b5cc9f42165271e6a69e825945`.
+`6d411b4656df37c0de61dba7adab0406b3f51d17448e48f350af768650c06974`.
 The focused PR records the exact commit, fresh-checkout and Linux CI gates;
 the three owned-file controls must pass there before integration.
 
