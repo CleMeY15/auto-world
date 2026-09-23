@@ -8,3 +8,4 @@ infra/seaweed/*.tsv -text
 infra/seaweed/required-tests.json -text
 infra/seaweed/DERIVATIVE-NOTICE.txt text eol=lf
 tests/fixtures/seaweed-source/upstream/** -text
+infra/seaweed-image/base-*.json -text
