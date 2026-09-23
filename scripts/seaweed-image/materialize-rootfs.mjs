@@ -281,7 +281,7 @@ async function executeMaterialization(options) {
   const { parent, uid, recipeRevision, createdAt, signal, timeoutMs } = options;
   let timedOut = false;
   const controller = new globalThis.AbortController();
-  const timer = globalThis.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs); timer.unref?.();
+  const timer = globalThis.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
   const operationSignal = signal === undefined ? controller.signal : globalThis.AbortSignal.any([signal, controller.signal]);
   const check = () => {
     if (timedOut) throw rootfsError("seaweed_rootfs_materialization_timeout");
