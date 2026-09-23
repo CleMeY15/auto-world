@@ -186,7 +186,7 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
 
     const missingWork = path.join(work, "measurement"); mkdirSync(missingWork);
     const measurementResult = runProbe("measurement", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "rmdir -- \"$1\"; sleep 300", "measurement-probe", missingWork], missingWork, 10_000);
-    if (measurementResult.monitorReason !== "seaweed_measure_du_work_root_invalid_attempt_2" || measurementResult.resourceUsage !== undefined) throw new Error("seaweed_monitor_measurement_selftest_failed");
+    if (measurementResult.monitorReason !== "seaweed_measure_du_work_root_invalid_attempt_1" || measurementResult.resourceUsage !== undefined) throw new Error("seaweed_monitor_measurement_selftest_failed");
 
     const treeProbeEnvironment = path.join(work, "tree-probe.bash");
     writeFileSync(treeProbeEnvironment, String.raw`
@@ -210,6 +210,7 @@ function /usr/bin/timeout() {
 }
 function /usr/bin/awk() {
   [ "$SEAWEED_TREE_CLASSIFIER_FAILURE" != 1 ] || return 1
+  if [ "$SEAWEED_TREE_CLASSIFIER_FAILURE" = 2 ]; then printf 'seaweed-du-class:none\n'; return 1; fi
   command /usr/bin/awk "$@"
 }
 `, { mode: 0o600 });
@@ -219,28 +220,31 @@ function /usr/bin/awk() {
       { name: "persistent", failures: 8, status: 1, attempts: 4, reason: "seaweed_measure_du_work_exit_1_attempt_4_other" },
       { name: "timeout", failures: 8, status: 124, attempts: 1, reason: "seaweed_measure_du_work_exit_124_attempt_1_other" },
       { name: "retained", failures: 8, status: 1, attempts: 2, reason: "seaweed_measure_du_retained_exit_1_attempt_2_other" },
-      { name: "swap", failures: 8, status: 1, attempts: 1, reason: "seaweed_measure_du_work_root_invalid_attempt_2" },
+      { name: "swap", failures: 8, status: 1, attempts: 1, reason: "seaweed_measure_du_work_root_invalid_attempt_1" },
+      { name: "initial-swap", failures: 0, status: 1, attempts: 0, reason: "seaweed_measure_du_work_root_invalid_attempt_1" },
       { name: "classifier", failures: 0, status: 1, attempts: 1, reason: "seaweed_measure_du_work_invalid_output_attempt_1_classifier_failed" },
+      { name: "classifier-exit", failures: 0, status: 1, attempts: 1, reason: "seaweed_measure_du_work_invalid_output_attempt_1_classifier_failed" },
     ];
     for (const probe of treeCases) {
       const name = `tree-${probe.name}`; const treeWork = path.join(work, name); mkdirSync(treeWork);
       const counter = path.join(work, `${name}.count`);
-      const treeResult = runProbe(name, "/usr/bin/bash", ["--noprofile", "--norc", "-c", probe.reason ? "sleep 300" :
+      const treeResult = runProbe(name, "/usr/bin/bash", ["--noprofile", "--norc", "-c", probe.name === "initial-swap" ?
+        'rmdir -- "$SEAWEED_TREE_TARGET"; ln -s -- "$SEAWEED_TREE_SENTINEL" "$SEAWEED_TREE_TARGET"; sleep 300' : probe.reason ? "sleep 300" :
         'while [ ! -f "$1" ] || [ "$(cat "$1")" -lt "$2" ]; do sleep 0.05; done; sleep 0.3',
       "tree-probe", counter, String(probe.attempts)], treeWork, 10_000, undefined, temporary, {
         BASH_ENV: treeProbeEnvironment, SEAWEED_TREE_TARGET: probe.name === "retained" ? retained : treeWork,
         SEAWEED_TREE_COUNTER: counter, SEAWEED_TREE_FAILURES: String(probe.failures), SEAWEED_TREE_STATUS: String(probe.status),
         SEAWEED_TREE_SWAP: probe.name === "swap" ? "1" : "0", SEAWEED_TREE_SENTINEL: sentinelDirectory,
-        SEAWEED_TREE_CLASSIFIER_FAILURE: probe.name === "classifier" ? "1" : "0",
+        SEAWEED_TREE_CLASSIFIER_FAILURE: probe.name === "classifier" ? "1" : probe.name === "classifier-exit" ? "2" : "0",
       });
       if (treeResult.monitorReason !== probe.reason || treeResult.groupAbsent !== true ||
-          Number(readFileSync(counter, "utf8").trim()) !== probe.attempts ||
+          (existsSync(counter) ? Number(readFileSync(counter, "utf8").trim()) : 0) !== probe.attempts ||
           (!probe.reason && (treeResult.status !== 0 || treeResult.error)) ||
           [treeResult.stdout, treeResult.stderr, ...(treeResult.output ?? [])].some((bytes) => Buffer.isBuffer(bytes) && bytes.includes("hostile-private-path"))) {
         throw new Error("seaweed_monitor_tree_measurement_selftest_failed");
       }
       assertSentinel();
-      if (probe.name === "swap") { unlinkSync(treeWork); mkdirSync(treeWork); }
+      if (probe.name === "swap" || probe.name === "initial-swap") { unlinkSync(treeWork); mkdirSync(treeWork); }
     }
 
     const orphanWork = path.join(work, "orphan-snapshot"); mkdirSync(orphanWork);

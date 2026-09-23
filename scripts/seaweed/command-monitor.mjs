@@ -138,12 +138,13 @@ measure_tree() {
   [ "$2" = work ] && maximum_attempts=4
   while [ "$attempt" -lt "$maximum_attempts" ]; do
     attempt=$((attempt + 1))
-    if [ "$attempt" -gt 1 ] && ! verify_path "$1"; then
+    if ! verify_path "$1"; then
       measurement_reason=$(printf 'seaweed_measure_du_%s_root_invalid_attempt_%s' "$2" "$attempt")
       return 1
     fi
     # Only a closed diagnostic class crosses this boundary, never stderr paths/text.
-    tree_output=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/du -sb -- "$1" 2> >(/usr/bin/awk '
+    tree_output=$(/usr/bin/timeout --signal=KILL 2s /usr/bin/du -sb -- "$1" 2> >(
+      if ! class_output=$(/usr/bin/awk '
       BEGIN { diagnostic = "none" }
       {
         current = "other"
@@ -154,7 +155,13 @@ measure_tree() {
         else if (diagnostic != current) diagnostic = "other"
       }
       END { printf "seaweed-du-class:%s\n", diagnostic }
-    ')); status=$?
+      ' 2>/dev/null); then class_output=seaweed-du-class:classifier_failed; fi
+      printf '%s\n' "$class_output"
+    )); status=$?
+    if ! verify_path "$1"; then
+      measurement_reason=$(printf 'seaweed_measure_du_%s_root_invalid_attempt_%s' "$2" "$attempt")
+      return 1
+    fi
     measurement_class=classifier_failed; class_count=0; value_count=0; measured_value=
     while IFS= read -r tree_line; do
       case "$tree_line" in
@@ -256,14 +263,17 @@ const fixedMonitorReasons = new Set([
   "seaweed_process_group_cleanup_failed",
   "seaweed_process_group_inspection_failed", "seaweed_resource_snapshot_invalid", "seaweed_retained_budget_exceeded", "seaweed_work_budget_exceeded",
 ]);
-const measurementReason = /^seaweed_measure_(?:stat_(?:stdout|stderr)|df_work)_(?:exit_(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|invalid_output)_attempt_[12]$/u;
-const treeMeasurementReason = /^seaweed_measure_du_(work|retained)_(?:exit_(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|invalid_output|root_invalid)_attempt_([1-4])(?:_(?:not_found|permission|io|other|classifier_failed))?$/u;
+const measurementReason = /^seaweed_measure_(?:stat_(?:stdout|stderr)|df_work)_(?:exit_(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|invalid_output)_attempt_1$/u;
+const treeMeasurementReason = /^seaweed_measure_du_(work|retained)_(exit_(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|invalid_output|root_invalid)_attempt_([1-4])(?:_(not_found|permission|io|other|classifier_failed))?$/u;
 
 export function isAllowedMonitorReason(value) {
   if (typeof value !== "string") return false;
   const tree = treeMeasurementReason.exec(value);
-  return fixedMonitorReasons.has(value) || measurementReason.test(value) ||
-    (tree !== null && Number(tree[2]) <= (tree[1] === "work" ? 4 : 2));
+  if (fixedMonitorReasons.has(value) || measurementReason.test(value)) return true;
+  if (tree === null || Number(tree[3]) > (tree[1] === "work" ? 4 : 2)) return false;
+  if (tree[2] === "root_invalid") return tree[4] === undefined;
+  if (tree[2] === "invalid_output") return tree[4] === undefined || tree[4] === "classifier_failed";
+  return tree[4] !== "classifier_failed";
 }
 
 export function normalizeMonitorReason(value) {
