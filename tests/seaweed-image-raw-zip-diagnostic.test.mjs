@@ -17,6 +17,7 @@ test("manual raw ZIP workflow has fixed read-only scope and no ZIP upload", asyn
   assert.match(bytes, /actions: read/u);
   assert.match(bytes, /persist-credentials: false/u);
   assert.match(bytes, /github\.ref == 'refs\/heads\/main'/u);
+  assert.match(bytes, /github\.run_number == 1 && github\.run_attempt == 1/u);
   assert.match(bytes, /raw-zip-diagnostic\.mjs download/u);
   assert.match(bytes, /raw-zip-diagnostic\.mjs cleanup/u);
 });
