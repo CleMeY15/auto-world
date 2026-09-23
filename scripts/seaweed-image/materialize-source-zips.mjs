@@ -322,6 +322,7 @@ function ensureOutputParent(root, entryPath, uid, owned, staging) {
 }
 
 function writeAll(fd, chunk, offset, callback) {
+  if (offset === chunk.length) { callback(); return; }
   write(fd, chunk, offset, chunk.length - offset, null, (error, written) => {
     if (error) callback(error);
     else if (written < 1) callback(materializationError("seaweed_source_materialization_output_invalid"));
