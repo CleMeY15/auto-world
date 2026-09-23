@@ -16,8 +16,8 @@ test("manual raw ZIP workflow has fixed read-only scope and no ZIP upload", asyn
   assert.match(bytes, /contents: read/u);
   assert.match(bytes, /actions: read/u);
   assert.match(bytes, /persist-credentials: false/u);
-  assert.doesNotMatch(bytes, /^    if:/mu);
-  assert.match(bytes, /    steps:\n      - name: Require the first reviewed main dispatch\n        run: \|/u);
+  assert.doesNotMatch(bytes, /^ {4}if:/mu);
+  assert.match(bytes, / {4}steps:\n {6}- name: Require the first reviewed main dispatch\n {8}run: \|/u);
   assert.match(bytes, /test "\$GITHUB_REPOSITORY" = 'CleMeY15\/auto-world'/u);
   assert.match(bytes, /test "\$GITHUB_EVENT_NAME" = 'workflow_dispatch'/u);
   assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
