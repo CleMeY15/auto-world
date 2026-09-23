@@ -7,8 +7,8 @@ import { retainModuleArchive, snapshotModuleArchive } from "../scripts/seaweed/m
 import { workTreeBytes } from "../scripts/seaweed/work-tree.mjs";
 import {
   armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, cleanupSuiteCache, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
-  isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
-  moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure,
+  expectedPatchScope, isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment, sourcePatchFileIdentities,
+  moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateChangedSourceScope, validateFinalModuleClosure,
   validateModuleArchivePaths, validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
   validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
 } from "../scripts/seaweed/build.mjs";
@@ -105,6 +105,8 @@ test("Seaweed lock binds the exact reviewed source, compiler, patch, manifest, a
   assert.throws(() => validateSeaweedLock({ ...lock, grpc: { ...lock.grpc, version: "v1.85.0-dev.0.20260825072537-93e31b48545e" } }), /seaweed_lock_invalid/u);
   assert.throws(() => validateSeaweedLock({ ...lock, build: { ...lock.build, commitValue: "c507336+aw.804c8ac03c3e" } }), /seaweed_lock_invalid/u);
   assert.throws(() => validateSeaweedLock({ ...lock, patch: { ...lock.patch, size: lock.patch.size + 1 } }), /seaweed_lock_invalid/u);
+  const changedSource = JSON.parse(JSON.stringify(lock)); changedSource.sourcePatchFiles.after[Object.keys(changedSource.sourcePatchFiles.after)[0]].size += 1;
+  assert.throws(() => validateSeaweedLock(changedSource), /seaweed_lock_invalid/u);
   for (const field of ["patch", "moduleChanges", "requiredTests"]) {
     const bytes = readFileSync(path.join(root, lock[field].path));
     assert.equal(bytes.length, lock[field].size);
@@ -184,8 +186,41 @@ test("final module validation requires the complete unchanged closure and exact 
   assert.throws(() => validateFinalModuleClosure(closure, closure.slice(1), lock), /seaweed_module_closure_changed/u);
   const changed = JSON.parse(JSON.stringify(closure)); changed[1].version += "-substituted";
   assert.throws(() => validateFinalModuleClosure(changed, changed, lock), /seaweed_grpc_module_invalid/u);
-  assert.deepEqual(validatePostTestState(closure, copied, lock.moduleFiles.after, lock), grpc);
-  assert.throws(() => validatePostTestState(closure, copied, { ...lock.moduleFiles.after, "go.sum": { ...lock.moduleFiles.after["go.sum"], size: 1 } }, lock), /seaweed_module_files_changed/u);
+  assert.deepEqual(validatePostTestState(closure, copied, lock.moduleFiles.after, lock.sourcePatchFiles.after, lock), grpc);
+  assert.throws(() => validatePostTestState(closure, copied, { ...lock.moduleFiles.after, "go.sum": { ...lock.moduleFiles.after["go.sum"], size: 1 } }, lock.sourcePatchFiles.after, lock), /seaweed_module_files_changed/u);
+  const changedSource = JSON.parse(JSON.stringify(lock.sourcePatchFiles.after)); changedSource[Object.keys(changedSource)[0]].size += 1;
+  assert.throws(() => validatePostTestState(closure, copied, lock.moduleFiles.after, changedSource, lock), /seaweed_source_patch_files_changed/u);
+});
+
+test("source patch inventory rejects missing, extra, unsafe and mutated files", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "seaweed-source-identities-"));
+  const descriptors = {};
+  try {
+    for (let index = 0; index < 18; index += 1) {
+      const name = `package-${index}/file-${index}.go`; const bytes = Buffer.from(`package fixture${index}\n`);
+      mkdirSync(path.join(directory, `package-${index}`)); writeFileSync(path.join(directory, ...name.split("/")), bytes);
+      descriptors[name] = { sha256: sha256(bytes), size: bytes.length };
+    }
+    assert.deepEqual(sourcePatchFileIdentities(directory, descriptors), descriptors);
+    const first = Object.keys(descriptors)[0]; writeFileSync(path.join(directory, ...first.split("/")), "package changed\n");
+    assert.throws(() => sourcePatchFileIdentities(directory, descriptors), /seaweed_source_patch_files_changed/u);
+    writeFileSync(path.join(directory, ...first.split("/")), `package fixture0\n`);
+    rmSync(path.join(directory, ...first.split("/")));
+    assert.throws(() => sourcePatchFileIdentities(directory, descriptors), /seaweed_source_patch_files_invalid/u);
+    writeFileSync(path.join(directory, ...first.split("/")), `package fixture0\n`);
+    const unsafe = { ...descriptors, "../escape.go": descriptors[first] }; delete unsafe[first];
+    assert.throws(() => sourcePatchFileIdentities(directory, unsafe), /seaweed_source_patch_files_invalid/u);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("changed source scope requires the exact tracked union and no untracked files", () => {
+  const expected = expectedPatchScope(lock); const bytes = (paths) => Buffer.from(`${paths.join("\n")}\n`);
+  assert.deepEqual(validateChangedSourceScope(bytes([...expected].reverse()), Buffer.alloc(0), lock), expected);
+  for (const [changed, untracked] of [[expected.slice(1), Buffer.alloc(0)], [[...expected, "weed/unexpected.go"], Buffer.alloc(0)],
+    [[...expected, expected[0]], Buffer.alloc(0)], [expected, Buffer.from("weed/untracked.go\n")]]) {
+    assert.throws(() => validateChangedSourceScope(bytes(changed), untracked, lock), /seaweed_patch_scope_invalid/u);
+  }
+  assert.throws(() => validateChangedSourceScope(Buffer.from(expected.join("\n")), Buffer.alloc(0), lock), /seaweed_patch_scope_invalid/u);
 });
 
 test("module download and verification use an isolated modfile and validate all four checkpoints", () => {
@@ -221,9 +256,14 @@ test("retained shallow boundary, offline restore identity, and exact normal vers
   const shallow = Buffer.from(`${lock.source.commit}\n`);
   assert.equal(validateShallowBoundary(shallow, lock), true);
   assert.throws(() => validateShallowBoundary(Buffer.from(`${"0".repeat(40)}\n`), lock), /seaweed_material_changed/u);
-  const restored = { fsck: "PASSED", head: lock.source.commit, tree: lock.source.tree, commitUnixTime: String(lock.source.commitUnixTime), pristine: lock.moduleFiles.before, corrected: lock.moduleFiles.after, changed: ["go.mod", "go.sum"] };
+  const restored = { fsck: "PASSED", head: lock.source.commit, tree: lock.source.tree, commitUnixTime: String(lock.source.commitUnixTime), pristine: lock.moduleFiles.before,
+    corrected: lock.moduleFiles.after, sourcePristine: lock.sourcePatchFiles.before, sourceCorrected: lock.sourcePatchFiles.after, changed: expectedPatchScope(lock) };
   assert.equal(validateRestoredSource(restored, lock), true);
-  for (const mutation of [{ ...restored, fsck: "FAILED" }, { ...restored, head: "0".repeat(40) }, { ...restored, tree: "0".repeat(40) }, { ...restored, changed: ["go.mod"] }]) assert.throws(() => validateRestoredSource(mutation, lock), /seaweed_source_restore_invalid/u);
+  const changedSource = JSON.parse(JSON.stringify(lock.sourcePatchFiles.after)); changedSource[Object.keys(changedSource)[0]].sha256 = "0".repeat(64);
+  for (const mutation of [{ ...restored, fsck: "FAILED" }, { ...restored, head: "0".repeat(40) }, { ...restored, tree: "0".repeat(40) },
+    { ...restored, changed: restored.changed.slice(1) }, { ...restored, sourceCorrected: changedSource }]) {
+    assert.throws(() => validateRestoredSource(mutation, lock), /seaweed_source_restore_invalid/u);
+  }
   const version = `version 30GB ${lock.source.version} ${lock.build.commitValue} linux amd64`;
   assert.equal(validateVersionOutput(version, lock), true);
   assert.throws(() => validateVersionOutput(`${version} substituted`, lock), /seaweed_version_output_invalid/u);

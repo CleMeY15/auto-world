@@ -19,7 +19,7 @@ Define a distinct derivative intended only for the existing Go server/S3 runtime
 Use these immutable inputs, with actual byte verification:
 
 - Public repository `chrislusf/seaweedfs`, Linux/amd64 platform manifest `sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362`, configuration `sha256:31d61f5e8771cbd5993912cd051be0c7bcdc207faaa12c50e1a3b8371631c927`. The manifest's ten compressed layer descriptors and configuration DiffIDs remain part of the retained input closure.
-- Seaweed source `c5073360007d28385a33426a42ac3e4ec504c5a3`, the compiler/patch/module identities in the reviewed `infra/seaweed/seaweed-lock.json`, and derivative marker `c507336+aw.3930d2fef5a7`. The current observed binary hash is historical until the complete native diagnostic passes.
+- Seaweed source `c5073360007d28385a33426a42ac3e4ec504c5a3`, the compiler/patch/module identities in the reviewed `infra/seaweed/seaweed-lock.json`, and derivative marker `c507336+aw.549ec92660ab` for the current copy-lock repair. The current observed binary hash is historical until the complete native diagnostic passes.
 - One complete retained artifact from a successful reviewed source run, its independent comparison and both successful build receipts. Bind expected repository, workflow, code SHA, run ID, attempt and material identities through trusted reviewed policy; artifact names or self-reported JSON alone are insufficient.
 
 Construct a flattened root filesystem from the exact base. Apply only this reviewed change set:

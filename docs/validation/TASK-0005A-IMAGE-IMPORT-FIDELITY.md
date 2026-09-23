@@ -1,8 +1,14 @@
 # TASK-0005A — Synthetic Docker import/save fidelity
 
-Status: first native diagnostic failed at saved-config validation; focused format correction under development. This diagnostic does not construct or admit a SeaweedFS image.
+Status: synthetic native import/save fidelity PASSED after the focused format correction. This diagnostic does not construct or admit a SeaweedFS image.
 
 ## Native checkpoint
+
+[PR36](https://github.com/CleMeY15/auto-world/pull/36) corrected the exact native metadata schema and merged as `0d691f9549803c6477746d29435f5cfc5399a76a`, preserving independently approved tree `1e6ac29a1f12708985ad878dfa6c3750e5145f84`. Architect and distinct Critic approved head `d8dc7929510734666fd6ff57457364cac99bfcc6` with no findings. Forced pinned local/fresh checks pass180 root tests plus2 Windows-only skips and all package gates; [final-head CI35870395721](https://github.com/CleMeY15/auto-world/actions/runs/35870395721) and [main CI35871640366](https://github.com/CleMeY15/auto-world/actions/runs/35871640366) pass182 root tests without skips. The23 focused tests include regressions that failed before correction.
+
+The new [native run35871640369](https://github.com/CleMeY15/auto-world/actions/runs/35871640369), attempt1 on that exact main, **PASSES all8 phases** on Docker client/server28.0.4. The exported archive is18,944 bytes, SHA-256 `299f93790bc0a9d39226ba13ef86b728426e409128132c4631a10d0257b87567`; its10 members contain the exact9-member authored filesystem. The7,168-byte layer retains DiffID `sha256:e654a92a8431f1bc550bbbbed3d7e6a96e7f862a07b27d2ab5fdad950b74687b`. The1,187-byte configuration and local image ID agree at `sha256:a1f5732aa84932b9a1c226fc7a63b64cdcf2d328fcdaa75f154d48f58f5e0952`, classified `CLASSIC_CONFIG_ID`. All content, mode, UID/GID, symlink, timestamp and closed config/history checks pass. `User` is observed as `PRESENT_EMPTY`; this observation does not authorize a future deviation from ADR-0008's concrete config contract. Exact image removal, tag/ID absence and temporary cleanup pass. No image was executed or published, and no Seaweed acceptance is established.
+
+### Preserved first failure
 
 [PR35](https://github.com/CleMeY15/auto-world/pull/35) merged as `5fd4927ca1e3c9fb474e2b7c1ec62d5353da1ca9`, preserving the independently approved tree `19a3d4ab3386540547f6352422f064f22adb64f0`. Final-head [CI35867603813](https://github.com/CleMeY15/auto-world/actions/runs/35867603813) and merged-main [CI35868154166](https://github.com/CleMeY15/auto-world/actions/runs/35868154166) passed179 root tests without skips and all package gates. Pinned forced local and fresh HTTPS-clone checks at `ee4d476042f1450bb6f2c29f6fee18e349147e39` passed177 root tests plus2 Windows-only skips, Secretlint240 and dependency audit.
 

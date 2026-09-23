@@ -12,12 +12,20 @@ import { removeOwnedTree, removeOwnedWorkEntry, workTreeBytes } from "./work-tre
 import { ecTestArguments, requireEcPreflight, summarizeEcPreflight } from "./ec-preflight.mjs";
 import { collectServerLogs } from "./server-logs.mjs";
 import { retainModuleArchive, snapshotModuleArchive } from "./module-archives.mjs";
+import { requireBaselineCopylocks } from "./copylocks.mjs";
 export { removeOwnedTree } from "./work-tree.mjs";
 export { commandMonitorScript, runMonitoredCommand } from "./command-monitor.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const LOCK_PATH = path.join(ROOT, "infra/seaweed/seaweed-lock.json");
 const DEFAULT_WORK = "/tmp/auto-world-seaweed-source-diagnostic";
+const EXPECTED_PATCH_SHA256 = "549ec92660abfb2d94c0c38d86896790959d463f8f8478e385213a76ac939d1c";
+const EXPECTED_PATCH_SIZE = 42205;
+const EXPECTED_REQUIRED_TESTS_SHA256 = "eb50caadd818336196a8e4d4f29ea82971c154140656b83569e6cf6b8808aa09";
+const EXPECTED_REQUIRED_TESTS_SIZE = 7120;
+const EXPECTED_DERIVATIVE_COMMIT = "c507336+aw.549ec92660ab";
+const EXPECTED_SOURCE_PATCH_FILES_SHA256 = "bc33e9807d7784b8a2b9b1617647da143ea3a2b34c0331e2f508402c82d5aa10";
+const EXPECTED_SOURCE_PATCH_FILE_COUNT = 17;
 
 export function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -45,24 +53,82 @@ export function canonicalMaterial(bytes, descriptor) {
 
 export function validateSeaweedLock(lock) {
   const digest = /^[a-f0-9]{64}$/u;
+  const sourcePatchFiles = lock?.sourcePatchFiles;
+  const sourcePaths = plainSourcePatchPaths(sourcePatchFiles);
   if (lock?.schemaVersion !== 1 || lock.state !== "diagnostic_only" || lock.source?.commit !== "c5073360007d28385a33426a42ac3e4ec504c5a3" ||
       lock.source?.tree !== "bce9e3f66721208f35888124183f80bd76d64f90" || lock.source?.version !== "4.47" ||
       lock.source?.commitUnixTime !== 1789349515 || lock.source?.shallowBoundary?.sha256 !== "85485d485c3fb431c98532676da79828422e8b94102790984f473d14c8fc6300" ||
       lock.source?.shallowBoundary?.size !== 41 || lock.source?.bundleMaximumBytes !== 256 * 1024 ** 2 ||
-      lock.compiler?.version !== "1.26.8" || !digest.test(lock.compiler?.sha256 ?? "") || lock.patch?.size !== 14347 ||
-      lock.patch?.sha256 !== "3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e" ||
-      lock.requiredTests?.sha256 !== "d8a5b9f48011d6a3b1ef89ac9824dbf8f116fd7dc05b46b1c8dca49464ee221a" || lock.requiredTests?.size !== 6134 ||
+      lock.compiler?.version !== "1.26.8" || !digest.test(lock.compiler?.sha256 ?? "") || lock.patch?.size !== EXPECTED_PATCH_SIZE ||
+      lock.patch?.sha256 !== EXPECTED_PATCH_SHA256 || lock.requiredTests?.sha256 !== EXPECTED_REQUIRED_TESTS_SHA256 || lock.requiredTests?.size !== EXPECTED_REQUIRED_TESTS_SIZE ||
       lock.moduleChanges?.count !== 9 || lock.grpc?.version !== "v1.85.0-dev.0.20260915183914-4e49413dcab7" ||
       lock.build?.goos !== "linux" || lock.build?.goarch !== "amd64" || lock.build?.goamd64 !== "v1" || lock.build?.cgoEnabled !== "0" ||
-      !Array.isArray(lock.build?.tags) || lock.build.tags.length !== 0 || lock.build?.commitValue !== "c507336+aw.3930d2fef5a7" ||
-      lock.build?.ldflags !== "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.3930d2fef5a7" ||
+      !Array.isArray(lock.build?.tags) || lock.build.tags.length !== 0 || lock.build?.commitValue !== EXPECTED_DERIVATIVE_COMMIT ||
+      lock.build?.ldflags !== `-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=${EXPECTED_DERIVATIVE_COMMIT}` ||
       lock.limits?.innerDeadlineMs > 85 * 60_000 || lock.limits?.retainedBytes !== 2 * 1024 ** 3 || lock.limits?.workBytes !== 12 * 1024 ** 3 ||
       lock.limits?.minimumFreeBytes !== 1024 ** 3 || lock.limits?.logBytes !== 64 * 1024 ** 2 || lock.limits?.aggregateLogBytes !== 128 * 1024 ** 2 ||
       !Array.isArray(lock.upstreamMaterials) || lock.upstreamMaterials.length !== 5 || lock.redis?.subject !== "redis@sha256:76961cd2a0f40ef6fdd334b6b1b3a76a2bad1848d89f3030ca30a7521d4a9493" ||
-      !Array.isArray(lock.redis.requiredTests) || lock.redis.requiredTests.length !== 15 || !Array.isArray(lock.grpcProjectTests) || lock.grpcProjectTests.length !== 12) {
+      !Array.isArray(lock.redis.requiredTests) || lock.redis.requiredTests.length !== 15 || !Array.isArray(lock.grpcProjectTests) || lock.grpcProjectTests.length !== 12 ||
+      sourcePaths.length !== EXPECTED_SOURCE_PATCH_FILE_COUNT || sha256(Buffer.from(JSON.stringify(sourcePatchFiles))) !== EXPECTED_SOURCE_PATCH_FILES_SHA256) {
     throw new Error("seaweed_lock_invalid");
   }
   return lock;
+}
+
+function plainSourcePatchPaths(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !value.before || !value.after) return [];
+  const before = Object.keys(value.before).sort(); const after = Object.keys(value.after).sort();
+  if (JSON.stringify(before) !== JSON.stringify(after)) return [];
+  const valid = before.every((name) => /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\.go$/u.test(name) && !name.split("/").some((part) => part === "." || part === "..") &&
+    [value.before[name], value.after[name]].every((entry) => entry && Object.keys(entry).sort().join(",") === "sha256,size" &&
+      /^[a-f0-9]{64}$/u.test(entry.sha256) && Number.isSafeInteger(entry.size) && entry.size > 0 && entry.size <= 8 * 1024 ** 2));
+  return valid ? before : [];
+}
+
+export function sourcePatchFileIdentities(directory, descriptors) {
+  const root = path.resolve(directory); const paths = Object.keys(descriptors ?? {}).sort();
+  if (!existsSync(root) || lstatSync(root).isSymbolicLink() || !lstatSync(root).isDirectory() || realpathSync(root) !== root || paths.length < 1) {
+    throw new Error("seaweed_source_patch_files_invalid");
+  }
+  const files = {};
+  for (const name of paths) {
+    if (!/^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\.go$/u.test(name) || name.split("/").some((part) => part === "." || part === "..")) {
+      throw new Error("seaweed_source_patch_files_invalid");
+    }
+    const file = path.join(root, ...name.split("/"));
+    if (!file.startsWith(`${root}${path.sep}`) || !existsSync(file) || lstatSync(file).isSymbolicLink() || !lstatSync(file).isFile() || realpathSync(file) !== file) {
+      throw new Error("seaweed_source_patch_files_invalid");
+    }
+    const expected = descriptors[name]; const actual = identity(file, 8 * 1024 ** 2);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("seaweed_source_patch_files_changed");
+    files[name] = actual;
+  }
+  return files;
+}
+
+export function expectedPatchScope(lock) {
+  const sourcePaths = plainSourcePatchPaths(lock?.sourcePatchFiles);
+  if (sourcePaths.length < 1) throw new Error("seaweed_patch_scope_invalid");
+  return [...new Set([...Object.keys(lock.moduleFiles?.after ?? {}), ...sourcePaths])].sort();
+}
+
+function gitPathList(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.at(-1) !== 0x0a) throw new Error("seaweed_patch_scope_invalid");
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new Error("seaweed_patch_scope_invalid"); }
+  const paths = text.slice(0, -1).split("\n");
+  if (paths.some((name) => !name || name.includes("\\") || name.split("/").some((part) => part === "." || part === "..")) || new Set(paths).size !== paths.length) {
+    throw new Error("seaweed_patch_scope_invalid");
+  }
+  return paths.sort();
+}
+
+export function validateChangedSourceScope(changedBytes, untrackedBytes, lock) {
+  const expected = expectedPatchScope(lock);
+  if (!Buffer.isBuffer(untrackedBytes) || untrackedBytes.length !== 0 || JSON.stringify(gitPathList(changedBytes)) !== JSON.stringify(expected)) {
+    throw new Error("seaweed_patch_scope_invalid");
+  }
+  return expected;
 }
 
 export function parseArguments(argv) {
@@ -246,9 +312,10 @@ export function validateFinalModuleClosure(initial, final, lock) {
   return grpc[0];
 }
 
-export function validatePostTestState(initialClosure, finalClosure, moduleFiles, lock) {
+export function validatePostTestState(initialClosure, finalClosure, moduleFiles, sourcePatchFiles, lock) {
   const grpc = validateFinalModuleClosure(initialClosure, finalClosure, lock);
   if (JSON.stringify(moduleFiles) !== JSON.stringify(lock.moduleFiles.after)) throw new Error("seaweed_module_files_changed");
+  if (JSON.stringify(sourcePatchFiles) !== JSON.stringify(lock.sourcePatchFiles.after)) throw new Error("seaweed_source_patch_files_changed");
   return grpc;
 }
 
@@ -328,7 +395,9 @@ export function validateShallowBoundary(bytes, lock) {
 export function validateRestoredSource(actual, lock) {
   if (actual?.fsck !== "PASSED" || actual.head !== lock.source.commit || actual.tree !== lock.source.tree || actual.commitUnixTime !== String(lock.source.commitUnixTime) ||
       JSON.stringify(actual.pristine) !== JSON.stringify(lock.moduleFiles.before) || JSON.stringify(actual.corrected) !== JSON.stringify(lock.moduleFiles.after) ||
-      JSON.stringify(actual.changed) !== JSON.stringify(["go.mod", "go.sum"])) throw new Error("seaweed_source_restore_invalid");
+      JSON.stringify(actual.sourcePristine) !== JSON.stringify(lock.sourcePatchFiles.before) ||
+      JSON.stringify(actual.sourceCorrected) !== JSON.stringify(lock.sourcePatchFiles.after) ||
+      JSON.stringify(actual.changed) !== JSON.stringify(expectedPatchScope(lock))) throw new Error("seaweed_source_restore_invalid");
   return true;
 }
 
@@ -449,12 +518,14 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
   const requiredTestsBytes = canonicalMaterial(readFileSync(path.join(ROOT, lock.requiredTests.path)), lock.requiredTests);
   const requiredTests = JSON.parse(requiredTestsBytes);
   if (requiredTests?.schemaVersion !== 1 || requiredTests.sourceCommit !== lock.source.commit || requiredTests.required?.redis?.length !== 15 ||
-      requiredTests.required?.seaweedGrpc?.length !== 12 || requiredTests.required?.nonShortIntegration?.length !== 16) throw new Error("seaweed_required_tests_invalid");
+      requiredTests.required?.seaweedGrpc?.length !== 12 || requiredTests.required?.nonShortIntegration?.length !== 16 ||
+      requiredTests.required?.copylocks?.length !== 7) throw new Error("seaweed_required_tests_invalid");
   const requiredKeys = (group) => group.map(({ package: packageName, name }) => `${packageName}:${name}`);
   const redisTests = requiredKeys(requiredTests.required.redis);
   const grpcTests = requiredKeys(requiredTests.required.seaweedGrpc);
   const integrationTests = requiredKeys(requiredTests.required.nonShortIntegration);
-  if (new Set([...redisTests, ...grpcTests, ...integrationTests]).size !== 43) throw new Error("seaweed_required_tests_invalid");
+  const copylockTests = requiredKeys(requiredTests.required.copylocks);
+  if (new Set([...redisTests, ...grpcTests, ...integrationTests, ...copylockTests]).size !== 50) throw new Error("seaweed_required_tests_invalid");
   const changes = moduleChanges.toString("utf8").trim().split("\n");
   if (changes.length !== lock.moduleChanges.count + 1) throw new Error("seaweed_module_changes_invalid");
   mkdirSync(output, { mode: 0o700 });
@@ -578,7 +649,18 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const checkModuleFiles = (expected, directory = source) => {
       if (JSON.stringify(moduleFileIdentities(directory)) !== JSON.stringify(expected)) throw new Error("seaweed_module_files_changed");
     };
+    receipt.sourcePatchFiles = { checkpoints: [] };
+    const checkSourcePatchFiles = (name, state, directory = source) => {
+      const files = sourcePatchFileIdentities(directory, lock.sourcePatchFiles[state]);
+      receipt.sourcePatchFiles.checkpoints.push({ name, state, files });
+      return files;
+    };
+    const checkChangedSourceScope = (name, directory = source) => validateChangedSourceScope(
+      run(`${name}_scope`, "/usr/bin/git", ["-C", directory, "diff", "--name-only"], { env: gitEnv, log: false }),
+      run(`${name}_untracked`, "/usr/bin/git", ["-C", directory, "ls-files", "--others", "--exclude-standard"], { env: gitEnv, log: false }), lock);
     checkModuleFiles(lock.moduleFiles.before);
+    const pristineSum = canonicalMaterial(readFileSync(path.join(source, "go.sum")), lock.moduleFiles.before["go.sum"]);
+    checkSourcePatchFiles("checkout", "before");
     const appliedPatch = path.join(workRoot, "seaweedfs-grpc.patch");
     writeFileSync(appliedPatch, patch, { flag: "wx" });
     const shallow = readFileSync(path.join(source, ".git/shallow")); validateShallowBoundary(shallow, lock);
@@ -601,10 +683,13 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const restoredTime = run("source_restore_time", "/usr/bin/git", ["-C", restored, "show", "-s", "--format=%ct", "HEAD"], { env: gitEnv, log: false }).toString("utf8").trim();
     if (run("source_restore_status", "/usr/bin/git", ["-C", restored, "status", "--porcelain"], { env: gitEnv, log: false }).length !== 0) throw new Error("seaweed_source_restore_invalid");
     checkModuleFiles(lock.moduleFiles.before, restored);
+    const restoredSourceBefore = checkSourcePatchFiles("restoration_before", "before", restored);
     phase("source_restore_patch", () => run("source_restore_patch", "/usr/bin/git", ["-C", restored, "apply", "--whitespace=error-all", appliedPatch], { env: gitEnv }));
     checkModuleFiles(lock.moduleFiles.after, restored);
-    const restoredChanged = run("source_restore_scope", "/usr/bin/git", ["-C", restored, "diff", "--name-only"], { env: gitEnv, log: false }).toString("utf8").trim().split("\n").sort();
-    validateRestoredSource({ fsck: "PASSED", head: restoredHead, tree: restoredTree, commitUnixTime: restoredTime, pristine: lock.moduleFiles.before, corrected: lock.moduleFiles.after, changed: restoredChanged }, lock);
+    const restoredSourceAfter = checkSourcePatchFiles("restoration_after", "after", restored);
+    const restoredChanged = checkChangedSourceScope("source_restore", restored);
+    validateRestoredSource({ fsck: "PASSED", head: restoredHead, tree: restoredTree, commitUnixTime: restoredTime, pristine: lock.moduleFiles.before,
+      corrected: lock.moduleFiles.after, sourcePristine: restoredSourceBefore, sourceCorrected: restoredSourceAfter, changed: restoredChanged }, lock);
     receipt.sourceRetention = { bundle: bundleIdentity, shallow: materialIdentity(shallow), restoration: "PASSED", commitUnixTime: restoredTime };
     phase("source_restore_cleanup", () => removeOwnedWorkEntry(workRoot, "restored-source"));
     const prodEnv = commandEnvironment(workRoot, go, false); const testEnv = commandEnvironment(workRoot, go, true);
@@ -640,7 +725,15 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     ecProbe("baseline", baselineBinary, { ...testEnv, GOCACHE: baselineCache });
     checkModuleFiles(lock.moduleFiles.before);
     if (run("ec_baseline_source_status", "/usr/bin/git", ["-C", source, "status", "--porcelain"], { env: gitEnv, log: false }).length !== 0) throw new Error("seaweed_ec_baseline_source_changed");
+    checkSourcePatchFiles("prepatch", "before");
     if (JSON.stringify(identity(baselineBinary, 1024 ** 3)) !== JSON.stringify(baselineIdentity)) throw new Error("seaweed_ec_baseline_binary_changed");
+    phase("baseline_vet_diagnostic", () => {
+      const { result, logBytes } = invoke(go, ["vet", "-p=2", "./..."], { cwd: path.join(source, "weed"),
+        env: { ...testEnv, GOCACHE: baselineCache }, timeout: 45 * 60_000, phaseName: "baseline_vet_diagnostic",
+        onOutput: ({ logBytes: output }) => writeLog("baseline_vet_diagnostic", output) });
+      receipt.baselineVet = requireBaselineCopylocks(logBytes, result, pristineSum);
+      budget();
+    });
     phase("ec_baseline_cleanup", () => {
       if (!lastGroupAbsent || !workCleanupSafe) throw new Error("seaweed_process_group_cleanup_failed");
       for (const name of ["baseline-bin", "baseline-gocache", "tmp"]) removeOwnedWorkEntry(workRoot, name);
@@ -648,8 +741,8 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     });
     phase("patch_apply", () => run("patch_apply", "/usr/bin/git", ["-C", source, "apply", "--whitespace=error-all", appliedPatch], { env: gitEnv }));
     checkModuleFiles(lock.moduleFiles.after);
-    const changed = run("patch_scope", "/usr/bin/git", ["-C", source, "diff", "--name-only"], { env: gitEnv, log: false }).toString("utf8").trim().split("\n").sort();
-    if (JSON.stringify(changed) !== JSON.stringify(["go.mod", "go.sum"])) throw new Error("seaweed_patch_scope_invalid");
+    checkSourcePatchFiles("after_patch", "after");
+    checkChangedSourceScope("patch");
     copyFileSync(appliedPatch, path.join(materials, "seaweedfs-grpc.patch"));
     writeFileSync(path.join(materials, "module-changes.tsv"), moduleChanges, { flag: "wx" });
     writeFileSync(path.join(materials, "required-tests.json"), requiredTestsBytes, { flag: "wx" });
@@ -712,6 +805,8 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     receipt.moduleCount = moduleInventory.length;
     receipt.moduleArchives = { total: moduleArchives.length, completed: 0, current: null,
       totalBytes: moduleArchives.reduce((sum, { snapshot }) => sum + snapshot.size, 0), retainedBytes: 0 };
+    checkSourcePatchFiles("prebuild", "after");
+    checkChangedSourceScope("prebuild");
     const binary = path.join(workRoot, "bin/weed"); mkdirSync(path.dirname(binary));
     phase("production_build", () => run("production_build", go, ["build", "-p=2", "-buildvcs=true", "-ldflags", lock.build.ldflags, "-o", binary, "./weed"], { cwd: source, env: prodEnv, timeout: 45 * 60_000 }));
     const retainedBinary = path.join(output, "weed");
@@ -725,6 +820,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     receipt.ecPreflight.corrected = { binary: receipt.binary, modules: lock.moduleFiles.after };
     ecProbe("corrected", binary);
     checkModuleFiles(lock.moduleFiles.after);
+    checkSourcePatchFiles("post_ec", "after");
     if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
     requireEcPreflight(receipt.ecPreflight.baseline, receipt.ecPreflight.corrected);
     receipt.cacheCleanup = [];
@@ -748,12 +844,12 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     });
     const testSummary = {}; receipt.testSummary = testSummary;
     const normalOutput = phase("normal_tests", () => run("normal_tests", go, ["test", "-json", "-count=1", "-p=2", "./..."], { cwd: path.join(source, "weed"), env: testEnv, timeout: 75 * 60_000, separateStderr: true }));
-    testSummary.normal = summarizeGoTestJson(normalOutput, [...redisTests, ...integrationTests]);
+    testSummary.normal = summarizeGoTestJson(normalOutput, [...redisTests, ...integrationTests, ...copylockTests]);
     phase("normal_tests_cache_cleanup", () => {
       receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
     });
     const fullOutput = phase("full_tag_tests", () => run("full_tag_tests", go, ["test", "-json", "-count=1", "-p=2", "-tags=elastic,gocdk,sqlite,ydb,tarantool,tikv,rclone", "./..."], { cwd: path.join(source, "weed"), env: testEnv, timeout: 75 * 60_000, separateStderr: true }));
-    testSummary.fullTags = summarizeGoTestJson(fullOutput, [...redisTests, ...integrationTests]);
+    testSummary.fullTags = summarizeGoTestJson(fullOutput, [...redisTests, ...integrationTests, ...copylockTests]);
     phase("full_tag_tests_cache_cleanup", () => {
       receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "full_tag_tests", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
     });
@@ -768,7 +864,9 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const finalModuleOutput = isolatedModuleCommand("post_test_module_download", 30 * 60_000);
     const finalClosure = stableModuleClosure(finalModuleOutput);
     isolatedModuleCommand("post_test_module_verify");
-    const finalGrpc = validatePostTestState(stable, finalClosure, moduleFileIdentities(), lock);
+    const postTestSourceFiles = checkSourcePatchFiles("post_tests", "after");
+    checkChangedSourceScope("post_tests");
+    const finalGrpc = validatePostTestState(stable, finalClosure, moduleFileIdentities(), postTestSourceFiles, lock);
     validateModuleArchivePaths(rawModules, jsonSequence(finalModuleOutput));
     receipt.moduleIsolation.result = "PASSED";
     receipt.moduleClosure = { result: "UNCHANGED_AFTER_TESTS", count: stable.length, grpcVersion: finalGrpc.version };
@@ -789,6 +887,8 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     });
     writeFileSync(path.join(output, "module-closure.json"), `${JSON.stringify(moduleInventory, null, 2)}\n`, { flag: "wx" });
     if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
+    checkSourcePatchFiles("final", "after");
+    checkChangedSourceScope("final");
     copyFileSync(binary, retainedBinary);
     if (JSON.stringify(identity(retainedBinary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_copy_changed");
     budget();
