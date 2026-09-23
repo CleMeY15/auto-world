@@ -15,7 +15,7 @@ export function summarizeEcPreflight(stdout, status) {
   if (!Buffer.isBuffer(stdout) || stdout.length < 1 || stdout.length > 64 * 1024 ** 2 || ![0, 1].includes(status)) return invalid();
   const tests = new Map(); let packageResult;
   try {
-    for (const line of stdout.toString("utf8").trim().split("\n")) {
+    for (const line of new TextDecoder("utf-8", { fatal: true }).decode(stdout).trim().split("\n")) {
       const event = JSON.parse(line);
       if (!event || event.Package !== EC_PACKAGE) return invalid();
       if (!["pass", "fail", "skip"].includes(event.Action)) continue;
@@ -43,3 +43,4 @@ export function summarizeEcPreflight(stdout, status) {
 export function requireEcPreflight(baseline, corrected) {
   if (baseline?.result !== "PASSED" || corrected?.result !== "PASSED") throw new Error("seaweed_ec_preflight_failed");
 }
+import { TextDecoder } from "node:util";

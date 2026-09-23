@@ -31,4 +31,6 @@ test("EC preflight rejects incomplete, skipped, contradictory, foreign and malfo
   for (const status of [1, null, 2, 125]) assert.equal(summarizeEcPreflight(bytes(events()), status).result, "INVALID");
   assert.equal(summarizeEcPreflight(Buffer.from("bad-json"), 0).result, "INVALID");
   assert.equal(summarizeEcPreflight(bytes(events(true)), 0).result, "INVALID");
+  const invalidUtf8 = Buffer.concat([Buffer.from(`{"Package":"${EC_PACKAGE}","Action":"output","Output":"`), Buffer.from([0x80]), Buffer.from('"}\n'), bytes(events())]);
+  assert.equal(summarizeEcPreflight(invalidUtf8, 0).result, "INVALID");
 });
