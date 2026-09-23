@@ -10,6 +10,7 @@ import test from "node:test";
 import { scanRawUstar } from "../scripts/seaweed-image/archive.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, createRootfsContentOpener, TEST_ONLY_materializeReviewedSeaweedRootfs,
+  writePlannedRootfs,
 } from "../scripts/seaweed-image/materialize-rootfs.mjs";
 import { writeUstarArchive } from "../scripts/seaweed-image/write-archive.mjs";
 
@@ -116,9 +117,42 @@ test("composite rootfs transaction returns an opaque receipt and cleans only thr
 test("composite rootfs transaction cleans both child materializations after writer failure", { skip: !linux }, async () => {
   const value = transactionScope({ writeFailure: true });
   try {
-    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /seaweed_rootfs_materialization_failed/u);
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_write_failed");
+      assert.equal(Object.hasOwn(error, "originalCode"), false);
+      assert.doesNotMatch(error.message, /synthetic/u);
+      return true;
+    });
     assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs reports a child failure by stage without trusting its code", { skip: !linux }, async () => {
+  const value = transactionScope();
+  value.options.materializeSource = async () => {
+    throw Object.assign(new Error("bounded child failure"), { code: "seaweed_source_materialization_validation_failed" });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_source_materialization_failed");
+      assert.equal(Object.hasOwn(error, "originalCode"), false);
+      return true;
+    });
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("rootfs planning reports a bounded stage and safe internal detail", async () => {
+  await assert.rejects(writePlannedRootfs({
+    base: { baseMaterials: new Map(), readEntry: async () => Buffer.alloc(0) },
+    source: { sourceIdentity: {}, moduleClosureBytes: Buffer.alloc(0), materials: [], readBinary: async () => Buffer.alloc(0) },
+    recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z",
+    sink: new Writable({ write(_chunk, _encoding, callback) { callback(); } }),
+  }), (error) => {
+    assert.equal(error.code, "seaweed_rootfs_materialization_plan_failed");
+    assert.equal(error.originalCode, "seaweed_image_base_material_set_invalid");
+    return true;
+  });
 });
 
 test("composite rootfs publication never replaces a colliding destination", { skip: !linux }, async () => {
@@ -169,15 +203,21 @@ test("composite rootfs closes both scan streams and classifies abort during the 
 });
 
 test("composite rootfs closes the active stream when either independent scan fails", { skip: !linux }, async () => {
-  for (const failOn of [1, 2]) {
+  for (const [failOn, expectedCode, expectedDetail] of [[1, "seaweed_rootfs_materialization_partial_scan_failed",
+    "seaweed_archive_tar_header_invalid"], [2, "seaweed_rootfs_materialization_final_scan_failed", undefined]]) {
     const value = transactionScope(); const scan = value.options.scanRootfs; const streams = []; let calls = 0;
     value.options.scanRootfs = async (options) => {
       calls += 1; streams.push(options.input);
-      if (calls === failOn) throw new Error(`synthetic scan ${failOn} failure`);
+      if (calls === failOn) throw new Error(expectedDetail ?? `synthetic scan ${failOn} failure`);
       return scan(options);
     };
     try {
-      await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_failed/u);
+      await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+        assert.equal(error.code, expectedCode);
+        assert.equal(error.originalCode, expectedDetail);
+        assert.doesNotMatch(error.message, /synthetic|archive_tar_header/u);
+        return true;
+      });
       assert.equal(streams.every((stream) => stream.destroyed), true);
       assert.deepEqual(readdirSync(value.parent), []);
     } finally { rmSync(value.parent, { recursive: true, force: true }); }
