@@ -132,7 +132,7 @@ test("scanRawUstar aborts an input without returning an inventory", async () => 
   const controller = new globalThis.AbortController();
   controller.abort();
   await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId: `sha256:${hash(tar)}`, signal: controller.signal }),
-    "seaweed_archive_stream_invalid");
+    "seaweed_archive_aborted");
 });
 
 test("scanGzipLayer accepts one TAR stream split over concatenated gzip members", async () => {

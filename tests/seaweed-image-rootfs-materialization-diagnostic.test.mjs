@@ -24,6 +24,10 @@ function receipt() {
     authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
     rawSize: 4096, diffId: `sha256:${"b".repeat(64)}`, memberCount: 2,
     sourceRunId: "35884717093",
+    sourceRepository: "CleMeY15/auto-world", sourceWorkflowId: 358072544, sourceAttempt: 1,
+    sourceCodeRevision: "6dbc6964e121e54dc5409f5e646f9ae25c01788f",
+    sourceBinaryDigest: "sha256:45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef",
+    sourceBinarySize: 220_991_307, recipeRevision: "a".repeat(40), createdAt: "2026-09-23T12:34:56.789Z",
     baseManifestDigest: "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362",
   };
 }
@@ -73,6 +77,25 @@ test("rootfs diagnostic disposes before publishing its bounded non-authorizing r
     });
     assert.deepEqual(events, ["materialized", "disposed", value]);
     await assert.rejects(access(path.join(runnerTemp, "seaweed-rootfs-materialization")), { code: "ENOENT" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("rootfs diagnostic rejects altered source or recipe lineage after disposal", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "seaweed-rootfs-lineage-test-"));
+  const env = context(runnerTemp);
+  try {
+    for (const changed of [{ sourceWorkflowId: 1 }, { sourceBinaryDigest: `sha256:${"0".repeat(64)}` },
+      { recipeRevision: "b".repeat(40) }, { createdAt: "2026-09-23T12:34:56.790Z" }]) {
+      const events = [];
+      await assert.rejects(TEST_ONLY_runRootfsMaterializationDiagnostic(["execute"], env, {
+        now: () => Date.parse("2026-09-23T12:34:56.789Z"),
+        materialize: async () => ({ ...receipt(), ...changed }),
+        dispose: async () => { events.push("disposed"); },
+        log: () => { events.push("logged"); },
+      }), { code: "seaweed_rootfs_materialization_receipt_invalid" });
+      assert.deepEqual(events, ["disposed"]);
+      await TEST_ONLY_runRootfsMaterializationDiagnostic(["cleanup"], env, { log: () => {} });
+    }
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 

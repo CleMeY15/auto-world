@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { link, lstat, mkdir, open, readdir, realpath, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
+import { finished } from "node:stream/promises";
 
 import { scanRawUstar } from "./archive.mjs";
 import { cleanupMaterializedSeaweedBase, materializePinnedSeaweedBase, withMaterializedSeaweedBase } from "./materialize-base.mjs";
@@ -22,6 +23,9 @@ const DIRECTORY_NAMES = Object.freeze(["base", "output", "source"]);
 const PARTIAL_NAME = "rootfs.tar.partial";
 const FINAL_NAME = "rootfs.tar";
 const REVISION = /^[a-f0-9]{40}$/u;
+const SHA256_HEX = /^[a-f0-9]{64}$/u;
+const DEFAULT_TIMEOUT_MS = 130 * 60_000;
+const MAX_TIMEOUT_MS = 140 * 60_000;
 
 function rootfsError(code, details = {}) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "PREPARATION_ONLY",
@@ -58,13 +62,14 @@ function snapshotOptions(input, testOnly) {
   const fields = Object.getOwnPropertyDescriptors(input);
   const injected = ["platform", "uid", "materializeSource", "materializeBase", "withSource", "withBase",
     "cleanupSource", "cleanupBase", "writeRootfs", "scanRootfs", "validateFilesystem", "beforeRename"];
-  const permitted = new Set(["parent", "recipeRevision", "createdAt", "signal", ...(testOnly ? injected : [])]);
+  const permitted = new Set(["parent", "recipeRevision", "createdAt", "signal", "timeoutMs", ...(testOnly ? injected : [])]);
   if (Reflect.ownKeys(fields).some((key) => !permitted.has(key) || !("value" in fields[key]))) {
     throw rootfsError("seaweed_rootfs_materialization_options_invalid");
   }
   const value = (name) => fields[name]?.value;
   const settings = {
     parent: value("parent"), recipeRevision: value("recipeRevision"), createdAt: value("createdAt"), signal: value("signal"),
+    timeoutMs: value("timeoutMs") ?? DEFAULT_TIMEOUT_MS,
     platform: value("platform") ?? process.platform, uid: value("uid") ?? process.getuid?.(),
     materializeSource: value("materializeSource") ?? materializeReviewedSeaweedSource,
     materializeBase: value("materializeBase") ?? materializePinnedSeaweedBase,
@@ -80,6 +85,7 @@ function snapshotOptions(input, testOnly) {
     || !REVISION.test(settings.recipeRevision ?? "") || /^0+$/u.test(settings.recipeRevision)
     || !Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== settings.createdAt
     || settings.signal !== undefined && !(settings.signal instanceof globalThis.AbortSignal)
+    || !Number.isSafeInteger(settings.timeoutMs) || settings.timeoutMs <= 0 || settings.timeoutMs > MAX_TIMEOUT_MS
     || settings.platform !== "linux" || !Number.isSafeInteger(settings.uid) || settings.uid < 0
     || ![settings.materializeSource, settings.materializeBase, settings.withSource, settings.withBase,
       settings.cleanupSource, settings.cleanupBase, settings.writeRootfs, settings.scanRootfs,
@@ -166,18 +172,41 @@ async function exactOwnedFile(file, expected, uid) {
 
 async function scanVerifiedRootfs(file, expectedIdentity, uid, scanRootfs, diffId, signal) {
   const verifyHandle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let input;
   try {
     const before = await verifyHandle.stat({ bigint: true });
     if (!sameIdentity(expectedIdentity, identity(before)) || !await exactFile(file, expectedIdentity, uid)) {
       throw rootfsError("seaweed_rootfs_materialization_output_changed");
     }
-    const scanned = await scanRootfs({ input: verifyHandle.createReadStream({ autoClose: false }), diffId, signal });
+    input = verifyHandle.createReadStream({ autoClose: false });
+    const scanned = await scanRootfs({ input, diffId, signal });
     const after = await verifyHandle.stat({ bigint: true });
     if (!sameIdentity(expectedIdentity, identity(after)) || !await exactFile(file, expectedIdentity, uid)) {
       throw rootfsError("seaweed_rootfs_materialization_output_changed");
     }
     return scanned;
-  } finally { await verifyHandle.close(); }
+  } finally {
+    input?.destroy();
+    if (input !== undefined) await finished(input, { cleanup: true }).catch(() => undefined);
+    await verifyHandle.close();
+  }
+}
+
+function validatedLineage(sourceReceipt, source, recipeRevision, createdAt) {
+  const identity = source?.sourceIdentity;
+  if (typeof sourceReceipt?.repository !== "string" || !/^[^/\s]+\/[^/\s]+$/u.test(sourceReceipt.repository)
+    || !Number.isSafeInteger(sourceReceipt.workflowId) || sourceReceipt.workflowId <= 0
+    || !Number.isSafeInteger(sourceReceipt.runId) || sourceReceipt.runId <= 0
+    || sourceReceipt.attempt !== 1 || !REVISION.test(sourceReceipt.sourceSha ?? "")
+    || identity?.runId !== String(sourceReceipt.runId) || identity?.attempt !== sourceReceipt.attempt
+    || identity?.codeRevision !== sourceReceipt.sourceSha || !SHA256_HEX.test(identity?.binary?.sha256 ?? "")
+    || !Number.isSafeInteger(identity?.binary?.size) || identity.binary.size <= 0) {
+    throw rootfsError("seaweed_rootfs_materialization_lineage_invalid");
+  }
+  return Object.freeze({ sourceRepository: sourceReceipt.repository, sourceWorkflowId: sourceReceipt.workflowId,
+    sourceAttempt: sourceReceipt.attempt, sourceCodeRevision: identity.codeRevision,
+    sourceBinaryDigest: `sha256:${identity.binary.sha256}`, sourceBinarySize: identity.binary.size,
+    recipeRevision, createdAt });
 }
 
 async function publishNoReplace(partialFile, finalFile, expected, uid) {
@@ -249,25 +278,36 @@ async function cleanFailed({ parent, uid, parentIdentity, directories, directory
 }
 
 async function executeMaterialization(options) {
-  const { parent, uid, recipeRevision, createdAt, signal } = options;
-  signal?.throwIfAborted();
-  const parentIdentity = await privateDirectory(parent, uid);
-  if ((await readdir(parent)).length !== 0) throw rootfsError("seaweed_rootfs_materialization_parent_not_empty");
+  const { parent, uid, recipeRevision, createdAt, signal, timeoutMs } = options;
+  let timedOut = false;
+  const controller = new globalThis.AbortController();
+  const timer = globalThis.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs); timer.unref?.();
+  const operationSignal = signal === undefined ? controller.signal : globalThis.AbortSignal.any([signal, controller.signal]);
+  const check = () => {
+    if (timedOut) throw rootfsError("seaweed_rootfs_materialization_timeout");
+    if (signal?.aborted || operationSignal.aborted) throw rootfsError("seaweed_rootfs_materialization_aborted");
+  };
+  try { check(); } catch (error) { globalThis.clearTimeout(timer); throw error; }
+  const parentIdentity = await privateDirectory(parent, uid).catch((error) => { globalThis.clearTimeout(timer); throw error; });
+  const initialNames = await readdir(parent).catch((error) => { globalThis.clearTimeout(timer); throw error; });
+  if (initialNames.length !== 0) {
+    globalThis.clearTimeout(timer); throw rootfsError("seaweed_rootfs_materialization_parent_not_empty");
+  }
   const directories = Object.fromEntries(DIRECTORY_NAMES.map((name) => [name, path.join(parent, name)]));
   const directoryIdentities = {};
-  let sourceReceipt; let baseReceipt; let outputIdentity; let outputNodeIdentity; let written; let failure;
+  let sourceReceipt; let baseReceipt; let outputIdentity; let outputNodeIdentity; let written; let lineage; let failure;
   const partialFile = path.join(directories.output, PARTIAL_NAME); const finalFile = path.join(directories.output, FINAL_NAME);
   try {
     for (const name of DIRECTORY_NAMES) {
       await mkdir(directories[name], { mode: 0o700 });
       directoryIdentities[name] = await privateDirectory(directories[name], uid);
     }
-    sourceReceipt = await options.materializeSource({ parent: directories.source, signal });
-    baseReceipt = await options.materializeBase({ parent: directories.base, signal });
+    sourceReceipt = await options.materializeSource({ parent: directories.source, signal: operationSignal });
+    baseReceipt = await options.materializeBase({ parent: directories.base, signal: operationSignal });
     if (!await exactChildClosure(directories.source, sourceReceipt) || !await exactChildClosure(directories.base, baseReceipt)) {
       throw rootfsError("seaweed_rootfs_materialization_child_invalid");
     }
-    signal?.throwIfAborted();
+    check();
     const handle = await open(partialFile, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
     try {
       await handle.chmod(0o600);
@@ -278,9 +318,21 @@ async function executeMaterialization(options) {
         throw rootfsError("seaweed_rootfs_materialization_output_invalid");
       }
       outputNodeIdentity = identity(descriptor); outputIdentity = outputNodeIdentity;
-      written = await options.withSource(sourceReceipt, (source) => options.withBase(baseReceipt, (base) => options.writeRootfs({
-        base, source, recipeRevision, createdAt, sink: fileSink(handle), signal,
-      })));
+      written = await options.withSource(sourceReceipt, (source) => {
+        lineage = validatedLineage(sourceReceipt, source, recipeRevision, createdAt);
+        return options.withBase(baseReceipt, (base) => options.writeRootfs({
+          base, source, recipeRevision, createdAt, sink: fileSink(handle), signal: operationSignal,
+        }));
+      });
+      check();
+      if (written?.inputs?.source?.runId !== String(sourceReceipt.runId)
+        || written.inputs.source.attempt !== lineage.sourceAttempt
+        || written.inputs.source.codeRevision !== lineage.sourceCodeRevision
+        || written.inputs.source.binary?.sha256 !== lineage.sourceBinaryDigest.slice("sha256:".length)
+        || written.inputs.source.binary?.size !== lineage.sourceBinarySize
+        || written.inputs.source.recipeRevision !== recipeRevision || written.inputs.source.createdAt !== createdAt) {
+        throw rootfsError("seaweed_rootfs_materialization_lineage_invalid");
+      }
       await handle.sync();
       const syncedDescriptor = await handle.stat({ bigint: true });
       const syncedPathname = await lstat(partialFile, { bigint: true });
@@ -290,7 +342,8 @@ async function executeMaterialization(options) {
       }
       outputIdentity = identity(syncedDescriptor);
     } finally { await handle.close(); }
-    const scannedPartial = await scanVerifiedRootfs(partialFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, signal);
+    const scannedPartial = await scanVerifiedRootfs(partialFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal);
+    check();
     const partialMatch = options.validateFilesystem(scannedPartial.members.map(({ entry }) => entry), written.inputs);
     if (partialMatch?.kind !== "SEAWEED_INVENTORY_PLAN_MATCH_V1" || partialMatch.entries !== written.plan.entries.length
       || scannedPartial.rawSize !== written.receipt.rawSize || scannedPartial.diffId !== written.receipt.diffId
@@ -306,7 +359,8 @@ async function executeMaterialization(options) {
     await publishNoReplace(partialFile, finalFile, outputIdentity, uid);
     outputIdentity = identity(await lstat(finalFile, { bigint: true }));
     if (!await exactFile(finalFile, outputIdentity, uid)) throw rootfsError("seaweed_rootfs_materialization_output_changed");
-    const scanned = await scanVerifiedRootfs(finalFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, signal);
+    const scanned = await scanVerifiedRootfs(finalFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal);
+    check();
     if (scanned.rawSize !== scannedPartial.rawSize || scanned.diffId !== scannedPartial.diffId
       || scanned.members.length !== scannedPartial.members.length) {
       throw rootfsError("seaweed_rootfs_materialization_verification_failed");
@@ -323,14 +377,16 @@ async function executeMaterialization(options) {
       || !await exactChildClosure(directories.base, baseReceipt)) {
       throw rootfsError("seaweed_rootfs_materialization_collision");
     }
+    check();
     const baseManifest = written.inputs.baseMaterials.get("base-manifest.json");
     const receipt = Object.freeze({ kind: "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
       authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", rawSize: scanned.rawSize,
       diffId: scanned.diffId, memberCount: scanned.members.length, sourceRunId: written.inputs.source.runId,
-      baseManifestDigest: `sha256:${createHash("sha256").update(baseManifest).digest("hex")}` });
+      baseManifestDigest: `sha256:${createHash("sha256").update(baseManifest).digest("hex")}`, ...lineage });
     RECEIPT_AUTHORITIES.set(receipt, { parent, uid, parentIdentity, sourceParent: directories.source, baseParent: directories.base,
       outputParent: directories.output, outputFile: finalFile, outputIdentity, directoryIdentities,
       sourceReceipt, baseReceipt, cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase, cleaning: false });
+    globalThis.clearTimeout(timer);
     return receipt;
   } catch (error) { failure = error; }
   let failedOutput = partialFile;
@@ -338,8 +394,12 @@ async function executeMaterialization(options) {
   const clean = await cleanFailed({ parent, uid, parentIdentity, directories, directoryIdentities, outputFile: failedOutput,
     outputNodeIdentity, sourceReceipt, baseReceipt,
   cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase });
+  globalThis.clearTimeout(timer);
   if (!clean) throw rootfsError("seaweed_rootfs_materialization_cleanup_failed", { originalCode: failure?.code });
-  if (failure?.name === "AbortError") throw failure;
+  if (timedOut) throw rootfsError("seaweed_rootfs_materialization_timeout", { originalCode: failure?.code });
+  if (signal?.aborted || operationSignal.aborted || failure?.name === "AbortError") {
+    throw rootfsError("seaweed_rootfs_materialization_aborted", { originalCode: failure?.code });
+  }
   if (typeof failure?.code === "string" && failure.code.startsWith("seaweed_")) throw failure;
   throw rootfsError("seaweed_rootfs_materialization_failed");
 }

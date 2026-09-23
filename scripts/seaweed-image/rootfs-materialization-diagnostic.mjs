@@ -3,9 +3,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs } from "./materialize-rootfs.mjs";
+import { baseMaterialIdentities } from "./plan.mjs";
+import { reviewedSeaweedSourcePolicy } from "./source-records.mjs";
 
 const WORKFLOW_REF = "CleMeY15/auto-world/.github/workflows/seaweed-rootfs-materialization.yml@refs/heads/main";
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
+const SOURCE_BINARY = Object.freeze({
+  digest: "sha256:45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef",
+  size: 220_991_307,
+});
 
 function fail(code) { return Object.assign(new Error(code), { code }); }
 
@@ -37,17 +43,24 @@ async function cleanupRoot(root) {
   }
 }
 
-function publicReceipt(result) {
+function publicReceipt(result, env, createdAt) {
   const keys = ["kind", "state", "authority", "candidateAuthorization", "rawSize", "diffId", "memberCount",
-    "sourceRunId", "baseManifestDigest"];
+    "sourceRunId", "sourceRepository", "sourceWorkflowId", "sourceAttempt", "sourceCodeRevision",
+    "sourceBinaryDigest", "sourceBinarySize", "recipeRevision", "createdAt", "baseManifestDigest"];
   if (result === null || typeof result !== "object" || Object.keys(result).length !== keys.length
     || keys.some((key) => !Object.hasOwn(result, key))
     || result.kind !== "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1" || result.state !== "MATERIALIZED"
     || result.authority !== "PREPARATION_ONLY" || result.candidateAuthorization !== "NOT_AUTHORIZED"
     || !Number.isSafeInteger(result.rawSize) || result.rawSize < 1024 || result.rawSize > 2 * 1024 ** 3
     || !SHA256.test(result.diffId) || !Number.isSafeInteger(result.memberCount) || result.memberCount < 1
-    || result.memberCount > 100_000 || result.sourceRunId !== "35884717093"
-    || result.baseManifestDigest !== "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362") {
+    || result.memberCount > 100_000 || result.sourceRunId !== String(reviewedSeaweedSourcePolicy.runId)
+    || result.sourceRepository !== reviewedSeaweedSourcePolicy.repository
+    || result.sourceWorkflowId !== reviewedSeaweedSourcePolicy.workflowId
+    || result.sourceAttempt !== reviewedSeaweedSourcePolicy.attempt
+    || result.sourceCodeRevision !== reviewedSeaweedSourcePolicy.sourceSha
+    || result.sourceBinaryDigest !== SOURCE_BINARY.digest || result.sourceBinarySize !== SOURCE_BINARY.size
+    || result.recipeRevision !== env.GITHUB_SHA || result.createdAt !== createdAt
+    || result.baseManifestDigest !== `sha256:${baseMaterialIdentities["base-manifest.json"].sha256}`) {
     throw fail("seaweed_rootfs_materialization_receipt_invalid");
   }
   const bytes = JSON.stringify(result);
@@ -72,9 +85,9 @@ async function main(argv = process.argv.slice(2), env = process.env, testOnly = 
   let receipt;
   let publicBytes;
   try {
-    receipt = await materialize({ parent: root, recipeRevision: env.GITHUB_SHA,
-      createdAt: new Date((testOnly.now ?? Date.now)()).toISOString() });
-    publicBytes = publicReceipt(receipt);
+    const createdAt = new Date((testOnly.now ?? Date.now)()).toISOString();
+    receipt = await materialize({ parent: root, recipeRevision: env.GITHUB_SHA, createdAt });
+    publicBytes = publicReceipt(receipt, env, createdAt);
   } finally {
     if (receipt !== undefined) await dispose(receipt);
   }

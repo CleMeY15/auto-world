@@ -54,7 +54,11 @@ test("rootfs content routing cannot pass mutated notice bytes through the writer
 function transactionScope({ writeFailure = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-rootfs-materialization-")); chmodSync(parent, 0o700);
   const raw = Buffer.from("synthetic verified rootfs"); const diffId = `sha256:${hash(raw)}`;
-  const child = (kind) => ({ kind, marker: `${kind}.owned` });
+  const codeRevision = "2".repeat(40); const binarySha = "a".repeat(64); const binarySize = 123_456;
+  const child = (kind) => ({ kind, marker: `${kind}.owned`, ...(kind === "source" ? {
+    repository: "CleMeY15/auto-world", workflowId: 358_072_544, runId: 35_884_717_093, attempt: 1,
+    sourceSha: codeRevision,
+  } : {}) });
   const materialize = (kind) => async ({ parent: childParent }) => {
     const receipt = child(kind); receipt.outputPath = path.join(childParent, receipt.marker);
     writeFileSync(receipt.outputPath, kind, { mode: 0o600 }); return receipt;
@@ -63,11 +67,12 @@ function transactionScope({ writeFailure = false } = {}) {
     const childParent = path.join(parent, receipt.kind); unlinkSync(path.join(childParent, receipt.marker));
     return { state: "CLEANED" };
   };
+  const sourceIdentity = { binary: { sha256: binarySha, size: binarySize }, runId: "35884717093", attempt: 1, codeRevision };
   const inputs = { baseMaterials: new Map([["base-manifest.json", Buffer.from("manifest")]]),
-    source: { runId: "35884717093" } };
+    source: { ...sourceIdentity, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z" } };
   const options = { parent, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z",
     platform: "linux", uid: process.getuid(), materializeSource: materialize("source"), materializeBase: materialize("base"),
-    withSource: async (_receipt, callback) => callback({}), withBase: async (_receipt, callback) => callback({}),
+    withSource: async (_receipt, callback) => callback({ sourceIdentity }), withBase: async (_receipt, callback) => callback({}),
     cleanupSource: cleanup, cleanupBase: cleanup,
     writeRootfs: async ({ sink }) => {
       if (writeFailure) throw new Error("synthetic writer failure");
@@ -80,7 +85,7 @@ function transactionScope({ writeFailure = false } = {}) {
       return { rawSize: raw.length, diffId, members: [] };
     },
     validateFilesystem: () => ({ kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: 0 }) };
-  return { parent, options, raw, diffId };
+  return { parent, options, raw, diffId, codeRevision, binarySha, binarySize };
 }
 
 test("composite rootfs transaction returns an opaque receipt and cleans only through its live capability", { skip: !linux }, async () => {
@@ -88,13 +93,18 @@ test("composite rootfs transaction returns an opaque receipt and cleans only thr
   try {
     const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
     assert.deepEqual(Object.keys(receipt), ["kind", "state", "authority", "candidateAuthorization", "rawSize", "diffId",
-      "memberCount", "sourceRunId", "baseManifestDigest"]);
+      "memberCount", "sourceRunId", "baseManifestDigest", "sourceRepository", "sourceWorkflowId", "sourceAttempt",
+      "sourceCodeRevision", "sourceBinaryDigest", "sourceBinarySize", "recipeRevision", "createdAt"]);
     assert.equal(receipt.kind, "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1");
     assert.equal(receipt.state, "MATERIALIZED"); assert.equal(receipt.authority, "PREPARATION_ONLY");
     assert.equal(receipt.candidateAuthorization, "NOT_AUTHORIZED"); assert.equal(receipt.rawSize, value.raw.length);
     assert.equal(receipt.diffId, value.diffId); assert.equal(receipt.memberCount, 0);
     assert.equal(receipt.sourceRunId, "35884717093");
     assert.equal(receipt.baseManifestDigest, `sha256:${hash(Buffer.from("manifest"))}`);
+    assert.equal(receipt.sourceRepository, "CleMeY15/auto-world"); assert.equal(receipt.sourceWorkflowId, 358_072_544);
+    assert.equal(receipt.sourceAttempt, 1); assert.equal(receipt.sourceCodeRevision, value.codeRevision);
+    assert.equal(receipt.sourceBinaryDigest, `sha256:${value.binarySha}`); assert.equal(receipt.sourceBinarySize, value.binarySize);
+    assert.equal(receipt.recipeRevision, "1".repeat(40)); assert.equal(receipt.createdAt, "2026-09-23T12:34:56.789Z");
     assert.deepEqual(readdirSync(value.parent).sort(), ["base", "output", "source"]);
     assert.deepEqual(readFileSync(path.join(value.parent, "output/rootfs.tar")), value.raw);
     await assert.rejects(cleanupMaterializedSeaweedRootfs({ ...receipt }), /cleanup_unauthorized/u);
@@ -118,5 +128,84 @@ test("composite rootfs publication never replaces a colliding destination", { sk
     await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_cleanup_failed/u);
     assert.deepEqual(readFileSync(path.join(value.parent, "output/rootfs.tar")), foreign);
     assert.deepEqual(readdirSync(path.join(value.parent, "output")), ["rootfs.tar"]);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs rejects a pre-aborted transaction before creating owned state", { skip: !linux }, async () => {
+  const value = transactionScope(); const controller = new globalThis.AbortController(); controller.abort();
+  value.options.signal = controller.signal;
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_aborted/u);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs classifies external abort during write after complete owned cleanup", { skip: !linux }, async () => {
+  const value = transactionScope(); const controller = new globalThis.AbortController(); value.options.signal = controller.signal;
+  value.options.writeRootfs = async () => {
+    controller.abort(); throw Object.assign(new Error("wrapped abort"), { code: "seaweed_ustar_write_failed" });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_aborted/u);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs closes both scan streams and classifies abort during the published scan", { skip: !linux }, async () => {
+  const value = transactionScope(); const controller = new globalThis.AbortController(); value.options.signal = controller.signal;
+  const scan = value.options.scanRootfs; const streams = []; let calls = 0;
+  value.options.scanRootfs = async (options) => {
+    calls += 1; streams.push(options.input);
+    if (calls === 2) {
+      controller.abort(); throw Object.assign(new Error("wrapped scanner abort"), { code: "seaweed_archive_stream_invalid" });
+    }
+    return scan(options);
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_aborted/u);
+    assert.equal(calls, 2); assert.equal(streams.every((stream) => stream.destroyed), true);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs closes the active stream when either independent scan fails", { skip: !linux }, async () => {
+  for (const failOn of [1, 2]) {
+    const value = transactionScope(); const scan = value.options.scanRootfs; const streams = []; let calls = 0;
+    value.options.scanRootfs = async (options) => {
+      calls += 1; streams.push(options.input);
+      if (calls === failOn) throw new Error(`synthetic scan ${failOn} failure`);
+      return scan(options);
+    };
+    try {
+      await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_failed/u);
+      assert.equal(streams.every((stream) => stream.destroyed), true);
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
+test("composite rootfs enforces its aggregate deadline and cleans after a wrapped timeout", { skip: !linux }, async () => {
+  const value = transactionScope(); value.options.timeoutMs = 20;
+  value.options.writeRootfs = async ({ signal }) => new Promise((_resolve, reject) => {
+    const fail = () => reject(Object.assign(new Error("wrapped timeout"), {
+      code: "seaweed_ustar_write_failed",
+    }));
+    if (signal.aborted) fail(); else signal.addEventListener("abort", fail, { once: true });
+  });
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_timeout/u);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs preserves a same-byte inode substitution before publication", { skip: !linux }, async () => {
+  const value = transactionScope();
+  value.options.beforeRename = ({ partialFile }) => {
+    const bytes = readFileSync(partialFile); unlinkSync(partialFile); writeFileSync(partialFile, bytes, { mode: 0o600 });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), /materialization_cleanup_failed/u);
+    assert.deepEqual(readFileSync(path.join(value.parent, "output/rootfs.tar.partial")), value.raw);
+    assert.deepEqual(readdirSync(path.join(value.parent, "output")), ["rootfs.tar.partial"]);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });

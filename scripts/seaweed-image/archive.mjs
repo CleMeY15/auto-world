@@ -324,6 +324,9 @@ export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES,
     if (`sha256:${rawHash.digest("hex")}` !== diffId) throw archiveError("seaweed_archive_diffid_mismatch");
     return { rawSize, diffId, members };
   } catch (error) {
+    if (signal instanceof globalThis.AbortSignal && signal.aborted) {
+      throw archiveError("seaweed_archive_aborted", error);
+    }
     throw isArchiveError(error) ? error : archiveError("seaweed_archive_stream_invalid", error);
   } finally {
     input.destroy();
