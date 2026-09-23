@@ -11,6 +11,7 @@ import { runMonitoredCommand as defaultRunner } from "./command-monitor.mjs";
 import { removeOwnedTree, removeOwnedWorkEntry, workTreeBytes } from "./work-tree.mjs";
 import { ecTestArguments, requireEcPreflight, summarizeEcPreflight } from "./ec-preflight.mjs";
 import { collectServerLogs } from "./server-logs.mjs";
+import { retainModuleArchive, snapshotModuleArchive } from "./module-archives.mjs";
 export { removeOwnedTree } from "./work-tree.mjs";
 export { commandMonitorScript, runMonitoredCommand } from "./command-monitor.mjs";
 
@@ -251,6 +252,19 @@ export function validatePostTestState(initialClosure, finalClosure, moduleFiles,
   return grpc;
 }
 
+export function validateModuleArchivePaths(initial, final) {
+  const paths = (modules) => {
+    if (!Array.isArray(modules) || modules.length < 1) throw new Error("seaweed_module_archive_paths_changed");
+    const entries = modules.map((module) => {
+      if (module.Error || [module.Path, module.Version, module.Zip, module.GoMod, module.Info].some((value) => typeof value !== "string" || !value)) throw new Error("seaweed_module_archive_paths_changed");
+      return [module.Path, module.Version, module.Zip, module.GoMod, module.Info];
+    }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), "en"));
+    if (new Set(entries.map(([name, version]) => `${name}@${version}`)).size !== entries.length) throw new Error("seaweed_module_archive_paths_changed");
+    return entries;
+  };
+  if (JSON.stringify(paths(initial)) !== JSON.stringify(paths(final))) throw new Error("seaweed_module_archive_paths_changed");
+}
+
 const MODULE_ISOLATION_STEPS = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 
 function checkedModuleDirectory(directory, expectedParent, expectedName) {
@@ -372,7 +386,7 @@ export function cleanupBuildResources(receipt, operations, now = Date.now) {
   return failure;
 }
 
-const SUITE_CACHE_BOUNDARIES = new Set(["corrected_ec", "normal_tests", "full_tag_tests"]);
+const SUITE_CACHE_BOUNDARIES = new Set(["corrected_ec", "normal_tests", "full_tag_tests", "post_tests"]);
 
 export function cleanupSuiteCache({ workRoot, boundary, lastGroupAbsent, workCleanupSafe, cap, root = path.dirname(path.resolve(workRoot)) }) {
   if (!SUITE_CACHE_BOUNDARIES.has(boundary) || !Number.isSafeInteger(cap) || cap < 1) throw new Error("seaweed_suite_cache_cleanup_invalid");
@@ -386,6 +400,7 @@ export function cleanupSuiteCache({ workRoot, boundary, lastGroupAbsent, workCle
   const after = {};
   for (const name of ["gocache", "tmp"]) after[name] = workTreeBytes(path.join(workRoot, name), cap);
   const afterBytes = after.gocache + after.tmp;
+  if (afterBytes !== 0) throw new Error("seaweed_suite_cache_cleanup_invalid");
   return { boundary, entries: { gocache: { beforeBytes: before.gocache, afterBytes: after.gocache }, tmp: { beforeBytes: before.tmp, afterBytes: after.tmp } },
     beforeBytes, afterBytes, freedBytes: beforeBytes - afterBytes };
 }
@@ -660,7 +675,8 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     if (stable.length !== rawModules.length) throw new Error("seaweed_module_output_invalid");
     isolatedModuleCommand("module_verify");
     const moduleDirectory = path.join(materials, "modules"); mkdirSync(moduleDirectory);
-    const moduleInventory = [];
+    const moduleInventory = []; const moduleArchives = [];
+    const cacheRoot = path.join(workRoot, "gomodcache");
     let grpcNotices = new Set();
     receipt.moduleMaterials = { total: rawModules.length, completed: 0, current: null };
     phase("module_material_retention", () => {
@@ -668,8 +684,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
         receipt.moduleMaterials.current = { module: moduleIndex + 1, operation: "module_files" };
         if (module.Error || typeof module.Path !== "string" || typeof module.Version !== "string" || typeof module.Zip !== "string" || typeof module.GoMod !== "string" || typeof module.Info !== "string") throw new Error("seaweed_module_output_invalid");
         const key = `${module.Path}@${module.Version}`; const id = sha256(Buffer.from(key)); const target = path.join(moduleDirectory, id); mkdirSync(target);
-        const files = [["source.zip", module.Zip], ["module.mod", module.GoMod], ["module.info", module.Info]];
-        const retained = {};
+        const snapshot = snapshotModuleArchive(module.Zip, { cacheRoot, groupAbsent: lastGroupAbsent && workCleanupSafe });
+        moduleArchives.push({ snapshot, destination: path.join(target, "source.zip") });
+        const files = [["module.mod", module.GoMod], ["module.info", module.Info]];
+        const retained = { "source.zip": { sha256: snapshot.sha256, size: snapshot.size } };
         for (const [name, sourceFile] of files) { copyFileSync(sourceFile, path.join(target, name)); retained[name] = identity(path.join(target, name), 256 * 1024 ** 2); }
         receipt.moduleMaterials.current = { module: moduleIndex + 1, operation: "license_list" };
         const listing = run("module_license_list", "/usr/bin/unzip", ["-Z1", module.Zip], { env: gitEnv, log: false, budget: false }).toString("utf8").split("\n").filter((name) => /(^|\/)(?:license|notice|copying)(?:\.[^/]*)?$/iu.test(name));
@@ -691,8 +709,9 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     if (!grpcNotices.has("license") || !grpcNotices.has("notice.txt")) throw new Error("seaweed_grpc_notices_missing");
     const grpc = moduleInventory.find((entry) => entry.path === "google.golang.org/grpc");
     if (!grpc || grpc.version !== lock.grpc.version || grpc.sum !== lock.grpc.sum || grpc.goModSum !== lock.grpc.goModSum) throw new Error("seaweed_grpc_module_invalid");
-    writeFileSync(path.join(output, "module-closure.json"), `${JSON.stringify(moduleInventory, null, 2)}\n`, { flag: "wx" });
     receipt.moduleCount = moduleInventory.length;
+    receipt.moduleArchives = { total: moduleArchives.length, completed: 0, current: null,
+      totalBytes: moduleArchives.reduce((sum, { snapshot }) => sum + snapshot.size, 0), retainedBytes: 0 };
     const binary = path.join(workRoot, "bin/weed"); mkdirSync(path.dirname(binary));
     phase("production_build", () => run("production_build", go, ["build", "-p=2", "-buildvcs=true", "-ldflags", lock.build.ldflags, "-o", binary, "./weed"], { cwd: source, env: prodEnv, timeout: 45 * 60_000 }));
     const retainedBinary = path.join(output, "weed");
@@ -750,11 +769,29 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const finalClosure = stableModuleClosure(finalModuleOutput);
     isolatedModuleCommand("post_test_module_verify");
     const finalGrpc = validatePostTestState(stable, finalClosure, moduleFileIdentities(), lock);
+    validateModuleArchivePaths(rawModules, jsonSequence(finalModuleOutput));
     receipt.moduleIsolation.result = "PASSED";
     receipt.moduleClosure = { result: "UNCHANGED_AFTER_TESTS", count: stable.length, grpcVersion: finalGrpc.version };
+    phase("post_test_cache_cleanup", () => {
+      receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "post_tests", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
+    });
+    phase("module_archive_retention", () => {
+      for (const [index, { snapshot, destination }] of moduleArchives.entries()) {
+        clippedTimeout({ deadlineMs: lock.limits.innerDeadlineMs, finalizationReserveMs: lock.limits.finalizationReserveMs }, now() - started, 60_000);
+        receipt.moduleArchives.current = index + 1;
+        const retained = retainModuleArchive(snapshot, destination, { cacheRoot, archiveRoot: moduleDirectory, groupAbsent: lastGroupAbsent && workCleanupSafe });
+        if (JSON.stringify(retained) !== JSON.stringify(moduleInventory[index].files["source.zip"])) throw new Error("seaweed_module_archive_changed");
+        receipt.moduleArchives.completed += 1; receipt.moduleArchives.retainedBytes += retained.size; receipt.moduleArchives.current = null;
+        if ((index + 1) % 25 === 0) budget();
+      }
+      if (receipt.moduleArchives.completed !== receipt.moduleArchives.total || receipt.moduleArchives.retainedBytes !== receipt.moduleArchives.totalBytes) throw new Error("seaweed_module_archive_incomplete");
+      budget();
+    });
+    writeFileSync(path.join(output, "module-closure.json"), `${JSON.stringify(moduleInventory, null, 2)}\n`, { flag: "wx" });
     if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
     copyFileSync(binary, retainedBinary);
     if (JSON.stringify(identity(retainedBinary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_copy_changed");
+    budget();
     phase("binary_work_cleanup", () => removeOwnedWorkEntry(workRoot, "bin"));
     const inventory = artifactInventory(output).filter((entry) => entry.path !== "material-inventory.json" && entry.path !== "build-receipt.json");
     validateArtifactAllowlist(inventory.map((entry) => entry.path));

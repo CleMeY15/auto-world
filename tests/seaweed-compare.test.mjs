@@ -17,6 +17,8 @@ const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}
 const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
 const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "ec_corrected_cache_cleanup", "redis_helper", "normal_tests", "normal_tests_cache_cleanup", "full_tag_tests", "full_tag_tests_cache_cleanup", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+phases.splice(phases.indexOf("binary_work_cleanup"), 1);
+phases.splice(phases.indexOf("redis_cleanup"), 0, "post_test_cache_cleanup", "module_archive_retention", "binary_work_cleanup");
 phases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
 const ecLog = Buffer.from([...EC_TESTS.map((Test) => ({ Package: EC_PACKAGE, Test, Action: "pass" })), { Package: EC_PACKAGE, Action: "pass" }].map(JSON.stringify).join("\n") + "\n");
 const serverLog = Buffer.from("seaweed-server-logs:v1\nfiles=0\nsourceBytes=0\n");
@@ -56,6 +58,7 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
     tools: { curl: "curl 1", docker: "28", git: "git 2", tar: "tar 1", unzip: "UnZip 1" },
     moduleClosure: { result: "UNCHANGED_AFTER_TESTS", count: 1, grpcVersion: lock.grpc.version },
     moduleMaterials: { total: 1, completed: 1, current: null },
+    moduleArchives: { total: 1, completed: 1, current: null, totalBytes: moduleFiles["source.zip"].size, retainedBytes: moduleFiles["source.zip"].size },
     moduleIsolation: { result: "PASSED", checkpoints: isolationSteps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", alternateSum: { sha256: "c".repeat(64), size: 289700 }, additionalSumLines: 2 })) },
     sourceRetention: { bundle: { sha256: sha256(files.get("materials/seaweedfs-source.bundle")), size: files.get("materials/seaweedfs-source.bundle").length }, shallow: { sha256: sha256(files.get("materials/seaweedfs-source-shallow.txt")), size: files.get("materials/seaweedfs-source-shallow.txt").length }, restoration: "PASSED", commitUnixTime: String(lock.source.commitUnixTime) },
     phases: phases.map((name) => ({ name, result: "PASSED", durationMs: 1 })),
@@ -64,7 +67,7 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
       corrected: { binary: { sha256: sha256(bytes), size: bytes.length }, modules: lock.moduleFiles.after, ...summarizeEcPreflight(ecLog, 0) },
     },
     serverLogs: ["baseline", "corrected"].map((arm) => ({ phase: `ec_${arm}`, result: "PASSED", bytes: serverLog.length })),
-    cacheCleanup: ["corrected_ec", "normal_tests", "full_tag_tests"].map((boundary) => ({ boundary, entries: { gocache: { beforeBytes: 10, afterBytes: 0 }, tmp: { beforeBytes: 5, afterBytes: 0 } }, beforeBytes: 15, afterBytes: 0, freedBytes: 15 })),
+    cacheCleanup: ["corrected_ec", "normal_tests", "full_tag_tests", "post_tests"].map((boundary) => ({ boundary, entries: { gocache: { beforeBytes: 10, afterBytes: 0 }, tmp: { beforeBytes: 5, afterBytes: 0 } }, beforeBytes: 15, afterBytes: 0, freedBytes: 15 })),
     testSummary: summary,
   };
   writeFileSync(path.join(directory, "build-receipt.json"), `${JSON.stringify(receipt)}\n`);
@@ -157,14 +160,67 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "ec_baseline_cleanup"); },
     (receipt) => { delete receipt.cacheCleanup; },
     (receipt) => { receipt.cacheCleanup[1].freedBytes += 1; },
+    (receipt) => { receipt.cacheCleanup.pop(); },
+    ...["post_test_cache_cleanup", "module_archive_retention"].map((required) => (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== required); }),
+    (receipt) => { delete receipt.moduleArchives; },
+    (receipt) => { receipt.moduleArchives.completed = 0; },
+    (receipt) => { receipt.moduleArchives.total = 2; receipt.moduleArchives.completed = 2; },
+    (receipt) => { receipt.moduleArchives.current = 1; },
+    (receipt) => { receipt.moduleArchives.totalBytes += 1; },
+    (receipt) => { receipt.moduleArchives.retainedBytes -= 1; },
     (receipt) => { delete receipt.testSummary; },
   ]) {
     const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-")); const first = fixture(root, 1); const second = fixture(root, 2);
     for (const directory of [first, second]) {
       const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); mutate(receipt); writeFileSync(file, JSON.stringify(receipt));
     }
-    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|ec_preflight|cache_cleanup|test_summary)_invalid/u);
+    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|module_archives|ec_preflight|cache_cleanup|test_summary)_invalid/u);
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("comparison rejects early archive retention and reordered test or finalization phases in both receipts", () => {
+  for (const [moved, before] of [["module_archive_retention", "production_build"], ["post_test_module_verify", "full_tag_tests"],
+    ["post_test_cache_cleanup", "post_test_module_verify"], ["binary_work_cleanup", "module_archive_retention"], ["full_tag_tests", "normal_tests"]]) {
+    const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-phase-order-"));
+    try {
+      const first = fixture(root, 1); const second = fixture(root, 2);
+      for (const directory of [first, second]) {
+        const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file));
+        const [entry] = receipt.phases.splice(receipt.phases.findIndex(({ name }) => name === moved), 1);
+        receipt.phases.splice(receipt.phases.findIndex(({ name }) => name === before), 0, entry);
+        writeFileSync(file, JSON.stringify(receipt));
+      }
+      assert.throws(() => compareFixtures(first, second), /seaweed_compare_phases_invalid/u);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("comparison rejects omitted, duplicated and truncated archives despite matching receipts and inventories", () => {
+  for (const mutation of ["omit", "duplicate", "truncate"]) {
+    const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-archives-"));
+    try {
+      const first = fixture(root, 1); const second = fixture(root, 2);
+      for (const directory of [first, second]) {
+        const closureFile = path.join(directory, "module-closure.json"); const modules = JSON.parse(readFileSync(closureFile));
+        const zipName = `materials/modules/${modules[0].id}/source.zip`;
+        if (mutation === "omit") {
+          delete modules[0].files["source.zip"]; rmSync(path.join(directory, zipName));
+          const file = path.join(directory, "material-inventory.json");
+          writeFileSync(file, JSON.stringify(JSON.parse(readFileSync(file)).filter(({ path: name }) => name !== zipName)));
+        } else if (mutation === "duplicate") {
+          modules.push(modules[0]);
+          const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file));
+          receipt.moduleClosure.count = 2; receipt.moduleMaterials.total = 2; receipt.moduleMaterials.completed = 2;
+          receipt.moduleArchives.total = 2; receipt.moduleArchives.completed = 2;
+          receipt.moduleArchives.totalBytes *= 2; receipt.moduleArchives.retainedBytes *= 2; writeFileSync(file, JSON.stringify(receipt));
+        } else {
+          writeFileSync(path.join(directory, zipName), "short"); rewriteInventoryEntry(directory, zipName);
+        }
+        writeFileSync(closureFile, JSON.stringify(modules)); rewriteInventoryEntry(directory, "module-closure.json");
+      }
+      assert.throws(() => compareFixtures(first, second), /seaweed_(?:compare_module_archives_invalid|artifact_required_missing)/u);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   }
 });
 

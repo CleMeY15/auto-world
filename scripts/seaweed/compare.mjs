@@ -28,7 +28,9 @@ const requiredGroups = { normal: [...testKeys(requiredTests.required.redis), ...
   fullTags: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)], projectGrpc: testKeys(requiredTests.required.seaweedGrpc) };
 const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "ec_corrected_cache_cleanup", "redis_helper", "normal_tests", "normal_tests_cache_cleanup", "full_tag_tests", "full_tag_tests_cache_cleanup", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const requiredIsolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
-requiredPhases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
+requiredPhases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests", "post_test_cache_cleanup", "module_archive_retention");
+const orderedPhases = ["module_material_retention", "production_build", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests",
+  "post_test_module_download", "post_test_module_verify", "post_test_cache_cleanup", "module_archive_retention", "binary_work_cleanup"];
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
 
 function validateBuildEvidence(directory, receipt, inventory, materialContract) {
@@ -39,7 +41,9 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
       JSON.stringify(receipt.sourceRetention?.bundle) !== JSON.stringify(inventoryMap.get("materials/seaweedfs-source.bundle") && { sha256: inventoryMap.get("materials/seaweedfs-source.bundle").sha256, size: inventoryMap.get("materials/seaweedfs-source.bundle").size })) throw new Error("seaweed_compare_source_restore_invalid");
   const phases = new Map((receipt.phases ?? []).map((phase) => [phase.name, phase.result]));
   if (phases.size !== receipt.phases?.length || requiredPhases.some((name) => phases.get(name) !== "PASSED")) throw new Error("seaweed_compare_phases_invalid");
-  const cleanupBoundaries = ["corrected_ec", "normal_tests", "full_tag_tests"];
+  const indices = orderedPhases.map((name) => receipt.phases.findIndex((phase) => phase.name === name));
+  if (indices.some((index, position) => position > 0 && index <= indices[position - 1])) throw new Error("seaweed_compare_phases_invalid");
+  const cleanupBoundaries = ["corrected_ec", "normal_tests", "full_tag_tests", "post_tests"];
   if (!Array.isArray(receipt.cacheCleanup) || receipt.cacheCleanup.length !== cleanupBoundaries.length || receipt.cacheCleanup.some((cleanup, index) => {
     const entries = cleanup?.entries;
     return cleanup?.boundary !== cleanupBoundaries[index] || !Number.isSafeInteger(cleanup.beforeBytes) || cleanup.beforeBytes < 0 || cleanup.beforeBytes > expectedLock.limits.workBytes ||
@@ -54,6 +58,19 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
       receipt.moduleMaterials.completed !== receipt.moduleMaterials.total || receipt.moduleMaterials.current !== null) {
     throw new Error("seaweed_compare_module_materials_invalid");
   }
+  const archives = receipt.moduleArchives;
+  const archiveNames = new Set(); let archiveBytes = 0;
+  for (const module of retainedModules) {
+    const descriptor = module.files?.["source.zip"]; const name = `materials/modules/${module.id}/source.zip`;
+    const actual = inventoryMap.get(name);
+    if (archiveNames.has(name) || !/^[a-f0-9]{64}$/u.test(descriptor?.sha256 ?? "") || !Number.isSafeInteger(descriptor?.size) ||
+        descriptor.size < 1 || descriptor.size > 256 * 1024 ** 2 || actual?.size !== descriptor.size || actual?.sha256 !== descriptor.sha256) throw new Error("seaweed_compare_module_archives_invalid");
+    archiveNames.add(name); archiveBytes += descriptor.size;
+  }
+  if (!Number.isSafeInteger(archiveBytes) || archiveBytes > expectedLock.limits.retainedBytes ||
+      [...inventoryMap.keys()].filter((name) => /^materials\/modules\/[a-f0-9]{64}\/source\.zip$/u.test(name)).length !== archiveNames.size ||
+      archives?.total !== retainedModules.length || archives.completed !== archives.total || archives.current !== null ||
+      archives.totalBytes !== archiveBytes || archives.retainedBytes !== archiveBytes) throw new Error("seaweed_compare_module_archives_invalid");
   const checkpoints = receipt.moduleIsolation?.checkpoints;
   if (receipt.moduleIsolation?.result !== "PASSED" || !Array.isArray(checkpoints) || checkpoints.length !== requiredIsolationSteps.length ||
       checkpoints.some((checkpoint, index) => checkpoint?.name !== requiredIsolationSteps[index] || checkpoint.result !== "PASSED" || checkpoint.source !== "UNCHANGED" ||
@@ -137,7 +154,7 @@ function verifiedBuild(directory, expectedRepeat, expected, materialContract) {
 
 export function compareBuilds(firstDirectory, secondDirectory, expected = {}, materialContract = productionMaterialContract()) {
   const first = verifiedBuild(firstDirectory, 1, expected, materialContract); const second = verifiedBuild(secondDirectory, 2, expected, materialContract);
-  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials", "ecPreflight"]) {
+  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials", "moduleArchives", "ecPreflight"]) {
     if (JSON.stringify(first.receipt[key]) !== JSON.stringify(second.receipt[key])) throw new Error("seaweed_compare_provenance_changed");
   }
   const deterministic = [...first.inventory.keys()].filter((name) => !name.startsWith("logs/")).sort();

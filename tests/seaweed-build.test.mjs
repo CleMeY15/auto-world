@@ -3,16 +3,55 @@ import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { retainModuleArchive, snapshotModuleArchive } from "../scripts/seaweed/module-archives.mjs";
+import { workTreeBytes } from "../scripts/seaweed/work-tree.mjs";
 import {
   armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, cleanupSuiteCache, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
   isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
   moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure,
-  validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
+  validateModuleArchivePaths, validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
   validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
 } from "../scripts/seaweed/build.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const lock = JSON.parse(readFileSync(path.join(root, "infra/seaweed/seaweed-lock.json"), "utf8"));
+
+test("deferred archive copies preserve sources and reclaim test cache before final budget enforcement", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-deferred-archives-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const cacheRoot = path.join(workRoot, "gomodcache"); const retained = path.join(runnerTemp, "retained");
+  const archiveRoot = path.join(retained, "materials/modules"); const target = path.join(archiveRoot, "a".repeat(64), "source.zip");
+  const source = path.join(cacheRoot, "cache/download/example.test/module/@v/v1.0.0.zip");
+  for (const directory of [path.dirname(source), path.dirname(target), ...["gocache", "tmp", "source", "bin"].map((name) => path.join(workRoot, name))]) mkdirSync(directory, { recursive: true });
+  writeFileSync(source, Buffer.alloc(40, 1)); writeFileSync(path.join(workRoot, "gocache/compiled"), Buffer.alloc(50, 2));
+  writeFileSync(path.join(workRoot, "source/sentinel"), "src"); writeFileSync(path.join(workRoot, "bin/weed"), "bin");
+  const limits = { workBytes: 110, retainedBytes: 110, minimumFreeBytes: 1, aggregateLogBytes: 10 };
+  const budget = () => assertResourceBudget({ workBytes: workTreeBytes(workRoot, 1024), retainedBytes: workTreeBytes(retained, 1024), freeBytes: 1000, logBytes: 0, limits });
+  try {
+    const snapshot = snapshotModuleArchive(source, { cacheRoot, groupAbsent: true });
+    assert.equal(existsSync(target), false); assert.doesNotThrow(budget);
+    retainModuleArchive(snapshot, target, { cacheRoot, archiveRoot, groupAbsent: true });
+    assert.throws(budget, /seaweed_work_budget_exceeded/u); // Old eager copy overlaps the test cache.
+    rmSync(target);
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "post_tests", lastGroupAbsent: false, workCleanupSafe: true, cap: 1024 }), /seaweed_process_group_cleanup_failed/u);
+    const cleanup = cleanupSuiteCache({ workRoot, boundary: "post_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024 });
+    assert.equal(cleanup.freedBytes, 50); assert.equal(cleanup.afterBytes, 0);
+    retainModuleArchive(snapshot, target, { cacheRoot, archiveRoot, groupAbsent: true });
+    assert.deepEqual(readFileSync(target), readFileSync(source)); assert.doesNotThrow(budget);
+    assert.equal(readFileSync(path.join(workRoot, "source/sentinel"), "utf8"), "src");
+    assert.equal(readFileSync(path.join(workRoot, "bin/weed"), "utf8"), "bin");
+    writeFileSync(path.join(retained, "weed"), Buffer.alloc(30));
+    assert.throws(budget, /seaweed_work_budget_exceeded/u); // Final copies still face the same cap.
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("post-test archive path set rejects relocation, changed modules, errors and duplicates", () => {
+  const initial = [1, 2].map((index) => ({ Path: `example.test/module${index}`, Version: "v1.0.0", Zip: `/cache/${index}.zip`, GoMod: `/cache/${index}.mod`, Info: `/cache/${index}.info` }));
+  assert.doesNotThrow(() => validateModuleArchivePaths(initial, [...initial].reverse()));
+  for (const final of [[], initial.slice(1), [...initial, initial[0]], ...["Path", "Version", "Zip", "GoMod", "Info"].map((key) => [{ ...initial[0], [key]: "changed" }, initial[1]]), [{ ...initial[0], Error: "failed" }, initial[1]]]) {
+    assert.throws(() => validateModuleArchivePaths(initial, final), /seaweed_module_archive_paths_changed/u);
+  }
+});
 
 test("suite cache cleanup removes only regenerable owned data after proven process exit", () => {
   const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-"));
