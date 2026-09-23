@@ -9,6 +9,8 @@ import { TextDecoder } from "node:util";
 import { stableModuleClosure } from "../scanner/build.mjs";
 import { runMonitoredCommand as defaultRunner } from "./command-monitor.mjs";
 import { removeOwnedTree, removeOwnedWorkEntry, workTreeBytes } from "./work-tree.mjs";
+import { ecTestArguments, requireEcPreflight, summarizeEcPreflight } from "./ec-preflight.mjs";
+import { collectServerLogs } from "./server-logs.mjs";
 export { removeOwnedTree } from "./work-tree.mjs";
 export { commandMonitorScript, runMonitoredCommand } from "./command-monitor.mjs";
 
@@ -120,7 +122,7 @@ function jsonSequence(bytes) {
   return records;
 }
 
-export function validateBuildInfo(value, lock, binary = `${DEFAULT_WORK}/bin/weed`) {
+export function validateBuildInfo(value, lock, binary = `${DEFAULT_WORK}/bin/weed`, modified = true) {
   if (typeof value !== "string" || Buffer.byteLength(value) > 8 * 1024 ** 2) throw new Error("seaweed_build_info_invalid");
   const lines = value.split(/\r?\n/u).map((line) => line.trimStart());
   if (lines[0] !== `${binary}: go${lock.compiler.version}`) throw new Error("seaweed_build_info_invalid");
@@ -128,7 +130,7 @@ export function validateBuildInfo(value, lock, binary = `${DEFAULT_WORK}/bin/wee
   if (grpc.length !== 1 || JSON.stringify(grpc[0].split("\t")) !== JSON.stringify(["dep", "google.golang.org/grpc", lock.grpc.version, lock.grpc.sum])) throw new Error("seaweed_build_info_invalid");
   const exact = new Map([
     ["CGO_ENABLED", "0"], ["GOARCH", "amd64"], ["GOOS", "linux"], ["GOAMD64", "v1"],
-    ["vcs.revision", lock.source.commit], ["vcs.modified", "true"], ["-compiler", "gc"], ["-ldflags", JSON.stringify(lock.build.ldflags)],
+    ["vcs.revision", lock.source.commit], ["vcs.modified", String(modified)], ["-compiler", "gc"], ["-ldflags", JSON.stringify(lock.build.ldflags)],
   ]);
   for (const [key, expected] of exact) {
     const prefix = `build\t${key}=`; const matches = lines.filter((line) => line.startsWith(prefix));
@@ -428,7 +430,7 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
   const logs = path.join(output, "logs"); const materials = path.join(output, "materials");
   mkdirSync(logs); mkdirSync(materials);
   const baseEnv = safeBaseEnvironment(workRoot);
-  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; let workCleanupSafe = true; const redisLifecycle = createRedisLifecycle();
+  const started = now(); let aggregateLogs = 0; let commandIndex = 0; let runnerIndex = 0; let workCleanupSafe = true; let lastGroupAbsent = false; const redisLifecycle = createRedisLifecycle();
   const receipt = { schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "FAILED", repeat, sourceCommit: lock.source.commit,
     sourceTree: lock.source.tree, sourceVersion: lock.source.version, derivativeCommit: lock.build.commitValue, buildTags: [],
     platform: "linux/amd64", cgoEnabled: "0", notRun: lock.notRun, lock: materialIdentity(lockBytes), patch: materialIdentity(patch),
@@ -440,8 +442,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     const timeout = clippedTimeout({ deadlineMs: lock.limits.innerDeadlineMs, finalizationReserveMs: lock.limits.finalizationReserveMs }, now() - started, options.timeout ?? 20 * 60_000);
     runnerIndex += 1;
     const monitorPrefix = path.join(workRoot, "tmp", `command-${String(runnerIndex).padStart(3, "0")}`);
+    lastGroupAbsent = false;
     const result = commandRunner(command, args, { cwd: options.cwd ?? workRoot, env: options.env ?? baseEnv, maxBuffer: lock.limits.logBytes, timeout,
       monitor: { stdout: `${monitorPrefix}.stdout`, stderr: `${monitorPrefix}.stderr`, marker: `${monitorPrefix}.marker`, work: workRoot, retained: output, limits: lock.limits } });
+    lastGroupAbsent = result?.groupAbsent === true;
     if (result?.groupAbsent === false || result?.monitorReason === "seaweed_process_group_cleanup_failed") {
       workCleanupSafe = false;
       throw new Error("seaweed_process_group_cleanup_failed");
@@ -458,15 +462,31 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     if (options.budget !== false) budget();
     return { result, stdout, stderr, logBytes };
   };
+  const writeLog = (phaseName, bytes) => {
+    if (bytes.length > lock.limits.logBytes || aggregateLogs + bytes.length > lock.limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
+    writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}.log`), bytes, { flag: "wx" });
+    aggregateLogs += bytes.length;
+  };
+  const retainServerLogs = (name) => {
+    receipt.serverLogs ??= [];
+    try {
+      const bytes = collectServerLogs(workRoot, { groupAbsent: lastGroupAbsent && workCleanupSafe, ...(injectedRunner ? { root: path.dirname(workRoot) } : {}) });
+      writeLog(`${name}_server_logs`, bytes);
+      receipt.serverLogs.push({ phase: name, result: "PASSED", bytes: bytes.length });
+    } catch (error) {
+      receipt.serverLogs.push({ phase: name, result: "FAILED", reason: sanitizedFailureReason(error) });
+      throw error;
+    }
+  };
   const run = (phaseName, command, args, options = {}) => {
     const { result, stdout } = invoke(command, args, { ...options, phaseName, onOutput: ({ stdout: outputBytes, stderr, logBytes }) => {
       if (options.log !== false) {
-        aggregateLogs += logBytes.length;
-        if (aggregateLogs > lock.limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
-        writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}.log`), options.separateStderr ? outputBytes : logBytes, { flag: "wx" });
-        if (options.separateStderr && stderr.length > 0) writeFileSync(path.join(logs, `${String(commandIndex += 1).padStart(2, "0")}-${phaseName}_stderr.log`), stderr, { flag: "wx" });
+        if (aggregateLogs + logBytes.length > lock.limits.aggregateLogBytes) throw new Error("seaweed_log_budget_exceeded");
+        writeLog(phaseName, options.separateStderr ? outputBytes : logBytes);
+        if (options.separateStderr && stderr.length > 0) writeLog(`${phaseName}_stderr`, stderr);
       }
     } });
+    options.onResult?.({ result, stdout });
     if (result?.error || result?.status !== 0) throw new Error(`seaweed_${phaseName}_failed`);
     return stdout;
   };
@@ -554,6 +574,45 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     validateRestoredSource({ fsck: "PASSED", head: restoredHead, tree: restoredTree, commitUnixTime: restoredTime, pristine: lock.moduleFiles.before, corrected: lock.moduleFiles.after, changed: restoredChanged }, lock);
     receipt.sourceRetention = { bundle: bundleIdentity, shallow: materialIdentity(shallow), restoration: "PASSED", commitUnixTime: restoredTime };
     phase("source_restore_cleanup", () => removeOwnedWorkEntry(workRoot, "restored-source"));
+    const prodEnv = commandEnvironment(workRoot, go, false); const testEnv = commandEnvironment(workRoot, go, true);
+    phase("test_preflight", () => {
+      if (run("test_user", "/usr/bin/id", ["-u"], { env: gitEnv, log: false }).toString("utf8").trim() === "0") throw new Error("seaweed_test_requires_nonroot");
+      run("test_zoneinfo", "/usr/bin/test", ["-r", "/usr/share/zoneinfo/America/Sao_Paulo"], { env: gitEnv, log: false });
+    });
+    const ecProbe = (arm, binary, probeEnv = testEnv) => {
+      const name = `ec_${arm}_tests`; let captured;
+      try {
+        phase(name, () => run(name, go, ecTestArguments(), { cwd: source, env: { ...probeEnv, WEED_BINARY: binary },
+          timeout: 20 * 60_000, separateStderr: true, onResult: (value) => { captured = value; } }));
+      } catch (error) {
+        // Only an ordinary completed test failure permits the other arm to run.
+        if (!captured || captured.result.error || error.message !== `seaweed_${name}_failed`) throw error;
+      }
+      const summary = summarizeEcPreflight(captured.stdout, captured.result.status);
+      Object.assign(receipt.ecPreflight[arm], summary);
+      retainServerLogs(`ec_${arm}`);
+      if (summary.result === "INVALID") throw new Error("seaweed_ec_preflight_evidence_invalid");
+      return summary;
+    };
+    const baselineLock = { ...lock, grpc: { version: "v1.85.0-dev", sum: "h1:HxkDyKIIZPpFnroC56tQv5gNuKTmVvi0t7TzOf5zt7g=" },
+      build: { ...lock.build, commitValue: "c507336", ldflags: lock.build.ldflags.replace(lock.build.commitValue, "c507336") } };
+    const baselineCache = path.join(workRoot, "baseline-gocache");
+    const baselineBinary = path.join(workRoot, "baseline-bin/weed"); mkdirSync(path.dirname(baselineBinary));
+    phase("ec_baseline_build", () => run("ec_baseline_build", go, ["build", "-p=2", "-buildvcs=true", "-ldflags", baselineLock.build.ldflags, "-o", baselineBinary, "./weed"], { cwd: source, env: { ...prodEnv, GOCACHE: baselineCache }, timeout: 45 * 60_000 }));
+    const baselineIdentity = identity(baselineBinary, 1024 ** 3);
+    const baselineInfo = run("ec_baseline_build_info", go, ["version", "-m", baselineBinary], { env: prodEnv }).toString("utf8");
+    validateBuildInfo(baselineInfo, baselineLock, baselineBinary, false);
+    validateVersionOutput(run("ec_baseline_version", baselineBinary, ["version"], { env: prodEnv }).toString("utf8").trim(), baselineLock);
+    receipt.ecPreflight = { baseline: { binary: baselineIdentity, modules: lock.moduleFiles.before } };
+    ecProbe("baseline", baselineBinary, { ...testEnv, GOCACHE: baselineCache });
+    checkModuleFiles(lock.moduleFiles.before);
+    if (run("ec_baseline_source_status", "/usr/bin/git", ["-C", source, "status", "--porcelain"], { env: gitEnv, log: false }).length !== 0) throw new Error("seaweed_ec_baseline_source_changed");
+    if (JSON.stringify(identity(baselineBinary, 1024 ** 3)) !== JSON.stringify(baselineIdentity)) throw new Error("seaweed_ec_baseline_binary_changed");
+    phase("ec_baseline_cleanup", () => {
+      if (!lastGroupAbsent || !workCleanupSafe) throw new Error("seaweed_process_group_cleanup_failed");
+      for (const name of ["baseline-bin", "baseline-gocache", "tmp"]) removeOwnedWorkEntry(workRoot, name);
+      mkdirSync(path.join(workRoot, "tmp"), { mode: 0o700 });
+    });
     phase("patch_apply", () => run("patch_apply", "/usr/bin/git", ["-C", source, "apply", "--whitespace=error-all", appliedPatch], { env: gitEnv }));
     checkModuleFiles(lock.moduleFiles.after);
     const changed = run("patch_scope", "/usr/bin/git", ["-C", source, "diff", "--name-only"], { env: gitEnv, log: false }).toString("utf8").trim().split("\n").sort();
@@ -568,7 +627,6 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
       const destination = path.join(materials, "upstream", material.path);
       mkdirSync(path.dirname(destination), { recursive: true }); copyFileSync(path.join(source, material.path), destination);
     }
-    const prodEnv = commandEnvironment(workRoot, go, false); const testEnv = commandEnvironment(workRoot, go, true);
     const tidy = phase("tidy_diff", () => run("tidy_diff", go, ["mod", "tidy", "-diff"], { cwd: source, env: { ...testEnv, GOFLAGS: "" }, timeout: 20 * 60_000 }));
     if (tidy.length !== 0) throw new Error("seaweed_tidy_diff_changed");
     const moduleIsolation = phase("module_isolation_prepare", () => createModuleIsolation(source, workRoot, lock));
@@ -627,10 +685,11 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     validateVersionOutput(versionOutput, lock);
     receipt.versionOutput = versionOutput;
     testEnv.WEED_BINARY = binary;
-    phase("test_preflight", () => {
-      if (run("test_user", "/usr/bin/id", ["-u"], { env: gitEnv, log: false }).toString("utf8").trim() === "0") throw new Error("seaweed_test_requires_nonroot");
-      run("test_zoneinfo", "/usr/bin/test", ["-r", "/usr/share/zoneinfo/America/Sao_Paulo"], { env: gitEnv, log: false });
-    });
+    receipt.ecPreflight.corrected = { binary: receipt.binary, modules: lock.moduleFiles.after };
+    ecProbe("corrected", binary);
+    checkModuleFiles(lock.moduleFiles.after);
+    if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
+    requireEcPreflight(receipt.ecPreflight.baseline, receipt.ecPreflight.corrected);
     const redisName = `aw-seaweed-redis-${repeat}`;
     phase("redis_helper", () => {
       const { result: inspect } = invoke("/usr/bin/docker", ["container", "inspect", redisName], { env: gitEnv, timeout: 60_000 });
@@ -674,7 +733,13 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     writeFileSync(path.join(output, "material-inventory.json"), `${JSON.stringify(inventory, null, 2)}\n`, { flag: "wx" });
     receipt.inventory = identity(path.join(output, "material-inventory.json"), 64 * 1024 ** 2);
     budget(); receipt.result = "PASSED";
-  } catch (error) { primaryFailure = error; receipt.reason = sanitizedFailureReason(error); }
+  } catch (error) {
+    primaryFailure = error; receipt.reason = sanitizedFailureReason(error);
+    // Never let optional failure evidence replace the original failure reason.
+    if (lastGroupAbsent && workCleanupSafe) {
+      try { retainServerLogs("failure"); } catch { /* Separately recorded in serverLogs. */ }
+    }
+  }
   const cleanupOperations = {};
   if (redisLifecycle.creationAttempted) {
     cleanupOperations.redis_cleanup = () => {
