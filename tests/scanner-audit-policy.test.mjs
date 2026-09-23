@@ -121,6 +121,22 @@ test("both database metadata records must be ordered and fresh", () => {
   }
 });
 
+test("database rejection names the failed predicate without changing the freshness boundary", () => {
+  const metadata = { Version: 1, UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS).toISOString(), DownloadedAt: now.toISOString() };
+  assert.equal(validateDatabaseMetadata(metadata, { now, expectedVersion: 1 }).version, 1);
+  for (const [change, check] of [
+    [{ UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS - 1).toISOString() }, "database_age_exceeded"],
+    [{ UpdatedAt: "2026-02-31T00:00:00Z" }, "updated_at_timestamp"],
+    [{ DownloadedAt: null }, "downloaded_at_timestamp"],
+    [{ Version: 2 }, "schema_version"],
+    [{ UpdatedAt: new Date(now.getTime() + 1).toISOString() }, "updated_after_download"],
+    [{ DownloadedAt: new Date(now.getTime() + 1).toISOString() }, "downloaded_in_future"],
+  ]) {
+    assert.throws(() => validateDatabaseMetadata({ ...metadata, ...change }, { now, expectedVersion: 1 }),
+      (error) => error.message === "scanner_database_metadata_invalid" && error.diagnostic.check === check);
+  }
+});
+
 test("oversized report inventories and malformed OS versions fail before evaluation", () => {
   const tooManyPackages = report();
   tooManyPackages.Results[0].Packages = Array(100_001).fill({ Name: "fixture", Version: "1.0" });

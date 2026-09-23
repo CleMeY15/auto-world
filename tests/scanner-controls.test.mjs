@@ -1,10 +1,63 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
-import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, fixtureScanMode, parseAuditArguments, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
+import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence, fixtureScanMode, parseAuditArguments, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
+
+test("database freeze retains both identities and rejected metadata before failing closed", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "scanner-db-evidence-"));
+  try {
+    const cache = path.join(directory, "cache");
+    const output = path.join(directory, "output");
+    await mkdir(path.join(cache, "db"), { recursive: true });
+    await mkdir(path.join(cache, "java-db"));
+    await mkdir(output);
+    const now = new Date("2026-09-23T10:00:00Z");
+    const vulnerability = { Version: 2, UpdatedAt: "2026-09-23T07:19:42Z", DownloadedAt: "2026-09-23T09:59:00Z" };
+    const java = { Version: 1, UpdatedAt: "2026-09-19T01:03:27Z", DownloadedAt: "2026-09-23T09:59:01Z", NextUpdate: "2026-09-20T01:03:27Z" };
+    await writeFile(path.join(cache, "db/trivy.db"), "synthetic vulnerability database");
+    await writeFile(path.join(cache, "java-db/trivy-java.db"), "synthetic java database");
+    await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
+    await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
+    await assert.rejects(databaseEvidence(cache, now, output), (error) => {
+      assert.equal(error.message, "scanner_database_metadata_invalid");
+      assert.deepEqual(error.diagnostic.databases, [
+        { name: "vulnerability", result: "passed" },
+        { name: "java", result: "failed", reason: "scanner_database_metadata_invalid", check: "database_age_exceeded" },
+      ]);
+      return true;
+    });
+    const evidenceFile = path.join(output, "database-evidence.json");
+    const evidenceBytes = await readFile(evidenceFile);
+    const evidence = JSON.parse(evidenceBytes);
+    assert.equal(evidence.checkedAt, now.toISOString());
+    assert.equal(evidence.maxAgeMs, 48 * 60 * 60 * 1000);
+    assert.deepEqual(evidence.observed.java.value, java);
+    assert.deepEqual(evidence.observed.vulnerability.value, vulnerability);
+    for (const [name, index] of [["vulnerability", 1], ["java", 3]]) {
+      const [actual] = await captureFiles([{ path: evidence.files[index].path, cap: 8 * 1024 ** 2 }]);
+      assert.deepEqual(evidence.observed[name].identity, { sha256: actual.sha256, size: actual.size });
+    }
+    // Failure details survive, and a second call cannot overwrite prior evidence.
+    await assert.rejects(databaseEvidence(cache, now, output), { code: "EEXIST" });
+    assert.deepEqual(await readFile(evidenceFile), evidenceBytes);
+    java.UpdatedAt = vulnerability.UpdatedAt;
+    await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
+    assert.equal((await databaseEvidence(cache, now)).metadata.java.version, 1);
+    vulnerability.DownloadedAt = "2026-09-24T00:00:00Z";
+    java.Version = 2;
+    await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
+    await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
+    await assert.rejects(databaseEvidence(cache, now), (error) => {
+      assert.deepEqual(error.diagnostic.databases.map((entry) => entry.check), ["downloaded_in_future", "schema_version"]);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 function receipt(repeat, sha = "a".repeat(64)) {
   return { schemaVersion: 1, state: "diagnostic_only", result: "passed", repeat, scannerVersion: "0.74.0-autoworld.2",

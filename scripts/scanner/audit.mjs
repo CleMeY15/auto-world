@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { evaluateImageReport, validateDatabaseMetadata } from "./audit-policy.mjs";
+import { evaluateImageReport, MAX_DATABASE_AGE_MS, validateDatabaseMetadata } from "./audit-policy.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, readBoundedJson, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "./controls.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -244,15 +244,39 @@ export async function collectImageAudits(images, operations) {
   return { reports, blockers, rejections };
 }
 
-async function databaseEvidence(cache, now) {
+export async function databaseEvidence(cache, now, output) {
   const files = cacheFiles(cache);
   const snapshot = await captureFiles(files);
-  const vulnerability = (await readBoundedJson(files[1].path, files[1].cap)).value;
-  const java = (await readBoundedJson(files[3].path, files[3].cap)).value;
-  return { files: snapshot, metadata: {
-    vulnerability: validateDatabaseMetadata(vulnerability, { now, expectedVersion: 2 }),
-    java: validateDatabaseMetadata(java, { now, expectedVersion: 1 }),
-  } };
+  const observed = {};
+  for (const [name, index] of [["vulnerability", 1], ["java", 3]]) {
+    const parsed = await readBoundedJson(files[index].path, files[index].cap);
+    if (parsed.identity.sha256 !== snapshot[index].sha256 || parsed.identity.size !== snapshot[index].size) fail("scanner_database_metadata_changed");
+    observed[name] = parsed;
+  }
+  const metadata = {};
+  const validation = [];
+  for (const [name, expectedVersion] of [["vulnerability", 2], ["java", 1]]) {
+    try {
+      metadata[name] = validateDatabaseMetadata(observed[name].value, { now, expectedVersion });
+      validation.push({ name, result: "passed" });
+    } catch (error) {
+      validation.push({ name, result: "failed", reason: error.message, check: error.diagnostic?.check });
+    }
+  }
+  if (output) {
+    // Public upstream metadata only; its original byte identity is retained alongside parsed fields.
+    writeFileSync(path.join(output, "database-evidence.json"), `${JSON.stringify({
+      checkedAt: now instanceof Date && Number.isFinite(now.getTime()) ? now.toISOString() : null,
+      maxAgeMs: MAX_DATABASE_AGE_MS, files: snapshot, observed, validation,
+    }, null, 2)}\n`, { flag: "wx" });
+  }
+  const rejected = validation.find((entry) => entry.result === "failed");
+  if (rejected) {
+    const error = new Error(rejected.reason);
+    error.diagnostic = { databases: validation };
+    throw error;
+  }
+  return { files: snapshot, metadata };
 }
 
 function databaseRegistryEvidence(output, checkpoint) {
@@ -336,9 +360,10 @@ export async function auditScanner({ buildRoot, output }) {
       command(DOCKER, databaseDownloadDockerArguments({ baseline, cache, user, registries: registryBefore, kind: "java" }), { timeout: 10 * 60_000 });
     });
     const registryAfter = await phase("database_registry_after", async () => databaseRegistryEvidence(output, "after"));
+    receipt.databaseRegistries = { before: registryBefore, after: registryAfter };
     if (JSON.stringify(registryBefore) !== JSON.stringify(registryAfter)) fail("scanner_database_registry_changed");
     const now = new Date();
-    const database = await phase("database_freeze", async () => databaseEvidence(cache, now));
+    const database = await phase("database_freeze", async () => databaseEvidence(cache, now, output));
     receipt.budget = projectAuditBudget({ buildInputBytes, materialBytes: treeSize(path.join(ROOT, "infra/scanner")),
       databaseBytes: treeSize(cache), baselineImageBytes, versionProbeBytes: versionProbeSnapshot.size });
     makeReadOnly(cache);

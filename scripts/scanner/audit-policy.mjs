@@ -46,14 +46,20 @@ function clock(now) {
 
 export function validateDatabaseMetadata(metadata, { now = new Date(), expectedVersion } = {}) {
   const at = clock(now);
-  if (!object(metadata) || ![1, 2].includes(expectedVersion)) invalid("scanner_database_metadata_invalid");
+  const reject = (check) => {
+    const error = new Error("scanner_database_metadata_invalid");
+    error.diagnostic = { check };
+    throw error;
+  };
+  if (!object(metadata) || ![1, 2].includes(expectedVersion)) reject("shape_or_expected_version");
   const updatedAt = timestamp(metadata.UpdatedAt);
   const downloadedAt = timestamp(metadata.DownloadedAt);
-  if (!Number.isFinite(updatedAt) || !Number.isFinite(downloadedAt) ||
-      updatedAt > downloadedAt || downloadedAt > at || at - updatedAt > MAX_DATABASE_AGE_MS ||
-      metadata.Version !== expectedVersion) {
-    invalid("scanner_database_metadata_invalid");
-  }
+  if (!Number.isFinite(updatedAt)) reject("updated_at_timestamp");
+  if (!Number.isFinite(downloadedAt)) reject("downloaded_at_timestamp");
+  if (metadata.Version !== expectedVersion) reject("schema_version");
+  if (updatedAt > downloadedAt) reject("updated_after_download");
+  if (downloadedAt > at) reject("downloaded_in_future");
+  if (at - updatedAt > MAX_DATABASE_AGE_MS) reject("database_age_exceeded");
   return { updatedAt: metadata.UpdatedAt, downloadedAt: metadata.DownloadedAt, version: metadata.Version };
 }
 
