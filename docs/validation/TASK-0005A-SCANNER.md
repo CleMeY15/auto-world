@@ -1,6 +1,14 @@
 # TASK-0005A — Corrected scanner evidence
 
-Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Date: 2026-09-14.
+Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Latest observation: 2026-09-23.
+
+## Database rejection evidence follow-up
+
+The automatic [PR29 diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35847661679) and [main diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35848007275) both built the scanner twice, then failed at `database_freeze` with `scanner_database_metadata_invalid`. Neither run reached self, fixture or image scans. Their unchanged before/after registry manifests describe a vulnerability database published on 23 September and Java database published on 19 September. Rejected metadata fields were not retained, so the exact failed predicate is not established by these receipts.
+
+The [upstream Java database workflow](https://api.github.com/repos/aquasecurity/trivy-java-db/actions/workflows/46896855) was observed as `disabled_inactivity` on 23 September; its [last successful publication](https://github.com/aquasecurity/trivy-java-db/actions/runs/35408377819) was 19 September. The [daily publisher](https://github.com/aquasecurity/trivy-java-db/blob/ec095357db14df92cc0df2682af15115e57fbdcd/.github/workflows/cron.yml) sends the same archive to the three official registries. This supports an upstream freshness blocker; an alternate mirror is not evidence of a fresh database.
+
+Planned focused repair: retain bounded metadata and its byte identity before freshness validation, record the database name and exact rejected predicate, and continue to reject stale, future, malformed or wrong-version metadata. Regression tests will cover both databases, the 48-hour boundary, stale/future dates and output collisions. No freshness threshold, source, permission or image admission policy changes. Rollback is a code revert; it restores less detailed failure evidence without accepting any database. TASK-0005A stays incomplete.
 
 The [ADR7 contract](../decisions/ADR-0007-private-image-admission.md) is accepted through PR12, merge `3d4d251a9c19a5f03fae923dc3419b8a6bc1061d`, main CI [34830801370](https://github.com/CleMeY15/auto-world/actions/runs/34830801370) PASS. This supporting increment implements only the unprivileged corrected-scanner lane.
 
