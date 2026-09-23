@@ -52,8 +52,8 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     const startupDelayEnvironment = path.join(work, "startup-delay.bash"); const startupDelayEvent = path.join(work, "startup-delay.event");
     const startupDelayStdout = path.join(temporary, "startup-delay.stdout"); const startupDelayStderr = path.join(temporary, "startup-delay.stderr");
     writeFileSync(startupDelayEnvironment,
-      "seaweed_expected_command='/usr/bin/setsid -- \"$command\" \"$@\" >&4 2>&5 3>&- 4>&- 5>&-'\n" +
-      "trap 'if [ \"${SEAWEED_MONITOR_DELAY_SETSID:-0}\" = 1 ] && [ \"$BASH_SUBSHELL\" -gt 0 ] && [ \"$BASH_COMMAND\" = \"$seaweed_expected_command\" ]; then SEAWEED_MONITOR_DELAY_SETSID=0; if [ -f \"$SEAWEED_MONITOR_STARTUP_STDOUT\" ] && [ -f \"$SEAWEED_MONITOR_STARTUP_STDERR\" ]; then printf %s ready; else printf %s missing; fi >\"$SEAWEED_MONITOR_STARTUP_EVENT\"; /usr/bin/sleep 2; fi' DEBUG\nset -T\n",
+      "seaweed_expected_command='/usr/bin/setsid -- \"$command\" \"$@\" 1>&4 2>&5 3>&- 4>&- 5>&-'\n" +
+      "trap 'if [ \"${SEAWEED_MONITOR_DELAY_SETSID:-0}\" = 1 ] && [ \"$BASH_SUBSHELL\" -eq 0 ] && [ \"$BASH_COMMAND\" = \"$seaweed_expected_command\" ]; then SEAWEED_MONITOR_DELAY_SETSID=0; if [ -f \"$SEAWEED_MONITOR_STARTUP_STDOUT\" ] && [ -f \"$SEAWEED_MONITOR_STARTUP_STDERR\" ]; then printf %s ready; else printf %s missing; fi >\"$SEAWEED_MONITOR_STARTUP_EVENT\"; /usr/bin/sleep 2; fi' DEBUG\nset -T\n",
       { mode: 0o600 });
     const startupDelayResult = runProbe("startup-delay", "/usr/bin/true", [], startupDelayWork, 10_000, undefined, temporary,
       { BASH_ENV: startupDelayEnvironment, SEAWEED_MONITOR_DELAY_SETSID: "1", SEAWEED_MONITOR_STARTUP_EVENT: startupDelayEvent,
