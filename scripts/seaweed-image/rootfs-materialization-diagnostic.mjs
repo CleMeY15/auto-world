@@ -21,7 +21,7 @@ function fail(code) { return Object.assign(new Error(code), { code }); }
 async function requireContext(env) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
-    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "2"
+    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "3"
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !path.isAbsolute(env.RUNNER_TEMP ?? "") || path.normalize(env.RUNNER_TEMP) !== env.RUNNER_TEMP) {

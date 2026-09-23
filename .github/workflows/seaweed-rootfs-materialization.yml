@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
-      - name: Require the second reviewed main dispatch after the failed first run
+      - name: Require the third reviewed main dispatch after failed scans
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_RUN_NUMBER" = '2'
+          test "$GITHUB_RUN_NUMBER" = '3'
           test "$GITHUB_RUN_ATTEMPT" = '1'
           test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-rootfs-materialization.yml@refs/heads/main'
 

@@ -12,7 +12,7 @@ const linux = process.platform === "linux";
 function context(runnerTemp) {
   return {
     GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "3", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-rootfs-materialization.yml@refs/heads/main",
     GITHUB_SHA: "a".repeat(40), RUNNER_TEMP: runnerTemp,
   };
@@ -38,7 +38,7 @@ test("rootfs workflow is one-time, read-only, bounded and tied to its checkout",
   assert.doesNotMatch(bytes, /pull_request:|\bpush:|upload-artifact|packages:\s*write|id-token:|docker\s/u);
   assert.match(bytes, /permissions:\n {2}contents: read\n {2}actions: read\n/u);
   assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
-  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '2'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '3'/u);
   assert.match(bytes, /test "\$GITHUB_RUN_ATTEMPT" = '1'/u);
   assert.match(bytes, /test "\$\(git rev-parse HEAD\)" = "\$GITHUB_SHA"/u);
   assert.match(bytes, /12582912/u);
@@ -51,7 +51,7 @@ test("rootfs diagnostic rejects altered provenance before creating storage", { s
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "seaweed-rootfs-context-test-"));
   const root = path.join(runnerTemp, "seaweed-rootfs-materialization");
   try {
-    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "3" },
+    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "2" },
       { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_SHA: "not-a-sha" }]) {
       await assert.rejects(TEST_ONLY_runRootfsMaterializationDiagnostic(["execute"],
         { ...context(runnerTemp), ...changed }), { code: "seaweed_rootfs_materialization_context_invalid" });
