@@ -2,6 +2,21 @@
 
 Status: SOURCE_DIAGNOSTIC_REPAIR. This focused increment evaluates a correction of the one blocking gRPC finding in the current SeaweedFS image. The focused PR records exact reviewed-head, native run and integration results as they occur. Source-build success is separate from image audit, runtime validation and admission.
 
+## Complete suites reached; vet remains blocking
+
+[Run35860660822](https://github.com/CleMeY15/auto-world/actions/runs/35860660822), attempt1 at reviewed main `184f25ffbe4235c9c7df5301a5358919d9e752cf`, is **FAILED**. Jobs1/2 finish at13:16:03Z/13:18:55Z on2026-09-23. PR33's deferred archive copies allow both complete normal and seven-tag suites to pass within the unchanged resource limits. Both pristine/corrected EC pairs and all12 required project gRPC tests pass; both corrected binaries still have the SHA-256 `5f19f5b576ec943e1d73e35817e61b086954a54999e361a99fed093fdecb9e42`,220989980 bytes.
+
+| Phase | Job1 | Job2 | Required summary |
+| --- | --- | --- | --- |
+| Normal suite | PASS706579ms | PASS735504ms | 31 required passes,46 recorded upstream skips each |
+| Full seven-tag suite | PASS805632ms | PASS841286ms | 31 required passes,47 recorded upstream skips each |
+| Project gRPC | PASS43659ms | PASS47527ms | 12 required passes,zero skips each |
+| Vet | FAIL212525ms | FAIL228187ms | `seaweed_vet_failed` in both jobs |
+
+The two complete vet logs are byte-identical:3799 bytes, SHA-256 `95444f6297aa2139935bdfb4236faeb71eda5eba4edab2fb3c6e3985df2f4178`. They contain18 `copylocks` findings across11 source/test files: protobuf message value copies in plugin/cluster/credential/mount/worker/replication/shell/stats code and `IdentityAccessManagement` value transfers in S3 test helpers. Attribution and repair require inspection of exact pristine source and the current patch; no warning is waived or disabled by this evidence checkpoint.
+
+Both Redis/work cleanups and failure-artifact gates pass. The separate dependency transport suite, post-test verification, deferred archive retention and independent comparison are not completed. All1159 module ZIP copies remain deferred at the failure point (`completed=0`, original total1137509903 bytes); this is an expected failed receipt, not a complete retained reconstruction closure. Matching binary hashes and passed suites do not establish source acceptance. ADR-0008 construction therefore remains blocked while a separate synthetic import/save fixture can be evaluated without Seaweed materials.
+
 ## Native progress on 23 September and resource follow-up
 
 [Native run35853479793](https://github.com/CleMeY15/auto-world/actions/runs/35853479793), attempt1 on reviewed main `38ab84ea29687e64bf5660c3817359fdcf044bea`, is now **FAILED**. Both pristine/corrected EC pairs pass; both corrected binaries still match at 220989980 bytes, SHA-256 `5f19f5b576ec943e1d73e35817e61b086954a54999e361a99fed093fdecb9e42`. Both complete normal suites pass with 31 required tests and the same 46 documented upstream skips, taking 738267 ms and 736715 ms. Corrected-EC cleanup frees 2088094796 logical bytes in each job; normal cleanup frees 2413046740 and 2413047156 bytes, with both owned cache directories verified empty afterward.

@@ -1,0 +1,38 @@
+# TASK-0005A — Synthetic Docker import/save fidelity
+
+Status: implementation under validation; native Docker result pending. This diagnostic does not construct or admit a SeaweedFS image.
+
+## Purpose and scope
+
+[ADR-0008](../decisions/ADR-0008-seaweed-s3-derivative-profile.md) requires actual filesystem and image-configuration fidelity from the selected construction method. This small diagnostic evaluates one managed Docker Engine `image import`/`image save` path using an authored public fixture. It does not consume Seaweed source, binaries, base layers or private materials. Source diagnostic35860660822 passed both complete suites but failed vet in both jobs; full source acceptance remains a separate prerequisite before actual derivative construction.
+
+The fixture contains only short public text, directories and a symlink, with deliberately distinct modes, owners and integer mtimes. Its configured entrypoint is never executed. The diagnostic creates no container, starts no service and invokes no build, registry, package, signing or attestation operation. Buildx/BuildKit do not participate and are not prerequisites for this check.
+
+The workflow is input-free and restricted to the exact repository's `main`, attempt1, for targeted pushes or manual dispatch. It has only `contents: read`, uses the existing pinned checkout/setup-node/artifact actions and Node22.23.2, and records observed Docker client/server versions. The daemon is the managed runner's local Unix socket; an empty owned Docker configuration directory and a small explicit environment prevent use of inherited registry credentials or remote Docker contexts.
+
+## Evidence contract
+
+- Before import, prove the unique run-ID tag is absent; any ambiguous Docker error fails.
+- Import only the absolute path of the authored USTAR. Set explicit entrypoint, command, environment, working directory, volume, ports and ownership label. Do not set `USER`; record whether the exported config omits it or has an empty value, and reject a configured non-empty user.
+- Establish cleanup ownership only after returned image ID, inspected ID/tag, platform, size, expected config and single-layer identity agree.
+- Save locally and fully parse the archive without extracting files. Validate checksums, lengths, known header semantics, safe unique paths, allowed member types, padding, two zero end blocks and all trailing bytes.
+- Accept only the reviewed OCI-layout/Docker-compatible hybrid archive family. Bind OCI index, manifest, Docker manifest, config and layer references to actual blob paths, sizes and hashes. Accept bounded raw or gzip layer bytes, verify the uncompressed DiffID and exact fixture inventory/content/metadata. Unknown representations fail instead of being ignored.
+- Bind the imported/inspected local image ID to the exported config digest (classic store) or OCI manifest digest (containerd store), and record which relation actually holds. Reinspect the owned image before non-force removal, then prove both its tag and image ID absent. Failures after ownership still reach cleanup. An identity mismatch before ownership does not authorize deletion of the ambiguous object.
+- Remove only the owned, unchanged temporary directory. Retain only the bounded sanitized JSON receipt; raw archives and Docker output are never public artifacts.
+
+Budgets: fixture64KiB, saved archive4MiB, JSON config256KiB,128 archive members, combined command output1MiB,120seconds per command, seven-minute operation deadline, separate cleanup reserve ending at8.5minutes,64KiB receipt and ten-minute job. Workflow artifacts retain the receipt for14days; they are not the supported-runtime reconstruction archive.
+
+## Verification and limits
+
+Sequential plan review: Architect APPROVE/CLEAR, then distinct Critic APPROVE/CLEAR. Targeted adversarial tests cover malformed archives and metadata substitutions, context/permission boundaries, foreign-object preservation, sanitized command failures and cleanup after verification failure. Full root gates, fresh-clone checks, independent implementation review and final-head/main CI remain required before this increment is accepted.
+
+A native PASS proves only the observed synthetic filesystem/config behavior of the recorded Docker versions. It does not prove reproducible image timestamps/digests, BuildKit `ADD`, full Seaweed notices/base-layer transformation, actual service behavior, scanner freshness, private storage, signing or admission. The fixture's absent-versus-empty user observation does not broaden ADR-0008's future concrete recipe policy.
+
+No source/vulnerability threshold, external fork waiver, publication control or task dependency changes. TASK-0005A/0005 remain incomplete and TASK-0006 remains blocked. Rollback disables or reverts this diagnostic; it does not touch data, existing images, retired publishers or the current source diagnostic.
+
+## Primary references
+
+- [Docker image import](https://docs.docker.com/reference/cli/docker/image/import/): local archive input, supported configuration changes and platform selection.
+- [Docker image save](https://docs.docker.com/reference/cli/docker/image/save/): image/config/layer export.
+- [Moby28.0.4 classic exporter](https://github.com/moby/moby/blob/v28.0.4/image/tarexport/save.go) and [containerd exporter adapter](https://github.com/moby/moby/blob/v28.0.4/daemon/containerd/image_exporter.go): the reviewed hybrid archive representations.
+- [Moby28.0.4 containerd import](https://github.com/moby/moby/blob/v28.0.4/daemon/containerd/image_import.go): compressed stored layer versus uncompressed DiffID.

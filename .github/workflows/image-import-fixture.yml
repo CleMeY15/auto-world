@@ -1,0 +1,26 @@
+{
+  "name": "Synthetic image import fidelity",
+  "on": {
+    "workflow_dispatch": {},
+    "push": {
+      "branches": ["main"],
+      "paths": [".github/workflows/image-import-fixture.yml", "scripts/image-import-fixture/**", "tests/image-import-fixture*.test.mjs"]
+    }
+  },
+  "permissions": {"contents": "read"},
+  "concurrency": {"group": "image-import-fixture", "cancel-in-progress": false},
+  "jobs": {
+    "diagnostic": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.ref == 'refs/heads/main' && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "steps": [
+        {"name": "Check out reviewed main without stored credentials", "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "with": {"persist-credentials": false}},
+        {"name": "Set up pinned Node.js", "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020", "with": {"node-version": "22.23.2", "cache": ""}},
+        {"name": "Import and inspect the authored fixture without executing it", "id": "diagnostic", "continue-on-error": true, "run": "node scripts/image-import-fixture/run.mjs --output \"${RUNNER_TEMP}/image-import-fixture\""},
+        {"name": "Retain only the public diagnostic receipt", "if": "${{ always() }}", "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "with": {"name": "image-import-fixture-receipt", "path": "${{ runner.temp }}/image-import-fixture/receipt.json", "if-no-files-found": "error", "retention-days": 14, "compression-level": 6}},
+        {"name": "Enforce diagnostic outcome", "if": "${{ steps.diagnostic.outcome != 'success' }}", "run": "exit 1"}
+      ]
+    }
+  }
+}
