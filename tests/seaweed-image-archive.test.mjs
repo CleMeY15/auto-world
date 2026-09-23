@@ -5,7 +5,7 @@ import test from "node:test";
 import { gzipSync } from "node:zlib";
 
 import { buildFixtureTar, fixtureEntries } from "../scripts/image-import-fixture/archive.mjs";
-import { scanGzipLayer, seaweedArchiveLimits } from "../scripts/seaweed-image/archive.mjs";
+import { scanGzipLayer, scanRawUstar, seaweedArchiveLimits } from "../scripts/seaweed-image/archive.mjs";
 
 const BLOCK = 512;
 
@@ -104,6 +104,35 @@ test("scanGzipLayer streams the existing fixture into closed canonical metadata"
   assert.equal(file.entry.sha256, hash(Buffer.from("public synthetic metadata\n")));
   const link = result.members.find((member) => member.entry.path === "workspace/public-link");
   assert.equal(link.entry.linkname, "public.txt");
+});
+
+test("scanRawUstar independently verifies the complete raw archive and its DiffID", async () => {
+  const tar = buildFixtureTar();
+  const diffId = `sha256:${hash(tar)}`;
+  const result = await scanRawUstar({ input: Readable.from([tar]), diffId });
+  assert.equal(result.rawSize, tar.length);
+  assert.equal(result.diffId, diffId);
+  assert.equal(result.members.length, fixtureEntries.length);
+  assert.deepEqual(result.members.map(({ entry }) => entry), (await scan(tar)).members.map(({ entry }) => entry));
+});
+
+test("scanRawUstar rejects truncation, trailing bytes and a wrong DiffID", async () => {
+  const tar = makeTar([{ path: "a", content: Buffer.from("a") }]);
+  const diffId = `sha256:${hash(tar)}`;
+  await rejectsCode(scanRawUstar({ input: Readable.from([tar.subarray(0, -512)]), diffId }),
+    "seaweed_archive_tar_eoa_invalid");
+  await rejectsCode(scanRawUstar({ input: Readable.from([Buffer.concat([tar, Buffer.alloc(512)])]), diffId }),
+    "seaweed_archive_tar_eoa_invalid");
+  await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId: `sha256:${"0".repeat(64)}` }),
+    "seaweed_archive_diffid_mismatch");
+});
+
+test("scanRawUstar aborts an input without returning an inventory", async () => {
+  const tar = makeTar([{ path: "a", content: Buffer.from("a") }]);
+  const controller = new globalThis.AbortController();
+  controller.abort();
+  await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId: `sha256:${hash(tar)}`, signal: controller.signal }),
+    "seaweed_archive_aborted");
 });
 
 test("scanGzipLayer accepts one TAR stream split over concatenated gzip members", async () => {
