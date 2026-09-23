@@ -11,19 +11,25 @@ const MAX_MODE = 0o7777;
 const MAX_ID = 0o7777777;
 const MAX_TAR_NUMBER = 0o77777777777;
 const SHA256 = /^[0-9a-f]{64}$/u;
+const INTERNAL_ERROR_CODES = new WeakMap();
 
 function writerError(code, cause) {
-  return cause === undefined ? new Error(code) : new Error(code, { cause });
+  const error = cause === undefined ? new Error(code) : new Error(code, { cause });
+  INTERNAL_ERROR_CODES.set(error, code);
+  return error;
 }
 
 function isWriterError(error) {
-  return error instanceof Error && error.message.startsWith("seaweed_ustar_");
+  return error instanceof Error && INTERNAL_ERROR_CODES.has(error);
 }
 
-function failed(error, generatedBytes) {
-  const normalized = isWriterError(error)
-    ? error
-    : writerError(error?.name === "AbortError" ? "seaweed_ustar_aborted" : "seaweed_ustar_stream_invalid", error);
+function failed(error, generatedBytes, callerSignal) {
+  const code = isWriterError(error)
+    ? INTERNAL_ERROR_CODES.get(error)
+    : callerSignal?.aborted === true && error?.name === "AbortError"
+      ? "seaweed_ustar_aborted"
+      : "seaweed_ustar_stream_invalid";
+  const normalized = writerError(code, error);
   Object.defineProperties(normalized, {
     state: { value: "INCOMPLETE", enumerable: true },
     generatedBytes: { value: generatedBytes, enumerable: true },
@@ -31,10 +37,29 @@ function failed(error, generatedBytes) {
   return normalized;
 }
 
-function exactObject(value, keys) {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    && Object.getPrototypeOf(value) === Object.prototype
-    && Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+function primitiveSnapshot(candidate) {
+  if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)
+    || Object.getPrototypeOf(candidate) !== Object.prototype) {
+    throw writerError("seaweed_ustar_entry_invalid");
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(candidate);
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.some((key) => typeof key !== "string")) throw writerError("seaweed_ustar_entry_invalid");
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    if (!Object.hasOwn(descriptor, "value") || descriptor.enumerable !== true) {
+      throw writerError("seaweed_ustar_entry_invalid");
+    }
+  }
+  const type = descriptors.type?.value;
+  const expected = ["path", "type", "mode", "uid", "gid", "mtime", "size"];
+  if (type === "file") expected.push("sha256");
+  else if (type === "symlink") expected.push("linkname");
+  else if (type !== "directory") throw writerError("seaweed_ustar_entry_invalid");
+  if (keys.length !== expected.length || !expected.every((key) => Object.hasOwn(descriptors, key))) {
+    throw writerError("seaweed_ustar_entry_invalid");
+  }
+  return Object.fromEntries(expected.map((key) => [key, descriptors[key].value]));
 }
 
 function requireInteger(value, maximum) {
@@ -93,32 +118,29 @@ function cloneAndValidateEntries(entries) {
   const paths = new Map();
   let offset = 0;
   for (const candidate of entries) {
-    const type = candidate?.type;
-    const keys = ["path", "type", "mode", "uid", "gid", "mtime", "size"];
-    if (type === "file") keys.push("sha256");
-    else if (type === "symlink") keys.push("linkname");
-    else if (type !== "directory") throw writerError("seaweed_ustar_entry_invalid");
-    if (typeof candidate?.path === "string" && candidate.path.length > 256) {
+    const snapshot = primitiveSnapshot(candidate);
+    const { type } = snapshot;
+    if (typeof snapshot.path === "string" && snapshot.path.length > 256) {
       throw writerError("seaweed_ustar_path_unrepresentable");
     }
-    if (!exactObject(candidate, keys) || !canonicalPath(candidate.path)
-      || !requireInteger(candidate.mode, MAX_MODE) || !requireInteger(candidate.uid, MAX_ID)
-      || !requireInteger(candidate.gid, MAX_ID) || !requireInteger(candidate.mtime, MAX_TAR_NUMBER)
-      || !requireInteger(candidate.size, MAX_RAW_BYTES)
-      || (type !== "file" && candidate.size !== 0)
-      || (type === "file" && (typeof candidate.sha256 !== "string" || !SHA256.test(candidate.sha256)))
-      || (type === "symlink" && !validateLinkTarget(candidate.path, candidate.linkname))) {
+    if (!canonicalPath(snapshot.path)
+      || !requireInteger(snapshot.mode, MAX_MODE) || !requireInteger(snapshot.uid, MAX_ID)
+      || !requireInteger(snapshot.gid, MAX_ID) || !requireInteger(snapshot.mtime, MAX_TAR_NUMBER)
+      || !requireInteger(snapshot.size, MAX_RAW_BYTES)
+      || (type !== "file" && snapshot.size !== 0)
+      || (type === "file" && (typeof snapshot.sha256 !== "string" || !SHA256.test(snapshot.sha256)))
+      || (type === "symlink" && !validateLinkTarget(snapshot.path, snapshot.linkname))) {
       throw writerError("seaweed_ustar_entry_invalid");
     }
-    const tarPath = splitPath(candidate.path);
-    if (paths.has(candidate.path)) throw writerError("seaweed_ustar_duplicate_path");
-    paths.set(candidate.path, type);
-    const padding = type === "file" ? (BLOCK_BYTES - candidate.size % BLOCK_BYTES) % BLOCK_BYTES : 0;
-    const nextOffset = offset + BLOCK_BYTES + candidate.size + padding;
+    const tarPath = splitPath(snapshot.path);
+    if (paths.has(snapshot.path)) throw writerError("seaweed_ustar_duplicate_path");
+    paths.set(snapshot.path, type);
+    const padding = type === "file" ? (BLOCK_BYTES - snapshot.size % BLOCK_BYTES) % BLOCK_BYTES : 0;
+    const nextOffset = offset + BLOCK_BYTES + snapshot.size + padding;
     if (!Number.isSafeInteger(nextOffset) || nextOffset + 2 * BLOCK_BYTES > MAX_RAW_BYTES) {
       throw writerError("seaweed_ustar_raw_limit");
     }
-    const entry = Object.freeze({ ...candidate });
+    const entry = Object.freeze(snapshot);
     copies.push(Object.freeze({
       memberOrdinal: copies.length,
       uncompressedHeaderOffset: offset,
@@ -295,6 +317,6 @@ export async function writeUstarArchive({ entries, sink, openContent, signal } =
       })),
     };
   } catch (error) {
-    throw failed(error, generatedBytes);
+    throw failed(error, generatedBytes, signal);
   }
 }

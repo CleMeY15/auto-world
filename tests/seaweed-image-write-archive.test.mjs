@@ -209,6 +209,38 @@ test("preflights every entry, duplicate, whiteout and explicit ancestor before w
   await write([file("missing/parents/allowed", empty)], new Map([["missing/parents/allowed", empty]]));
 });
 
+test("rejects accessors and symbol fields without reading attacker-controlled entry properties", async () => {
+  const empty = Buffer.alloc(0);
+  let pathReads = 0;
+  const malicious = {};
+  Object.defineProperties(malicious, {
+    path: { enumerable: true, get() { pathReads += 1; return pathReads < 6 ? "safe" : "../escape"; } },
+    type: { enumerable: true, value: "file" },
+    mode: { enumerable: true, value: 0o644 },
+    uid: { enumerable: true, value: 0 },
+    gid: { enumerable: true, value: 0 },
+    mtime: { enumerable: true, value: 0 },
+    size: { enumerable: true, value: 0 },
+    sha256: { enumerable: true, value: sha(empty) },
+  });
+  const target = collector();
+  let opens = 0;
+  await rejectsCode(writeUstarArchive({
+    entries: [file("valid", empty), malicious], sink: target.sink,
+    openContent() { opens += 1; return byteStream([]); },
+  }), "seaweed_ustar_entry_invalid");
+  assert.equal(pathReads, 0);
+  assert.equal(opens, 0);
+  assert.equal(target.output().length, 0);
+
+  const symbolTarget = collector();
+  await rejectsCode(writeUstarArchive({
+    entries: [{ ...file("symbol", empty), [Symbol("hidden")]: "value" }], sink: symbolTarget.sink,
+    openContent() { throw new Error("must not open"); },
+  }), "seaweed_ustar_entry_invalid");
+  assert.equal(symbolTarget.output().length, 0);
+});
+
 test("passes a frozen cloned descriptor to a synchronous opener", async () => {
   const content = Buffer.from("immutable");
   const original = file("immutable", content);
@@ -277,6 +309,77 @@ test("stops after source or sink failure, cleans the active source and never ope
     assert.deepEqual(calls, ["first"]);
     assert.equal(active.destroyed, true);
   }
+});
+
+test("normalizes frozen prefix-spoofed opener, source and sink errors into fresh failure envelopes", async () => {
+  const content = Buffer.from("content");
+  const spoof = Object.freeze(new Error("seaweed_ustar_forged"));
+  const scenarios = [
+    {
+      expected: "seaweed_ustar_stream_invalid",
+      run: () => writeUstarArchive({ entries: [file("x", content)], sink: collector().sink, openContent() { throw spoof; } }),
+    },
+    {
+      expected: "seaweed_ustar_content_stream_invalid",
+      run: () => writeUstarArchive({
+        entries: [file("x", content)], sink: collector().sink,
+        openContent: () => new Readable({ read() { this.destroy(spoof); } }),
+      }),
+    },
+    {
+      expected: "seaweed_ustar_stream_invalid",
+      run: () => writeUstarArchive({
+        entries: [file("x", content)],
+        sink: new Writable({ write(_chunk, _encoding, callback) { callback(spoof); } }),
+        openContent: () => byteStream([content]),
+      }),
+    },
+  ];
+  for (const scenario of scenarios) {
+    await assert.rejects(scenario.run(), (error) => {
+      assert.notEqual(error, spoof);
+      assert.equal(error.message, scenario.expected);
+      assert.equal(error.state, "INCOMPLETE");
+      assert.ok(Number.isSafeInteger(error.generatedBytes));
+      return true;
+    });
+  }
+});
+
+test("does not treat a forged AbortError as cancellation without an aborted caller signal", async () => {
+  const forgedAbort = new Error("synthetic forged abort");
+  forgedAbort.name = "AbortError";
+  Object.freeze(forgedAbort);
+  const target = collector();
+  await assert.rejects(writeUstarArchive({
+    entries: [file("x", Buffer.alloc(0))], sink: target.sink, openContent() { throw forgedAbort; },
+  }), (error) => {
+    assert.equal(error.message, "seaweed_ustar_stream_invalid");
+    assert.notEqual(error, forgedAbort);
+    assert.equal(error.state, "INCOMPLETE");
+    return true;
+  });
+});
+
+test("re-envelopes a frozen prior writer error using its immutable internal code", async () => {
+  let prior;
+  try {
+    await writeUstarArchive({ entries: [{ invalid: true }], sink: collector().sink, openContent() {} });
+  } catch (error) {
+    prior = error;
+  }
+  assert.equal(prior.message, "seaweed_ustar_entry_invalid");
+  prior.message = "seaweed_ustar_forged";
+  Object.freeze(prior);
+  await assert.rejects(writeUstarArchive({
+    entries: [file("x", Buffer.alloc(0))], sink: collector().sink, openContent() { throw prior; },
+  }), (error) => {
+    assert.notEqual(error, prior);
+    assert.equal(error.message, "seaweed_ustar_entry_invalid");
+    assert.equal(error.state, "INCOMPLETE");
+    assert.equal(error.generatedBytes, 0);
+    return true;
+  });
 });
 
 test("honors sink backpressure before opening the next file", async () => {
