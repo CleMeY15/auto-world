@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { compareBuilds, parseCompareArguments, productionMaterialContract, runComparison } from "../scripts/seaweed/compare.mjs";
+import { EC_PACKAGE, EC_TESTS, summarizeEcPreflight } from "../scripts/seaweed/ec-preflight.mjs";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
@@ -16,6 +17,9 @@ const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}
 const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
 const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+phases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
+const ecLog = Buffer.from([...EC_TESTS.map((Test) => ({ Package: EC_PACKAGE, Test, Action: "pass" })), { Package: EC_PACKAGE, Action: "pass" }].map(JSON.stringify).join("\n") + "\n");
+const serverLog = Buffer.from("seaweed-server-logs:v1\nfiles=0\nsourceBytes=0\n");
 
 function goLog(required) { return Buffer.from(required.map((key) => { const split = key.lastIndexOf(":"); return JSON.stringify({ Action: "pass", Package: key.slice(0, split), Test: key.slice(split + 1) }); }).join("\n") + "\n"); }
 
@@ -38,6 +42,8 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
     const value = Buffer.from(notice.archiveEntry); files.set(`materials/modules/${id}/${notice.file}`, value); return { ...notice, sha256: sha256(value), size: value.length };
   });
   files.set("module-closure.json", Buffer.from(JSON.stringify([{ id, path: "google.golang.org/grpc", files: moduleFiles, notices }])));
+  for (const [index, arm] of ["baseline", "corrected"].entries()) files.set(`logs/0${index + 5}-ec_${arm}_tests.log`, ecLog);
+  for (const [index, arm] of ["baseline", "corrected"].entries()) files.set(`logs/0${index + 7}-ec_${arm}_server_logs.log`, serverLog);
   for (const [name, value] of files) { const target = path.join(directory, name); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, value); }
   const inventory = [...files].map(([name, value]) => ({ path: name.replaceAll("\\", "/"), sha256: sha256(value), size: value.length })).sort((a, b) => a.path.localeCompare(b.path, "en"));
   writeFileSync(path.join(directory, "material-inventory.json"), `${JSON.stringify(inventory)}\n`);
@@ -53,6 +59,11 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
     moduleIsolation: { result: "PASSED", checkpoints: isolationSteps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", alternateSum: { sha256: "c".repeat(64), size: 289700 }, additionalSumLines: 2 })) },
     sourceRetention: { bundle: { sha256: sha256(files.get("materials/seaweedfs-source.bundle")), size: files.get("materials/seaweedfs-source.bundle").length }, shallow: { sha256: sha256(files.get("materials/seaweedfs-source-shallow.txt")), size: files.get("materials/seaweedfs-source-shallow.txt").length }, restoration: "PASSED", commitUnixTime: String(lock.source.commitUnixTime) },
     phases: phases.map((name) => ({ name, result: "PASSED", durationMs: 1 })),
+    ecPreflight: {
+      baseline: { binary: { sha256: "d".repeat(64), size: 123 }, modules: lock.moduleFiles.before, ...summarizeEcPreflight(ecLog, 0) },
+      corrected: { binary: { sha256: sha256(bytes), size: bytes.length }, modules: lock.moduleFiles.after, ...summarizeEcPreflight(ecLog, 0) },
+    },
+    serverLogs: ["baseline", "corrected"].map((arm) => ({ phase: `ec_${arm}`, result: "PASSED", bytes: serverLog.length })),
   };
   writeFileSync(path.join(directory, "build-receipt.json"), `${JSON.stringify(receipt)}\n`);
   return directory;
@@ -134,12 +145,20 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.moduleMaterials.completed = 0; },
     (receipt) => { receipt.moduleMaterials.current = { module: 1, operation: "notice", notice: 1 }; },
     (receipt) => { receipt.moduleMaterials.total = 2; receipt.moduleMaterials.completed = 2; receipt.moduleClosure.count = 2; },
+    (receipt) => { delete receipt.ecPreflight; },
+    (receipt) => { receipt.ecPreflight.baseline.result = "FAILED"; },
+    (receipt) => { receipt.ecPreflight.corrected.tests.pop(); },
+    (receipt) => { receipt.ecPreflight.corrected.binary.sha256 = "a".repeat(64); },
+    (receipt) => { receipt.ecPreflight.baseline.modules = lock.moduleFiles.after; },
+    (receipt) => { receipt.serverLogs = []; },
+    (receipt) => { receipt.serverLogs[0].bytes += 1; },
+    (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "ec_baseline_cleanup"); },
   ]) {
     const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-")); const first = fixture(root, 1); const second = fixture(root, 2);
     for (const directory of [first, second]) {
       const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); mutate(receipt); writeFileSync(file, JSON.stringify(receipt));
     }
-    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials)_invalid/u);
+    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|ec_preflight)_invalid/u);
     rmSync(root, { recursive: true, force: true });
   }
 });

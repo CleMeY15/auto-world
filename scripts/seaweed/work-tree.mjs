@@ -8,6 +8,9 @@ const REMOVABLE_ENTRIES = new Map([
   ["go.tar.gz", "file"],
   ["restored-source", "directory"],
   ["bin", "directory"],
+  ["baseline-bin", "directory"],
+  ["baseline-gocache", "directory"],
+  ["tmp", "directory"],
 ]);
 
 function checkedDirectory(directory) {

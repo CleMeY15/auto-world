@@ -3,6 +3,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, writeFileSync } from
 import path from "node:path";
 import process from "node:process";
 import { summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo } from "./build.mjs";
+import { summarizeEcPreflight } from "./ec-preflight.mjs";
 
 function digest(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 const lockBytes = readFileSync(path.resolve(import.meta.dirname, "../../infra/seaweed/seaweed-lock.json"));
@@ -27,6 +28,7 @@ const requiredGroups = { normal: [...testKeys(requiredTests.required.redis), ...
   fullTags: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)], projectGrpc: testKeys(requiredTests.required.seaweedGrpc) };
 const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const requiredIsolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+requiredPhases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
 
 function validateBuildEvidence(directory, receipt, inventory, materialContract) {
@@ -51,6 +53,23 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
     throw new Error("seaweed_compare_module_isolation_invalid");
   }
   const buildInfo = readFileSync(path.join(directory, "go-build-info.txt"), "utf8"); validateBuildInfo(buildInfo, expectedLock);
+  for (const arm of ["baseline", "corrected"]) {
+    const preflight = receipt.ecPreflight?.[arm];
+    const expectedModules = expectedLock.moduleFiles[arm === "baseline" ? "before" : "after"];
+    if (preflight?.result !== "PASSED" || preflight.exitStatus !== 0 || JSON.stringify(preflight.modules) !== JSON.stringify(expectedModules) ||
+        !/^[a-f0-9]{64}$/u.test(preflight.binary?.sha256 ?? "") || !Number.isSafeInteger(preflight.binary?.size) || preflight.binary.size < 1) throw new Error("seaweed_compare_ec_preflight_invalid");
+    const matching = [...inventoryMap.keys()].filter((name) => new RegExp(`^logs/\\d{2}-ec_${arm}_tests\\.log$`, "u").test(name));
+    if (matching.length !== 1) throw new Error("seaweed_compare_ec_preflight_invalid");
+    const actual = summarizeEcPreflight(readFileSync(path.join(directory, matching[0])), preflight.exitStatus);
+    if (actual.result !== "PASSED" || JSON.stringify(actual.tests) !== JSON.stringify(preflight.tests)) throw new Error("seaweed_compare_ec_preflight_invalid");
+    const serverEvidence = receipt.serverLogs?.filter((entry) => entry.phase === `ec_${arm}`);
+    if (serverEvidence?.length !== 1 || serverEvidence[0].result !== "PASSED") throw new Error("seaweed_compare_ec_preflight_invalid");
+    const serverLogs = [...inventoryMap.keys()].filter((name) => new RegExp(`^logs/\\d{2}-ec_${arm}_server_logs\\.log$`, "u").test(name));
+    if (serverLogs.length !== 1 || inventoryMap.get(serverLogs[0]).size !== serverEvidence[0].bytes || serverEvidence[0].bytes < 1 ||
+        serverEvidence[0].bytes > 8 * 1024 ** 2) throw new Error("seaweed_compare_ec_preflight_invalid");
+  }
+  const retainedBinary = inventoryMap.get("weed");
+  if (receipt.ecPreflight.corrected.binary.sha256 !== retainedBinary?.sha256 || receipt.ecPreflight.corrected.binary.size !== retainedBinary?.size) throw new Error("seaweed_compare_ec_preflight_invalid");
   const summary = JSON.parse(readFileSync(path.join(directory, "test-summary.json"), "utf8"));
   if (JSON.stringify(Object.keys(summary).sort()) !== JSON.stringify(Object.keys(requiredGroups).sort())) throw new Error("seaweed_compare_test_summary_invalid");
   for (const [key, required] of Object.entries(requiredGroups)) {
@@ -108,7 +127,7 @@ function verifiedBuild(directory, expectedRepeat, expected, materialContract) {
 
 export function compareBuilds(firstDirectory, secondDirectory, expected = {}, materialContract = productionMaterialContract()) {
   const first = verifiedBuild(firstDirectory, 1, expected, materialContract); const second = verifiedBuild(secondDirectory, 2, expected, materialContract);
-  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials"]) {
+  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials", "ecPreflight"]) {
     if (JSON.stringify(first.receipt[key]) !== JSON.stringify(second.receipt[key])) throw new Error("seaweed_compare_provenance_changed");
   }
   const deterministic = [...first.inventory.keys()].filter((name) => !name.startsWith("logs/")).sort();

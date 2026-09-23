@@ -51,13 +51,13 @@ test("removeOwnedTree rejects foreign names and a linked work root", () => {
   rmSync(parent, { recursive: true, force: true });
 });
 
-test("removeOwnedWorkEntry accepts only the three fixed nonsymlink entries", () => {
+test("removeOwnedWorkEntry accepts only fixed nonsymlink lifecycle entries", () => {
   const { parent, work } = fixture();
   writeFileSync(path.join(work, "go.tar.gz"), "compiler"); chmodSync(path.join(work, "go.tar.gz"), 0o400);
-  for (const name of ["restored-source", "bin"]) { const directory = path.join(work, name); mkdirSync(directory); writeFileSync(path.join(directory, "file"), name); }
+  const directories = ["restored-source", "bin", "baseline-bin", "baseline-gocache", "tmp"];
+  for (const name of directories) { const directory = path.join(work, name); mkdirSync(directory); writeFileSync(path.join(directory, "file"), name); }
   try {
-    removeOwnedWorkEntry(work, "go.tar.gz", parent); removeOwnedWorkEntry(work, "restored-source", parent); removeOwnedWorkEntry(work, "bin", parent);
-    assert.equal(existsSync(path.join(work, "go.tar.gz")), false); assert.equal(existsSync(path.join(work, "restored-source")), false); assert.equal(existsSync(path.join(work, "bin")), false);
+    for (const name of ["go.tar.gz", ...directories]) { removeOwnedWorkEntry(work, name, parent); assert.equal(existsSync(path.join(work, name)), false); }
     for (const name of ["source", "gomodcache", "../sentinel", "go.tar.gz/child"]) assert.throws(() => removeOwnedWorkEntry(work, name, parent), /seaweed_cleanup_entry_invalid/u);
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
