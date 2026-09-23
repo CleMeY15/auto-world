@@ -35,12 +35,14 @@ function rootfsError(code, details = {}) {
 function identity(stat) {
   return Object.freeze({ dev: stat.dev.toString(), ino: stat.ino.toString(), uid: Number(stat.uid), gid: Number(stat.gid),
     mode: Number(stat.mode), nlink: Number(stat.nlink), size: Number(stat.size),
-    mtimeNs: stat.mtimeNs.toString(), ctimeNs: stat.ctimeNs.toString() });
+    mtimeNs: stat.mtimeNs.toString(), ctimeNs: stat.ctimeNs.toString(), birthtimeNs: stat.birthtimeNs.toString() });
 }
 
 function sameIdentity(left, right) { return Object.keys(left).every((key) => left[key] === right[key]); }
 function sameNode(left, right) { return ["dev", "ino", "uid", "gid", "mode"].every((key) => left[key] === right[key]); }
-function sameOwnedNode(left, right) { return sameNode(left, right) && left.nlink === right.nlink; }
+function sameOwnedNode(left, right) {
+  return sameNode(left, right) && left.nlink === right.nlink && left.birthtimeNs === right.birthtimeNs;
+}
 
 async function privateDirectory(directory, uid) {
   const stat = await lstat(directory, { bigint: true });
@@ -258,11 +260,14 @@ async function removeComposite(authority) {
 }
 
 async function cleanFailed({ parent, uid, parentIdentity, directories, directoryIdentities, outputFile, outputNodeIdentity,
+  outputIdentity, outputSynced,
   sourceReceipt, baseReceipt, cleanupSource, cleanupBase }) {
   let clean = true;
   try {
     if (outputNodeIdentity !== undefined) {
-      if (await exactOwnedFile(outputFile, outputNodeIdentity, uid)) await unlink(outputFile); else clean = false;
+      const owned = outputSynced ? await exactFile(outputFile, outputIdentity, uid)
+        : await exactOwnedFile(outputFile, outputNodeIdentity, uid);
+      if (owned) await unlink(outputFile); else clean = false;
     }
     if (sourceReceipt !== undefined) await cleanupSource(sourceReceipt); else if ((await readdir(directories.source)).length !== 0) clean = false;
     if (baseReceipt !== undefined) await cleanupBase(baseReceipt); else if ((await readdir(directories.base)).length !== 0) clean = false;
@@ -295,7 +300,8 @@ async function executeMaterialization(options) {
   }
   const directories = Object.fromEntries(DIRECTORY_NAMES.map((name) => [name, path.join(parent, name)]));
   const directoryIdentities = {};
-  let sourceReceipt; let baseReceipt; let outputIdentity; let outputNodeIdentity; let written; let lineage; let failure;
+  let sourceReceipt; let baseReceipt; let outputIdentity; let outputNodeIdentity; let outputSynced = false;
+  let written; let lineage; let failure;
   const partialFile = path.join(directories.output, PARTIAL_NAME); const finalFile = path.join(directories.output, FINAL_NAME);
   try {
     for (const name of DIRECTORY_NAMES) {
@@ -341,6 +347,7 @@ async function executeMaterialization(options) {
         throw rootfsError("seaweed_rootfs_materialization_output_invalid");
       }
       outputIdentity = identity(syncedDescriptor);
+      outputSynced = true;
     } finally { await handle.close(); }
     const scannedPartial = await scanVerifiedRootfs(partialFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal);
     check();
@@ -390,9 +397,12 @@ async function executeMaterialization(options) {
     return receipt;
   } catch (error) { failure = error; }
   let failedOutput = partialFile;
-  if (outputNodeIdentity !== undefined && await exactOwnedFile(finalFile, outputNodeIdentity, uid).catch(() => false)) failedOutput = finalFile;
+  if (outputNodeIdentity !== undefined && await (outputSynced
+    ? exactFile(finalFile, outputIdentity, uid) : exactOwnedFile(finalFile, outputNodeIdentity, uid)).catch(() => false)) {
+    failedOutput = finalFile;
+  }
   const clean = await cleanFailed({ parent, uid, parentIdentity, directories, directoryIdentities, outputFile: failedOutput,
-    outputNodeIdentity, sourceReceipt, baseReceipt,
+    outputNodeIdentity, outputIdentity, outputSynced, sourceReceipt, baseReceipt,
   cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase });
   globalThis.clearTimeout(timer);
   if (!clean) throw rootfsError("seaweed_rootfs_materialization_cleanup_failed", { originalCode: failure?.code });
