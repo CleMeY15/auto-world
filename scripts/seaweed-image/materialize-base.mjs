@@ -19,6 +19,7 @@ const POLICY_ROOT = fileURLToPath(new URL("../../infra/seaweed-image/", import.m
 const POLICY_NAMES = Object.freeze(["base-manifest.json", "base-config.json", "base-filesystem.json"]);
 const CLEANUP_AUTHORITIES = new WeakMap();
 const MAX_RAW_BYTES = 2 * 1024 ** 3;
+const MAX_ENTRY_READ_BYTES = 256 * 1024 ** 2;
 
 function failure(code, details = {}) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", stage: "BASE_MATERIALIZATION",
@@ -52,6 +53,13 @@ function identity(stat) {
 function sameIdentity(left, right) { return Object.keys(left).every((key) => left[key] === right[key]); }
 function sameNode(left, right) { return ["dev", "ino", "uid", "gid", "mode"].every((key) => left[key] === right[key]); }
 function sameOwnedNode(left, right) { return sameNode(left, right) && left.nlink === right.nlink; }
+
+function detachedFrozen(value) {
+  if (value === null || typeof value !== "object") return value;
+  const copy = Array.isArray(value) ? value.map(detachedFrozen)
+    : Object.fromEntries(Object.entries(value).map(([key, item]) => [key, detachedFrozen(item)]));
+  return Object.freeze(copy);
+}
 
 async function privateDirectory(directory, uid) {
   const stat = await lstat(directory, { bigint: true });
@@ -256,6 +264,67 @@ async function hashFile(file, signal) {
   } finally { await handle.close(); }
 }
 
+function exactEntryPath(value) {
+  return typeof value === "string"
+    && /^(?!\/)(?!.*(?:^|\/)\.\.?($|\/))(?!.*\\)(?!.*\/\/)[\x21-\x7e]+(?<!\/)$/u.test(value);
+}
+
+async function verifyBorrowPath(authority, rawFile, expectedRaw) {
+  const parent = await privateDirectory(authority.parent, authority.uid);
+  const output = await lstat(authority.outputPath, { bigint: true });
+  const layers = await lstat(path.join(authority.outputPath, "layers"), { bigint: true });
+  const raw = await lstat(rawFile, { bigint: true });
+  if (!sameNode(authority.parentIdentity, parent)
+    || !sameRecord(authority.snapshot.get(""), Object.freeze({ type: "directory", identity: identity(output) }))
+    || !sameRecord(authority.snapshot.get("layers"), Object.freeze({ type: "directory", identity: identity(layers) }))
+    || !sameRecord(expectedRaw, Object.freeze({ type: "file", identity: identity(raw) }))) {
+    throw failure("seaweed_base_materialization_read_substituted");
+  }
+}
+
+async function readBorrowedEntry(authority, reference, active) {
+  if (!active()) throw failure("seaweed_base_materialization_read_expired");
+  if (reference.entry.type !== "file") throw failure("seaweed_base_materialization_read_not_file");
+  if (!Number.isSafeInteger(reference.entry.size) || reference.entry.size < 0
+    || reference.entry.size > MAX_ENTRY_READ_BYTES) throw failure("seaweed_base_materialization_read_limit");
+  const rawFile = authority.rawFiles[reference.layerIndex];
+  if (typeof rawFile !== "string") throw failure("seaweed_base_materialization_read_substituted");
+  const relative = path.relative(authority.outputPath, rawFile);
+  const expectedRaw = authority.snapshot.get(relative);
+  if (expectedRaw?.type !== "file") throw failure("seaweed_base_materialization_read_substituted");
+  await verifyBorrowPath(authority, rawFile, expectedRaw);
+  const handle = await open(rawFile, constants.O_RDONLY | constants.O_NOFOLLOW)
+    .catch(() => { throw failure("seaweed_base_materialization_read_substituted"); });
+  try {
+    const descriptor = await handle.stat({ bigint: true });
+    const pathname = await lstat(rawFile, { bigint: true });
+    if (!sameRecord(expectedRaw, Object.freeze({ type: "file", identity: identity(descriptor) }))
+      || !sameIdentity(identity(descriptor), identity(pathname))) {
+      throw failure("seaweed_base_materialization_read_substituted");
+    }
+    await validateReference(handle, reference, Number(descriptor.size));
+    if (!active()) throw failure("seaweed_base_materialization_read_expired");
+    const bytes = Buffer.alloc(reference.entry.size); let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, reference.uncompressedDataOffset + offset);
+      if (bytesRead < 1) throw failure("seaweed_base_materialization_reference_invalid");
+      offset += bytesRead;
+    }
+    const afterDescriptor = await handle.stat({ bigint: true });
+    const afterPathname = await lstat(rawFile, { bigint: true });
+    if (!active()) throw failure("seaweed_base_materialization_read_expired");
+    if (!sameRecord(expectedRaw, Object.freeze({ type: "file", identity: identity(afterDescriptor) }))
+      || !sameIdentity(identity(afterDescriptor), identity(afterPathname))) {
+      throw failure("seaweed_base_materialization_read_substituted");
+    }
+    await verifyBorrowPath(authority, rawFile, expectedRaw);
+    if (createHash("sha256").update(bytes).digest("hex") !== reference.entry.sha256) {
+      throw failure("seaweed_base_materialization_reference_invalid");
+    }
+    return bytes;
+  } finally { await handle.close(); }
+}
+
 function settings(input, testOnly) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw failure("seaweed_base_materialization_options_invalid");
   const fields = Object.getOwnPropertyDescriptors(input);
@@ -406,7 +475,11 @@ async function execute(options) {
       authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", outputPath,
       totals: Object.freeze({ compressedBytes: index.totals.compressedBytes, rawBytes: index.totals.rawBytes,
         memberCount: index.totals.memberCount, visibleEntries: index.totals.visibleEntries }) });
-    CLEANUP_AUTHORITIES.set(completed, Object.freeze({ parent, uid, outputPath, parentIdentity: finalParent, snapshot: promoted }));
+    const privateIndex = detachedFrozen(index);
+    CLEANUP_AUTHORITIES.set(completed, { parent, uid, outputPath, parentIdentity: finalParent, snapshot: promoted,
+      index: privateIndex, references: new Map(privateIndex.members.map((reference) => [reference.entry.path, reference])),
+      baseMaterials: new Map([...materials].map(([name, bytes]) => [name, Buffer.from(bytes)])),
+      rawFiles: rawFiles.map((file) => path.join(outputPath, path.relative(staging, file))), borrows: 0 });
     result = completed;
   } catch (error) {
     const code = lowerCode(error);
@@ -433,9 +506,47 @@ async function execute(options) {
 export async function materializePinnedSeaweedBase(input) { return execute(settings(input, false)); }
 export async function TEST_ONLY_materializePinnedSeaweedBase(input) { return execute(settings(input, true)); }
 
+export async function withMaterializedSeaweedBase(receipt, callback) {
+  const authority = CLEANUP_AUTHORITIES.get(receipt);
+  if (authority === undefined || receipt?.outputPath !== authority.outputPath || typeof callback !== "function") {
+    throw failure("seaweed_base_materialization_borrow_unauthorized");
+  }
+  authority.borrows += 1;
+  let active = true; let reading = false;
+  const pending = new Set();
+  const used = new Set();
+  const readEntry = (entryPath) => {
+    if (!active) return Promise.reject(failure("seaweed_base_materialization_read_expired"));
+    if (!exactEntryPath(entryPath)) return Promise.reject(failure("seaweed_base_materialization_read_path_invalid"));
+    const reference = authority.references.get(entryPath);
+    if (reference === undefined) return Promise.reject(failure("seaweed_base_materialization_read_missing"));
+    if (reading) return Promise.reject(failure("seaweed_base_materialization_read_busy"));
+    if (used.has(entryPath)) return Promise.reject(failure("seaweed_base_materialization_read_replayed"));
+    reading = true; used.add(entryPath);
+    const operation = readBorrowedEntry(authority, reference, () => active);
+    pending.add(operation);
+    const settled = () => { pending.delete(operation); reading = false; };
+    operation.then(settled, settled);
+    return operation;
+  };
+  const capability = Object.freeze({
+    baseMaterials: new Map([...authority.baseMaterials].map(([name, bytes]) => [name, Buffer.from(bytes)])),
+    index: detachedFrozen(authority.index),
+    readEntry,
+  });
+  try {
+    return await callback(capability);
+  } finally {
+    active = false;
+    await Promise.allSettled([...pending]);
+    authority.borrows -= 1;
+  }
+}
+
 export async function cleanupMaterializedSeaweedBase(receipt) {
   const authority = CLEANUP_AUTHORITIES.get(receipt);
   if (authority === undefined || receipt?.outputPath !== authority.outputPath) throw failure("seaweed_base_materialization_cleanup_unauthorized");
+  if (authority.borrows > 0) throw failure("seaweed_base_materialization_cleanup_borrowed");
   CLEANUP_AUTHORITIES.delete(receipt);
   const currentParent = identity(await lstat(authority.parent, { bigint: true }).catch(() => { throw failure("seaweed_base_materialization_cleanup_failed"); }));
   if (!sameNode(authority.parentIdentity, currentParent)

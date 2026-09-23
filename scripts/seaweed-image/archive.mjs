@@ -291,6 +291,46 @@ export async function scanGzipLayer({ input, descriptor, diffId, maxRawBytes = M
   }
 }
 
+export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES, maxMembers = MAX_MEMBERS, signal } = {}) {
+  if (input === null || typeof input !== "object" || typeof input.pipe !== "function" || typeof input.destroy !== "function") {
+    throw archiveError("seaweed_archive_input_invalid");
+  }
+  try {
+    requireDigest(diffId, "seaweed_archive_diffid_invalid");
+    requireLimit(maxRawBytes, MAX_RAW_BYTES, "seaweed_archive_limit_invalid");
+    requireLimit(maxMembers, MAX_MEMBERS, "seaweed_archive_limit_invalid");
+    if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
+      throw archiveError("seaweed_archive_signal_invalid");
+    }
+    let rawSize = 0;
+    const rawHash = createHash("sha256");
+    const scanner = new TarScanner({ maxRawBytes, maxMembers });
+    const rawSink = new Writable({
+      write(chunk, _encoding, callback) {
+        try {
+          if (!Buffer.isBuffer(chunk) || chunk.length > MAX_INPUT_CHUNK_BYTES) {
+            throw archiveError("seaweed_archive_input_chunk_invalid");
+          }
+          rawSize += chunk.length;
+          if (rawSize > maxRawBytes) throw archiveError("seaweed_archive_raw_limit");
+          rawHash.update(chunk);
+          scanner.consume(chunk);
+          callback();
+        } catch (error) { callback(error); }
+      },
+    });
+    await pipeline(input, rawSink, { signal });
+    const members = scanner.finish();
+    if (`sha256:${rawHash.digest("hex")}` !== diffId) throw archiveError("seaweed_archive_diffid_mismatch");
+    return { rawSize, diffId, members };
+  } catch (error) {
+    throw isArchiveError(error) ? error : archiveError("seaweed_archive_stream_invalid", error);
+  } finally {
+    input.destroy();
+    await finished(input).catch(() => undefined);
+  }
+}
+
 export const seaweedArchiveLimits = Object.freeze({
   compressedBytes: MAX_COMPRESSED_BYTES,
   rawBytes: MAX_RAW_BYTES,

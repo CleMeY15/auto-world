@@ -10,6 +10,7 @@ import { gzipSync } from "node:zlib";
 
 import {
   cleanupMaterializedSeaweedBase, materializePinnedSeaweedBase, TEST_ONLY_materializePinnedSeaweedBase,
+  withMaterializedSeaweedBase,
 } from "../scripts/seaweed-image/materialize-base.mjs";
 
 const linux = process.platform === "linux";
@@ -45,6 +46,43 @@ function scope() {
     compressedSize: compressed.length, compressedDigest: digest(compressed), uncompressedSize: emptyTar.length,
     diffId: digest(emptyTar), memberCount: 0 })) });
   return { parent, options: { parent, platform: "linux", uid: process.getuid(), fetch, stream, scan }, fetchCalls: () => fetchCalls };
+}
+
+function tarFile(name, bytes) {
+  const header = Buffer.alloc(512);
+  const field = (offset, length, value) => header.write(`${value.toString(8).padStart(length - 1, "0")}\0`, offset, length, "ascii");
+  header.write(name, 0, 100, "utf8"); field(100, 8, 0o755); field(108, 8, 0); field(116, 8, 0);
+  field(124, 12, bytes.length); field(136, 12, 0); header[156] = "0".charCodeAt(0);
+  return Buffer.concat([header, bytes, Buffer.alloc((512 - bytes.length % 512) % 512), Buffer.alloc(1024)]);
+}
+
+function readableScope() {
+  const value = scope(); const contents = Buffer.from("verified seaweed base entry\n");
+  const firstTar = tarFile("usr/bin/weed", contents); const firstCompressed = gzipSync(firstTar, { level: 9, mtime: 0 });
+  const firstDigest = manifest.layers[0].digest;
+  value.options.stream = async ({ descriptor, sink }) => {
+    const bytes = descriptor.digest === manifest.config.digest ? configBytes
+      : descriptor.digest === firstDigest ? firstCompressed : compressed;
+    let offset = 0;
+    while (offset < bytes.length) {
+      const result = await sink.write(bytes, offset, bytes.length - offset, null); offset += result.bytesWritten;
+    }
+    return Object.freeze({ size: descriptor.size, digest: descriptor.digest, mediaType: descriptor.mediaType,
+      authority: "PINNED_BASE_ONLY", candidateAuthorization: "NOT_AUTHORIZED" });
+  };
+  value.options.scan = async () => ({ kind: "PUBLIC_BASE_REPLAY_INDEX_V1", authority: "PREPARATION_ONLY",
+    materials: {}, totals: { compressedBytes: firstCompressed.length + compressed.length * 9,
+      rawBytes: firstTar.length + emptyTar.length * 9, memberCount: 1, visibleEntries: 1 },
+    layers: Array.from({ length: 10 }, (_, layerIndex) => ({ layerIndex,
+      compressedSize: layerIndex === 0 ? firstCompressed.length : compressed.length,
+      compressedDigest: digest(layerIndex === 0 ? firstCompressed : compressed),
+      uncompressedSize: layerIndex === 0 ? firstTar.length : emptyTar.length,
+      diffId: digest(layerIndex === 0 ? firstTar : emptyTar), memberCount: layerIndex === 0 ? 1 : 0 })),
+    members: [{ layerIndex: 0, compressedDigest: digest(firstCompressed), memberOrdinal: 0,
+      uncompressedHeaderOffset: 0, uncompressedDataOffset: 512,
+      entry: { path: "usr/bin/weed", type: "file", mode: 0o755, uid: 0, gid: 0, mtime: 0,
+        size: contents.length, sha256: digest(contents).slice("sha256:".length) } }] });
+  return { ...value, contents };
 }
 
 test("production API rejects injected registry or validation authority", async () => {
@@ -242,5 +280,65 @@ test("cleanup refuses a changed promoted file without removing it", { skip: !lin
     const file = path.join(receipt.outputPath, "base-manifest.json"); writeFileSync(file, "changed");
     await assert.rejects(cleanupMaterializedSeaweedBase(receipt), /cleanup_failed/u);
     assert.equal(readFileSync(file, "utf8"), "changed");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("borrows the live receipt to read an authenticated visible file and detached base materials", { skip: !linux }, async () => {
+  const value = readableScope();
+  try {
+    const receipt = await TEST_ONLY_materializePinnedSeaweedBase(value.options);
+    await assert.rejects(withMaterializedSeaweedBase({ ...receipt }, async () => {}), /borrow_unauthorized/u);
+    await assert.rejects(withMaterializedSeaweedBase(JSON.parse(JSON.stringify(receipt)), async () => {}), /borrow_unauthorized/u);
+    let expiredRead;
+    const result = await withMaterializedSeaweedBase(receipt, async (base) => {
+      assert.deepEqual(Object.keys(base), ["baseMaterials", "index", "readEntry"]);
+      assert.equal(base.index.kind, "PUBLIC_BASE_REPLAY_INDEX_V1");
+      assert.equal(Object.isFrozen(base.index), true); assert.equal(Object.isFrozen(base.index.members[0]), true);
+      assert.deepEqual(await base.readEntry("usr/bin/weed"), value.contents);
+      await assert.rejects(base.readEntry("usr/bin/weed"), /read_replayed/u);
+      await assert.rejects(base.readEntry("../usr/bin/weed"), /read_path_invalid/u);
+      await assert.rejects(base.readEntry("usr/bin/missing"), /read_missing/u);
+      const manifestCopy = base.baseMaterials.get("base-manifest.json");
+      manifestCopy.fill(0); base.baseMaterials.clear(); expiredRead = base.readEntry;
+      return "borrow-result";
+    });
+    assert.equal(result, "borrow-result");
+    await assert.rejects(expiredRead("usr/bin/weed"), /read_expired/u);
+    await withMaterializedSeaweedBase(receipt, async ({ baseMaterials, readEntry }) => {
+      assert.deepEqual(baseMaterials.get("base-manifest.json"), manifestBytes);
+      const pending = readEntry("usr/bin/weed");
+      await assert.rejects(readEntry("usr/bin/weed"), /read_busy/u);
+      assert.deepEqual(await pending, value.contents);
+    });
+    assert.equal((await cleanupMaterializedSeaweedBase(receipt)).state, "CLEANED");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("rejects raw-TAR substitution before borrowed content is returned", { skip: !linux }, async () => {
+  const value = readableScope();
+  try {
+    const receipt = await TEST_ONLY_materializePinnedSeaweedBase(value.options);
+    const raw = readdirSync(path.join(receipt.outputPath, "layers"))[0];
+    writeFileSync(path.join(receipt.outputPath, "layers", raw), tarFile("usr/bin/weed", Buffer.from("foreign")));
+    await assert.rejects(withMaterializedSeaweedBase(receipt, ({ readEntry }) => readEntry("usr/bin/weed")), /read_substituted/u);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("refuses cleanup while a live materialization borrow is active", { skip: !linux }, async () => {
+  const value = readableScope();
+  try {
+    const receipt = await TEST_ONLY_materializePinnedSeaweedBase(value.options);
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let entered;
+    const ready = new Promise((resolve) => { entered = resolve; });
+    const borrowed = withMaterializedSeaweedBase(receipt, async ({ readEntry }) => {
+      assert.deepEqual(await readEntry("usr/bin/weed"), value.contents); entered(); await gate;
+    });
+    await ready;
+    await assert.rejects(cleanupMaterializedSeaweedBase(receipt), /cleanup_borrowed/u);
+    assert.deepEqual(readdirSync(value.parent), ["seaweed-base-materialized"]);
+    release(); await borrowed;
+    assert.equal((await cleanupMaterializedSeaweedBase(receipt)).state, "CLEANED");
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });

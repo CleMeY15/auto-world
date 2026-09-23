@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   chmodSync, close, linkSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync,
   symlinkSync, writeFileSync,
@@ -11,13 +12,30 @@ import test from "node:test";
 import { comparisonReceiptBytes } from "../scripts/seaweed/compare.mjs";
 import {
   cleanupMaterializedSeaweedSource, materializeReviewedSeaweedSource, TEST_ONLY_materializeSeaweedSource,
+  withMaterializedSeaweedSource,
 } from "../scripts/seaweed-image/materialize-source-zips.mjs";
 
 const linux = process.platform === "linux";
 const names = ["seaweed-build-1", "seaweed-build-2", "seaweed-artifact-gate-1", "seaweed-artifact-gate-2", "seaweed-comparison"];
 const profiles = ["build", "build", "gate-1", "gate-2", "comparison"];
+const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const moduleId = "c".repeat(64);
+const moduleNotice = Buffer.from("module notice");
+const moduleClosure = Buffer.from(`${JSON.stringify([{
+  id: moduleId, notices: [{ file: "notice-001.txt", sha256: sha256(moduleNotice), size: moduleNotice.length }],
+}])}\n`);
+const buildFiles = new Map([
+  ["weed", Buffer.from("weed")],
+  ["module-closure.json", moduleClosure],
+  ["materials/DERIVATIVE-NOTICE.txt", Buffer.from("derivative")],
+  ["materials/upstream/LICENSE", Buffer.from("license")],
+  ["materials/upstream/weed/glog/LICENSE", Buffer.from("glog")],
+  [`materials/modules/${moduleId}/notice-001.txt`, moduleNotice],
+  ["materials/modules/x/file", Buffer.from("nested")],
+  ["materials/modules/x/empty", Buffer.alloc(0)],
+]);
 const comparison = { schemaVersion: 2, state: "DIAGNOSTIC_ONLY", result: "PASSED",
-  compared: [{ path: "weed", sha256: "a".repeat(64), size: 4 }] };
+  compared: [...buildFiles].map(([entryPath, bytes]) => ({ path: entryPath, sha256: sha256(bytes), size: bytes.length })) };
 
 function origin(artifacts) {
   return { repository: "CleMeY15/auto-world", workflowId: 1, sourceSha: "b".repeat(40), runId: 123, attempt: 1,
@@ -54,13 +72,11 @@ function fixture({ mutateGate = false, mutateComparison = false, unknown = false
   const scanOne = async ({ descriptor, openEntrySink, root }) => {
     let entry; let bytes;
     if (descriptor.profile === "build") {
-      for (const [buildEntry, buildBytes] of [
-        [{ path: "weed", mode: 0o100755 }, Buffer.from("weed")],
-        [{ path: "materials/modules/x/file", mode: 0o100644 }, Buffer.from("nested")],
-      ]) {
-        const sink = openEntrySink(buildEntry, {}); sink.end(buildBytes); await finished(sink);
+      for (const [entryPath, buildBytes] of buildFiles) {
+        const sink = openEntrySink({ path: entryPath, mode: entryPath === "weed" ? 0o100755 : 0o100644 }, {});
+        sink.end(buildBytes); await finished(sink);
       }
-      return { entryCount: 2, rawSize: 10 };
+      return { entryCount: buildFiles.size, rawSize: [...buildFiles.values()].reduce((sum, value) => sum + value.length, 0) };
     }
     else if (descriptor.profile === "gate-1" || descriptor.profile === "gate-2") {
       const repeat = descriptor.profile === "gate-1" ? 1 : 2; const totalBytes = repeat === 1 ? 111 : 222;
@@ -91,7 +107,7 @@ test("materializes, verifies exact native receipts, retains raw ZIPs, and cleans
   try {
     const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
     assert.equal(result.authority, "PREPARATION_ONLY"); assert.equal(result.candidateAuthorization, "NOT_AUTHORIZED");
-    assert.deepEqual(result.buildBytes, [111, 222]); assert.equal(result.comparedEntries, 1);
+    assert.deepEqual(result.buildBytes, [111, 222]); assert.equal(result.comparedEntries, buildFiles.size);
     assert.deepEqual(readFileSync(path.join(result.outputPath, "seaweed-build-1/weed")), Buffer.from("weed"));
     assert.equal(readFileSync(path.join(result.outputPath, "seaweed-build-1/materials/modules/x/file"), "utf8"), "nested");
     assert.equal(lstatSync(path.join(result.outputPath, "seaweed-build-1/weed")).mode & 0o777, 0o755);
@@ -100,6 +116,84 @@ test("materializes, verifies exact native receipts, retains raw ZIPs, and cleans
     assert.equal((await cleanupMaterializedSeaweedSource(result)).state, "CLEANED");
     assert.deepEqual(readdirSync(scope.parent), []);
     await assert.rejects(cleanupMaterializedSeaweedSource(result), /cleanup_unauthorized/u);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("lends detached validated source inputs only through the live receipt callback", { skip: !linux }, async () => {
+  const scope = fixture();
+  try {
+    const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
+    let escaped; let looseReadSettled = false;
+    const value = await withMaterializedSeaweedSource(result, async (source) => {
+      escaped = source;
+      assert.deepEqual(source.sourceIdentity, {
+        binary: { sha256: sha256(Buffer.from("weed")), size: 4 }, runId: "123", attempt: 1,
+        codeRevision: "b".repeat(40),
+      });
+      assert.deepEqual(source.moduleClosureBytes, moduleClosure);
+      assert.deepEqual([...source.materials.keys()].sort(), [
+        "materials/DERIVATIVE-NOTICE.txt", `materials/modules/${moduleId}/notice-001.txt`,
+        "materials/upstream/LICENSE", "materials/upstream/weed/glog/LICENSE",
+      ].sort());
+      assert.deepEqual(Object.keys(source), ["sourceIdentity", "moduleClosureBytes", "materials", "readBinary"]);
+      const binary = source.readBinary();
+      await assert.rejects(source.readBinary(), /read_busy/u);
+      const first = await binary; first[0] = 0;
+      await assert.rejects(source.readBinary(), /read_replayed/u);
+      source.moduleClosureBytes[0] = 0;
+      source.materials.get("materials/upstream/LICENSE")[0] = 0;
+      return "accepted";
+    });
+    assert.equal(value, "accepted");
+    await withMaterializedSeaweedSource(result, async (source) => {
+      source.readBinary().then(() => { looseReadSettled = true; });
+    });
+    assert.equal(looseReadSettled, true);
+    await assert.rejects(escaped.readBinary(), /read_unauthorized/u);
+    assert.equal((await cleanupMaterializedSeaweedSource(result)).state, "CLEANED");
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("rejects forged receipts and exposes no arbitrary source-file reader", { skip: !linux }, async () => {
+  const scope = fixture();
+  try {
+    const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
+    await assert.rejects(withMaterializedSeaweedSource({ ...result }, async () => {}), /read_unauthorized/u);
+    await withMaterializedSeaweedSource(result, async (source) => {
+      assert.equal(Object.hasOwn(source, "readFile"), false);
+      assert.equal(Object.hasOwn(source, "outputPath"), false);
+    });
+    await cleanupMaterializedSeaweedSource(result);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("rejects a same-byte substituted source inode", { skip: !linux }, async () => {
+  const scope = fixture();
+  try {
+    const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
+    const weed = path.join(result.outputPath, "seaweed-build-1/weed");
+    const original = path.join(result.outputPath, "seaweed-build-1/weed-original");
+    renameSync(weed, original); writeFileSync(weed, "weed", { mode: 0o755 }); chmodSync(weed, 0o755);
+    await assert.rejects(withMaterializedSeaweedSource(result, ({ readBinary }) => readBinary()), /read_changed/u);
+    await assert.rejects(cleanupMaterializedSeaweedSource(result), /cleanup_failed/u);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("blocks cleanup for the complete concurrent borrow lifetime", { skip: !linux }, async () => {
+  const scope = fixture();
+  try {
+    const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
+    let release; let entered;
+    const enteredPromise = new Promise((resolve) => { entered = resolve; });
+    const releasePromise = new Promise((resolve) => { release = resolve; });
+    const borrow = withMaterializedSeaweedSource(result, async ({ readBinary }) => {
+      entered(); await releasePromise; return readBinary();
+    });
+    await enteredPromise;
+    await assert.rejects(cleanupMaterializedSeaweedSource(result), /cleanup_borrowed/u);
+    release();
+    assert.deepEqual(await borrow, Buffer.from("weed"));
+    assert.equal((await cleanupMaterializedSeaweedSource(result)).state, "CLEANED");
   } finally { rmSync(scope.parent, { recursive: true, force: true }); }
 });
 

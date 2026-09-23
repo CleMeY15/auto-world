@@ -1,6 +1,7 @@
 import {
   close, closeSync, constants, fchmodSync, fstat, fsync, lstatSync, mkdirSync, openSync, realpathSync, write,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   lstat, mkdir, open, readdir, realpath, rename, rmdir, unlink,
 } from "node:fs/promises";
@@ -29,6 +30,10 @@ const OUTPUT_NAMES = Object.freeze([
   "seaweed-artifact-gate-2.json", "seaweed-comparison.json",
 ]);
 const CLEANUP_AUTHORITIES = new WeakMap();
+const MAX_LIVE_READ_BYTES = 512 * 1024 ** 2;
+const MAX_MODULE_CLOSURE_BYTES = 64 * 1024 ** 2;
+const MAX_NOTICE_BYTES = 1024 ** 2;
+const MAX_NOTICES = 16_384;
 
 function materializationError(code, details = {}) {
   return Object.assign(new Error(code), {
@@ -124,6 +129,138 @@ function sameIdentity(left, right) {
 
 function sameNode(left, right) {
   return ["dev", "ino", "uid", "gid", "mode"].every((key) => left[key] === right[key]);
+}
+
+function safeRelativePath(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 4096
+    && !value.includes("\\") && !value.startsWith("/") && !value.endsWith("/")
+    && path.posix.normalize(value) === value
+    && !value.split("/").some((part) => part === "" || part === "." || part === "..");
+}
+
+function comparedIdentities(compared) {
+  if (!Array.isArray(compared?.compared) || compared.compared.length < 1) {
+    throw materializationError("seaweed_source_materialization_comparison_invalid");
+  }
+  const identities = new Map();
+  for (const entry of compared.compared) {
+    if (!safeRelativePath(entry?.path) || !/^[a-f0-9]{64}$/u.test(entry?.sha256 ?? "")
+      || !Number.isSafeInteger(entry?.size) || entry.size < 0 || entry.size > MAX_LIVE_READ_BYTES
+      || identities.has(entry.path)) {
+      throw materializationError("seaweed_source_materialization_comparison_invalid");
+    }
+    identities.set(entry.path, Object.freeze({ sha256: entry.sha256, size: entry.size }));
+  }
+  if (!identities.has("weed") || !identities.has("module-closure.json")) {
+    throw materializationError("seaweed_source_materialization_comparison_invalid");
+  }
+  return identities;
+}
+
+async function requireSnapshotPath(authority, relativePath) {
+  const parts = relativePath.split("/");
+  for (let index = 0; index <= parts.length; index += 1) {
+    const relative = index === 0 ? "seaweed-build-1" : path.join("seaweed-build-1", ...parts.slice(0, index));
+    const expected = authority.tree.get(relative);
+    if (expected === undefined || (index < parts.length && expected.type !== "directory")
+      || (index === parts.length && expected.type !== "file")) {
+      throw materializationError("seaweed_source_materialization_read_unauthorized");
+    }
+    let stat;
+    try { stat = await lstat(path.join(authority.outputPath, relative), { bigint: true }); } catch {
+      throw materializationError("seaweed_source_materialization_read_changed");
+    }
+    const observed = Object.freeze({ type: stat.isDirectory() && !stat.isSymbolicLink() ? "directory" : "file", identity: identity(stat) });
+    if (stat.isSymbolicLink() || !sameRecord(expected, observed)) {
+      throw materializationError("seaweed_source_materialization_read_changed");
+    }
+  }
+}
+
+async function readValidatedSourceFile(authority, relativePath) {
+  if (!safeRelativePath(relativePath)) throw materializationError("seaweed_source_materialization_read_unauthorized");
+  const expected = authority.compared.get(relativePath);
+  if (expected === undefined || expected.size > MAX_LIVE_READ_BYTES) {
+    throw materializationError("seaweed_source_materialization_read_unauthorized");
+  }
+  await requireSnapshotPath(authority, relativePath);
+  const absolute = path.join(authority.outputPath, "seaweed-build-1", ...relativePath.split("/"));
+  let handle; let detached; let closeFailed = false;
+  try {
+    handle = await open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = identity(await handle.stat({ bigint: true }));
+    const snapshot = authority.tree.get(path.join("seaweed-build-1", ...relativePath.split("/"))).identity;
+    if (!sameIdentity(snapshot, before) || before.nlink !== 1 || before.size !== expected.size) {
+      throw materializationError("seaweed_source_materialization_read_changed");
+    }
+    const bytes = await handle.readFile();
+    const after = identity(await handle.stat({ bigint: true }));
+    if (!sameIdentity(before, after) || bytes.length !== expected.size
+      || createHash("sha256").update(bytes).digest("hex") !== expected.sha256) {
+      throw materializationError("seaweed_source_materialization_read_changed");
+    }
+    await requireSnapshotPath(authority, relativePath);
+    detached = bytes;
+  } catch (error) {
+    if (error?.code?.startsWith?.("seaweed_source_materialization_")) throw error;
+    throw materializationError("seaweed_source_materialization_read_changed");
+  } finally {
+    if (handle !== undefined) {
+      try { await handle.close(); } catch { closeFailed = true; }
+    }
+  }
+  if (closeFailed) throw materializationError("seaweed_source_materialization_read_changed");
+  return detached;
+}
+
+async function liveSourceInputs(authority) {
+  if (authority.compared.get("module-closure.json")?.size > MAX_MODULE_CLOSURE_BYTES) {
+    throw materializationError("seaweed_source_materialization_read_unauthorized");
+  }
+  const moduleClosureBytes = await readValidatedSourceFile(authority, "module-closure.json");
+  let modules;
+  try { modules = JSON.parse(moduleClosureBytes.toString("utf8")); } catch {
+    throw materializationError("seaweed_source_materialization_read_changed");
+  }
+  if (!Array.isArray(modules) || modules.length < 1 || modules.length > 2048) {
+    throw materializationError("seaweed_source_materialization_read_changed");
+  }
+  const paths = new Set(["materials/DERIVATIVE-NOTICE.txt", "materials/upstream/LICENSE", "materials/upstream/weed/glog/LICENSE"]);
+  let noticeCount = 0;
+  for (const module of modules) {
+    if (!/^[a-f0-9]{64}$/u.test(module?.id ?? "") || !Array.isArray(module?.notices) || module.notices.length > 64) {
+      throw materializationError("seaweed_source_materialization_read_changed");
+    }
+    for (const notice of module.notices) {
+      noticeCount += 1;
+      const name = `materials/modules/${module.id}/${notice?.file}`;
+      const compared = authority.compared.get(name);
+      if (noticeCount > MAX_NOTICES || !/^notice-[0-9]{3}\.txt$/u.test(notice?.file ?? "")
+        || !/^[a-f0-9]{64}$/u.test(notice?.sha256 ?? "") || !Number.isSafeInteger(notice?.size)
+        || notice.size < 1 || notice.size > MAX_NOTICE_BYTES
+        || compared?.sha256 !== notice.sha256 || compared.size !== notice.size) {
+        throw materializationError("seaweed_source_materialization_read_changed");
+      }
+      paths.add(name);
+    }
+  }
+  const materials = new Map();
+  let total = 0;
+  for (const name of paths) {
+    const bytes = await readValidatedSourceFile(authority, name);
+    total += bytes.length;
+    if (total > MAX_LIVE_READ_BYTES) throw materializationError("seaweed_source_materialization_read_unauthorized");
+    materials.set(name, bytes);
+  }
+  const binary = authority.compared.get("weed");
+  return Object.freeze({
+    sourceIdentity: Object.freeze({
+      binary: Object.freeze({ sha256: binary.sha256, size: binary.size }),
+      runId: String(authority.runId), attempt: authority.attempt,
+      codeRevision: authority.sourceSha,
+    }),
+    moduleClosureBytes, materials,
+  });
 }
 
 async function requirePrivateDirectory(directory, uid, expectedMode = 0o700) {
@@ -431,7 +568,11 @@ async function run(settings) {
       runId: finalOrigin.runId, attempt: finalOrigin.attempt,
       buildBytes: Object.freeze([firstValidation.totalBytes, secondValidation.totalBytes]),
       comparedEntries: compared.compared.length });
-    CLEANUP_AUTHORITIES.set(result, Object.freeze({ parent, outputPath, uid, parentIdentity: parentBefore, tree }));
+    CLEANUP_AUTHORITIES.set(result, {
+      parent, outputPath, uid, parentIdentity: parentBefore, tree,
+      compared: comparedIdentities(compared), runId: finalOrigin.runId, attempt: finalOrigin.attempt,
+      sourceSha: finalOrigin.sourceSha, borrowed: 0, cleaning: false,
+    });
   } catch (error) {
     lowerCleanupUncertain = boundedLowerCode(error) === "seaweed_raw_zip_cleanup_failed";
     failure = normalizeFailure(error, timedOut, signal);
@@ -457,19 +598,60 @@ async function run(settings) {
 export async function materializeReviewedSeaweedSource(input) { return run(snapshotOptions(input, false)); }
 export async function TEST_ONLY_materializeSeaweedSource(input) { return run(snapshotOptions(input, true)); }
 
+export async function withMaterializedSeaweedSource(result, callback) {
+  const authority = CLEANUP_AUTHORITIES.get(result);
+  if (authority === undefined || result?.outputPath !== authority.outputPath || authority.cleaning
+    || typeof callback !== "function") {
+    throw materializationError("seaweed_source_materialization_read_unauthorized");
+  }
+  authority.borrowed += 1;
+  let active = true; let reading = false; let binaryUsed = false; const pending = new Set();
+  try {
+    const inputs = await liveSourceInputs(authority);
+    const readBinary = () => {
+      if (!active) return Promise.reject(materializationError("seaweed_source_materialization_read_unauthorized"));
+      if (reading) return Promise.reject(materializationError("seaweed_source_materialization_read_busy"));
+      if (binaryUsed) return Promise.reject(materializationError("seaweed_source_materialization_read_replayed"));
+      reading = true; binaryUsed = true;
+      const operation = readValidatedSourceFile(authority, "weed");
+      pending.add(operation);
+      const settled = () => { pending.delete(operation); reading = false; };
+      operation.then(settled, settled);
+      return operation;
+    };
+    const capability = Object.freeze({
+      sourceIdentity: inputs.sourceIdentity,
+      moduleClosureBytes: inputs.moduleClosureBytes,
+      materials: inputs.materials,
+      readBinary,
+    });
+    return await callback(capability);
+  } finally {
+    active = false;
+    await Promise.allSettled([...pending]);
+    authority.borrowed -= 1;
+  }
+}
+
 export async function cleanupMaterializedSeaweedSource(result) {
   const authority = CLEANUP_AUTHORITIES.get(result);
   if (authority === undefined || result?.outputPath !== authority.outputPath) {
     throw materializationError("seaweed_source_materialization_cleanup_unauthorized");
   }
-  let parentNow;
-  try { parentNow = identity(await lstat(authority.parent, { bigint: true })); } catch {
-    throw materializationError("seaweed_source_materialization_cleanup_failed");
+  if (authority.borrowed !== 0 || authority.cleaning) {
+    throw materializationError("seaweed_source_materialization_cleanup_borrowed");
   }
-  if (!sameNode(authority.parentIdentity, parentNow)
-    || !await removeVerifiedTree(authority.outputPath, authority.parent, authority.uid, authority.tree)) {
-    throw materializationError("seaweed_source_materialization_cleanup_failed");
-  }
-  CLEANUP_AUTHORITIES.delete(result);
-  return Object.freeze({ state: "CLEANED", outputPath: authority.outputPath });
+  authority.cleaning = true;
+  try {
+    let parentNow;
+    try { parentNow = identity(await lstat(authority.parent, { bigint: true })); } catch {
+      throw materializationError("seaweed_source_materialization_cleanup_failed");
+    }
+    if (!sameNode(authority.parentIdentity, parentNow)
+      || !await removeVerifiedTree(authority.outputPath, authority.parent, authority.uid, authority.tree)) {
+      throw materializationError("seaweed_source_materialization_cleanup_failed");
+    }
+    CLEANUP_AUTHORITIES.delete(result);
+    return Object.freeze({ state: "CLEANED", outputPath: authority.outputPath });
+  } finally { authority.cleaning = false; }
 }
