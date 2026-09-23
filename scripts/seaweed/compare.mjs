@@ -42,7 +42,7 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
   const cleanupBoundaries = ["corrected_ec", "normal_tests", "full_tag_tests"];
   if (!Array.isArray(receipt.cacheCleanup) || receipt.cacheCleanup.length !== cleanupBoundaries.length || receipt.cacheCleanup.some((cleanup, index) => {
     const entries = cleanup?.entries;
-    return cleanup?.boundary !== cleanupBoundaries[index] || !Number.isSafeInteger(cleanup.beforeBytes) || cleanup.beforeBytes < 0 ||
+    return cleanup?.boundary !== cleanupBoundaries[index] || !Number.isSafeInteger(cleanup.beforeBytes) || cleanup.beforeBytes < 0 || cleanup.beforeBytes > expectedLock.limits.workBytes ||
       cleanup.afterBytes !== 0 || cleanup.freedBytes !== cleanup.beforeBytes || !entries ||
       !Number.isSafeInteger(entries.gocache?.beforeBytes) || entries.gocache.beforeBytes < 0 || entries.gocache.afterBytes !== 0 ||
       !Number.isSafeInteger(entries.tmp?.beforeBytes) || entries.tmp.beforeBytes < 0 || entries.tmp.afterBytes !== 0 ||

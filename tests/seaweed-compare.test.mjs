@@ -168,6 +168,26 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
   }
 });
 
+test("comparison rejects internally consistent cleanup evidence above the locked budget", () => {
+  for (const extra of [0, 1]) {
+    const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-cache-cap-"));
+    try {
+      const first = fixture(root, 1); const second = fixture(root, 2);
+      for (const directory of [first, second]) {
+        const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file));
+        const cleanup = receipt.cacheCleanup[1];
+        cleanup.entries.gocache.beforeBytes = lock.limits.workBytes;
+        cleanup.entries.tmp.beforeBytes = extra;
+        cleanup.beforeBytes = lock.limits.workBytes + extra;
+        cleanup.freedBytes = cleanup.beforeBytes;
+        writeFileSync(file, JSON.stringify(receipt));
+      }
+      if (extra) assert.throws(() => compareFixtures(first, second), /seaweed_compare_cache_cleanup_invalid/u);
+      else assert.doesNotThrow(() => compareFixtures(first, second));
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
 test("comparison rejects a substituted retained source bundle even when its inventory and receipt are remanifested", () => {
   const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-")); const first = fixture(root, 1); const second = fixture(root, 2);
   const bundle = path.join(second, "materials/seaweedfs-source.bundle"); writeFileSync(bundle, "substituted-bundle"); rewriteInventoryEntry(second, "materials/seaweedfs-source.bundle");

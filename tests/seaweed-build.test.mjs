@@ -47,6 +47,20 @@ test("suite cache cleanup rejects unproven process exit and linked cache roots",
   } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
 });
 
+test("suite cache cleanup checks the sum of individually bounded directories before removal", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-budget-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  mkdirSync(workRoot);
+  for (const name of ["gocache", "tmp"]) {
+    mkdirSync(path.join(workRoot, name));
+    writeFileSync(path.join(workRoot, name, "sentinel"), "123456");
+  }
+  try {
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 10, root: runnerTemp }), /seaweed_artifact_budget_exceeded/u);
+    for (const name of ["gocache", "tmp"]) assert.equal(readFileSync(path.join(workRoot, name, "sentinel"), "utf8"), "123456");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
 test("Seaweed lock binds the exact reviewed source, compiler, patch, manifest, and production variant", () => {
   assert.equal(validateSeaweedLock(lock), lock);
   assert.throws(() => validateSeaweedLock({ ...lock, grpc: { ...lock.grpc, version: "v1.85.0-dev.0.20260825072537-93e31b48545e" } }), /seaweed_lock_invalid/u);
