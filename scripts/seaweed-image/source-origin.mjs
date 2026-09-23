@@ -1,7 +1,8 @@
 import { readSeaweedGitHubApi } from "./github-api-read.mjs";
 import { reviewedSeaweedSourcePolicy, validateSeaweedSourceRecords } from "./source-records.mjs";
 
-const AUTHENTICATED_SOURCES = new WeakSet();
+const AUTHENTICATED_SOURCES = new WeakMap();
+const MAX_ORIGIN_AGE_NS = 60_000_000_000n;
 const [owner, repo] = reviewedSeaweedSourcePolicy.repository.split("/");
 const API_POLICY = Object.freeze({
   owner,
@@ -62,13 +63,23 @@ export async function collectAuthenticatedSeaweedSource(options) {
   const observedAt = new Date().toISOString();
   const consistent = validateSeaweedSourceRecords({ ...records, observedAt });
   const receipt = detachedReceipt(consistent, observedAt);
-  AUTHENTICATED_SOURCES.add(receipt);
+  const expiresAtMs = Math.min(...receipt.artifacts.map((artifact) => Date.parse(artifact.expiresAt)));
+  AUTHENTICATED_SOURCES.set(receipt, Object.freeze({ issuedAtNs: process.hrtime.bigint(), expiresAtMs }));
   return receipt;
 }
 
+function isFresh(mark, nowNs, nowMs) {
+  return mark !== undefined && typeof nowNs === "bigint" && Number.isSafeInteger(nowMs)
+    && nowNs >= mark.issuedAtNs && nowNs - mark.issuedAtNs <= MAX_ORIGIN_AGE_NS
+    && nowMs < mark.expiresAtMs;
+}
+
+export function TEST_ONLY_isSourceOriginFresh(mark, nowNs, nowMs) {
+  return isFresh(mark, nowNs, nowMs);
+}
+
 export function requireAuthenticatedSeaweedSource(value) {
-  if (value === null || typeof value !== "object" || !AUTHENTICATED_SOURCES.has(value)) {
-    throw originError();
-  }
+  const mark = value !== null && typeof value === "object" ? AUTHENTICATED_SOURCES.get(value) : undefined;
+  if (!isFresh(mark, process.hrtime.bigint(), Date.now())) throw originError();
   return value;
 }

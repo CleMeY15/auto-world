@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectAuthenticatedSeaweedSource, requireAuthenticatedSeaweedSource } from "../scripts/seaweed-image/source-origin.mjs";
+import { collectAuthenticatedSeaweedSource, requireAuthenticatedSeaweedSource, TEST_ONLY_isSourceOriginFresh } from "../scripts/seaweed-image/source-origin.mjs";
 
 test("caller-shaped source origin receipts cannot cross the in-process authority boundary", () => {
   const forged = Object.freeze({
@@ -37,4 +37,13 @@ test("production source collector rejects transport and policy injection before 
     collectAuthenticatedSeaweedSource(accessor),
     { code: "seaweed_source_origin_options_invalid" },
   );
+});
+
+test("origin handle age and earliest artifact expiry are both hard bounds", () => {
+  const mark = Object.freeze({ issuedAtNs: 100n, expiresAtMs: 2_000 });
+  assert.equal(TEST_ONLY_isSourceOriginFresh(mark, 100n + 60_000_000_000n, 1_999), true);
+  assert.equal(TEST_ONLY_isSourceOriginFresh(mark, 100n + 60_000_000_001n, 1_999), false);
+  assert.equal(TEST_ONLY_isSourceOriginFresh(mark, 100n, 2_000), false);
+  assert.equal(TEST_ONLY_isSourceOriginFresh(mark, 99n, 1_999), false);
+  assert.equal(TEST_ONLY_isSourceOriginFresh(undefined, 100n, 1_999), false);
 });

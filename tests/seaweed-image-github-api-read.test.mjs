@@ -42,6 +42,8 @@ test("reads the complete fixed GitHub evidence set with exact bounded gh argumen
     `${root}/actions/runs/${policy.runId}/attempts/1/jobs?per_page=100`,
     `${root}/actions/runs/${policy.runId}/artifacts?per_page=100`,
     ...policy.artifactIds.map((id) => `${root}/actions/artifacts/${id}`),
+    `${root}/actions/runs/${policy.runId}/artifacts?per_page=100`,
+    ...policy.artifactIds.map((id) => `${root}/actions/artifacts/${id}`),
     `${root}/actions/runs/${policy.runId}`,
     `${root}/actions/runs/${policy.runId}/attempts/1`,
   ];
@@ -68,8 +70,11 @@ test("reads the complete fixed GitHub evidence set with exact bounded gh argumen
   assert.equal(result.runFinal.endpoint, expectedEndpoints.at(-2));
   assert.equal(result.attempt1Final.endpoint, expectedEndpoints.at(-1));
   assert.deepEqual(result.artifactRecords.map(({ endpoint }) => endpoint), expectedEndpoints.slice(8, 13));
+  assert.equal(result.artifactsFinal.endpoint, expectedEndpoints[13]);
+  assert.deepEqual(result.artifactRecordsFinal.map(({ endpoint }) => endpoint), expectedEndpoints.slice(14, 19));
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.artifactRecords), true);
+  assert.equal(Object.isFrozen(result.artifactRecordsFinal), true);
 });
 
 test("production entrypoint rejects command injection", async () => {
@@ -150,4 +155,36 @@ test("enforces one wall-clock timeout across the collection", async () => {
     code: "seaweed_github_api_timeout",
   });
   assert.equal(childSignal.aborted, true);
+});
+
+test("enforces the cumulative deadline after individually successful calls", async () => {
+  let clock = 1_000;
+  let calls = 0;
+  const now = () => clock;
+  const execFile = (_command, args, _options, callback) => {
+    calls += 1;
+    clock += 3;
+    globalThis.queueMicrotask(() => callback(null, Buffer.from(JSON.stringify({ endpoint: args.at(-1) })), Buffer.alloc(0)));
+    return {};
+  };
+  await assert.rejects(TEST_ONLY_readSeaweedGitHubApi(policy, {
+    execFile, now, timeoutMs: 10,
+  }), { code: "seaweed_github_api_timeout" });
+  assert.equal(calls, 4);
+});
+
+test("rejects a successful final response that arrives after the aggregate deadline", async () => {
+  let clock = 10_000;
+  let calls = 0;
+  const now = () => clock;
+  const execFile = (_command, args, _options, callback) => {
+    calls += 1;
+    if (calls === 21) clock = 11_001;
+    globalThis.queueMicrotask(() => callback(null, Buffer.from(JSON.stringify({ endpoint: args.at(-1) })), Buffer.alloc(0)));
+    return {};
+  };
+  await assert.rejects(TEST_ONLY_readSeaweedGitHubApi(policy, {
+    execFile, now, timeoutMs: 1_000,
+  }), { code: "seaweed_github_api_timeout" });
+  assert.equal(calls, 21);
 });

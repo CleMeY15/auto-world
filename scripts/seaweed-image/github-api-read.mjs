@@ -52,7 +52,7 @@ function snapshotPolicy(policy) {
 function snapshotOptions(options, allowInjection) {
   if (!allowInjection && GH_EXECUTABLE === undefined) throw apiError("seaweed_github_api_platform_unsupported");
   if (options === undefined) return Object.freeze({
-    signal: undefined, timeoutMs: DEFAULT_TIMEOUT_MS, execFile: nodeExecFile, executable: GH_EXECUTABLE,
+    signal: undefined, timeoutMs: DEFAULT_TIMEOUT_MS, execFile: nodeExecFile, executable: GH_EXECUTABLE, now: Date.now,
   });
   if (options === null || typeof options !== "object" || Array.isArray(options)) throw apiError("seaweed_github_api_options_invalid");
   const descriptors = Object.getOwnPropertyDescriptors(options);
@@ -61,14 +61,18 @@ function snapshotOptions(options, allowInjection) {
   const signal = value("signal");
   const timeoutMs = value("timeoutMs") ?? DEFAULT_TIMEOUT_MS;
   const injected = value("execFile");
+  const injectedNow = value("now");
   if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) throw apiError("seaweed_github_api_options_invalid");
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS
-    || (!allowInjection && injected !== undefined) || (injected !== undefined && typeof injected !== "function")) {
+    || (!allowInjection && (injected !== undefined || injectedNow !== undefined))
+    || (injected !== undefined && typeof injected !== "function")
+    || (injectedNow !== undefined && typeof injectedNow !== "function")) {
     throw apiError("seaweed_github_api_options_invalid");
   }
   return Object.freeze({
     signal, timeoutMs, execFile: injected ?? nodeExecFile,
     executable: injected === undefined ? GH_EXECUTABLE : "TEST_ONLY_gh",
+    now: injectedNow ?? Date.now,
   });
 }
 
@@ -92,13 +96,13 @@ function makeEndpoints(policy) {
   });
 }
 
-function executeGh(execFile, executable, endpoint, accept, maximumBytes, deadline, externalSignal) {
+function executeGh(execFile, executable, endpoint, accept, maximumBytes, deadline, externalSignal, now) {
   return new Promise((resolve, reject) => {
     if (externalSignal?.aborted === true) {
       reject(apiError("seaweed_github_api_aborted"));
       return;
     }
-    const remaining = deadline - Date.now();
+    const remaining = deadline - now();
     if (remaining <= 0) {
       reject(apiError("seaweed_github_api_timeout"));
       return;
@@ -115,8 +119,12 @@ function executeGh(execFile, executable, endpoint, accept, maximumBytes, deadlin
       settled = true;
       cleanup();
       if (error !== null && error !== undefined) {
-        reject(apiError(error.code === "ETIMEDOUT" || Date.now() >= deadline
+        reject(apiError(error.code === "ETIMEDOUT" || now() >= deadline
           ? "seaweed_github_api_timeout" : "seaweed_github_api_request_failed"));
+        return;
+      }
+      if (now() >= deadline) {
+        reject(apiError("seaweed_github_api_timeout"));
         return;
       }
       if (!(stdout instanceof Uint8Array) || stdout.byteLength > maximumBytes) {
@@ -172,9 +180,9 @@ async function read(policyInput, optionsInput, allowInjection) {
   const policy = snapshotPolicy(policyInput);
   const options = snapshotOptions(optionsInput, allowInjection);
   const endpoints = makeEndpoints(policy);
-  const deadline = Date.now() + options.timeoutMs;
+  const deadline = options.now() + options.timeoutMs;
   const json = async (endpoint) => parseJson(await executeGh(
-    options.execFile, options.executable, endpoint, JSON_ACCEPT, MAX_JSON_BYTES, deadline, options.signal,
+    options.execFile, options.executable, endpoint, JSON_ACCEPT, MAX_JSON_BYTES, deadline, options.signal, options.now,
   ));
   const repository = await json(endpoints.repository);
   const commit = await json(endpoints.commit);
@@ -182,16 +190,20 @@ async function read(policyInput, optionsInput, allowInjection) {
   const attempt1 = await json(endpoints.attempt1);
   const workflow = await json(endpoints.workflow);
   const workflowBytes = await executeGh(options.execFile, options.executable, endpoints.workflowRaw, RAW_ACCEPT,
-    MAX_WORKFLOW_BYTES, deadline, options.signal);
+    MAX_WORKFLOW_BYTES, deadline, options.signal, options.now);
   const jobs = await json(endpoints.jobs);
   const artifacts = await json(endpoints.artifacts);
   const artifactRecords = [];
   for (const id of policy.artifactIds) artifactRecords.push(await json(endpoints.artifact(id)));
+  const artifactsFinal = await json(endpoints.artifacts);
+  const artifactRecordsFinal = [];
+  for (const id of policy.artifactIds) artifactRecordsFinal.push(await json(endpoints.artifact(id)));
   const runFinal = await json(endpoints.run);
   const attempt1Final = await json(endpoints.attempt1);
   return Object.freeze({
     repository, commit, run, attempt1, workflow, workflowBytes, jobs, artifacts,
-    artifactRecords: Object.freeze(artifactRecords), runFinal, attempt1Final,
+    artifactRecords: Object.freeze(artifactRecords), artifactsFinal,
+    artifactRecordsFinal: Object.freeze(artifactRecordsFinal), runFinal, attempt1Final,
   });
 }
 

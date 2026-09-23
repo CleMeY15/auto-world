@@ -69,6 +69,8 @@ function fixture() {
     },
     artifacts: { total_count: 5, artifacts: clone(artifactRecords) },
     artifactRecords: clone(artifactRecords),
+    artifactsFinal: { total_count: 5, artifacts: clone(artifactRecords) },
+    artifactRecordsFinal: clone(artifactRecords),
     observedAt: "2026-09-23T18:00:00.000Z",
   };
 }
@@ -130,6 +132,13 @@ test("rejects altered, missing, duplicate, expired and cross-view artifact recor
   rejects((value) => {
     Object.defineProperty(value.artifactRecords[0], "digest", { get() { throw new Error("getter executed"); } });
   }, "seaweed_source_artifact_records_invalid");
+});
+
+test("rejects deletion, expiry and mutation in final artifact rereads", () => {
+  rejects((value) => { value.artifactsFinal.artifacts.pop(); value.artifactsFinal.total_count = 4; }, "seaweed_source_artifacts_final_invalid");
+  rejects((value) => { value.artifactsFinal.artifacts[0].expired = true; }, "seaweed_source_artifacts_final_invalid");
+  rejects((value) => { value.artifactRecordsFinal[0].expired = true; }, "seaweed_source_artifact_records_final_invalid");
+  rejects((value) => { value.artifactRecordsFinal[1].digest = "sha256:" + "0".repeat(64); }, "seaweed_source_artifact_records_final_invalid");
 });
 
 test("requires an explicit safe observation time", () => {

@@ -214,6 +214,8 @@ export function validateSeaweedSourceRecords(input) {
   const jobs = data(input, "jobs", inputCode);
   const artifacts = data(input, "artifacts", inputCode);
   const artifactRecords = data(input, "artifactRecords", inputCode);
+  const artifactsFinal = data(input, "artifactsFinal", inputCode);
+  const artifactRecordsFinal = data(input, "artifactRecordsFinal", inputCode);
   const runFinal = data(input, "runFinal", inputCode);
   const attempt1Final = data(input, "attempt1Final", inputCode);
   const observedAt = data(input, "observedAt", inputCode);
@@ -232,7 +234,14 @@ export function validateSeaweedSourceRecords(input) {
   exact(artifacts, "total_count", ARTIFACTS.length, code);
   const listed = artifactsById(list(artifacts, "artifacts", code), nowMs, code);
   const individual = artifactsById(artifactRecords, nowMs, "seaweed_source_artifact_records_invalid");
+  const finalCode = "seaweed_source_artifacts_final_invalid";
+  exact(artifactsFinal, "total_count", ARTIFACTS.length, finalCode);
+  const finalListed = artifactsById(list(artifactsFinal, "artifacts", finalCode), nowMs, finalCode);
+  const finalIndividual = artifactsById(artifactRecordsFinal, nowMs, "seaweed_source_artifact_records_final_invalid");
   compareArtifactViews(listed, individual);
+  compareArtifactViews(listed, finalListed);
+  compareArtifactViews(listed, finalIndividual);
+  compareArtifactViews(finalListed, finalIndividual);
 
   const descriptors = ARTIFACTS.map((artifact) => Object.freeze({
     id: artifact.id,
