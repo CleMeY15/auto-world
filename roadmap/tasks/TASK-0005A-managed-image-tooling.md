@@ -75,6 +75,8 @@ The completed third source run compiled the normal production executable in job1
 
 ## Completion
 
+PR26 is integrated at main `1276186`, with independent review and final-head/main CI passing. Native run `35842659201` job2 passed the pristine two-test EC baseline, then failed on stdout measurement during module licence collection before corrected compilation. The next focused increment synchronizes monitored output-file creation before child launch, retaining all failure and resource controls. Actual remaining native outcomes are recorded in that PR; full source acceptance stays pending.
+
 Resumed 2026-09-23 from protected PR25 merge `394ce8a`. Native `34889287897` attempt 1 failed: both production binaries matched; job1 exceeded the unchanged logical disk budget, job2 failed two EC integration tests with gRPC EOF. Both cleanups and artifact gates passed. [Source evidence](../../docs/validation/TASK-0005A-SEAWEED-SOURCE.md) records the exact results. The next focused increment captures bounded server logs and compares original/corrected module test behavior before attributing or changing upstream failures. No image or infrastructure acceptance is claimed.
 
 Keep this task incomplete through scanner-only success. Full DONE requires actual private admission acceptance, independent implementation review, complete retained evidence and final-head/main CI. TASK-0005 remains incomplete until the four-service lifecycle also passes; TASK-0006 remains blocked until then.
