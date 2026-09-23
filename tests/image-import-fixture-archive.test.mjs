@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 import test from "node:test";
 import {
-  buildFixtureTar, fixtureConfig, fixtureEntries, sha256, validateRuntimeConfig, validateSavedImage,
+  buildFixtureTar, fixtureConfig, fixtureEntries, IMPORT_MESSAGE, sha256, validateRuntimeConfig, validateSavedImage,
 } from "../scripts/image-import-fixture/archive.mjs";
 
 const BLOCK = 512;
 const OWNER = "run-12345-attempt-1";
 const TAG = `auto-world-import-fixture:${OWNER}`;
 const CREATED = "2026-09-23T12:00:00Z";
+const SERVER_VERSION = "28.0.4";
+const ZERO_CONTAINER_CONFIG = { Hostname: "", Domainname: "", User: "", AttachStdin: false, AttachStdout: false,
+  AttachStderr: false, Tty: false, OpenStdin: false, StdinOnce: false, Env: null, Cmd: null, Image: "", Volumes: null,
+  WorkingDir: "", Entrypoint: null, OnBuild: null, Labels: null };
 
 function octal(header, offset, length, value) {
   Buffer.from(`${value.toString(8).padStart(length - 1, "0")}\0`, "ascii").copy(header, offset);
@@ -58,7 +62,7 @@ function fixtureLayer(mutator) {
 
 function savedImage({
   rawLayer = buildFixtureTar(), gzip = false, user = "absent", diffID, configChange, layerMediaType,
-  extraEntries = [], manifestLayers, classic = false, storedLayerOverride, rootfsChange,
+  extraEntries = [], manifestLayers, classic = false, storedLayerOverride, rootfsChange, imageConfigChange, legacyChange,
 } = {}) {
   const storedLayer = storedLayerOverride ?? (gzip ? gzipSync(rawLayer, { level: 6, mtime: 0 }) : rawLayer);
   const layerDigest = sha256(storedLayer);
@@ -67,8 +71,11 @@ function savedImage({
   const actualDiffID = diffID ?? `sha256:${sha256(rawLayer)}`;
   const rootfs = { type: "layers", diff_ids: [actualDiffID] };
   rootfsChange?.(rootfs);
-  const config = json({ architecture: "amd64", os: "linux", created: CREATED, config: runtime,
-    rootfs, history: [{ created_by: "synthetic import" }] });
+  const imageConfig = { architecture: "amd64", os: "linux", created: CREATED, config: runtime,
+    rootfs, history: [{ created: CREATED, comment: IMPORT_MESSAGE }] };
+  if (classic) Object.assign(imageConfig, { comment: IMPORT_MESSAGE, container_config: { ...ZERO_CONTAINER_CONFIG }, docker_version: SERVER_VERSION });
+  imageConfigChange?.(imageConfig);
+  const config = json(imageConfig);
   const configDigest = sha256(config);
   const mediaType = layerMediaType ?? (gzip ? "application/vnd.oci.image.layer.v1.tar+gzip" : "application/vnd.oci.image.layer.v1.tar");
   const ociManifest = json({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
@@ -83,7 +90,10 @@ function savedImage({
   const classicEntries = [];
   if (classic) {
     compatibilityItem.LayerSources = { [actualDiffID]: { mediaType: "application/vnd.oci.image.layer.v1.tar", size: storedLayer.length, digest: `sha256:${layerDigest}` } };
-    const legacy = json({ id: "b".repeat(64), created: CREATED, config: runtime, architecture: "amd64", os: "linux" });
+    const legacyValue = { architecture: "amd64", comment: IMPORT_MESSAGE, config: { ...runtime }, container_config: { ...ZERO_CONTAINER_CONFIG },
+      created: CREATED, docker_version: SERVER_VERSION, id: "b".repeat(64), os: "linux" };
+    legacyChange?.(legacyValue);
+    const legacy = json(legacyValue);
     classicEntries.push({ name: `blobs/sha256/${sha256(legacy)}`, content: legacy },
       { name: "repositories", content: json({ "auto-world-import-fixture": { [OWNER]: actualDiffID.slice(7) } }) });
   }
@@ -99,7 +109,7 @@ function savedImage({
 }
 
 function validate(item, imageId = item.manifestDigest) {
-  return validateSavedImage(item.archive, { imageId: `sha256:${imageId}`, tag: TAG, owner: OWNER });
+  return validateSavedImage(item.archive, { imageId: `sha256:${imageId}`, tag: TAG, owner: OWNER, serverVersion: SERVER_VERSION });
 }
 
 test("authored fixture is a small deterministic complete USTAR tree with mixed metadata", () => {
@@ -135,6 +145,54 @@ test("validates the exact classic compatibility additions with config image iden
   const receipt = validate(item, item.configDigest);
   assert.equal(receipt.identityType, "CLASSIC_CONFIG_ID");
   assert.equal(receipt.diffID, `sha256:${sha256(item.rawLayer)}`);
+});
+
+test("requires the server version and closed containerd image-config schema", () => {
+  const item = savedImage();
+  assert.throws(() => validateSavedImage(item.archive, { imageId: `sha256:${item.manifestDigest}`, tag: TAG, owner: OWNER }), /image_import_server_version_invalid/u);
+  for (const serverVersion of ["latest", "28.0", "28.0.4\n", "1".repeat(65)]) {
+    assert.throws(() => validateSavedImage(item.archive, { imageId: `sha256:${item.manifestDigest}`, tag: TAG, owner: OWNER, serverVersion }), /image_import_server_version_invalid/u);
+  }
+  for (const imageConfigChange of [
+    (config) => { delete config.history; },
+    (config) => { config.history = [{ created: CREATED, comment: "other" }]; },
+    (config) => { config.history = [{ created: "2026-09-23T12:00:01Z", comment: IMPORT_MESSAGE }]; },
+    (config) => { config.extra = false; },
+    (config) => { config.comment = IMPORT_MESSAGE; },
+    (config) => { config.container_config = ZERO_CONTAINER_CONFIG; },
+    (config) => { config.docker_version = SERVER_VERSION; },
+    (config) => { config.history[0].created_by = "extra"; },
+  ]) assert.throws(() => validate(savedImage({ imageConfigChange })), /image_import_save_config_invalid/u);
+});
+
+test("requires exact classic comment, version, neutral container config, history, and V1 links", () => {
+  for (const imageConfigChange of [
+    (config) => { delete config.comment; },
+    (config) => { delete config.container_config; },
+    (config) => { delete config.docker_version; },
+    (config) => { config.comment = "other"; },
+    (config) => { config.docker_version = "28.0.3"; },
+    (config) => { config.container_config.Hostname = "host"; },
+    (config) => { config.container_config.Extra = null; },
+    (config) => { delete config.container_config.OnBuild; },
+    (config) => { config.history = []; },
+  ]) {
+    const item = savedImage({ classic: true, imageConfigChange });
+    assert.throws(() => validate(item, item.configDigest), /image_import_save_config_invalid/u);
+  }
+  for (const legacyChange of [
+    (legacy) => { delete legacy.comment; },
+    (legacy) => { legacy.comment = "other"; },
+    (legacy) => { legacy.docker_version = "28.0.3"; },
+    (legacy) => { legacy.container_config.Cmd = []; },
+    (legacy) => { legacy.config.WorkingDir = "/other"; },
+    (legacy) => { legacy.extra = false; },
+    (legacy) => { legacy.created = "2026-09-23T12:00:01Z"; },
+    (legacy) => { legacy.id = "INVALID"; },
+  ]) {
+    const item = savedImage({ classic: true, legacyChange });
+    assert.throws(() => validate(item, item.configDigest), /image_import_save_classic_invalid/u);
+  }
 });
 
 test("rejects checksum corruption, truncation, duplicate and traversal names, unsupported types, and octal bounds", () => {
@@ -193,5 +251,5 @@ test("rejects unreferenced blobs, unknown outer members, bad image identity, and
   const raw = buildFixtureTar(); const concatenated = Buffer.concat([gzipSync(raw), gzipSync(raw)]);
   assert.throws(() => validate(savedImage({ rawLayer: raw, gzip: true, storedLayerOverride: concatenated })), /image_import_save_gzip_invalid/u);
   const tooMany = tar(Array.from({ length: 129 }, (_, index) => ({ name: `file-${index}`, content: Buffer.from("x") })));
-  assert.throws(() => validateSavedImage(tooMany, { imageId: `sha256:${"f".repeat(64)}`, tag: TAG, owner: OWNER }), /image_import_tar_member_limit/u);
+  assert.throws(() => validateSavedImage(tooMany, { imageId: `sha256:${"f".repeat(64)}`, tag: TAG, owner: OWNER, serverVersion: SERVER_VERSION }), /image_import_tar_member_limit/u);
 });
