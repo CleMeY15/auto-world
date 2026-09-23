@@ -2,7 +2,10 @@ import { lstat, mkdir, readdir, realpath, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs } from "./materialize-rootfs.mjs";
+import {
+  cleanupMaterializedSeaweedRootfs, isPublicRootfsDetailCode, isPublicRootfsFailureCode,
+  materializeReviewedSeaweedRootfs,
+} from "./materialize-rootfs.mjs";
 import { baseMaterialIdentities } from "./plan.mjs";
 import { reviewedSeaweedSourcePolicy } from "./source-records.mjs";
 
@@ -95,13 +98,19 @@ async function main(argv = process.argv.slice(2), env = process.env, testOnly = 
   log(publicBytes);
 }
 
+function ownData(error, key) {
+  if (error === null || typeof error !== "object" && typeof error !== "function") return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch { return undefined; }
+}
+
 function publicFailure(error) {
-  const code = typeof error?.code === "string" && /^seaweed_[a-z0-9_]{1,96}$/u.test(error.code)
-    ? error.code : "seaweed_rootfs_materialization_failed";
-  const originalCode = Object.getOwnPropertyDescriptor(error ?? {}, "originalCode")?.value;
-  const detailCode = typeof originalCode === "string"
-    && /^seaweed_(?:image|notice_plan|ustar|archive|raw_ustar|rootfs)_[a-z0-9_]{1,80}$/u.test(originalCode)
-    ? originalCode : undefined;
+  const candidateCode = ownData(error, "code");
+  const code = isPublicRootfsFailureCode(candidateCode) ? candidateCode : "seaweed_rootfs_materialization_failed";
+  const originalCode = ownData(error, "originalCode");
+  const detailCode = isPublicRootfsDetailCode(originalCode) ? originalCode : undefined;
   return JSON.stringify({ state: "FAILED", code, ...(detailCode === undefined ? {} : { detailCode }),
     candidateAuthorization: "NOT_AUTHORIZED" });
 }

@@ -112,4 +112,13 @@ test("rootfs failure logs only bounded codes", () => {
   })), { state: "FAILED", code: "seaweed_rootfs_materialization_write_failed", candidateAuthorization: "NOT_AUTHORIZED" });
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRootfsMaterializationFailure({ code: `seaweed_${"x".repeat(1024)}` })),
     { state: "FAILED", code: "seaweed_rootfs_materialization_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRootfsMaterializationFailure({
+    code: "seaweed_private_secret_value", originalCode: "seaweed_ustar_secret_value",
+  })), { state: "FAILED", code: "seaweed_rootfs_materialization_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+  const accessor = Object.defineProperty({}, "code", { get() { throw new Error("secret /private/path"); } });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRootfsMaterializationFailure(accessor)),
+    { state: "FAILED", code: "seaweed_rootfs_materialization_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+  const proxy = new Proxy({}, { getOwnPropertyDescriptor() { throw new Error("secret /private/path"); } });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRootfsMaterializationFailure(proxy)),
+    { state: "FAILED", code: "seaweed_rootfs_materialization_failed", candidateAuthorization: "NOT_AUTHORIZED" });
 });

@@ -127,14 +127,15 @@ test("composite rootfs transaction cleans both child materializations after writ
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
-test("composite rootfs preserves a bounded child materialization code", { skip: !linux }, async () => {
+test("composite rootfs reports a child failure by stage without trusting its code", { skip: !linux }, async () => {
   const value = transactionScope();
   value.options.materializeSource = async () => {
     throw Object.assign(new Error("bounded child failure"), { code: "seaweed_source_materialization_validation_failed" });
   };
   try {
     await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
-      assert.equal(error.code, "seaweed_source_materialization_validation_failed");
+      assert.equal(error.code, "seaweed_rootfs_materialization_source_materialization_failed");
+      assert.equal(Object.hasOwn(error, "originalCode"), false);
       return true;
     });
     assert.deepEqual(readdirSync(value.parent), []);

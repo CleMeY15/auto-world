@@ -52,6 +52,27 @@ const SAFE_DETAIL_CODES = new Set([
   "seaweed_archive_tar_padding_invalid", "seaweed_archive_tar_path_invalid", "seaweed_archive_tar_truncated",
   "seaweed_archive_tar_type_invalid",
 ]);
+const PRESERVED_CHILD_CODES = new Set([
+  "seaweed_source_materialization_aborted", "seaweed_source_materialization_cleanup_failed",
+  "seaweed_source_materialization_timeout", "seaweed_base_materialization_aborted",
+  "seaweed_base_materialization_cleanup_failed", "seaweed_base_materialization_timeout",
+]);
+const PUBLIC_FAILURE_CODES = new Set([
+  "seaweed_rootfs_materialization_aborted", "seaweed_rootfs_materialization_arguments_invalid",
+  "seaweed_rootfs_materialization_child_invalid", "seaweed_rootfs_materialization_cleanup_failed",
+  "seaweed_rootfs_materialization_cleanup_unauthorized", "seaweed_rootfs_materialization_collision",
+  "seaweed_rootfs_materialization_context_invalid", "seaweed_rootfs_materialization_directory_invalid",
+  "seaweed_rootfs_materialization_failed", "seaweed_rootfs_materialization_lineage_invalid",
+  "seaweed_rootfs_materialization_options_invalid", "seaweed_rootfs_materialization_output_changed",
+  "seaweed_rootfs_materialization_output_invalid", "seaweed_rootfs_materialization_parent_not_empty",
+  "seaweed_rootfs_materialization_receipt_invalid", "seaweed_rootfs_materialization_timeout",
+  "seaweed_rootfs_materialization_unknown_failed", "seaweed_rootfs_materialization_verification_failed",
+  "seaweed_rootfs_materialization_write_failed", ...PRESERVED_CHILD_CODES,
+  ...[...FAILURE_STAGES].map((stage) => `seaweed_rootfs_materialization_${stage}_failed`),
+]);
+
+export function isPublicRootfsFailureCode(value) { return typeof value === "string" && PUBLIC_FAILURE_CODES.has(value); }
+export function isPublicRootfsDetailCode(value) { return typeof value === "string" && SAFE_DETAIL_CODES.has(value); }
 
 function rootfsError(code, details = {}) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "PREPARATION_ONLY",
@@ -59,8 +80,8 @@ function rootfsError(code, details = {}) {
 }
 
 function stageError(stage, error) {
-  if (error?.name === "AbortError" || typeof error?.code === "string"
-    && /^seaweed_(?:rootfs|source_materialization|base_materialization)_/u.test(error.code)) return error;
+  if (error?.name === "AbortError" || isPublicRootfsFailureCode(error?.code)
+    && (error.code.startsWith("seaweed_rootfs_") || PRESERVED_CHILD_CODES.has(error.code))) return error;
   const boundedStage = FAILURE_STAGES.has(stage) ? stage : "unknown";
   const candidate = [error?.code, error?.message].find((value) => SAFE_DETAIL_CODES.has(value));
   return rootfsError(`seaweed_rootfs_materialization_${boundedStage}_failed`,
