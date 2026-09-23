@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { TEST_ONLY_runSourceMaterializationDiagnostic } from "../scripts/seaweed-image/materialize-source-diagnostic.mjs";
+import { TEST_ONLY_publicSourceMaterializationFailure, TEST_ONLY_runSourceMaterializationDiagnostic } from "../scripts/seaweed-image/materialize-source-diagnostic.mjs";
 
 const workflow = new URL("../.github/workflows/seaweed-source-materialization.yml", import.meta.url);
 const linux = process.platform === "linux";
@@ -142,4 +142,16 @@ test("cleanup removes only an empty owned root", { skip: !linux }, async () => {
   } finally {
     await rm(runnerTemp, { recursive: true, force: true });
   }
+});
+
+test("diagnostic failure log exposes only bounded codes", () => {
+  const unsafe = { code: "oops /private/path", scanCode: "seaweed_artifact_zip_entry_integrity_invalid /private/path",
+    message: "/private/path and token" };
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicSourceMaterializationFailure(unsafe)), {
+    state: "FAILED", code: "seaweed_source_materialization_failed", candidateAuthorization: "NOT_AUTHORIZED",
+  });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicSourceMaterializationFailure({
+    code: "seaweed_source_materialization_zip_invalid", scanCode: "seaweed_artifact_zip_entry_integrity_invalid",
+  })), { state: "FAILED", code: "seaweed_source_materialization_zip_invalid",
+    detailCode: "seaweed_artifact_zip_entry_integrity_invalid", candidateAuthorization: "NOT_AUTHORIZED" });
 });

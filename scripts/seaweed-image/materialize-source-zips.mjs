@@ -37,17 +37,30 @@ function materializationError(code, details = {}) {
   });
 }
 
+function boundedLowerCode(error) {
+  for (const value of [error?.code, error?.message]) {
+    if (typeof value === "string" && /^seaweed_[a-z0-9_]+$/u.test(value)) return value;
+  }
+  return undefined;
+}
+
 function normalizeFailure(error, timedOut, signal) {
   if (timedOut) return materializationError("seaweed_source_materialization_timeout");
   if (signal?.aborted === true) return materializationError("seaweed_source_materialization_aborted");
-  if (error?.code?.startsWith("seaweed_source_materialization_")) return error;
-  if (error?.code?.startsWith("seaweed_raw_zip_")) {
-    return materializationError("seaweed_source_materialization_download_failed", { downloadCode: error.code });
+  const code = boundedLowerCode(error);
+  if (code?.startsWith("seaweed_source_materialization_")) return error;
+  if (code?.startsWith("seaweed_raw_zip_")) {
+    return materializationError("seaweed_source_materialization_download_failed", { downloadCode: code });
   }
-  if (error?.code?.startsWith("seaweed_artifact_zip_")) {
-    return materializationError("seaweed_source_materialization_zip_invalid", { scanCode: error.code });
+  if (code?.startsWith("seaweed_artifact_zip_")) {
+    return materializationError("seaweed_source_materialization_zip_invalid", { scanCode: code });
   }
-  if (error?.message?.startsWith("seaweed_")) return materializationError("seaweed_source_materialization_validation_failed");
+  if (code?.startsWith("seaweed_source_origin_")) {
+    return materializationError("seaweed_source_materialization_origin_invalid", { originCode: code });
+  }
+  if (code !== undefined) {
+    return materializationError("seaweed_source_materialization_validation_failed", { validationCode: code });
+  }
   return materializationError("seaweed_source_materialization_failed");
 }
 
@@ -420,7 +433,7 @@ async function run(settings) {
       comparedEntries: compared.compared.length });
     CLEANUP_AUTHORITIES.set(result, Object.freeze({ parent, outputPath, uid, parentIdentity: parentBefore, tree }));
   } catch (error) {
-    lowerCleanupUncertain = error?.code === "seaweed_raw_zip_cleanup_failed";
+    lowerCleanupUncertain = boundedLowerCode(error) === "seaweed_raw_zip_cleanup_failed";
     failure = normalizeFailure(error, timedOut, signal);
   }
   globalThis.clearTimeout(timer);

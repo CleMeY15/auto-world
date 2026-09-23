@@ -102,11 +102,19 @@ async function main(argv = process.argv.slice(2), env = process.env, testOnly = 
   (testOnly.log ?? console.log)(receiptBytes);
 }
 
+function publicFailure(error) {
+  const safeCode = (value) => typeof value === "string" && /^seaweed_[a-z0-9_]+$/u.test(value);
+  const code = safeCode(error?.code) ? error.code : "seaweed_source_materialization_failed";
+  const detail = [error?.scanCode, error?.downloadCode, error?.originCode, error?.validationCode, error?.originalCode].find(safeCode);
+  return JSON.stringify({ state: "FAILED", code, ...(detail === undefined ? {} : { detailCode: detail }),
+    candidateAuthorization: "NOT_AUTHORIZED" });
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    console.error(error?.code ?? "seaweed_source_materialization_failed");
+    console.error(publicFailure(error));
     process.exitCode = 1;
   });
 }
 
-export { main as TEST_ONLY_runSourceMaterializationDiagnostic };
+export { main as TEST_ONLY_runSourceMaterializationDiagnostic, publicFailure as TEST_ONLY_publicSourceMaterializationFailure };

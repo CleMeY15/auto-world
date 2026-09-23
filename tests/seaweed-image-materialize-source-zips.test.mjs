@@ -157,6 +157,32 @@ test("preserves lower-layer cleanup uncertainty without traversing the staging t
   } finally { rmSync(scope.parent, { recursive: true, force: true }); }
 });
 
+test("preserves a bounded ZIP reader message as scanCode and cleans owned staging", { skip: !linux }, async () => {
+  const scope = fixture();
+  scope.options.scanOne = async () => { throw new Error("seaweed_artifact_zip_owned_platform_invalid"); };
+  try {
+    await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), (error) => {
+      assert.equal(error.code, "seaweed_source_materialization_zip_invalid");
+      assert.equal(error.scanCode, "seaweed_artifact_zip_owned_platform_invalid");
+      return true;
+    });
+    assert.deepEqual(readdirSync(scope.parent), []);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("preserves a bounded downloader message as downloadCode and cleans owned staging", { skip: !linux }, async () => {
+  const scope = fixture();
+  scope.options.download = async () => { throw new Error("seaweed_raw_zip_request_failed"); };
+  try {
+    await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), (error) => {
+      assert.equal(error.code, "seaweed_source_materialization_download_failed");
+      assert.equal(error.downloadCode, "seaweed_raw_zip_request_failed");
+      return true;
+    });
+    assert.deepEqual(readdirSync(scope.parent), []);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
 test("preserves an empty destination collision and removes only its owned staging", { skip: !linux }, async () => {
   const scope = fixture();
   scope.options.beforeRename = async ({ outputPath }) => { mkdirSync(outputPath, { mode: 0o700 }); };
@@ -223,7 +249,11 @@ for (const [boundary, rejectCall] of [["before rename", 2], ["before receipt", 3
         { code: "seaweed_source_origin_not_authenticated" });
     };
     try {
-      await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), /validation_failed/u);
+      await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), (error) => {
+        assert.equal(error.code, "seaweed_source_materialization_origin_invalid");
+        assert.equal(error.originCode, "seaweed_source_origin_not_authenticated");
+        return true;
+      });
       assert.equal(calls, rejectCall);
       assert.deepEqual(readdirSync(scope.parent), []);
     } finally { rmSync(scope.parent, { recursive: true, force: true }); }
