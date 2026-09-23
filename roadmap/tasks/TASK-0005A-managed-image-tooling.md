@@ -6,6 +6,8 @@ Owner role: Platform/SRE executor; independent code/security and architecture re
 
 ## Goal
 
+Latest source result: run35875100636 passes both complete builds and artifact gates but fails the final comparison on different managed Ubuntu runner-image revisions. The [focused repair](../../docs/validation/TASK-0005A-SEAWEED-SOURCE.md) preserves both observations while retaining all other provenance and byte comparisons, and compacts the complete receipt under the unchanged cap. Local replay cannot replace the required new complete native run. PR39's read-only public base reader is integrated with passing independent reviews and final-head/main CI (232 Linux root tests); no candidate has been constructed.
+
 Latest preparation checkpoint: PR38's exact transformation/notice plan is merged at `5033fb847cf5a657d078c6a57bcb61fdd4714f5e`, with final-head/main CI passing 211 Linux root tests and all gates. The subsequent [read-only public base replay](../../docs/validation/TASK-0005A-SEAWEED-BASE-SCAN.md) validates streaming archive contents and overlays without construction or publication. Full source run35875100636 remains a separate pending gate.
 
 Produce a reviewed corrected scanner and fresh exact-subject image audits, then a separately reviewed managed private-image admission path, so TASK-0005 can finish its existing data infrastructure. Replace the unmerged all-native ORAS/Cosign bootstrap proposal with [ADR-0007](../../docs/decisions/ADR-0007-private-image-admission.md); preserve historical PR8 and its evidence.
