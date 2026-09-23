@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { safeBaseEnvironment } from "./build.mjs";
@@ -39,15 +39,81 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
         (stderrInfo.mode & 0o777) !== 0o600 || readFileSync(externalStderr, "utf8") !== "external-stderr\n") throw new Error("seaweed_monitor_sentinel_changed");
   };
   const environment = safeBaseEnvironment(work);
-  const runProbe = (name, command, args, monitorWork, timeout, limits = { workBytes: 64 * MiB, retainedBytes: 8 * MiB, minimumFreeBytes: 1, logBytes: MiB }, outputDirectory = temporary) => {
+  const runProbe = (name, command, args, monitorWork, timeout, limits = { workBytes: 64 * MiB, retainedBytes: 8 * MiB, minimumFreeBytes: 1, logBytes: MiB }, outputDirectory = temporary, environmentOverrides = {}) => {
     const prefix = path.join(outputDirectory, name);
     return runner(command, args, {
-      cwd: work, env: environment, maxBuffer: MiB, timeout,
+      cwd: work, env: { ...environment, ...environmentOverrides }, maxBuffer: MiB, timeout,
       monitor: { stdout: `${prefix}.stdout`, stderr: `${prefix}.stderr`, marker: `${prefix}.marker`, work: monitorWork, retained, limits },
     });
   };
   let failure;
   try {
+    const startupDelayWork = path.join(work, "startup-delay"); mkdirSync(startupDelayWork);
+    const startupDelayEnvironment = path.join(work, "startup-delay.bash"); const startupDelayEvent = path.join(work, "startup-delay.event");
+    const startupDelayStdout = path.join(temporary, "startup-delay.stdout"); const startupDelayStderr = path.join(temporary, "startup-delay.stderr");
+    writeFileSync(startupDelayEnvironment,
+      "seaweed_expected_command='/usr/bin/setsid -- \"$command\" \"$@\" 1>&4 2>&5 3>&- 4>&- 5>&-'\n" +
+      "trap 'if [ \"${SEAWEED_MONITOR_DELAY_SETSID:-0}\" = 1 ] && [ \"$BASH_SUBSHELL\" -eq 0 ] && [ \"$BASH_COMMAND\" = \"$seaweed_expected_command\" ]; then SEAWEED_MONITOR_DELAY_SETSID=0; if [ -f \"$SEAWEED_MONITOR_STARTUP_STDOUT\" ] && [ -f \"$SEAWEED_MONITOR_STARTUP_STDERR\" ]; then printf %s ready; else printf %s missing; fi >\"$SEAWEED_MONITOR_STARTUP_EVENT\"; /usr/bin/sleep 2; fi' DEBUG\nset -T\n",
+      { mode: 0o600 });
+    const startupDelayResult = runProbe("startup-delay", "/usr/bin/true", [], startupDelayWork, 10_000, undefined, temporary,
+      { BASH_ENV: startupDelayEnvironment, SEAWEED_MONITOR_DELAY_SETSID: "1", SEAWEED_MONITOR_STARTUP_EVENT: startupDelayEvent,
+        SEAWEED_MONITOR_STARTUP_STDOUT: startupDelayStdout, SEAWEED_MONITOR_STARTUP_STDERR: startupDelayStderr });
+    if (startupDelayResult.status !== 0 || startupDelayResult.monitorReason !== undefined || startupDelayResult.groupAbsent !== true ||
+        startupDelayResult.stdout?.length !== 0 || startupDelayResult.stderr?.length !== 0 || readFileSync(startupDelayEvent, "utf8") !== "ready") {
+      throw new Error("seaweed_monitor_output_startup_selftest_failed");
+    }
+
+    const startupConflictWork = path.join(work, "startup-conflict"); mkdirSync(startupConflictWork);
+    const startupConflictEnvironment = path.join(work, "startup-conflict.bash"); const startupConflict = path.join(temporary, "startup-conflict.stderr");
+    const startupConflictChild = path.join(work, "startup-conflict.child"); const startupConflictMarker = path.join(temporary, "startup-conflict.marker");
+    writeFileSync(startupConflictEnvironment, "printf %s conflict >\"$SEAWEED_MONITOR_INIT_CONFLICT\"\nunset BASH_ENV SEAWEED_MONITOR_INIT_CONFLICT\n", { mode: 0o600 });
+    const startupConflictResult = runProbe("startup-conflict", "/usr/bin/touch", [startupConflictChild], startupConflictWork, 10_000, undefined, temporary,
+      { BASH_ENV: startupConflictEnvironment, SEAWEED_MONITOR_INIT_CONFLICT: startupConflict });
+    if (startupConflictResult.monitorReason !== "seaweed_monitor_output_initialization_failed" || startupConflictResult.groupAbsent !== true ||
+        startupConflictResult.stdout?.length !== 0 || startupConflictResult.stderr?.length !== 0 || readFileSync(startupConflict, "utf8") !== "conflict" ||
+        existsSync(path.join(temporary, "startup-conflict.stdout")) || existsSync(startupConflictMarker) || existsSync(`${startupConflictMarker}.resources`) ||
+        existsSync(startupConflictChild)) throw new Error("seaweed_monitor_output_initialization_selftest_failed");
+    unlinkSync(startupConflict);
+
+    const startupLinkWork = path.join(work, "startup-link"); mkdirSync(startupLinkWork);
+    const startupLinkEnvironment = path.join(work, "startup-link.bash"); const startupLink = path.join(temporary, "startup-link.stderr");
+    const startupLinkChild = path.join(work, "startup-link.child"); const startupLinkMarker = path.join(temporary, "startup-link.marker");
+    writeFileSync(startupLinkEnvironment,
+      "/usr/bin/ln -s -- \"$SEAWEED_MONITOR_INIT_LINK_TARGET\" \"$SEAWEED_MONITOR_INIT_LINK\"\nunset BASH_ENV SEAWEED_MONITOR_INIT_LINK_TARGET SEAWEED_MONITOR_INIT_LINK\n",
+      { mode: 0o600 });
+    const startupLinkResult = runProbe("startup-link", "/usr/bin/touch", [startupLinkChild], startupLinkWork, 10_000, undefined, temporary,
+      { BASH_ENV: startupLinkEnvironment, SEAWEED_MONITOR_INIT_LINK_TARGET: sentinel, SEAWEED_MONITOR_INIT_LINK: startupLink });
+    const startupLinkInfo = lstatSync(startupLink);
+    if (startupLinkResult.monitorReason !== "seaweed_monitor_output_initialization_failed" || startupLinkResult.groupAbsent !== true ||
+        startupLinkResult.stdout?.length !== 0 || startupLinkResult.stderr?.length !== 0 || !startupLinkInfo.isSymbolicLink() ||
+        readlinkSync(startupLink) !== sentinel || existsSync(path.join(temporary, "startup-link.stdout")) || existsSync(startupLinkMarker) ||
+        existsSync(`${startupLinkMarker}.resources`) || existsSync(startupLinkChild)) throw new Error("seaweed_monitor_output_initialization_link_selftest_failed");
+    assertSentinel();
+    unlinkSync(startupLink);
+
+    const startupDanglingLinkWork = path.join(work, "startup-dangling-link"); mkdirSync(startupDanglingLinkWork);
+    const startupDanglingLinkEnvironment = path.join(work, "startup-dangling-link.bash");
+    const startupDanglingLink = path.join(temporary, "startup-dangling-link.stdout");
+    const startupDanglingTarget = path.join(sentinelDirectory, "missing-output-target");
+    const startupDanglingLinkChild = path.join(work, "startup-dangling-link.child");
+    const startupDanglingLinkMarker = path.join(temporary, "startup-dangling-link.marker");
+    writeFileSync(startupDanglingLinkEnvironment,
+      "/usr/bin/ln -s -- \"$SEAWEED_MONITOR_INIT_LINK_TARGET\" \"$SEAWEED_MONITOR_INIT_LINK\"\nunset BASH_ENV SEAWEED_MONITOR_INIT_LINK_TARGET SEAWEED_MONITOR_INIT_LINK\n",
+      { mode: 0o600 });
+    const startupDanglingLinkResult = runProbe("startup-dangling-link", "/usr/bin/touch", [startupDanglingLinkChild], startupDanglingLinkWork,
+      10_000, undefined, temporary, { BASH_ENV: startupDanglingLinkEnvironment, SEAWEED_MONITOR_INIT_LINK_TARGET: startupDanglingTarget,
+        SEAWEED_MONITOR_INIT_LINK: startupDanglingLink });
+    const startupDanglingLinkInfo = lstatSync(startupDanglingLink);
+    if (startupDanglingLinkResult.monitorReason !== "seaweed_monitor_output_initialization_failed" || startupDanglingLinkResult.groupAbsent !== true ||
+        startupDanglingLinkResult.stdout?.length !== 0 || startupDanglingLinkResult.stderr?.length !== 0 || !startupDanglingLinkInfo.isSymbolicLink() ||
+        readlinkSync(startupDanglingLink) !== startupDanglingTarget || existsSync(startupDanglingTarget) ||
+        existsSync(path.join(temporary, "startup-dangling-link.stderr")) || existsSync(startupDanglingLinkMarker) ||
+        existsSync(`${startupDanglingLinkMarker}.resources`) || existsSync(startupDanglingLinkChild)) {
+      throw new Error("seaweed_monitor_output_initialization_dangling_link_selftest_failed");
+    }
+    assertSentinel();
+    unlinkSync(startupDanglingLink);
+
     const timeoutWork = path.join(work, "timeout"); mkdirSync(timeoutWork);
     const timeoutResult = runProbe("timeout", "/usr/bin/bash", ["--noprofile", "--norc", "-c", "sleep 300 & child=$!; printf '%s %s\\n' \"$$\" \"$child\"; wait \"$child\""], timeoutWork, 1000);
     const timeoutPids = timeoutResult.stdout?.toString("utf8").trim().split(/\s+/u).map(Number) ?? [];

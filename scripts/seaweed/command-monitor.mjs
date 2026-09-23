@@ -94,7 +94,25 @@ unexpected_exit() {
 trap cancelled TERM INT HUP
 trap unexpected_exit EXIT
 
-/usr/bin/setsid -- "$command" "$@" 3>&- >"$stdout" 2>"$stderr" & pid=$!
+initialize_outputs() {
+  set -C
+  if ! exec 4>"$stdout"; then set +C; return 1; fi
+  if ! exec 5>"$stderr"; then
+    set +C
+    if [ -e "/proc/$$/fd/4" ] && [ "$stdout" -ef "/proc/$$/fd/4" ]; then /usr/bin/unlink -- "$stdout" 2>/dev/null || true; fi
+    exec 4>&-
+    return 1
+  fi
+  set +C
+}
+if ! initialize_outputs; then
+  trap - EXIT
+  emit_status seaweed_monitor_output_initialization_failed none absent
+  exit 125
+fi
+
+/usr/bin/setsid -- "$command" "$@" >&4 2>&5 3>&- 4>&- 5>&- & pid=$!
+exec 4>&- 5>&-
 started=$SECONDS; next_resource_check=$((SECONDS + 1))
 
 measurement_failed() {
@@ -197,6 +215,7 @@ function ownedRegularFile(file, parent) {
 const fixedMonitorReasons = new Set([
   "seaweed_command_cancelled", "seaweed_command_log_exceeded", "seaweed_command_timeout", "seaweed_descendant_process_survived",
   "seaweed_free_space_reserve_failed", "seaweed_monitor_marker_invalid", "seaweed_monitor_wrapper_failed", "seaweed_monitor_wrapper_timeout",
+  "seaweed_monitor_output_initialization_failed",
   "seaweed_process_group_cleanup_failed",
   "seaweed_process_group_inspection_failed", "seaweed_resource_snapshot_invalid", "seaweed_retained_budget_exceeded", "seaweed_work_budget_exceeded",
 ]);
@@ -303,7 +322,8 @@ export function runMonitoredCommand(command, args, options) {
   });
   const trustedStatus = parseTrustedMonitorStatus(result.output?.[3]);
   const groupAbsent = trustedStatus?.groupAbsent === true;
-  const filesSafe = groupAbsent && trustedDirectory(work) && trustedDirectory(retained) && trustedDirectory(outputParent);
+  const outputInitialized = trustedStatus?.reason !== "seaweed_monitor_output_initialization_failed";
+  const filesSafe = outputInitialized && groupAbsent && trustedDirectory(work) && trustedDirectory(retained) && trustedDirectory(outputParent);
   let stdout = Buffer.alloc(0); let stderr = Buffer.alloc(0); let monitorReason = trustedStatus?.reason;
   let resourceUsage;
   if (filesSafe) {

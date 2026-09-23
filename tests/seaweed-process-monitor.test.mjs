@@ -54,7 +54,7 @@ test("process monitor accepts only bounded measurement evidence and fails closed
   for (const reason of [
     "seaweed_measure_stat_stdout_exit_0_attempt_1", "seaweed_measure_stat_stderr_exit_255_attempt_2",
     "seaweed_measure_du_work_exit_124_attempt_2", "seaweed_measure_du_retained_invalid_output_attempt_1",
-    "seaweed_measure_df_work_exit_137_attempt_1", "seaweed_command_timeout", "seaweed_resource_snapshot_invalid",
+    "seaweed_measure_df_work_exit_137_attempt_1", "seaweed_command_timeout", "seaweed_monitor_output_initialization_failed", "seaweed_resource_snapshot_invalid",
   ]) assert.equal(isAllowedMonitorReason(reason), true, reason);
   for (const reason of [
     "seaweed_measure_stat_work_exit_1_attempt_1", "seaweed_measure_df_retained_exit_1_attempt_1",
@@ -87,6 +87,8 @@ test("trusted monitor status accepts one bounded allowlisted line", () => {
     { reason: "seaweed_work_budget_exceeded", resourceWritten: true, groupAbsent: true });
   assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_command_timeout:none:absent\n")),
     { reason: "seaweed_command_timeout", resourceWritten: false, groupAbsent: true });
+  assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_monitor_output_initialization_failed:none:absent\n")),
+    { reason: "seaweed_monitor_output_initialization_failed", resourceWritten: false, groupAbsent: true });
   assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:seaweed_process_group_cleanup_failed:none:unknown\n")),
     { reason: "seaweed_process_group_cleanup_failed", resourceWritten: false, groupAbsent: false });
   assert.deepEqual(parseTrustedMonitorStatus(Buffer.from("seaweed-monitor-status:ok:none:absent\n")),
