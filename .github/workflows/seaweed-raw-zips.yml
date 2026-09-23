@@ -1,0 +1,60 @@
+name: SeaweedFS raw source ZIP diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: seaweed-raw-source-zips
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: ${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out reviewed main without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.23.2
+          cache: ''
+
+      - name: Check available temporary storage
+        run: df -h "$RUNNER_TEMP"
+
+      - name: Download exactly five reviewed raw ZIPs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/seaweed-image/raw-zip-diagnostic.mjs download
+
+      - name: Independently check saved sizes, modes and hashes
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/seaweed-raw-source"
+          stat -c '%n %s %a %h %u' -- seaweed-build-1.zip seaweed-build-2.zip seaweed-artifact-gate-1.zip seaweed-artifact-gate-2.zip seaweed-comparison.zip
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 5
+          test "$(stat -c '%s %a %h %u' seaweed-build-1.zip)" = "1559755770 600 1 $(id -u)"
+          test "$(stat -c '%s %a %h %u' seaweed-build-2.zip)" = "1559676896 600 1 $(id -u)"
+          test "$(stat -c '%s %a %h %u' seaweed-artifact-gate-1.zip)" = "277 600 1 $(id -u)"
+          test "$(stat -c '%s %a %h %u' seaweed-artifact-gate-2.zip)" = "278 600 1 $(id -u)"
+          test "$(stat -c '%s %a %h %u' seaweed-comparison.zip)" = "244644 600 1 $(id -u)"
+          sha256sum --check <<'SHA256'
+          6fa3299b48bc978c35ce10ae6cd9b2cd86d5020a324c555a69c493dbb8a174e5  seaweed-build-1.zip
+          bf65a3505e832603907cbef61cbbecb2d6ba0b88853c7ed9b84e1aad854be242  seaweed-build-2.zip
+          bb5ebe41e7fa8e52987a91ab4dae19f88ac412fedfa8ec78b368b861efe2759c  seaweed-artifact-gate-1.zip
+          15a9e2e02c985ccdfb0c949c5141265a4c8b6af0b864a4951586d2c84e1ce69d  seaweed-artifact-gate-2.zip
+          e58db0edbd41cc2dcb6243464f0110fb4db1ec52dc81fbcd05860b1598254092  seaweed-comparison.zip
+          SHA256
+
+      - name: Remove only diagnostic-owned ZIPs
+        if: ${{ always() }}
+        run: node scripts/seaweed-image/raw-zip-diagnostic.mjs cleanup
