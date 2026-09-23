@@ -1,6 +1,6 @@
 # TASK-0005A — Authenticated structural ZIP scan
 
-Status: implementation under validation. This is a preparation-only gate, not source-material acceptance or image admission.
+Status: native structural scan VERIFIED. This is a preparation-only gate, not source-material acceptance or image admission.
 
 ## Boundary
 
@@ -12,6 +12,8 @@ The bounded result is `ZIP_STRUCTURAL_ONLY`, `PREPARATION_ONLY`, `materialValida
 
 ## Validation and operation
 
-Targeted synthetic tests cover fixed input selection, all-five profile delivery, invalid ZIP or origin drift, abort/deadline, root and leaf mutation, bounded receipts and conservative cleanup. The manual Linux workflow is restricted to its first main dispatch and first attempt, with read-only repository/Actions permissions, no persisted checkout credential, no artifact upload and explicit cleanup. The live replay must complete before the source artifacts expire on 7 October 2026. A green ordinary quality CI alone cannot establish this real-data diagnostic.
+[PR45](https://github.com/CleMeY15/auto-world/pull/45) merged at `19dc8b6bd22139a9bb08f2297a06ceb20fa22c7a` with [exact-head CI 35914022515](https://github.com/CleMeY15/auto-world/actions/runs/35914022515) and [protected-main CI 35914403902](https://github.com/CleMeY15/auto-world/actions/runs/35914403902), each passing 315 Linux root tests with zero skips and all quality gates. The one-time [native structural diagnostic 35914604994](https://github.com/CleMeY15/auto-world/actions/runs/35914604994), first run/first attempt on that protected main, succeeded: the two build ZIPs each contained 4,854 valid entries, the three JSON ZIPs each contained one, the fresh final origin check passed, and cleanup reported `CLEANED`. This proves ZIP structure and streamed entry bytes only. No extraction, build/gate JSON interpretation, image construction or candidate admission ran. The run-number-1/attempt-1 budget is consumed; a later materialization must independently authenticate and re-download the five artifacts.
+
+Targeted synthetic tests cover fixed input selection, all-five profile delivery, invalid ZIP or origin drift, abort/deadline, root and leaf mutation, bounded receipts and conservative cleanup. The manual Linux workflow is restricted to its first main dispatch and first attempt, with read-only repository/Actions permissions, no persisted checkout credential, no artifact upload and explicit cleanup. The live replay completed before the source artifacts expire on 7 October 2026; ordinary quality CI alone would not establish this real-data diagnostic.
 
 This stage changes no service runtime, production connector, private package, registry, scanner or four-service infrastructure. TASK-0005A and TASK-0005 remain IN_PROGRESS, while TASK-0006 remains blocked. The external fork-access test stays `SKIPPED_BY_USER` as requested.
