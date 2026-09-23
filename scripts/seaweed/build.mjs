@@ -48,13 +48,13 @@ export function validateSeaweedLock(lock) {
       lock.source?.tree !== "bce9e3f66721208f35888124183f80bd76d64f90" || lock.source?.version !== "4.47" ||
       lock.source?.commitUnixTime !== 1789349515 || lock.source?.shallowBoundary?.sha256 !== "85485d485c3fb431c98532676da79828422e8b94102790984f473d14c8fc6300" ||
       lock.source?.shallowBoundary?.size !== 41 || lock.source?.bundleMaximumBytes !== 256 * 1024 ** 2 ||
-      lock.compiler?.version !== "1.26.8" || !digest.test(lock.compiler?.sha256 ?? "") || lock.patch?.size !== 12782 ||
-      lock.patch?.sha256 !== "804c8ac03c3e4e01de04c102ace1ad73186116de983b451f01056e4600f24168" ||
+      lock.compiler?.version !== "1.26.8" || !digest.test(lock.compiler?.sha256 ?? "") || lock.patch?.size !== 14347 ||
+      lock.patch?.sha256 !== "3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e" ||
       lock.requiredTests?.sha256 !== "d8a5b9f48011d6a3b1ef89ac9824dbf8f116fd7dc05b46b1c8dca49464ee221a" || lock.requiredTests?.size !== 6134 ||
-      lock.moduleChanges?.count !== 8 || lock.grpc?.version !== "v1.85.0-dev.0.20260825072537-93e31b48545e" ||
+      lock.moduleChanges?.count !== 9 || lock.grpc?.version !== "v1.85.0-dev.0.20260915183914-4e49413dcab7" ||
       lock.build?.goos !== "linux" || lock.build?.goarch !== "amd64" || lock.build?.goamd64 !== "v1" || lock.build?.cgoEnabled !== "0" ||
-      !Array.isArray(lock.build?.tags) || lock.build.tags.length !== 0 || lock.build?.commitValue !== "c507336+aw.804c8ac03c3e" ||
-      lock.build?.ldflags !== "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.804c8ac03c3e" ||
+      !Array.isArray(lock.build?.tags) || lock.build.tags.length !== 0 || lock.build?.commitValue !== "c507336+aw.3930d2fef5a7" ||
+      lock.build?.ldflags !== "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.3930d2fef5a7" ||
       lock.limits?.innerDeadlineMs > 85 * 60_000 || lock.limits?.retainedBytes !== 2 * 1024 ** 3 || lock.limits?.workBytes !== 12 * 1024 ** 3 ||
       lock.limits?.minimumFreeBytes !== 1024 ** 3 || lock.limits?.logBytes !== 64 * 1024 ** 2 || lock.limits?.aggregateLogBytes !== 128 * 1024 ** 2 ||
       !Array.isArray(lock.upstreamMaterials) || lock.upstreamMaterials.length !== 5 || lock.redis?.subject !== "redis@sha256:76961cd2a0f40ef6fdd334b6b1b3a76a2bad1848d89f3030ca30a7521d4a9493" ||
