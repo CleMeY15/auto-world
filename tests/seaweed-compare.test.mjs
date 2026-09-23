@@ -15,7 +15,7 @@ const codeSha = "b".repeat(40);
 const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, lock.requiredTests.path)));
 const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
-const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "ec_corrected_cache_cleanup", "redis_helper", "normal_tests", "normal_tests_cache_cleanup", "full_tag_tests", "full_tag_tests_cache_cleanup", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 phases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
 const ecLog = Buffer.from([...EC_TESTS.map((Test) => ({ Package: EC_PACKAGE, Test, Action: "pass" })), { Package: EC_PACKAGE, Action: "pass" }].map(JSON.stringify).join("\n") + "\n");
@@ -64,6 +64,8 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
       corrected: { binary: { sha256: sha256(bytes), size: bytes.length }, modules: lock.moduleFiles.after, ...summarizeEcPreflight(ecLog, 0) },
     },
     serverLogs: ["baseline", "corrected"].map((arm) => ({ phase: `ec_${arm}`, result: "PASSED", bytes: serverLog.length })),
+    cacheCleanup: ["corrected_ec", "normal_tests", "full_tag_tests"].map((boundary) => ({ boundary, entries: { gocache: { beforeBytes: 10, afterBytes: 0 }, tmp: { beforeBytes: 5, afterBytes: 0 } }, beforeBytes: 15, afterBytes: 0, freedBytes: 15 })),
+    testSummary: summary,
   };
   writeFileSync(path.join(directory, "build-receipt.json"), `${JSON.stringify(receipt)}\n`);
   return directory;
@@ -140,7 +142,7 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.phases = []; },
     (receipt) => { receipt.tools = {}; },
     (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "module_material_retention"); },
-    ...["compiler_work_cleanup", "source_restore_cleanup", "binary_work_cleanup"].map((required) => (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== required); }),
+    ...["compiler_work_cleanup", "source_restore_cleanup", "binary_work_cleanup", "ec_corrected_cache_cleanup", "normal_tests_cache_cleanup", "full_tag_tests_cache_cleanup"].map((required) => (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== required); }),
     (receipt) => { delete receipt.moduleMaterials; },
     (receipt) => { receipt.moduleMaterials.completed = 0; },
     (receipt) => { receipt.moduleMaterials.current = { module: 1, operation: "notice", notice: 1 }; },
@@ -153,12 +155,15 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.serverLogs = []; },
     (receipt) => { receipt.serverLogs[0].bytes += 1; },
     (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "ec_baseline_cleanup"); },
+    (receipt) => { delete receipt.cacheCleanup; },
+    (receipt) => { receipt.cacheCleanup[1].freedBytes += 1; },
+    (receipt) => { delete receipt.testSummary; },
   ]) {
     const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-")); const first = fixture(root, 1); const second = fixture(root, 2);
     for (const directory of [first, second]) {
       const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); mutate(receipt); writeFileSync(file, JSON.stringify(receipt));
     }
-    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|ec_preflight)_invalid/u);
+    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|ec_preflight|cache_cleanup|test_summary)_invalid/u);
     rmSync(root, { recursive: true, force: true });
   }
 });

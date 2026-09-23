@@ -26,7 +26,7 @@ const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, expected
 const testKeys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
 const requiredGroups = { normal: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)],
   fullTags: [...testKeys(requiredTests.required.redis), ...testKeys(requiredTests.required.nonShortIntegration)], projectGrpc: testKeys(requiredTests.required.seaweedGrpc) };
-const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "redis_helper", "normal_tests", "full_tag_tests", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
+const requiredPhases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "ec_corrected_cache_cleanup", "redis_helper", "normal_tests", "normal_tests_cache_cleanup", "full_tag_tests", "full_tag_tests_cache_cleanup", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const requiredIsolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 requiredPhases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
@@ -39,6 +39,15 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
       JSON.stringify(receipt.sourceRetention?.bundle) !== JSON.stringify(inventoryMap.get("materials/seaweedfs-source.bundle") && { sha256: inventoryMap.get("materials/seaweedfs-source.bundle").sha256, size: inventoryMap.get("materials/seaweedfs-source.bundle").size })) throw new Error("seaweed_compare_source_restore_invalid");
   const phases = new Map((receipt.phases ?? []).map((phase) => [phase.name, phase.result]));
   if (phases.size !== receipt.phases?.length || requiredPhases.some((name) => phases.get(name) !== "PASSED")) throw new Error("seaweed_compare_phases_invalid");
+  const cleanupBoundaries = ["corrected_ec", "normal_tests", "full_tag_tests"];
+  if (!Array.isArray(receipt.cacheCleanup) || receipt.cacheCleanup.length !== cleanupBoundaries.length || receipt.cacheCleanup.some((cleanup, index) => {
+    const entries = cleanup?.entries;
+    return cleanup?.boundary !== cleanupBoundaries[index] || !Number.isSafeInteger(cleanup.beforeBytes) || cleanup.beforeBytes < 0 ||
+      cleanup.afterBytes !== 0 || cleanup.freedBytes !== cleanup.beforeBytes || !entries ||
+      !Number.isSafeInteger(entries.gocache?.beforeBytes) || entries.gocache.beforeBytes < 0 || entries.gocache.afterBytes !== 0 ||
+      !Number.isSafeInteger(entries.tmp?.beforeBytes) || entries.tmp.beforeBytes < 0 || entries.tmp.afterBytes !== 0 ||
+      entries.gocache.beforeBytes + entries.tmp.beforeBytes !== cleanup.beforeBytes;
+  })) throw new Error("seaweed_compare_cache_cleanup_invalid");
   const retainedModules = JSON.parse(readFileSync(path.join(directory, "module-closure.json"), "utf8"));
   if (!Number.isSafeInteger(receipt.moduleMaterials?.total) || receipt.moduleMaterials.total < 1 ||
       receipt.moduleMaterials.total !== retainedModules.length || receipt.moduleMaterials.total !== receipt.moduleClosure?.count ||
@@ -72,6 +81,7 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
   if (receipt.ecPreflight.corrected.binary.sha256 !== retainedBinary?.sha256 || receipt.ecPreflight.corrected.binary.size !== retainedBinary?.size) throw new Error("seaweed_compare_ec_preflight_invalid");
   const summary = JSON.parse(readFileSync(path.join(directory, "test-summary.json"), "utf8"));
   if (JSON.stringify(Object.keys(summary).sort()) !== JSON.stringify(Object.keys(requiredGroups).sort())) throw new Error("seaweed_compare_test_summary_invalid");
+  if (JSON.stringify(receipt.testSummary) !== JSON.stringify(summary)) throw new Error("seaweed_compare_test_summary_invalid");
   for (const [key, required] of Object.entries(requiredGroups)) {
     const suffix = key === "normal" ? "normal_tests" : key === "fullTags" ? "full_tag_tests" : "project_grpc_tests";
     const matches = [...inventoryMap.keys()].filter((name) => new RegExp(`^logs/\\d{2}-${suffix}\\.log$`, "u").test(name));

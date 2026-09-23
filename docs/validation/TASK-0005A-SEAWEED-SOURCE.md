@@ -2,8 +2,6 @@
 
 Status: SOURCE_DIAGNOSTIC_REPAIR. This focused increment evaluates a correction of the one blocking gRPC finding in the current SeaweedFS image. The focused PR records exact reviewed-head, native run and integration results as they occur. Source-build success is separate from image audit, runtime validation and admission.
 
-## Inputs and derivative identity
-
 ## Native progress on 23 September and resource follow-up
 
 After independently reviewed PR28 was integrated at `8a51b0ded2073a975b07688b966fdcea0d97480d`, [native run35847569210](https://github.com/CleMeY15/auto-world/actions/runs/35847569210), attempt 1, passed both pristine/corrected EC pairs in both jobs. The corrected binaries match at 220989980 bytes, SHA-256 `5f19f5b576ec943e1d73e35817e61b086954a54999e361a99fed093fdecb9e42`. Job2 also passed the complete normal test suite and required-test summary. The run still failed; this is progress, not source acceptance.

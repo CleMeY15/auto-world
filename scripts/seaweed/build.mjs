@@ -372,6 +372,24 @@ export function cleanupBuildResources(receipt, operations, now = Date.now) {
   return failure;
 }
 
+const SUITE_CACHE_BOUNDARIES = new Set(["corrected_ec", "normal_tests", "full_tag_tests"]);
+
+export function cleanupSuiteCache({ workRoot, boundary, lastGroupAbsent, workCleanupSafe, cap, root = path.dirname(path.resolve(workRoot)) }) {
+  if (!SUITE_CACHE_BOUNDARIES.has(boundary) || !Number.isSafeInteger(cap) || cap < 1) throw new Error("seaweed_suite_cache_cleanup_invalid");
+  if (lastGroupAbsent !== true || workCleanupSafe !== true) throw new Error("seaweed_process_group_cleanup_failed");
+  const before = {};
+  for (const name of ["gocache", "tmp"]) before[name] = workTreeBytes(path.join(workRoot, name), cap);
+  const beforeBytes = before.gocache + before.tmp;
+  if (!Number.isSafeInteger(beforeBytes) || beforeBytes > cap) throw new Error("seaweed_artifact_budget_exceeded");
+  for (const name of ["gocache", "tmp"]) removeOwnedWorkEntry(workRoot, name, root);
+  for (const name of ["gocache", "tmp"]) mkdirSync(path.join(workRoot, name), { mode: 0o700 });
+  const after = {};
+  for (const name of ["gocache", "tmp"]) after[name] = workTreeBytes(path.join(workRoot, name), cap);
+  const afterBytes = after.gocache + after.tmp;
+  return { boundary, entries: { gocache: { beforeBytes: before.gocache, afterBytes: after.gocache }, tmp: { beforeBytes: before.tmp, afterBytes: after.tmp } },
+    beforeBytes, afterBytes, freedBytes: beforeBytes - afterBytes };
+}
+
 function validateOutput(output, runnerTemp, repeat) {
   const root = path.resolve(runnerTemp);
   const target = path.resolve(output);
@@ -690,6 +708,10 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
     checkModuleFiles(lock.moduleFiles.after);
     if (JSON.stringify(identity(binary, 1024 ** 3)) !== JSON.stringify(receipt.binary)) throw new Error("seaweed_binary_changed_after_tests");
     requireEcPreflight(receipt.ecPreflight.baseline, receipt.ecPreflight.corrected);
+    receipt.cacheCleanup = [];
+    phase("ec_corrected_cache_cleanup", () => {
+      receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "corrected_ec", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
+    });
     const redisName = `aw-seaweed-redis-${repeat}`;
     phase("redis_helper", () => {
       const { result: inspect } = invoke("/usr/bin/docker", ["container", "inspect", redisName], { env: gitEnv, timeout: 60_000 });
@@ -705,11 +727,17 @@ export function buildSeaweed({ argv = process.argv.slice(2), commandRunner = def
       }
       throw new Error("seaweed_redis_not_ready");
     });
-    const testSummary = {};
+    const testSummary = {}; receipt.testSummary = testSummary;
     const normalOutput = phase("normal_tests", () => run("normal_tests", go, ["test", "-json", "-count=1", "-p=2", "./..."], { cwd: path.join(source, "weed"), env: testEnv, timeout: 75 * 60_000, separateStderr: true }));
     testSummary.normal = summarizeGoTestJson(normalOutput, [...redisTests, ...integrationTests]);
+    phase("normal_tests_cache_cleanup", () => {
+      receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
+    });
     const fullOutput = phase("full_tag_tests", () => run("full_tag_tests", go, ["test", "-json", "-count=1", "-p=2", "-tags=elastic,gocdk,sqlite,ydb,tarantool,tikv,rclone", "./..."], { cwd: path.join(source, "weed"), env: testEnv, timeout: 75 * 60_000, separateStderr: true }));
     testSummary.fullTags = summarizeGoTestJson(fullOutput, [...redisTests, ...integrationTests]);
+    phase("full_tag_tests_cache_cleanup", () => {
+      receipt.cacheCleanup.push(cleanupSuiteCache({ workRoot, boundary: "full_tag_tests", lastGroupAbsent, workCleanupSafe, cap: lock.limits.workBytes }));
+    });
     const grpcProjectOutput = phase("project_grpc_tests", () => run("project_grpc_tests", go, ["test", "-json", "-count=1", "-p=2", "./weed/pb"], { cwd: source, env: testEnv, timeout: 20 * 60_000, separateStderr: true }));
     testSummary.projectGrpc = summarizeGoTestJson(grpcProjectOutput, grpcTests);
     writeFileSync(path.join(output, "test-summary.json"), `${JSON.stringify(testSummary, null, 2)}\n`, { flag: "wx" });

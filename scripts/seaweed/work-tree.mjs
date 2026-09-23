@@ -10,6 +10,7 @@ const REMOVABLE_ENTRIES = new Map([
   ["bin", "directory"],
   ["baseline-bin", "directory"],
   ["baseline-gocache", "directory"],
+  ["gocache", "directory"],
   ["tmp", "directory"],
 ]);
 

@@ -54,11 +54,14 @@ test("process monitor accepts only bounded measurement evidence and fails closed
   for (const reason of [
     "seaweed_measure_stat_stdout_exit_0_attempt_1", "seaweed_measure_stat_stderr_exit_255_attempt_2",
     "seaweed_measure_du_work_exit_124_attempt_2", "seaweed_measure_du_retained_invalid_output_attempt_1",
+    "seaweed_measure_du_work_exit_1_attempt_4_not_found", "seaweed_measure_du_work_root_invalid_attempt_2",
+    "seaweed_measure_du_retained_exit_1_attempt_2_permission", "seaweed_measure_du_work_invalid_output_attempt_1_classifier_failed",
     "seaweed_measure_df_work_exit_137_attempt_1", "seaweed_command_timeout", "seaweed_monitor_output_initialization_failed", "seaweed_resource_snapshot_invalid",
   ]) assert.equal(isAllowedMonitorReason(reason), true, reason);
   for (const reason of [
     "seaweed_measure_stat_work_exit_1_attempt_1", "seaweed_measure_df_retained_exit_1_attempt_1",
-    "seaweed_measure_du_work_exit_256_attempt_2", "seaweed_measure_du_work_exit_1_attempt_3",
+    "seaweed_measure_du_work_exit_256_attempt_2", "seaweed_measure_du_work_exit_1_attempt_5",
+    "seaweed_measure_du_retained_exit_1_attempt_3", "seaweed_measure_du_work_exit_1_attempt_4_private_path",
     "seaweed_measure_du_work_timeout_attempt_2", "seaweed_measure_du_work_exit_1_attempt_2\nsecret",
     "seaweed_resource_measurement_failed", "seaweed_private_path_c_users_secret",
   ]) {
