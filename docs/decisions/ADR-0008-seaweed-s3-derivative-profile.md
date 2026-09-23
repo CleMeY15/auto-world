@@ -10,7 +10,7 @@ The [verified public image inventory](../validation/TASK-0005A-SEAWEED-IMAGE-INV
 
 TASK-0005 invokes the Go `server` command. In [the exact source entrypoint](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/docker/entrypoint.sh), the `volume-rust` and `worker-rust` branches invoke the separate helpers; the `server` branch invokes `weed`. The Go server starts the master, Go volume server, filer and S3 components in-process. This source analysis supports a restricted profile; it does not replace runtime proof of the resulting image.
 
-Source diagnostic [35860660822](https://github.com/CleMeY15/auto-world/actions/runs/35860660822), attempt 1 at reviewed main `184f25ffbe4235c9c7df5301a5358919d9e752cf`, is pending. PR33's ordinary quality checks do not establish source acceptance. No candidate has been built or published.
+Source diagnostic [35860660822](https://github.com/CleMeY15/auto-world/actions/runs/35860660822), attempt 1 at reviewed main `184f25ffbe4235c9c7df5301a5358919d9e752cf`, failed after both complete normal/full-tag suites and required project gRPC tests passed: both jobs report18 identical `go vet` copy-lock findings. See the [source evidence](../validation/TASK-0005A-SEAWEED-SOURCE.md). PR33's ordinary quality checks and these passed suites do not establish source acceptance. No candidate has been built or published.
 
 ## Decision
 

@@ -39,6 +39,8 @@ Stages 1-2 have contents:read only, no private data, package write, OIDC or sign
 
 ## Test strategy and evidence
 
+The [synthetic import/save fidelity diagnostic](../../docs/validation/TASK-0005A-IMAGE-IMPORT-FIDELITY.md) is an isolated preparation check for ADR-0008's as-yet-unproven construction method. It consumes no Seaweed material and executes no image. Its local/unit results cannot replace full source acceptance (run35860660822 passed complete suites but failed vet), actual derivative runtime tests or fresh complete audits.
+
 Current implementation evidence: [scanner validation](../../docs/validation/TASK-0005A-SCANNER.md). The contract was accepted through [PR12](https://github.com/CleMeY15/auto-world/pull/12), merge `3d4d251a9c19a5f03fae923dc3419b8a6bc1061d`, with passing main CI `34830801370`. No scanner build, current image audit or native admission is inferred from that documentation milestone.
 
 Stage II now has actual [Linux evidence34851464078](https://github.com/CleMeY15/auto-world/actions/runs/34851464078) at code head `2730fd1789a26f6c3031072194cbf87e22f90b40`: both builds, complete self/SBOM, version probe, fixtures, same-database controls and all eight native image reports passed their execution/integrity controls. Seven images retain 276 blocking finding occurrences; AWS CLI alone passes this audit. The image diagnostic remains failed. Independent code review, full uncached fresh-checkout gates and quality CI passed; PR13 records final evidence review and documentation-head/main checks. This completes only the scanner/evidence increment, with no publication or admission right.
