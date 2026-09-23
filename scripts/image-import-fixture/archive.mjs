@@ -10,6 +10,15 @@ const MAX_MEMBERS = 128;
 const OWNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 const HEX = /^[0-9a-f]{64}$/u;
 const SAFE_NAME = /^(?!\/)(?!.*(?:^|\/)\.\.?($|\/))[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*\/?$/u;
+const SERVER_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][a-zA-Z0-9.-]+)?$/u;
+
+export const IMPORT_MESSAGE = "auto-world synthetic import fixture v1";
+
+const ZERO_CONTAINER_CONFIG = Object.freeze({
+  Hostname: "", Domainname: "", User: "", AttachStdin: false, AttachStdout: false, AttachStderr: false,
+  Tty: false, OpenStdin: false, StdinOnce: false, Env: null, Cmd: null, Image: "", Volumes: null,
+  WorkingDir: "", Entrypoint: null, OnBuild: null, Labels: null,
+});
 
 export function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -222,8 +231,9 @@ function imageHex(imageId) {
   return value;
 }
 
-export function validateSavedImage(buffer, { imageId, tag, owner } = {}) {
+export function validateSavedImage(buffer, { imageId, tag, owner, serverVersion } = {}) {
   requireOwner(owner);
+  if (typeof serverVersion !== "string" || serverVersion.length > 64 || !SERVER_VERSION.test(serverVersion)) throw new Error("image_import_server_version_invalid");
   const expectedImage = imageHex(imageId);
   if (tag !== `auto-world-import-fixture:${owner}`) throw new Error("image_import_tag_invalid");
   const outer = parseTar(buffer, { maximumBytes: MAX_SAVED_TAR });
@@ -269,16 +279,6 @@ export function validateSavedImage(buffer, { imageId, tag, owner } = {}) {
   if (!configEntry || configEntry.content.length !== ociManifest.config.size || configEntry.content.length > MAX_CONFIG
     || !layerEntry || layerEntry.content.length !== ociManifest.layers[0].size) throw new Error("image_import_save_blob_invalid");
   if (sha256(configEntry.content) !== configPath.slice("blobs/sha256/".length)) throw new Error("image_import_save_config_invalid");
-  const config = parseJson(configEntry, "image_import_save_config_invalid");
-  if (!validImageConfig(config) || config.os !== "linux" || config.architecture !== "amd64" || !plainObject(config.rootfs)
-    || !exactJson(Object.keys(config.rootfs).sort(), ["diff_ids", "type"]) || config.rootfs.type !== "layers"
-    || !Array.isArray(config.rootfs.diff_ids) || config.rootfs.diff_ids.length !== 1 || !plainObject(config.config)) {
-    throw new Error("image_import_save_config_invalid");
-  }
-  const rawUserRepresentation = validateRuntimeConfig(config.config, owner);
-  const rawLayer = decodeLayer(layerEntry.content, ociManifest.layers[0].mediaType);
-  const diffID = `sha256:${sha256(rawLayer)}`;
-  if (config.rootfs.diff_ids[0] !== diffID) throw new Error("image_import_save_diffid_invalid");
   const referencedBlobs = new Set([manifestPath, configPath, layerPath]); const extraBlobs = [];
   for (const [name, entry] of files) {
     if (name.startsWith("blobs/sha256/")) {
@@ -287,8 +287,14 @@ export function validateSavedImage(buffer, { imageId, tag, owner } = {}) {
     }
   }
   const repositories = files.get("repositories"); const classic = repositories !== undefined || Object.hasOwn(item, "LayerSources") || extraBlobs.length > 0;
-  if (classic) validateClassicCompatibility({ item, repositories, extraBlobs, config, layerEntry, layerMediaType: ociManifest.layers[0].mediaType, diffID, owner });
-  else if (!exactJson(Object.keys(item).sort(), ["Config", "Layers", "RepoTags"])) throw new Error("image_import_save_manifest_invalid");
+  if (!classic && !exactJson(Object.keys(item).sort(), ["Config", "Layers", "RepoTags"])) throw new Error("image_import_save_manifest_invalid");
+  const config = parseJson(configEntry, "image_import_save_config_invalid");
+  const rawUserRepresentation = validateImageConfig(config, { classic, owner, serverVersion });
+  const rawLayer = decodeLayer(layerEntry.content, ociManifest.layers[0].mediaType);
+  const diffID = `sha256:${sha256(rawLayer)}`;
+  if (config.rootfs.diff_ids[0] !== diffID) throw new Error("image_import_save_diffid_invalid");
+  if (classic) validateClassicCompatibility({ item, repositories, extraBlobs, config, layerEntry,
+    layerMediaType: ociManifest.layers[0].mediaType, diffID, owner, serverVersion });
   const allowed = new Set(["oci-layout", "index.json", "manifest.json", ...referencedBlobs, "blobs/", "blobs/sha256/",
     ...(classic ? ["repositories", extraBlobs[0].path] : [])]);
   if (outer.some((entry) => !allowed.has(entry.path))) throw new Error("image_import_save_member_invalid");
@@ -313,17 +319,23 @@ const LAYER_MEDIA_TYPES = new Set([
   "application/vnd.oci.image.layer.v1.tar+gzip",
 ]);
 
-function validImageConfig(config) {
-  if (!plainObject(config)) return false;
-  const allowed = new Set(["architecture", "config", "created", "history", "os", "rootfs"]);
-  if (Object.keys(config).some((key) => !allowed.has(key)) || typeof config.created !== "string"
-    || !Number.isFinite(Date.parse(config.created)) || !Array.isArray(config.history) || config.history.length > 8) return false;
-  return config.history.every((entry) => plainObject(entry) && Object.keys(entry).every((key) => ["comment", "created", "created_by", "empty_layer"].includes(key))
-    && (entry.created === undefined || typeof entry.created === "string") && (entry.created_by === undefined || typeof entry.created_by === "string")
-    && (entry.comment === undefined || typeof entry.comment === "string") && (entry.empty_layer === undefined || typeof entry.empty_layer === "boolean"));
+function validateImageConfig(config, { classic, owner, serverVersion }) {
+  const keys = classic
+    ? ["architecture", "comment", "config", "container_config", "created", "docker_version", "history", "os", "rootfs"]
+    : ["architecture", "config", "created", "history", "os", "rootfs"];
+  if (!plainObject(config) || !exactJson(Object.keys(config).sort(), keys) || config.os !== "linux" || config.architecture !== "amd64"
+    || typeof config.created !== "string" || !Number.isFinite(Date.parse(config.created))
+    || !exactJson(config.history, [{ created: config.created, comment: IMPORT_MESSAGE }]) || !plainObject(config.rootfs)
+    || !exactJson(Object.keys(config.rootfs).sort(), ["diff_ids", "type"]) || config.rootfs.type !== "layers"
+    || !Array.isArray(config.rootfs.diff_ids) || config.rootfs.diff_ids.length !== 1 || !plainObject(config.config)) {
+    throw new Error("image_import_save_config_invalid");
+  }
+  if (classic && (config.comment !== IMPORT_MESSAGE || config.docker_version !== serverVersion
+    || !exactJson(config.container_config, ZERO_CONTAINER_CONFIG))) throw new Error("image_import_save_config_invalid");
+  return validateRuntimeConfig(config.config, owner);
 }
 
-function validateClassicCompatibility({ item, repositories, extraBlobs, config, layerEntry, layerMediaType, diffID, owner }) {
+function validateClassicCompatibility({ item, repositories, extraBlobs, config, layerEntry, layerMediaType, diffID, owner, serverVersion }) {
   if (!repositories || extraBlobs.length !== 1 || layerMediaType !== "application/vnd.oci.image.layer.v1.tar"
     || !exactJson(Object.keys(item).sort(), ["Config", "LayerSources", "Layers", "RepoTags"])) {
     throw new Error("image_import_save_classic_invalid");
@@ -336,11 +348,10 @@ function validateClassicCompatibility({ item, repositories, extraBlobs, config, 
     throw new Error("image_import_save_classic_invalid");
   }
   const legacy = parseJson(extraBlobs[0], "image_import_save_classic_invalid");
-  const allowed = new Set(["id", "parent", "comment", "created", "container", "container_config", "docker_version",
-    "author", "config", "architecture", "variant", "os", "Size"]);
-  if (!plainObject(legacy) || Object.keys(legacy).some((key) => !allowed.has(key)) || !HEX.test(legacy.id)
-    || Object.hasOwn(legacy, "parent") || legacy.created !== config.created || legacy.architecture !== "amd64" || legacy.os !== "linux"
-    || !exactJson(legacy.config, config.config)) throw new Error("image_import_save_classic_invalid");
+  if (!plainObject(legacy) || !exactJson(Object.keys(legacy).sort(), ["architecture", "comment", "config", "container_config", "created", "docker_version", "id", "os"])
+    || !HEX.test(legacy.id) || legacy.created !== config.created || legacy.architecture !== "amd64" || legacy.os !== "linux"
+    || legacy.comment !== IMPORT_MESSAGE || legacy.docker_version !== serverVersion || !exactJson(legacy.config, config.config)
+    || !exactJson(legacy.container_config, ZERO_CONTAINER_CONFIG)) throw new Error("image_import_save_classic_invalid");
 }
 
 function validDescriptor(value, mediaTypes) {

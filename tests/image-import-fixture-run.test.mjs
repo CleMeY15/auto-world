@@ -19,25 +19,40 @@ const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
 const missing = (ref) => ({ status: 1, stdout: "[]\n", stderr: `Error response from daemon: No such image: ${ref}\n` });
 
 // Independently frame a tiny complete Docker/OCI archive for the runner's positive control.
-function savedFixture() {
+function savedFixture({ classic = false, serverVersion = "28.0.4" } = {}) {
   const json = (value) => Buffer.from(JSON.stringify(value));
-  const layer = gzipSync(buildFixtureTar());
-  const config = json({ os: "linux", architecture: "amd64", created: "2026-09-23T00:00:00Z", config: fixtureConfig(owner),
-    rootfs: { type: "layers", diff_ids: [diffID()] }, history: [{ created_by: "synthetic fixture test" }] });
+  const message = "auto-world synthetic import fixture v1";
+  const created = "2026-09-23T00:00:00Z";
+  const neutral = { Hostname: "", Domainname: "", User: "", AttachStdin: false, AttachStdout: false, AttachStderr: false,
+    Tty: false, OpenStdin: false, StdinOnce: false, Env: null, Cmd: null, Image: "", Volumes: null,
+    WorkingDir: "", Entrypoint: null, OnBuild: null, Labels: null };
+  const layer = classic ? buildFixtureTar() : gzipSync(buildFixtureTar());
+  const layerMediaType = `application/vnd.oci.image.layer.v1.tar${classic ? "" : "+gzip"}`;
+  const configValue = { os: "linux", architecture: "amd64", created, config: fixtureConfig(owner),
+    rootfs: { type: "layers", diff_ids: [diffID()] }, history: [{ created, comment: message }],
+    ...(classic ? { comment: message, container_config: neutral, docker_version: serverVersion } : {}) };
+  const config = json(configValue);
   const descriptor = (bytes, mediaType) => ({ mediaType, digest: `sha256:${sha256(bytes)}`, size: bytes.length });
   const manifest = json({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
     config: descriptor(config, "application/vnd.oci.image.config.v1+json"),
-    layers: [descriptor(layer, "application/vnd.oci.image.layer.v1.tar+gzip")] });
+    layers: [descriptor(layer, layerMediaType)] });
   const indexDescriptor = { ...descriptor(manifest, "application/vnd.oci.image.manifest.v1+json"),
     annotations: { "io.containerd.image.name": `docker.io/library/${tag}`, "org.opencontainers.image.ref.name": owner } };
   const entries = {
     "oci-layout": json({ imageLayoutVersion: "1.0.0" }),
     "index.json": json({ schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: [indexDescriptor] }),
-    "manifest.json": json([{ Config: `blobs/sha256/${sha256(config)}`, RepoTags: [tag], Layers: [`blobs/sha256/${sha256(layer)}`] }]),
+    "manifest.json": json([{ Config: `blobs/sha256/${sha256(config)}`, RepoTags: [tag], Layers: [`blobs/sha256/${sha256(layer)}`],
+      ...(classic ? { LayerSources: { [diffID()]: descriptor(layer, layerMediaType) } } : {}) }]),
     [`blobs/sha256/${sha256(manifest)}`]: manifest,
     [`blobs/sha256/${sha256(config)}`]: config,
     [`blobs/sha256/${sha256(layer)}`]: layer,
   };
+  if (classic) {
+    const legacy = json({ id: "d".repeat(64), os: "linux", architecture: "amd64", created,
+      config: configValue.config, comment: message, container_config: neutral, docker_version: serverVersion });
+    entries[`blobs/sha256/${sha256(legacy)}`] = legacy;
+    entries.repositories = json({ "auto-world-import-fixture": { [owner]: diffID().slice(7) } });
+  }
   const blocks = [];
   for (const [name, contents] of Object.entries(entries)) {
     const header = Buffer.alloc(512);
@@ -52,7 +67,7 @@ function savedFixture() {
     blocks.push(header, contents, Buffer.alloc((512 - contents.length % 512) % 512));
   }
   blocks.push(Buffer.alloc(1024));
-  return { bytes: Buffer.concat(blocks), id: `sha256:${sha256(manifest)}` };
+  return { bytes: Buffer.concat(blocks), id: `sha256:${sha256(classic ? config : manifest)}` };
 }
 
 function setup(t, customize = () => undefined) {
@@ -138,6 +153,29 @@ test("complete import/save fidelity and cleanup yield a public PASS receipt with
   assert.deepEqual(readdirSync(run.output), ["receipt.json"]);
   assert.equal(receipt.imageExecution, "NOT_ATTEMPTED");
   assert.equal(receipt.publication, "NOT_ATTEMPTED");
+  const imported = run.calls.find(({ args }) => args[1] === "import").args;
+  assert.equal(imported.filter((arg) => arg === "--message").length, 1);
+  assert.equal(imported[imported.indexOf("--message") + 1], "auto-world synthetic import fixture v1");
+});
+
+test("classic export is bound to the observed server version and still cleans up after a mismatch", (t) => {
+  for (const exportedVersion of ["28.0.4", "28.0.5"]) {
+    const saved = savedFixture({ classic: true, serverVersion: exportedVersion });
+    const run = setup(t, ({ args }) => {
+      if (args[0] === "version") return ok("29.0.0|28.0.4\n");
+      if (args[1] === "import") return ok(`${saved.id}\n`);
+      if (args[2] === "--format") return ok(JSON.stringify({ ...metadata(), Id: saved.id }));
+      if (args[1] === "save") { writeFileSync(args[3], saved.bytes); return ok(); }
+    });
+    if (exportedVersion === "28.0.4") {
+      const receipt = run.run();
+      assert.equal(receipt.result, "PASSED");
+      assert.equal(receipt.image.identityType, "CLASSIC_CONFIG_ID");
+    } else assert.throws(() => run.run(), /image_import_save_config_invalid/u);
+    assert.equal(run.receipt().tools.server, "28.0.4");
+    assert.equal(run.receipt().cleanupOwnership, "EXACT_IMAGE_REMOVED_ABSENCE_VERIFIED");
+    assert.equal(existsSync(run.work), false);
+  }
 });
 
 test("failure after ownership removes only the exact image and temporary data, and keeps a sanitized FAILED receipt", (t) => {

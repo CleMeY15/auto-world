@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { buildFixtureTar, fixtureConfig, sha256, validateRuntimeConfig, validateSavedImage } from "./archive.mjs";
+import { buildFixtureTar, fixtureConfig, IMPORT_MESSAGE, sha256, validateRuntimeConfig, validateSavedImage } from "./archive.mjs";
 
 const MiB = 1024 * 1024;
 const IMAGE_ID = /^sha256:[a-f0-9]{64}$/u;
@@ -134,7 +134,7 @@ export function runDiagnostic({ argv = process.argv.slice(2), env = process.env,
     });
     phase("image_import", () => {
       const changes = importChanges(owner).flatMap((change) => ["--change", change]);
-      imageId = command(["image", "import", "--platform", "linux/amd64", ...changes, rootfs, tag]).stdout.trim();
+      imageId = command(["image", "import", "--platform", "linux/amd64", "--message", IMPORT_MESSAGE, ...changes, rootfs, tag]).stdout.trim();
       if (!IMAGE_ID.test(imageId)) fail("import_identity_invalid");
     });
     const diffID = phase("image_ownership", () => {
@@ -149,7 +149,7 @@ export function runDiagnostic({ argv = process.argv.slice(2), env = process.env,
       assertOwnedDirectory(work, workIdentity, context.runnerTemp);
       const stat = lstatSync(saved);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size < 1 || stat.size > 4 * MiB) fail("saved_file_invalid");
-      const proof = validateSavedImage(readFileSync(saved), { imageId, tag, owner });
+      const proof = validateSavedImage(readFileSync(saved), { imageId, tag, owner, serverVersion: receipt.tools.server });
       if (proof.diffID !== diffID) fail("inspect_archive_layer_mismatch");
       return proof;
     });
