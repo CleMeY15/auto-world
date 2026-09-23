@@ -36,6 +36,7 @@ const orderedPhases = ["ec_baseline_tests", "baseline_vet_diagnostic", "ec_basel
 const expectedSourceCheckpoints = [["checkout", "before"], ["restoration_before", "before"], ["restoration_after", "after"],
   ["prepatch", "before"], ["after_patch", "after"], ["prebuild", "after"], ["post_ec", "after"], ["post_tests", "after"], ["final", "after"]];
 const requiredToolKeys = ["curl", "docker", "git", "tar", "unzip"];
+const runtimeKeys = ["architecture", "imageOS", "imageVersion", "node", "platform"];
 
 function validateBuildEvidence(directory, receipt, inventory, materialContract) {
   const inventoryMap = new Map(inventory.map((entry) => [entry.path, entry]));
@@ -127,6 +128,8 @@ function validateBuildEvidence(directory, receipt, inventory, materialContract) 
 }
 
 function verifiedProvenance(receipt, expectedRepeat, expected = {}) {
+  if (!receipt.runtime || Object.getPrototypeOf(receipt.runtime) !== Object.prototype ||
+      JSON.stringify(Object.keys(receipt.runtime).sort()) !== JSON.stringify(runtimeKeys)) throw new Error("seaweed_compare_provenance_invalid");
   const exact = {
     sourceCommit: expectedLock.source.commit, sourceTree: expectedLock.source.tree, derivativeCommit: expectedLock.build.commitValue,
     lock: { sha256: digest(lockBytes), size: lockBytes.length }, patch: { sha256: expectedLock.patch.sha256, size: expectedLock.patch.size },
@@ -172,8 +175,13 @@ function verifiedBuild(directory, expectedRepeat, expected, materialContract) {
 
 export function compareBuilds(firstDirectory, secondDirectory, expected = {}, materialContract = productionMaterialContract()) {
   const first = verifiedBuild(firstDirectory, 1, expected, materialContract); const second = verifiedBuild(secondDirectory, 2, expected, materialContract);
-  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "runtime", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials", "moduleArchives", "ecPreflight", "sourcePatchFiles"]) {
+  for (const key of ["sourceCommit", "sourceTree", "derivativeCommit", "lock", "patch", "compiler", "codeCheckout", "workflowRun", "tools", "moduleClosure", "moduleIsolation", "moduleMaterials", "moduleArchives", "ecPreflight", "sourcePatchFiles"]) {
     if (JSON.stringify(first.receipt[key]) !== JSON.stringify(second.receipt[key])) throw new Error("seaweed_compare_provenance_changed");
+  }
+  // Managed runner revisions can differ within one matrix. Record both while
+  // keeping every common runtime dimension and all tool identities exact.
+  for (const key of runtimeKeys.filter((key) => key !== "imageVersion")) {
+    if (first.receipt.runtime[key] !== second.receipt.runtime[key]) throw new Error("seaweed_compare_provenance_changed");
   }
   const deterministic = [...first.inventory.keys()].filter((name) => !name.startsWith("logs/")).sort();
   const secondDeterministic = [...second.inventory.keys()].filter((name) => !name.startsWith("logs/")).sort();
@@ -185,8 +193,17 @@ export function compareBuilds(firstDirectory, secondDirectory, expected = {}, ma
     compared.push({ path: name, sha256: digest(left), size: left.length });
   }
   if (!compared.some((entry) => entry.path === "weed")) throw new Error("seaweed_compare_binary_missing");
-  return { schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "PASSED", source: { commit: first.receipt.sourceCommit, tree: first.receipt.sourceTree },
-    lock: first.receipt.lock, patch: first.receipt.patch, compiler: first.receipt.compiler, provenance: { codeCheckout: first.receipt.codeCheckout, workflowRun: first.receipt.workflowRun, runtime: first.receipt.runtime, tools: first.receipt.tools }, compared };
+  return { schemaVersion: 2, state: "DIAGNOSTIC_ONLY", result: "PASSED", source: { commit: first.receipt.sourceCommit, tree: first.receipt.sourceTree },
+    lock: first.receipt.lock, patch: first.receipt.patch, compiler: first.receipt.compiler, provenance: {
+      codeCheckout: first.receipt.codeCheckout, workflowRun: first.receipt.workflowRun,
+      runtimes: [first, second].map(({ receipt }) => ({ repeat: receipt.repeat, ...receipt.runtime })), tools: first.receipt.tools,
+    }, compared };
+}
+
+export function comparisonReceiptBytes(result) {
+  const bytes = Buffer.from(`${JSON.stringify(result)}\n`);
+  if (bytes.length > 1024 ** 2) throw new Error("seaweed_compare_receipt_oversized");
+  return bytes;
 }
 
 export function runComparison({ argv = process.argv.slice(2), env = process.env, platform = process.platform } = {}) {
@@ -196,13 +213,12 @@ export function runComparison({ argv = process.argv.slice(2), env = process.env,
   if (!path.isAbsolute(env.RUNNER_TEMP ?? "") || path.dirname(output) !== runnerTemp || path.basename(output) !== "seaweed-comparison.json" || existsSync(output)) throw new Error("seaweed_compare_output_invalid");
   try {
     const result = compareBuilds(path.join(buildRoot, "seaweed-build-1"), path.join(buildRoot, "seaweed-build-2"), { repository: env.GITHUB_REPOSITORY, ref: env.GITHUB_REF, codeSha: env.GITHUB_SHA, runId: env.GITHUB_RUN_ID, attempt: env.GITHUB_RUN_ATTEMPT });
-    const bytes = Buffer.from(`${JSON.stringify(result, null, 2)}\n`);
-    if (bytes.length > 1024 ** 2) throw new Error("seaweed_compare_receipt_oversized");
+    const bytes = comparisonReceiptBytes(result);
     writeFileSync(output, bytes, { flag: "wx" });
     return result;
   } catch (error) {
     const reason = /^seaweed_[a-z0-9_:.-]+$/u.test(error?.message ?? "") ? error.message.split(":", 1)[0] : "seaweed_compare_failed";
-    writeFileSync(output, `${JSON.stringify({ schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "FAILED", reason }, null, 2)}\n`, { flag: "wx" });
+    writeFileSync(output, comparisonReceiptBytes({ schemaVersion: 2, state: "DIAGNOSTIC_ONLY", result: "FAILED", reason }), { flag: "wx" });
     throw error;
   }
 }

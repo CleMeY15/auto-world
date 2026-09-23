@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { compareBuilds, parseCompareArguments, productionMaterialContract, runComparison } from "../scripts/seaweed/compare.mjs";
+import { compareBuilds, comparisonReceiptBytes, parseCompareArguments, productionMaterialContract, runComparison } from "../scripts/seaweed/compare.mjs";
 import { EC_PACKAGE, EC_TESTS, summarizeEcPreflight } from "../scripts/seaweed/ec-preflight.mjs";
 import { BASELINE_COPYLOCKS, requireBaselineCopylocks } from "../scripts/seaweed/copylocks.mjs";
 
@@ -112,11 +112,58 @@ test("comparison reads both real artifacts and compares actual binary bytes", ()
   const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-"));
   const first = fixture(root, 1); const second = fixture(root, 2);
   const result = compareFixtures(first, second);
+  assert.equal(result.schemaVersion, 2);
   assert.equal(result.result, "PASSED");
   assert.equal(result.compared.some((entry) => entry.path === "weed"), true);
   writeFileSync(path.join(second, "weed"), "mutated");
   assert.throws(() => compareFixtures(first, second), /seaweed_artifact_inventory_changed/u);
   rmSync(root, { recursive: true, force: true });
+});
+
+test("comparison retains both runner revisions without treating imageVersion as a shared build input", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-runtime-"));
+  try {
+    const first = fixture(root, 1); const second = fixture(root, 2);
+    const runtimes = [];
+    for (const [index, directory] of [first, second].entries()) {
+      const file = path.join(directory, "build-receipt.json");
+      const receipt = JSON.parse(readFileSync(file));
+      receipt.runtime.imageVersion = index === 0 ? "20260907.300.1" : "20260920.314.1";
+      runtimes.push({ repeat: index + 1, ...receipt.runtime });
+      writeFileSync(file, JSON.stringify(receipt));
+    }
+    const result = compareFixtures(first, second);
+    assert.equal(result.schemaVersion, 2);
+    assert.deepEqual(result.provenance.runtimes, runtimes);
+    assert.equal(Object.hasOwn(result.provenance, "runtime"), false);
+    const file = path.join(second, "build-receipt.json");
+    const receipt = JSON.parse(readFileSync(file)); receipt.runtime.imageVersion = runtimes[0].imageVersion;
+    writeFileSync(file, JSON.stringify(receipt));
+    assert.deepEqual(compareFixtures(first, second).provenance.runtimes,
+      [runtimes[0], { ...runtimes[0], repeat: 2 }]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("comparison rejects changed shared runtime dimensions, unknown fields and tool drift", () => {
+  const mutations = [
+    (receipt) => { delete receipt.runtime.imageVersion; },
+    (receipt) => { receipt.runtime.extra = "hidden"; },
+    (receipt) => { receipt.runtime.imageVersion = ""; },
+    (receipt) => { receipt.runtime.node = "v24.18.0"; },
+    (receipt) => { receipt.runtime.architecture = "arm64"; },
+    (receipt) => { receipt.runtime.platform = "darwin"; },
+    (receipt) => { receipt.runtime.imageOS = "ubuntu22"; },
+    (receipt) => { receipt.tools.git = "different observed version"; },
+  ];
+  for (const mutate of mutations) {
+    const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-runtime-invalid-"));
+    try {
+      const first = fixture(root, 1); const second = fixture(root, 2);
+      const file = path.join(second, "build-receipt.json");
+      const receipt = JSON.parse(readFileSync(file)); mutate(receipt); writeFileSync(file, JSON.stringify(receipt));
+      assert.throws(() => compareFixtures(first, second), /seaweed_compare_provenance_(?:invalid|changed)/u);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
 });
 
 test("comparison rejects missing, failed, and substituted second evidence", () => {
@@ -312,7 +359,7 @@ test("comparison rejects unrecorded files and writes a bounded sanitized failure
   const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "compare", GITHUB_SHA: codeSha, GITHUB_RUN_ID: "123", RUNNER_TEMP: runnerTemp };
   assert.throws(() => runComparison({ argv: ["--build-root", buildRoot, "--output", output], env, platform: "linux" }), /seaweed_compare_material_contract_invalid/u);
   const receipt = JSON.parse(readFileSync(output, "utf8"));
-  assert.deepEqual(receipt, { schemaVersion: 1, state: "DIAGNOSTIC_ONLY", result: "FAILED", reason: "seaweed_compare_material_contract_invalid" });
+  assert.deepEqual(receipt, { schemaVersion: 2, state: "DIAGNOSTIC_ONLY", result: "FAILED", reason: "seaweed_compare_material_contract_invalid" });
   assert.ok(readFileSync(output).length < 1024 ** 2);
   rmSync(runnerTemp, { recursive: true, force: true });
 });
@@ -321,4 +368,17 @@ test("comparison CLI accepts only fixed absolute build-root and output arguments
   const buildRoot = path.resolve(tmpdir(), "builds"); const output = path.resolve(tmpdir(), "comparison.json");
   assert.deepEqual(parseCompareArguments(["--build-root", buildRoot, "--output", output]), { buildRoot, output });
   assert.throws(() => parseCompareArguments(["--build-root", "relative", "--output", output]), /seaweed_compare_arguments_invalid/u);
+});
+
+test("compact comparison receipt retains a full module inventory under the unchanged byte cap", () => {
+  const result = { schemaVersion: 2, state: "DIAGNOSTIC_ONLY", result: "PASSED",
+    compared: Array.from({ length: 4817 }, (_, index) => ({
+      path: `materials/modules/${index.toString(16).padStart(64, "0")}/notice-001.txt`, sha256: "b".repeat(64), size: 1234,
+    })) };
+  assert(Buffer.byteLength(JSON.stringify(result, null, 2) + "\n") > 1024 ** 2);
+  const bytes = comparisonReceiptBytes(result);
+  assert(bytes.length <= 1024 ** 2);
+  assert.deepEqual(JSON.parse(bytes), result);
+  assert.equal(bytes.at(-1), 10);
+  assert.throws(() => comparisonReceiptBytes({ ...result, extra: "x".repeat(1024 ** 2) }), /seaweed_compare_receipt_oversized/u);
 });
