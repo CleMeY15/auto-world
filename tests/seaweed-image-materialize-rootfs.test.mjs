@@ -86,8 +86,83 @@ function transactionScope({ writeFailure = false } = {}) {
       return { rawSize: raw.length, diffId, members: [] };
     },
     validateFilesystem: () => ({ kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: 0 }) };
-  return { parent, options, raw, diffId, codeRevision, binarySha, binarySize };
+  return { parent, options, inputs, raw, diffId, codeRevision, binarySha, binarySize };
 }
+
+function useRealRootfsArchive(value) {
+  const content = Buffer.from("rootfs scanner descriptor regression\n");
+  const entries = [entry("usr/share/auto-world/scan-regression", content)];
+  value.options.writeRootfs = async ({ sink, signal }) => {
+    const receipt = await writeUstarArchive({ entries, sink, signal,
+      openContent: () => Readable.from([content]) });
+    return { inputs: value.inputs, plan: { entries }, receipt };
+  };
+  value.options.scanRootfs = scanRawUstar;
+  value.options.validateFilesystem = (observed) => {
+    assert.deepEqual(observed, entries);
+    return { kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: entries.length };
+  };
+  return { content, entries };
+}
+
+test("composite rootfs scans the partial and published archive with independent real scanner handles", { skip: !linux }, async () => {
+  const value = transactionScope(); const archive = useRealRootfsArchive(value);
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    assert.equal(receipt.memberCount, archive.entries.length);
+    const finalBytes = readFileSync(path.join(value.parent, "output/rootfs.tar"));
+    assert.equal(receipt.rawSize, finalBytes.length);
+    assert.equal(receipt.diffId, `sha256:${hash(finalBytes)}`);
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs cleans all owned state after a real scanner rejects the archive", { skip: !linux }, async () => {
+  const value = transactionScope(); value.options.scanRootfs = scanRawUstar;
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_partial_scan_failed");
+      assert.equal(error.originalCode, "seaweed_archive_tar_truncated");
+      return true;
+    });
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs reports a successful scanner resource-close failure after complete cleanup", { skip: !linux }, async () => {
+  const value = transactionScope(); const scan = value.options.scanRootfs;
+  value.options.scanRootfs = async (options) => {
+    const scanned = await scan(options);
+    options.input.destroy = () => { throw new Error("synthetic close failure"); };
+    return scanned;
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_scan_close_failed");
+      assert.doesNotMatch(error.message, /synthetic/u);
+      return true;
+    });
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("composite rootfs preserves the primary scanner failure when resource close also fails", { skip: !linux }, async () => {
+  const value = transactionScope();
+  value.options.scanRootfs = async ({ input }) => {
+    input.destroy = () => { throw new Error("synthetic close failure"); };
+    throw Object.assign(new Error("bounded scanner failure"), { code: "seaweed_archive_tar_header_invalid" });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeReviewedSeaweedRootfs(value.options), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_partial_scan_failed");
+      assert.equal(error.originalCode, "seaweed_archive_tar_header_invalid");
+      assert.doesNotMatch(error.message, /synthetic|bounded/u);
+      return true;
+    });
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
 
 test("composite rootfs transaction returns an opaque receipt and cleans only through its live capability", { skip: !linux }, async () => {
   const value = transactionScope();

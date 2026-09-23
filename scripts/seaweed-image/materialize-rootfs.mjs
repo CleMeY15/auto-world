@@ -66,6 +66,7 @@ const PUBLIC_FAILURE_CODES = new Set([
   "seaweed_rootfs_materialization_options_invalid", "seaweed_rootfs_materialization_output_changed",
   "seaweed_rootfs_materialization_output_invalid", "seaweed_rootfs_materialization_parent_not_empty",
   "seaweed_rootfs_materialization_receipt_invalid", "seaweed_rootfs_materialization_timeout",
+  "seaweed_rootfs_materialization_scan_close_failed",
   "seaweed_rootfs_materialization_unknown_failed", "seaweed_rootfs_materialization_verification_failed",
   "seaweed_rootfs_materialization_write_failed", ...PRESERVED_CHILD_CODES,
   ...[...FAILURE_STAGES].map((stage) => `seaweed_rootfs_materialization_${stage}_failed`),
@@ -234,25 +235,45 @@ async function exactOwnedFile(file, expected, uid) {
 }
 
 async function scanVerifiedRootfs(file, expectedIdentity, uid, scanRootfs, diffId, signal) {
-  const verifyHandle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const sentinelHandle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let scanHandle;
   let input;
+  let scanned;
+  let primaryError;
   try {
-    const before = await verifyHandle.stat({ bigint: true });
-    if (!sameIdentity(expectedIdentity, identity(before)) || !await exactFile(file, expectedIdentity, uid)) {
+    scanHandle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const [sentinelBefore, scanBefore] = await Promise.all([
+      sentinelHandle.stat({ bigint: true }), scanHandle.stat({ bigint: true }),
+    ]);
+    if (!sameIdentity(expectedIdentity, identity(sentinelBefore))
+      || !sameIdentity(expectedIdentity, identity(scanBefore))
+      || !await exactFile(file, expectedIdentity, uid)) {
       throw rootfsError("seaweed_rootfs_materialization_output_changed");
     }
-    input = verifyHandle.createReadStream({ autoClose: false });
-    const scanned = await scanRootfs({ input, diffId, signal });
-    const after = await verifyHandle.stat({ bigint: true });
-    if (!sameIdentity(expectedIdentity, identity(after)) || !await exactFile(file, expectedIdentity, uid)) {
+    input = scanHandle.createReadStream({ autoClose: false });
+    scanned = await scanRootfs({ input, diffId, signal });
+    const sentinelAfter = await sentinelHandle.stat({ bigint: true });
+    if (!sameIdentity(expectedIdentity, identity(sentinelAfter)) || !await exactFile(file, expectedIdentity, uid)) {
       throw rootfsError("seaweed_rootfs_materialization_output_changed");
     }
-    return scanned;
-  } finally {
-    input?.destroy();
-    if (input !== undefined) await finished(input, { cleanup: true }).catch(() => undefined);
-    await verifyHandle.close();
+  } catch (error) {
+    primaryError = error;
   }
+  let closeError;
+  try {
+    input?.destroy();
+    if (input !== undefined) await finished(input, { cleanup: true });
+  } catch (error) { closeError = error; }
+  const closeHandle = async (handle) => { if (handle !== undefined) await handle.close(); };
+  const closed = await Promise.allSettled([closeHandle(scanHandle), closeHandle(sentinelHandle)]);
+  for (const [index, result] of closed.entries()) {
+    if (result.status === "rejected" && !(index === 0 && result.reason?.code === "EBADF")) {
+      closeError ??= result.reason;
+    }
+  }
+  if (primaryError !== undefined) throw primaryError;
+  if (closeError !== undefined) throw rootfsError("seaweed_rootfs_materialization_scan_close_failed");
+  return scanned;
 }
 
 function validatedLineage(sourceReceipt, source, recipeRevision, createdAt) {
