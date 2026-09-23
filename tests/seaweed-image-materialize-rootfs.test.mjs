@@ -94,7 +94,7 @@ function useRealRootfsArchive(value) {
   const entries = [entry("usr/share/auto-world/scan-regression", content)];
   value.options.writeRootfs = async ({ sink, signal }) => {
     const receipt = await writeUstarArchive({ entries, sink, signal,
-      openContent: () => Readable.from([content]) });
+      openContent: () => Readable.from([content], { objectMode: false }) });
     return { inputs: value.inputs, plan: { entries }, receipt };
   };
   value.options.scanRootfs = scanRawUstar;
