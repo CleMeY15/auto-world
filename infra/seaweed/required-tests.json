@@ -33,6 +33,15 @@
       { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestWithGrpcClient_EndedStreamKeepsSharedConnection" },
       { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestWithGrpcClient_LogChunkReadFailureKeepsSharedConnection" }
     ],
+    "copylocks": [
+      {"package": "github.com/seaweedfs/seaweedfs/weed/admin/plugin", "name": "TestDeriveSchedulerAdminRuntimeClonesPersistedConfig"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/admin/plugin", "name": "TestCloneWorkerSessionPreservesProtoIsolationAndNilFiltering"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/cluster", "name": "TestLockRingManager_GetLastUpdateReturnsIndependentProtoClone"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/credential", "name": "TestSaveConfigurationClonesBeforeFilteringStaticIdentities"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/plugin/worker", "name": "TestWorkerBuildHeartbeatClonesRunningWork"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/filersink", "name": "TestCloneChunksForManifestNormalizesWithoutMutatingSource"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/stats", "name": "TestDiskStateSnapshotRestoresIndependentProtoState"}
+    ],
     "nonShortIntegration": [
       { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestEcEncodeLeavesRightFilesAndRemovesStubAndSource" },
       { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestSweepEmptyReplicasDeletesStubKeepsData" },

@@ -31,7 +31,7 @@ for (const file of candidateFiles) {
     continue;
   }
 
-  for (const rule of findHighConfidenceSecrets(contents.toString("utf8"))) {
+  for (const rule of findHighConfidenceSecrets(contents.toString("utf8"), { file })) {
     highConfidenceFindings.push(`${file}: ${rule}`);
   }
 }

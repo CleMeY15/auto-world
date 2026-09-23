@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { compareBuilds, parseCompareArguments, productionMaterialContract, runComparison } from "../scripts/seaweed/compare.mjs";
 import { EC_PACKAGE, EC_TESTS, summarizeEcPreflight } from "../scripts/seaweed/ec-preflight.mjs";
+import { BASELINE_COPYLOCKS, requireBaselineCopylocks } from "../scripts/seaweed/copylocks.mjs";
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
@@ -13,19 +14,26 @@ const lockBytes = readFileSync(path.join(repositoryRoot, "infra/seaweed/seaweed-
 const lock = JSON.parse(lockBytes);
 const codeSha = "b".repeat(40);
 const requiredTests = JSON.parse(readFileSync(path.join(repositoryRoot, lock.requiredTests.path)));
+const pristineSum = readFileSync(path.join(repositoryRoot, "tests/fixtures/seaweed-source/upstream/go.sum"));
 const keys = (entries) => entries.map((entry) => `${entry.package}:${entry.name}`);
-const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
+const groups = { normal: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration), ...keys(requiredTests.required.copylocks)],
+  fullTags: [...keys(requiredTests.required.redis), ...keys(requiredTests.required.nonShortIntegration), ...keys(requiredTests.required.copylocks)], projectGrpc: keys(requiredTests.required.seaweedGrpc) };
 const phases = ["compiler_download", "compiler_extract", "compiler_identity", "compiler_work_cleanup", "source_checkout", "source_bundle", "source_bundle_verify", "source_restore", "source_restore_patch", "source_restore_cleanup", "patch_apply", "tidy_diff", "module_isolation_prepare", "module_download", "module_verify", "module_material_retention", "production_build", "binary_work_cleanup", "test_preflight", "ec_corrected_cache_cleanup", "redis_helper", "normal_tests", "normal_tests_cache_cleanup", "full_tag_tests", "full_tag_tests_cache_cleanup", "project_grpc_tests", "vet", "grpc_transport_tests", "post_test_module_download", "post_test_module_verify", "redis_cleanup", "work_cleanup", "cleanup"];
 const isolationSteps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
 phases.splice(phases.indexOf("binary_work_cleanup"), 1);
 phases.splice(phases.indexOf("redis_cleanup"), 0, "post_test_cache_cleanup", "module_archive_retention", "binary_work_cleanup");
-phases.push("ec_baseline_build", "ec_baseline_tests", "ec_baseline_cleanup", "ec_corrected_tests");
+phases.splice(phases.indexOf("patch_apply"), 0, "ec_baseline_build", "ec_baseline_tests", "baseline_vet_diagnostic", "ec_baseline_cleanup");
+phases.push("ec_corrected_tests");
 const ecLog = Buffer.from([...EC_TESTS.map((Test) => ({ Package: EC_PACKAGE, Test, Action: "pass" })), { Package: EC_PACKAGE, Action: "pass" }].map(JSON.stringify).join("\n") + "\n");
+const baselineVetLog = (lines = BASELINE_COPYLOCKS) => Buffer.from(`${lines.join("\n")}\n`);
+const knownDownloads = pristineSum.toString("utf8").split("\n").flatMap((line) => {
+  const match = /^(\S+) (\S+) h1:/u.exec(line); return match && !match[2].endsWith("/go.mod") ? [`${match[1]} ${match[2]}`] : [];
+}).slice(0, 2);
 const serverLog = Buffer.from("seaweed-server-logs:v1\nfiles=0\nsourceBytes=0\n");
 
 function goLog(required) { return Buffer.from(required.map((key) => { const split = key.lastIndexOf(":"); return JSON.stringify({ Action: "pass", Package: key.slice(0, split), Test: key.slice(split + 1) }); }).join("\n") + "\n"); }
 
-function fixture(root, repeat, bytes = Buffer.from("binary")) {
+function fixture(root, repeat, bytes = Buffer.from("binary"), { downloads = [] } = {}) {
   const directory = path.join(root, `seaweed-build-${repeat}`); mkdirSync(directory);
   const binary = "/tmp/auto-world-seaweed-source-diagnostic/bin/weed";
   const buildInfo = [`${binary}: go${lock.compiler.version}`, `\tdep\tgoogle.golang.org/grpc\t${lock.grpc.version}\t${lock.grpc.sum}`, "\tbuild\t-compiler=gc", `\tbuild\t-ldflags=${JSON.stringify(lock.build.ldflags)}`, "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", "\tbuild\tGOAMD64=v1", `\tbuild\tvcs.revision=${lock.source.commit}`, "\tbuild\tvcs.modified=true"].join("\n");
@@ -46,6 +54,8 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
   files.set("module-closure.json", Buffer.from(JSON.stringify([{ id, path: "google.golang.org/grpc", files: moduleFiles, notices }])));
   for (const [index, arm] of ["baseline", "corrected"].entries()) files.set(`logs/0${index + 5}-ec_${arm}_tests.log`, ecLog);
   for (const [index, arm] of ["baseline", "corrected"].entries()) files.set(`logs/0${index + 7}-ec_${arm}_server_logs.log`, serverLog);
+  const vetLog = baselineVetLog([...downloads.map((entry) => `go: downloading ${entry}`), ...BASELINE_COPYLOCKS]);
+  files.set("logs/09-baseline_vet_diagnostic.log", vetLog);
   for (const [name, value] of files) { const target = path.join(directory, name); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, value); }
   const inventory = [...files].map(([name, value]) => ({ path: name.replaceAll("\\", "/"), sha256: sha256(value), size: value.length })).sort((a, b) => a.path.localeCompare(b.path, "en"));
   writeFileSync(path.join(directory, "material-inventory.json"), `${JSON.stringify(inventory)}\n`);
@@ -61,12 +71,16 @@ function fixture(root, repeat, bytes = Buffer.from("binary")) {
     moduleArchives: { total: 1, completed: 1, current: null, totalBytes: moduleFiles["source.zip"].size, retainedBytes: moduleFiles["source.zip"].size },
     moduleIsolation: { result: "PASSED", checkpoints: isolationSteps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", alternateSum: { sha256: "c".repeat(64), size: 289700 }, additionalSumLines: 2 })) },
     sourceRetention: { bundle: { sha256: sha256(files.get("materials/seaweedfs-source.bundle")), size: files.get("materials/seaweedfs-source.bundle").length }, shallow: { sha256: sha256(files.get("materials/seaweedfs-source-shallow.txt")), size: files.get("materials/seaweedfs-source-shallow.txt").length }, restoration: "PASSED", commitUnixTime: String(lock.source.commitUnixTime) },
+    sourcePatchFiles: { checkpoints: [["checkout", "before"], ["restoration_before", "before"], ["restoration_after", "after"], ["prepatch", "before"],
+      ["after_patch", "after"], ["prebuild", "after"], ["post_ec", "after"], ["post_tests", "after"], ["final", "after"]]
+      .map(([name, state]) => ({ name, state, files: lock.sourcePatchFiles[state] })) },
     phases: phases.map((name) => ({ name, result: "PASSED", durationMs: 1 })),
     ecPreflight: {
       baseline: { binary: { sha256: "d".repeat(64), size: 123 }, modules: lock.moduleFiles.before, ...summarizeEcPreflight(ecLog, 0) },
       corrected: { binary: { sha256: sha256(bytes), size: bytes.length }, modules: lock.moduleFiles.after, ...summarizeEcPreflight(ecLog, 0) },
     },
     serverLogs: ["baseline", "corrected"].map((arm) => ({ phase: `ec_${arm}`, result: "PASSED", bytes: serverLog.length })),
+    baselineVet: requireBaselineCopylocks(vetLog, { status: 1, groupAbsent: true }, pristineSum),
     cacheCleanup: ["corrected_ec", "normal_tests", "full_tag_tests", "post_tests"].map((boundary) => ({ boundary, entries: { gocache: { beforeBytes: 10, afterBytes: 0 }, tmp: { beforeBytes: 5, afterBytes: 0 } }, beforeBytes: 15, afterBytes: 0, freedBytes: 15 })),
     testSummary: summary,
   };
@@ -158,6 +172,10 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     (receipt) => { receipt.serverLogs = []; },
     (receipt) => { receipt.serverLogs[0].bytes += 1; },
     (receipt) => { receipt.phases = receipt.phases.filter(({ name }) => name !== "ec_baseline_cleanup"); },
+    (receipt) => { delete receipt.sourcePatchFiles; },
+    (receipt) => { receipt.sourcePatchFiles.checkpoints[0].files = lock.sourcePatchFiles.after; },
+    (receipt) => { delete receipt.baselineVet; },
+    (receipt) => { receipt.baselineVet.log.sha256 = "0".repeat(64); },
     (receipt) => { delete receipt.cacheCleanup; },
     (receipt) => { receipt.cacheCleanup[1].freedBytes += 1; },
     (receipt) => { receipt.cacheCleanup.pop(); },
@@ -174,13 +192,46 @@ test("comparison rejects matching fabricated mandatory evidence in both builds",
     for (const directory of [first, second]) {
       const file = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(file)); mutate(receipt); writeFileSync(file, JSON.stringify(receipt));
     }
-    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|module_archives|ec_preflight|cache_cleanup|test_summary)_invalid/u);
+    assert.throws(() => compareFixtures(first, second), /seaweed_compare_(?:phases|provenance|module_materials|module_archives|ec_preflight|source_patch_files|baseline_vet|cache_cleanup|test_summary)_invalid/u);
     rmSync(root, { recursive: true, force: true });
   }
 });
 
+test("comparison validates authentic baseline downloads independently in both arms", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-downloads-"));
+  try {
+    const first = fixture(root, 1, Buffer.from("binary"), { downloads: [knownDownloads[0]] });
+    const second = fixture(root, 2, Buffer.from("binary"), { downloads: [knownDownloads[1]] });
+    assert.doesNotThrow(() => compareFixtures(first, second));
+    for (const directory of [first, second]) {
+      const file = path.join(directory, "logs/09-baseline_vet_diagnostic.log");
+      writeFileSync(file, baselineVetLog(["go: downloading example.invalid/unknown v1.0.0", ...BASELINE_COPYLOCKS]));
+      rewriteInventoryEntry(directory, "logs/09-baseline_vet_diagnostic.log");
+      assert.throws(() => compareFixtures(first, second), /seaweed_compare_baseline_vet_invalid/u);
+      const download = directory === first ? knownDownloads[0] : knownDownloads[1];
+      writeFileSync(file, baselineVetLog([`go: downloading ${download}`, ...BASELINE_COPYLOCKS])); rewriteInventoryEntry(directory, "logs/09-baseline_vet_diagnostic.log");
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("comparison reparses the retained baseline vet log instead of trusting a remanifested receipt", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-baseline-vet-"));
+  try {
+    const first = fixture(root, 1); const second = fixture(root, 2);
+    for (const directory of [first, second]) {
+      const logPath = path.join(directory, "logs/09-baseline_vet_diagnostic.log");
+      const changed = Buffer.from(`${BASELINE_COPYLOCKS.slice(1).join("\n")}\n`); writeFileSync(logPath, changed); rewriteInventoryEntry(directory, "logs/09-baseline_vet_diagnostic.log");
+      const receiptPath = path.join(directory, "build-receipt.json"); const receipt = JSON.parse(readFileSync(receiptPath));
+      receipt.baselineVet.log = { sha256: sha256(changed), size: changed.length }; receipt.baselineVet.diagnostics = BASELINE_COPYLOCKS.slice(1);
+      writeFileSync(receiptPath, JSON.stringify(receipt));
+    }
+    assert.throws(() => compareFixtures(first, second), /seaweed_compare_baseline_vet_invalid/u);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("comparison rejects early archive retention and reordered test or finalization phases in both receipts", () => {
-  for (const [moved, before] of [["module_archive_retention", "production_build"], ["post_test_module_verify", "full_tag_tests"],
+  for (const [moved, before] of [["baseline_vet_diagnostic", "ec_baseline_tests"], ["ec_baseline_cleanup", "baseline_vet_diagnostic"],
+    ["patch_apply", "ec_baseline_cleanup"], ["module_archive_retention", "production_build"], ["post_test_module_verify", "full_tag_tests"],
     ["post_test_cache_cleanup", "post_test_module_verify"], ["binary_work_cleanup", "module_archive_retention"], ["full_tag_tests", "normal_tests"]]) {
     const root = mkdtempSync(path.join(tmpdir(), "seaweed-compare-phase-order-"));
     try {

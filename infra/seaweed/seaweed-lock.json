@@ -21,8 +21,8 @@
   },
   "patch": {
     "path": "infra/seaweed/seaweedfs-grpc.patch",
-    "sha256": "3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e",
-    "size": 14347
+    "sha256": "549ec92660abfb2d94c0c38d86896790959d463f8f8478e385213a76ac939d1c",
+    "size": 42205
   },
   "moduleChanges": {
     "path": "infra/seaweed/module-changes.tsv",
@@ -32,8 +32,8 @@
   },
   "requiredTests": {
     "path": "infra/seaweed/required-tests.json",
-    "sha256": "d8a5b9f48011d6a3b1ef89ac9824dbf8f116fd7dc05b46b1c8dca49464ee221a",
-    "size": 6134
+    "sha256": "eb50caadd818336196a8e4d4f29ea82971c154140656b83569e6cf6b8808aa09",
+    "size": 7120
   },
   "moduleFiles": {
     "before": {
@@ -43,6 +43,148 @@
     "after": {
       "go.mod": {"sha256": "6803ea39c1176404f6a1aac5c49e4d040c6accfd19ed55db212710ffcd951c5c", "size": 27085},
       "go.sum": {"sha256": "dee7582180d7e55516b5ae224556769118716f502d33550c3c914a9f0c3b7f29", "size": 289667}
+    }
+  },
+  "sourcePatchFiles": {
+    "before": {
+      "weed/admin/plugin/plugin_scheduler.go": {
+        "sha256": "80243dffb313c3114c2cfe30e8e73279190be237951f1310672fc719d8a55871",
+        "size": 46114
+      },
+      "weed/admin/plugin/plugin_scheduler_test.go": {
+        "sha256": "dd72dc31c9bb62cb5c6206a67ce1defc1988a38cb8d1e50901a0d2ed7d9ec9f8",
+        "size": 29986
+      },
+      "weed/admin/plugin/registry.go": {
+        "sha256": "0e0564027f1bfff512b0bb617e3a364e30e2078385523c0900ea194f9ff33ca7",
+        "size": 13065
+      },
+      "weed/admin/plugin/registry_test.go": {
+        "sha256": "5acb5b583683d495e253f372776fb2820515c36266598d2d4fe41f9fdbcc090f",
+        "size": 11406
+      },
+      "weed/cluster/lock_ring_manager.go": {
+        "sha256": "9f077c0c87dea4bc3a6845a4368b7fb5f5b20f877d53db60243f16fb5ad35295",
+        "size": 5318
+      },
+      "weed/cluster/lock_ring_manager_test.go": {
+        "sha256": "45f7123bb4e46de06ce7e02bf78585e40812c084fe0ea4f5d47618350fa079dd",
+        "size": 6405
+      },
+      "weed/credential/credential_manager.go": {
+        "sha256": "748abd5637da47faadff8de87b042ccc60bf4f01eed3d45d11194fd10c4678fe",
+        "size": 18339
+      },
+      "weed/credential/credential_test.go": {
+        "sha256": "4dbc7dcaa2f1e391499a141222dc9ebbb1ff52c6dc20ef1f2b3c0e560a3e3251",
+        "size": 9321
+      },
+      "weed/mount/peer_registrar_test.go": {
+        "sha256": "636337755348e45ff6b310382c6f1d70e079d2c4517e86eb000d34d56ad650c2",
+        "size": 7136
+      },
+      "weed/plugin/worker/worker.go": {
+        "sha256": "4ee71154c1e253575316f0bbcf405b4384a95b9bfcc364484b9e7584a3862841",
+        "size": 25035
+      },
+      "weed/plugin/worker/worker_test.go": {
+        "sha256": "17762b32ee4f8f568dacd07b7723fa4884ecf4770d7fc111e24521db791f1841",
+        "size": 18357
+      },
+      "weed/replication/sink/filersink/fetch_write.go": {
+        "sha256": "84c199acb78e89b391850777cf1c8cf9d00235d282fbe9259827ed007ff8a1eb",
+        "size": 24460
+      },
+      "weed/replication/sink/filersink/fetch_write_test.go": {
+        "sha256": "95aeb1624acd88ac039c54c89d594c6bfe3908064302930846ddde131fe5c044",
+        "size": 23833
+      },
+      "weed/s3api/chunked_reader_v4_test.go": {
+        "sha256": "a9ccf0babe394443250e955295c469a53622d9919d129a5e4feceb33162c6ae8",
+        "size": 18120
+      },
+      "weed/shell/command_volume_delete_empty_test.go": {
+        "sha256": "df13ac3c9bbdaa54abe4b32b9c607032aa2e0d7901a761c815adfec9ebce47db",
+        "size": 1858
+      },
+      "weed/stats/disk.go": {
+        "sha256": "664c72b563de0cfed614705421a9a2489a344293933fe6fc5b62c815bb2a1022",
+        "size": 10875
+      },
+      "weed/stats/disk_test.go": {
+        "sha256": "0564bfc2aa19fba7d7321463b2c17f94f806aa5d4e0cc35dc74ea23dd992ef63",
+        "size": 2755
+      }
+    },
+    "after": {
+      "weed/admin/plugin/plugin_scheduler.go": {
+        "sha256": "55f24b5e4941a6f8df85db5837a9b55983570e869821e4290450ee3ce2a9473e",
+        "size": 46193
+      },
+      "weed/admin/plugin/plugin_scheduler_test.go": {
+        "sha256": "d79127580d23ee91d5b10943d8389d2fe5d0cc6885f64c53950d43c2670c3f75",
+        "size": 31567
+      },
+      "weed/admin/plugin/registry.go": {
+        "sha256": "96ff403fa123c53a331477fdb7432e1f6b06a42e3209cc1e223664e931ac675d",
+        "size": 13189
+      },
+      "weed/admin/plugin/registry_test.go": {
+        "sha256": "4875268ba8356a11195fad641f49de199fce3fbba1d94570e9b1359ea701381a",
+        "size": 13945
+      },
+      "weed/cluster/lock_ring_manager.go": {
+        "sha256": "d944bd6da170074696388210591a4511442b726eb7eb158616a8cec6c15bd6fe",
+        "size": 5328
+      },
+      "weed/cluster/lock_ring_manager_test.go": {
+        "sha256": "f9a92753d9de170d88c89743f0cc09cc0c71b3e7864d9d58ed17d6ef0d511a1b",
+        "size": 7473
+      },
+      "weed/credential/credential_manager.go": {
+        "sha256": "4e8990954251f712f4367870f2c1c96e367724354e4a1c17d837990405cd740b",
+        "size": 18419
+      },
+      "weed/credential/credential_test.go": {
+        "sha256": "ad139576f7409fcc8e76ef0a4baca85141f1c855050e513b5de46fafe96dcc87",
+        "size": 11531
+      },
+      "weed/mount/peer_registrar_test.go": {
+        "sha256": "53f75aac3629e4783da8514e53b25ddfc513be41eaa3d2c22186d8a7e60a433f",
+        "size": 7233
+      },
+      "weed/plugin/worker/worker.go": {
+        "sha256": "ac39a560c8970a708ba98a3a529c5c9cc7f33a03b804b037b9c8f361eb0a753a",
+        "size": 25052
+      },
+      "weed/plugin/worker/worker_test.go": {
+        "sha256": "6112876784cf77bcc8a76c07849c38b846cbfb4a63138f9426b245106b0dd9db",
+        "size": 19727
+      },
+      "weed/replication/sink/filersink/fetch_write.go": {
+        "sha256": "71ec19a16f059dcfea70c9796ea1f359bad94e65856b7534cc53f667249ed48c",
+        "size": 24574
+      },
+      "weed/replication/sink/filersink/fetch_write_test.go": {
+        "sha256": "a2c1681465b37958d720fe1ae753f3f9119c532b07d2f7beb5bf5d8f246d4134",
+        "size": 25258
+      },
+      "weed/s3api/chunked_reader_v4_test.go": {
+        "sha256": "feaf79c7732f7ff06d91cc51d43f24f7c0d749c85043767df7d1c4249f850cbc",
+        "size": 18123
+      },
+      "weed/shell/command_volume_delete_empty_test.go": {
+        "sha256": "4ab56ca6044e50e5d9aaa9c679171ce37685809c99451aa01169905807ca345c",
+        "size": 1943
+      },
+      "weed/stats/disk.go": {
+        "sha256": "ca9eb365f5cfc627d2a93c005126c662e99d442c760d5c658736688873edcb34",
+        "size": 10985
+      },
+      "weed/stats/disk_test.go": {
+        "sha256": "2421ee574eb896db8c158597c240bd4db7b6314b7513052998ab4682511728a0",
+        "size": 4762
+      }
     }
   },
   "grpc": {
@@ -56,8 +198,8 @@
     "goamd64": "v1",
     "cgoEnabled": "0",
     "tags": [],
-    "commitValue": "c507336+aw.3930d2fef5a7",
-    "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.3930d2fef5a7"
+    "commitValue": "c507336+aw.549ec92660ab",
+    "ldflags": "-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=c507336+aw.549ec92660ab"
   },
   "upstreamMaterials": [
     {"path": ".github/workflows/container_release_unified.yml", "sha256": "1d671a6559ebc436fca48a7a062be2a6dfbd5981110c6758ad3ae3e995589680", "size": 25668},
