@@ -1,0 +1,21 @@
+# TASK-0005A — Pinned public SeaweedFS base materialization
+
+Status: implementation under validation. This is a preparation-only input gate; it does not construct, publish, scan or admit an image.
+
+## Fixed input and ownership boundary
+
+The reviewed [`base-manifest.json`, `base-config.json` and `base-filesystem.json`](../../infra/seaweed-image/README.md) fix the exact Linux/amd64 `chrislusf/seaweedfs:4.47` platform manifest, config, ten compressed layer descriptors and expected 561-entry visible filesystem. Fetch the platform manifest **by its SHA-256 digest**, not by mutable tag. Fetch the config and layers only through descriptors authenticated by that manifest. Compare all remote metadata bytes to the checked-in policy and every blob's length and SHA-256 to its descriptor. A registry header is corroborating evidence, never a substitute for local hashing.
+
+Anonymous Docker Hub pull uses a narrowly scoped bearer challenge. Tokens remain in memory and out of logs, files and cross-origin redirects. Redirects are bounded, HTTPS-only and never forward `Authorization` to a different origin. Treat rate limiting, unknown media types, malformed challenges, short/extra responses and all network uncertainty as an incomplete diagnostic; do not retry aggressively or claim a partial success. The [official Registry authentication flow](https://docs.docker.com/reference/api/registry/auth/) and [Distribution HTTP API](https://distribution.github.io/distribution/spec/api/) define this boundary.
+
+The caller supplies only an empty private Linux parent, abort signal and aggregate deadline. Each of the ten compressed blobs and its decompressed USTAR is written exclusively to an owned private tree, with no-follow open, mode `0600`, bounded streaming, SHA-256/size or DiffID verification, `fsync`, close and inode checks. The raw TARs give the next builder bounded random reads at the offsets returned by the existing [`scanPinnedBase`](../../scripts/seaweed-image/base-scan.mjs). Re-open the owned compressed blobs and re-run the full scanner: its exact entry comparison is authoritative for the observed base, including complete streams and overlays. Revalidate raw TAR content at the scanner offsets and the whole owned tree before same-filesystem promotion. Keep the compressed originals for replay; do not extract old image members to host paths.
+
+The materialization receipt has `PREPARATION_ONLY` authority and `candidateAuthorization: NOT_AUTHORIZED`. A serialized receipt, file path or old native run cannot grant authority to a later builder. A later transaction must verify fresh owned identities and bytes or consume the live in-process closure. On failure or cleanup, remove only still-owned identities; observed substitution leaves the unknown object intact and fails closed. The private parent assumes no concurrent same-UID or privileged writer, as in the source materializer.
+
+## Validation and operation
+
+Focused tests cover challenge scope, redirect token isolation, digest/size drift, stream abort/deadline, truncated or extra gzip/TAR, DiffID mismatch, unsafe file replacement, close/sync failures, promotion collisions, cleanup and non-authorizing receipts. The one-time manual workflow runs on reviewed protected main only, first run/first attempt, with `contents: read` and no upload, credential, Docker socket or registry write. It reports only bounded totals/codes and cleans the closure before emitting a success receipt. A killed runner cannot guarantee in-process cleanup; the runner's ephemeral storage remains the outer containment boundary.
+
+The expected current corpus is 195,224,300 compressed bytes, 532,811,776 raw TAR bytes, 609 members and 561 visible entries. The workflow checks available runner storage before starting; it must not silently weaken byte limits or inventory checks to fit. This diagnostic is separate from the previously successful [source materialization 35918426171](https://github.com/CleMeY15/auto-world/actions/runs/35918426171). It creates no image candidate. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked until later construction, native runtime, fresh audit, private admission and four-service acceptance.
+
+Rollback removes this preparation transaction, its diagnostic workflow and tests. No service, package or persistent production data is changed.

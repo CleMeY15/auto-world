@@ -1,6 +1,6 @@
 # TASK-0005A — Authenticated SeaweedFS source materialization
 
-Status: implementation under validation. This is a preparation-only material gate, not image construction or admission.
+Status: VERIFIED on protected main by the one-time native diagnostic. This is a preparation-only material gate, not image construction or admission.
 
 ## Boundary and prerequisites
 
@@ -13,6 +13,8 @@ The transaction must validate both full build trees with `validateArtifactDirect
 A success result is `PREPARATION_ONLY` with `candidateAuthorization: NOT_AUTHORIZED`. It proves this materialization transaction at the tested instant, not durable authority from a serialized JSON or extracted path. A later image builder must consume the closure inside an equally authenticated transaction or revalidate it. No Docker image, registry object, package permission, scanner report or four-service runtime is created here.
 
 ## Validation and operation
+
+[PR46](https://github.com/CleMeY15/auto-world/pull/46) merged the independently reviewed transaction at `8f16182f1289eb0a377a7da26028c906b5e5e1e4`. [Exact-head CI 35917858277](https://github.com/CleMeY15/auto-world/actions/runs/35917858277) and [protected-main CI 35918170308](https://github.com/CleMeY15/auto-world/actions/runs/35918170308) passed 341 Linux root tests without skips, package suites, lint, typecheck, builds, Secretlint and dependency audit. The first and only [native diagnostic 35918426171](https://github.com/CleMeY15/auto-world/actions/runs/35918426171) on that main commit returned `SEAWEED_SOURCE_MATERIALIZATION_RECEIPT_V1/MATERIALIZED/PREPARATION_ONLY`, both expected build byte counts (1,558,400,212 and 1,558,321,338), 4,817 compared entries, and `candidateAuthorization: NOT_AUTHORIZED`. Its separate cleanup step returned `CLEANED`. The run budget was consumed; the receipt is evidence of that transaction, not reusable authority or a retained image closure. The underlying GitHub source artifacts expire on 7 October 2026.
 
 Synthetic adversarial tests must cover exact-five success, CRC/digest/layout failures, abort/deadline, exclusive file creation, symlink/hardlink/root or leaf replacement, fsync/close/cleanup failure, invalid build/gate/comparison semantics, byte-different native receipt and atomic-promotion collision. The manual read-only Linux workflow must reject non-main, repeated run or repeated attempt before storage creation, use no artifact upload, and clean the materialized tree through its retained in-process ownership evidence. The one-time live replay must finish before the source artifacts expire on 7 October 2026. The aggregate deadline and abort apply to network transfer and ZIP streaming; the existing synchronous build validator and comparator cannot be interrupted mid-call, so the code checks the budget before and after each call and the Actions job timeout is the hard outer limit. A killed runner cannot promise in-process cleanup or emit a success receipt. Quality CI alone cannot prove consumption of the real source artifacts.
 
