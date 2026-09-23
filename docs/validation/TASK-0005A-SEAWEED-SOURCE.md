@@ -1,6 +1,16 @@
 # TASK-0005A — SeaweedFS source diagnostic
 
-Status: SOURCE_DIAGNOSTIC_REPAIR. This focused increment evaluates a correction of the one blocking gRPC finding in the current SeaweedFS image. The focused PR records exact reviewed-head, native run and integration results as they occur. Source-build success is separate from image audit, runtime validation and admission.
+Status: SOURCE_BUILD_VERIFIED. The complete attempt-1 source diagnostic passes on reviewed main. Source-build success is separate from image audit, runtime validation and admission.
+
+## Complete native source result and local replay
+
+[Run35884717093](https://github.com/CleMeY15/auto-world/actions/runs/35884717093), attempt 1 on exact main `6dbc6964e121e54dc5409f5e646f9ae25c01788f`, finished **SUCCESS**. Both independent build jobs and the comparison job finished successfully. Both builds passed their complete test/vet/dependency phases, artifact gates and cleanup; native V2 comparison passed all 4,817 deterministic materials byte for byte. The 220,991,307-byte `weed` in each build has SHA-256 `45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef`. Both runner-image revisions were retained: `20260920.314.1` and `20260907.300.1`; all other required runtime/tool identities agreed. The downloaded comparison JSON is 935,818 bytes, SHA-256 `6958cb2c5affdd2fcacdec61794b3dbd730989193182e062f185cb870c23c151`.
+
+The parent retained the run, attempt, jobs, artifact records, full log and actual comparison JSON in an ignored verification checkout. It independently downloaded each raw build ZIP and matched the GitHub artifact size and SHA-256: build 1, 1,559,755,770 bytes / `6fa3299b48bc978c35ce10ae6cd9b2cd86d5020a324c555a69c493dbb8a174e5`; build 2, 1,559,676,896 bytes / `bf65a3505e832603907cbef61cbbecb2d6ba0b88853c7ed9b84e1aad854be242`. Local strict ZIP diagnostics validated 4,854 entry names, headers and CRCs per archive before reading the extracted trees. The unchanged `validateArtifactDirectory` and `compareBuilds` replay passed both builds, both downloaded gates and the exact downloaded comparison receipt. This independently confirms the native source result; the local ZIP diagnostic is evidence, not production artifact intake.
+
+[PR41](https://github.com/CleMeY15/auto-world/pull/41) subsequently merged a separate deterministic USTAR writer at `efb52d8b12968d1277c92b57ecd01ced052a817b`, with independent Architect/Critic approval and final-head/main CI passing 253 Linux root tests and all gates. The writer is preparation only and does not authenticate these source artifacts. Actual candidate construction, full image audit, private admission and the four-service lifecycle are still pending. The older failed run below remains failed.
+
+The following sections preserve the earlier diagnostic checkpoints. Their pending-run statements describe those historical checkpoints; the current source result is the successful run above.
 
 ## Complete builds; runner-image provenance comparison failure
 

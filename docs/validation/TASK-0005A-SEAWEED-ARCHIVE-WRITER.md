@@ -80,9 +80,12 @@ runner-provenance comparison repair at
 [CI35884125509](https://github.com/CleMeY15/auto-world/actions/runs/35884125509)
 and main [CI35884421534](https://github.com/CleMeY15/auto-world/actions/runs/35884421534)
 pass 235 Linux root tests without skips and all package/security gates.
-The new complete attempt-1
+The separate complete attempt-1
 [source run35884717093](https://github.com/CleMeY15/auto-world/actions/runs/35884717093)
-is a separate pending acceptance gate. The earlier run35875100636 remains failed.
+subsequently passed both builds, artifact gates and native comparison. The parent
+also verified both raw ZIP hashes and replayed all 4,817 material comparisons;
+see the [source evidence](TASK-0005A-SEAWEED-SOURCE.md). The writer itself remains
+preparation only. The earlier run35875100636 remains failed.
 
 TASK-0005A/0005 remain incomplete and TASK-0006 blocked. Rollback removes this
 library and its tests/documentation; no service, stored data or runtime choice
