@@ -18,7 +18,7 @@ function fail(code) { return Object.assign(new Error(code), { code }); }
 async function requireContext(env) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
-    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "1"
+    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "2"
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !path.isAbsolute(env.RUNNER_TEMP ?? "") || path.normalize(env.RUNNER_TEMP) !== env.RUNNER_TEMP) {
@@ -96,9 +96,14 @@ async function main(argv = process.argv.slice(2), env = process.env, testOnly = 
 }
 
 function publicFailure(error) {
-  const code = typeof error?.code === "string" && /^seaweed_[a-z0-9_]+$/u.test(error.code)
+  const code = typeof error?.code === "string" && /^seaweed_[a-z0-9_]{1,96}$/u.test(error.code)
     ? error.code : "seaweed_rootfs_materialization_failed";
-  return JSON.stringify({ state: "FAILED", code, candidateAuthorization: "NOT_AUTHORIZED" });
+  const originalCode = Object.getOwnPropertyDescriptor(error ?? {}, "originalCode")?.value;
+  const detailCode = typeof originalCode === "string"
+    && /^seaweed_(?:image|notice_plan|ustar|archive|raw_ustar|rootfs)_[a-z0-9_]{1,80}$/u.test(originalCode)
+    ? originalCode : undefined;
+  return JSON.stringify({ state: "FAILED", code, ...(detailCode === undefined ? {} : { detailCode }),
+    candidateAuthorization: "NOT_AUTHORIZED" });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

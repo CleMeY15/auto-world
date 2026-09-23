@@ -1,6 +1,6 @@
 # TASK-0005A — Authenticated flattened SeaweedFS root filesystem
 
-Status: implementation under validation. This transaction prepares a raw USTAR root filesystem; it does not import, execute, scan, publish or admit an image. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 remains blocked.
+Status: first native run FAILED; focused diagnosis and repair in progress. This transaction prepares a raw USTAR root filesystem; it does not import, execute, scan, publish or admit an image. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 remains blocked.
 
 ## Input and authority boundary
 
@@ -16,6 +16,8 @@ The receipt is `SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1/MATERIALIZED/PREPARATI
 
 ## Operation and gates
 
-The one-time workflow is manual on reviewed protected main, run 1 attempt 1, with `contents: read` and `actions: read`. It verifies the checked-out recipe SHA, requires at least 12 GiB of free temporary storage for both source builds and ZIPs, the public base and output plus margin, publishes no artifact, and has no Docker socket or package-write permission. The rootfs transaction has one aggregate 130-minute deadline below the 150-minute job limit; timeout and external abort both require owned cleanup before reporting failure. It must finish before the accepted source artifacts expire on 7 October 2026. The native result and cleanup are still pending; passing unit tests or CI does not establish real rootfs materialization.
+The one-time workflow is manual on reviewed protected main, with `contents: read` and `actions: read`. It verifies the checked-out recipe SHA, requires at least 12 GiB of free temporary storage for both source builds and ZIPs, the public base and output plus margin, publishes no artifact, and has no Docker socket or package-write permission. The rootfs transaction has one aggregate 130-minute deadline below the 150-minute job limit; timeout and external abort both require owned cleanup before reporting failure. It must finish before the accepted source artifacts expire on 7 October 2026.
+
+[PR49](https://github.com/CleMeY15/auto-world/pull/49) merged at `07d281f1afbe1caf4718176c1be9e5642a5ead63` from branch head `60666265b4091689eddb57cafe3d0bb595126bd7`; [exact-head CI 35928223762](https://github.com/CleMeY15/auto-world/actions/runs/35928223762) and [main CI 35928816829](https://github.com/CleMeY15/auto-world/actions/runs/35928816829) passed. The first [native run 35929007318](https://github.com/CleMeY15/auto-world/actions/runs/35929007318), run 1 attempt 1 at that exact main, passed the repository/ref/capacity/checkout gates, then **FAILED** after 2 minutes 11 seconds in materialization with only `seaweed_rootfs_materialization_failed`. The separate final cleanup reported `CLEANED`; no success receipt was emitted. The bounded generic code does not identify the failing stage. A focused repair will improve closed failure classification and require a separately reviewed run 2 attempt 1; this historical failure remains failed. Passing CI alone does not establish real rootfs materialization.
 
 Focused tests cover raw scanner completeness and DiffID, content routing and mutation, live-borrow lifetime, filesystem substitution, promotion collision, abort and cleanup. Run lint, typecheck, all affected tests/builds, independent code and architecture review, exact-head Linux CI and protected-main CI before the one-time native dispatch. Rollback reverts this preparatory transaction, diagnostic and tests; it changes no service, registry package or persistent user data.

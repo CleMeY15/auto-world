@@ -26,10 +26,49 @@ const REVISION = /^[a-f0-9]{40}$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const DEFAULT_TIMEOUT_MS = 130 * 60_000;
 const MAX_TIMEOUT_MS = 140 * 60_000;
+const FAILURE_STAGES = new Set(["source_materialization", "base_materialization", "plan", "write", "sync",
+  "partial_scan", "inventory_validate", "publish", "final_scan", "receipt"]);
+const SAFE_DETAIL_CODES = new Set([
+  "seaweed_image_backend_contract_invalid", "seaweed_image_base_contract_invalid",
+  "seaweed_image_base_material_identity_invalid", "seaweed_image_base_material_set_invalid",
+  "seaweed_image_candidate_config_mismatch", "seaweed_image_candidate_inventory_mismatch",
+  "seaweed_image_inventory_entry_invalid", "seaweed_image_plan_inventory_invalid", "seaweed_image_source_manifest_invalid",
+  "seaweed_notice_plan_base_invalid", "seaweed_notice_plan_budget_exceeded", "seaweed_notice_plan_closure_invalid",
+  "seaweed_notice_plan_collision", "seaweed_notice_plan_grpc_invalid", "seaweed_notice_plan_invalid",
+  "seaweed_notice_plan_lock_invalid", "seaweed_notice_plan_material_invalid", "seaweed_notice_plan_material_set_invalid",
+  "seaweed_ustar_aborted", "seaweed_ustar_ancestor_invalid", "seaweed_ustar_content_chunk_invalid",
+  "seaweed_ustar_content_hash_mismatch", "seaweed_ustar_content_invalid", "seaweed_ustar_content_opener_async",
+  "seaweed_ustar_content_opener_invalid", "seaweed_ustar_content_size_mismatch", "seaweed_ustar_content_stream_invalid",
+  "seaweed_ustar_duplicate_path", "seaweed_ustar_entries_invalid", "seaweed_ustar_entry_invalid",
+  "seaweed_ustar_generated_size_invalid", "seaweed_ustar_path_unrepresentable", "seaweed_ustar_raw_limit",
+  "seaweed_ustar_signal_invalid", "seaweed_ustar_sink_invalid", "seaweed_ustar_stream_invalid",
+  "seaweed_archive_aborted", "seaweed_archive_compressed_identity_invalid", "seaweed_archive_compressed_limit",
+  "seaweed_archive_descriptor_invalid", "seaweed_archive_diffid_invalid", "seaweed_archive_diffid_mismatch",
+  "seaweed_archive_gzip_trailing_data", "seaweed_archive_input_chunk_invalid", "seaweed_archive_input_invalid",
+  "seaweed_archive_limit_invalid", "seaweed_archive_raw_limit", "seaweed_archive_signal_invalid",
+  "seaweed_archive_stream_invalid", "seaweed_archive_tar_checksum_invalid", "seaweed_archive_tar_duplicate_invalid",
+  "seaweed_archive_tar_eoa_invalid", "seaweed_archive_tar_format_invalid", "seaweed_archive_tar_header_invalid",
+  "seaweed_archive_tar_link_invalid", "seaweed_archive_tar_member_limit", "seaweed_archive_tar_octal_invalid",
+  "seaweed_archive_tar_padding_invalid", "seaweed_archive_tar_path_invalid", "seaweed_archive_tar_truncated",
+  "seaweed_archive_tar_type_invalid",
+]);
 
 function rootfsError(code, details = {}) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "PREPARATION_ONLY",
     candidateAuthorization: "NOT_AUTHORIZED", ...details });
+}
+
+function stageError(stage, error) {
+  if (error?.name === "AbortError" || typeof error?.code === "string"
+    && /^seaweed_(?:rootfs|source_materialization|base_materialization)_/u.test(error.code)) return error;
+  const boundedStage = FAILURE_STAGES.has(stage) ? stage : "unknown";
+  const candidate = [error?.code, error?.message].find((value) => SAFE_DETAIL_CODES.has(value));
+  return rootfsError(`seaweed_rootfs_materialization_${boundedStage}_failed`,
+    candidate === undefined ? {} : { originalCode: candidate });
+}
+
+async function stage(stageName, operation) {
+  try { return await operation(); } catch (error) { throw stageError(stageName, error); }
 }
 
 function identity(stat) {
@@ -135,11 +174,12 @@ export async function writePlannedRootfs({ base, source, recipeRevision, created
     materials: source.materials,
     backend: PLANNED_BACKEND,
   };
-  const plan = createTransformPlan(inputs);
-  const receipt = await writeUstarArchive({
+  let plan;
+  try { plan = createTransformPlan(inputs); } catch (error) { throw stageError("plan", error); }
+  const receipt = await stage("write", () => writeUstarArchive({
     entries: plan.entries, sink, signal,
     openContent: createRootfsContentOpener({ base, source, noticeEntries: plan.notices.entries }),
-  });
+  }));
   return { inputs, plan, receipt };
 }
 
@@ -308,8 +348,10 @@ async function executeMaterialization(options) {
       await mkdir(directories[name], { mode: 0o700 });
       directoryIdentities[name] = await privateDirectory(directories[name], uid);
     }
-    sourceReceipt = await options.materializeSource({ parent: directories.source, signal: operationSignal });
-    baseReceipt = await options.materializeBase({ parent: directories.base, signal: operationSignal });
+    sourceReceipt = await stage("source_materialization",
+      () => options.materializeSource({ parent: directories.source, signal: operationSignal }));
+    baseReceipt = await stage("base_materialization",
+      () => options.materializeBase({ parent: directories.base, signal: operationSignal }));
     if (!await exactChildClosure(directories.source, sourceReceipt) || !await exactChildClosure(directories.base, baseReceipt)) {
       throw rootfsError("seaweed_rootfs_materialization_child_invalid");
     }
@@ -324,12 +366,12 @@ async function executeMaterialization(options) {
         throw rootfsError("seaweed_rootfs_materialization_output_invalid");
       }
       outputNodeIdentity = identity(descriptor); outputIdentity = outputNodeIdentity;
-      written = await options.withSource(sourceReceipt, (source) => {
+      written = await stage("write", () => options.withSource(sourceReceipt, (source) => {
         lineage = validatedLineage(sourceReceipt, source, recipeRevision, createdAt);
         return options.withBase(baseReceipt, (base) => options.writeRootfs({
           base, source, recipeRevision, createdAt, sink: fileSink(handle), signal: operationSignal,
         }));
-      });
+      }));
       check();
       if (written?.inputs?.source?.runId !== String(sourceReceipt.runId)
         || written.inputs.source.attempt !== lineage.sourceAttempt
@@ -339,7 +381,7 @@ async function executeMaterialization(options) {
         || written.inputs.source.recipeRevision !== recipeRevision || written.inputs.source.createdAt !== createdAt) {
         throw rootfsError("seaweed_rootfs_materialization_lineage_invalid");
       }
-      await handle.sync();
+      await stage("sync", () => handle.sync());
       const syncedDescriptor = await handle.stat({ bigint: true });
       const syncedPathname = await lstat(partialFile, { bigint: true });
       if (!syncedDescriptor.isFile() || syncedDescriptor.nlink !== 1n || syncedDescriptor.uid !== BigInt(uid)
@@ -349,9 +391,11 @@ async function executeMaterialization(options) {
       outputIdentity = identity(syncedDescriptor);
       outputSynced = true;
     } finally { await handle.close(); }
-    const scannedPartial = await scanVerifiedRootfs(partialFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal);
+    const scannedPartial = await stage("partial_scan",
+      () => scanVerifiedRootfs(partialFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal));
     check();
-    const partialMatch = options.validateFilesystem(scannedPartial.members.map(({ entry }) => entry), written.inputs);
+    const partialMatch = await stage("inventory_validate",
+      () => options.validateFilesystem(scannedPartial.members.map(({ entry }) => entry), written.inputs));
     if (partialMatch?.kind !== "SEAWEED_INVENTORY_PLAN_MATCH_V1" || partialMatch.entries !== written.plan.entries.length
       || scannedPartial.rawSize !== written.receipt.rawSize || scannedPartial.diffId !== written.receipt.diffId
       || scannedPartial.members.length !== written.receipt.memberCount) {
@@ -360,13 +404,16 @@ async function executeMaterialization(options) {
     if ((await readdir(directories.output)).length !== 1 || (await readdir(directories.output))[0] !== PARTIAL_NAME) {
       throw rootfsError("seaweed_rootfs_materialization_collision");
     }
-    await options.beforeRename?.({ parent, partialFile, finalFile });
-    if ((await readdir(directories.output)).length !== 1 || (await readdir(directories.output))[0] !== PARTIAL_NAME
-      || !await exactFile(partialFile, outputIdentity, uid)) throw rootfsError("seaweed_rootfs_materialization_collision");
-    await publishNoReplace(partialFile, finalFile, outputIdentity, uid);
-    outputIdentity = identity(await lstat(finalFile, { bigint: true }));
-    if (!await exactFile(finalFile, outputIdentity, uid)) throw rootfsError("seaweed_rootfs_materialization_output_changed");
-    const scanned = await scanVerifiedRootfs(finalFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal);
+    await stage("publish", async () => {
+      await options.beforeRename?.({ parent, partialFile, finalFile });
+      if ((await readdir(directories.output)).length !== 1 || (await readdir(directories.output))[0] !== PARTIAL_NAME
+        || !await exactFile(partialFile, outputIdentity, uid)) throw rootfsError("seaweed_rootfs_materialization_collision");
+      await publishNoReplace(partialFile, finalFile, outputIdentity, uid);
+      outputIdentity = identity(await lstat(finalFile, { bigint: true }));
+      if (!await exactFile(finalFile, outputIdentity, uid)) throw rootfsError("seaweed_rootfs_materialization_output_changed");
+    });
+    const scanned = await stage("final_scan",
+      () => scanVerifiedRootfs(finalFile, outputIdentity, uid, options.scanRootfs, written.receipt.diffId, operationSignal));
     check();
     if (scanned.rawSize !== scannedPartial.rawSize || scanned.diffId !== scannedPartial.diffId
       || scanned.members.length !== scannedPartial.members.length) {
@@ -385,11 +432,13 @@ async function executeMaterialization(options) {
       throw rootfsError("seaweed_rootfs_materialization_collision");
     }
     check();
-    const baseManifest = written.inputs.baseMaterials.get("base-manifest.json");
-    const receipt = Object.freeze({ kind: "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
-      authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", rawSize: scanned.rawSize,
-      diffId: scanned.diffId, memberCount: scanned.members.length, sourceRunId: written.inputs.source.runId,
-      baseManifestDigest: `sha256:${createHash("sha256").update(baseManifest).digest("hex")}`, ...lineage });
+    const receipt = await stage("receipt", () => {
+      const baseManifest = written.inputs.baseMaterials.get("base-manifest.json");
+      return Object.freeze({ kind: "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
+        authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", rawSize: scanned.rawSize,
+        diffId: scanned.diffId, memberCount: scanned.members.length, sourceRunId: written.inputs.source.runId,
+        baseManifestDigest: `sha256:${createHash("sha256").update(baseManifest).digest("hex")}`, ...lineage });
+    });
     RECEIPT_AUTHORITIES.set(receipt, { parent, uid, parentIdentity, sourceParent: directories.source, baseParent: directories.base,
       outputParent: directories.output, outputFile: finalFile, outputIdentity, directoryIdentities,
       sourceReceipt, baseReceipt, cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase, cleaning: false });
@@ -411,7 +460,7 @@ async function executeMaterialization(options) {
     throw rootfsError("seaweed_rootfs_materialization_aborted", { originalCode: failure?.code });
   }
   if (typeof failure?.code === "string" && failure.code.startsWith("seaweed_")) throw failure;
-  throw rootfsError("seaweed_rootfs_materialization_failed");
+  throw rootfsError("seaweed_rootfs_materialization_unknown_failed");
 }
 
 export async function materializeReviewedSeaweedRootfs(input) { return executeMaterialization(snapshotOptions(input, false)); }
