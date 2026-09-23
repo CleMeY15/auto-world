@@ -13,10 +13,19 @@ concurrency:
 
 jobs:
   verify:
-    if: ${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
+      - name: Require the first reviewed main dispatch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_RUN_NUMBER" = '1'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-raw-zips.yml@refs/heads/main'
+
       - name: Check out reviewed main without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

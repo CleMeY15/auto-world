@@ -16,8 +16,14 @@ test("manual raw ZIP workflow has fixed read-only scope and no ZIP upload", asyn
   assert.match(bytes, /contents: read/u);
   assert.match(bytes, /actions: read/u);
   assert.match(bytes, /persist-credentials: false/u);
-  assert.match(bytes, /github\.ref == 'refs\/heads\/main'/u);
-  assert.match(bytes, /github\.run_number == 1 && github\.run_attempt == 1/u);
+  assert.doesNotMatch(bytes, /^    if:/mu);
+  assert.match(bytes, /    steps:\n      - name: Require the first reviewed main dispatch\n        run: \|/u);
+  assert.match(bytes, /test "\$GITHUB_REPOSITORY" = 'CleMeY15\/auto-world'/u);
+  assert.match(bytes, /test "\$GITHUB_EVENT_NAME" = 'workflow_dispatch'/u);
+  assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '1'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_ATTEMPT" = '1'/u);
+  assert.match(bytes, /test "\$GITHUB_WORKFLOW_REF" = 'CleMeY15\/auto-world\/\.github\/workflows\/seaweed-raw-zips\.yml@refs\/heads\/main'/u);
   assert.match(bytes, /raw-zip-diagnostic\.mjs download/u);
   assert.match(bytes, /raw-zip-diagnostic\.mjs cleanup/u);
 });
@@ -27,7 +33,7 @@ test("diagnostic cleanup removes only fixed owned children", { skip: !linux }, a
   const root = path.join(runnerTemp, "seaweed-raw-source");
   const env = {
     GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-raw-zips.yml@refs/heads/main",
     RUNNER_TEMP: runnerTemp,
   };
@@ -41,6 +47,26 @@ test("diagnostic cleanup removes only fixed owned children", { skip: !linux }, a
     await assert.rejects(TEST_ONLY_runRawZipDiagnostic(["cleanup"], env),
       { code: "seaweed_raw_zip_diagnostic_cleanup_failed" });
     assert.deepEqual(await readdir(root), ["not-ours"]);
+  } finally {
+    await rm(runnerTemp, { recursive: true, force: true });
+  }
+});
+
+test("diagnostic refuses later runs and attempts before creating storage", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "seaweed-diagnostic-context-test-"));
+  const root = path.join(runnerTemp, "seaweed-raw-source");
+  const env = {
+    GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-raw-zips.yml@refs/heads/main",
+    RUNNER_TEMP: runnerTemp,
+  };
+  try {
+    for (const changed of [{ GITHUB_RUN_NUMBER: "2" }, { GITHUB_RUN_ATTEMPT: "2" }]) {
+      await assert.rejects(TEST_ONLY_runRawZipDiagnostic(["download"], { ...env, ...changed }),
+        { code: "seaweed_raw_zip_diagnostic_context_invalid" });
+      await assert.rejects(access(root), { code: "ENOENT" });
+    }
   } finally {
     await rm(runnerTemp, { recursive: true, force: true });
   }

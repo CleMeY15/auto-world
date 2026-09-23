@@ -14,7 +14,8 @@ function diagnosticError(code) {
 function requireContext(env) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
-    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_ATTEMPT !== "1"
+    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "1"
+    || env.GITHUB_RUN_ATTEMPT !== "1"
     || env.GITHUB_WORKFLOW_REF !== "CleMeY15/auto-world/.github/workflows/seaweed-raw-zips.yml@refs/heads/main"
     || !path.isAbsolute(env.RUNNER_TEMP ?? "")) throw diagnosticError("seaweed_raw_zip_diagnostic_context_invalid");
   return path.join(env.RUNNER_TEMP, "seaweed-raw-source");
