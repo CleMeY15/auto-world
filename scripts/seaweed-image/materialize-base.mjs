@@ -232,8 +232,9 @@ async function validateReference(handle, reference, rawSize, signal) {
 }
 
 async function validateWinningReferences(index, rawFiles, signal) {
-  const handles = await Promise.all(rawFiles.map((file) => open(file, constants.O_RDONLY | constants.O_NOFOLLOW)));
+  const handles = [];
   try {
+    for (const file of rawFiles) handles.push(await open(file, constants.O_RDONLY | constants.O_NOFOLLOW));
     const sizes = await Promise.all(handles.map(async (handle) => Number((await handle.stat({ bigint: true })).size)));
     for (const reference of index.members) await validateReference(handles[reference.layerIndex], reference, sizes[reference.layerIndex], signal);
   } finally { await Promise.allSettled(handles.map((handle) => handle.close())); }
@@ -361,24 +362,45 @@ async function execute(options) {
     }
     check();
     const fresh = await fetch({ signal: operationSignal, timeoutMs: registryTimeout() });
+    check();
     if (!sameFetch(remote, fresh)) throw failure("seaweed_base_materialization_manifest_changed");
     cleanupSnapshot = await snapshotTree(staging, uid);
+    check();
     const expectedOwned = new Map([["", Object.freeze({ type: "directory", identity: stagingIdentity })], ...owned]);
     if (cleanupSnapshot.size !== expectedOwned.size) throw failure("seaweed_base_materialization_ownership_invalid");
     for (const [name, record] of expectedOwned) {
       if (!sameRecord(record, cleanupSnapshot.get(name))) throw failure("seaweed_base_materialization_ownership_invalid");
     }
     const parentBeforePromotion = await privateDirectory(parent, uid);
+    check();
     if (!sameNode(parentIdentity, parentBeforePromotion)) throw failure("seaweed_base_materialization_parent_invalid");
     await beforeRename?.({ parent, outputPath });
+    check();
     const parentAfterHook = await privateDirectory(parent, uid);
+    check();
     if (!sameNode(parentIdentity, parentAfterHook)) throw failure("seaweed_base_materialization_parent_invalid");
+    const parentNames = await readdir(parent);
+    check();
+    if (parentNames.length !== 1 || parentNames[0] !== STAGING_NAME) {
+      throw failure("seaweed_base_materialization_promotion_collision");
+    }
+    try {
+      await lstat(outputPath);
+      throw failure("seaweed_base_materialization_promotion_collision");
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    check();
     await rename(staging, outputPath); outputCreated = true;
+    check();
     await afterRename?.({ parent, outputPath });
+    check();
     const promoted = await snapshotTree(outputPath, uid);
+    check();
     if (promoted.size !== cleanupSnapshot.size) throw failure("seaweed_base_materialization_promotion_invalid");
     for (const [name, record] of cleanupSnapshot) if (!sameRecord(record, promoted.get(name))) throw failure("seaweed_base_materialization_promotion_invalid");
     const finalParent = await privateDirectory(parent, uid);
+    check();
     if (!sameNode(parentIdentity, finalParent)) throw failure("seaweed_base_materialization_parent_invalid");
     const completed = Object.freeze({ kind: "SEAWEED_BASE_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
       authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", outputPath,

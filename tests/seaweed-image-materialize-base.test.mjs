@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -88,6 +88,18 @@ test("external abort interrupts an opened local scan stream and cleans owned inp
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
+test("abort before or after promotion yields no receipt and cleans only owned files", { skip: !linux }, async () => {
+  for (const hook of ["beforeRename", "afterRename"]) {
+    const value = scope(); const controller = new globalThis.AbortController();
+    value.options.signal = controller.signal;
+    value.options[hook] = async () => { controller.abort(); };
+    try {
+      await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /materialization_aborted/u);
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
 test("rejects descriptor substitution before any blob write", { skip: !linux }, async () => {
   const value = scope(); let streams = 0;
   value.options.stream = async () => { streams += 1; };
@@ -111,10 +123,67 @@ test("cleans an owned partial blob after the injected stream fails", { skip: !li
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
+test("cleans the owned partial file when fsync cannot complete", { skip: !linux }, async () => {
+  const value = scope();
+  value.options.stream = async ({ descriptor, sink }) => {
+    await sink.write(Buffer.from("partial"), 0, 7, null);
+    await sink.close();
+    return { size: descriptor.size, digest: descriptor.digest, mediaType: descriptor.mediaType,
+      authority: "PINNED_BASE_ONLY", candidateAuthorization: "NOT_AUTHORIZED" };
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /materialization_failed/u);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("cleans the owned partial file when close fails after closing", { skip: !linux }, async () => {
+  const value = scope();
+  value.options.stream = async ({ descriptor, sink }) => {
+    const originalClose = sink.close.bind(sink);
+    sink.close = async () => { await originalClose(); throw new Error("injected close failure"); };
+    return { size: descriptor.size, digest: descriptor.digest, mediaType: descriptor.mediaType,
+      authority: "PINNED_BASE_ONLY", candidateAuthorization: "NOT_AUTHORIZED" };
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /materialization_failed/u);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("rejects malformed gzip and wrong DiffID before promotion", { skip: !linux }, async () => {
+  for (const corrupt of ["gzip", "diffid"]) {
+    const value = scope();
+    if (corrupt === "gzip") {
+      value.options.stream = async ({ descriptor, sink }) => {
+        const bytes = descriptor.digest === manifest.config.digest ? configBytes : Buffer.from("invalid gzip");
+        await sink.write(bytes, 0, bytes.length, null);
+        return { size: descriptor.size, digest: descriptor.digest, mediaType: descriptor.mediaType,
+          authority: "PINNED_BASE_ONLY", candidateAuthorization: "NOT_AUTHORIZED" };
+      };
+    } else {
+      const scan = value.options.scan;
+      value.options.scan = async (input) => {
+        const index = await scan(input);
+        index.layers[0].diffId = `sha256:${"0".repeat(64)}`;
+        return index;
+      };
+    }
+    try {
+      await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options));
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
 test("preserves a substituted partial blob and refuses cleanup authority", { skip: !linux }, async () => {
   const value = scope();
   value.options.stream = async ({ sink }) => {
-    const target = sink.path; await sink.close(); writeFileSync(target, "foreign"); throw new Error("synthetic_transport_failure");
+    const target = path.join(value.parent, ".seaweed-base-materialization-staging", "base-config.json");
+    await sink.write(Buffer.from("partial"), 0, 7, null);
+    unlinkSync(target);
+    writeFileSync(target, "foreign", { mode: 0o600 });
+    throw new Error("synthetic_transport_failure");
   };
   try {
     await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /cleanup_failed/u);
@@ -147,6 +216,22 @@ test("preserves a substituted post-rename tree and reports cleanup failure", { s
     await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /cleanup_failed/u);
     assert.equal(readFileSync(path.join(value.parent, "replacement"), "utf8"), "foreign");
     assert.equal(readdirSync(path.join(value.parent, "owned-moved", "blobs")).length, 10);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("refuses to replace an unknown empty destination directory", { skip: !linux }, async () => {
+  const value = scope(); let unknownIdentity;
+  const destination = path.join(value.parent, "seaweed-base-materialized");
+  value.options.beforeRename = async () => {
+    mkdirSync(destination, { mode: 0o700 });
+    const stat = statSync(destination);
+    unknownIdentity = { dev: stat.dev, ino: stat.ino };
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializePinnedSeaweedBase(value.options), /cleanup_failed/u);
+    const stat = statSync(destination);
+    assert.deepEqual({ dev: stat.dev, ino: stat.ino }, unknownIdentity);
+    assert.deepEqual(readdirSync(destination), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
