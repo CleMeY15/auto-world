@@ -38,6 +38,8 @@ Keep the reviewed upstream runtime configuration: `/entrypoint.sh`, default comm
 
 No build mechanism is declared proven by this ADR. The implementation must select and review the exact managed Docker/BuildKit/import path, show that it satisfies the filesystem/config contract, and test the actual exported image. A successful import or `COPY` command alone does not prove metadata fidelity or removal of historical layer content.
 
+The first [executable transformation-plan increment](../validation/TASK-0005A-SEAWEED-IMAGE-PLAN.md) prepares the specific Linux/amd64 Moby28.0.4 classic-import configuration. Its closed policy records `User` absent to present-empty, the Windows-only `ArgsEscaped:true` to absent, the exact neutral serialized fields and a new derivative label set; all six other runtime fields remain exact. Original labels stay in linked upstream provenance. These explicit structural changes preserve the selected Linux runtime semantics; they are not generic absent/empty/false equivalences. The planner constructs no archive or image and authenticates no source run. Actual source acceptance, reviewed construction and native filesystem/config/runtime proofs remain required.
+
 ## Supported runtime and acceptance
 
 The admitted TASK-0005 entrypoint remains the fixed server profile:

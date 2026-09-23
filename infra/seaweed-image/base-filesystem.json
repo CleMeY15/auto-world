@@ -1,0 +1,5515 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "path": "bin",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "bin/arch",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ash",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/base64",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/bbconfig",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/busybox",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 804616,
+      "sha256": "01a989eb4d1d04b0d146c790ac536abd88f374ec74a2e110c58910b840d42045"
+    },
+    {
+      "path": "bin/cat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/chattr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/chgrp",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/chmod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/chown",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/cp",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/date",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/dd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/df",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/dmesg",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/dnsdomainname",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/dumpkmap",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/echo",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/egrep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/false",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/fatattr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/fdflush",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/fgrep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/fsync",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/fusermount",
+      "type": "file",
+      "mode": 2541,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1764188250,
+      "size": 30616,
+      "sha256": "d8b558d2fb89c54d4649517f70a91ed7bcf083daa9356c293f4f0b5b5ec84158"
+    },
+    {
+      "path": "bin/getopt",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/grep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/gunzip",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/gzip",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/hostname",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ionice",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/iostat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ipcalc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/kbd_mode",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/kill",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/link",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/linux32",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/linux64",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ln",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/login",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ls",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/lsattr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/lzop",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/makemime",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mkdir",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mknod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mktemp",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/more",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mount",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mountpoint",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mpstat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/mv",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/netstat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/nice",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/pidof",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ping",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ping6",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/pipe_progress",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/printenv",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ps",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/pwd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/reformime",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/rev",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/rm",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/rmdir",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/run-parts",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/sed",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/setpriv",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/setserial",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/sh",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/sleep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/stat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/stty",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/su",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/sync",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/tar",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/touch",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/true",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/ulockmgr_server",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1764188250,
+      "size": 14224,
+      "sha256": "af86878433216fe7e59c125be61672f168430b82005aa63c7153f9f69e755f00"
+    },
+    {
+      "path": "bin/umount",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/uname",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/usleep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/watch",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "bin/zcat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "data",
+      "type": "directory",
+      "mode": 493,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "data/filerldb2",
+      "type": "directory",
+      "mode": 493,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "dev",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "entrypoint.sh",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789352982,
+      "size": 3878,
+      "sha256": "426b7be2ef4bbab486ee4964678f5d69cb0ffe92bbfce09af0935886254b9729"
+    },
+    {
+      "path": "etc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "etc/alpine-release",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781363875,
+      "size": 7,
+      "sha256": "cfac38d5eec78734069960faaff27c5ec0623b53cc773ee8a5d0663d37fb18d1"
+    },
+    {
+      "path": "etc/apk",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "etc/apk/arch",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 7,
+      "sha256": "aaf631698ae5160ceb04a97681a14887fdcab47cd6e0f163c87485b3b1340b62"
+    },
+    {
+      "path": "etc/apk/keys",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/apk/keys/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "9c102bcc376af1498d549b77bdbfa815ae86faa1d2d82f040e616b18ef2df2d4"
+    },
+    {
+      "path": "etc/apk/keys/alpine-devel@lists.alpinelinux.org-5261cecb.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "12f899e55a7691225603d6fb3324940fc51cd7f133e7ead788663c2b7eecb00c"
+    },
+    {
+      "path": "etc/apk/keys/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f"
+    },
+    {
+      "path": "etc/apk/protected_paths.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/apk/repositories",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 103,
+      "sha256": "7b8b3e6fe030eeb4ee7619b42c9419aa846bff1c632442d3f00ed9fb97c6fa36"
+    },
+    {
+      "path": "etc/apk/world",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 118,
+      "sha256": "325f0bdac0b0e125df8b6b18be7ad491edc034da08c07e2ac28a88bf4c4d5b00"
+    },
+    {
+      "path": "etc/busybox-paths.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/busybox-paths.d/busybox",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 3986,
+      "sha256": "ad43f2888aa6679930812faef33672c45e98021d3be0d0ed08d257c1d957a968"
+    },
+    {
+      "path": "etc/crontabs",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/crontabs/root",
+      "type": "file",
+      "mode": 384,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 283,
+      "sha256": "575d810a9fae5f2f0671c9b2c0ce973e46c7207fbe5cb8d1b0d1836a6a0470e3"
+    },
+    {
+      "path": "etc/fstab",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 89,
+      "sha256": "a3efca2e8d62785c87517283092b4c800d88612b6f3f06b80a4c2f39d8e68841"
+    },
+    {
+      "path": "etc/fuse.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788991255,
+      "size": 216,
+      "sha256": "ee435388e8cde6f0bcc7824c08602bd329a1bfa9ab6cf1fe8dcc98c5c1de046e"
+    },
+    {
+      "path": "etc/group",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 533,
+      "sha256": "47ca76821841ca4d61217fd9028d12635d81ca213de37d6f75cad7c079e014c9"
+    },
+    {
+      "path": "etc/group-",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 526,
+      "sha256": "ae1a1fd75f289510029b9b00707ea687dff0e9e32160b075b48ec12dab369ae3"
+    },
+    {
+      "path": "etc/hostname",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 10,
+      "sha256": "d906aecb61d076a967d9ffe8821c7b04b063f72df9d9e35b33ef36b1c0d98f16"
+    },
+    {
+      "path": "etc/hosts",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 79,
+      "sha256": "e3998dbe02b51dada33de87ae43d18a93ab6915b9e34f5a751bf2b9b25a55492"
+    },
+    {
+      "path": "etc/inittab",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 570,
+      "sha256": "7326d8ad56bf5fea63b1ca516a747ff6e6723e25ae84a93c31620b03de6c001d"
+    },
+    {
+      "path": "etc/issue",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781363875,
+      "size": 51,
+      "sha256": "25265ab0fa56a55cae6c8c0f488c3bbc37f7b44d9d9c74ec5e4039b0473ae780"
+    },
+    {
+      "path": "etc/logrotate.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/logrotate.d/acpid",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 140,
+      "sha256": "d608a3b7715886b5735def0cc50a6359fd364fac2e0e0a459c588c04be471031"
+    },
+    {
+      "path": "etc/modprobe.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/modprobe.d/aliases.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 1545,
+      "sha256": "3ebaba946f213670170c7d69949f690a3854553bd0b1560f1d980cba4c83a942"
+    },
+    {
+      "path": "etc/modprobe.d/blacklist.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 2247,
+      "sha256": "0e9ab848289bfb20b9b066d05c8b1383a7c92b97ff8072a50806054b5d3fd739"
+    },
+    {
+      "path": "etc/modprobe.d/i386.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 122,
+      "sha256": "6c46c4cbfb8b7594f19eb94801a350fa2221ae9ac5239a8819d15555caa76ae8"
+    },
+    {
+      "path": "etc/modules",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 15,
+      "sha256": "2c881de75a5409c35d2433a24f180b8b02ba478ef2c1c60ea3434a35bcbc335d"
+    },
+    {
+      "path": "etc/modules-load.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/motd",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 284,
+      "sha256": "ff044e9be5daa2eee2d3d10a4da72e5477e4c24c16f1792de2c91dae844c0e30"
+    },
+    {
+      "path": "etc/mtab",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../proc/mounts"
+    },
+    {
+      "path": "etc/network",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-down.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-post-down.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-post-up.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-pre-down.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-pre-up.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-up.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/network/if-up.d/dad",
+      "type": "file",
+      "mode": 509,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 285,
+      "sha256": "2fd20d1bc67d9ee711990002b24f156635a73f56b8935b2f76592938817fa4e7"
+    },
+    {
+      "path": "etc/nsswitch.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 205,
+      "sha256": "0afd94c183d30a348b45057f6bf468e121aa448a7641109addb5bb8e282f514d"
+    },
+    {
+      "path": "etc/opt",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/os-release",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../usr/lib/os-release"
+    },
+    {
+      "path": "etc/passwd",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 745,
+      "sha256": "de79f8305c5a6982af7a0c4b085b92e0675892f802ddb040ec001c8cd326465d"
+    },
+    {
+      "path": "etc/passwd-",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 702,
+      "sha256": "31a94f06f17bc3b9085fccab1d0fa6ee9e79c4a1e4d91f617fa5de95863be015"
+    },
+    {
+      "path": "etc/periodic",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/periodic/15min",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/periodic/daily",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/periodic/hourly",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/periodic/monthly",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/periodic/weekly",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/profile",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 547,
+      "sha256": "87e8643d3ce156de0c09370d4d39446f30bd00d264bea248abc191c4d7b9df3e"
+    },
+    {
+      "path": "etc/profile.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/profile.d/20locale.sh",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 97,
+      "sha256": "284a6ef56ab97a13a777c6b01ae14f2cc3d2b7a29c19e750e622e70cc3c73186"
+    },
+    {
+      "path": "etc/profile.d/README",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 249,
+      "sha256": "b73284f27fe2da9ae1902b1fe9596c3ffc61a154e2805a034184f0468f8b09b0"
+    },
+    {
+      "path": "etc/profile.d/color_prompt.sh.disabled",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 447,
+      "sha256": "ba24425c6864a5d17fa0fdaf914c4d21419e47c4d62080c33830af059fe46617"
+    },
+    {
+      "path": "etc/protocols",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 3144,
+      "sha256": "4959498abbadaa1e50894a266f8d0d94500101cfe5b5f09dcad82e9d5bdfab46"
+    },
+    {
+      "path": "etc/seaweedfs",
+      "type": "directory",
+      "mode": 493,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1789353154,
+      "size": 0
+    },
+    {
+      "path": "etc/seaweedfs/filer.toml",
+      "type": "file",
+      "mode": 420,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1789352982,
+      "size": 50,
+      "sha256": "0e2d61bce0f91e5fc5c7fa17c8289ae80b8c15ae923ed92f3b6b00f4f413693b"
+    },
+    {
+      "path": "etc/secfixes.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/secfixes.d/alpine",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781363875,
+      "size": 97,
+      "sha256": "17bcc1cce42f37436748119426c5e8cc92ddb17aa0b6db43da97bfb7dd156c17"
+    },
+    {
+      "path": "etc/securetty",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 156,
+      "sha256": "713fcea5109728883b9147e822429133fcc8b5e253afd3c2a197b10cd0bc3b4d"
+    },
+    {
+      "path": "etc/services",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 12813,
+      "sha256": "f6183055fd949f9c53d49ee620f85d0150123ea691d25ed1bba0c641b4ee2f48"
+    },
+    {
+      "path": "etc/shadow",
+      "type": "file",
+      "mode": 416,
+      "uid": 0,
+      "gid": 42,
+      "mtime": 1789353156,
+      "size": 289,
+      "sha256": "1a1b3d52e85888d21f5ebff61b4c333d44892ff675525a325025d58d178806c9"
+    },
+    {
+      "path": "etc/shadow-",
+      "type": "file",
+      "mode": 416,
+      "uid": 0,
+      "gid": 42,
+      "mtime": 1781368736,
+      "size": 260,
+      "sha256": "d5992a27f05f380fc5faeb82a3359e2f230fd1d6ea6517b45892b771a2194ddb"
+    },
+    {
+      "path": "etc/shells",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 38,
+      "sha256": "24be6ceb236610df45684c83b06c918ae45635be55f69975e43676b7595bbc5f"
+    },
+    {
+      "path": "etc/ssl",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353155,
+      "size": 0
+    },
+    {
+      "path": "etc/ssl/cert.pem",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "certs/ca-certificates.crt"
+    },
+    {
+      "path": "etc/ssl/certs",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/ssl/certs/ca-certificates.crt",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781362042,
+      "size": 179359,
+      "sha256": "b8d837841b88bfaa1a0fa827cbca8e2576418dd47c9fc4bb7f1f9d89c83111b9"
+    },
+    {
+      "path": "etc/ssl/ct_log_list.cnf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 412,
+      "sha256": "f1c1803d13d1d0b755b13b23c28bd4e20e07baf9f2b744c9337ba5866aa0ec3b"
+    },
+    {
+      "path": "etc/ssl/ct_log_list.cnf.dist",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 412,
+      "sha256": "f1c1803d13d1d0b755b13b23c28bd4e20e07baf9f2b744c9337ba5866aa0ec3b"
+    },
+    {
+      "path": "etc/ssl/openssl.cnf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 12411,
+      "sha256": "a65a2cb9f4ee8ffdc7ef4f0ac600c0bdafb95b7b1ab457188ac610a62f5ad6b3"
+    },
+    {
+      "path": "etc/ssl/openssl.cnf.dist",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 12411,
+      "sha256": "a65a2cb9f4ee8ffdc7ef4f0ac600c0bdafb95b7b1ab457188ac610a62f5ad6b3"
+    },
+    {
+      "path": "etc/ssl/private",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/ssl1.1",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/ssl1.1/cert.pem",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/etc/ssl/cert.pem"
+    },
+    {
+      "path": "etc/ssl1.1/certs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/etc/ssl/certs"
+    },
+    {
+      "path": "etc/sysctl.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 53,
+      "sha256": "8bba47da45bc8715c69ac904a60410eabffaa7bbbef640f9c1368ab9c48493d0"
+    },
+    {
+      "path": "etc/sysctl.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/udhcpc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "etc/udhcpc/udhcpc.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 287,
+      "sha256": "5b372209e01cda07c87b8afa6d1ab3d7e8daf18a1f2332d744203a6dc289eb1a"
+    },
+    {
+      "path": "home",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "home/seaweed",
+      "type": "directory",
+      "mode": 1517,
+      "uid": 1000,
+      "gid": 1000,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "lib",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "lib/apk",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "lib/apk/db",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "lib/apk/db/installed",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 22177,
+      "sha256": "b1d907e58b67c4591e6bb573c122ba915748264471136fea50a7fe8644802924"
+    },
+    {
+      "path": "lib/apk/db/lock",
+      "type": "file",
+      "mode": 384,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353154,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "lib/apk/db/scripts.tar.gz",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 1916,
+      "sha256": "37fe54c0faa2648e113fae8a23193c4b4b01185a32bfd739b9a57d3dcc03cf71"
+    },
+    {
+      "path": "lib/apk/db/triggers",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 95,
+      "sha256": "dfcd919d44120ed6fc53e1d42163245fb801365990d62e55a80d343bdcd30598"
+    },
+    {
+      "path": "lib/apk/exec",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "lib/firmware",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "lib/ld-musl-x86_64.so.1",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 670312,
+      "sha256": "38d022ce7425ff105ccfb53598f606e6e5f5f0a34bfbc793d65e6f34c9d72806"
+    },
+    {
+      "path": "lib/libc.musl-x86_64.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "ld-musl-x86_64.so.1"
+    },
+    {
+      "path": "lib/modules-load.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "lib/sysctl.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "media",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "media/cdrom",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "media/floppy",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "media/usb",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "mnt",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "opt",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "proc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "root",
+      "type": "directory",
+      "mode": 448,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "run",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "run/lock",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "sbin",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "sbin/acpid",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/adjtimex",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/apk",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788243861,
+      "size": 115096,
+      "sha256": "80ac076736f35434f0df4a041578ec8f760eb545a71424fd6b6e1403a8a65312"
+    },
+    {
+      "path": "sbin/arp",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/blkdiscard",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/blkid",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/blockdev",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/depmod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/fbsplash",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/fdisk",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/findfs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/fsck",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/fstrim",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/getty",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/halt",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/hwclock",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ifconfig",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ifdown",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ifenslave",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ifup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/init",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/inotifyd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/insmod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ip",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ipaddr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/iplink",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ipneigh",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/iproute",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/iprule",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/iptunnel",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/klogd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/ldconfig",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 393,
+      "sha256": "7065021e04a5060957b5c6907af671a7028230d91927fb0c25892cadd9312b7c"
+    },
+    {
+      "path": "sbin/loadkmap",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/logread",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/losetup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/lsmod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/mdev",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/mkdosfs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/mkfs.vfat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/mkswap",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/modinfo",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/modprobe",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/mount.fuse",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1764188250,
+      "size": 14312,
+      "sha256": "a135f6a40d7d5c878c5f14899112093be370d0ce1edf7ad6f7bfadeb13763eee"
+    },
+    {
+      "path": "sbin/nameif",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/nologin",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/pivot_root",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/poweroff",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/raidautorun",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/reboot",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/rmmod",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/route",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/setconsole",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/slattach",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/su-exec",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1759911187,
+      "size": 14152,
+      "sha256": "725e4e701f4b05fae05e2121a088ac3efe18768ffde9d542f3a310f5853eb574"
+    },
+    {
+      "path": "sbin/swapoff",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/swapon",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/switch_root",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/sysctl",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/syslogd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/tunctl",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/udhcpc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/vconfig",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/watchdog",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "sbin/zcip",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "srv",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "sys",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "tmp",
+      "type": "directory",
+      "mode": 1023,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/bin",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "usr/bin/[",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/[[",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/awk",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/basename",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/bc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/beep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/bunzip2",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/bzcat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/bzip2",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/cal",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/chvt",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/cksum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/clear",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/cmp",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/comm",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/cpio",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/crontab",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/cryptpw",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/curl",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788359140,
+      "size": 272432,
+      "sha256": "4a483788e79ca33ee08b430d9eca9d931edd366f7157b3134c7d5c07247cf373"
+    },
+    {
+      "path": "usr/bin/cut",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/dc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/deallocvt",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/diff",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/dirname",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/dos2unix",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/du",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/eject",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/env",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/expand",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/expr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/factor",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/fallocate",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/find",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/flock",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/fold",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/free",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/fuser",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/getconf",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 22344,
+      "sha256": "791a3ce37940d766b4242a006a2978210decc40e035bb385c643553fc278ead0"
+    },
+    {
+      "path": "usr/bin/getent",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 18480,
+      "sha256": "f225def553bce0cb435ff78686b9272c2f4dd0e34ebe3d79855e775a66d9c6ef"
+    },
+    {
+      "path": "usr/bin/groups",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/hd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/head",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/hexdump",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/hostid",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/iconv",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 14152,
+      "sha256": "7a7306c6836018449ed373f110b25dd2eb7cc263e5fe9259f9964a280630c567"
+    },
+    {
+      "path": "usr/bin/id",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/install",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/ipcrm",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/ipcs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/killall",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/last",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/ldd",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1775900007,
+      "size": 52,
+      "sha256": "9a49c2541a439be89f1ef1496604ef3b607f460d589877c60775acf74cdb5dfb"
+    },
+    {
+      "path": "usr/bin/less",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/logger",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/lsof",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/lsusb",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/lzcat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/lzma",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/lzopcat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/md5sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/mesg",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/microcom",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/mkfifo",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/mkpasswd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nl",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nmeter",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nohup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nproc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nsenter",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/nslookup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/od",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/openvt",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/passwd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/paste",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pgrep",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pkill",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pmap",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/printf",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pscan",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pstree",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/pwdx",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/readlink",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/realpath",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/renice",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/reset",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/resize",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/scanelf",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774640350,
+      "size": 67504,
+      "sha256": "beebb8f7be5cdcf5a2d12a5eb78736ff65b361396da4a47fd4d2b7d76ca40251"
+    },
+    {
+      "path": "usr/bin/seq",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/setkeycodes",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/setsid",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sha1sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sha256sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sha3sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sha512sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/showkey",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/shred",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/shuf",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sort",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/split",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/ssl_client",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 14384,
+      "sha256": "8b23a9dbfea3da8c6da65b93c0fc6d979a82245c17c40d8fbf94d531263b98b4"
+    },
+    {
+      "path": "usr/bin/strings",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/sum",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tac",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tail",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tee",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/test",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/time",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/timeout",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/top",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tr",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/traceroute",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/traceroute6",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tree",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/truncate",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/tty",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/ttysize",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/udhcpc6",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unexpand",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/uniq",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unix2dos",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unlink",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unlzma",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unlzop",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unshare",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unxz",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/unzip",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/uptime",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/uudecode",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/uuencode",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/vi",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/vlock",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/volname",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/wc",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/wcurl",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788359140,
+      "size": 12591,
+      "sha256": "739a03b12f98c8ba864b8775440a5b4e337248e4986e51528da5806387894f65"
+    },
+    {
+      "path": "usr/bin/weed",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353149,
+      "size": 220182163,
+      "sha256": "dc7f0bd80235fa27dcaa19bfe13e37f4b7fc27c9f26e0153fc58f2bc7489f41d"
+    },
+    {
+      "path": "usr/bin/weed-volume",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353152,
+      "size": 38964128,
+      "sha256": "b2f00d79b4052e75c2b0dbe256283438c04a2fea6f3e12459b0d6d646bc90ad5"
+    },
+    {
+      "path": "usr/bin/weed-worker",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353152,
+      "size": 252634984,
+      "sha256": "163eef53fc85a2074e2cd5eb980b902b30a2e766b2f3c189ac60180cce46931e"
+    },
+    {
+      "path": "usr/bin/wget",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/which",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/who",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/whoami",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/whois",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/xargs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/xxd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/xzcat",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/bin/yes",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/lib",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0
+    },
+    {
+      "path": "usr/lib/engines-3",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353155,
+      "size": 0
+    },
+    {
+      "path": "usr/lib/engines-3/afalg.so",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 18504,
+      "sha256": "17de0abc5261ec1e9acc7b225fa473ea2d0edf40a4e8d0375263821216e21c09"
+    },
+    {
+      "path": "usr/lib/engines-3/capi.so",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 13864,
+      "sha256": "55bfe45061c21f37191ad9cf469454fc69361ceb53e451ee63669743692ad87d"
+    },
+    {
+      "path": "usr/lib/engines-3/loader_attic.so",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 47608,
+      "sha256": "70f7e3498fc1f7c184af7b0b2dc1cd85c8cf0dc589a2801bf5051b2e184f202f"
+    },
+    {
+      "path": "usr/lib/engines-3/padlock.so",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 22360,
+      "sha256": "3eb14c138249cd7a4475319a42ea9da7807019ad5061e769507f5b1fc6d23c7f"
+    },
+    {
+      "path": "usr/lib/libapk.so.3.0.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788243861,
+      "size": 277184,
+      "sha256": "12a612195b5c7918ff48fa2aa84753025be7167f57d055353a81d338d3f1ae13"
+    },
+    {
+      "path": "usr/lib/libbrotlicommon.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libbrotlicommon.so.1.2.0"
+    },
+    {
+      "path": "usr/lib/libbrotlicommon.so.1.2.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774640349,
+      "size": 140992,
+      "sha256": "570b996f56d64d9136900203e3d919d2386280365d3ec3c86906ff38ffed78e8"
+    },
+    {
+      "path": "usr/lib/libbrotlidec.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libbrotlidec.so.1.2.0"
+    },
+    {
+      "path": "usr/lib/libbrotlidec.so.1.2.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774640349,
+      "size": 54896,
+      "sha256": "8e07ce2b56a473d4246faa077555f5978814793555ce0146821ff52cc972aa63"
+    },
+    {
+      "path": "usr/lib/libbrotlienc.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libbrotlienc.so.1.2.0"
+    },
+    {
+      "path": "usr/lib/libbrotlienc.so.1.2.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774640349,
+      "size": 784600,
+      "sha256": "42296570d9bf2039fc2b2f26bab2cabe084cb312763caff82761383fbb788c51"
+    },
+    {
+      "path": "usr/lib/libcares.so.2",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libcares.so.2.19.7"
+    },
+    {
+      "path": "usr/lib/libcares.so.2.19.7",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1783541406,
+      "size": 243416,
+      "sha256": "337d0085b6d3fd3daafb373d3bbd7a30a448bcc7a76097152f921b5d93f4fa60"
+    },
+    {
+      "path": "usr/lib/libcrypto.so.3",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 4989712,
+      "sha256": "b737ff6c1e585ba6be514d17c84e2d8347921558c13db2fdb5513578797d8413"
+    },
+    {
+      "path": "usr/lib/libcurl.so.4",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libcurl.so.4.8.0"
+    },
+    {
+      "path": "usr/lib/libcurl.so.4.8.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1788359140,
+      "size": 742240,
+      "sha256": "29c9570570aeaf905126329ec8f593c6215529095260b3a9b95edcbbf4c2f8b0"
+    },
+    {
+      "path": "usr/lib/libfuse.so.2",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libfuse.so.2.9.9"
+    },
+    {
+      "path": "usr/lib/libfuse.so.2.9.9",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1764188250,
+      "size": 223192,
+      "sha256": "2e997a979e936d3afe56425aef1228581cbbb77b8880dd64780324894aa6c7f5"
+    },
+    {
+      "path": "usr/lib/libgcc_s.so.1",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1780084766,
+      "size": 173920,
+      "sha256": "5ea51dd885b6fc691eccc569d0bda739204204f6161e97075b26dc9c050d1ca1"
+    },
+    {
+      "path": "usr/lib/libidn2.so.0",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libidn2.so.0.4.0"
+    },
+    {
+      "path": "usr/lib/libidn2.so.0.4.0",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1751290607,
+      "size": 198632,
+      "sha256": "9e6121c48274280c4258f1b3da895c5e63266639cd7ff611e9a562311e210263"
+    },
+    {
+      "path": "usr/lib/libnghttp2.so.14",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libnghttp2.so.14.29.4"
+    },
+    {
+      "path": "usr/lib/libnghttp2.so.14.29.4",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1776795981,
+      "size": 132896,
+      "sha256": "a15d2eff59bca9c287e78a39529a116cda5bb40e8edef52aefa3e3c8ae1a3298"
+    },
+    {
+      "path": "usr/lib/libpsl.so.5",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libpsl.so.5.3.5"
+    },
+    {
+      "path": "usr/lib/libpsl.so.5.3.5",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1746823694,
+      "size": 75536,
+      "sha256": "7072595d6c575fd8576208944b1428d97c88998ba21b9f649c9b7aace3559d5d"
+    },
+    {
+      "path": "usr/lib/libssl.so.3",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 839544,
+      "sha256": "3bb7fa63a3d6fb71884976bcda01c2fb2cf4145774cfa480ee8a509103c7093a"
+    },
+    {
+      "path": "usr/lib/libulockmgr.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libulockmgr.so.1.0.1"
+    },
+    {
+      "path": "usr/lib/libulockmgr.so.1.0.1",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1764188250,
+      "size": 14008,
+      "sha256": "8a1ec8ab14bdb89659e59bcf7d2b4b80ff38fee89bbbf5f038098990346dbbd6"
+    },
+    {
+      "path": "usr/lib/libunistring.so.5",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libunistring.so.5.2.1"
+    },
+    {
+      "path": "usr/lib/libunistring.so.5.2.1",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1776358990,
+      "size": 1922880,
+      "sha256": "62fe5110253cb5ba3a1673e33097b0bca9903b5e016ed50aca4977bd9b905009"
+    },
+    {
+      "path": "usr/lib/libz.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "libz.so.1.3.2"
+    },
+    {
+      "path": "usr/lib/libz.so.1.3.2",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1772704820,
+      "size": 108376,
+      "sha256": "a1e2c03dcdedba98a06a00cadfb67a0e0b1cd93986860ec0c5ce66e789c44e57"
+    },
+    {
+      "path": "usr/lib/libzstd.so.1",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 0,
+      "linkname": "libzstd.so.1.5.7"
+    },
+    {
+      "path": "usr/lib/libzstd.so.1.5.7",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1753704404,
+      "size": 714432,
+      "sha256": "a0a285da817a61e65d9e89bbfd38243cf8a4798cc429adc2772b5931f1d4fbb6"
+    },
+    {
+      "path": "usr/lib/modules-load.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/lib/os-release",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781363875,
+      "size": 188,
+      "sha256": "3365ce31cddce87a228f1e7f17595960f836727ab68868663eb8cc06249004c9"
+    },
+    {
+      "path": "usr/lib/ossl-modules",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353155,
+      "size": 0
+    },
+    {
+      "path": "usr/lib/ossl-modules/legacy.so",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1787691537,
+      "size": 100184,
+      "sha256": "1b8433122be97246d47587207cb07848399cb3af20a7ccb5d03bec6467f57167"
+    },
+    {
+      "path": "usr/lib/sysctl.d",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/lib/sysctl.d/00-alpine.conf",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1774381254,
+      "size": 1278,
+      "sha256": "ee169bea2cb6859420b55ca7a9c23fb68b50adc1d26c951f904dec9e8f767380"
+    },
+    {
+      "path": "usr/local",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/local/bin",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/local/lib",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/local/share",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/sbin",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/sbin/add-shell",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/addgroup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/adduser",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/arping",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/brctl",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/chpasswd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/chroot",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/crond",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/delgroup",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/deluser",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/ether-wake",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/fbset",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/killall5",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/loadfont",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/nanddump",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/nandwrite",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/nbd-client",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/ntpd",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/partprobe",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/rdate",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/rdev",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/readahead",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/remove-shell",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/rfkill",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/sendmail",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/setfont",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/sbin/setlogcons",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "/bin/busybox"
+    },
+    {
+      "path": "usr/share",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/aarch64",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/aarch64/alpine-devel@lists.alpinelinux.org-58199dcc.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-58199dcc.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/aarch64/alpine-devel@lists.alpinelinux.org-616ae350.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616ae350.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "9c102bcc376af1498d549b77bdbfa815ae86faa1d2d82f040e616b18ef2df2d4"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-5243ef4b.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "ebf31683b56410ecc4c00acd9f6e2839e237a3b62b5ae7ef686705c7ba0396a9"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-524d27bb.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "1bb2a846c0ea4ca9d0e7862f970863857fc33c32f5506098c636a62a726a847b"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-5261cecb.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "12f899e55a7691225603d6fb3324940fc51cd7f133e7ead788663c2b7eecb00c"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-58199dcc.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "73867d92083f2f8ab899a26ccda7ef63dfaa0032a938620eda605558958a8041"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-58cbb476.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "9a4cd858d9710963848e6d5f555325dc199d1c952b01cf6e64da2c15deedbd97"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-58e4f17d.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "780b3ed41786772cbc7b68136546fa3f897f28a23b30c72dde6225319c44cfff"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-5e69ca50.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "59c01c57b446633249f67c04b115dd6787f4378f183dff2bbf65406df93f176d"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-60ac2099.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 451,
+      "sha256": "db0b49163f07ffba64a5ca198bcf1688610b0bd1f0d8d5afeaf78559d73f2278"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-61666e3f.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "128d34d4aec39b0daedea8163cd8dc24dff36fd3d848630ab97eeb1d3084bbb3"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616a9724.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "10877cce0a935e46ad88cb79e174a2491680508eccda08e92bf04fb9bf37fbc1"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616abc23.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "4a095a9daca86da496a3cd9adcd95ee2197fdbeb84638656d469f05a4d740751"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616ac3bc.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "0caf5662fde45616d88cfd7021b7bda269a2fcaf311e51c48945a967a609ec0b"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616adfeb.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "ebe717d228555aa58133c202314a451f81e71f174781fd7ff8d8970d6cfa60da"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616ae350.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "d11f6b21c61b4274e182eb888883a8ba8acdbf820dcc7a6d82a7d9fc2fd2836d"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-616db30d.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "40a216cbd163f22e5f16a9e0929de7cde221b9cbae8e36aa368b1e128afe0a31"
+    },
+    {
+      "path": "usr/share/apk/keys/alpine-devel@lists.alpinelinux.org-66ba20fe.rsa.pub",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1758215632,
+      "size": 800,
+      "sha256": "7cf4cb8314e6ccc985b0d7f1aa0c6e0a81e3588f69a41f383af7a63d1ba61793"
+    },
+    {
+      "path": "usr/share/apk/keys/armhf",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/armhf/alpine-devel@lists.alpinelinux.org-524d27bb.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-524d27bb.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/armhf/alpine-devel@lists.alpinelinux.org-616a9724.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616a9724.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/armv7",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/armv7/alpine-devel@lists.alpinelinux.org-524d27bb.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-524d27bb.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/armv7/alpine-devel@lists.alpinelinux.org-616adfeb.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616adfeb.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/loongarch64",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/loongarch64/alpine-devel@lists.alpinelinux.org-66ba20fe.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-66ba20fe.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/mips64",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/mips64/alpine-devel@lists.alpinelinux.org-5e69ca50.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-5e69ca50.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/ppc64le",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/ppc64le/alpine-devel@lists.alpinelinux.org-58cbb476.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-58cbb476.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/ppc64le/alpine-devel@lists.alpinelinux.org-616abc23.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616abc23.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/riscv64",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/riscv64/alpine-devel@lists.alpinelinux.org-60ac2099.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-60ac2099.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/riscv64/alpine-devel@lists.alpinelinux.org-616db30d.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616db30d.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/s390x",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/s390x/alpine-devel@lists.alpinelinux.org-58e4f17d.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-58e4f17d.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/s390x/alpine-devel@lists.alpinelinux.org-616ac3bc.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-616ac3bc.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/x86/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86/alpine-devel@lists.alpinelinux.org-5243ef4b.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-5243ef4b.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86/alpine-devel@lists.alpinelinux.org-61666e3f.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-61666e3f.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86_64",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/apk/keys/x86_64/alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86_64/alpine-devel@lists.alpinelinux.org-5261cecb.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-5261cecb.rsa.pub"
+    },
+    {
+      "path": "usr/share/apk/keys/x86_64/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub"
+    },
+    {
+      "path": "usr/share/misc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/udhcpc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "usr/share/udhcpc/default.script",
+      "type": "file",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1768059508,
+      "size": 4010,
+      "sha256": "c7b39bba4d7f1ce05dbdeba7d2fd97b96a8c3c0c1ebc0259f641fb8e1c3827d2"
+    },
+    {
+      "path": "var",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/cache",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/cache/apk",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/cache/misc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/empty",
+      "type": "directory",
+      "mode": 365,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/lib",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/lib/misc",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/local",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/lock",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../run/lock"
+    },
+    {
+      "path": "var/log",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353154,
+      "size": 0
+    },
+    {
+      "path": "var/log/apk.log",
+      "type": "file",
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1789353156,
+      "size": 1244,
+      "sha256": "d97852b34121a2864d2cf5797dca2b93efdb57f4336c799780229b8b48335a46"
+    },
+    {
+      "path": "var/mail",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/opt",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/run",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../run"
+    },
+    {
+      "path": "var/spool",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/spool/cron",
+      "type": "directory",
+      "mode": 493,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    },
+    {
+      "path": "var/spool/cron/crontabs",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../../../etc/crontabs"
+    },
+    {
+      "path": "var/spool/mail",
+      "type": "symlink",
+      "mode": 511,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0,
+      "linkname": "../mail"
+    },
+    {
+      "path": "var/tmp",
+      "type": "directory",
+      "mode": 1023,
+      "uid": 0,
+      "gid": 0,
+      "mtime": 1781368736,
+      "size": 0
+    }
+  ]
+}
