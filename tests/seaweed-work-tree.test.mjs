@@ -54,7 +54,7 @@ test("removeOwnedTree rejects foreign names and a linked work root", () => {
 test("removeOwnedWorkEntry accepts only fixed nonsymlink lifecycle entries", () => {
   const { parent, work } = fixture();
   writeFileSync(path.join(work, "go.tar.gz"), "compiler"); chmodSync(path.join(work, "go.tar.gz"), 0o400);
-  const directories = ["restored-source", "bin", "baseline-bin", "baseline-gocache", "tmp"];
+  const directories = ["restored-source", "bin", "baseline-bin", "baseline-gocache", "gocache", "tmp"];
   for (const name of directories) { const directory = path.join(work, name); mkdirSync(directory); writeFileSync(path.join(directory, "file"), name); }
   try {
     for (const name of ["go.tar.gz", ...directories]) { removeOwnedWorkEntry(work, name, parent); assert.equal(existsSync(path.join(work, name)), false); }

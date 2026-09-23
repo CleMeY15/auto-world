@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
+  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, cleanupSuiteCache, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
   isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment,
   moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateFinalModuleClosure,
   validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
@@ -13,6 +13,53 @@ import {
 
 const root = path.resolve(import.meta.dirname, "..");
 const lock = JSON.parse(readFileSync(path.join(root, "infra/seaweed/seaweed-lock.json"), "utf8"));
+
+test("suite cache cleanup removes only regenerable owned data after proven process exit", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic"); mkdirSync(workRoot);
+  for (const name of ["gocache", "tmp", "source", "gomodcache", "bin"]) mkdirSync(path.join(workRoot, name));
+  writeFileSync(path.join(workRoot, "gocache/cache"), "cache"); writeFileSync(path.join(workRoot, "tmp/test-data"), "temporary");
+  for (const name of ["source", "gomodcache", "bin"]) writeFileSync(path.join(workRoot, name, "sentinel"), name);
+  try {
+    const evidence = cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024, root: runnerTemp });
+    assert.deepEqual(evidence, { boundary: "normal_tests", entries: { gocache: { beforeBytes: 5, afterBytes: 0 }, tmp: { beforeBytes: 9, afterBytes: 0 } }, beforeBytes: 14, afterBytes: 0, freedBytes: 14 });
+    assert.deepEqual(readdirSync(path.join(workRoot, "gocache")), []); assert.deepEqual(readdirSync(path.join(workRoot, "tmp")), []);
+    if (process.platform !== "win32") for (const name of ["gocache", "tmp"]) assert.equal(lstatSync(path.join(workRoot, name)).mode & 0o777, 0o700);
+    for (const name of ["source", "gomodcache", "bin"]) assert.equal(readFileSync(path.join(workRoot, name, "sentinel"), "utf8"), name);
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("suite cache cleanup rejects unproven process exit and linked cache roots", () => {
+  for (const state of [{ lastGroupAbsent: false, workCleanupSafe: true }, { lastGroupAbsent: true, workCleanupSafe: false }]) {
+    const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-guard-")); const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+    mkdirSync(workRoot); mkdirSync(path.join(workRoot, "gocache")); mkdirSync(path.join(workRoot, "tmp")); writeFileSync(path.join(workRoot, "gocache/sentinel"), "cache");
+    try {
+      assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "corrected_ec", ...state, cap: 1024, root: runnerTemp }), /seaweed_process_group_cleanup_failed/u);
+      assert.equal(readFileSync(path.join(workRoot, "gocache/sentinel"), "utf8"), "cache");
+    } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+  }
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-link-")); const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const external = path.join(runnerTemp, "external"); mkdirSync(workRoot); mkdirSync(external); mkdirSync(path.join(workRoot, "tmp")); writeFileSync(path.join(external, "sentinel"), "outside");
+  symlinkSync(external, path.join(workRoot, "gocache"), process.platform === "win32" ? "junction" : "dir");
+  try {
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "full_tag_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024, root: runnerTemp }), /seaweed_cleanup_path_invalid/u);
+    assert.equal(readFileSync(path.join(external, "sentinel"), "utf8"), "outside");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("suite cache cleanup checks the sum of individually bounded directories before removal", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-budget-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  mkdirSync(workRoot);
+  for (const name of ["gocache", "tmp"]) {
+    mkdirSync(path.join(workRoot, name));
+    writeFileSync(path.join(workRoot, name, "sentinel"), "123456");
+  }
+  try {
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 10, root: runnerTemp }), /seaweed_artifact_budget_exceeded/u);
+    for (const name of ["gocache", "tmp"]) assert.equal(readFileSync(path.join(workRoot, name, "sentinel"), "utf8"), "123456");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
 
 test("Seaweed lock binds the exact reviewed source, compiler, patch, manifest, and production variant", () => {
   assert.equal(validateSeaweedLock(lock), lock);
