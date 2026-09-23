@@ -24,7 +24,9 @@ Budgets: fixture64KiB, saved archive4MiB, JSON config256KiB,128 archive members,
 
 ## Verification and limits
 
-Sequential plan review: Architect APPROVE/CLEAR, then distinct Critic APPROVE/CLEAR. Targeted adversarial tests cover malformed archives and metadata substitutions, context/permission boundaries, foreign-object preservation, sanitized command failures and cleanup after verification failure. Full root gates, fresh-clone checks, independent implementation review and final-head/main CI remain required before this increment is accepted.
+Sequential plan review: Architect APPROVE/CLEAR, then distinct Critic APPROVE/CLEAR. Targeted adversarial tests cover malformed archives and metadata substitutions, context/permission boundaries, foreign-object preservation, sanitized command failures and cleanup after verification failure.
+
+Implementation `79f2961cc45f771b75c368aeda67622cf26c2e24` passed forced pinned local and separate HTTPS-clone root checks:176 root passes plus2 expected Windows-only skips, all package gates, Secretlint240 and dependency audit. [Linux CI35867051389](https://github.com/CleMeY15/auto-world/actions/runs/35867051389) passed178 root tests without skips. Independent whole-change Architect review then required closing the `rootfs` object's keys; the new regression failed before the guard and passes afterward. All20 focused archive/runner/workflow tests pass on the correction. [PR35](https://github.com/CleMeY15/auto-world/pull/35) records the final distinct implementation reviews, fresh validation and final-head/main CI; these must pass before merge. The actual Docker diagnostic remains pending and is not inferred from mocked command tests.
 
 A native PASS proves only the observed synthetic filesystem/config behavior of the recorded Docker versions. It does not prove reproducible image timestamps/digests, BuildKit `ADD`, full Seaweed notices/base-layer transformation, actual service behavior, scanner freshness, private storage, signing or admission. The fixture's absent-versus-empty user observation does not broaden ADR-0008's future concrete recipe policy.
 

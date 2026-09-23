@@ -58,15 +58,17 @@ function fixtureLayer(mutator) {
 
 function savedImage({
   rawLayer = buildFixtureTar(), gzip = false, user = "absent", diffID, configChange, layerMediaType,
-  extraEntries = [], manifestLayers, classic = false, storedLayerOverride,
+  extraEntries = [], manifestLayers, classic = false, storedLayerOverride, rootfsChange,
 } = {}) {
   const storedLayer = storedLayerOverride ?? (gzip ? gzipSync(rawLayer, { level: 6, mtime: 0 }) : rawLayer);
   const layerDigest = sha256(storedLayer);
   const runtime = fixtureConfig(OWNER); if (user === "empty") runtime.User = ""; if (user === "nonempty") runtime.User = "1000";
   configChange?.(runtime);
   const actualDiffID = diffID ?? `sha256:${sha256(rawLayer)}`;
+  const rootfs = { type: "layers", diff_ids: [actualDiffID] };
+  rootfsChange?.(rootfs);
   const config = json({ architecture: "amd64", os: "linux", created: CREATED, config: runtime,
-    rootfs: { type: "layers", diff_ids: [actualDiffID] }, history: [{ created_by: "synthetic import" }] });
+    rootfs, history: [{ created_by: "synthetic import" }] });
   const configDigest = sha256(config);
   const mediaType = layerMediaType ?? (gzip ? "application/vnd.oci.image.layer.v1.tar+gzip" : "application/vnd.oci.image.layer.v1.tar");
   const ociManifest = json({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
@@ -173,6 +175,11 @@ test("rejects config, diffID, layer-count, metadata and content drift", () => {
   assert.throws(() => validate(metadata), /image_import_fixture_inventory_invalid/u);
   const content = savedImage({ rawLayer: fixtureLayer((entries) => { entries[7].content = Buffer.from("changed synthetic bytes\n"); }) });
   assert.throws(() => validate(content), /image_import_fixture_inventory_invalid/u);
+});
+
+test("rejects unknown rootfs semantics even when config and manifest hashes match", () => {
+  const item = savedImage({ rootfsChange: (rootfs) => { rootfs.unexpected = "must reject"; } });
+  assert.throws(() => validate(item), /image_import_save_config_invalid/u);
 });
 
 test("rejects unreferenced blobs, unknown outer members, bad image identity, and malformed gzip", () => {

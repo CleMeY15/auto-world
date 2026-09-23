@@ -271,7 +271,8 @@ export function validateSavedImage(buffer, { imageId, tag, owner } = {}) {
   if (sha256(configEntry.content) !== configPath.slice("blobs/sha256/".length)) throw new Error("image_import_save_config_invalid");
   const config = parseJson(configEntry, "image_import_save_config_invalid");
   if (!validImageConfig(config) || config.os !== "linux" || config.architecture !== "amd64" || !plainObject(config.rootfs)
-    || config.rootfs.type !== "layers" || !Array.isArray(config.rootfs.diff_ids) || config.rootfs.diff_ids.length !== 1 || !plainObject(config.config)) {
+    || !exactJson(Object.keys(config.rootfs).sort(), ["diff_ids", "type"]) || config.rootfs.type !== "layers"
+    || !Array.isArray(config.rootfs.diff_ids) || config.rootfs.diff_ids.length !== 1 || !plainObject(config.config)) {
     throw new Error("image_import_save_config_invalid");
   }
   const rawUserRepresentation = validateRuntimeConfig(config.config, owner);
