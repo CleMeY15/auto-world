@@ -1,12 +1,12 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
-Status: IN_PROGRESS — scanner diagnostics and fixed-object private read VERIFIED; SeaweedFS source correction in progress; external fork access test SKIPPED_BY_USER; image admission pending remaining gates
+Status: IN_PROGRESS — scanner diagnostics, fixed-object private read and SeaweedFS source build VERIFIED; external fork access test SKIPPED_BY_USER; image admission pending remaining gates
 Priority: P0, supporting TASK-0005
 Owner role: Platform/SRE executor; independent code/security and architecture reviewers
 
 ## Goal
 
-Current continuation: PR40's independently reviewed comparison/receipt repair is merged at `6dbc6964e121e54dc5409f5e646f9ae25c01788f`; final-head/main CI pass 235 Linux root tests and all gates. New complete attempt-1 [source run35884717093](https://github.com/CleMeY15/auto-world/actions/runs/35884717093) remains pending. The [synthetic streaming USTAR writer](../../docs/validation/TASK-0005A-SEAWEED-ARCHIVE-WRITER.md) prepares deterministic archive serialization with content and cleanup checks. It authenticates no source run and constructs no actual candidate.
+Current continuation: PR40's independently reviewed comparison/receipt repair is merged at `6dbc6964e121e54dc5409f5e646f9ae25c01788f`; final-head/main CI pass 235 Linux root tests and all gates. New complete attempt-1 [source run35884717093](https://github.com/CleMeY15/auto-world/actions/runs/35884717093) **PASSED** both builds, artifact gates and native comparison. Both raw ZIPs were independently verified against GitHub size/digest metadata, strictly checked and locally replayed through all 4,817 material comparisons. [Source evidence](../../docs/validation/TASK-0005A-SEAWEED-SOURCE.md) records the boundaries. [PR41](https://github.com/CleMeY15/auto-world/pull/41) merged the reviewed streaming USTAR writer at `efb52d8b12968d1277c92b57ecd01ced052a817b`, with final-head/main CI passing 253 Linux root tests and all gates. The [bounded artifact ZIP reader](../../docs/validation/TASK-0005A-SEAWEED-ARTIFACT-INTAKE.md) and concrete image recipe remain in progress; no candidate has been constructed.
 
 Latest source result: run35875100636 passes both complete builds and artifact gates but fails the final comparison on different managed Ubuntu runner-image revisions. The [focused repair](../../docs/validation/TASK-0005A-SEAWEED-SOURCE.md) preserves both observations while retaining all other provenance and byte comparisons, and compacts the complete receipt under the unchanged cap. Local replay cannot replace the required new complete native run. PR39's read-only public base reader is integrated with passing independent reviews and final-head/main CI (232 Linux root tests); no candidate has been constructed.
 
