@@ -4,6 +4,16 @@ Status: SOURCE_DIAGNOSTIC_REPAIR. This focused increment evaluates a correction 
 
 ## Inputs and derivative identity
 
+## Native progress on 23 September and resource follow-up
+
+After independently reviewed PR28 was integrated at `8a51b0ded2073a975b07688b966fdcea0d97480d`, [native run35847569210](https://github.com/CleMeY15/auto-world/actions/runs/35847569210), attempt 1, passed both pristine/corrected EC pairs in both jobs. The corrected binaries match at 220989980 bytes, SHA-256 `5f19f5b576ec943e1d73e35817e61b086954a54999e361a99fed093fdecb9e42`. Job2 also passed the complete normal test suite and required-test summary. The run still failed; this is progress, not source acceptance.
+
+Job1 stopped during normal tests on `seaweed_measure_du_work_exit_1_attempt_2`. Its last complete sample was 10851797907 work bytes plus 1296743398 retained bytes, below 12 GiB. The measurement stderr was discarded, so its exact cause cannot be recovered. Temporary-file churn is an inference from the concurrent storage tests and the other job's passing suite, not established causality. Job2 stopped during full-tag tests at 11687412685 work bytes plus 1316068766 retained bytes: 118579563 bytes above the unchanged combined 12 GiB cap. Both cleanups and artifact gates passed; comparison was skipped.
+
+The next focused resource repair will reclaim only regenerable Go build cache and already-observed temporary test files between completed suites, after proven process-group absence. Preserve source, module cache, production executable and retained materials/logs; record reclaimed sizes and retain completed test summaries promptly. Measurement failures must remain failures unless a bounded retry produces a valid measurement; no partial `du` result can be accepted. Capture a bounded diagnostic for future measurement failures. Final implementation review, negative tests, full pinned checks and main CI are required before another native attempt-1 run. Do not raise time/disk/log limits, omit tests or alter locked source/dependencies. Rollback is a reviewed revert with historical receipts retained.
+
+## Inputs and derivative identity
+
 Use SeaweedFS 4.47 source commit `c5073360007d28385a33426a42ac3e4ec504c5a3`, tree `bce9e3f66721208f35888124183f80bd76d64f90`. The [official advisory](https://github.com/advisories/GHSA-2v4p-qf9q-27wj) identifies the affected gRPC development line. The current candidate follows [SeaweedFS's upstream security update](https://github.com/seaweedfs/seaweedfs/commit/4fd67001d9204bcc12d00f4496d9bfc2fa88afb2) to `v1.85.0-dev.0.20260915183914-4e49413dcab7`, which includes the minimum `93e31b` security correction and later compatibility fixes. It remains an exact development-line pseudo-version, not a released gRPC tag. The previous candidate and its failed native outcomes remain recorded below.
 
 The generated patch changes only `go.mod` and `go.sum`: 14,347 bytes, SHA-256 `3930d2fef5a73891e694784f2c7cb25085b48c47fccc1be34c563cd69e72069e`. Preparation with official Go 1.26.8 passed `go mod tidy -diff` and `go mod verify`; patch/material tests independently apply it to exact original Git bytes. This preparation did not build or test the application. The before/after inventories each contain 1,160 modules with these nine version changes:
