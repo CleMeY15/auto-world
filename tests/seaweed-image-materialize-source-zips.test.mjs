@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
-  chmodSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, close, linkSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync,
+  symlinkSync, writeFileSync,
 } from "node:fs";
 import { finished } from "node:stream/promises";
 import os from "node:os";
@@ -77,7 +78,7 @@ function fixture({ mutateGate = false, mutateComparison = false, unknown = false
     return { entryCount: 1, rawSize: bytes.length };
   };
   return { parent, options: { parent, platform: "linux", uid: process.getuid(), expectedArtifacts: artifacts,
-    download, scanOne, readOrigin: async () => origin(artifacts), validate, compare } };
+    download, scanOne, readOrigin: async () => origin(artifacts), requireOrigin: () => {}, validate, compare } };
 }
 
 test("production API rejects injected authority", async () => {
@@ -191,8 +192,52 @@ test("sink fsync failure closes the leaf and cleans the fully tracked staging tr
   const scope = fixture();
   scope.options.syncFile = (_fd, callback) => callback(new Error("synthetic_fsync_failure"));
   try {
-    await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), /zip_invalid/u);
+    await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), (error) => {
+      assert.equal(error.code, "seaweed_source_materialization_sink_failed");
+      assert.equal(error.originalCode, "seaweed_source_materialization_sink_sync_failed");
+      return true;
+    });
     assert.deepEqual(readdirSync(scope.parent), []);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+test("sink close failure is surfaced only after the descriptor closes and owned staging is cleaned", { skip: !linux }, async () => {
+  const scope = fixture();
+  scope.options.closeFile = (fd, callback) => close(fd, (error) => callback(error ?? new Error("synthetic_close_failure")));
+  try {
+    await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), (error) => {
+      assert.equal(error.code, "seaweed_source_materialization_sink_failed");
+      assert.equal(error.originalCode, "seaweed_source_materialization_sink_close_failed");
+      return true;
+    });
+    assert.deepEqual(readdirSync(scope.parent), []);
+  } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+});
+
+for (const [boundary, rejectCall] of [["before rename", 2], ["before receipt", 3]]) {
+  test(`revalidates private source-origin brand ${boundary}`, { skip: !linux }, async () => {
+    const scope = fixture(); let calls = 0;
+    scope.options.requireOrigin = () => {
+      calls += 1;
+      if (calls === rejectCall) throw Object.assign(new Error("seaweed_source_origin_not_authenticated"),
+        { code: "seaweed_source_origin_not_authenticated" });
+    };
+    try {
+      await assert.rejects(TEST_ONLY_materializeSeaweedSource(scope.options), /validation_failed/u);
+      assert.equal(calls, rejectCall);
+      assert.deepEqual(readdirSync(scope.parent), []);
+    } finally { rmSync(scope.parent, { recursive: true, force: true }); }
+  });
+}
+
+test("cleanup rejects a new hardlink without removing either name", { skip: !linux }, async () => {
+  const scope = fixture();
+  try {
+    const result = await TEST_ONLY_materializeSeaweedSource(scope.options);
+    const leaf = path.join(result.outputPath, "seaweed-build-1/weed"); const hardlink = path.join(scope.parent, "external-hardlink");
+    linkSync(leaf, hardlink);
+    await assert.rejects(cleanupMaterializedSeaweedSource(result), /cleanup_failed/u);
+    assert.equal(readFileSync(leaf, "utf8"), "weed"); assert.equal(readFileSync(hardlink, "utf8"), "weed");
   } finally { rmSync(scope.parent, { recursive: true, force: true }); }
 });
 

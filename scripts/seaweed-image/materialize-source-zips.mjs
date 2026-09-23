@@ -41,8 +41,12 @@ function normalizeFailure(error, timedOut, signal) {
   if (timedOut) return materializationError("seaweed_source_materialization_timeout");
   if (signal?.aborted === true) return materializationError("seaweed_source_materialization_aborted");
   if (error?.code?.startsWith("seaweed_source_materialization_")) return error;
-  if (error?.code?.startsWith("seaweed_raw_zip_")) return materializationError("seaweed_source_materialization_download_failed");
-  if (error?.code?.startsWith("seaweed_artifact_zip_")) return materializationError("seaweed_source_materialization_zip_invalid");
+  if (error?.code?.startsWith("seaweed_raw_zip_")) {
+    return materializationError("seaweed_source_materialization_download_failed", { downloadCode: error.code });
+  }
+  if (error?.code?.startsWith("seaweed_artifact_zip_")) {
+    return materializationError("seaweed_source_materialization_zip_invalid", { scanCode: error.code });
+  }
   if (error?.message?.startsWith("seaweed_")) return materializationError("seaweed_source_materialization_validation_failed");
   return materializationError("seaweed_source_materialization_failed");
 }
@@ -54,7 +58,7 @@ function snapshotOptions(input, testOnly) {
   const fields = Object.getOwnPropertyDescriptors(input);
   const permitted = new Set(["parent", "signal", "timeoutMs", ...(testOnly ? [
     "download", "scanOne", "readOrigin", "expectedArtifacts", "validate", "compare", "platform", "uid", "now",
-    "syncFile", "beforeRename", "afterRename",
+    "syncFile", "closeFile", "requireOrigin", "beforeRename", "afterRename",
   ] : [])]);
   if (Reflect.ownKeys(fields).some((key) => !permitted.has(key) || !("value" in fields[key]))) {
     throw materializationError("seaweed_source_materialization_options_invalid");
@@ -75,13 +79,16 @@ function snapshotOptions(input, testOnly) {
     uid: value("uid") ?? (typeof process.getuid === "function" ? process.getuid() : undefined),
     now: value("now") ?? Date.now,
     syncFile: value("syncFile") ?? fsync,
+    closeFile: value("closeFile") ?? close,
+    requireOrigin: value("requireOrigin") ?? requireAuthenticatedSeaweedSource,
     beforeRename: value("beforeRename"), afterRename: value("afterRename"),
   };
   if (typeof parent !== "string" || !path.isAbsolute(parent) || path.normalize(parent) !== parent
     || signal !== undefined && !(signal instanceof globalThis.AbortSignal)
     || !Number.isSafeInteger(timeoutMs) || timeoutMs <= FINAL_ORIGIN_RESERVE_MS || timeoutMs > MAX_TIMEOUT_MS
     || settings.platform !== "linux" || !Number.isSafeInteger(settings.uid) || settings.uid < 0
-    || ![settings.download, settings.scanOne, settings.readOrigin, settings.validate, settings.compare, settings.now, settings.syncFile].every((item) => typeof item === "function")
+    || ![settings.download, settings.scanOne, settings.readOrigin, settings.validate, settings.compare, settings.now,
+      settings.syncFile, settings.closeFile, settings.requireOrigin].every((item) => typeof item === "function")
     || settings.beforeRename !== undefined && typeof settings.beforeRename !== "function"
     || settings.afterRename !== undefined && typeof settings.afterRename !== "function"
     || !Array.isArray(settings.expectedArtifacts) || settings.expectedArtifacts.length !== ZIP_NAMES.length) {
@@ -115,16 +122,26 @@ async function requirePrivateDirectory(directory, uid, expectedMode = 0o700) {
   return identity(stat);
 }
 
-function exactArtifacts(observed, expected, downloaded) {
-  if (!Array.isArray(observed) || observed.length !== ZIP_NAMES.length
-    || !Array.isArray(downloaded) || downloaded.length !== ZIP_NAMES.length) {
+function exactArtifacts(observed, expected) {
+  if (!Array.isArray(observed) || observed.length !== ZIP_NAMES.length) {
     throw materializationError("seaweed_source_materialization_origin_changed");
   }
   for (let index = 0; index < ZIP_NAMES.length; index += 1) {
-    const current = observed[index]; const fixed = expected[index]; const file = downloaded[index];
+    const current = observed[index]; const fixed = expected[index];
     if (current?.id !== fixed?.id || current?.name !== fixed?.name || current?.size !== fixed?.size
-      || current?.digest !== fixed?.digest || current?.profile !== fixed?.profile
-      || file?.id !== fixed?.id || file?.githubName !== fixed?.name || file?.name !== ZIP_NAMES[index]
+      || current?.digest !== fixed?.digest || current?.profile !== fixed?.profile) {
+      throw materializationError("seaweed_source_materialization_origin_changed");
+    }
+  }
+}
+
+function exactDownloadedFiles(expected, downloaded) {
+  if (!Array.isArray(downloaded) || downloaded.length !== ZIP_NAMES.length) {
+    throw materializationError("seaweed_source_materialization_origin_changed");
+  }
+  for (let index = 0; index < ZIP_NAMES.length; index += 1) {
+    const fixed = expected[index]; const file = downloaded[index];
+    if (file?.id !== fixed?.id || file?.githubName !== fixed?.name || file?.name !== ZIP_NAMES[index]
       || file?.size !== fixed?.size || file?.digest !== fixed?.digest || file?.profile !== fixed?.profile) {
       throw materializationError("seaweed_source_materialization_origin_changed");
     }
@@ -163,7 +180,11 @@ function writeAll(fd, chunk, offset, callback) {
   });
 }
 
-function extractionSink(root, uid, owned, staging, syncFile) {
+function sinkFailure(originalCode) {
+  return materializationError("seaweed_source_materialization_sink_failed", { originalCode });
+}
+
+function extractionSink(root, uid, owned, staging, syncFile, closeFile) {
   return (entry) => {
     const target = path.join(root, ...entry.path.split("/"));
     ensureOutputParent(root, entry.path, uid, owned, staging);
@@ -176,9 +197,10 @@ function extractionSink(root, uid, owned, staging, syncFile) {
       closeWaiters.push(callback);
       if (closing) return;
       closing = true;
-      const finishClose = (error) => close(fd, (closeError) => {
+      const finishClose = (error) => closeFile(fd, (closeError) => {
         closed = true;
-        const finalError = error ?? closeError;
+        const finalError = error ?? (closeError === null || closeError === undefined
+          ? undefined : sinkFailure("seaweed_source_materialization_sink_close_failed"));
         for (const waiter of closeWaiters.splice(0)) waiter(finalError);
       });
       fstat(fd, { bigint: true }, (statError, stat) => {
@@ -195,7 +217,11 @@ function extractionSink(root, uid, owned, staging, syncFile) {
     };
     return new Writable({
       write(chunk, _encoding, callback) { writeAll(fd, chunk, 0, callback); },
-      final(callback) { syncFile(fd, (error) => error ? recordAndClose(() => callback(error)) : recordAndClose(callback)); },
+      final(callback) {
+        syncFile(fd, (error) => error
+          ? recordAndClose(() => callback(sinkFailure("seaweed_source_materialization_sink_sync_failed")))
+          : recordAndClose(callback));
+      },
       destroy(error, callback) {
         if (closed) return callback(error);
         recordAndClose((closeError) => callback(error ?? closeError));
@@ -278,7 +304,7 @@ async function removeVerifiedTree(root, parent, uid, expectedSnapshot) {
 
 async function run(settings) {
   const { parent, signal, timeoutMs, download, scanOne, readOrigin, expectedArtifacts,
-    validate, compare, uid, now, testOnly, syncFile, beforeRename, afterRename } = settings;
+    validate, compare, uid, now, syncFile, closeFile, requireOrigin, beforeRename, afterRename } = settings;
   const startedAt = now(); const deadline = startedAt + timeoutMs;
   let timedOut = false;
   const timeoutController = new globalThis.AbortController();
@@ -303,7 +329,7 @@ async function run(settings) {
     await mkdir(raw, { mode: 0o700 });
     owned.set(RAW_NAME, Object.freeze({ type: "directory", identity: identity(await lstat(raw, { bigint: true })) }));
     intake = await download({ root: raw, signal: operationSignal, timeoutMs: remaining() - FINAL_ORIGIN_RESERVE_MS });
-    exactArtifacts(expectedArtifacts, expectedArtifacts, intake?.files);
+    exactDownloadedFiles(expectedArtifacts, intake?.files);
     for (let index = 0; index < ZIP_NAMES.length; index += 1) {
       const stat = await lstat(path.join(raw, ZIP_NAMES[index]), { bigint: true });
       const reported = intake.files[index].identity;
@@ -324,7 +350,7 @@ async function run(settings) {
         owned.set(OUTPUT_NAMES[index], Object.freeze({ type: "directory", identity: identity(await lstat(output, { bigint: true })) }));
       }
       await scanOne({ file: file.path, root: raw, descriptor: file, profile: file.profile,
-        openEntrySink: extractionSink(index < 2 ? output : staging, uid, owned, staging, syncFile), signal: operationSignal });
+        openEntrySink: extractionSink(index < 2 ? output : staging, uid, owned, staging, syncFile, closeFile), signal: operationSignal });
     }
 
     const first = path.join(staging, OUTPUT_NAMES[0]); const second = path.join(staging, OUTPUT_NAMES[1]);
@@ -353,9 +379,10 @@ async function run(settings) {
     }
 
     const finalOrigin = await readOrigin({ signal: operationSignal, timeoutMs: Math.min(FINAL_ORIGIN_RESERVE_MS, remaining()) });
-    if (!testOnly) requireAuthenticatedSeaweedSource(finalOrigin);
+    requireOrigin(finalOrigin);
     exactOrigin(finalOrigin, intake);
-    exactArtifacts(finalOrigin.artifacts, expectedArtifacts, intake.files);
+    exactArtifacts(finalOrigin.artifacts, expectedArtifacts);
+    exactDownloadedFiles(expectedArtifacts, intake.files);
     checkBudget(false);
     if (!sameNode(parentBefore, identity(await lstat(parent, { bigint: true }))) || await realpath(parent) !== parent) {
       throw materializationError("seaweed_source_materialization_parent_changed");
@@ -375,6 +402,7 @@ async function run(settings) {
       if (error.code !== "ENOENT") throw error;
     }
     checkBudget(false);
+    requireOrigin(finalOrigin);
     await rename(staging, outputPath);
     stagingCreated = false; outputCreated = true;
     if (afterRename !== undefined) await afterRename({ parent, outputPath });
@@ -383,6 +411,7 @@ async function run(settings) {
       throw materializationError("seaweed_source_materialization_output_changed");
     }
     checkBudget(false);
+    requireOrigin(finalOrigin);
     result = Object.freeze({ kind: "SEAWEED_SOURCE_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
       authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", outputPath,
       repository: finalOrigin.repository, workflowId: finalOrigin.workflowId, sourceSha: finalOrigin.sourceSha,
