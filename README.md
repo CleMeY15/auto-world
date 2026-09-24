@@ -70,7 +70,7 @@ The local/CI data foundation is being implemented in TASK-0005. Its [operations 
 
 Pull requests and pushes to `main` run the frozen install and each quality gate as a separate GitHub Actions step. The CI runtime is read from `.nvmrc`; the pnpm action version must stay aligned with `packageManager` in `package.json`.
 
-TASK-0005 adds separate mandatory real-container integration and immutable-image audit jobs. Only sanitized health records and upstream image vulnerability reports are uploaded; local credentials, database archives and raw payloads are excluded.
+TASK-0005 runs real-container integration in a dedicated diagnostic workflow when its infrastructure changes. Exact-image security evidence is tracked separately by the scanner workflow and remains required for final acceptance. The integration workflow uploads only sanitized health records; local credentials, database archives and raw payloads are excluded.
 
 ## First Codex instruction
 `Read AGENTS.md and ROADMAP.md. Then inspect roadmap/epics/EPIC-000-foundation.md and execute only the first READY task, respecting dependencies and Definition of Done.`

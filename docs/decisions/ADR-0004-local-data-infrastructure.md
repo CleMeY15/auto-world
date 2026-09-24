@@ -2,9 +2,11 @@
 
 Status: Accepted for TASK-0005 implementation after sequential independent Architect and Critic plan approval, 2026-09-06. Runtime acceptance remains pending.
 
+2026-09-24 amendment: ADR-0007 and TASK-0005A supersede this ADR's original `infra:audit` implementation. The corrected scanner and its unchanged image eligibility policy are the sole admission path. The four-service integration remains diagnostic until it runs against admitted exact image digests.
+
 ## Decision and boundaries
 
-Use one digest-pinned Docker Compose specification for local development and Linux CI. Supply PostgreSQL canonical foundations, OpenSearch derived index, Redis disposable cache and SeaweedFS S3-compatible raw storage. Use the official AWS CLI for signed S3 calls and Trivy for immutable-image vulnerability reports. No new external npm library is introduced.
+Use one digest-pinned Docker Compose specification for local development and Linux CI. Supply PostgreSQL canonical foundations, OpenSearch derived index, Redis disposable cache and SeaweedFS S3-compatible raw storage. Use the official AWS CLI for signed S3 calls. Image vulnerability reports now come from the corrected scanner defined by ADR-0007. No new external npm library is introduced.
 
 This implements [TASK-0005](../../roadmap/tasks/TASK-0005-local-data-infra.md), not a production topology or the [ConnectorStorePort](ADR-0003-connector-sdk-contract.md). It does not execute connectors, authorize sources, implement authenticated registry/leases/fences/checkpoints/inventory, run retention/takedown workers, deploy a dashboard or expose UI. PostgreSQL and S3 do not magically form one atomic transaction. A future SDK store must explicitly solve staging, orphan reconciliation, receipts and old-writer quiescence before real activation.
 
@@ -24,7 +26,7 @@ SeaweedFS is chosen for its maintained Apache-2.0 single-node path. Garage is a 
 
 ## Pinned artifacts and supported runtime
 
-The following tags and immutable manifest digests were re-resolved directly from Docker Registry on 2026-09-06. `infra/images.json` will also record the resolved Linux/amd64 image manifest. Compose is restricted initially to Linux/amd64; other platforms require their own validated pins and restore evidence.
+The following tags and immutable manifest digests were re-resolved directly from Docker Registry on 2026-09-06. The Trivy row records the historical initial audit only; it is no longer part of `infra/images.json` or the integration runtime. The other five pins remain in that file. Compose is restricted initially to Linux/amd64; other platforms require their own validated pins and restore evidence.
 
 | Artifact | Version | Manifest digest | Linux/amd64 image digest |
 | --- | --- | --- | --- |
@@ -118,7 +120,7 @@ CI integration job30min, integration orchestration20min overall including pulls.
 
 Docker running/healthy state is not sufficient: verify usable SQL/schema transaction, authenticated Redis, OpenSearch index read/write and signed S3 digest retrieval. Structured health contains fixed service/phase/status/code/duration metadata, never credential-bearing URLs, raw source values, SQL row contents or exceptions. Diagnostic artifacts are allowlisted/sanitized; capture evidence before bounded scoped cleanup.
 
-Trivy scans each exact service/tool digest remotely or via verified read-only docker-save archive, never a mounted Docker socket. Retain complete HIGH/CRITICAL JSON including unfixed findings and scanner/database timestamp. Block all CRITICAL and fixable HIGH. Every unfixed HIGH requires dated package-specific independent disposition; any suppression has scope/reason/expiry. No blanket ignore, sole ignore-unfixed report, hidden continue-on-error, unaudited replacement or lowered gate just to obtain green. A scan is not a complete security guarantee.
+The corrected scanner specified by ADR-0007 scans each exact service/tool digest under its reviewed isolation profile. Retain complete HIGH/CRITICAL JSON including unfixed findings and scanner/database timestamp. Block all CRITICAL and fixable HIGH. Every unfixed HIGH requires dated package-specific independent disposition; any suppression has scope/reason/expiry. No blanket ignore, sole ignore-unfixed report, hidden continue-on-error, unaudited replacement or lowered gate just to obtain green. A scan is not a complete security guarantee.
 
 ## Verification and delivery
 

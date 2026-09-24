@@ -55,17 +55,6 @@
         "variant": null,
         "digest": "sha256:5b3fa9da281ab658171716b2c01beff540614f6697ac6d6ebd8e369aca75fb9c"
       }
-    },
-    "trivy": {
-      "repository": "aquasec/trivy",
-      "version": "0.74.0",
-      "manifestDigest": "sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
-      "platform": {
-        "os": "linux",
-        "architecture": "amd64",
-        "variant": null,
-        "digest": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9"
-      }
     }
   }
 }

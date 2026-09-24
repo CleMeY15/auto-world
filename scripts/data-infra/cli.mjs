@@ -23,6 +23,16 @@ export function parseCommand(args) {
   return { command, project: options["--project"], services: options["--service"] === undefined ? undefined : [options["--service"]], direction: options["--direction"] ?? "up", backupId: options["--backup"] };
 }
 
+export async function ensureRawBucket(state, request = s3) {
+  try {
+    await request(state, "head-bucket");
+  } catch (error) {
+    if (!(error instanceof InfraError) || error.code !== "infra_s3_request_failed" ||
+      !/^An error occurred \((?:404|NoSuchBucket|NotFound)\) when calling the HeadBucket operation:/mu.test(error.stderr ?? "")) throw error;
+    await request(state, "create-bucket");
+  }
+}
+
 export async function main(args) {
   const selected = parseCommand(args);
   if (selected.command === "init") {
@@ -39,7 +49,7 @@ export async function main(args) {
         await prepareTools(pulling);
         await up(state);
         await migrate(state);
-        try { await s3(state, "head-bucket"); } catch { await s3(state, "create-bucket"); }
+        await ensureRawBucket(state);
         const health = await serviceHealth(state);
         if (health.some((entry) => entry.status !== "passed")) throw new InfraError("infra_usable_readiness_failed");
         return { phase: "up", status: "passed", code: "services_and_schema_ready", health };

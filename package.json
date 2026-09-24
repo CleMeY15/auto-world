@@ -26,8 +26,7 @@
     "infra:reset": "node scripts/data-infra/cli.mjs reset",
     "infra:backup": "node scripts/data-infra/cli.mjs backup",
     "infra:restore-check": "node scripts/data-infra/cli.mjs restore-check",
-    "infra:test": "pnpm --filter @auto-world/source-registry... build && node scripts/data-infra/integration.mjs",
-    "infra:audit": "node scripts/data-infra/audit.mjs"
+    "infra:test": "pnpm --filter @auto-world/source-registry... build && node scripts/data-infra/integration.mjs"
   },
   "devDependencies": {
     "@auto-world/source-registry": "workspace:*",

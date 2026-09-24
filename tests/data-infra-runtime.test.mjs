@@ -21,7 +21,7 @@ const removeCheckout = async (checkout) => {
 test("exports the absolute checkout and immutable image inventory", () => {
   assert.equal(path.isAbsolute(root), true);
   assert.equal(S3_BUCKET, "aw-raw");
-  assert.deepEqual(Object.keys(images).sort(), ["awsCli", "opensearch", "postgres", "redis", "seaweedfs", "trivy"]);
+  assert.deepEqual(Object.keys(images).sort(), ["awsCli", "opensearch", "postgres", "redis", "seaweedfs"]);
   assert.equal(Object.isFrozen(images), true);
   assert.equal(Object.isFrozen(images.postgres.platform), true);
 });

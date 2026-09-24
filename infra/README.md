@@ -89,18 +89,15 @@ This is exact-image/architecture cold recovery, not a major-version upgrade or c
 ```sh
 pnpm check
 pnpm infra:test
-pnpm infra:audit
 ```
 
 `infra:test` builds public contract exports, validates fabricated fixtures, then uses a uniquely owned real Compose project. It exercises startup, migration transaction/replay/drift/concurrency/empty rollback, provenance/FK/role protections, atomic evidence/outbox abort, conditional S3 races, restart/dependency failure, cold recovery and scoped reset. It never imports private package tests or calls `runConnector`.
 
 Integration has20min overall including pulls: config10s, pulls600s, usable startup180s after pulls, SQL/API15s, migration30s, stop60s, archive/restore120s per phase, recovery120s and bounded cleanup120s. Timeouts fail. CI job cap30min provides cleanup/artifact headroom.
 
-The separate image audit scans all six immutable service/tool pins remotely without a Docker socket. Complete HIGH/CRITICAL reports retain unfixed findings and scanner/database timestamps. Every CRITICAL and fixable HIGH blocks; unfixed HIGH needs an exact package/version/image-specific, dated independent disposition, maximum30days. The initial disposition list is empty. Never use blanket ignores or change the gate to obtain green. Audit per-image cap5min, job cap30min. This does not replace a broader security review.
+Image eligibility is evaluated by the repository's corrected scanner workflow under TASK-0005A. The earlier `infra:audit` implementation is retired because it did not enforce database freshness and could not authorize an exact image. A passing integration diagnostic does not admit its image pins; the full integration must run again after image admission.
 
-Only `.local-data/integration/*/evidence/*.json` and `.local-data/audits/*/evidence/*.json` are CI artifact inputs. Secrets, raw files, database archives, generated environment and resolved Compose output are excluded.
-
-Additional official Alpine candidates in `image-candidates.json` are audited alongside all six shipped images and explicitly labelled not adopted. Candidate scans never replace the baseline audit or change its threshold.
+Only `.local-data/integration/*/evidence/*.json` is an input to the integration workflow artifact. Secrets, raw files, database archives, generated environment and resolved Compose output are excluded.
 
 ## Third-party licensing boundary
 

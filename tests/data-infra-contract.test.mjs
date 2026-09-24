@@ -9,7 +9,7 @@ const digest = /^sha256:[a-f0-9]{64}$/u;
 test("data infrastructure records every immutable service and tool image with its platform", () => {
   const pins = read("infra/images.json");
   assert.equal(pins.schemaVersion, 1);
-  assert.deepEqual(Object.keys(pins.images).sort(), ["awsCli", "opensearch", "postgres", "redis", "seaweedfs", "trivy"]);
+  assert.deepEqual(Object.keys(pins.images).sort(), ["awsCli", "opensearch", "postgres", "redis", "seaweedfs"]);
   for (const image of Object.values(pins.images)) {
     assert.match(image.manifestDigest, digest);
     assert.match(image.platform.digest, digest);
@@ -86,4 +86,14 @@ test("only the raw volume disables image skeleton copy-up before empty-target re
     const data = service.volumes.find((mount) => mount.type === "volume");
     assert.equal(data.volume?.nocopy, name === "object-store" ? true : undefined);
   }
+});
+
+test("four-service diagnostic runs on infrastructure changes with read-only permissions", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/data-integration-diagnostic.yml", import.meta.url), "utf8");
+  for (const required of [
+    "pull_request:", "push:", "infra/compose.json", "infra/images.json", "infra/migrations/**",
+    "scripts/data-infra/**", "contents: read", "persist-credentials: false",
+    "runs-on: ubuntu-24.04", "run: pnpm infra:test", "if-no-files-found: error",
+  ]) assert.ok(workflow.includes(required), `missing integration workflow contract: ${required}`);
+  assert.doesNotMatch(workflow, /data-image-audit:|run: pnpm infra:audit/u);
 });
