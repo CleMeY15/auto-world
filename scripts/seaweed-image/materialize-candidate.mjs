@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import { isDeepStrictEqual } from "node:util";
 
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
+import { validateSeaweedRuntimeProfileProof, verifyLocalSeaweedRuntimeProfile } from "./candidate-runtime.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs, withMaterializedSeaweedRootfs,
 } from "./materialize-rootfs.mjs";
@@ -29,6 +30,7 @@ const FAILURE_CODES = new Set([
   "seaweed_candidate_save_failed", "seaweed_candidate_archive_failed", "seaweed_candidate_image_cleanup_failed",
   "seaweed_candidate_temporary_cleanup_failed", "seaweed_candidate_aborted", "seaweed_candidate_failed",
   "seaweed_candidate_store_failed", "seaweed_candidate_store_not_empty",
+  "seaweed_candidate_runtime_failed", "seaweed_candidate_runtime_cleanup_failed",
 ]);
 
 function fail(code) {
@@ -282,7 +284,7 @@ async function cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfs
   return clean;
 }
 
-async function execute(input, testOnly) {
+async function execute(input, testOnly, executionProfile = "NONE") {
   if (!exactObject(input, ["parent", "recipeRevision", "createdAt", "runId", "signal"])
     && !exactObject(input, ["parent", "recipeRevision", "createdAt", "runId"])) throw fail("seaweed_candidate_arguments_invalid");
   const { parent, recipeRevision, createdAt, runId, signal } = input;
@@ -300,6 +302,8 @@ async function execute(input, testOnly) {
   const withRootfs = testOnly?.withRootfs ?? withMaterializedSeaweedRootfs;
   const cleanupRootfs = testOnly?.cleanupRootfs ?? cleanupMaterializedSeaweedRootfs;
   const validateArchive = testOnly?.validateArchive ?? validateSavedSeaweedCandidate;
+  const verifyRuntime = executionProfile === "RUNTIME_PROFILE"
+    ? testOnly?.verifyRuntime ?? verifyLocalSeaweedRuntimeProfile : undefined;
   const docker = testOnly?.docker ?? defaultDocker;
   const rootfsParent = path.join(parent, "rootfs"); const work = path.join(parent, "work");
   const dockerConfig = path.join(work, "docker-config"); const saved = path.join(work, "saved.tar");
@@ -338,7 +342,7 @@ async function execute(input, testOnly) {
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
-      let imageId; let owned = false; let tagged = false; let archiveProof;
+      let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof;
       let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -385,6 +389,16 @@ async function execute(input, testOnly) {
           || archiveProof.memberCount !== memberCount || archiveProof.serverVersion !== serverVersion) {
           throw fail("seaweed_candidate_archive_failed");
         }
+        if (verifyRuntime !== undefined) {
+          try {
+            runtimeProof = await verifyRuntime(Object.freeze({ parent: work, dockerConfig, imageId,
+              runId, recipeRevision, signal }));
+            validateSeaweedRuntimeProfileProof(runtimeProof, { imageId, runId, recipeRevision });
+          } catch (error) {
+            throw fail(error?.code === "seaweed_candidate_runtime_cleanup_failed"
+              ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed");
+          }
+        }
       } catch (error) { candidateFailure = error; }
       if (owned) {
         try {
@@ -405,14 +419,18 @@ async function execute(input, testOnly) {
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
-      return Object.freeze({ kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
-        authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED", imageExecution: "NOT_ATTEMPTED",
+      return Object.freeze({ kind: runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
+        : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+        authority: runtimeProof === undefined ? "PREPARATION_ONLY" : "DIAGNOSTIC_ONLY",
+        candidateAuthorization: "NOT_AUTHORIZED",
+        imageExecution: runtimeProof === undefined ? "NOT_ATTEMPTED" : "VERIFIED_DIAGNOSTIC",
         publication: "NOT_ATTEMPTED", vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED",
         runId, recipeRevision, rawSize, diffId, memberCount, imageId,
         sourceRunId: rootfsReceipt.sourceRunId, sourceCodeRevision: rootfsReceipt.sourceCodeRevision,
         sourceBinaryDigest: rootfsReceipt.sourceBinaryDigest, baseManifestDigest: rootfsReceipt.baseManifestDigest,
         serverVersion, archiveKind: archiveProof.kind, archiveIdentityType: archiveProof.identityType,
-        archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes });
+        archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes,
+        ...(runtimeProof === undefined ? {} : { runtimeProof }) });
     });
   } catch (error) { failure = error; }
   const clean = await cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfsIdentity, work, workIdentity,
@@ -431,3 +449,9 @@ async function execute(input, testOnly) {
 
 export async function materializeLocalSeaweedCandidate(input) { return execute(input, undefined); }
 export async function TEST_ONLY_materializeLocalSeaweedCandidate(input, injected) { return execute(input, injected); }
+export async function materializeAndVerifyLocalSeaweedRuntimeCandidate(input) {
+  return execute(input, undefined, "RUNTIME_PROFILE");
+}
+export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(input, injected) {
+  return execute(input, injected, "RUNTIME_PROFILE");
+}
