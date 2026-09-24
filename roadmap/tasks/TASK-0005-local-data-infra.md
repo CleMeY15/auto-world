@@ -36,6 +36,8 @@ User update, 2026-09-14: "Zap le test d’accès" waives the external authentica
 - `docs/decisions/ADR-0007-private-image-admission.md`
 - `roadmap/tasks/TASK-0005A-managed-image-tooling.md`
 - TASK-0002 through TASK-0004 storage, raw and connector contracts
+- `docs/decisions/ADR-0004-local-data-infrastructure.md`
+- `docs/validation/TASK-0005.md` — current evidence, failed gates and remaining work
 
 ## Scope
 - Add version-pinned local orchestration and CI service containers for PostgreSQL, OpenSearch, Redis and S3-compatible storage.
