@@ -10,11 +10,14 @@ import {
   candidateImportChanges, isPublicCandidateFailureCode, TEST_ONLY_materializeLocalSeaweedCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate, validateCandidateImage,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof } from
   "../scripts/seaweed-image/backup-restore.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimeHostLoopbackProof } from
+  "../scripts/seaweed-image/host-loopback.mjs";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candidate-archive.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
   TEST_ONLY_expectedSeaweedRuntimeProfileProof,
@@ -497,6 +500,67 @@ test("backup restore wrapper issues V5 only after proof and image cleanup", { sk
     assert.deepEqual([...value.imageIds], [foreignImageId]);
     assert.ok(value.calls.findIndex((args) => args[0] === "backup-restore")
       < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("host loopback wrapper issues V6 only after proof and image cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  value.injected.verifyHostLoopback = async (input) => {
+    assert.equal(value.archiveValidated, true); assert.equal(value.imageIds.has(imageId), true);
+    value.calls.push(["host-loopback"]);
+    return TEST_ONLY_expectedSeaweedRuntimeHostLoopbackProof({ imageId,
+      runId: input.runId, recipeRevision: input.recipeRevision });
+  };
+  try {
+    const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate(
+      value.inputs, value.injected);
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V6");
+    assert.equal(result.hostLoopbackProof.hostBinding, "127.0.0.1_EPHEMERAL_TO_8333_TCP");
+    assert.equal(result.authority, "DIAGNOSTIC_ONLY");
+    assert.equal(result.publication, "NOT_ATTEMPTED");
+    assert.equal(result.vulnerabilityAudit, "NOT_ATTEMPTED");
+    assert.equal(result.admission, "NOT_ATTEMPTED");
+    assert.equal(Object.hasOwn(result, "backupRestoreProof"), false);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+    assert.ok(value.calls.findIndex((args) => args[0] === "host-loopback")
+      < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("host loopback and image cleanup failures stay separate and bounded", { skip: !linux }, async () => {
+  const value = scope({ imageRemoveFailure: true });
+  value.injected.verifyHostLoopback = async () => {
+    value.calls.push(["host-loopback"]);
+    throw Object.assign(new Error("secret 127.0.0.1:49153 /runner/private/path"), {
+      code: "seaweed_candidate_runtime_host_loopback_failed",
+      phase: "HOST_LOOPBACK_HTTP", reason: "ANONYMOUS_ALLOWED", durationMs: 42,
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_host_loopback_cleanup_failed",
+        phase: "HOST_LOOPBACK_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+    });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate(
+      value.inputs, value.injected), (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason,
+        durationMs: error.durationMs, imageId: error.imageId,
+        runtimeCleanupFailure: error.runtimeCleanupFailure,
+        secondaryFailure: error.secondaryFailure }, {
+        code: "seaweed_candidate_runtime_failed", phase: "HOST_LOOPBACK_HTTP",
+        reason: "ANONYMOUS_ALLOWED", durationMs: 42, imageId,
+        runtimeCleanupFailure: { code: "seaweed_candidate_runtime_host_loopback_cleanup_failed",
+          phase: "HOST_LOOPBACK_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+        secondaryFailure: { code: "seaweed_candidate_image_cleanup_failed",
+          phase: "CANDIDATE_IMAGE_CLEANUP", reason: "IMAGE_REMOVE_FAILED" },
+      });
+      assert.equal(JSON.stringify(error).includes("private"), false);
+      assert.equal(JSON.stringify(error).includes("49153"), false);
+      return true;
+    });
+    assert.equal(value.calls.filter((args) => args[0] === "host-loopback").length, 1);
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+    assert.equal(value.imageIds.has(imageId), true);
     assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });

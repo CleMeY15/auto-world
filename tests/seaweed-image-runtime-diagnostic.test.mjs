@@ -10,6 +10,8 @@ import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
   "../scripts/seaweed-image/candidate-runtime.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof } from
   "../scripts/seaweed-image/backup-restore.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimeHostLoopbackProof } from
+  "../scripts/seaweed-image/host-loopback.mjs";
 import { TEST_ONLY_publicRuntimeFailure, TEST_ONLY_runRuntimeDiagnostic } from
   "../scripts/seaweed-image/runtime-diagnostic.mjs";
 
@@ -57,6 +59,14 @@ function backupReceipt() {
   return { ...base, kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5",
     backupRestoreProof: TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof(
       { imageId, runId, recipeRevision: revision }, "e".repeat(64), 10240) };
+}
+
+function hostLoopbackReceipt() {
+  const base = receipt();
+  delete base.persistenceProof;
+  return { ...base, kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V6",
+    hostLoopbackProof: TEST_ONLY_expectedSeaweedRuntimeHostLoopbackProof(
+      { imageId, runId, recipeRevision: revision }) };
 }
 
 test("runtime diagnostic refuses changed one-time main context before storage", { skip: !linux }, async () => {
@@ -201,6 +211,45 @@ test("backup dispatch rejects other run numbers and tampered proof", { skip: !li
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
+test("twelfth dispatch emits host loopback V6 only after owned cleanup", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-loopback-"));
+  const root = path.join(runnerTemp, "seaweed-runtime-host-loopback");
+  const events = [];
+  try {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "12"), {
+      materialize: async ({ parent }) => {
+        assert.equal(parent, root); assert.deepEqual(await readdir(parent), []);
+        return hostLoopbackReceipt();
+      },
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    const { diagnostic, ...candidate } = events[0];
+    assert.deepEqual(candidate, hostLoopbackReceipt());
+    assert.deepEqual({ ...diagnostic, durationMs: 0 }, {
+      phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED", durationMs: 0,
+    });
+    await assert.rejects(access(root), { code: "ENOENT" });
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-host-loopback"], context(runnerTemp, "12"), {
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("host loopback dispatch rejects other run numbers and altered binding evidence", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-loopback-guard-"));
+  try {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "11")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "12")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "12"), {
+      materialize: async () => ({ ...hostLoopbackReceipt(), hostLoopbackProof: {
+        ...hostLoopbackReceipt().hostLoopbackProof, hostBinding: "0.0.0.0_TO_8333_TCP" } }),
+    }), { code: "seaweed_candidate_failed" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
 test("runtime cleanup preserves an unexpected nonempty directory", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-cleanup-"));
   const root = path.join(runnerTemp, "seaweed-runtime-candidate");
@@ -253,6 +302,20 @@ test("runtime failures expose only fixed public codes", () => {
       phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN", result: "FAILED" },
     secondaryDiagnostic: { code: "seaweed_candidate_image_cleanup_failed",
       phase: "CANDIDATE_IMAGE_CLEANUP", result: "FAILED", reason: "IMAGE_REMOVE_FAILED" },
+  });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({
+    code: "seaweed_candidate_runtime_failed", phase: "HOST_LOOPBACK_HTTP",
+    reason: "ANONYMOUS_ALLOWED", durationMs: 42, imageId,
+    runtimeCleanupFailure: { code: "seaweed_candidate_runtime_host_loopback_cleanup_failed",
+      phase: "HOST_LOOPBACK_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+    message: "secret 127.0.0.1:49153 /runner/private/path",
+  })), {
+    state: "FAILED", code: "seaweed_candidate_runtime_failed",
+    candidateAuthorization: "NOT_AUTHORIZED",
+    diagnostic: { phase: "HOST_LOOPBACK_HTTP", result: "FAILED",
+      reason: "ANONYMOUS_ALLOWED", durationMs: 42 }, imageId,
+    runtimeCleanupDiagnostic: { code: "seaweed_candidate_runtime_host_loopback_cleanup_failed",
+      phase: "HOST_LOOPBACK_CLEANUP", reason: "CLEANUP_UNCERTAIN", result: "FAILED" },
   });
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({
     code: "seaweed_candidate_image_cleanup_failed", phase: "CANDIDATE_IMAGE_CLEANUP",

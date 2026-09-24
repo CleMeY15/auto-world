@@ -7,9 +7,12 @@ import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
   validateSeaweedRuntimeStrictContentionProof } from "./candidate-runtime.mjs";
 import { validateSeaweedRuntimeBackupRestoreProof } from "./backup-restore.mjs";
+import { isPublicSeaweedHostLoopbackPhase, isPublicSeaweedHostLoopbackReason,
+  validateSeaweedRuntimeHostLoopbackProof } from "./host-loopback.mjs";
 import { isPublicCandidateFailureCode,
   isPublicCandidateImageCleanupReason,
   materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
+  materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate,
   materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
   materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate } from "./materialize-candidate.mjs";
 import { baseMaterialIdentities } from "./plan.mjs";
@@ -21,6 +24,10 @@ const HEX = /^[0-9a-f]{64}$/u;
 const SOURCE_BINARY_DIGEST = "sha256:45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef";
 const CLI_PHASES = new Set(["CONTEXT", "TEMP_CLEANUP", "CANDIDATE_MATERIALIZE",
   "CANDIDATE_ARCHIVE", "CANDIDATE_IMAGE_CLEANUP", "CANDIDATE_TRANSACTION"]);
+const isPublicRuntimePhase = (value) => isPublicSeaweedRuntimePhase(value)
+  || isPublicSeaweedHostLoopbackPhase(value);
+const isPublicRuntimeReason = (value) => isPublicSeaweedRuntimeReason(value)
+  || isPublicSeaweedHostLoopbackReason(value);
 const validImageId = (value) => typeof value === "string" && SHA256.test(value);
 const validRunId = (value) => typeof value === "string" && /^[1-9][0-9]{0,19}$/u.test(value);
 const validRevision = (value) => typeof value === "string" && /^[0-9a-f]{40}$/u.test(value);
@@ -32,7 +39,8 @@ async function requireContext(env, mode) {
     || env.RUNNER_ENVIRONMENT !== "github-hosted"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world"
-    || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "11" : "7")
+    || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "11"
+      : mode === "host-loopback" ? "12" : "7")
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")
@@ -43,7 +51,8 @@ async function requireContext(env, mode) {
     if (await realpath(env.RUNNER_TEMP) !== env.RUNNER_TEMP) throw fail("seaweed_candidate_context_invalid");
   } catch { throw fail("seaweed_candidate_context_invalid"); }
   return path.join(env.RUNNER_TEMP, mode === "strict" ? "seaweed-runtime-strict-contention"
-    : mode === "backup" ? "seaweed-runtime-backup-restore" : "seaweed-runtime-candidate");
+    : mode === "backup" ? "seaweed-runtime-backup-restore"
+      : mode === "host-loopback" ? "seaweed-runtime-host-loopback" : "seaweed-runtime-candidate");
 }
 
 async function cleanupRoot(root) {
@@ -65,16 +74,19 @@ function elapsedMs(started) {
 
 function publicReceipt(result, env, durationMs, mode) {
   const strict = mode === "strict"; const backup = mode === "backup";
+  const hostLoopback = mode === "host-loopback";
   const keys = ["kind", "state", "authority", "candidateAuthorization", "imageExecution", "publication",
     "vulnerabilityAudit", "admission", "runId", "recipeRevision", "rawSize", "diffId", "memberCount",
     "imageId", "sourceRunId", "sourceCodeRevision", "sourceBinaryDigest", "baseManifestDigest",
     "serverVersion", "archiveKind", "archiveIdentityType", "archiveSha256", "archiveBytes",
     ...(strict ? ["runtimeProof", "strictContentionProof"]
-      : backup ? ["backupRestoreProof"] : ["persistenceProof"])];
+      : backup ? ["backupRestoreProof"] : hostLoopback ? ["hostLoopbackProof"]
+        : ["persistenceProof"])];
   if (result === null || typeof result !== "object" || Object.keys(result).length !== keys.length
     || keys.some((key) => !Object.hasOwn(result, key))
     || result.kind !== (strict ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4"
       : backup ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5"
+        : hostLoopback ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V6"
         : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3") || result.state !== "VERIFIED"
     || result.authority !== "DIAGNOSTIC_ONLY" || result.candidateAuthorization !== "NOT_AUTHORIZED"
     || result.imageExecution !== "VERIFIED_DIAGNOSTIC" || result.publication !== "NOT_ATTEMPTED"
@@ -98,6 +110,7 @@ function publicReceipt(result, env, durationMs, mode) {
       validateSeaweedRuntimeProfileProof(result.runtimeProof, expected);
       validateSeaweedRuntimeStrictContentionProof(result.strictContentionProof, expected);
     } else if (backup) validateSeaweedRuntimeBackupRestoreProof(result.backupRestoreProof, expected);
+    else if (hostLoopback) validateSeaweedRuntimeHostLoopbackProof(result.hostLoopbackProof, expected);
     else validateSeaweedRuntimePersistenceProof(result.persistenceProof, expected);
   } catch { throw fail("seaweed_candidate_failed"); }
   const bytes = JSON.stringify({ ...result, diagnostic: { phase: "RUNTIME_COMPLETE", result: "VERIFIED",
@@ -108,10 +121,11 @@ function publicReceipt(result, env, durationMs, mode) {
 
 async function executeMain(argv, env, testOnly, started) {
   if (argv.length !== 1 || !["execute", "cleanup", "execute-strict", "cleanup-strict",
-    "execute-backup", "cleanup-backup"].includes(argv[0])) {
+    "execute-backup", "cleanup-backup", "execute-host-loopback", "cleanup-host-loopback"].includes(argv[0])) {
     throw fail("seaweed_candidate_arguments_invalid");
   }
-  const mode = argv[0].endsWith("-strict") ? "strict" : argv[0].endsWith("-backup") ? "backup" : "persistence";
+  const mode = argv[0].endsWith("-strict") ? "strict" : argv[0].endsWith("-backup") ? "backup"
+    : argv[0].endsWith("-host-loopback") ? "host-loopback" : "persistence";
   const root = await requireContext(env, mode);
   const log = testOnly.log ?? console.log;
   if (argv[0].startsWith("cleanup")) {
@@ -122,6 +136,7 @@ async function executeMain(argv, env, testOnly, started) {
   const materialize = testOnly.materialize ?? (mode === "strict"
     ? materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate
     : mode === "backup" ? materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate
+      : mode === "host-loopback" ? materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate
       : materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate);
   await mkdir(root, { mode: 0o700 });
   let result; let failure;
@@ -155,17 +170,24 @@ function fallbackPhase(code) {
   return "CANDIDATE_TRANSACTION";
 }
 
+function publicCleanupFields(value) {
+  const code = ownData(value, "code"); const phase = ownData(value, "phase");
+  if ((code === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+    && phase === "BACKUP_RESTORE_CLEANUP")
+    || (code === "seaweed_candidate_runtime_host_loopback_cleanup_failed"
+      && phase === "HOST_LOOPBACK_CLEANUP")) return { code, phase, reason: "CLEANUP_UNCERTAIN" };
+  return undefined;
+}
+
 function publicRuntimeCleanupFailure(error) {
   const value = ownData(error, "runtimeCleanupFailure");
   try {
     if (value === null || typeof value !== "object" || Array.isArray(value)
       || Object.keys(value).sort().join("|") !== "code|phase|reason"
-      || ownData(value, "code") !== "seaweed_candidate_runtime_backup_restore_cleanup_failed"
-      || ownData(value, "phase") !== "BACKUP_RESTORE_CLEANUP"
       || ownData(value, "reason") !== "CLEANUP_UNCERTAIN") return undefined;
+    const fields = publicCleanupFields(value);
+    return fields === undefined ? undefined : Object.freeze(fields);
   } catch { return undefined; }
-  return Object.freeze({ code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
-    phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN" });
 }
 
 async function main(argv = process.argv.slice(2), env = process.env, testOnly = {}) {
@@ -173,9 +195,9 @@ async function main(argv = process.argv.slice(2), env = process.env, testOnly = 
   try { return await executeMain(argv, env, testOnly, started); } catch (error) {
     const reported = fail(ownData(error, "code"));
     const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
-    reported.phase = isPublicSeaweedRuntimePhase(phase) || CLI_PHASES.has(phase)
+    reported.phase = isPublicRuntimePhase(phase) || CLI_PHASES.has(phase)
       ? phase : fallbackPhase(reported.code);
-    reported.reason = isPublicSeaweedRuntimeReason(reason) || isPublicCandidateImageCleanupReason(reason)
+    reported.reason = isPublicRuntimeReason(reason) || isPublicCandidateImageCleanupReason(reason)
       ? reason : reported.code;
     reported.durationMs = elapsedMs(started);
     const imageId = ownData(error, "imageId");
@@ -219,9 +241,9 @@ function publicFailure(error) {
     ...runtimeCleanupFailure, result: "FAILED",
   };
   return JSON.stringify({ state: "FAILED", code, candidateAuthorization: "NOT_AUTHORIZED",
-    diagnostic: { phase: isPublicSeaweedRuntimePhase(phase) || CLI_PHASES.has(phase)
+    diagnostic: { phase: isPublicRuntimePhase(phase) || CLI_PHASES.has(phase)
       ? phase : fallbackPhase(code), result: "FAILED",
-    reason: isPublicSeaweedRuntimeReason(reason) || isPublicCandidateFailureCode(reason)
+    reason: isPublicRuntimeReason(reason) || isPublicCandidateFailureCode(reason)
       || isPublicCandidateImageCleanupReason(reason)
       ? reason : code,
     durationMs: Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000
