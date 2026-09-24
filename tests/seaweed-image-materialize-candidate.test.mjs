@@ -61,6 +61,21 @@ test("candidate image ownership requires the exact ID, tag, platform, one layer 
   }
   assert.equal(isPublicCandidateFailureCode("seaweed_candidate_archive_failed"), true);
   assert.equal(isPublicCandidateFailureCode("seaweed_candidate_arbitrary_secret"), false);
+  assert.throws(() => validateCandidateImage(image(tag, { ...importConfig(), Cmd: ["changed"] }), {
+    imageId, tag, diffId, rawSize: raw.length, validateRuntimeConfig, expectedConfig: importConfig(),
+  }), { code: "seaweed_candidate_ownership_failed", detailCode: "config_Cmd" });
+  for (const [changed, detailCode] of [
+    [{ ...image(tag), Id: diffId }, "id"],
+    [{ ...image(tag), RepoTags: ["foreign:latest"] }, "tags"],
+    [{ ...image(tag), Os: "windows" }, "platform"],
+    [{ ...image(tag), Size: 0 }, "size"],
+    [{ ...image(tag), RootFS: { Type: "layers", Layers: [imageId] } }, "rootfs"],
+    [{ ...image(tag), Config: { ...importConfig(), Injected: true } }, "config_keys"],
+  ]) {
+    assert.throws(() => validateCandidateImage(changed, { imageId, tag, diffId, rawSize: raw.length,
+      validateRuntimeConfig, expectedConfig: importConfig() }),
+    { code: "seaweed_candidate_ownership_failed", detailCode });
+  }
 });
 
 function scope({ initialImage = false, existingImageId = false, archiveFailure = false, abortAfterOwnership = false,
@@ -165,7 +180,7 @@ test("a pre-existing untagged matching image ID never becomes cleanup-owned", { 
   const value = scope({ existingImageId: true });
   try {
     await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
-      { code: "seaweed_candidate_ownership_failed" });
+      { code: "seaweed_candidate_store_not_empty" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
     assert.equal(value.calls.some((args) => args[1] === "import"), false);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
@@ -197,7 +212,7 @@ test("ambiguous inspected ID does not authorize removal of an unknown image", { 
   const value = scope({ wrongInspectedId: true });
   try {
     await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
-      { code: "seaweed_candidate_ownership_failed" });
+      { code: "seaweed_candidate_ownership_failed", detailCode: "id" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }

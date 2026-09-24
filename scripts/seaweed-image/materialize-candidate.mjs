@@ -4,6 +4,7 @@ import { lstat, mkdir, open, readdir, realpath, rmdir, unlink } from "node:fs/pr
 import path from "node:path";
 import { Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { isDeepStrictEqual } from "node:util";
 
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
 import {
@@ -16,12 +17,18 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const MAX_OUTPUT_BYTES = 1024 ** 2;
 const MAX_SAVED_BYTES = 2 * 1024 ** 3;
 const COMMAND_TIMEOUT_MS = 4 * 60_000;
+const INSPECT_CONFIG_FIELDS = ["Hostname", "Domainname", "AttachStdin", "AttachStdout", "AttachStderr", "Tty",
+  "OpenStdin", "StdinOnce", "Image", "OnBuild", "Entrypoint", "Cmd", "Env", "WorkingDir",
+  "Volumes", "ExposedPorts", "User", "Labels"];
+const INSPECTION_DETAILS = new Set(["options", "id", "tags", "platform", "size", "rootfs",
+  "config_keys", "config_unknown", ...INSPECT_CONFIG_FIELDS.map((field) => `config_${field}`)]);
 const FAILURE_CODES = new Set([
   "seaweed_candidate_arguments_invalid", "seaweed_candidate_parent_invalid", "seaweed_candidate_parent_not_empty",
   "seaweed_candidate_context_invalid", "seaweed_candidate_materialize_failed", "seaweed_candidate_engine_failed",
   "seaweed_candidate_tag_failed", "seaweed_candidate_import_failed", "seaweed_candidate_ownership_failed",
   "seaweed_candidate_save_failed", "seaweed_candidate_archive_failed", "seaweed_candidate_image_cleanup_failed",
   "seaweed_candidate_temporary_cleanup_failed", "seaweed_candidate_aborted", "seaweed_candidate_failed",
+  "seaweed_candidate_store_failed", "seaweed_candidate_store_not_empty",
 ]);
 
 function fail(code) {
@@ -30,11 +37,25 @@ function fail(code) {
 }
 
 export function isPublicCandidateFailureCode(value) { return typeof value === "string" && FAILURE_CODES.has(value); }
+export function isPublicCandidateInspectionDetail(value) { return typeof value === "string" && INSPECTION_DETAILS.has(value); }
+
+function ownData(error, key) {
+  if (error === null || typeof error !== "object" && typeof error !== "function") return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch { return undefined; }
+}
 
 async function stage(name, operation) {
   try { return await operation(); } catch (error) {
     if (error?.code === "seaweed_candidate_aborted") throw error;
-    throw fail(`seaweed_candidate_${name}_failed`);
+    const reported = fail(`seaweed_candidate_${name}_failed`);
+    const detail = ownData(error, "detailCode");
+    if ((name === "ownership" || name === "image_cleanup") && isPublicCandidateInspectionDetail(detail)) {
+      reported.detailCode = detail;
+    }
+    throw reported;
   }
 }
 
@@ -73,10 +94,7 @@ function exactObject(value, keys) {
 }
 
 export function candidateImportChanges(config) {
-  const fields = ["Hostname", "Domainname", "AttachStdin", "AttachStdout", "AttachStderr", "Tty",
-    "OpenStdin", "StdinOnce", "Image", "OnBuild", "Entrypoint", "Cmd", "Env", "WorkingDir",
-    "Volumes", "ExposedPorts", "User", "Labels"];
-  if (!exactObject(config, fields) || config.User !== "" || config.OnBuild !== null
+  if (!exactObject(config, INSPECT_CONFIG_FIELDS) || config.User !== "" || config.OnBuild !== null
     || !Array.isArray(config.Entrypoint) || !Array.isArray(config.Cmd) || !Array.isArray(config.Env)
     || typeof config.WorkingDir !== "string" || !config.WorkingDir.startsWith("/")
     || !exactObject(config.Volumes, Object.keys(config.Volumes ?? {}))
@@ -103,16 +121,37 @@ export function candidateImportChanges(config) {
   return Object.freeze(changes);
 }
 
-export function validateCandidateImage(metadata, { imageId, tag, diffId, rawSize, validateRuntimeConfig } = {}) {
+function ownershipFailure(detailCode) {
+  const error = fail("seaweed_candidate_ownership_failed"); error.detailCode = detailCode; return error;
+}
+
+function configInspectionDetail(actual, expected) {
+  if (expected === undefined) return "config_unknown";
+  if (!exactObject(actual, INSPECT_CONFIG_FIELDS)) return "config_keys";
+  for (const field of INSPECT_CONFIG_FIELDS) {
+    if (!isDeepStrictEqual(actual[field], expected[field])) return `config_${field}`;
+  }
+  return "config_unknown";
+}
+
+export function validateCandidateImage(metadata, { imageId, tag, diffId, rawSize, validateRuntimeConfig,
+  expectedConfig } = {}) {
   if (!IMAGE_ID.test(imageId) || !IMAGE_ID.test(diffId) || typeof tag !== "string"
-    || metadata?.Id !== imageId || metadata?.Os !== "linux" || metadata?.Architecture !== "amd64"
-    || !Array.isArray(metadata.RepoTags) || metadata.RepoTags.length !== 1 || metadata.RepoTags[0] !== tag
-    || !Number.isSafeInteger(metadata.Size) || metadata.Size < 1 || metadata.Size > MAX_SAVED_BYTES
     || !Number.isSafeInteger(rawSize) || rawSize < 1024 || rawSize > MAX_SAVED_BYTES
-    || metadata?.RootFS?.Type !== "layers" || !Array.isArray(metadata.RootFS.Layers)
-    || metadata.RootFS.Layers.length !== 1 || metadata.RootFS.Layers[0] !== diffId
-    || typeof validateRuntimeConfig !== "function") throw fail("seaweed_candidate_ownership_failed");
-  try { validateRuntimeConfig(metadata.Config); } catch { throw fail("seaweed_candidate_ownership_failed"); }
+    || typeof validateRuntimeConfig !== "function") throw ownershipFailure("options");
+  if (metadata?.Id !== imageId) throw ownershipFailure("id");
+  if (!Array.isArray(metadata.RepoTags) || metadata.RepoTags.length !== 1 || metadata.RepoTags[0] !== tag) {
+    throw ownershipFailure("tags");
+  }
+  if (metadata.Os !== "linux" || metadata.Architecture !== "amd64") throw ownershipFailure("platform");
+  if (!Number.isSafeInteger(metadata.Size) || metadata.Size < 1 || metadata.Size > MAX_SAVED_BYTES) {
+    throw ownershipFailure("size");
+  }
+  if (metadata?.RootFS?.Type !== "layers" || !Array.isArray(metadata.RootFS.Layers)
+    || metadata.RootFS.Layers.length !== 1 || metadata.RootFS.Layers[0] !== diffId) {
+    throw ownershipFailure("rootfs");
+  }
+  try { validateRuntimeConfig(metadata.Config); } catch { throw ownershipFailure(configInspectionDetail(metadata.Config, expectedConfig)); }
   return Object.freeze({ imageId, diffId });
 }
 
@@ -288,8 +327,8 @@ async function execute(input, testOnly) {
         || versionText.length > 128) throw fail("seaweed_candidate_engine_failed");
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
-      const priorImageIds = await stage("ownership", () => existingImageIds(docker, dockerOptions));
-      if (priorImageIds.size !== 0) throw fail("seaweed_candidate_ownership_failed");
+      const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
+      if (priorImageIds.size !== 0) throw fail("seaweed_candidate_store_not_empty");
       let imageId; let owned = false; let archiveProof; let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -300,7 +339,7 @@ async function execute(input, testOnly) {
         if (!IMAGE_ID.test(imageId)) throw fail("seaweed_candidate_import_failed");
         await stage("ownership", async () => {
           validateCandidateImage(await inspectImage(docker, tag, dockerOptions),
-            { imageId, tag, diffId, rawSize, validateRuntimeConfig });
+            { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig });
           owned = true;
         });
         await stage("save", async () => {
@@ -330,7 +369,7 @@ async function execute(input, testOnly) {
         try {
           await stage("image_cleanup", async () => {
             validateCandidateImage(await inspectImage(docker, tag, cleanupDockerOptions),
-              { imageId, tag, diffId, rawSize, validateRuntimeConfig });
+              { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig });
             await command(docker, ["image", "rm", tag], cleanupDockerOptions);
             await imageAbsent(docker, tag, cleanupDockerOptions);
             await imageAbsent(docker, imageId, cleanupDockerOptions);
