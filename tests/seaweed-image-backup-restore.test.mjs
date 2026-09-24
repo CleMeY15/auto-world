@@ -18,8 +18,8 @@ const archiveBytes = 10240;
 
 function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestoreVolume = false,
   malformedBackupCreate = false, abortAtBackup = false, nullPortBindings = false,
-  driftHelperTmpfs = false, backupHelperExitCode = 0, privilegedHelper = false,
-  restartedHelper = false } = {}) {
+  driftHelperTmpfs = false, backupHelperExitCode = 0, restoreHelperExitCode = 0,
+  sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false } = {}) {
   const calls = []; const volumes = new Map(); const containers = new Map(); let nonce = ""; let nextId = 1;
   const prefix = `aw-seaweed-backup-${runId}`;
   const controller = new globalThis.AbortController();
@@ -125,7 +125,8 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
     }
     if (args[0] === "container" && args[1] === "wait") {
       const record = containers.get(args[2]); record.state = "exited";
-      record.exitCode = record.role === "backup-helper" ? backupHelperExitCode : 0;
+      record.exitCode = record.role === "backup-helper" ? backupHelperExitCode
+        : record.role === "restore-helper" ? restoreHelperExitCode : 0;
       return { status: 0, stdout: `${record.exitCode}\n`, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "logs") {
@@ -144,7 +145,8 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
         : { status: restoredStatus, stdout: "", stderr: "" };
     }
     if (args[0] === "container" && args[1] === "stop") {
-      const record = containers.get(args.at(-1)); record.state = "exited"; record.exitCode = 0;
+      const record = containers.get(args.at(-1)); record.state = "exited";
+      record.exitCode = record.role === "service-source" ? sourceStopExitCode : 0;
       return { status: 0, stdout: `${args.at(-1)}\n`, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "rm") {
@@ -246,6 +248,39 @@ test("nonzero helper exit preserves the primary failure and removes exact owned 
   assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
   assert.ok(value.calls.some((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("backup-helper")));
+});
+
+test("failed source shutdown never starts an offline backup", async () => {
+  const value = fixture({ sourceStopExitCode: 7 });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_SOURCE_SERVICE",
+      reason: "SOURCE_STOP_FAILED" });
+  assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "create"
+    && args.at(-1).endsWith("-backup")), false);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "create"
+    && args.includes(`${`aw-seaweed-backup-${runId}`}-backup-helper`)), false);
+  assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
+});
+
+test("tampered backup is rejected before extraction or restored service startup", async () => {
+  const value = fixture({ restoreHelperExitCode: 96 });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_RESTORE_COPY",
+      reason: "RESTORE_FAILED" });
+  const sourceRemoval = value.calls.findIndex((args) => args[0] === "volume" && args[1] === "rm"
+    && args[2].endsWith("-source"));
+  const restoreCreate = value.calls.findIndex((args) => args[0] === "container" && args[1] === "create"
+    && args.includes(`${`aw-seaweed-backup-${runId}`}-restore-helper`));
+  assert.ok(sourceRemoval >= 0 && sourceRemoval < restoreCreate);
+  const script = value.calls[restoreCreate].at(-1);
+  const hashCheck = script.indexOf("sha256sum /backup/data.tar");
+  const byteCheck = script.indexOf("wc -c < /backup/data.tar");
+  const extract = script.indexOf("tar -C /restore -xf /backup/data.tar");
+  assert.ok(hashCheck >= 0 && byteCheck > hashCheck && extract > byteCheck);
+  assert.ok(script.includes(archiveSha256)); assert.ok(script.includes(String(archiveBytes)));
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "create"
+    && args.includes(`${`aw-seaweed-backup-${runId}`}-service-restored`)), false);
+  assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
 });
 
 for (const [status, reason] of [[85, "RESTORED_OBJECT_MISSING"], [86, "RESTORED_OBJECT_MISMATCH"],

@@ -515,6 +515,7 @@ async function execute(input, injected) {
       { ...options, timeoutMs: 390_000 }, [0, 81, 82, 83, 84, 87, 88, 127]);
     if (source.status !== 0 || source.stdout.trim() !== "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED"
       || source.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    reason = "SOURCE_STOP_FAILED";
     await stopService("service-source");
 
     phase = "BACKUP_ARCHIVE"; reason = "BACKUP_FAILED";
@@ -577,6 +578,7 @@ async function execute(input, injected) {
     if (restored.stdout.trim() !== "SEAWEED_BACKUP_RESTORED_READ_VERIFIED" || restored.stderr.trim() !== "") {
       throw failure("seaweed_candidate_runtime_backup_restore_failed");
     }
+    reason = "RESTORED_STOP_FAILED";
     await stopService("service-restored");
   } catch (error) { primaryFailure = error; failurePhase = phase; failureReason = reason; }
 
