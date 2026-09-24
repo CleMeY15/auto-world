@@ -1,5 +1,5 @@
 {
-  "name": "SeaweedFS package private read proof",
+  "name": "SeaweedFS package bootstrap",
   "on": {"workflow_dispatch": {}},
   "permissions": {},
   "concurrency": {"group": "seaweed-package-private-read", "cancel-in-progress": false},

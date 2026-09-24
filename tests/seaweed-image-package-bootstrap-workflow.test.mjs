@@ -6,6 +6,7 @@ const workflow = JSON.parse(await readFile(new URL("../.github/workflows/seaweed
 const mainOnly = "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}";
 
 test("SeaweedFS package proof is a one-shot no-input protected-main reader", () => {
+  assert.equal(workflow.name, "SeaweedFS package bootstrap");
   assert.deepEqual(workflow.on, { workflow_dispatch: {} });
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(Object.keys(workflow.jobs), ["verify"]);
