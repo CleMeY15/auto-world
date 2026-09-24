@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 const workflow = (await readFile(path.resolve(import.meta.dirname, "../.github/workflows/scanner-audit.yml"), "utf8")).replace(/\r\n/gu, "\n");
+const qualityWorkflow = (await readFile(path.resolve(import.meta.dirname, "../.github/workflows/ci.yml"), "utf8")).replace(/\r\n/gu, "\n");
 
 function assertReadOnlyPermissions(source) {
   assert.equal([...source.matchAll(/^\s*permissions\s*:/gmu)].length, 1);
@@ -24,6 +25,13 @@ test("scanner workflow has only read permission, two independent builders, and a
   assert.match(workflow, /node-version: 22\.23\.2/u);
   assert.match(workflow, /audit:\n {4}name: Frozen scanner and image audits\n {4}needs: build/u);
   assert.match(workflow, /scripts\/scanner\/audit\.mjs --build-root/u);
+});
+
+test("full scanner image audit is manual while quality and scanner tests stay automatic", () => {
+  assert.match(workflow, /^on:\n {2}workflow_dispatch:\n\npermissions:/mu);
+  assert.doesNotMatch(workflow, /^\s*(?:pull_request|push|schedule|workflow_call|workflow_run|repository_dispatch):/mu);
+  assert.match(qualityWorkflow, /^on:\n {2}pull_request:\n {2}push:\n {4}branches: \[main\]/mu);
+  assert.match(qualityWorkflow, /run: pnpm test/u);
 });
 
 test("scanner permission check rejects job-level and global write escalation", () => {
