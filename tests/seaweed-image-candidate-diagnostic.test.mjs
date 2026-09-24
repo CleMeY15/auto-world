@@ -13,8 +13,9 @@ const revision = "a".repeat(40);
 const runId = "35999999999";
 
 function context(runnerTemp) {
-  return { GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1",
+  return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted",
+    GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "3", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-image-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
@@ -36,7 +37,8 @@ test("candidate diagnostic refuses a changed main-only, first-attempt context be
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-candidate-context-"));
   const root = path.join(runnerTemp, "seaweed-image-candidate");
   try {
-    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { GITHUB_RUN_NUMBER: "1" },
+    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { RUNNER_ENVIRONMENT: "self-hosted" },
+      { GITHUB_RUN_NUMBER: "2" },
       { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_REPOSITORY: "foreign/repo" },
       { GITHUB_WORKFLOW_REF: "foreign/workflow" }, { GITHUB_SHA: "not-a-sha" }]) {
       await assert.rejects(TEST_ONLY_runCandidateDiagnostic(["execute"], { ...context(runnerTemp), ...changed }),

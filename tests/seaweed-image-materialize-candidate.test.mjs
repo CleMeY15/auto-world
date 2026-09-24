@@ -15,6 +15,8 @@ import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candi
 const linux = process.platform === "linux";
 const imageId = `sha256:${"b".repeat(64)}`;
 const diffId = `sha256:${"c".repeat(64)}`;
+const foreignImageId = `sha256:${"d".repeat(64)}`;
+const extraImageId = `sha256:${"e".repeat(64)}`;
 const raw = Buffer.alloc(2048, 0x51);
 
 function importConfig() {
@@ -27,7 +29,7 @@ function importConfig() {
 }
 
 function image(tag, config = importConfig()) {
-  return { Id: imageId, RepoTags: [tag], Os: "linux", Architecture: "amd64", Size: raw.length,
+  return { Id: imageId, RepoTags: tag === undefined ? [] : [tag], Os: "linux", Architecture: "amd64", Size: raw.length,
     RootFS: { Type: "layers", Layers: [diffId] }, Config: config };
 }
 
@@ -76,16 +78,24 @@ test("candidate image ownership requires the exact ID, tag, platform, one layer 
       validateRuntimeConfig, expectedConfig: importConfig() }),
     { code: "seaweed_candidate_ownership_failed", detailCode });
   }
+  assert.deepEqual(validateCandidateImage({ ...image(undefined), RepoTags: null }, {
+    imageId, repoTags: [], diffId, rawSize: raw.length, validateRuntimeConfig,
+  }), { imageId, diffId });
 });
 
-function scope({ initialImage = false, existingImageId = false, invalidImageList = false,
-  archiveFailure = false, abortAfterOwnership = false,
-  wrongInspectedId = false } = {}) {
+function scope({ initialImage = false, existingImageId = false, unrelatedPriorImage = false,
+  invalidImageList = false, extraImageAfterImport = false, archiveFailure = false,
+  abortAfterOwnership = false, wrongInspectedId = false, configMismatch = false,
+  foreignTagAfterImport = false, foreignTagBeforeCleanup = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-local-candidate-")); chmodSync(parent, 0o700);
   const runId = "35933797176"; const recipeRevision = "a".repeat(40);
   const abortController = new globalThis.AbortController();
   const config = importConfig(); const tag = `auto-world-seaweed-s3:run-${runId}-attempt-1`;
-  const calls = []; let exists = initialImage; let disposed = false; let piped = false; let archiveValidated = false;
+  const calls = []; const imageIds = new Set();
+  if (existingImageId) imageIds.add(imageId);
+  if (unrelatedPriorImage) imageIds.add(foreignImageId);
+  let tagPresent = initialImage; let imported = false; let disposed = false;
+  let piped = false; let archiveValidated = false; let cleanupDrift = false;
   const inputs = { parent, recipeRevision, createdAt: "2026-09-23T23:28:54.052Z", runId,
     signal: abortController.signal };
   const receipt = Object.freeze({ kind: "SEAWEED_ROOTFS_MATERIALIZATION_RECEIPT_V1", state: "MATERIALIZED",
@@ -110,6 +120,7 @@ function scope({ initialImage = false, existingImageId = false, invalidImageList
       assert.equal(options.rawSize, raw.length); assert.equal(options.serverVersion, "28.0.4");
       if (abortAfterOwnership) abortController.abort();
       if (archiveFailure) throw new Error("private archive failure");
+      if (foreignTagBeforeCleanup) cleanupDrift = true;
       return { kind: "SEAWEED_SAVED_CANDIDATE_PROOF_V1", identityType: "CLASSIC_CONFIG_ID",
         imageId, tag, diffId, rawSize: raw.length, memberCount: 1, serverVersion: "28.0.4",
         archiveSha256: "5".repeat(64), archiveBytes: 4096 };
@@ -120,38 +131,55 @@ function scope({ initialImage = false, existingImageId = false, invalidImageList
       if (args[0] === "version") return { status: 0, stdout: "28.0.4|28.0.4\n", stderr: "" };
       if (args[0] === "image" && args[1] === "ls") {
         assert.deepEqual(args, ["image", "ls", "--all", "--no-trunc", "--format", "{{.ID}}"]);
-        return { status: 0, stdout: invalidImageList ? "<none>\n" : existingImageId ? `${imageId}\n` : "",
+        return { status: 0, stdout: invalidImageList ? "<none>\n"
+          : [...imageIds].map((value) => `${value}\n`).join(""),
           stderr: "" };
       }
       if (args[0] === "image" && args[1] === "inspect" && args[2] !== "--format") {
         const reference = args[2];
-        return exists && reference === tag
+        const exists = reference === tag ? tagPresent : imageIds.has(reference);
+        return exists
           ? { status: 0, stdout: "[]", stderr: "" }
           : { status: 1, stdout: "[]", stderr: `Error response from daemon: No such image: ${reference}\n` };
       }
       if (args[0] === "image" && args[1] === "inspect" && args[2] === "--format") {
-        assert.equal(exists, true);
-        return { status: 0, stdout: JSON.stringify({ ...image(tag, config), Id: wrongInspectedId ? diffId : imageId }), stderr: "" };
+        assert.equal(imageIds.has(imageId), true);
+        const reference = args[3];
+        const inspectedTag = reference === tag || tagPresent ? tag : undefined;
+        const repoTags = cleanupDrift ? [tag, "foreign:latest"]
+          : foreignTagAfterImport && imported && !tagPresent ? ["foreign:latest"]
+            : inspectedTag === undefined ? [] : [inspectedTag];
+        const inspectedConfig = configMismatch ? { ...config, Cmd: ["changed"] } : config;
+        return { status: 0, stdout: JSON.stringify({ ...image(undefined, inspectedConfig), RepoTags: repoTags,
+          Id: wrongInspectedId ? diffId : imageId }), stderr: "" };
       }
       if (args[0] === "image" && args[1] === "import") {
-        assert.equal(args.at(-2), "-"); assert.equal(args.at(-1), tag);
+        assert.equal(args.at(-1), "-"); assert.equal(args.includes(tag), false);
         assert.ok(args.includes(SEAWEED_CANDIDATE_IMPORT_MESSAGE));
         assert.ok(args.includes("--platform"));
         const sink = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
-        await options.stdinWriter(sink); exists = true;
+        await options.stdinWriter(sink); imported = true;
+        if (!existingImageId) imageIds.add(imageId);
+        if (extraImageAfterImport) imageIds.add(extraImageId);
         return { status: 0, stdout: `${imageId}\n`, stderr: "" };
+      }
+      if (args[0] === "image" && args[1] === "tag") {
+        assert.deepEqual(args, ["image", "tag", imageId, tag]); tagPresent = true;
+        return { status: 0, stdout: "", stderr: "" };
       }
       if (args[0] === "image" && args[1] === "save") {
         options.stdoutSink.end(Buffer.alloc(4096)); await finished(options.stdoutSink);
         return { status: 0, stdout: "", stderr: "" };
       }
       if (args[0] === "image" && args[1] === "rm") {
-        assert.equal(args[2], tag); exists = false; return { status: 0, stdout: `${imageId}\n`, stderr: "" };
+        assert.ok(args[2] === tag || args[2] === imageId);
+        tagPresent = false; imageIds.delete(imageId);
+        return { status: 0, stdout: `${imageId}\n`, stderr: "" };
       }
       throw new Error("unexpected docker command");
     },
   };
-  return { parent, inputs, injected, calls, tag, get disposed() { return disposed; },
+  return { parent, inputs, injected, calls, tag, imageIds, get disposed() { return disposed; },
     get piped() { return piped; }, get archiveValidated() { return archiveValidated; } };
 }
 
@@ -164,6 +192,16 @@ test("local candidate imports by verified stdin, validates export, removes owned
     assert.equal(result.imageId, imageId); assert.equal(result.archiveIdentityType, "CLASSIC_CONFIG_ID");
     assert.equal(value.piped, true); assert.equal(value.archiveValidated, true); assert.equal(value.disposed, true);
     assert.deepEqual(readdirSync(value.parent), []);
+    assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("unrelated prior image IDs are preserved through import, verification and cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  try {
+    const result = await TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected);
+    assert.equal(result.state, "VERIFIED");
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
     assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
@@ -182,11 +220,13 @@ test("a pre-existing untagged matching image ID never becomes cleanup-owned", { 
   const value = scope({ existingImageId: true });
   try {
     await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
-      { code: "seaweed_candidate_store_not_empty" });
+      { code: "seaweed_candidate_ownership_failed", detailCode: "id" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
-    assert.equal(value.calls.some((args) => args[1] === "import"), false);
+    assert.equal(value.calls.some((args) => args[1] === "import"), true);
+    assert.equal(value.calls.some((args) => args[1] === "tag"), false);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
     assert.equal(value.calls.some((args) => args[1] === "save"), false);
+    assert.deepEqual([...value.imageIds], [imageId]);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
@@ -197,6 +237,48 @@ test("an ambiguous Docker image inventory fails before import", { skip: !linux }
       { code: "seaweed_candidate_store_failed" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
     assert.equal(value.calls.some((args) => args[1] === "import" || args[1] === "rm"), false);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("an ambiguous post-import image delta is never tagged or removed", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true, extraImageAfterImport: true });
+  try {
+    await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
+      { code: "seaweed_candidate_ownership_failed", detailCode: "id" });
+    assert.equal(value.calls.some((args) => args[1] === "tag" || args[1] === "rm"), false);
+    assert.deepEqual(new Set(value.imageIds), new Set([foreignImageId, imageId, extraImageId]));
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("a config mismatch removes only the proven new untagged image", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true, configMismatch: true });
+  try {
+    await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
+      { code: "seaweed_candidate_ownership_failed", detailCode: "config_Cmd" });
+    assert.equal(value.calls.some((args) => args[1] === "tag"), false);
+    const removals = value.calls.filter((args) => args[1] === "rm");
+    assert.deepEqual(removals, [["image", "rm", imageId]]);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("a foreign tag on the new ID prevents ownership and removal", { skip: !linux }, async () => {
+  const value = scope({ foreignTagAfterImport: true });
+  try {
+    await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
+      { code: "seaweed_candidate_ownership_failed", detailCode: "tags" });
+    assert.equal(value.calls.some((args) => args[1] === "tag" || args[1] === "rm"), false);
+    assert.deepEqual([...value.imageIds], [imageId]);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("foreign tag drift before cleanup fails closed without image removal", { skip: !linux }, async () => {
+  const value = scope({ foreignTagBeforeCleanup: true });
+  try {
+    await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
+      { code: "seaweed_candidate_image_cleanup_failed", detailCode: "tags" });
+    assert.equal(value.calls.some((args) => args[1] === "rm"), false);
+    assert.deepEqual([...value.imageIds], [imageId]);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
