@@ -224,6 +224,19 @@ test("signed S3 probe parses under the Linux container shell", { skip: process.p
   assert.equal(result.stdout, "");
 });
 
+test("restart persistence commands parse under the Linux shell", { skip: process.platform !== "linux" }, async () => {
+  const value = persistenceFixture();
+  await TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker });
+  const scripts = value.calls.filter((args) => args[0] === "container"
+    && (args[1] === "create" || args[1] === "exec")).map((args) => args.at(-1));
+  assert.equal(scripts.length, 5);
+  for (const script of scripts) {
+    const result = spawnSync("sh", ["-n"], { input: script, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "");
+  }
+});
+
 test("signed S3 shell distinguishes accepted access from unexpected HTTP failures",
   { skip: process.platform !== "linux" }, () => {
     const directory = mkdtempSync(path.join(tmpdir(), "aw-s3-status-"));
