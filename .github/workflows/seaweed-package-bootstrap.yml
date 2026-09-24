@@ -1,0 +1,50 @@
+{
+  "name": "SeaweedFS package bootstrap",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "seaweed-package-bootstrap", "cancel-in-progress": false},
+  "jobs": {
+    "publish": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {"contents": "read", "packages": "write"},
+      "steps": [
+        {
+          "name": "Check out reviewed protected main",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Publish fixed harmless scratch payload",
+          "id": "publish",
+          "continue-on-error": true,
+          "env": {"GITHUB_TOKEN": "${{ github.token }}"},
+          "run": "node scripts/seaweed-image/package-bootstrap.mjs --output \"${RUNNER_TEMP}/seaweed-package-bootstrap\""
+        },
+        {
+          "name": "Retain bounded public bootstrap receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "seaweed-package-bootstrap-receipt",
+            "path": "${{ runner.temp }}/seaweed-package-bootstrap/receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce bootstrap result",
+          "if": "${{ steps.publish.outcome != 'success' }}",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}
