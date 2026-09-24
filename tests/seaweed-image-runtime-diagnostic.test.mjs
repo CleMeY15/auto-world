@@ -23,7 +23,7 @@ function context(runnerTemp) {
 }
 
 function receipt() {
-  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
     authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
     imageExecution: "VERIFIED_DIAGNOSTIC", publication: "NOT_ATTEMPTED",
     vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED", runId,
@@ -84,6 +84,7 @@ test("runtime diagnostic rejects changed authority, lineage and runtime proof", 
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-lineage-"));
   try {
     for (const changed of [{ sourceRunId: "1" }, { authority: "PREPARATION_ONLY" },
+      { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1" },
       { candidateAuthorization: "AUTHORIZED" }, { imageExecution: "NOT_ATTEMPTED" },
       { runtimeProof: { ...receipt().runtimeProof, shutdown: "UNBOUNDED" } }]) {
       let logged = false;

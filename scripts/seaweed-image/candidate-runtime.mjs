@@ -247,7 +247,7 @@ function ownedContainer(result, { nonce, imageId, ownedId } = {}) {
 }
 
 function expectedProof({ imageId, runId, recipeRevision }) {
-  return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V1", state: "VERIFIED", authority: "DIAGNOSTIC_ONLY",
+  return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V2", state: "VERIFIED", authority: "DIAGNOSTIC_ONLY",
     candidateAuthorization: "NOT_AUTHORIZED", imageId, runId, recipeRevision, profileSha256: PROFILE_SHA256,
     commandSha256: COMMAND_SHA256, derivativeVersion: DERIVATIVE_VERSION, uid: 1000, gid: 1000,
     readiness: "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200", anonymousAccess: "REFUSED_403",

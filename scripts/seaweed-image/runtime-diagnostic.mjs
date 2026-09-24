@@ -63,7 +63,7 @@ function publicReceipt(result, env, durationMs) {
     "serverVersion", "archiveKind", "archiveIdentityType", "archiveSha256", "archiveBytes", "runtimeProof"];
   if (result === null || typeof result !== "object" || Object.keys(result).length !== keys.length
     || keys.some((key) => !Object.hasOwn(result, key))
-    || result.kind !== "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1" || result.state !== "VERIFIED"
+    || result.kind !== "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2" || result.state !== "VERIFIED"
     || result.authority !== "DIAGNOSTIC_ONLY" || result.candidateAuthorization !== "NOT_AUTHORIZED"
     || result.imageExecution !== "VERIFIED_DIAGNOSTIC" || result.publication !== "NOT_ATTEMPTED"
     || result.vulnerabilityAudit !== "NOT_ATTEMPTED" || result.admission !== "NOT_ATTEMPTED"

@@ -117,6 +117,7 @@ test("runtime diagnostic applies the fixed isolated profile and returns a bounde
   const value = fixture();
   const proof = await TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker });
   assert.deepEqual(validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision }), proof);
+  assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PROOF_V2");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.derivativeVersion, "c507336+aw.549ec92660ab");
   assert.equal(proof.readiness, "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200");
@@ -237,6 +238,8 @@ test("proof and input validators reject extra or altered fields", async () => {
   assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, uid: 0 }, { imageId, runId, recipeRevision }),
     { code: "seaweed_candidate_runtime_failed" });
   assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, parallelAttempt: "NOT_ATTEMPTED" },
+    { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_failed" });
+  assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V1" },
     { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_failed" });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile({ ...input(), args: ["--privileged"] },
     { docker: value.docker }), { code: "seaweed_candidate_runtime_failed" });
