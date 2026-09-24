@@ -73,6 +73,7 @@ function transactionScope({ writeFailure = false, plannedInputs, plannedPlan } =
   const sourceIdentity = { binary: { sha256: binarySha, size: binarySize }, runId: "35884717093", attempt: 1, codeRevision };
   const inputs = plannedInputs ?? { baseMaterials: new Map([["base-manifest.json", Buffer.from("manifest")]]),
     source: { ...sourceIdentity, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z" } };
+  const plannedEntries = plannedPlan?.entries ?? [];
   const options = { parent, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z",
     platform: "linux", uid: process.getuid(), materializeSource: materialize("source"), materializeBase: materialize("base"),
     withSource: async (_receipt, callback) => callback({ sourceIdentity }), withBase: async (_receipt, callback) => callback({}),
@@ -81,14 +82,15 @@ function transactionScope({ writeFailure = false, plannedInputs, plannedPlan } =
       if (writeFailure) throw new Error("synthetic writer failure");
       sink.end(raw); await finished(sink);
       return { inputs, plan: plannedPlan ?? { entries: [], config: { Entrypoint: ["/entrypoint.sh"], User: "" } },
-        receipt: { rawSize: raw.length, diffId, memberCount: 0 } };
+        receipt: { rawSize: raw.length, diffId, memberCount: plannedEntries.length } };
     },
     scanRootfs: async ({ input, diffId: expected }) => {
       const chunks = []; for await (const chunk of input) chunks.push(Buffer.from(chunk));
       assert.equal(expected, diffId); assert.deepEqual(Buffer.concat(chunks), raw);
-      return { rawSize: raw.length, diffId, members: [] };
+      return { rawSize: raw.length, diffId, members: plannedEntries.map((planned) => ({ entry: planned })) };
     },
-    validateFilesystem: () => ({ kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: 0 }) };
+    validateFilesystem: () => ({ kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY",
+      entries: plannedEntries.length }) };
   return { parent, options, inputs, raw, diffId, codeRevision, binarySha, binarySize };
 }
 
