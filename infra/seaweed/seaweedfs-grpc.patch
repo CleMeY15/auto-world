@@ -1,0 +1,900 @@
+diff --git a/go.mod b/go.mod
+index 51b48b1..15b4c37 100644
+--- a/go.mod
++++ b/go.mod
+@@ -101,7 +101,7 @@ require (
+ 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+ 	google.golang.org/api v0.296.0
+ 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
+-	google.golang.org/grpc v1.85.0-dev
++	google.golang.org/grpc v1.85.0-dev.0.20260915183914-4e49413dcab7
+ 	google.golang.org/protobuf v1.36.12
+ 	gopkg.in/inf.v0 v0.9.1 // indirect
+ 	modernc.org/b v1.0.0 // indirect
+@@ -286,7 +286,7 @@ require (
+ 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
+ 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0 // indirect
+ 	go.opentelemetry.io/otel/exporters/zipkin v1.36.0 // indirect
+-	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
++	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
+ 	go.uber.org/mock v0.5.2 // indirect
+ 	go.yaml.in/yaml/v2 v2.4.4 // indirect
+ 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+@@ -295,7 +295,7 @@ require (
+ )
+ 
+ require (
+-	cel.dev/expr v0.25.2 // indirect
++	cel.dev/expr v0.25.3 // indirect
+ 	cloud.google.com/go/auth v0.23.2 // indirect
+ 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
+ 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+@@ -310,7 +310,7 @@ require (
+ 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
+ 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
+ 	github.com/Files-com/files-sdk-go/v3 v3.3.194 // indirect
+-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0 // indirect
++	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 // indirect
+ 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
+ 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
+ 	github.com/IBM/go-sdk-core/v5 v5.23.1 // indirect
+@@ -363,7 +363,7 @@ require (
+ 	github.com/elastic/gosigar v0.14.3 // indirect
+ 	github.com/emersion/go-message v0.18.2 // indirect
+ 	github.com/emersion/go-vcard v0.0.0-20260618161152-d854b7e0e2d3 // indirect
+-	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
++	github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be // indirect
+ 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
+ 	github.com/fatih/color v1.18.0 // indirect
+ 	github.com/felixge/httpsnoop v1.1.0 // indirect
+@@ -388,7 +388,7 @@ require (
+ 	github.com/gogo/protobuf v1.3.2 // indirect
+ 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+ 	github.com/google/s2a-go v0.1.9 // indirect
+-	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
++	github.com/googleapis/enterprise-certificate-proxy v0.3.21 // indirect
+ 	github.com/gorilla/schema v1.4.1 // indirect
+ 	github.com/gorilla/securecookie v1.1.2 // indirect
+ 	github.com/gorilla/sessions v1.4.0
+@@ -489,9 +489,9 @@ require (
+ 	go.etcd.io/bbolt v1.5.0 // indirect
+ 	go.etcd.io/etcd/api/v3 v3.7.1 // indirect
+ 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+-	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
++	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
+ 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
+-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
++	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
+ 	go.opentelemetry.io/otel v1.45.0 // indirect
+ 	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+ 	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
+@@ -501,7 +501,7 @@ require (
+ 	go.uber.org/zap v1.27.1 // indirect
+ 	golang.org/x/term v0.45.0
+ 	golang.org/x/time v0.15.0
+-	google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d // indirect
++	google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1 // indirect
+ 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
+ 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+ 	gopkg.in/validator.v2 v2.0.1 // indirect
+diff --git a/go.sum b/go.sum
+index db812e3..2ea419a 100644
+--- a/go.sum
++++ b/go.sum
+@@ -6,8 +6,8 @@ atomicgo.dev/keyboard v0.2.9 h1:tOsIid3nlPLZ3lwgG8KZMp/SFmr7P0ssEN5JUsm78K8=
+ atomicgo.dev/keyboard v0.2.9/go.mod h1:BC4w9g00XkxH/f1HXhW2sXmJFOCWbKn9xrOunSFtExQ=
+ atomicgo.dev/schedule v0.1.0 h1:nTthAbhZS5YZmgYbb2+DH8uQIZcTlIrd4eYr3UQxEjs=
+ atomicgo.dev/schedule v0.1.0/go.mod h1:xeUa3oAkiuHYh8bKiQBRojqAMq3PXXbJujjb0hw8pEU=
+-cel.dev/expr v0.25.2 h1:K6j46C81hXtZQfuX60cVWQFBJahKSE2gfRbNuvr5bFs=
+-cel.dev/expr v0.25.2/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
++cel.dev/expr v0.25.3 h1:A2jO8jwOugrrovveCWfj0KEZOfqiLgAcwjpHPhzIGw0=
++cel.dev/expr v0.25.3/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
+ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
+ cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
+ cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
+@@ -593,8 +593,8 @@ github.com/FilenCloudDienste/filen-sdk-go v0.0.39 h1:tgV5jYL6dsXop9TpDTIQU6UwJjw
+ github.com/FilenCloudDienste/filen-sdk-go v0.0.39/go.mod h1:0cBhKXQg49XbKZZfk5TCDa3sVLP+xMxZTWL+7KY0XR0=
+ github.com/Files-com/files-sdk-go/v3 v3.3.194 h1:dtOFxSTWWRpkmvXa6ycNiw8dVDu1wkgzcXyVV1VafNc=
+ github.com/Files-com/files-sdk-go/v3 v3.3.194/go.mod h1:rl0WumSN9gSo775DgvQv+wMQ8rlb0ES/1hU5jkMtLXg=
+-github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0 h1:yzIYdwuro811Z27D3T80Wkd3rqZzb0K43nner7Eh1yE=
+-github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0/go.mod h1:pJTkW8hEUIIi3Pf65lPZOnn4Y81yCllX6IWk2jNXdkM=
++github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0 h1:bN1gA3of5bXtbnLsRPrwfmbbe7A5UWFlcTHseujLnpc=
++github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.35.0/go.mod h1:Yj5vHEz/aAepZGliRJsA6uvHAVAQyEwajq9ORCHPxzM=
+ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 h1:jLdiS1vO+XJFyDSWRHBx56r4s/NNtcl5J6KyCcWUX/w=
+ github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0/go.mod h1:8lmpHY+1VRoteiOwyrQMDt1YGXOrFKCz+1wJW7n3ODY=
+ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/cloudmock v0.57.0 h1:cSjUzZ7KU8hicTgzaSv9NmSyM9fTVK3y5lsBUl3wOis=
+@@ -987,8 +987,8 @@ github.com/envoyproxy/go-control-plane v0.10.3/go.mod h1:fJJn/j26vwOu972OllsvAgJ
+ github.com/envoyproxy/go-control-plane v0.11.0/go.mod h1:VnHyVMpzcLvCFt9yUz1UnCwHLhwx1WguiVDV7pTG/tI=
+ github.com/envoyproxy/go-control-plane v0.14.0 h1:hbG2kr4RuFj222B6+7T83thSPqLjwBIfQawTkC++2HA=
+ github.com/envoyproxy/go-control-plane v0.14.0/go.mod h1:NcS5X47pLl/hfqxU70yPwL9ZMkUlwlKxtAohpi2wBEU=
+-github.com/envoyproxy/go-control-plane/envoy v1.37.0 h1:u3riX6BoYRfF4Dr7dwSOroNfdSbEPe9Yyl09/B6wBrQ=
+-github.com/envoyproxy/go-control-plane/envoy v1.37.0/go.mod h1:DReE9MMrmecPy+YvQOAOHNYMALuowAnbjjEMkkWOi6A=
++github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be h1:SWe0x6yfglnxuvOiYgTTnNq7QD/yvqthOh1RBI8Bj8w=
++github.com/envoyproxy/go-control-plane/envoy v1.39.1-0.20260819172001-e6e3fd93e4be/go.mod h1:PYEOlng9XcrulfyWpm49jECTPV0LT4q8cO7fLW/xwgk=
+ github.com/envoyproxy/go-control-plane/ratelimit v0.1.0 h1:/G9QYbddjL25KvtKTv3an9lx6VBE2cnb8wp1vEGNYGI=
+ github.com/envoyproxy/go-control-plane/ratelimit v0.1.0/go.mod h1:Wk+tMFAFbCXaJPzVVHnPgRKdUdwW/KdbRt94AzgRee4=
+ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
+@@ -1262,8 +1262,8 @@ github.com/googleapis/enterprise-certificate-proxy v0.1.0/go.mod h1:17drOmN3MwGY
+ github.com/googleapis/enterprise-certificate-proxy v0.2.0/go.mod h1:8C0jb7/mgJe/9KK8Lm7X9ctZC2t60YyIpYEI16jx0Qg=
+ github.com/googleapis/enterprise-certificate-proxy v0.2.1/go.mod h1:AwSRAtLfXpU5Nm3pW+v7rGDHp09LsPtGY9MduiEsR9k=
+ github.com/googleapis/enterprise-certificate-proxy v0.2.3/go.mod h1:AwSRAtLfXpU5Nm3pW+v7rGDHp09LsPtGY9MduiEsR9k=
+-github.com/googleapis/enterprise-certificate-proxy v0.3.20 h1:t/xL64VUoN69MuMRQuJETqYGOw4Z9mSRJK9epIEtwFk=
+-github.com/googleapis/enterprise-certificate-proxy v0.3.20/go.mod h1:L3D/IQExI6LqEjBdXcZQ1WluSgigQmSwBboFstVPM4w=
++github.com/googleapis/enterprise-certificate-proxy v0.3.21 h1:OFdQ3tnCX/zaQ0Cedur3D3z7kI6HiLX9g3TiAN4/DFU=
++github.com/googleapis/enterprise-certificate-proxy v0.3.21/go.mod h1:L3D/IQExI6LqEjBdXcZQ1WluSgigQmSwBboFstVPM4w=
+ github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
+ github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
+ github.com/googleapis/gax-go/v2 v2.1.0/go.mod h1:Q3nei7sK6ybPYH7twZdmQpAd1MKb7pfu6SK+H1/DsU0=
+@@ -2103,14 +2103,14 @@ go.opencensus.io v0.24.0 h1:y73uSU6J157QMP2kn2r30vwW1A2W2WFwSCGnAVxeaD0=
+ go.opencensus.io v0.24.0/go.mod h1:vNK8G9p7aAivkbmorf4v+7Hgx+Zs0yY+0fOtgBfjQKo=
+ go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
+ go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
+-go.opentelemetry.io/contrib/detectors/gcp v1.44.0 h1:NmLfL734pJhM0JKaYd2Y28+nY9dPRWYAAbxhRCrKXPw=
+-go.opentelemetry.io/contrib/detectors/gcp v1.44.0/go.mod h1:tNAsgd8avTGke1+MndXlU5Cru4PQ9Ai/cCNWQv/ZJ/s=
++go.opentelemetry.io/contrib/detectors/gcp v1.45.0 h1:9jR0ZPRok9ryaOQ2Wx8rg5F7Aon59mxrqbVI60/vlBk=
++go.opentelemetry.io/contrib/detectors/gcp v1.45.0/go.mod h1:VSme3o2fvSg5bVg0dRzyHaj4Z5EVhG+g2Fde6LKzmQA=
+ go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 h1:2yEATaop1/a1I4psnSLgWVPLWwCzkqWakgJy7xTDVy0=
+ go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0/go.mod h1:D7J12YRapIekYyPWgGPlA/23pRmpSEZC5xJC/TTLI9U=
+ go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0 h1:MCcYL7J6Vt/X0kjqbMZkekCmwsurbQRbL69vkiye2lk=
+ go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0/go.mod h1:3jnStNwSufK+f5ktjL4EPcwtig4rtd81NS70lqHuXl8=
+-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 h1:8tvICD4vSTOOsNrsI4Ljf6C+6UKvpTEH5XY3JMoyPoo=
+-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0/go.mod h1:z9+yiacE0IHRqM4qFfkbt/JYlmYXgss8GY/jXoNuPJI=
++go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 h1:LMuyCAyfalSjDyjdC65nK6N0zoTT63+E/u95X0JovZI=
++go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0/go.mod h1:085m8qbm4hgc8rZWGDEa4vmyyo2c3nPxUslYUKUIU04=
+ go.opentelemetry.io/otel v1.45.0 h1:pdrWmLHofpubmArBv1LgFSv1Z0Ie/ppdZzu+kUN5EeU=
+ go.opentelemetry.io/otel v1.45.0/go.mod h1:XZxIqPapzEYnhNSScF5DIqXhm/rYi0FzCe2XddAwZfQ=
+ go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.44.0 h1:SUplec5dp06reu1zaXmOXdvqH398taqrDXqUl99jxSc=
+@@ -2140,8 +2140,8 @@ go.opentelemetry.io/otel/trace v1.45.0/go.mod h1:qoJJA2xNMnxRrdISU/kLtfUH2wNeQbi
+ go.opentelemetry.io/proto/otlp v0.7.0/go.mod h1:PqfVotwruBrMGOCsRd/89rSnXhoiJIqeYNgFYFoEGnI=
+ go.opentelemetry.io/proto/otlp v0.15.0/go.mod h1:H7XAot3MsfNsj7EXtrA2q5xSNQ10UqI405h3+duxN4U=
+ go.opentelemetry.io/proto/otlp v0.19.0/go.mod h1:H7XAot3MsfNsj7EXtrA2q5xSNQ10UqI405h3+duxN4U=
+-go.opentelemetry.io/proto/otlp v1.10.0 h1:IQRWgT5srOCYfiWnpqUYz9CVmbO8bFmKcwYxpuCSL2g=
+-go.opentelemetry.io/proto/otlp v1.10.0/go.mod h1:/CV4QoCR/S9yaPj8utp3lvQPoqMtxXdzn7ozvvozVqk=
++go.opentelemetry.io/proto/otlp v1.11.0 h1:5rrYs0Ykyj50sdU/JU0x8etU+LubXWb+gED6TbEdMIk=
++go.opentelemetry.io/proto/otlp v1.11.0/go.mod h1:SmVizdCOAm3XBtG1g1NnOdhW6jtddT72hLMhv8VwA8E=
+ go.uber.org/atomic v1.6.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
+ go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
+ go.uber.org/atomic v1.9.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
+@@ -2805,8 +2805,8 @@ google.golang.org/genproto v0.0.0-20230222225845-10f96fb3dbec/go.mod h1:3Dl5ZL0q
+ google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4/go.mod h1:NWraEVixdDnqcqQ30jipen1STv2r/n24Wb7twVTGR4s=
+ google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d h1:C9v1o0/4quuhOAfmRXA2j+we0PqZIp8traLdeogF3Ms=
+ google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d/go.mod h1:Wz2wFJntZFmLGo7pLDXZ3wYk5hyc0Mb+SkHhDDXT+lU=
+-google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d h1:QwnJwPte4XXAkhPu26LTDIahnsMSUV0kK8HkxbC+Pc4=
+-google.golang.org/genproto/googleapis/api v0.0.0-20260715232425-e75dac1f907d/go.mod h1:WRrQ7/7N19PypuT0fxLOL5Lq0waoiRri4FbtHDEKrGE=
++google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1 h1:lrupDmKL3p5kEX1M92oan027eCKcouzjuPbH6YBK+Rs=
++google.golang.org/genproto/googleapis/api v0.0.0-20260817212433-ac3dfec99bb1/go.mod h1:q/3oV3jAi5vwelxsVAprMBC8BcM2zmNe+IjRGd+9/ks=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 h1:cYNAzI2sUwhmCcoj9TxvihSrqsxt6uIkj3rDRhSDmW4=
+ google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688/go.mod h1:DjtHYE8FKJLivXcBEjGwndXfIC23G0VpXiXKqG179uA=
+ google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
+@@ -2849,8 +2849,8 @@ google.golang.org/grpc v1.51.0/go.mod h1:wgNDFcnuBGmxLKI/qn4T+m5BtEBYXJPvibbUPsA
+ google.golang.org/grpc v1.52.0/go.mod h1:pu6fVzoFb+NBYNAvQL08ic+lvB2IojljRYuun5vorUY=
+ google.golang.org/grpc v1.53.0/go.mod h1:OnIrk0ipVdj4N5d9IUoFUx72/VlD7+jUsHwZgwSMQpw=
+ google.golang.org/grpc v1.55.0/go.mod h1:iYEXKGkEBhg1PjZQvoYEVPTDkHo1/bjTnfwTeGONTY8=
+-google.golang.org/grpc v1.85.0-dev h1:HxkDyKIIZPpFnroC56tQv5gNuKTmVvi0t7TzOf5zt7g=
+-google.golang.org/grpc v1.85.0-dev/go.mod h1:ljCht0DrxQrXBDRTZp52Qxh3Ffk8CdYm2sj4O2QN2C0=
++google.golang.org/grpc v1.85.0-dev.0.20260915183914-4e49413dcab7 h1:5+EEM1fC0yjOZID0NUZVrE2+8M/+1TclNrSz/l1xMYs=
++google.golang.org/grpc v1.85.0-dev.0.20260915183914-4e49413dcab7/go.mod h1:Ovl0ECo4xx5r4kn/6d4BPSNB7OIFuu6EAjOzjtVAKaM=
+ google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0/go.mod h1:6Kw0yEErY5E/yWrBtf03jp27GLLJujG4z/JK95pnjjw=
+ google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6 h1:ExN12ndbJ608cboPYflpTny6mXSzPrDLh0iTaVrRrds=
+ google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6/go.mod h1:6ytKWczdvnpnO+m+JiG9NjEDzR1FJfsnmJdG7B8QVZ8=
+diff --git a/weed/admin/plugin/plugin_scheduler.go b/weed/admin/plugin/plugin_scheduler.go
+index 94a3aa3..a41561e 100644
+--- a/weed/admin/plugin/plugin_scheduler.go
++++ b/weed/admin/plugin/plugin_scheduler.go
+@@ -11,6 +11,7 @@ import (
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/glog"
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/plugin_pb"
++	"google.golang.org/protobuf/proto"
+ 	"google.golang.org/protobuf/types/known/timestamppb"
+ )
+ 
+@@ -596,7 +597,7 @@ func deriveSchedulerAdminRuntime(
+ 	descriptor *plugin_pb.JobTypeDescriptor,
+ ) *plugin_pb.AdminRuntimeConfig {
+ 	if cfg != nil && cfg.AdminRuntime != nil {
+-		adminConfig := *cfg.AdminRuntime
++		adminConfig := proto.Clone(cfg.AdminRuntime).(*plugin_pb.AdminRuntimeConfig)
+ 		// Overlay descriptor defaults for any zero numeric fields. Persisted
+ 		// configs from older versions have no execution_timeout_seconds, and
+ 		// without this overlay the scheduler would fall back to the 90s
+@@ -628,7 +629,7 @@ func deriveSchedulerAdminRuntime(
+ 				adminConfig.ExecutionTimeoutSeconds = defaults.ExecutionTimeoutSeconds
+ 			}
+ 		}
+-		return &adminConfig
++		return adminConfig
+ 	}
+ 
+ 	if descriptor == nil || descriptor.AdminRuntimeDefaults == nil {
+diff --git a/weed/admin/plugin/plugin_scheduler_test.go b/weed/admin/plugin/plugin_scheduler_test.go
+index 2e9459b..6711db3 100644
+--- a/weed/admin/plugin/plugin_scheduler_test.go
++++ b/weed/admin/plugin/plugin_scheduler_test.go
+@@ -9,9 +9,48 @@ import (
+ 	"time"
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/plugin_pb"
++	"google.golang.org/protobuf/proto"
+ 	"google.golang.org/protobuf/types/known/timestamppb"
+ )
+ 
++func TestDeriveSchedulerAdminRuntimeClonesPersistedConfig(t *testing.T) {
++	unknown := []byte{0xf8, 0x07, 0x01}
++	persisted := &plugin_pb.AdminRuntimeConfig{
++		Enabled:                 true,
++		MaxJobsPerDetection:     17,
++		DetectionTimeoutSeconds: 0,
++	}
++	persisted.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++	before := proto.Clone(persisted).(*plugin_pb.AdminRuntimeConfig)
++	cfg := &plugin_pb.PersistedJobTypeConfig{AdminRuntime: persisted}
++	descriptor := &plugin_pb.JobTypeDescriptor{
++		AdminRuntimeDefaults: &plugin_pb.AdminRuntimeDefaults{DetectionTimeoutSeconds: 23},
++	}
++
++	derived := deriveSchedulerAdminRuntime(cfg, descriptor)
++	if derived == persisted {
++		t.Fatal("derived admin runtime aliases persisted configuration")
++	}
++	if derived.DetectionTimeoutSeconds != 23 || derived.MaxJobsPerDetection != 17 {
++		t.Fatalf("unexpected descriptor overlay: %+v", derived)
++	}
++	if !proto.Equal(before, cfg.AdminRuntime) {
++		t.Fatal("derivation mutated persisted configuration")
++	}
++	if got := derived.ProtoReflect().GetUnknown(); string(got) != string(unknown) {
++		t.Fatalf("unknown fields were not preserved: got=%x want=%x", got, unknown)
++	}
++
++	derived.MaxJobsPerDetection = 99
++	derived.ProtoReflect().GetUnknown()[2] = 0x02
++	if persisted.MaxJobsPerDetection != 17 {
++		t.Fatalf("derived field mutation reached persisted config: %d", persisted.MaxJobsPerDetection)
++	}
++	if got := persisted.ProtoReflect().GetUnknown(); string(got) != string(unknown) {
++		t.Fatalf("derived unknown-field mutation reached persisted config: %x", got)
++	}
++}
++
+ func TestLoadSchedulerPolicyUsesAdminConfig(t *testing.T) {
+ 	t.Parallel()
+ 
+diff --git a/weed/admin/plugin/registry.go b/weed/admin/plugin/registry.go
+index 46d51e7..8d0d835 100644
+--- a/weed/admin/plugin/registry.go
++++ b/weed/admin/plugin/registry.go
+@@ -8,6 +8,7 @@ import (
+ 	"time"
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/plugin_pb"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ const defaultWorkerStaleTimeout = 2 * time.Minute
+@@ -477,23 +478,21 @@ func cloneJobTypeCapability(in *plugin_pb.JobTypeCapability) *plugin_pb.JobTypeC
+ 	if in == nil {
+ 		return nil
+ 	}
+-	out := *in
+-	return &out
++	return proto.Clone(in).(*plugin_pb.JobTypeCapability)
+ }
+ 
+ func cloneWorkerHeartbeat(in *plugin_pb.WorkerHeartbeat) *plugin_pb.WorkerHeartbeat {
+ 	if in == nil {
+ 		return nil
+ 	}
+-	out := *in
++	out := proto.Clone(in).(*plugin_pb.WorkerHeartbeat)
+ 	if in.RunningWork != nil {
+ 		out.RunningWork = make([]*plugin_pb.RunningWork, 0, len(in.RunningWork))
+ 		for _, rw := range in.RunningWork {
+ 			if rw == nil {
+ 				continue
+ 			}
+-			clone := *rw
+-			out.RunningWork = append(out.RunningWork, &clone)
++			out.RunningWork = append(out.RunningWork, proto.Clone(rw).(*plugin_pb.RunningWork))
+ 		}
+ 	}
+ 	if in.QueuedJobsByType != nil {
+@@ -508,5 +507,5 @@ func cloneWorkerHeartbeat(in *plugin_pb.WorkerHeartbeat) *plugin_pb.WorkerHeartb
+ 			out.Metadata[k] = v
+ 		}
+ 	}
+-	return &out
++	return out
+ }
+diff --git a/weed/admin/plugin/registry_test.go b/weed/admin/plugin/registry_test.go
+index 1d33127..1bf3b66 100644
+--- a/weed/admin/plugin/registry_test.go
++++ b/weed/admin/plugin/registry_test.go
+@@ -1,6 +1,7 @@
+ package plugin
+ 
+ import (
++	"bytes"
+ 	"reflect"
+ 	"testing"
+ 	"time"
+@@ -8,6 +9,56 @@ import (
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/plugin_pb"
+ )
+ 
++func TestCloneWorkerSessionPreservesProtoIsolationAndNilFiltering(t *testing.T) {
++	capabilityUnknown := []byte{0xf8, 0x07, 0x01}
++	heartbeatUnknown := []byte{0xf8, 0x07, 0x02}
++	runningUnknown := []byte{0xf8, 0x07, 0x03}
++	capability := &plugin_pb.JobTypeCapability{JobType: "vacuum", CanExecute: true}
++	capability.ProtoReflect().SetUnknown(append([]byte(nil), capabilityUnknown...))
++	running := &plugin_pb.RunningWork{WorkId: "work-1", Stage: "copying"}
++	running.ProtoReflect().SetUnknown(append([]byte(nil), runningUnknown...))
++	heartbeat := &plugin_pb.WorkerHeartbeat{
++		WorkerId:         "worker-1",
++		RunningWork:      []*plugin_pb.RunningWork{running, nil},
++		QueuedJobsByType: map[string]int32{"vacuum": 2},
++		Metadata:         map[string]string{"zone": "a"},
++	}
++	heartbeat.ProtoReflect().SetUnknown(append([]byte(nil), heartbeatUnknown...))
++	source := &WorkerSession{
++		WorkerID:     "worker-1",
++		Capabilities: map[string]*plugin_pb.JobTypeCapability{"vacuum": capability},
++		Heartbeat:    heartbeat,
++	}
++
++	cloned := cloneWorkerSession(source)
++	if cloned == source || cloned.Capabilities["vacuum"] == capability || cloned.Heartbeat == heartbeat {
++		t.Fatal("worker session protobuf state was not deeply cloned")
++	}
++	if len(cloned.Heartbeat.RunningWork) != 1 || cloned.Heartbeat.RunningWork[0] == running {
++		t.Fatalf("running work was not cloned with nil entries filtered: %+v", cloned.Heartbeat.RunningWork)
++	}
++	if !bytes.Equal(cloned.Capabilities["vacuum"].ProtoReflect().GetUnknown(), capabilityUnknown) ||
++		!bytes.Equal(cloned.Heartbeat.ProtoReflect().GetUnknown(), heartbeatUnknown) ||
++		!bytes.Equal(cloned.Heartbeat.RunningWork[0].ProtoReflect().GetUnknown(), runningUnknown) {
++		t.Fatal("protobuf unknown fields were not preserved")
++	}
++
++	cloned.Capabilities["vacuum"].JobType = "changed"
++	cloned.Capabilities["vacuum"].ProtoReflect().GetUnknown()[2] = 0x09
++	cloned.Heartbeat.RunningWork[0].Stage = "done"
++	cloned.Heartbeat.RunningWork[0].ProtoReflect().GetUnknown()[2] = 0x09
++	cloned.Heartbeat.QueuedJobsByType["vacuum"] = 9
++	cloned.Heartbeat.Metadata["zone"] = "b"
++	if capability.JobType != "vacuum" || running.Stage != "copying" ||
++		heartbeat.QueuedJobsByType["vacuum"] != 2 || heartbeat.Metadata["zone"] != "a" {
++		t.Fatal("mutating cloned session reached source protobuf state")
++	}
++	if !bytes.Equal(capability.ProtoReflect().GetUnknown(), capabilityUnknown) ||
++		!bytes.Equal(running.ProtoReflect().GetUnknown(), runningUnknown) {
++		t.Fatal("mutating cloned unknown fields reached source protobuf state")
++	}
++}
++
+ func TestRegistryPickDetectorPrefersMoreFreeSlots(t *testing.T) {
+ 	t.Parallel()
+ 
+diff --git a/weed/cluster/lock_ring_manager.go b/weed/cluster/lock_ring_manager.go
+index 486e8b0..745437b 100644
+--- a/weed/cluster/lock_ring_manager.go
++++ b/weed/cluster/lock_ring_manager.go
+@@ -7,6 +7,7 @@ import (
+ 	"github.com/seaweedfs/seaweedfs/weed/glog"
+ 	"github.com/seaweedfs/seaweedfs/weed/pb"
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/master_pb"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ const LockRingStabilizationInterval = 1 * time.Second
+@@ -93,9 +94,7 @@ func (lrm *LockRingManager) GetLastUpdate(filerGroup FilerGroupName) *master_pb.
+ 	if !ok || update == nil {
+ 		return nil
+ 	}
+-	cp := *update
+-	cp.Servers = append([]string(nil), update.Servers...)
+-	return &cp
++	return proto.Clone(update).(*master_pb.LockRingUpdate)
+ }
+ 
+ // scheduleBroadcast resets the stabilization timer. If another change arrives
+diff --git a/weed/cluster/lock_ring_manager_test.go b/weed/cluster/lock_ring_manager_test.go
+index 981d13d..ea7ddd9 100644
+--- a/weed/cluster/lock_ring_manager_test.go
++++ b/weed/cluster/lock_ring_manager_test.go
+@@ -1,6 +1,7 @@
+ package cluster
+ 
+ import (
++	"bytes"
+ 	"sync"
+ 	"testing"
+ 	"time"
+@@ -9,6 +10,7 @@ import (
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/master_pb"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ func TestLockRingManager_BatchesRapidChanges(t *testing.T) {
+@@ -227,3 +229,32 @@ func TestLockRingManager_GetLastUpdateReturnsBroadcastState(t *testing.T) {
+ 	assert.ElementsMatch(t, []string{"filer1:8888", "filer2:8888"}, update.Servers)
+ 	assert.Greater(t, update.Version, int64(0))
+ }
++
++func TestLockRingManager_GetLastUpdateReturnsIndependentProtoClone(t *testing.T) {
++	lrm := NewLockRingManager(nil)
++	group := FilerGroupName("default")
++	lrm.AddServer(group, "filer1:8888")
++	lrm.FlushPending(group)
++
++	unknown := []byte{0xf8, 0x07, 0x01}
++	lrm.mu.Lock()
++	stored := lrm.lastBroadcast[group]
++	stored.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++	lrm.mu.Unlock()
++
++	first := lrm.GetLastUpdate(group)
++	require.NotNil(t, first)
++	if first == stored || !proto.Equal(first, stored) {
++		t.Fatalf("expected independent equivalent clone: got=%+v stored=%+v", first, stored)
++	}
++	if !bytes.Equal(first.ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("unknown fields were not preserved: %x", first.ProtoReflect().GetUnknown())
++	}
++	first.Servers[0] = "mutated:8888"
++	first.ProtoReflect().GetUnknown()[2] = 0x02
++
++	second := lrm.GetLastUpdate(group)
++	require.NotNil(t, second)
++	assert.Equal(t, []string{"filer1:8888"}, second.Servers)
++	assert.True(t, bytes.Equal(second.ProtoReflect().GetUnknown(), unknown))
++}
+diff --git a/weed/credential/credential_manager.go b/weed/credential/credential_manager.go
+index ec37b2a..7c3603a 100644
+--- a/weed/credential/credential_manager.go
++++ b/weed/credential/credential_manager.go
+@@ -15,6 +15,7 @@ import (
+ 	"github.com/seaweedfs/seaweedfs/weed/wdclient"
+ 	"google.golang.org/grpc"
+ 	"google.golang.org/protobuf/encoding/protojson"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ // FilerAddressSetter is an interface for credential stores that need a dynamic filer address
+@@ -168,15 +169,15 @@ func (cm *CredentialManager) SaveConfiguration(ctx context.Context, config *iam_
+ 	staticNames := cm.staticNames
+ 	cm.staticMu.RUnlock()
+ 	if len(staticNames) > 0 {
++		configCopy := proto.Clone(config).(*iam_pb.S3ApiConfiguration)
+ 		var dynamicOnly []*iam_pb.Identity
+-		for _, ident := range config.Identities {
++		for _, ident := range configCopy.Identities {
+ 			if !staticNames[ident.Name] {
+ 				dynamicOnly = append(dynamicOnly, ident)
+ 			}
+ 		}
+-		configCopy := *config
+ 		configCopy.Identities = dynamicOnly
+-		return cm.Store.SaveConfiguration(ctx, &configCopy)
++		return cm.Store.SaveConfiguration(ctx, configCopy)
+ 	}
+ 	return cm.Store.SaveConfiguration(ctx, config)
+ }
+diff --git a/weed/credential/credential_test.go b/weed/credential/credential_test.go
+index dd1449f..28dbc34 100644
+--- a/weed/credential/credential_test.go
++++ b/weed/credential/credential_test.go
+@@ -6,8 +6,56 @@ import (
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/iam_pb"
+ 	"github.com/seaweedfs/seaweedfs/weed/util"
++	"google.golang.org/protobuf/proto"
+ )
+ 
++type mutatingSaveCredentialStore struct {
++	CredentialStore
++	saved *iam_pb.S3ApiConfiguration
++}
++
++func (s *mutatingSaveCredentialStore) SaveConfiguration(_ context.Context, config *iam_pb.S3ApiConfiguration) error {
++	s.saved = proto.Clone(config).(*iam_pb.S3ApiConfiguration)
++	config.Identities[0].Name = "store-mutated"
++	config.Accounts[0].DisplayName = "store-mutated"
++	config.ServiceAccounts[0].Description = "store-mutated"
++	config.Policies[0].Content = "store-mutated"
++	config.Groups[0].Members[0] = "store-mutated"
++	config.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x09})
++	return nil
++}
++
++func TestSaveConfigurationClonesBeforeFilteringStaticIdentities(t *testing.T) {
++	unknown := []byte{0xf8, 0x07, 0x01}
++	config := &iam_pb.S3ApiConfiguration{
++		Identities:      []*iam_pb.Identity{{Name: "dynamic"}, {Name: "static"}},
++		Accounts:        []*iam_pb.Account{{Id: "account-1", DisplayName: "original"}},
++		ServiceAccounts: []*iam_pb.ServiceAccount{{Id: "service-1", Description: "original"}},
++		Policies:        []*iam_pb.Policy{{Name: "policy-1", Content: "original"}},
++		Groups:          []*iam_pb.Group{{Name: "group-1", Members: []string{"dynamic"}}},
++	}
++	config.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++	before := proto.Clone(config).(*iam_pb.S3ApiConfiguration)
++	store := &mutatingSaveCredentialStore{}
++	manager := &CredentialManager{Store: store}
++	manager.SetStaticIdentities([]*iam_pb.Identity{{Name: "static"}})
++
++	if err := manager.SaveConfiguration(context.Background(), config); err != nil {
++		t.Fatalf("SaveConfiguration: %v", err)
++	}
++	if !proto.Equal(config, before) {
++		t.Fatalf("caller configuration was mutated:\n got=%v\nwant=%v", config, before)
++	}
++	if store.saved == nil || len(store.saved.Identities) != 1 || store.saved.Identities[0].Name != "dynamic" {
++		t.Fatalf("static identities were not filtered from stored config: %+v", store.saved)
++	}
++	wantStored := proto.Clone(before).(*iam_pb.S3ApiConfiguration)
++	wantStored.Identities = wantStored.Identities[:1]
++	if !proto.Equal(store.saved, wantStored) {
++		t.Fatalf("non-identity configuration or unknown fields were not preserved:\n got=%v\nwant=%v", store.saved, wantStored)
++	}
++}
++
+ func TestCredentialStoreInterface(t *testing.T) {
+ 	// Note: This test may fail if run without importing store packages
+ 	// For full integration testing, see the test/ package
+diff --git a/weed/mount/peer_registrar_test.go b/weed/mount/peer_registrar_test.go
+index 7fee73d..21cb7ac 100644
+--- a/weed/mount/peer_registrar_test.go
++++ b/weed/mount/peer_registrar_test.go
+@@ -8,6 +8,7 @@ import (
+ 	"github.com/seaweedfs/seaweedfs/weed/pb"
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/filer_pb"
+ 	"google.golang.org/grpc"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ // fakeFilerClient captures MountRegister/MountList calls and lets the test
+@@ -17,22 +18,21 @@ type fakeFilerClient struct {
+ 	filer_pb.SeaweedFilerClient // embed for methods we don't need
+ 
+ 	mu            sync.Mutex
+-	registerCalls []filer_pb.MountRegisterRequest
++	registerCalls []*filer_pb.MountRegisterRequest
+ 	listResponse  filer_pb.MountListResponse
+ }
+ 
+ func (f *fakeFilerClient) MountRegister(ctx context.Context, req *filer_pb.MountRegisterRequest, opts ...grpc.CallOption) (*filer_pb.MountRegisterResponse, error) {
+ 	f.mu.Lock()
+ 	defer f.mu.Unlock()
+-	f.registerCalls = append(f.registerCalls, *req)
++	f.registerCalls = append(f.registerCalls, proto.Clone(req).(*filer_pb.MountRegisterRequest))
+ 	return &filer_pb.MountRegisterResponse{}, nil
+ }
+ 
+ func (f *fakeFilerClient) MountList(ctx context.Context, req *filer_pb.MountListRequest, opts ...grpc.CallOption) (*filer_pb.MountListResponse, error) {
+ 	f.mu.Lock()
+ 	defer f.mu.Unlock()
+-	resp := f.listResponse // value copy
+-	return &resp, nil
++	return proto.Clone(&f.listResponse).(*filer_pb.MountListResponse), nil
+ }
+ 
+ // fakeFilerFleet maps each addr to its own fakeFilerClient so a test can
+diff --git a/weed/plugin/worker/worker.go b/weed/plugin/worker/worker.go
+index 279ffbe..2876707 100644
+--- a/weed/plugin/worker/worker.go
++++ b/weed/plugin/worker/worker.go
+@@ -651,8 +651,7 @@ func (w *Worker) buildHeartbeat() *plugin_pb.WorkerHeartbeat {
+ 		if work == nil {
+ 			continue
+ 		}
+-		cloned := *work
+-		running = append(running, &cloned)
++		running = append(running, proto.Clone(work).(*plugin_pb.RunningWork))
+ 	}
+ 	w.runningMu.RUnlock()
+ 
+diff --git a/weed/plugin/worker/worker_test.go b/weed/plugin/worker/worker_test.go
+index d540d04..d7ba8ac 100644
+--- a/weed/plugin/worker/worker_test.go
++++ b/weed/plugin/worker/worker_test.go
+@@ -1,6 +1,7 @@
+ package pluginworker
+ 
+ import (
++	"bytes"
+ 	"context"
+ 	"testing"
+ 	"time"
+@@ -10,6 +11,36 @@ import (
+ 	"google.golang.org/grpc/credentials/insecure"
+ )
+ 
++func TestWorkerBuildHeartbeatClonesRunningWork(t *testing.T) {
++	unknown := []byte{0xf8, 0x07, 0x01}
++	running := &plugin_pb.RunningWork{WorkId: "work-1", JobType: "vacuum", Stage: "copying"}
++	running.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++	worker := &Worker{
++		detectSlots: make(chan struct{}, 2),
++		execSlots:   make(chan struct{}, 3),
++		runningWork: map[string]*plugin_pb.RunningWork{"work-1": running},
++		workerID:    "worker-1",
++	}
++
++	first := worker.buildHeartbeat()
++	if len(first.RunningWork) != 1 || first.RunningWork[0] == running {
++		t.Fatalf("heartbeat running work was not cloned: %+v", first.RunningWork)
++	}
++	if !bytes.Equal(first.RunningWork[0].ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("unknown fields were not preserved: %x", first.RunningWork[0].ProtoReflect().GetUnknown())
++	}
++	first.RunningWork[0].Stage = "done"
++	first.RunningWork[0].ProtoReflect().GetUnknown()[2] = 0x02
++
++	second := worker.buildHeartbeat()
++	if second.RunningWork[0].Stage != "copying" || running.Stage != "copying" {
++		t.Fatalf("heartbeat mutation reached worker state: second=%q source=%q", second.RunningWork[0].Stage, running.Stage)
++	}
++	if !bytes.Equal(second.RunningWork[0].ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("heartbeat unknown-field mutation reached worker state: %x", second.RunningWork[0].ProtoReflect().GetUnknown())
++	}
++}
++
+ func TestWorkerBuildHelloUsesConfiguredConcurrency(t *testing.T) {
+ 	handler := &testJobHandler{
+ 		capability: &plugin_pb.JobTypeCapability{
+diff --git a/weed/replication/sink/filersink/fetch_write.go b/weed/replication/sink/filersink/fetch_write.go
+index 08a79bf..33c51fb 100644
+--- a/weed/replication/sink/filersink/fetch_write.go
++++ b/weed/replication/sink/filersink/fetch_write.go
+@@ -211,12 +211,7 @@ func (fs *FilerSink) replicateOneManifestChunk(ctx context.Context, sourceChunk
+ 		return nil, fmt.Errorf("replicate manifest data chunks %s: %w", sourceChunk.GetFileIdString(), err)
+ 	}
+ 
+-	manifestDataChunks := make([]*filer_pb.FileChunk, len(replicatedResolvedChunks))
+-	for i, chunk := range replicatedResolvedChunks {
+-		copied := *chunk
+-		manifestDataChunks[i] = &copied
+-	}
+-	filer_pb.BeforeEntrySerialization(manifestDataChunks)
++	manifestDataChunks := cloneChunksForManifest(replicatedResolvedChunks)
+ 	manifestData, err := proto.Marshal(&filer_pb.FileChunkManifest{
+ 		Chunks: manifestDataChunks,
+ 	})
+@@ -240,6 +235,15 @@ func (fs *FilerSink) replicateOneManifestChunk(ctx context.Context, sourceChunk
+ 	}, nil
+ }
+ 
++func cloneChunksForManifest(chunks []*filer_pb.FileChunk) []*filer_pb.FileChunk {
++	cloned := make([]*filer_pb.FileChunk, len(chunks))
++	for i, chunk := range chunks {
++		cloned[i] = proto.Clone(chunk).(*filer_pb.FileChunk)
++	}
++	filer_pb.BeforeEntrySerialization(cloned)
++	return cloned
++}
++
+ // maxUnverifiableResolveAttempts bounds manifest-resolve retries when
+ // supersession cannot be checked for the target path.
+ const maxUnverifiableResolveAttempts = 3
+diff --git a/weed/replication/sink/filersink/fetch_write_test.go b/weed/replication/sink/filersink/fetch_write_test.go
+index 72e50d0..18e3076 100644
+--- a/weed/replication/sink/filersink/fetch_write_test.go
++++ b/weed/replication/sink/filersink/fetch_write_test.go
+@@ -1,6 +1,7 @@
+ package filersink
+ 
+ import (
++	"bytes"
+ 	"context"
+ 	"errors"
+ 	"fmt"
+@@ -25,6 +26,38 @@ import (
+ 	util_http "github.com/seaweedfs/seaweedfs/weed/util/http"
+ )
+ 
++func TestCloneChunksForManifestNormalizesWithoutMutatingSource(t *testing.T) {
++	unknown := []byte{0xf8, 0x07, 0x01}
++	sourceChunk := &filer_pb.FileChunk{
++		FileId:       "7,0100000001",
++		SourceFileId: "8,0200000002",
++		CipherKey:    []byte{1, 2, 3},
++	}
++	sourceChunk.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++
++	cloned := cloneChunksForManifest([]*filer_pb.FileChunk{sourceChunk})
++	if len(cloned) != 1 || cloned[0] == sourceChunk {
++		t.Fatalf("manifest chunks were not cloned: %+v", cloned)
++	}
++	if cloned[0].FileId != "" || cloned[0].Fid == nil || cloned[0].SourceFileId != "" || cloned[0].SourceFid == nil {
++		t.Fatalf("cloned chunk was not normalized for manifest serialization: %+v", cloned[0])
++	}
++	if sourceChunk.FileId != "7,0100000001" || sourceChunk.Fid != nil ||
++		sourceChunk.SourceFileId != "8,0200000002" || sourceChunk.SourceFid != nil {
++		t.Fatalf("normalization mutated source chunk: %+v", sourceChunk)
++	}
++	if !bytes.Equal(cloned[0].ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("unknown fields were not preserved: %x", cloned[0].ProtoReflect().GetUnknown())
++	}
++
++	cloned[0].Fid.VolumeId = 99
++	cloned[0].CipherKey[0] = 9
++	cloned[0].ProtoReflect().GetUnknown()[2] = 0x02
++	if sourceChunk.CipherKey[0] != 1 || sourceChunk.Fid != nil || !bytes.Equal(sourceChunk.ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("mutating normalized clone reached source chunk: %+v", sourceChunk)
++	}
++}
++
+ func TestMain(m *testing.M) {
+ 	util_http.InitGlobalHttpClient()
+ 	os.Exit(m.Run())
+diff --git a/weed/s3api/chunked_reader_v4_test.go b/weed/s3api/chunked_reader_v4_test.go
+index e386129..1eb0fbf 100644
+--- a/weed/s3api/chunked_reader_v4_test.go
++++ b/weed/s3api/chunked_reader_v4_test.go
+@@ -111,7 +111,7 @@ func TestNewSignV4ChunkedReaderStreamingUnsignedPayloadTrailer(t *testing.T) {
+ 	runWithRequest(iam, req, t, expectedPayload)
+ }
+ 
+-func runWithRequest(iam IdentityAccessManagement, req *http.Request, t *testing.T, expectedPayload string) {
++func runWithRequest(iam *IdentityAccessManagement, req *http.Request, t *testing.T, expectedPayload string) {
+ 	reader, errCode := iam.newChunkedReader(req)
+ 	assert.NotNil(t, reader)
+ 	assert.Equal(t, s3err.ErrNone, errCode)
+@@ -124,7 +124,7 @@ func runWithRequest(iam IdentityAccessManagement, req *http.Request, t *testing.
+ 	assert.Equal(t, expectedPayload, string(data))
+ }
+ 
+-func setupIam() IdentityAccessManagement {
++func setupIam() *IdentityAccessManagement {
+ 	// Create an IdentityAccessManagement instance
+ 	// Add default access keys and secrets
+ 
+@@ -156,7 +156,7 @@ func setupIam() IdentityAccessManagement {
+ 	})
+ 
+ 	iam.accessKeyIdent[defaultAccessKeyId] = iam.identities[0]
+-	return iam
++	return &iam
+ }
+ 
+ // TestSignedStreamingUpload tests streaming uploads with signed chunks
+diff --git a/weed/shell/command_volume_delete_empty_test.go b/weed/shell/command_volume_delete_empty_test.go
+index 3447242..05b649c 100644
+--- a/weed/shell/command_volume_delete_empty_test.go
++++ b/weed/shell/command_volume_delete_empty_test.go
+@@ -5,6 +5,7 @@ import (
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/master_pb"
+ 	"github.com/seaweedfs/seaweedfs/weed/util/wildcard"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ func TestIsEmptyVolumeDeleteCandidateCollectionPattern(t *testing.T) {
+@@ -33,13 +34,13 @@ func TestIsEmptyVolumeDeleteCandidateCollectionPattern(t *testing.T) {
+ 
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			v := *quietEmptyVolume
++			v := proto.Clone(quietEmptyVolume).(*master_pb.VolumeInformationMessage)
+ 			v.Collection = tt.collection
+ 			matcher, err := wildcard.CompileCollectionMatcher(tt.pattern)
+ 			if err != nil {
+ 				t.Fatalf("CompileCollectionMatcher(%q): %v", tt.pattern, err)
+ 			}
+-			if got := isEmptyVolumeDeleteCandidate(&v, quietSeconds, now, matcher); got != tt.want {
++			if got := isEmptyVolumeDeleteCandidate(v, quietSeconds, now, matcher); got != tt.want {
+ 				t.Fatalf("isEmptyVolumeDeleteCandidate(collection=%q, pattern=%q) = %v, want %v",
+ 					tt.collection, tt.pattern, got, tt.want)
+ 			}
+diff --git a/weed/stats/disk.go b/weed/stats/disk.go
+index a75cbba..67bc06f 100644
+--- a/weed/stats/disk.go
++++ b/weed/stats/disk.go
+@@ -12,6 +12,7 @@ import (
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/glog"
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/volume_server_pb"
++	"google.golang.org/protobuf/proto"
+ )
+ 
+ type DiskIOProbeConfig struct {
+@@ -91,7 +92,7 @@ type diskState struct {
+ 	statFailureCount int
+ 	statSuccessCount int
+ 	lastStatErr      error
+-	lastGoodStatus   volume_server_pb.DiskStatus
++	lastGoodStatus   *volume_server_pb.DiskStatus
+ 	hasLastGood      bool
+ 
+ 	samples []ioSample
+@@ -497,7 +498,7 @@ func (s *diskState) updateErrorLocked(disk *volume_server_pb.DiskStatus, config
+ }
+ 
+ func (s *diskState) rememberGoodStatusLocked(disk *volume_server_pb.DiskStatus) {
+-	s.lastGoodStatus = *disk
++	s.lastGoodStatus = proto.Clone(disk).(*volume_server_pb.DiskStatus)
+ 	s.hasLastGood = true
+ }
+ 
+@@ -508,7 +509,8 @@ func (s *diskState) applyLastGoodStatusLocked(disk *volume_server_pb.DiskStatus)
+ 
+ 	dir := disk.Dir
+ 	errorMessage := disk.Error
+-	*disk = s.lastGoodStatus
++	proto.Reset(disk)
++	proto.Merge(disk, s.lastGoodStatus)
+ 	disk.Dir = dir
+ 	disk.Error = errorMessage
+ }
+diff --git a/weed/stats/disk_test.go b/weed/stats/disk_test.go
+index abbe26d..374ad4e 100644
+--- a/weed/stats/disk_test.go
++++ b/weed/stats/disk_test.go
+@@ -3,14 +3,65 @@
+ package stats
+ 
+ import (
++	"bytes"
+ 	"os"
+ 	"path/filepath"
+ 	"testing"
+ 	"time"
+ 
+ 	"github.com/seaweedfs/seaweedfs/weed/pb/volume_server_pb"
++	"google.golang.org/protobuf/proto"
+ )
+ 
++func TestDiskStateSnapshotRestoresIndependentProtoState(t *testing.T) {
++	unknown := []byte{0xf8, 0x07, 0x01}
++	source := &volume_server_pb.DiskStatus{
++		Dir:         "/baseline",
++		All:         100,
++		Used:        40,
++		Free:        60,
++		PercentFree: 60,
++		PercentUsed: 40,
++		DiskType:    "ssd",
++	}
++	source.ProtoReflect().SetUnknown(append([]byte(nil), unknown...))
++	state := &diskState{}
++	state.rememberGoodStatusLocked(source)
++	source.All = 999
++	source.ProtoReflect().SetUnknown([]byte{0xf8, 0x07, 0x02})
++
++	first := &volume_server_pb.DiskStatus{Dir: "/current"}
++	state.applyLastGoodStatusLocked(first)
++	if first.Dir != "/current" || first.Error != "" || first.All != 100 || first.DiskType != "ssd" {
++		t.Fatalf("unexpected restored disk status: %+v", first)
++	}
++	if !bytes.Equal(first.ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("unknown fields were not restored: %x", first.ProtoReflect().GetUnknown())
++	}
++	first.All = 777
++	first.ProtoReflect().GetUnknown()[2] = 0x03
++
++	second := &volume_server_pb.DiskStatus{Dir: "/second"}
++	state.applyLastGoodStatusLocked(second)
++	if second.Dir != "/second" || second.All != 100 || !bytes.Equal(second.ProtoReflect().GetUnknown(), unknown) {
++		t.Fatalf("snapshot was aliased by first restore: %+v unknown=%x", second, second.ProtoReflect().GetUnknown())
++	}
++
++	guarded := &volume_server_pb.DiskStatus{Dir: "/guarded", All: 5, Error: "probe failed"}
++	guardedBefore := proto.Clone(guarded).(*volume_server_pb.DiskStatus)
++	state.applyLastGoodStatusLocked(guarded)
++	if !proto.Equal(guarded, guardedBefore) {
++		t.Fatalf("error guard did not preserve current status: got=%v want=%v", guarded, guardedBefore)
++	}
++
++	emptyState := &diskState{}
++	uninitialized := &volume_server_pb.DiskStatus{Dir: "/uninitialized", All: 7}
++	emptyState.applyLastGoodStatusLocked(uninitialized)
++	if uninitialized.All != 7 || uninitialized.Dir != "/uninitialized" {
++		t.Fatalf("uninitialized snapshot guard mutated status: %+v", uninitialized)
++	}
++}
++
+ func TestSetDiskStatusSuccess(t *testing.T) {
+ 	disk := &volume_server_pb.DiskStatus{Dir: t.TempDir()}
+ 	diskProbe(disk, DefaultDiskIOProbeConfig())

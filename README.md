@@ -54,6 +54,8 @@ pnpm run audit:dependencies
 
 `pnpm check` runs the same gates in release order. Every workspace member exposes lint, typecheck, test and build tasks; the three active packages have runtime and type regression tests, while six placeholders have build-boundary smoke tests. Direct source-registry and SDK build/test/typecheck rebuild their public workspace dependencies; Turbo also orders dependency builds before typechecking. A zero-task Turbo run is not accepted as validation. The dependency audit fails on any known vulnerability severity.
 
+Root build, typecheck and test commands schedule one Turbo task at a time. This prevents those direct dependency rebuilds from overwriting shared declarations while another task reads them; lint remains parallel. Some quality gates may take longer. Run one quality command at a time in a checkout: this scheduling does not coordinate separate shell commands.
+
 ## Local environment
 
 Copy `.env.example` to `.env` and keep local values out of Git. The example contains local endpoints only and is never a production secret source.

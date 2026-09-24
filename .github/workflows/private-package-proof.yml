@@ -1,0 +1,32 @@
+{
+  "name": "Private package read proof",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "auto-world-private-package-read-proof", "cancel-in-progress": false},
+  "jobs": {
+    "verify": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {"contents": "read", "packages": "read"},
+      "steps": [
+        {"name": "Check out reviewed main source", "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "with": {"persist-credentials": false}},
+        {"name": "Set up pinned Node.js", "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020", "with": {"node-version": "22.23.2", "cache": ""}},
+        {
+          "name": "Verify exact bytes and anonymous denial with authorized positive controls",
+          "id": "verify",
+          "continue-on-error": true,
+          "env": {"GITHUB_TOKEN": "${{ github.token }}", "PROOF_DIGEST": "sha256:eac8525e2bae0875846d4ee9f6fe75908b2ac4724e49b56653e4aa3fe8bd61b6"},
+          "run": "node scripts/package-bootstrap/registry-proof.mjs verify --digest \"${PROOF_DIGEST}\" --output \"${RUNNER_TEMP}/package-registry-proof\""
+        },
+        {
+          "name": "Retain public verification receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {"name": "private-package-verification-receipt", "path": "${{ runner.temp }}/package-registry-proof/receipt.json", "if-no-files-found": "error", "retention-days": 14, "compression-level": 6}
+        },
+        {"name": "Enforce verification result", "if": "${{ steps.verify.outcome != 'success' }}", "run": "exit 1"}
+      ]
+    }
+  }
+}

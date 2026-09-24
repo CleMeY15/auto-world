@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "c5073360007d28385a33426a42ac3e4ec504c5a3",
+  "required": {
+    "redis": [
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis", "name": "TestListDirectoryEntriesRemovesOrphanedIndexMembers" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis", "name": "TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis", "name": "TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis", "name": "TestDeleteFolderChildrenRemovesTheListing" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestListDirectoryEntriesRemovesOrphanedIndexMembers" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestRemoveOrphanedDirectoryListMemberSkipsSuperLargeDirectory" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestListDirectoryEntriesRemovesIndexMembersExpiredByRedis" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestListDirectoryEntriesDeletesLogicallyExpiredEntries" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestDeleteExpiredEntryKeepsRecreatedValue" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestDeleteIfUnchangedScriptOnlyDeletesSameBytes" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2", "name": "TestDeleteEntryKeepsChildListing" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis3", "name": "TestDeleteEntryKeepsChildListing" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis3", "name": "TestRemovingTheLastChildDropsTheListing" }
+    ],
+    "seaweedGrpc": [
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_MarshalErrorIsPerRequest" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_CallerContextExpiryIsPerRequest" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_StaleChannelStillInvalidates" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_NonCancellableContextIsNoEvidence" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_ClientConnClosingIsNotStale" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_ResourceExhaustedIsPerRequest" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_GenuineInternalStillInvalidates" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestShouldInvalidateConnection_TransportErrorsStillInvalidate" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestIsClientSideMarshalError_RequiresGrpcStatus" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestWithGrpcClient_AbandonedRequestKeepsSharedConnection" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestWithGrpcClient_EndedStreamKeepsSharedConnection" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/pb", "name": "TestWithGrpcClient_LogChunkReadFailureKeepsSharedConnection" }
+    ],
+    "copylocks": [
+      {"package": "github.com/seaweedfs/seaweedfs/weed/admin/plugin", "name": "TestDeriveSchedulerAdminRuntimeClonesPersistedConfig"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/admin/plugin", "name": "TestCloneWorkerSessionPreservesProtoIsolationAndNilFiltering"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/cluster", "name": "TestLockRingManager_GetLastUpdateReturnsIndependentProtoClone"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/credential", "name": "TestSaveConfigurationClonesBeforeFilteringStaticIdentities"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/plugin/worker", "name": "TestWorkerBuildHeartbeatClonesRunningWork"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/filersink", "name": "TestCloneChunksForManifestNormalizesWithoutMutatingSource"},
+      {"package": "github.com/seaweedfs/seaweedfs/weed/stats", "name": "TestDiskStateSnapshotRestoresIndependentProtoState"}
+    ],
+    "nonShortIntegration": [
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestEcEncodeLeavesRightFilesAndRemovesStubAndSource" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestSweepEmptyReplicasDeletesStubKeepsData" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestDeleteOriginalVolumeSurfacesReplicaFailures" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestDeleteOriginalVolumeSucceedsWhenAllReplicasReachable" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestEnsureCleanEcStartClearsStaleShardsBeforeEncode" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestRollbackDistributeClearsShardsAndKeepsSource" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCopyVolumeFilesToWorkerUsesCurrentCompactionRevision" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestMarkReplicasReadonlyPersists" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestGenerateEcShardsLocallyStampsEncodeIdentity" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestGenerateEcShardsLocallyUsesAdminGeneration" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestEcEncodeJulorLayoutConverges" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCleanupStaleEcShardsBeforeDistribute" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCleanupStaleEcShardsClearsShardsBeyondSources" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCleanupStaleEcShardsCoversTargetsWithoutSources" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCleanupStaleEcShardsSkipsRegularReplicas" },
+      { "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/erasure_coding", "name": "TestCleanupOrphanSkipsWritableSourceReplica" }
+    ]
+  }
+}

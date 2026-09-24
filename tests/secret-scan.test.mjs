@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -80,4 +80,20 @@ test("raw high-confidence signatures cover modern tokens in any text format", ()
     findHighConfidenceSecrets("SERVICE_URL=http://localhost:3000\n"),
     [],
   );
+});
+
+test("the reviewed public AWS example is exempt only in its exact immutable upstream fixture", () => {
+  const file = "tests/fixtures/seaweed-source/upstream/weed/credential/credential_test.go";
+  const contents = readFileSync(path.join(root, file), "utf8");
+  assert.deepEqual(findHighConfidenceSecrets(contents, { file }), []);
+  assert.deepEqual(findHighConfidenceSecrets(contents), ["aws-access-key"]);
+  assert.deepEqual(findHighConfidenceSecrets(contents, { file: `other/${file}` }), ["aws-access-key"]);
+  assert.deepEqual(findHighConfidenceSecrets(`${contents}\n`, { file }), ["aws-access-key"]);
+  const anotherKey = ["AKIA", "G".repeat(16)].join("");
+  assert.deepEqual(findHighConfidenceSecrets(`${contents}${anotherKey}`, { file }), ["aws-access-key"]);
+  assert.deepEqual(findHighConfidenceSecrets(contents.replace(["AKIA", "IOSFODNN7EXAMPLE"].join(""), anotherKey), { file }), ["aws-access-key"]);
+  assert.deepEqual(findHighConfidenceSecrets(`${contents}${["AKIA", "IOSFODNN7EXAMPLE"].join("")}`, { file }), ["aws-access-key"]);
+  assert.deepEqual(findHighConfidenceSecrets(`${contents}${["ghp", "B".repeat(36)].join("_")}`, { file }).sort(), ["aws-access-key", "github-token"]);
+  const result = runSecretlint(path.join(root, file));
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });

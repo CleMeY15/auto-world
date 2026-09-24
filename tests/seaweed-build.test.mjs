@@ -1,0 +1,397 @@
+import assert from "node:assert/strict";
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { retainModuleArchive, snapshotModuleArchive } from "../scripts/seaweed/module-archives.mjs";
+import { workTreeBytes } from "../scripts/seaweed/work-tree.mjs";
+import {
+  armRedisCleanup, assertResourceBudget, buildSeaweed, canonicalMaterial, cleanupBuildResources, cleanupSuiteCache, clippedFinalizationTimeout, clippedTimeout, createModuleIsolation, createRedisLifecycle, finalizeRedisCleanup,
+  expectedPatchScope, isMissingRedisContainer, parseArguments, redisRunArguments, removeOwnedTree, safeBaseEnvironment, sourcePatchFileIdentities,
+  moduleIsolationArguments, sha256, summarizeGoTestJson, validateArtifactAllowlist, validateArtifactDirectory, validateBuildInfo, validateChangedSourceScope, validateFinalModuleClosure,
+  validateModuleArchivePaths, validateModuleIsolationCheckpoint, validatePostTestState, validateRestoredSource,
+  validateSeaweedLock, validateShallowBoundary, validateVersionOutput,
+} from "../scripts/seaweed/build.mjs";
+
+const root = path.resolve(import.meta.dirname, "..");
+const lock = JSON.parse(readFileSync(path.join(root, "infra/seaweed/seaweed-lock.json"), "utf8"));
+
+test("deferred archive copies preserve sources and reclaim test cache before final budget enforcement", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-deferred-archives-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const cacheRoot = path.join(workRoot, "gomodcache"); const retained = path.join(runnerTemp, "retained");
+  const archiveRoot = path.join(retained, "materials/modules"); const target = path.join(archiveRoot, "a".repeat(64), "source.zip");
+  const source = path.join(cacheRoot, "cache/download/example.test/module/@v/v1.0.0.zip");
+  for (const directory of [path.dirname(source), path.dirname(target), ...["gocache", "tmp", "source", "bin"].map((name) => path.join(workRoot, name))]) mkdirSync(directory, { recursive: true });
+  writeFileSync(source, Buffer.alloc(40, 1)); writeFileSync(path.join(workRoot, "gocache/compiled"), Buffer.alloc(50, 2));
+  writeFileSync(path.join(workRoot, "source/sentinel"), "src"); writeFileSync(path.join(workRoot, "bin/weed"), "bin");
+  const limits = { workBytes: 110, retainedBytes: 110, minimumFreeBytes: 1, aggregateLogBytes: 10 };
+  const budget = () => assertResourceBudget({ workBytes: workTreeBytes(workRoot, 1024), retainedBytes: workTreeBytes(retained, 1024), freeBytes: 1000, logBytes: 0, limits });
+  try {
+    const snapshot = snapshotModuleArchive(source, { cacheRoot, groupAbsent: true });
+    assert.equal(existsSync(target), false); assert.doesNotThrow(budget);
+    retainModuleArchive(snapshot, target, { cacheRoot, archiveRoot, groupAbsent: true });
+    assert.throws(budget, /seaweed_work_budget_exceeded/u); // Old eager copy overlaps the test cache.
+    rmSync(target);
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "post_tests", lastGroupAbsent: false, workCleanupSafe: true, cap: 1024 }), /seaweed_process_group_cleanup_failed/u);
+    const cleanup = cleanupSuiteCache({ workRoot, boundary: "post_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024 });
+    assert.equal(cleanup.freedBytes, 50); assert.equal(cleanup.afterBytes, 0);
+    retainModuleArchive(snapshot, target, { cacheRoot, archiveRoot, groupAbsent: true });
+    assert.deepEqual(readFileSync(target), readFileSync(source)); assert.doesNotThrow(budget);
+    assert.equal(readFileSync(path.join(workRoot, "source/sentinel"), "utf8"), "src");
+    assert.equal(readFileSync(path.join(workRoot, "bin/weed"), "utf8"), "bin");
+    writeFileSync(path.join(retained, "weed"), Buffer.alloc(30));
+    assert.throws(budget, /seaweed_work_budget_exceeded/u); // Final copies still face the same cap.
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("post-test archive path set rejects relocation, changed modules, errors and duplicates", () => {
+  const initial = [1, 2].map((index) => ({ Path: `example.test/module${index}`, Version: "v1.0.0", Zip: `/cache/${index}.zip`, GoMod: `/cache/${index}.mod`, Info: `/cache/${index}.info` }));
+  assert.doesNotThrow(() => validateModuleArchivePaths(initial, [...initial].reverse()));
+  for (const final of [[], initial.slice(1), [...initial, initial[0]], ...["Path", "Version", "Zip", "GoMod", "Info"].map((key) => [{ ...initial[0], [key]: "changed" }, initial[1]]), [{ ...initial[0], Error: "failed" }, initial[1]]]) {
+    assert.throws(() => validateModuleArchivePaths(initial, final), /seaweed_module_archive_paths_changed/u);
+  }
+});
+
+test("suite cache cleanup removes only regenerable owned data after proven process exit", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic"); mkdirSync(workRoot);
+  for (const name of ["gocache", "tmp", "source", "gomodcache", "bin"]) mkdirSync(path.join(workRoot, name));
+  writeFileSync(path.join(workRoot, "gocache/cache"), "cache"); writeFileSync(path.join(workRoot, "tmp/test-data"), "temporary");
+  for (const name of ["source", "gomodcache", "bin"]) writeFileSync(path.join(workRoot, name, "sentinel"), name);
+  try {
+    const evidence = cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024, root: runnerTemp });
+    assert.deepEqual(evidence, { boundary: "normal_tests", entries: { gocache: { beforeBytes: 5, afterBytes: 0 }, tmp: { beforeBytes: 9, afterBytes: 0 } }, beforeBytes: 14, afterBytes: 0, freedBytes: 14 });
+    assert.deepEqual(readdirSync(path.join(workRoot, "gocache")), []); assert.deepEqual(readdirSync(path.join(workRoot, "tmp")), []);
+    if (process.platform !== "win32") for (const name of ["gocache", "tmp"]) assert.equal(lstatSync(path.join(workRoot, name)).mode & 0o777, 0o700);
+    for (const name of ["source", "gomodcache", "bin"]) assert.equal(readFileSync(path.join(workRoot, name, "sentinel"), "utf8"), name);
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("suite cache cleanup rejects unproven process exit and linked cache roots", () => {
+  for (const state of [{ lastGroupAbsent: false, workCleanupSafe: true }, { lastGroupAbsent: true, workCleanupSafe: false }]) {
+    const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-guard-")); const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+    mkdirSync(workRoot); mkdirSync(path.join(workRoot, "gocache")); mkdirSync(path.join(workRoot, "tmp")); writeFileSync(path.join(workRoot, "gocache/sentinel"), "cache");
+    try {
+      assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "corrected_ec", ...state, cap: 1024, root: runnerTemp }), /seaweed_process_group_cleanup_failed/u);
+      assert.equal(readFileSync(path.join(workRoot, "gocache/sentinel"), "utf8"), "cache");
+    } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+  }
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-link-")); const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const external = path.join(runnerTemp, "external"); mkdirSync(workRoot); mkdirSync(external); mkdirSync(path.join(workRoot, "tmp")); writeFileSync(path.join(external, "sentinel"), "outside");
+  symlinkSync(external, path.join(workRoot, "gocache"), process.platform === "win32" ? "junction" : "dir");
+  try {
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "full_tag_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 1024, root: runnerTemp }), /seaweed_cleanup_path_invalid/u);
+    assert.equal(readFileSync(path.join(external, "sentinel"), "utf8"), "outside");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("suite cache cleanup checks the sum of individually bounded directories before removal", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-suite-cache-budget-"));
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  mkdirSync(workRoot);
+  for (const name of ["gocache", "tmp"]) {
+    mkdirSync(path.join(workRoot, name));
+    writeFileSync(path.join(workRoot, name, "sentinel"), "123456");
+  }
+  try {
+    assert.throws(() => cleanupSuiteCache({ workRoot, boundary: "normal_tests", lastGroupAbsent: true, workCleanupSafe: true, cap: 10, root: runnerTemp }), /seaweed_artifact_budget_exceeded/u);
+    for (const name of ["gocache", "tmp"]) assert.equal(readFileSync(path.join(workRoot, name, "sentinel"), "utf8"), "123456");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("Seaweed lock binds the exact reviewed source, compiler, patch, manifest, and production variant", () => {
+  assert.equal(validateSeaweedLock(lock), lock);
+  assert.throws(() => validateSeaweedLock({ ...lock, grpc: { ...lock.grpc, version: "v1.85.0-dev.0.20260825072537-93e31b48545e" } }), /seaweed_lock_invalid/u);
+  assert.throws(() => validateSeaweedLock({ ...lock, build: { ...lock.build, commitValue: "c507336+aw.804c8ac03c3e" } }), /seaweed_lock_invalid/u);
+  assert.throws(() => validateSeaweedLock({ ...lock, patch: { ...lock.patch, size: lock.patch.size + 1 } }), /seaweed_lock_invalid/u);
+  const changedSource = JSON.parse(JSON.stringify(lock)); changedSource.sourcePatchFiles.after[Object.keys(changedSource.sourcePatchFiles.after)[0]].size += 1;
+  assert.throws(() => validateSeaweedLock(changedSource), /seaweed_lock_invalid/u);
+  for (const field of ["patch", "moduleChanges", "requiredTests"]) {
+    const bytes = readFileSync(path.join(root, lock[field].path));
+    assert.equal(bytes.length, lock[field].size);
+    assert.equal(sha256(bytes), lock[field].sha256);
+    assert.throws(() => canonicalMaterial(Buffer.concat([bytes, Buffer.from("x")]), lock[field]), /seaweed_material_changed/u);
+  }
+  assert.deepEqual(lock.build.tags, []);
+  assert.equal(lock.build.cgoEnabled, "0");
+  assert.doesNotMatch(lock.build.ldflags, /(?:^|\s)-(?:s|w)(?:\s|$)|trimpath|buildid/u);
+});
+
+test("bounded arguments, deadlines, resources, and artifact paths fail closed", () => {
+  const output = path.resolve(tmpdir(), "seaweed-build-1");
+  assert.deepEqual(parseArguments(["--repeat", "1", "--output", output]), { output, repeat: 1 });
+  assert.throws(() => parseArguments(["--repeat", "3", "--output", output]), /seaweed_arguments_invalid/u);
+  assert.equal(clippedTimeout({ deadlineMs: 100, finalizationReserveMs: 20 }, 10, 90), 70);
+  assert.throws(() => clippedTimeout({ deadlineMs: 100, finalizationReserveMs: 20 }, 80, 1), /seaweed_inner_deadline_exceeded/u);
+  assert.equal(clippedFinalizationTimeout({ deadlineMs: 100 }, 80, 60), 20);
+  assert.throws(() => clippedFinalizationTimeout({ deadlineMs: 100 }, 100, 1), /seaweed_inner_deadline_exceeded/u);
+  const limits = { workBytes: 10, retainedBytes: 10, minimumFreeBytes: 5, aggregateLogBytes: 10 };
+  assert.doesNotThrow(() => assertResourceBudget({ workBytes: 5, retainedBytes: 5, freeBytes: 5, logBytes: 10, limits }));
+  for (const changed of [{ workBytes: 6 }, { retainedBytes: 11 }, { freeBytes: 4 }, { logBytes: 11 }]) {
+    assert.throws(() => assertResourceBudget({ workBytes: 5, retainedBytes: 5, freeBytes: 5, logBytes: 10, limits, ...changed }), /seaweed_.+_failed|seaweed_.+_exceeded/u);
+  }
+  assert.equal(validateArtifactAllowlist(["weed", "materials/required-tests.json", "materials/modules/" + "a".repeat(64) + "/source.zip"]), true);
+  assert.throws(() => validateArtifactAllowlist(["weed", "../secret"]), /seaweed_artifact_allowlist_invalid/u);
+});
+
+test("required go test events bind package plus top-level name and retain skips", () => {
+  const required = ["example.test/pkg:TestRequired"];
+  const output = Buffer.from([
+    { Action: "pass", Package: "example.test/pkg", Test: "TestRequired" },
+    { Action: "skip", Package: "example.test/pkg", Test: "TestIntentional" },
+  ].map(JSON.stringify).join("\n") + "\n");
+  assert.deepEqual(summarizeGoTestJson(output, required), { requiredPassed: 1, skips: ["example.test/pkg:TestIntentional"] });
+  assert.throws(() => summarizeGoTestJson(Buffer.from(JSON.stringify({ Action: "skip", Package: "example.test/pkg", Test: "TestRequired" })), required), /seaweed_required_test_failed/u);
+  assert.throws(() => summarizeGoTestJson(Buffer.from("not-json"), required), /seaweed_test_output_invalid/u);
+});
+
+test("build metadata requires corrected dependency, platform, VCS revision, modified state, and no tags", () => {
+  const binary = "/tmp/auto-world-seaweed-source-diagnostic/bin/weed";
+  const info = [`${binary}: go${lock.compiler.version}`, `\tdep\tgoogle.golang.org/grpc\t${lock.grpc.version}\t${lock.grpc.sum}`, "\tbuild\t-compiler=gc", `\tbuild\t-ldflags=${JSON.stringify(lock.build.ldflags)}`, "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", "\tbuild\tGOAMD64=v1", `\tbuild\tvcs.revision=${lock.source.commit}`, "\tbuild\tvcs.modified=true"].join("\n");
+  assert.equal(validateBuildInfo(info, lock), true);
+  assert.throws(() => validateBuildInfo(info.replace("vcs.modified=true", "vcs.modified=false"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace("GOARCH=amd64", "GOARCH=amd64evil"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(lock.grpc.version, `${lock.grpc.version}-evil`), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(lock.build.commitValue, "wrong-commit"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(info.replace(`go${lock.compiler.version}`, "go0.0.0"), lock), /seaweed_build_info_invalid/u);
+  assert.throws(() => validateBuildInfo(`${info}\n\tbuild\t-tags=elastic`, lock), /seaweed_build_tags_invalid/u);
+  const pristineInfo = info.replace("vcs.modified=true", "vcs.modified=false");
+  assert.equal(validateBuildInfo(pristineInfo, lock, binary, false), true);
+  assert.throws(() => validateBuildInfo(info, lock, binary, false), /seaweed_build_info_invalid/u);
+});
+
+test("subprocess base environment is credential-free and Redis is bounded before creation", () => {
+  const work = path.resolve(tmpdir(), "owned");
+  assert.deepEqual(Object.keys(safeBaseEnvironment(work)).sort(), ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"]);
+  assert.equal(safeBaseEnvironment(work).TZ, "UTC");
+  const args = redisRunArguments("aw-seaweed-redis-1", lock.redis.subject);
+  for (const pair of [["--cpus", "1"], ["--memory", "256m"], ["--memory-swap", "256m"], ["--pids-limit", "128"], ["--publish", "127.0.0.1:6379:6379"]]) {
+    assert.equal(args[args.indexOf(pair[0]) + 1], pair[1]);
+  }
+  assert.equal(isMissingRedisContainer({ status: 1, stderr: Buffer.from("Error: No such object: aw-seaweed-redis-1\n") }, "aw-seaweed-redis-1"), true);
+  assert.equal(isMissingRedisContainer({ status: 1, stderr: Buffer.from("network timeout") }, "aw-seaweed-redis-1"), false);
+  const lifecycle = createRedisLifecycle(); let cleaned = 0;
+  try { armRedisCleanup(lifecycle); throw new Error("synthetic_start_timeout"); }
+  catch (error) { assert.match(error.message, /synthetic_start_timeout/u); }
+  finally { finalizeRedisCleanup(lifecycle, () => { cleaned += 1; }); }
+  assert.equal(cleaned, 1);
+});
+
+test("final module validation requires the complete unchanged closure and exact effective gRPC", () => {
+  const grpc = { path: "google.golang.org/grpc", version: lock.grpc.version, sum: lock.grpc.sum, goModSum: lock.grpc.goModSum, zip: { sha256: "a".repeat(64), size: 1 } };
+  const closure = [{ path: "example.test/module", version: "v1.0.0", sum: "h1:a", goModSum: "h1:b", zip: { sha256: "b".repeat(64), size: 1 } }, grpc];
+  const copied = JSON.parse(JSON.stringify(closure));
+  assert.deepEqual(validateFinalModuleClosure(closure, copied, lock), grpc);
+  assert.throws(() => validateFinalModuleClosure(closure, closure.slice(1), lock), /seaweed_module_closure_changed/u);
+  const changed = JSON.parse(JSON.stringify(closure)); changed[1].version += "-substituted";
+  assert.throws(() => validateFinalModuleClosure(changed, changed, lock), /seaweed_grpc_module_invalid/u);
+  assert.deepEqual(validatePostTestState(closure, copied, lock.moduleFiles.after, lock.sourcePatchFiles.after, lock), grpc);
+  assert.throws(() => validatePostTestState(closure, copied, { ...lock.moduleFiles.after, "go.sum": { ...lock.moduleFiles.after["go.sum"], size: 1 } }, lock.sourcePatchFiles.after, lock), /seaweed_module_files_changed/u);
+  const changedSource = JSON.parse(JSON.stringify(lock.sourcePatchFiles.after)); changedSource[Object.keys(changedSource)[0]].size += 1;
+  assert.throws(() => validatePostTestState(closure, copied, lock.moduleFiles.after, changedSource, lock), /seaweed_source_patch_files_changed/u);
+});
+
+test("source patch inventory rejects missing, extra, unsafe and mutated files", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "seaweed-source-identities-"));
+  const descriptors = {};
+  try {
+    for (let index = 0; index < 18; index += 1) {
+      const name = `package-${index}/file-${index}.go`; const bytes = Buffer.from(`package fixture${index}\n`);
+      mkdirSync(path.join(directory, `package-${index}`)); writeFileSync(path.join(directory, ...name.split("/")), bytes);
+      descriptors[name] = { sha256: sha256(bytes), size: bytes.length };
+    }
+    assert.deepEqual(sourcePatchFileIdentities(directory, descriptors), descriptors);
+    const first = Object.keys(descriptors)[0]; writeFileSync(path.join(directory, ...first.split("/")), "package changed\n");
+    assert.throws(() => sourcePatchFileIdentities(directory, descriptors), /seaweed_source_patch_files_changed/u);
+    writeFileSync(path.join(directory, ...first.split("/")), `package fixture0\n`);
+    rmSync(path.join(directory, ...first.split("/")));
+    assert.throws(() => sourcePatchFileIdentities(directory, descriptors), /seaweed_source_patch_files_invalid/u);
+    writeFileSync(path.join(directory, ...first.split("/")), `package fixture0\n`);
+    const unsafe = { ...descriptors, "../escape.go": descriptors[first] }; delete unsafe[first];
+    assert.throws(() => sourcePatchFileIdentities(directory, unsafe), /seaweed_source_patch_files_invalid/u);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("changed source scope requires the exact tracked union and no untracked files", () => {
+  const expected = expectedPatchScope(lock); const bytes = (paths) => Buffer.from(`${paths.join("\n")}\n`);
+  assert.deepEqual(validateChangedSourceScope(bytes([...expected].reverse()), Buffer.alloc(0), lock), expected);
+  for (const [changed, untracked] of [[expected.slice(1), Buffer.alloc(0)], [[...expected, "weed/unexpected.go"], Buffer.alloc(0)],
+    [[...expected, expected[0]], Buffer.alloc(0)], [expected, Buffer.from("weed/untracked.go\n")]]) {
+    assert.throws(() => validateChangedSourceScope(bytes(changed), untracked, lock), /seaweed_patch_scope_invalid/u);
+  }
+  assert.throws(() => validateChangedSourceScope(Buffer.from(expected.join("\n")), Buffer.alloc(0), lock), /seaweed_patch_scope_invalid/u);
+});
+
+test("module download and verification use an isolated modfile and validate all four checkpoints", () => {
+  const parent = mkdtempSync(path.join(tmpdir(), "seaweed-module-isolation-"));
+  const work = path.join(parent, "auto-world-seaweed-source-diagnostic"); const source = path.join(work, "source"); mkdirSync(source, { recursive: true });
+  const modBytes = Buffer.from("module example.test/isolation\n\ngo 1.26\n");
+  const sumBytes = Buffer.from(`example.test/dependency v1.0.0 h1:${"A".repeat(43)}=\n`);
+  writeFileSync(path.join(source, "go.mod"), modBytes); writeFileSync(path.join(source, "go.sum"), sumBytes);
+  const syntheticLock = { moduleFiles: { after: { "go.mod": { sha256: sha256(modBytes), size: modBytes.length }, "go.sum": { sha256: sha256(sumBytes), size: sumBytes.length } } } };
+  try {
+    const state = createModuleIsolation(source, work, syntheticLock);
+    const steps = ["module_download", "module_verify", "post_test_module_download", "post_test_module_verify"];
+    for (const step of steps) assert.deepEqual(moduleIsolationArguments(step, state.modFile), step.endsWith("download") ? ["mod", "download", `-modfile=${state.modFile}`, "-json", "all"] : ["mod", "verify", `-modfile=${state.modFile}`]);
+    assert.throws(() => moduleIsolationArguments(steps[0], path.join(parent, "foreign.mod")), /seaweed_module_isolation_arguments_invalid/u);
+    writeFileSync(state.sumFile, Buffer.concat([sumBytes, Buffer.from(`example.test/added v1.0.0 h1:${"B".repeat(43)}=\n`)]));
+    const checkpoints = steps.map((step) => validateModuleIsolationCheckpoint(state, syntheticLock, step));
+    assert.deepEqual(checkpoints.map(({ name, result, source: sourceState, alternateMod, additionalSumLines }) => ({ name, result, source: sourceState, alternateMod, additionalSumLines })),
+      steps.map((name) => ({ name, result: "PASSED", source: "UNCHANGED", alternateMod: "UNCHANGED", additionalSumLines: 1 })));
+    writeFileSync(path.join(source, "go.sum"), Buffer.concat([sumBytes, Buffer.from("mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_changed/u);
+    writeFileSync(path.join(source, "go.sum"), sumBytes); writeFileSync(path.join(source, "go.mod"), Buffer.concat([modBytes, Buffer.from("// mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_changed/u);
+    writeFileSync(path.join(source, "go.mod"), modBytes); writeFileSync(state.modFile, Buffer.concat([modBytes, Buffer.from("// mutation\n")]));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_module_isolation_mod_changed/u);
+    writeFileSync(state.modFile, modBytes); writeFileSync(state.sumFile, Buffer.from(`example.test/substitute v1.0.0 h1:${"C".repeat(43)}=\n`));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_module_isolation_sum_invalid/u);
+    writeFileSync(state.sumFile, Buffer.alloc(8 * 1024 ** 2 + 1, 0x41));
+    assert.throws(() => validateModuleIsolationCheckpoint(state, syntheticLock, steps[0]), /seaweed_material_invalid/u);
+  } finally { rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("retained shallow boundary, offline restore identity, and exact normal version fail closed", () => {
+  const shallow = Buffer.from(`${lock.source.commit}\n`);
+  assert.equal(validateShallowBoundary(shallow, lock), true);
+  assert.throws(() => validateShallowBoundary(Buffer.from(`${"0".repeat(40)}\n`), lock), /seaweed_material_changed/u);
+  const restored = { fsck: "PASSED", head: lock.source.commit, tree: lock.source.tree, commitUnixTime: String(lock.source.commitUnixTime), pristine: lock.moduleFiles.before,
+    corrected: lock.moduleFiles.after, sourcePristine: lock.sourcePatchFiles.before, sourceCorrected: lock.sourcePatchFiles.after, changed: expectedPatchScope(lock) };
+  assert.equal(validateRestoredSource(restored, lock), true);
+  const changedSource = JSON.parse(JSON.stringify(lock.sourcePatchFiles.after)); changedSource[Object.keys(changedSource)[0]].sha256 = "0".repeat(64);
+  for (const mutation of [{ ...restored, fsck: "FAILED" }, { ...restored, head: "0".repeat(40) }, { ...restored, tree: "0".repeat(40) },
+    { ...restored, changed: restored.changed.slice(1) }, { ...restored, sourceCorrected: changedSource }]) {
+    assert.throws(() => validateRestoredSource(mutation, lock), /seaweed_source_restore_invalid/u);
+  }
+  const version = `version 30GB ${lock.source.version} ${lock.build.commitValue} linux amd64`;
+  assert.equal(validateVersionOutput(version, lock), true);
+  assert.throws(() => validateVersionOutput(`${version} substituted`, lock), /seaweed_version_output_invalid/u);
+});
+
+test("cleanup removes only the exact owned nonsymlink tree", () => {
+  const parent = mkdtempSync(path.join(tmpdir(), "seaweed-clean-"));
+  const owned = path.join(parent, "auto-world-seaweed-source-diagnostic");
+  mkdirSync(owned); writeFileSync(path.join(owned, "x"), "x");
+  removeOwnedTree(owned, parent);
+  const foreign = path.join(parent, "foreign"); mkdirSync(foreign);
+  assert.throws(() => removeOwnedTree(foreign, parent), /seaweed_cleanup_path_invalid/u);
+  const target = path.join(parent, "target"); mkdirSync(target);
+  const linked = path.join(parent, "auto-world-seaweed-source-diagnostic");
+  symlinkSync(target, linked, "junction");
+  assert.throws(() => removeOwnedTree(linked, parent), /seaweed_cleanup_path_invalid/u);
+  rmSync(parent, { recursive: true, force: true });
+});
+
+test("Redis cleanup failure remains visible while work cleanup runs and the primary failure is preserved", () => {
+  const receipt = { result: "FAILED", reason: "seaweed_normal_tests_failed", phases: [] };
+  const redisFailure = new Error("seaweed_redis_cleanup_failed"); let workRemoved = false;
+  const failure = cleanupBuildResources(receipt, {
+    redis_cleanup: () => { throw redisFailure; },
+    work_cleanup: () => { workRemoved = true; },
+  }, () => 100);
+  assert.equal(workRemoved, true);
+  assert.equal(failure, redisFailure);
+  assert.equal(receipt.reason, "seaweed_normal_tests_failed");
+  assert.equal(receipt.cleanupReason, "seaweed_redis_cleanup_failed");
+  assert.deepEqual(receipt.phases.map(({ name, result }) => ({ name, result })), [
+    { name: "redis_cleanup", result: "FAILED" }, { name: "work_cleanup", result: "PASSED" }, { name: "cleanup", result: "FAILED" },
+  ]);
+  const successfulBuild = { result: "PASSED", phases: [] };
+  cleanupBuildResources(successfulBuild, { work_cleanup: () => { throw new Error("private error details"); } }, () => 100);
+  assert.equal(successfulBuild.result, "FAILED");
+  assert.equal(successfulBuild.reason, "seaweed_operation_failed");
+  assert.doesNotMatch(JSON.stringify(successfulBuild), /private error/u);
+});
+
+test("artifact validation permits only bounded failure logs or a complete passed inventory", () => {
+  const failed = mkdtempSync(path.join(tmpdir(), "seaweed-artifact-")); mkdirSync(path.join(failed, "logs"));
+  writeFileSync(path.join(failed, "logs/01-command.log"), "failure"); writeFileSync(path.join(failed, "build-receipt.json"), JSON.stringify({ schemaVersion: 1, result: "FAILED" }));
+  assert.equal(validateArtifactDirectory(failed).result, "FAILED");
+  writeFileSync(path.join(failed, "weed"), "partial");
+  assert.throws(() => validateArtifactDirectory(failed), /seaweed_failed_artifact_unsafe/u);
+  rmSync(failed, { recursive: true, force: true });
+});
+
+test("main build orchestration filters parent secrets, cleans owned work, and writes a top-level failure receipt", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-orchestration-")); const output = path.join(runnerTemp, "seaweed-build-1");
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  assert.equal(existsSync(workRoot), false, "owned test work path must be unused");
+  const seen = [];
+  const commandRunner = (command, args, options) => { seen.push({ command, args, options }); return { status: 1, stdout: Buffer.alloc(0), stderr: Buffer.from("synthetic failure") }; };
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp, SUPER_SECRET: "must-not-propagate" };
+  assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_compiler_download_failed/u);
+  assert.equal(seen.length, 1); assert.equal(Object.hasOwn(seen[0].options.env, "SUPER_SECRET"), false);
+  assert.deepEqual(Object.keys(seen[0].options.env).sort(), ["HOME", "LANG", "LC_ALL", "PATH", "TMPDIR", "TZ"]);
+  assert.equal(existsSync(workRoot), false);
+  const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json"), "utf8"));
+  assert.equal(receipt.result, "FAILED"); assert.equal(receipt.reason, "seaweed_compiler_download_failed");
+  assert.equal(receipt.phases.at(-1).name, "cleanup"); assert.equal(receipt.phases.at(-1).result, "PASSED");
+  assert.deepEqual(readdirSync(output).sort(), ["build-receipt.json", "logs"]);
+  rmSync(runnerTemp, { recursive: true, force: true });
+});
+
+test("monitored failures retain bounded command output before propagating the primary reason", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-monitor-log-"));
+  const output = path.join(runnerTemp, "seaweed-build-1");
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp };
+  try {
+    const resourceUsage = { workBytes: 12 * 1024 ** 3, retainedBytes: 1, freeBytes: 2 * 1024 ** 3 };
+    const commandRunner = () => ({ status: 125, stdout: Buffer.from("partial stdout\n"), stderr: Buffer.from("partial stderr\n"), monitorReason: "seaweed_work_budget_exceeded", resourceUsage });
+    assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_work_budget_exceeded/u);
+    assert.equal(readFileSync(path.join(output, "logs/01-compiler_download.log"), "utf8"), "partial stdout\npartial stderr\n");
+    const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json"), "utf8"));
+    assert.equal(receipt.reason, "seaweed_work_budget_exceeded");
+    assert.deepEqual(receipt.resourceFailure, { command: "compiler_download", ...resourceUsage });
+    assert.equal(receipt.aggregateLogBytes, 30);
+    assert.equal(receipt.phases.at(-1).result, "PASSED");
+    assert.equal(validateArtifactDirectory(output).result, "FAILED");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("failed builds preserve safe server logs and keep evidence errors secondary", () => {
+  for (const unsafe of [false, true]) {
+    const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-server-evidence-"));
+    const output = path.join(runnerTemp, "seaweed-build-1"); const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+    const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp };
+    try {
+      const commandRunner = () => {
+        const cluster = path.join(workRoot, "tmp/seaweedfs_volume_server_it_123"); const logs = path.join(cluster, "logs"); mkdirSync(logs, { recursive: true });
+        if (unsafe) mkdirSync(path.join(logs, "volume0.log")); else writeFileSync(path.join(logs, "volume0.log"), "server failure evidence");
+        writeFileSync(path.join(cluster, "config.toml"), "excluded configuration");
+        return { status: 1, stdout: Buffer.from("command failure"), stderr: Buffer.alloc(0), groupAbsent: true };
+      };
+      assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_compiler_download_failed/u);
+      const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json")));
+      assert.equal(receipt.reason, "seaweed_compiler_download_failed");
+      assert.equal(receipt.serverLogs[0].result, unsafe ? "FAILED" : "PASSED");
+      if (!unsafe) {
+        const retained = readFileSync(path.join(output, "logs/02-failure_server_logs.log"), "utf8");
+        assert.match(retained, /server failure evidence/u); assert.doesNotMatch(retained, /excluded configuration/u);
+      }
+      assert.equal(existsSync(workRoot), false);
+      assert.equal(validateArtifactDirectory(output).result, "FAILED");
+    } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+  }
+});
+
+test("unproven process cleanup prevents recursive work removal and remains a failed cleanup phase", () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-unproven-cleanup-"));
+  const output = path.join(runnerTemp, "seaweed-build-1");
+  const workRoot = path.join(runnerTemp, "auto-world-seaweed-source-diagnostic");
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", GITHUB_RUN_ID: "123", GITHUB_SHA: "a".repeat(40), GITHUB_WORKSPACE: runnerTemp, RUNNER_TEMP: runnerTemp };
+  try {
+    const commandRunner = () => {
+      writeFileSync(path.join(workRoot, "sentinel"), "unproven owned process");
+      return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), groupAbsent: false };
+    };
+    assert.throws(() => buildSeaweed({ argv: ["--repeat", "1", "--output", output], commandRunner, env, platform: "linux", workRoot }), /seaweed_process_group_cleanup_failed/u);
+    assert.equal(readFileSync(path.join(workRoot, "sentinel"), "utf8"), "unproven owned process");
+    const receipt = JSON.parse(readFileSync(path.join(output, "build-receipt.json"), "utf8"));
+    assert.equal(receipt.reason, "seaweed_process_group_cleanup_failed");
+    assert.equal(receipt.cleanupReason, "seaweed_work_cleanup_unproven_processes");
+    assert.equal(receipt.serverLogs, undefined);
+    assert.equal(receipt.phases.find(({ name }) => name === "work_cleanup").result, "FAILED");
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});

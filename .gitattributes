@@ -1,2 +1,14 @@
+docs/validation/attestation-canary/** -text
+docs/validation/attestation-canary/runs/** -whitespace
+docs/fixtures/attestation-canary.txt text eol=lf
+infra/scanner/patches/** -text -whitespace
+infra/scanner/materials/** -text
+infra/seaweed/*.patch -text -whitespace
+infra/seaweed/*.tsv -text
+infra/seaweed/required-tests.json -text
+infra/seaweed/DERIVATIVE-NOTICE.txt text eol=lf
+tests/fixtures/seaweed-source/upstream/** -text
+infra/seaweed-image/base-*.json -text
+.github/workflows/*.yml text eol=lf
 *.sh text eol=lf
 *.sql text eol=lf

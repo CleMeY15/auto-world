@@ -1,0 +1,18 @@
+Auto World SeaweedFS source diagnostic derivative
+
+Upstream source: https://github.com/seaweedfs/seaweedfs
+Upstream commit: c5073360007d28385a33426a42ac3e4ec504c5a3 (SeaweedFS 4.47)
+Auto World patch: SHA-256 549ec92660abfb2d94c0c38d86896790959d463f8f8478e385213a76ac939d1c
+Runtime commit marker: c507336+aw.549ec92660ab
+
+The patch changes go.mod/go.sum and17 existing Go source/test files. It retains
+the module update of google.golang.org/grpc to
+v1.85.0-dev.0.20260915183914-4e49413dcab7 and the eight transitive module
+versions listed in module-changes.tsv. It replaces unsafe protobuf value copies
+with independent message clones, passes a mutex-bearing test helper by pointer,
+and adds seven regression groups for preserved fields and mutation isolation.
+The exact before/after source-file identities are locked in seaweed-lock.json.
+This is diagnostic evidence for an Auto
+World derivative. It is not an upstream SeaweedFS binary, image admission,
+signature, production release, or claim of byte equivalence with a published
+SeaweedFS binary.

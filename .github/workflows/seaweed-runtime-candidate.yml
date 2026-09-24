@@ -1,0 +1,66 @@
+name: SeaweedFS local runtime candidate diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: seaweed-runtime-candidate
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Require the thirteenth reviewed main dispatch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_RUN_NUMBER" = '13'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main'
+
+      - name: Check temporary capacity for source, base, rootfs and local image
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          test "$available_kib" -ge 12582912
+          df -h "$RUNNER_TEMP"
+
+      - name: Check Docker daemon version
+        run: |
+          set -euo pipefail
+          test "$(docker version --format '{{.Server.Version}}')" = '28.0.4'
+          docker info --format 'ServerVersion={{.ServerVersion}} Driver={{.Driver}}'
+
+      - name: Check out reviewed main without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Verify checked-out recipe revision
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.23.2
+          cache: ''
+
+      - name: Verify disposable host loopback S3 access and dispose
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/seaweed-image/runtime-diagnostic.mjs execute-host-loopback
+
+      - name: Remove diagnostic-owned empty directory
+        if: ${{ always() }}
+        run: node scripts/seaweed-image/runtime-diagnostic.mjs cleanup-host-loopback
