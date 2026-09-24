@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -79,9 +81,10 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
       assert.match(script, /http:\/\/127\.0\.0\.1:8333\/aw-raw\/proof/u);
       assert.match(script, /http:\/\/127\.0\.0\.1:8333\/aw-forbidden/u);
       assert.match(script, /--header 'If-None-Match: \*'/u);
-      assert.match(script, /test "\$wrong" = 403/u);
+      assert.match(script, /case "\$wrong" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 44 ;; \*\) exit 50 ;; esac/u);
       assert.match(script, /test "\$same" = 412 && test "\$different" = 412/u);
-      assert.match(script, /test "\$unsigned" = 403/u);
+      assert.match(script, /case "\$forbidden" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 45 ;; \*\) exit 51 ;; esac/u);
+      assert.match(script, /case "\$unsigned" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 48 ;; \*\) exit 52 ;; esac/u);
       assert.match(script, /test "\$a" = 200 && \{ test "\$b" = 412 \|\| test "\$b" = 409; \}/u);
       return signedStatus !== undefined ? { status: signedStatus, stdout: "", stderr: "" }
         : { status: 0, stdout: signedMalformed ? "UNVERIFIED\n"
@@ -113,6 +116,47 @@ test("signed S3 probe parses under the Linux container shell", { skip: process.p
   assert.equal(result.stdout, "");
 });
 
+test("signed S3 shell distinguishes accepted access from unexpected HTTP failures",
+  { skip: process.platform !== "linux" }, () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "aw-s3-status-"));
+    try {
+      const curl = path.join(directory, "curl");
+      const sha256sum = path.join(directory, "sha256sum");
+      writeFileSync(curl, `#!/bin/sh
+case " $* " in *' --help all '*) printf '%s\\n' '--aws-sigv4'; exit 0 ;; esac
+case " $* " in
+  *' --user AWDIAGNOSTICACCESS:incorrect '*) printf '%s' "\${AW_TEST_WRONG:-403}" ;;
+  *'/aw-forbidden '*) printf '%s' "\${AW_TEST_FORBIDDEN:-403}" ;;
+  *' --request PUT '*'/aw-raw/proof '*) printf '%s' "\${AW_TEST_PUT:-200}" ;;
+  *' --request PUT '*'/aw-raw '*) printf '%s' "\${AW_TEST_BUCKET:-200}" ;;
+  *' --aws-sigv4 '*'/aw-raw/proof '*) printf '%s' "\${AW_TEST_READ:-200}" ;;
+  *'/aw-raw/proof '*) printf '%s' "\${AW_TEST_UNSIGNED:-403}" ;;
+  *) exit 2 ;;
+esac
+`);
+      writeFileSync(sha256sum, `#!/bin/sh
+printf '%s  %s\\n' 'b30f82db4f920b641336de83b57cf6bc22537f38f08f0f16680526b067245fa1' "$1"
+`);
+      chmodSync(curl, 0o700); chmodSync(sha256sum, 0o700);
+      for (const [name, status, exitCode] of [
+        ["BUCKET", "500", 53], ["BUCKET", "403", 42],
+        ["READ", "404", 54],
+        ["WRONG", "404", 50], ["WRONG", "200", 44],
+        ["FORBIDDEN", "429", 51], ["FORBIDDEN", "200", 45],
+        ["UNSIGNED", "500", 52], ["UNSIGNED", "200", 48],
+      ]) {
+        const result = spawnSync("sh", ["-c", TEST_ONLY_signedSeaweedS3ProbeScript()], {
+          env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, [`AW_TEST_${name}`]: status },
+          encoding: "utf8",
+        });
+        assert.equal(result.status, exitCode, `${name} ${status}: ${result.stderr}`);
+        assert.equal(result.stdout, "");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
 test("runtime diagnostic applies the fixed isolated profile and returns a bounded proof", async () => {
   const value = fixture();
   const proof = await TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker });
@@ -120,6 +164,8 @@ test("runtime diagnostic applies the fixed isolated profile and returns a bounde
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PROOF_V2");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.derivativeVersion, "c507336+aw.549ec92660ab");
+  assert.equal(proof.profileSha256, "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c");
+  assert.equal(proof.commandSha256, "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507");
   assert.equal(proof.readiness, "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200");
   assert.equal(proof.anonymousAccess, "REFUSED_403");
   assert.equal(proof.authenticatedAccess, "SIGNED_CREATE_PUT_GET_SHA256");
@@ -170,6 +216,9 @@ for (const [status, reason] of [
   [45, "FORBIDDEN_SCOPE_ALLOWED"], [46, "CONDITIONAL_WRITE_UNEXPECTED"],
   [47, "CONCURRENT_WRITE_UNEXPECTED"], [48, "ANONYMOUS_OBJECT_ALLOWED"],
   [49, "SIGNED_TRANSPORT_FAILURE"],
+  [50, "WRONG_CREDENTIAL_UNEXPECTED_STATUS"], [51, "FORBIDDEN_SCOPE_UNEXPECTED_STATUS"],
+  [52, "ANONYMOUS_OBJECT_UNEXPECTED_STATUS"], [53, "ALLOWED_SCOPE_UNEXPECTED_STATUS"],
+  [54, "READ_UNEXPECTED_STATUS"],
   [127, "SIGNED_CLIENT_UNAVAILABLE"],
 ]) {
   test(`signed S3 probe status ${status} reports bounded reason ${reason}`, async () => {

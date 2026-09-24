@@ -29,6 +29,9 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "SIGNED_CLIENT_UNAVAILABLE", "ALLOWED_SCOPE_DENIED", "READBACK_MISMATCH",
   "WRONG_CREDENTIAL_ACCEPTED", "FORBIDDEN_SCOPE_ALLOWED", "CONDITIONAL_WRITE_UNEXPECTED",
   "CONCURRENT_WRITE_UNEXPECTED", "ANONYMOUS_OBJECT_ALLOWED", "SIGNED_TRANSPORT_FAILURE",
+  "WRONG_CREDENTIAL_UNEXPECTED_STATUS", "FORBIDDEN_SCOPE_UNEXPECTED_STATUS",
+  "ANONYMOUS_OBJECT_UNEXPECTED_STATUS", "ALLOWED_SCOPE_UNEXPECTED_STATUS",
+  "READ_UNEXPECTED_STATUS",
   "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
@@ -91,23 +94,24 @@ signed() {
     --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' "$@" 2>/dev/null
 }
 bucket=$(signed --request PUT http://127.0.0.1:8333/aw-raw) || exit 49
-test "$bucket" = 200 || exit 42
+case "$bucket" in 200) ;; 401|403) exit 42 ;; 000|'') exit 49 ;; *) exit 53 ;; esac
 first=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
   http://127.0.0.1:8333/aw-raw/proof) || exit 49
-test "$first" = 200 || exit 42
+case "$first" in 200) ;; 401|403) exit 42 ;; 000|'') exit 49 ;; *) exit 53 ;; esac
 read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
   --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
   http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
-test "$read_status" = 200 && test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
+test "$read_status" = 200 || exit 54
+test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
 wrong=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
   --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:incorrect' \\
   http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
-test "$wrong" = 403 || exit 44
+case "$wrong" in 403) ;; 000|'') exit 49 ;; 2??) exit 44 ;; *) exit 50 ;; esac
 forbidden=$(signed --request PUT http://127.0.0.1:8333/aw-forbidden) || exit 49
-test "$forbidden" = 403 || exit 45
+case "$forbidden" in 403) ;; 000|'') exit 49 ;; 2??) exit 45 ;; *) exit 51 ;; esac
 unsigned=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
   http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
-test "$unsigned" = 403 || exit 48
+case "$unsigned" in 403) ;; 000|'') exit 49 ;; 2??) exit 48 ;; *) exit 52 ;; esac
 same=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
   http://127.0.0.1:8333/aw-raw/proof) || exit 49
 different=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_B}' \\
@@ -116,7 +120,8 @@ test "$same" = 412 && test "$different" = 412 || exit 46
 read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
   --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
   http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
-test "$read_status" = 200 && test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
+test "$read_status" = 200 || exit 54
+test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
 signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
   http://127.0.0.1:8333/aw-raw/race > "$work/a" & a_pid=$!
 signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_B}' \\
@@ -136,7 +141,8 @@ fi
 read_status=$(curl --silent --output "$work/winner" --write-out '%{http_code}' --max-time 10 \\
   --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
   http://127.0.0.1:8333/aw-raw/race 2>/dev/null) || exit 49
-test "$read_status" = 200 && test "$(sha256sum "$work/winner" | cut -d ' ' -f 1)" = "$winner" || exit 47
+test "$read_status" = 200 || exit 54
+test "$(sha256sum "$work/winner" | cut -d ' ' -f 1)" = "$winner" || exit 47
 printf '%s\\n' 'SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED'`;
 const CREATE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=1000:1000", "--memory=768m",
   "--memory-swap=768m", "--cpus=.75", "--pids-limit=512", "--cap-drop=ALL",
@@ -332,11 +338,14 @@ async function execute(input, injected) {
     }
     phase = "RUNTIME_S3_PROTOCOL"; reason = "PROBE_COMMAND";
     const signed = await command(docker, ["container", "exec", name, "/bin/sh", "-c", SIGNED_PROBE],
-      { ...options, timeoutMs: 90_000 }, [0, 41, 42, 43, 44, 45, 46, 47, 48, 49, 127]);
+      { ...options, timeoutMs: 90_000 }, [0, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 127]);
     const signedReasons = { 41: "SIGNED_CLIENT_UNAVAILABLE", 42: "ALLOWED_SCOPE_DENIED",
       43: "READBACK_MISMATCH", 44: "WRONG_CREDENTIAL_ACCEPTED", 45: "FORBIDDEN_SCOPE_ALLOWED",
       46: "CONDITIONAL_WRITE_UNEXPECTED", 47: "CONCURRENT_WRITE_UNEXPECTED",
       48: "ANONYMOUS_OBJECT_ALLOWED", 49: "SIGNED_TRANSPORT_FAILURE",
+      50: "WRONG_CREDENTIAL_UNEXPECTED_STATUS", 51: "FORBIDDEN_SCOPE_UNEXPECTED_STATUS",
+      52: "ANONYMOUS_OBJECT_UNEXPECTED_STATUS", 53: "ALLOWED_SCOPE_UNEXPECTED_STATUS",
+      54: "READ_UNEXPECTED_STATUS",
       127: "SIGNED_CLIENT_UNAVAILABLE" };
     if (signed.status !== 0) {
       reason = signedReasons[signed.status]; throw failure("seaweed_candidate_runtime_failed");
