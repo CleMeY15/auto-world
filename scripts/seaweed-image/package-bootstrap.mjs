@@ -355,16 +355,16 @@ export async function runSeaweedPackageBootstrap({
       }
       return parsePublishedDigest(metadata);
     });
+    receipt.manifestDigest = manifestDigest;
+    receipt.subject = `${SEAWEED_PACKAGE_BOOTSTRAP.image}@${manifestDigest}`;
+    receipt.state = "PUBLISHED_UNADMITTED";
+    receipt.publication = "PUBLISHED_UNADMITTED";
     await phase("no_local_image_retained", () => {
       if (!inspectAbsent(run(commandRunner, "docker", ["image", "inspect", tag], options, [0, 1]))) {
         throw new Error("seaweed_package_bootstrap_local_image_retained");
       }
     });
-    receipt.manifestDigest = manifestDigest;
-    receipt.subject = `${SEAWEED_PACKAGE_BOOTSTRAP.image}@${manifestDigest}`;
-    receipt.state = "PUBLISHED_UNADMITTED";
     receipt.result = "PASSED";
-    receipt.publication = "PUBLISHED_UNADMITTED";
   } catch (error) {
     primaryFailure = error;
   }

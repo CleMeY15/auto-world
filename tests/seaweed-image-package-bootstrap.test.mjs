@@ -41,7 +41,8 @@ function mainResponse(sha = sourceSha) {
   return new globalThis.Response(JSON.stringify({ object: { type: "commit", sha } }), { status: 200 });
 }
 
-function commandRunner({ calls, failBuild = false } = { calls: [] }) {
+function commandRunner({ calls, failBuild = false, retainedLocalImage = false } = { calls: [] }) {
+  let imageInspections = 0;
   return (command, args, options) => {
     calls.push({ command, args, cwd: options.cwd, env: options.env, input: options.input });
     if (command === "git") return { status: 0, stdout: `${sourceSha}\n`, stderr: "" };
@@ -50,6 +51,8 @@ function commandRunner({ calls, failBuild = false } = { calls: [] }) {
       return { status: 0, stdout: "github.com/docker/buildx v0.37.0\n", stderr: "" };
     }
     if (args[0] === "image" && args[1] === "inspect") {
+      imageInspections += 1;
+      if (retainedLocalImage && imageInspections === 2) return { status: 0, stdout: "[]", stderr: "" };
       return { status: 1, stdout: "", stderr: "Error: No such image" };
     }
     if (args[0] === "login") return { status: 0, stdout: "Login Succeeded", stderr: "" };
@@ -168,4 +171,28 @@ test("failed or stale publication stays failed, redacted and cleaned", async (co
     platform: "linux",
   }), /main_ref_mismatch/u);
   assert.equal(readFileSync(path.join(stale.output, "receipt.json"), "utf8").includes(stale.env.GITHUB_TOKEN), false);
+});
+
+test("confirmed remote publication retains its exact digest when the later local-image check fails", async (context) => {
+  const item = fixture();
+  context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
+  await assert.rejects(runSeaweedPackageBootstrap({
+    argv: ["--output", item.output],
+    commandRunner: commandRunner({ calls: [], retainedLocalImage: true }),
+    env: item.env,
+    fetchImpl: async () => mainResponse(),
+    platform: "linux",
+  }), /local_image_retained/u);
+  const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+  assert.equal(receipt.result, "FAILED");
+  assert.equal(receipt.state, "PUBLISHED_UNADMITTED");
+  assert.equal(receipt.publication, "PUBLISHED_UNADMITTED");
+  assert.equal(receipt.manifestDigest, manifestDigest);
+  assert.equal(receipt.subject, `${SEAWEED_PACKAGE_BOOTSTRAP.image}@${manifestDigest}`);
+  assert.equal(receipt.phases.at(-2).name, "no_local_image_retained");
+  assert.equal(receipt.phases.at(-2).result, "FAILED");
+  assert.equal(receipt.phases.at(-2).reason, "seaweed_package_bootstrap_local_image_retained");
+  assert.equal(receipt.phases.at(-1).name, "owned_temporary_cleanup");
+  assert.equal(receipt.phases.at(-1).result, "PASSED");
+  assert.equal(existsSync(path.join(item.runnerTemp, `aw-seaweed-package-bootstrap-${item.env.GITHUB_RUN_ID}-attempt-1`)), false);
 });
