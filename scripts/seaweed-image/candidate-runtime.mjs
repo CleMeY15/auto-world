@@ -12,20 +12,29 @@ const COMMAND_TIMEOUT_MS = 90_000;
 const CLEANUP_TIMEOUT_MS = 60_000;
 const DERIVATIVE_VERSION = "c507336+aw.549ec92660ab";
 const OWNERSHIP_LABEL = "com.auto-world.runtime-nonce";
+const ACCESS_KEY = "AWDIAGNOSTICACCESS";
+const SECRET_KEY = "aw-diagnostic-secret-not-for-production-0001";
+const PAYLOAD_A = "auto-world-s3-diagnostic-payload-a";
+const PAYLOAD_B = "auto-world-s3-diagnostic-payload-b";
+const PAYLOAD_A_SHA256 = createHash("sha256").update(PAYLOAD_A).digest("hex");
+const PAYLOAD_B_SHA256 = createHash("sha256").update(PAYLOAD_B).digest("hex");
 const PUBLIC_PHASES = new Set(["RUNTIME_CONTEXT", "RUNTIME_PRECHECK", "RUNTIME_CREATE",
-  "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_HELPERS", "RUNTIME_STOP", "RUNTIME_CLEANUP"]);
+  "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_S3_PROTOCOL", "RUNTIME_HELPERS", "RUNTIME_STOP",
+  "RUNTIME_CLEANUP"]);
 const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIED",
   "CREATE_ID_INVALID", "OWNERSHIP_UNCERTAIN", "PROBE_COMMAND", "VERSION_MISMATCH",
   "ANONYMOUS_ALLOWED", "S3_UNAVAILABLE",
   "ANONYMOUS_UNEXPECTED_STATUS", "UID_MISMATCH", "GID_MISMATCH", "CONFIG_MODE_MISMATCH",
   "TMPFS_MODE_MISMATCH", "READINESS_UNAVAILABLE", "FILER_UNAVAILABLE",
+  "SIGNED_CLIENT_UNAVAILABLE", "ALLOWED_SCOPE_DENIED", "READBACK_MISMATCH",
+  "WRONG_CREDENTIAL_ACCEPTED", "FORBIDDEN_SCOPE_ALLOWED", "CONDITIONAL_WRITE_UNEXPECTED",
+  "CONCURRENT_WRITE_UNEXPECTED", "ANONYMOUS_OBJECT_ALLOWED", "SIGNED_TRANSPORT_FAILURE",
   "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
 const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnostic", credentials: [{
-  accessKey: "AWDIAGNOSTICACCESS", secretKey: "aw-diagnostic-secret-not-for-production-0001",
-}], actions: ["Admin:aw-runtime-diagnostic", "Read:aw-runtime-diagnostic", "List:aw-runtime-diagnostic",
-  "Write:aw-runtime-diagnostic"] }] });
+  accessKey: ACCESS_KEY, secretKey: SECRET_KEY,
+}], actions: ["Admin:aw-raw", "Read:aw-raw", "List:aw-raw", "Write:aw-raw"] }] });
 const SERVER_COMMAND = ["server", "-dir=/data", "-master.telemetry=false", "-s3", "-s3.port=8333",
   "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/run/aw-private/s3.json"];
 const BOOTSTRAP = `set -eu
@@ -72,6 +81,63 @@ if nc -z -w 1 127.0.0.1 9101 >/dev/null 2>&1; then exit 28; else test "$?" = 1 |
 test ! -e /usr/bin/weed-volume || exit 29
 test ! -e /usr/bin/weed-worker || exit 29
 printf '%s\\n' 'SEAWEED_RUNTIME_PROFILE_VERIFIED'`;
+const SIGNED_PROBE = `set -eu
+command -v curl >/dev/null 2>&1 && curl --help all 2>/dev/null | grep -q -- '--aws-sigv4' || exit 41
+command -v sha256sum >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 41
+work=$(mktemp -d /tmp/aw-s3-proof.XXXXXXXX) || exit 41
+trap 'rm -f "$work/read" "$work/winner" "$work/a" "$work/b"; rmdir "$work"' EXIT
+signed() {
+  curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
+    --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' "$@" 2>/dev/null
+}
+bucket=$(signed --request PUT http://127.0.0.1:8333/aw-raw) || exit 49
+test "$bucket" = 200 || exit 42
+first=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
+  http://127.0.0.1:8333/aw-raw/proof) || exit 49
+test "$first" = 200 || exit 42
+read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
+  http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
+test "$read_status" = 200 && test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
+wrong=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:incorrect' \\
+  http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
+test "$wrong" = 403 || exit 44
+forbidden=$(signed --request PUT http://127.0.0.1:8333/aw-forbidden) || exit 49
+test "$forbidden" = 403 || exit 45
+unsigned=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
+  http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
+test "$unsigned" = 403 || exit 48
+same=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
+  http://127.0.0.1:8333/aw-raw/proof) || exit 49
+different=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_B}' \\
+  http://127.0.0.1:8333/aw-raw/proof) || exit 49
+test "$same" = 412 && test "$different" = 412 || exit 46
+read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
+  http://127.0.0.1:8333/aw-raw/proof 2>/dev/null) || exit 49
+test "$read_status" = 200 && test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_A_SHA256}' || exit 43
+signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_A}' \\
+  http://127.0.0.1:8333/aw-raw/race > "$work/a" & a_pid=$!
+signed --request PUT --header 'If-None-Match: *' --data-binary '${PAYLOAD_B}' \\
+  http://127.0.0.1:8333/aw-raw/race > "$work/b" & b_pid=$!
+a_rc=0; b_rc=0
+wait "$a_pid" || a_rc=$?
+wait "$b_pid" || b_rc=$?
+test "$a_rc" = 0 && test "$b_rc" = 0 || exit 49
+a=$(cat "$work/a"); b=$(cat "$work/b")
+if test "$a" = 200 && { test "$b" = 412 || test "$b" = 409; }; then
+  winner='${PAYLOAD_A_SHA256}'
+elif test "$b" = 200 && { test "$a" = 412 || test "$a" = 409; }; then
+  winner='${PAYLOAD_B_SHA256}'
+else
+  exit 47
+fi
+read_status=$(curl --silent --output "$work/winner" --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
+  http://127.0.0.1:8333/aw-raw/race 2>/dev/null) || exit 49
+test "$read_status" = 200 && test "$(sha256sum "$work/winner" | cut -d ' ' -f 1)" = "$winner" || exit 47
+printf '%s\\n' 'SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED'`;
 const CREATE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=1000:1000", "--memory=768m",
   "--memory-swap=768m", "--cpus=.75", "--pids-limit=512", "--cap-drop=ALL",
   "--security-opt=no-new-privileges=true", "--stop-timeout=30",
@@ -85,7 +151,8 @@ const PROFILE_SHA256 = hash(CREATE_PROFILE);
 const COMMAND_SHA256 = hash(["--entrypoint=/bin/sh", "-c", BOOTSTRAP]);
 const PROOF_KEYS = ["kind", "state", "authority", "candidateAuthorization", "imageId", "runId",
   "recipeRevision", "profileSha256", "commandSha256", "derivativeVersion", "uid", "gid", "readiness",
-  "anonymousAccess", "disabledListeners", "rustHelpers", "shutdown"];
+  "anonymousAccess", "authenticatedAccess", "scopeEnforcement", "conditionalWrites",
+  "parallelAttempt", "disabledListeners", "rustHelpers", "shutdown"];
 
 function failure(code) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "DIAGNOSTIC_ONLY",
@@ -184,6 +251,9 @@ function expectedProof({ imageId, runId, recipeRevision }) {
     candidateAuthorization: "NOT_AUTHORIZED", imageId, runId, recipeRevision, profileSha256: PROFILE_SHA256,
     commandSha256: COMMAND_SHA256, derivativeVersion: DERIVATIVE_VERSION, uid: 1000, gid: 1000,
     readiness: "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200", anonymousAccess: "REFUSED_403",
+    authenticatedAccess: "SIGNED_CREATE_PUT_GET_SHA256", scopeEnforcement: "WRONG_KEY_AND_BUCKET_REFUSED_403",
+    conditionalWrites: "REPLAY_AND_OVERWRITE_REFUSED_412",
+    parallelAttempt: "SINGLE_PAIR_ONE_WINNER_READBACK",
     disabledListeners: "8181,9101",
     rustHelpers: "ABSENT_AND_REJECTED", shutdown: "BOUNDED" });
 }
@@ -260,6 +330,21 @@ async function execute(input, injected) {
       reason = "PROBE_OUTPUT_INVALID";
       throw failure("seaweed_candidate_runtime_failed");
     }
+    phase = "RUNTIME_S3_PROTOCOL"; reason = "PROBE_COMMAND";
+    const signed = await command(docker, ["container", "exec", name, "/bin/sh", "-c", SIGNED_PROBE],
+      { ...options, timeoutMs: 90_000 }, [0, 41, 42, 43, 44, 45, 46, 47, 48, 49, 127]);
+    const signedReasons = { 41: "SIGNED_CLIENT_UNAVAILABLE", 42: "ALLOWED_SCOPE_DENIED",
+      43: "READBACK_MISMATCH", 44: "WRONG_CREDENTIAL_ACCEPTED", 45: "FORBIDDEN_SCOPE_ALLOWED",
+      46: "CONDITIONAL_WRITE_UNEXPECTED", 47: "CONCURRENT_WRITE_UNEXPECTED",
+      48: "ANONYMOUS_OBJECT_ALLOWED", 49: "SIGNED_TRANSPORT_FAILURE",
+      127: "SIGNED_CLIENT_UNAVAILABLE" };
+    if (signed.status !== 0) {
+      reason = signedReasons[signed.status]; throw failure("seaweed_candidate_runtime_failed");
+    }
+    if (signed.stdout.trim() !== "SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED" || signed.stderr.trim() !== "") {
+      reason = "PROBE_OUTPUT_INVALID";
+      throw failure("seaweed_candidate_runtime_failed");
+    }
     phase = "RUNTIME_HELPERS"; reason = "RUST_HELPER_COMMAND";
     for (const helper of ["volume-rust", "worker-rust"]) {
       const rejected = await command(docker, ["container", "exec", name, "/entrypoint.sh", helper], options,
@@ -326,3 +411,4 @@ export function TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input, injected) { re
 export function TEST_ONLY_expectedSeaweedRuntimeProfileProof(expected) {
   return validateSeaweedRuntimeProfileProof(expectedProof(expected), expected);
 }
+export function TEST_ONLY_signedSeaweedS3ProbeScript() { return SIGNED_PROBE; }
