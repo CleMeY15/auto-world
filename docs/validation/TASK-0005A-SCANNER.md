@@ -1,8 +1,10 @@
 # TASK-0005A — Corrected scanner evidence
 
-Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Latest observation: 2026-09-23.
+Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Latest workflow policy update: 2026-09-24.
 
 Policy amendment on 2026-09-24: the Java database still requires exact byte identity, expected schema and valid ordered non-future timestamps, but its measured age no longer has a rejection threshold. The vulnerability database retains the 48-hour maximum age. The audit receipt records both ages and whether each is within 48 hours; an older Java database limits claims about recent Java advisories. The historical failures below remain failures under the policy and code that ran at the time.
+
+Notification policy on 2026-09-24: the complete `scanner-audit.yml` workflow is available by explicit `workflow_dispatch` only, rather than running on every pull request and `main` push. Ordinary PR/main `quality` CI still runs the scanner contract and policy tests through `pnpm test`. This reduces duplicate failure notifications while the known image findings are unresolved; it does not turn any previous failed audit green, admit an image, relax the vulnerability gates, or replace a fresh exact-subject audit when admission is attempted. The separate guarded SeaweedFS candidate audit keeps its own trigger and failure semantics. Rollback is restoring the prior automatic workflow triggers.
 
 ## Database rejection evidence follow-up
 
