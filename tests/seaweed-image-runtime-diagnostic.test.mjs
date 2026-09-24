@@ -4,7 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof } from
+import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
+  TEST_ONLY_expectedSeaweedRuntimeProfileProof,
+  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
 import { TEST_ONLY_publicRuntimeFailure, TEST_ONLY_runRuntimeDiagnostic } from
   "../scripts/seaweed-image/runtime-diagnostic.mjs";
@@ -14,10 +16,11 @@ const revision = "a".repeat(40);
 const runId = "35999999999";
 const imageId = `sha256:${"c".repeat(64)}`;
 
-function context(runnerTemp) {
+function context(runnerTemp, runNumber = "7") {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "7", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: runNumber,
+    GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
@@ -35,6 +38,15 @@ function receipt() {
     serverVersion: "28.0.4", archiveKind: "SEAWEED_SAVED_CANDIDATE_PROOF_V1",
     archiveIdentityType: "CLASSIC_CONFIG_ID", archiveSha256: "d".repeat(64), archiveBytes: 260_000_000,
     persistenceProof: TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision: revision }) };
+}
+
+function strictReceipt() {
+  const base = receipt();
+  delete base.persistenceProof;
+  return { ...base, kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4",
+    runtimeProof: TEST_ONLY_expectedSeaweedRuntimeProfileProof({ imageId, runId, recipeRevision: revision }),
+    strictContentionProof: TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(
+      { imageId, runId, recipeRevision: revision }, "B") };
 }
 
 test("runtime diagnostic refuses changed one-time main context before storage", { skip: !linux }, async () => {
@@ -95,6 +107,45 @@ test("runtime diagnostic rejects changed authority, lineage and persistence proo
       assert.equal(logged, false);
       await assert.rejects(access(path.join(runnerTemp, "seaweed-runtime-candidate")), { code: "ENOENT" });
     }
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("eighth dispatch emits only strict V4 after owned cleanup", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-strict-"));
+  const root = path.join(runnerTemp, "seaweed-runtime-strict-contention");
+  const events = [];
+  try {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "8"), {
+      now: () => Date.parse("2026-09-24T10:00:00.000Z"),
+      materialize: async ({ parent }) => {
+        assert.equal(parent, root);
+        assert.deepEqual(await readdir(parent), []);
+        return strictReceipt();
+      },
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    assert.deepEqual(events[0], { ...strictReceipt(), diagnostic: {
+      phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED",
+      durationMs: events[0].diagnostic.durationMs } });
+    await assert.rejects(access(root), { code: "ENOENT" });
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-strict"], context(runnerTemp, "8"), {
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("strict dispatch rejects run seven and tampered contention proof", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-strict-guard-"));
+  try {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp)),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute"], context(runnerTemp, "8")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "8"), {
+      materialize: async () => ({ ...strictReceipt(), strictContentionProof: {
+        ...strictReceipt().strictContentionProof, conditionalResult: "TWO_200" } }),
+    }), { code: "seaweed_candidate_failed" });
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 

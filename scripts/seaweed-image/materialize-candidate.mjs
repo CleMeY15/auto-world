@@ -9,7 +9,8 @@ import { isDeepStrictEqual } from "node:util";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
 import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
-  verifyLocalSeaweedRuntimeProfile, verifyLocalSeaweedRuntimeRestartPersistence } from "./candidate-runtime.mjs";
+  validateSeaweedRuntimeStrictContentionProof, verifyLocalSeaweedRuntimeProfile,
+  verifyLocalSeaweedRuntimeRestartPersistence, verifyLocalSeaweedRuntimeStrictContention } from "./candidate-runtime.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs, withMaterializedSeaweedRootfs,
 } from "./materialize-rootfs.mjs";
@@ -308,6 +309,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
     ? testOnly?.verifyRuntime ?? verifyLocalSeaweedRuntimeProfile : undefined;
   const verifyPersistence = executionProfile === "PERSISTENCE_PROFILE"
     ? testOnly?.verifyPersistence ?? verifyLocalSeaweedRuntimeRestartPersistence : undefined;
+  const verifyStrict = executionProfile === "STRICT_CONTENTION_PROFILE"
+    ? testOnly?.verifyStrict ?? verifyLocalSeaweedRuntimeStrictContention : undefined;
   const docker = testOnly?.docker ?? defaultDocker;
   const rootfsParent = path.join(parent, "rootfs"); const work = path.join(parent, "work");
   const dockerConfig = path.join(work, "docker-config"); const saved = path.join(work, "saved.tar");
@@ -346,7 +349,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
-      let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof; let persistenceProof;
+      let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof;
+      let persistenceProof; let strictContentionProof;
       let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -393,13 +397,22 @@ async function execute(input, testOnly, executionProfile = "NONE") {
           || archiveProof.memberCount !== memberCount || archiveProof.serverVersion !== serverVersion) {
           throw fail("seaweed_candidate_archive_failed");
         }
-        if (verifyRuntime !== undefined || verifyPersistence !== undefined) {
+        if (verifyRuntime !== undefined || verifyPersistence !== undefined || verifyStrict !== undefined) {
           try {
-            const proof = await (verifyPersistence ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
+            const proof = await (verifyPersistence ?? verifyStrict ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
               runId, recipeRevision, signal }));
             if (verifyPersistence !== undefined) {
               validateSeaweedRuntimePersistenceProof(proof, { imageId, runId, recipeRevision });
               persistenceProof = proof;
+            } else if (verifyStrict !== undefined) {
+              if (!exactObject(proof, ["runtimeProof", "strictContentionProof"])) {
+                throw fail("seaweed_candidate_runtime_failed");
+              }
+              validateSeaweedRuntimeProfileProof(proof.runtimeProof, { imageId, runId, recipeRevision });
+              validateSeaweedRuntimeStrictContentionProof(proof.strictContentionProof,
+                { imageId, runId, recipeRevision });
+              runtimeProof = proof.runtimeProof;
+              strictContentionProof = proof.strictContentionProof;
             } else {
               validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
               runtimeProof = proof;
@@ -439,7 +452,9 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
-      return Object.freeze({ kind: persistenceProof !== undefined ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3"
+      return Object.freeze({ kind: strictContentionProof !== undefined
+        ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4"
+        : persistenceProof !== undefined ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3"
         : runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
           : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
         authority: executionProfile === "NONE" ? "PREPARATION_ONLY" : "DIAGNOSTIC_ONLY",
@@ -452,7 +467,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
         serverVersion, archiveKind: archiveProof.kind, archiveIdentityType: archiveProof.identityType,
         archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes,
         ...(runtimeProof === undefined ? {} : { runtimeProof }),
-        ...(persistenceProof === undefined ? {} : { persistenceProof }) });
+        ...(persistenceProof === undefined ? {} : { persistenceProof }),
+        ...(strictContentionProof === undefined ? {} : { strictContentionProof }) });
     });
   } catch (error) { failure = error; }
   const clean = await cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfsIdentity, work, workIdentity,
@@ -482,4 +498,10 @@ export async function materializeAndVerifyLocalSeaweedRuntimePersistenceCandidat
 }
 export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate(input, injected) {
   return execute(input, injected, "PERSISTENCE_PROFILE");
+}
+export async function materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate(input) {
+  return execute(input, undefined, "STRICT_CONTENTION_PROFILE");
+}
+export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate(input, injected) {
+  return execute(input, injected, "STRICT_CONTENTION_PROFILE");
 }

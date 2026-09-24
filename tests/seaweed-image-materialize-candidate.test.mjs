@@ -9,11 +9,13 @@ import test from "node:test";
 import {
   candidateImportChanges, isPublicCandidateFailureCode, TEST_ONLY_materializeLocalSeaweedCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate,
-  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate, validateCandidateImage,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate, validateCandidateImage,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candidate-archive.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
-  TEST_ONLY_expectedSeaweedRuntimeProfileProof } from "../scripts/seaweed-image/candidate-runtime.mjs";
+  TEST_ONLY_expectedSeaweedRuntimeProfileProof,
+  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof } from "../scripts/seaweed-image/candidate-runtime.mjs";
 
 const linux = process.platform === "linux";
 const imageId = `sha256:${"b".repeat(64)}`;
@@ -440,6 +442,30 @@ test("persistence wrapper issues V3 only after archive, runtime and image cleanu
     assert.equal(Object.hasOwn(result, "runtimeProof"), false);
     assert.deepEqual([...value.imageIds], [foreignImageId]);
     assert.ok(value.calls.findIndex((args) => args[0] === "persistence")
+      < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("strict contention wrapper issues V4 only after both proofs and image cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  value.injected.verifyStrict = async (input) => {
+    assert.equal(value.archiveValidated, true);
+    assert.equal(value.imageIds.has(imageId), true);
+    value.calls.push(["strict"]);
+    const expected = { imageId, runId: input.runId, recipeRevision: input.recipeRevision };
+    return { runtimeProof: TEST_ONLY_expectedSeaweedRuntimeProfileProof(expected),
+      strictContentionProof: TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(expected, "B") };
+  };
+  try {
+    const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate(
+      value.inputs, value.injected);
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4");
+    assert.equal(result.strictContentionProof.winner, "B");
+    assert.equal(result.runtimeProof.kind, "SEAWEED_LOCAL_RUNTIME_PROOF_V2");
+    assert.equal(Object.hasOwn(result, "persistenceProof"), false);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+    assert.ok(value.calls.findIndex((args) => args[0] === "strict")
       < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
     assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
