@@ -78,7 +78,8 @@ test("candidate image ownership requires the exact ID, tag, platform, one layer 
   }
 });
 
-function scope({ initialImage = false, existingImageId = false, archiveFailure = false, abortAfterOwnership = false,
+function scope({ initialImage = false, existingImageId = false, invalidImageList = false,
+  archiveFailure = false, abortAfterOwnership = false,
   wrongInspectedId = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-local-candidate-")); chmodSync(parent, 0o700);
   const runId = "35933797176"; const recipeRevision = "a".repeat(40);
@@ -119,7 +120,8 @@ function scope({ initialImage = false, existingImageId = false, archiveFailure =
       if (args[0] === "version") return { status: 0, stdout: "28.0.4|28.0.4\n", stderr: "" };
       if (args[0] === "image" && args[1] === "ls") {
         assert.deepEqual(args, ["image", "ls", "--all", "--no-trunc", "--format", "{{.ID}}"]);
-        return { status: 0, stdout: existingImageId ? `${imageId}\n` : "", stderr: "" };
+        return { status: 0, stdout: invalidImageList ? "<none>\n" : existingImageId ? `${imageId}\n` : "",
+          stderr: "" };
       }
       if (args[0] === "image" && args[1] === "inspect" && args[2] !== "--format") {
         const reference = args[2];
@@ -185,6 +187,16 @@ test("a pre-existing untagged matching image ID never becomes cleanup-owned", { 
     assert.equal(value.calls.some((args) => args[1] === "import"), false);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
     assert.equal(value.calls.some((args) => args[1] === "save"), false);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("an ambiguous Docker image inventory fails before import", { skip: !linux }, async () => {
+  const value = scope({ invalidImageList: true });
+  try {
+    await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
+      { code: "seaweed_candidate_store_failed" });
+    assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
+    assert.equal(value.calls.some((args) => args[1] === "import" || args[1] === "rm"), false);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
