@@ -18,7 +18,8 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "CREATE_ID_INVALID", "OWNERSHIP_UNCERTAIN", "PROBE_COMMAND", "VERSION_MISMATCH",
   "ANONYMOUS_ALLOWED", "S3_UNAVAILABLE",
   "ANONYMOUS_UNEXPECTED_STATUS", "UID_MISMATCH", "GID_MISMATCH", "CONFIG_MODE_MISMATCH",
-  "READINESS_UNAVAILABLE", "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
+  "TMPFS_MODE_MISMATCH", "READINESS_UNAVAILABLE", "FILER_UNAVAILABLE",
+  "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
 const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnostic", credentials: [{
@@ -38,6 +39,7 @@ case "$version" in *'${DERIVATIVE_VERSION}'*) ;; *) exit 21 ;; esac
 test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000 || exit 23
 test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000 || exit 24
 test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600' || exit 25
+test "$(stat -c '%u:%g:%a' /tmp)" = '1000:1000:700' && test -w /tmp || exit 35
 command -v curl >/dev/null 2>&1 || exit 32
 ready=''
 i=0
@@ -47,6 +49,14 @@ while test "$i" -lt 60; do
   i=$((i + 1)); sleep 1
 done
 test "$ready" = 200 || exit 26
+filerready=''
+i=0
+while test "$i" -lt 30; do
+  filerready=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8888/readyz || true)
+  test "$filerready" = 200 && break
+  i=$((i + 1)); sleep 1
+done
+test "$filerready" = 200 || exit 36
 s3ready=''
 i=0
 while test "$i" -lt 30; do
@@ -65,6 +75,7 @@ printf '%s\\n' 'SEAWEED_RUNTIME_PROFILE_VERIFIED'`;
 const CREATE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=1000:1000", "--memory=768m",
   "--memory-swap=768m", "--cpus=.75", "--pids-limit=512", "--cap-drop=ALL",
   "--security-opt=no-new-privileges=true", "--stop-timeout=30",
+  "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=0700,uid=1000,gid=1000",
   "--tmpfs", "/data:rw,nosuid,nodev,noexec,size=256m,mode=0700,uid=1000,gid=1000",
   "--tmpfs", "/run/aw-private:rw,nosuid,nodev,noexec,size=64k,mode=0700,uid=1000,gid=1000",
   "--entrypoint=/bin/sh"];
@@ -172,7 +183,7 @@ function expectedProof({ imageId, runId, recipeRevision }) {
   return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V1", state: "VERIFIED", authority: "DIAGNOSTIC_ONLY",
     candidateAuthorization: "NOT_AUTHORIZED", imageId, runId, recipeRevision, profileSha256: PROFILE_SHA256,
     commandSha256: COMMAND_SHA256, derivativeVersion: DERIVATIVE_VERSION, uid: 1000, gid: 1000,
-    readiness: "CLUSTER_STATUS_200_S3_READYZ_200", anonymousAccess: "REFUSED_403",
+    readiness: "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200", anonymousAccess: "REFUSED_403",
     disabledListeners: "8181,9101",
     rustHelpers: "ABSENT_AND_REJECTED", shutdown: "BOUNDED" });
 }
@@ -235,11 +246,12 @@ async function execute(input, injected) {
     await command(docker, ["container", "start", name], options);
     phase = "RUNTIME_PROBE"; reason = "PROBE_COMMAND";
     const probe = await command(docker, ["container", "exec", name, "/bin/sh", "-c", PROBE],
-      { ...options, timeoutMs: 300_000 }, [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 33, 34, 127]);
+      { ...options, timeoutMs: 390_000 }, [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 36, 127]);
     const probeReasons = { 21: "VERSION_MISMATCH", 22: "ANONYMOUS_ALLOWED", 23: "UID_MISMATCH",
       24: "GID_MISMATCH", 25: "CONFIG_MODE_MISMATCH", 26: "READINESS_UNAVAILABLE",
       27: "ICEBERG_LISTENER_OPEN", 28: "LANCE_LISTENER_OPEN", 29: "RUST_HELPER_PRESENT",
       32: "PROBE_COMMAND", 33: "S3_UNAVAILABLE", 34: "ANONYMOUS_UNEXPECTED_STATUS",
+      35: "TMPFS_MODE_MISMATCH", 36: "FILER_UNAVAILABLE",
       127: "PROBE_COMMAND" };
     if (probe.status !== 0) {
       reason = probeReasons[probe.status]; throw failure("seaweed_candidate_runtime_failed");
