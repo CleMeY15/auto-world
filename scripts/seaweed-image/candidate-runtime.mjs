@@ -47,8 +47,8 @@ done
 test "$ready" = 200 || exit 26
 anonymous=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8333/ || true)
 case "$anonymous" in 401|403) ;; *) exit 22 ;; esac
-if nc -z -w 1 127.0.0.1 8181; then exit 27; else test "$?" = 1 || exit 32; fi
-if nc -z -w 1 127.0.0.1 9101; then exit 28; else test "$?" = 1 || exit 32; fi
+if nc -z -w 1 127.0.0.1 8181 >/dev/null 2>&1; then exit 27; else test "$?" = 1 || exit 32; fi
+if nc -z -w 1 127.0.0.1 9101 >/dev/null 2>&1; then exit 28; else test "$?" = 1 || exit 32; fi
 test ! -e /usr/bin/weed-volume || exit 29
 test ! -e /usr/bin/weed-worker || exit 29
 printf '%s\\n' 'SEAWEED_RUNTIME_PROFILE_VERIFIED'`;
