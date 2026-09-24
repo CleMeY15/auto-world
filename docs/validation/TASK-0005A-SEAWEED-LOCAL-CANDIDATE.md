@@ -1,6 +1,6 @@
 # TASK-0005A — Authenticated local SeaweedFS image candidate
 
-Status: implementation under review. No native SeaweedFS Docker result is claimed by this document. The third [rootfs diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35933797176) proved and disposed the authenticated 246,512,128-byte rootfs on protected main; this increment must reconstruct it in the same process as the Docker transaction. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+Status: first native image-candidate run FAILED at ownership proof; a bounded classification repair is under review. The third [rootfs diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35933797176) proved and disposed the authenticated 246,512,128-byte rootfs on protected main; the image transaction reconstructs it in the same process. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
 
 ## Authority and transaction
 
@@ -14,7 +14,9 @@ The public receipt is `SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1/VERIFIED/PREPARATION_O
 
 ## Verification and limits
 
-The implementation has targeted tests for rootfs borrow lifetime and substitution, import configuration and ownership, saved archive corruption and metadata changes, foreign tags, failures after ownership and cleanup, bounded diagnostic receipts, and workflow restrictions. Actual Docker format and full rootfs handling require an exact-head Linux CI pass, independent implementation review, protected-main integration and the native workflow result. A synthetic import/save diagnostic passed previously on Docker 28.0.4, but cannot substitute for this SeaweedFS run.
+The implementation has targeted tests for rootfs borrow lifetime and substitution, import configuration and ownership, saved archive corruption and metadata changes, foreign tags, failures after ownership and cleanup, bounded diagnostic receipts, and workflow restrictions. [PR53](https://github.com/CleMeY15/auto-world/pull/53) merged at `a9dd7cb4692b98ca7f85259d22a611fb7465102c` after [exact-head CI 35937588196](https://github.com/CleMeY15/auto-world/actions/runs/35937588196), [protected-main CI 35937813548](https://github.com/CleMeY15/auto-world/actions/runs/35937813548) and independent code/architecture reviews passed. The first [native run 35938009466](https://github.com/CleMeY15/auto-world/actions/runs/35938009466), run 1 attempt 1 on that exact main, passed repository/ref, capacity, Docker 28.0.4, checkout and Node gates, then **FAILED** after 4 minutes 44 seconds with only `seaweed_candidate_ownership_failed`. The final cleanup reported `CLEANED`; no verified candidate receipt was emitted. That bounded code does not distinguish a nonempty initial Docker store from post-import image/config inspection. The run remains failed; elapsed time is not proof that import happened.
+
+The next reviewed change separates an initially nonempty store from Docker query failure and emits only closed inspect categories, including the first mismatched planned configuration field when applicable. It advances the manual guard to run 2 attempt 1; its outcome must be recorded separately. The synthetic import/save diagnostic passed previously on Docker 28.0.4, but cannot substitute for this SeaweedFS run.
 
 This local proof does not authorize the image for the four-service stack. The next stages still need actual derivative runtime behavior, complete fresh vulnerability/SBOM audits with the required database freshness, the ADR-0007 private publication and retrieval controls, and final TASK-0005 lifecycle acceptance. The known stale Java database blocks audit/admission until a valid fresh database is available. The user waived only the external fork access test; it must not be run or described as passed.
 

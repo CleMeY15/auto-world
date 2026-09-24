@@ -14,7 +14,7 @@ const runId = "35999999999";
 
 function context(runnerTemp) {
   return { GITHUB_ACTIONS: "true", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-image-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
@@ -36,7 +36,7 @@ test("candidate diagnostic refuses a changed main-only, first-attempt context be
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-candidate-context-"));
   const root = path.join(runnerTemp, "seaweed-image-candidate");
   try {
-    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { GITHUB_RUN_NUMBER: "2" },
+    for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { GITHUB_RUN_NUMBER: "1" },
       { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_REPOSITORY: "foreign/repo" },
       { GITHUB_WORKFLOW_REF: "foreign/workflow" }, { GITHUB_SHA: "not-a-sha" }]) {
       await assert.rejects(TEST_ONLY_runCandidateDiagnostic(["execute"], { ...context(runnerTemp), ...changed }),
@@ -102,4 +102,10 @@ test("candidate failures expose only fixed public codes", () => {
   { state: "FAILED", code: "seaweed_candidate_archive_failed", candidateAuthorization: "NOT_AUTHORIZED" });
   const accessor = Object.defineProperty({}, "code", { get() { throw new Error("private"); } });
   assert.equal(JSON.parse(TEST_ONLY_publicCandidateFailure(accessor)).code, "seaweed_candidate_failed");
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicCandidateFailure({ code: "seaweed_candidate_ownership_failed",
+    detailCode: "config_Labels", message: "private" })),
+  { state: "FAILED", code: "seaweed_candidate_ownership_failed", detailCode: "config_Labels",
+    candidateAuthorization: "NOT_AUTHORIZED" });
+  assert.equal(Object.hasOwn(JSON.parse(TEST_ONLY_publicCandidateFailure({ code: "seaweed_candidate_ownership_failed",
+    detailCode: "secret path" })), "detailCode"), false);
 });

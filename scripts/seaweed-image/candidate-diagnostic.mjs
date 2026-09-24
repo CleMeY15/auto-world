@@ -2,7 +2,8 @@ import { lstat, mkdir, readdir, realpath, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isPublicCandidateFailureCode, materializeLocalSeaweedCandidate } from "./materialize-candidate.mjs";
+import { isPublicCandidateFailureCode, isPublicCandidateInspectionDetail,
+  materializeLocalSeaweedCandidate } from "./materialize-candidate.mjs";
 import { baseMaterialIdentities } from "./plan.mjs";
 import { reviewedSeaweedSourcePolicy } from "./source-records.mjs";
 
@@ -16,7 +17,7 @@ function fail(code) { return Object.assign(new Error(code), { code }); }
 async function requireContext(env) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
-    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "1"
+    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "2"
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")
@@ -104,7 +105,11 @@ function ownData(error, key) {
 function publicFailure(error) {
   const candidate = ownData(error, "code");
   const code = isPublicCandidateFailureCode(candidate) ? candidate : "seaweed_candidate_failed";
-  return JSON.stringify({ state: "FAILED", code, candidateAuthorization: "NOT_AUTHORIZED" });
+  const detail = ownData(error, "detailCode");
+  return JSON.stringify({ state: "FAILED", code,
+    ...((code === "seaweed_candidate_ownership_failed" || code === "seaweed_candidate_image_cleanup_failed")
+      && isPublicCandidateInspectionDetail(detail) ? { detailCode: detail } : {}),
+    candidateAuthorization: "NOT_AUTHORIZED" });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

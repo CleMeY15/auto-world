@@ -14,7 +14,7 @@ test("candidate workflow is one-time, main-only and read-only", async () => {
   assert.match(bytes, /test "\$GITHUB_REPOSITORY" = 'CleMeY15\/auto-world'/u);
   assert.match(bytes, /test "\$GITHUB_EVENT_NAME" = 'workflow_dispatch'/u);
   assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
-  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '1'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '2'/u);
   assert.match(bytes, /test "\$GITHUB_RUN_ATTEMPT" = '1'/u);
   assert.match(bytes, /test "\$GITHUB_WORKFLOW_REF" = 'CleMeY15\/auto-world\/\.github\/workflows\/seaweed-image-candidate\.yml@refs\/heads\/main'/u);
   assert.match(bytes, /concurrency:\n {2}group: seaweed-image-candidate\n {2}cancel-in-progress: false/u);
