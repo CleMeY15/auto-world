@@ -8,9 +8,10 @@ import test from "node:test";
 
 import {
   candidateImportChanges, isPublicCandidateFailureCode, TEST_ONLY_materializeLocalSeaweedCandidate,
-  validateCandidateImage,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate, validateCandidateImage,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candidate-archive.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimeProfileProof } from "../scripts/seaweed-image/candidate-runtime.mjs";
 
 const linux = process.platform === "linux";
 const imageId = `sha256:${"b".repeat(64)}`;
@@ -309,5 +310,91 @@ test("ambiguous inspected ID does not authorize removal of an unknown image", { 
       { code: "seaweed_candidate_ownership_failed", detailCode: "id" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+function injectRuntime(value, outcome = "verified") {
+  value.injected.verifyRuntime = async (input) => {
+    assert.equal(value.archiveValidated, true);
+    assert.equal(value.imageIds.has(imageId), true);
+    assert.equal(input.imageId, imageId);
+    assert.equal(input.recipeRevision, value.inputs.recipeRevision);
+    assert.equal(input.runId, value.inputs.runId);
+    assert.equal(input.parent, path.join(value.parent, "work"));
+    assert.equal(input.dockerConfig, path.join(value.parent, "work", "docker-config"));
+    value.calls.push(["runtime"]);
+    if (outcome === "failed") throw new Error("runtime probe failed");
+    if (outcome === "diagnosed") {
+      throw Object.assign(new Error("private runtime output"), { code: "seaweed_candidate_runtime_failed",
+        phase: "RUNTIME_PROBE", reason: "READINESS_UNAVAILABLE", durationMs: 123 });
+    }
+    if (outcome === "cleanup_failed") {
+      throw Object.assign(new Error("private path must not escape"),
+        { code: "seaweed_candidate_runtime_cleanup_failed" });
+    }
+    const proof = TEST_ONLY_expectedSeaweedRuntimeProfileProof({ imageId,
+      runId: value.inputs.runId, recipeRevision: value.inputs.recipeRevision });
+    return outcome === "tampered" ? { ...proof, derivativeVersion: "unreviewed" } : proof;
+  };
+}
+
+test("runtime wrapper verifies only after the saved archive and before image cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  injectRuntime(value);
+  try {
+    const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(value.inputs, value.injected);
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1");
+    assert.equal(result.authority, "DIAGNOSTIC_ONLY");
+    assert.equal(result.imageExecution, "VERIFIED_DIAGNOSTIC");
+    assert.equal(result.candidateAuthorization, "NOT_AUTHORIZED");
+    assert.equal(result.publication, "NOT_ATTEMPTED");
+    assert.equal(result.vulnerabilityAudit, "NOT_ATTEMPTED");
+    assert.equal(result.admission, "NOT_ATTEMPTED");
+    assert.equal(result.runtimeProof.imageId, imageId);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+    assert.ok(value.calls.findIndex((args) => args[0] === "runtime")
+      < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("historical candidate wrapper never invokes runtime verification", { skip: !linux }, async () => {
+  const value = scope();
+  injectRuntime(value);
+  try {
+    const result = await TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected);
+    assert.equal(result.imageExecution, "NOT_ATTEMPTED");
+    assert.equal(Object.hasOwn(result, "runtimeProof"), false);
+    assert.equal(value.calls.some((args) => args[0] === "runtime"), false);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+for (const outcome of ["failed", "diagnosed", "tampered", "cleanup_failed"]) {
+  test(`runtime ${outcome} cannot issue a verified receipt and still cleans the owned image`,
+    { skip: !linux }, async () => {
+      const value = scope();
+      injectRuntime(value, outcome);
+      try {
+        await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(value.inputs,
+          value.injected), outcome === "diagnosed"
+          ? { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE",
+            reason: "READINESS_UNAVAILABLE", durationMs: 123, imageId }
+          : { code: outcome === "cleanup_failed"
+            ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed" });
+        assert.equal(value.calls.filter((args) => args[0] === "runtime").length, 1);
+        assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+        assert.deepEqual(readdirSync(value.parent), []);
+      } finally { rmSync(value.parent, { recursive: true, force: true }); }
+    });
+}
+
+test("archive failure never reaches runtime verification", { skip: !linux }, async () => {
+  const value = scope({ archiveFailure: true });
+  injectRuntime(value);
+  try {
+    await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(value.inputs,
+      value.injected), { code: "seaweed_candidate_archive_failed" });
+    assert.equal(value.calls.some((args) => args[0] === "runtime"), false);
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
