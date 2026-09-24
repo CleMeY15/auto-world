@@ -1,6 +1,6 @@
 # TASK-0005A — disposable host-loopback S3 diagnostic
 
-State: PLANNED; no V6 native receipt has been accepted. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+State: native run 12 FAILED at container profile inspection; focused run 13 is PLANNED. No V6 native receipt has been accepted. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
 
 ## Boundary
 
@@ -8,9 +8,15 @@ The next guarded `workflow_dispatch` runs once on reviewed protected `main`, on 
 
 The [ADR-0008 profile](../decisions/ADR-0008-seaweed-s3-derivative-profile.md) requires localhost-only S3 exposure. The earlier [V5 diagnostic](TASK-0005A-SEAWEED-BACKUP-RESTORE-DIAGNOSTIC.md) verified backup and isolated restore for another disposed candidate image. That historical success cannot be inherited as a V6 check. The user-skipped external authenticated fork access test remains `SKIPPED_BY_USER` and is outside this run.
 
-## Run-12 acceptance contract
+## Failed native run 12
 
-1. Require the exact protected repository, workflow, `main` ref, GitHub-hosted runner, run number 12, attempt 1, code revision and pinned Docker server before candidate materialization. Run with read-only GitHub permissions and no new secret or token scope.
+[PR73](https://github.com/CleMeY15/auto-world/pull/73) merged the internally reviewed host-loopback V6 implementation at protected main `9358c4f82f5f3cc740b622c188e2165984ac868f`. [Exact-head CI 35968000419](https://github.com/CleMeY15/auto-world/actions/runs/35968000419) passed 599 Linux root tests with zero skips; [protected-main CI 35968263416](https://github.com/CleMeY15/auto-world/actions/runs/35968263416) passed all gates. The one-time [native run 35968467094](https://github.com/CleMeY15/auto-world/actions/runs/35968467094), workflow run 12 attempt 1 on that exact main, **FAILED** at `HOST_LOOPBACK_CREATE/PROFILE_MISMATCH` before the host-port start or HTTP probes. Its bounded receipt names disposable image `sha256:149d28a79b81a8309003bb9e3a9d0ba56feeab30b79a8aac516c6ef1de4a0e0b` and `NOT_AUTHORIZED`. Separate temporary-directory cleanup reported `CLEANED`. There is no V6 success proof and no observed host-S3 behavior from this run.
+
+Source-backed inspection identified the run-12 schema mismatch: [Docker CLI v28.0.4 stores `--stop-timeout` in `Config.StopTimeout`](https://github.com/docker/cli/blob/v28.0.4/cli/command/container/opts.go#L651), while the diagnostic incorrectly required `HostConfig.StopTimeout === 30`. [Moby v28.0.4 defines the field in Config](https://github.com/moby/moby/blob/v28.0.4/api/types/container/config.go#L71), so the first created-container profile check necessarily rejected the inspected object before start. The synthetic fixture repeated the wrong field placement. The focused run-13 repair checks `Config.StopTimeout === 30` and moves the fixture to that field, with a negative drift case. The public run-12 receipt identifies only the fixed `PROFILE_MISMATCH` reason; the exact private inspect bytes were not retained. Run 12 remains failed.
+
+## Run-13 acceptance contract
+
+1. Require the exact protected repository, workflow, `main` ref, GitHub-hosted runner, run number 13, attempt 1, code revision and pinned Docker server before candidate materialization. Run with read-only GitHub permissions and no new secret or token scope.
 2. Start one candidate container with the fixed UID/GID `1000:1000`, resource and filesystem restrictions, bridge networking, and Docker's ephemeral `127.0.0.1::8333/tcp` binding. Inspect the actual container and Docker port mapping. Reject a wildcard/IPv6 bind, fixed host port, extra published port, changed bridge attachment, unexpected privilege or unproven image/container identity.
 3. Send requests from host Node to `127.0.0.1` and the inspected ephemeral port, not from `docker exec`. Require readiness HTTP 200, anonymous object access HTTP 403, a valid signed bucket/object create and conditional PUT/GET with matching SHA-256, a wrong-secret HTTP 403, and a repeated conditional write HTTP 412.
 4. Stop within the fixed grace period, require zero exit status, prove the host port no longer accepts requests, and remove only the exactly owned container. Reject a success proof on identity drift or uncertain cleanup. Remove the candidate image and temporary files under the existing outer ownership checks.
@@ -18,4 +24,4 @@ The [ADR-0008 profile](../decisions/ADR-0008-seaweed-s3-derivative-profile.md) r
 
 This is one host-to-container path on one ephemeral runner. Docker bridge networking is necessary for the port mapping; it does not prove that the container lacked other egress routes or that no other local container could address it directly. The test does not prove the fixed production host port 9000, remote network policy, every S3 operation, cross-host recovery, a fresh image vulnerability/SBOM audit, package privacy or four-service lifecycle acceptance.
 
-Rollback removes the guarded run-12 diagnostic code and restores the last reviewed workflow definition; it does not alter the immutable earlier run results. Never force removal of a Docker resource whose identity is uncertain.
+Rollback removes the guarded run-13 repair or returns to the reviewed run-12 diagnostic definition; it does not alter the immutable failed run. Never force removal of a Docker resource whose identity is uncertain.

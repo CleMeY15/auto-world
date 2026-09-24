@@ -40,7 +40,7 @@ async function requireContext(env, mode) {
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world"
     || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "11"
-      : mode === "host-loopback" ? "12" : "7")
+      : mode === "host-loopback" ? "13" : "7")
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")

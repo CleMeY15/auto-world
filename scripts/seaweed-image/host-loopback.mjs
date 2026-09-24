@@ -182,11 +182,12 @@ function inspectOwned(value, expected, stage) {
     || !["created", "running", "exited"].includes(state?.Status) || !Number.isInteger(state.ExitCode)
     || config.User !== "1000:1000" || !sameArray(config.Entrypoint, ["/bin/sh"])
     || !sameArray(config.Cmd, ["-c", BOOTSTRAP]) || !sameKeys(config.ExposedPorts, EXPOSED_PORTS)
+    || config.StopTimeout !== 30
     || host.NetworkMode !== "bridge" || host.ReadonlyRootfs !== true || host.PublishAllPorts !== false
     || host.Privileged !== false
     || host.Memory !== 805_306_368 || host.MemorySwap !== 805_306_368 || host.NanoCpus !== 750_000_000
     || host.PidsLimit !== 512 || capAdd.length !== 0 || capDrop.length !== 1 || capDrop[0] !== "ALL"
-    || securityOpt.length !== 1 || securityOpt[0] !== "no-new-privileges=true" || host.StopTimeout !== 30
+    || securityOpt.length !== 1 || securityOpt[0] !== "no-new-privileges=true"
     || !validEffectiveMounts(value.Mounts)
     || !Array.isArray(hostMounts) || hostMounts.length !== 0
     || !Array.isArray(hostBinds) || hostBinds.length !== 0

@@ -19,7 +19,8 @@ function fixture({ hostIp = "127.0.0.1", hostPort = "49153", createdHostPort = "
   unsignedStatus = 403, badSecretStatus = 403, replayStatus = 412, readBody,
   stopExitCode = 0, postStopReachable = false, cleanupForeign = false, driftCommand = false,
   unexpectedMount = false, effectiveTmpfsMounts = false, hostBind = false,
-  privileged = false, staleCreatedBinding = false, staleStoppedBinding = false } = {}) {
+  privileged = false, staleCreatedBinding = false, staleStoppedBinding = false,
+  stopTimeout = 30, misleadingHostTimeout = false } = {}) {
   const calls = []; const requests = []; const containerId = "c".repeat(64);
   let state; let nonce; let httpStep = 0; let inspectCount = 0;
   const name = `aw-seaweed-host-loopback-${runId}-attempt-1`;
@@ -36,15 +37,16 @@ function fixture({ hostIp = "127.0.0.1", hostPort = "49153", createdHostPort = "
       : effectiveTmpfsMounts ? ["/tmp", "/data", "/run/aw-private"].map((destination) => ({
         Type: "tmpfs", Source: "", Destination: destination, RW: true,
       })) : [],
-    Config: { User: "1000:1000", Entrypoint: ["/bin/sh"],
+    Config: { User: "1000:1000", Entrypoint: ["/bin/sh"], StopTimeout: stopTimeout,
       Cmd: driftCommand ? ["-c", "exit 0"] : ["-c", calls.find((args) => args[0] === "container"
         && args[1] === "create")?.at(-1)], Labels: {
       "com.auto-world.runtime-nonce": nonce, "com.auto-world.runtime-purpose": "host-loopback-v1",
     }, ExposedPorts: Object.fromEntries(exposedPorts.map((key) => [key, {}])) },
     HostConfig: { NetworkMode: networkMode, ReadonlyRootfs: true, PublishAllPorts: publishAllPorts,
       Privileged: privileged, Binds: hostBind ? ["/foreign:/private"] : null,
+      ...(misleadingHostTimeout ? { StopTimeout: 30 } : {}),
       Memory: 805306368, MemorySwap: 805306368, NanoCpus: 750000000, PidsLimit: 512,
-      CapAdd: null, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges=true"], StopTimeout: 30,
+      CapAdd: null, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges=true"],
       Mounts: unexpectedMount ? [{ Type: "bind", Source: "/foreign", Target: "/foreign" }] : null,
       Tmpfs: { "/tmp": "rw,nosuid,nodev,noexec,size=16m,mode=0700,uid=1000,gid=1000",
         "/data": "rw,nosuid,nodev,noexec,size=256m,mode=0700,uid=1000,gid=1000",
@@ -148,7 +150,8 @@ for (const [name, options] of [
   ["non-bridge network", { networkMode: "host" }], ["docker port disagreement", { wrongPortOutput: true }],
   ["command drift", { driftCommand: true }], ["unexpected bind mount", { unexpectedMount: true }],
   ["unexpected host bind request", { hostBind: true }], ["privileged container", { privileged: true }],
-  ["premature published port", { staleCreatedBinding: true }],
+  ["premature published port", { staleCreatedBinding: true }], ["stop timeout drift", { stopTimeout: 0 }],
+  ["misplaced host timeout", { stopTimeout: 0, misleadingHostTimeout: true }],
 ]) {
   test(`${name} is rejected before host HTTP proof and owned resources are cleaned`, async () => {
     const value = fixture(options);

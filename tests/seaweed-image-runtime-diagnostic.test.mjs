@@ -211,12 +211,12 @@ test("backup dispatch rejects other run numbers and tampered proof", { skip: !li
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
-test("twelfth dispatch emits host loopback V6 only after owned cleanup", { skip: !linux }, async () => {
+test("thirteenth dispatch emits host loopback V6 only after owned cleanup", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-loopback-"));
   const root = path.join(runnerTemp, "seaweed-runtime-host-loopback");
   const events = [];
   try {
-    await TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "12"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "13"), {
       materialize: async ({ parent }) => {
         assert.equal(parent, root); assert.deepEqual(await readdir(parent), []);
         return hostLoopbackReceipt();
@@ -229,21 +229,23 @@ test("twelfth dispatch emits host loopback V6 only after owned cleanup", { skip:
       phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED", durationMs: 0,
     });
     await assert.rejects(access(root), { code: "ENOENT" });
-    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-host-loopback"], context(runnerTemp, "12"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-host-loopback"], context(runnerTemp, "13"), {
       log: (line) => events.push(JSON.parse(line)),
     });
     assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
-test("host loopback dispatch rejects other run numbers and altered binding evidence", { skip: !linux }, async () => {
+test("host loopback dispatch rejects prior run numbers and altered binding evidence", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-loopback-guard-"));
   try {
     await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "11")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "12")),
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "12")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "12"), {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "13")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-host-loopback"], context(runnerTemp, "13"), {
       materialize: async () => ({ ...hostLoopbackReceipt(), hostLoopbackProof: {
         ...hostLoopbackReceipt().hostLoopbackProof, hostBinding: "0.0.0.0_TO_8333_TCP" } }),
     }), { code: "seaweed_candidate_failed" });
