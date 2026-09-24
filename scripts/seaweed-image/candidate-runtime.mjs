@@ -39,7 +39,9 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
 for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_IDENTITY_UNCERTAIN",
   "CONTAINER_NAME_OCCUPIED", "CONTAINER_CREATE_INVALID", "CONTAINER_IDENTITY_UNCERTAIN",
-  "CONTAINER_PROFILE_UNCERTAIN",
+  "CONTAINER_PROFILE_UNCERTAIN", "CONTAINER_USER_MISMATCH", "CONTAINER_CAP_ADD_MISMATCH",
+  "CONTAINER_CAP_DROP_MISMATCH", "CONTAINER_ROOTFS_MODE_MISMATCH",
+  "CONTAINER_SECURITY_OPT_MISMATCH",
   "VOLUME_INIT_FAILED", "FIRST_WRITE_FAILED", "SECOND_READ_FAILED",
   "PERSISTED_OBJECT_MISSING", "PERSISTED_OBJECT_MISMATCH", "CLEANUP_UNCERTAIN"]) {
   PUBLIC_REASONS.add(reason);
@@ -446,6 +448,7 @@ const PERSISTENCE_SERVICE_PROFILE = ["--pull=never", "--network=none", "--read-o
   "--tmpfs", "/run/aw-private:rw,nosuid,nodev,noexec,size=64k,mode=0700,uid=1000,gid=1000",
   "--entrypoint=/bin/sh"];
 const PERSISTENCE_INIT_COMMAND = `set -eu
+test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/1/status)" = 1
 test -d /data
 entries=$(find /data -mindepth 1 -maxdepth 1 -print) || exit 1
 test -z "$entries"
@@ -456,6 +459,7 @@ printf '%s\\n' 'SEAWEED_PERSISTENCE_VOLUME_INITIALIZED'`;
 const PERSISTENCE_READY = `command -v curl >/dev/null 2>&1 || exit 61
 test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000 || exit 67
 test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000 || exit 67
+test "$(awk '/^NoNewPrivs:/ {print $2}' /proc/1/status)" = 1 || exit 67
 test "$(stat -c '%u:%g:%a' /data)" = '1000:1000:700' && test -w /data || exit 68
 ready=''; i=0
 while test "$i" -lt 60; do
@@ -573,6 +577,19 @@ async function inspectPersistenceContainer(docker, name, options, statuses = [0]
     name], options, statuses);
 }
 
+function persistenceProfileMismatch(fields, role) {
+  const init = role === "init";
+  if (!init && role !== "service-1" && role !== "service-2") return "CONTAINER_PROFILE_UNCERTAIN";
+  if (fields[11] !== (init ? "0:0" : "1000:1000")) return "CONTAINER_USER_MISMATCH";
+  if (init ? fields[12] !== '["CAP_CHOWN"]' : fields[12] !== "null" && fields[12] !== "[]") {
+    return "CONTAINER_CAP_ADD_MISMATCH";
+  }
+  if (fields[13] !== '["ALL"]') return "CONTAINER_CAP_DROP_MISMATCH";
+  if (fields[14] !== "true") return "CONTAINER_ROOTFS_MODE_MISMATCH";
+  if (fields[15] !== '["no-new-privileges=true"]') return "CONTAINER_SECURITY_OPT_MISMATCH";
+  return undefined;
+}
+
 function ownedPersistenceContainer(result, { nonce, imageId, volumeName, ownedId, role, verifyProfile = false }) {
   if (result.status !== 0) throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
   const fields = result.stdout.trim().split("|");
@@ -582,16 +599,8 @@ function ownedPersistenceContainer(result, { nonce, imageId, volumeName, ownedId
     || fields[9] !== "true" || fields[10] !== "true" || ownedId !== undefined && fields[0] !== ownedId) {
     throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
   }
-  if (verifyProfile) {
-    const init = role === "init";
-    if (!init && role !== "service-1" && role !== "service-2" || fields[11] !== (init ? "0:0" : "1000:1000")
-      || init && fields[12] !== '["CAP_CHOWN"]' || !init && fields[12] !== "null" && fields[12] !== "[]"
-      || fields[13] !== '["ALL"]' || fields[14] !== "true"
-      || fields[15] !== '["no-new-privileges:true"]') {
-      throw failure("seaweed_candidate_runtime_persistence_failed");
-    }
-  }
-  return { id: fields[0], state: fields[1], exitCode: fields[2] };
+  return { id: fields[0], state: fields[1], exitCode: fields[2],
+    profileMismatch: verifyProfile ? persistenceProfileMismatch(fields, role) : undefined };
 }
 
 async function executePersistence(input, injected) {
@@ -641,7 +650,12 @@ async function executePersistence(input, injected) {
       throw failure("seaweed_candidate_runtime_persistence_failed");
     }
     reason = "CONTAINER_PROFILE_UNCERTAIN";
-    ownedPersistenceContainer(inspection, { nonce, imageId, volumeName, ownedId: id, role, verifyProfile: true });
+    const inspectedProfile = ownedPersistenceContainer(inspection,
+      { nonce, imageId, volumeName, ownedId: id, role, verifyProfile: true });
+    if (inspectedProfile.profileMismatch !== undefined) {
+      reason = inspectedProfile.profileMismatch;
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
     owned.set(role, id);
     return name;
   }

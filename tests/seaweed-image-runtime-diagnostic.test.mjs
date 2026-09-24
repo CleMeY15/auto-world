@@ -17,7 +17,7 @@ const imageId = `sha256:${"c".repeat(64)}`;
 function context(runnerTemp) {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "6", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "7", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
@@ -43,7 +43,7 @@ test("runtime diagnostic refuses changed one-time main context before storage", 
   try {
     for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { RUNNER_ENVIRONMENT: "self-hosted" },
       { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "2" }, { GITHUB_RUN_NUMBER: "3" },
-      { GITHUB_RUN_NUMBER: "4" }, { GITHUB_RUN_NUMBER: "5" },
+      { GITHUB_RUN_NUMBER: "4" }, { GITHUB_RUN_NUMBER: "5" }, { GITHUB_RUN_NUMBER: "6" },
       { GITHUB_RUN_ATTEMPT: "2" },
       { GITHUB_REPOSITORY: "foreign/repo" },
       { GITHUB_WORKFLOW_REF: "foreign/workflow" }, { GITHUB_SHA: "not-a-sha" }]) {

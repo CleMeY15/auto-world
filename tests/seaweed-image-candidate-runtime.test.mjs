@@ -114,7 +114,7 @@ function input(extra = {}) { return { parent, dockerConfig, imageId, runId, reci
 
 function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malformedFirstCreate = false,
   foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false,
-  legacyInitCapAdd = false } = {}) {
+  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]' } = {}) {
   const calls = []; const states = new Map(); const ids = new Map(); const inspectCounts = new Map();
   let volumeExists = preexistingVolume; let nonce = ""; let volumeInspections = 0;
   const volumeCreatedAt = new Date().toISOString();
@@ -158,7 +158,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         : init ? "0:0" : "1000:1000";
       const capAdd = init ? legacyInitCapAdd ? '["CHOWN"]' : '["CAP_CHOWN"]' : "null";
       return { status: 0,
-        stdout: `${ids.get(name)}|${state}|0|${observedNonce}|restart-persistence-v1|${imageId}|volume|${volumeName}|/data|true|true|${user}|${capAdd}|["ALL"]|true|["no-new-privileges:true"]\n`,
+        stdout: `${ids.get(name)}|${state}|0|${observedNonce}|restart-persistence-v1|${imageId}|volume|${volumeName}|/data|true|true|${user}|${capAdd}|["ALL"]|true|${securityOpt}\n`,
         stderr: "" };
     }
     if (args[0] === "container" && args[1] === "ls") {
@@ -179,6 +179,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         assert.match(args.at(-1), /entries=\$\(find \/data -mindepth 1 -maxdepth 1 -print\) \|\| exit 1/u);
         assert.match(args.at(-1), /test -z "\$entries"/u); assert.match(args.at(-1), /chmod 0700 \/data/u);
         assert.match(args.at(-1), /chown 1000:1000 \/data/u);
+        assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
       } else {
         assert.ok(args.includes("--user=1000:1000")); assert.ok(args.includes("--cap-drop=ALL"));
         assert.equal(args.some((value) => value.startsWith?.("--cap-add")), false);
@@ -197,12 +198,14 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       if (args.at(-1).includes("SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED")) {
         assert.ok(args.at(-1).includes("awk '/^Uid:/ {print $2}' /proc/1/status"));
         assert.ok(args.at(-1).includes("awk '/^Gid:/ {print $2}' /proc/1/status"));
+        assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
         assert.match(args.at(-1), /stat -c '%u:%g:%a' \/data/u);
         assert.match(args.at(-1), /test -w \/data/u);
         assert.match(args.at(-1), /http:\/\/127\.0\.0\.1:8888\/readyz/u);
         assert.match(args.at(-1), /test "\$bucket" = 200 \|\| exit 63/u);
         return { status: 0, stdout: "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED\n", stderr: "" };
       }
+      assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
       assert.match(args.at(-1), /case "\$read_status" in 200\) ;; 404\) exit 65 ;; \*\) exit 69 ;; esac/u);
       return secondStatus === 0
         ? { status: 0, stdout: "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n", stderr: "" }
@@ -426,7 +429,7 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.profileSha256, "22c4449e4307d819f8fde9fbb1c2dbf3d583b5fb066bc89153e1b4c1b3e70024");
-  assert.equal(proof.commandSha256, "46c49d31919ce9920f75dd9b641cfd310a5e7202f06671f21ffa1ea4d1805474");
+  assert.equal(proof.commandSha256, "db3c7b637ddf1878d0a861fe03142dbdcb4acf8a469a7a2945c24d15453e721d");
   assert.equal(proof.initializer, "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000");
   assert.equal(proof.objectPersistence, "PRESERVED_ACROSS_RESTART");
   assert.equal(proof.cleanup, "OWNED_CONTAINERS_AND_VOLUME_REMOVED");
@@ -460,7 +463,7 @@ test("persistence rejects noncanonical initializer capability before start and c
   const value = persistenceFixture({ legacyInitCapAdd: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(),
     { docker: value.docker }), { code: "seaweed_candidate_runtime_persistence_failed",
-    phase: "PERSISTENCE_VOLUME_INIT", reason: "CONTAINER_PROFILE_UNCERTAIN" });
+    phase: "PERSISTENCE_VOLUME_INIT", reason: "CONTAINER_CAP_ADD_MISMATCH" });
   assert.equal(value.volumeExists, false);
   assert.equal(value.states.size, 0);
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
@@ -505,10 +508,20 @@ test("an inspected service privilege drift blocks execution but its strongly own
   const value = persistenceFixture({ driftServiceProfile: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
     { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
-      reason: "CONTAINER_PROFILE_UNCERTAIN" });
+      reason: "CONTAINER_USER_MISMATCH" });
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"
     && args[2].endsWith("service-1")), false);
+});
+
+test("an inspected security option drift blocks execution and cleans owned resources", async () => {
+  const value = persistenceFixture({ securityOpt: '["no-new-privileges=false"]' });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(),
+    { docker: value.docker }), { code: "seaweed_candidate_runtime_persistence_failed",
+    phase: "PERSISTENCE_VOLUME_INIT", reason: "CONTAINER_SECURITY_OPT_MISMATCH" });
+  assert.equal(value.volumeExists, false);
+  assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
 });
 
 test("volume ownership drift blocks cleanup and never removes the foreign volume", async () => {
