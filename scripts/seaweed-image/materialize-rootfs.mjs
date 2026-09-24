@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { link, lstat, mkdir, open, readdir, realpath, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
-import { Readable, Writable } from "node:stream";
-import { finished } from "node:stream/promises";
+import { Readable, Transform, Writable } from "node:stream";
+import { finished, pipeline } from "node:stream/promises";
 
 import { scanRawUstar } from "./archive.mjs";
 import { cleanupMaterializedSeaweedBase, materializePinnedSeaweedBase, withMaterializedSeaweedBase } from "./materialize-base.mjs";
@@ -11,7 +11,7 @@ import {
   cleanupMaterializedSeaweedSource, materializeReviewedSeaweedSource, withMaterializedSeaweedSource,
 } from "./materialize-source-zips.mjs";
 import { createTransformPlan } from "./plan.mjs";
-import { validatePlannedFilesystem } from "./plan.mjs";
+import { validatePlannedFilesystem, validatePlannedRuntimeConfig } from "./plan.mjs";
 import { writeUstarArchive } from "./write-archive.mjs";
 
 const CONTENT_CHUNK_BYTES = 1024 ** 2;
@@ -66,6 +66,11 @@ const PUBLIC_FAILURE_CODES = new Set([
   "seaweed_rootfs_materialization_options_invalid", "seaweed_rootfs_materialization_output_changed",
   "seaweed_rootfs_materialization_output_invalid", "seaweed_rootfs_materialization_parent_not_empty",
   "seaweed_rootfs_materialization_receipt_invalid", "seaweed_rootfs_materialization_timeout",
+  "seaweed_rootfs_materialization_borrow_unauthorized", "seaweed_rootfs_materialization_borrow_expired",
+  "seaweed_rootfs_materialization_cleanup_borrowed",
+  "seaweed_rootfs_materialization_pipe_arguments_invalid", "seaweed_rootfs_materialization_pipe_expired",
+  "seaweed_rootfs_materialization_pipe_failed", "seaweed_rootfs_materialization_pipe_replayed",
+  "seaweed_rootfs_materialization_pipe_substituted", "seaweed_rootfs_materialization_pipe_verification_failed",
   "seaweed_rootfs_materialization_scan_close_failed",
   "seaweed_rootfs_materialization_unknown_failed", "seaweed_rootfs_materialization_verification_failed",
   "seaweed_rootfs_materialization_write_failed", ...PRESERVED_CHILD_CODES,
@@ -105,6 +110,28 @@ function sameOwnedNode(left, right) {
   return sameNode(left, right) && left.nlink === right.nlink && left.birthtimeNs === right.birthtimeNs;
 }
 
+function detachedFrozen(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map(detachedFrozen));
+  if (value !== null && typeof value === "object") {
+    const output = {};
+    for (const [key, item] of Object.entries(value)) output[key] = detachedFrozen(item);
+    return Object.freeze(output);
+  }
+  return value;
+}
+
+function detachedInputs(inputs) {
+  return Object.freeze({
+    baseMaterials: new Map([...(inputs?.baseMaterials ?? new Map())]
+      .map(([name, bytes]) => [name, Buffer.from(bytes)])),
+    source: detachedFrozen(inputs?.source),
+    moduleClosureBytes: inputs?.moduleClosureBytes === undefined ? undefined : Buffer.from(inputs.moduleClosureBytes),
+    materials: new Map([...(inputs?.materials ?? new Map())]
+      .map(([name, bytes]) => [name, Buffer.from(bytes)])),
+    backend: detachedFrozen(inputs?.backend),
+  });
+}
+
 async function privateDirectory(directory, uid) {
   const stat = await lstat(directory, { bigint: true });
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== BigInt(uid)
@@ -131,6 +158,7 @@ function snapshotOptions(input, testOnly) {
   }
   const value = (name) => fields[name]?.value;
   const settings = {
+    testOnly,
     parent: value("parent"), recipeRevision: value("recipeRevision"), createdAt: value("createdAt"), signal: value("signal"),
     timeoutMs: value("timeoutMs") ?? DEFAULT_TIMEOUT_MS,
     platform: value("platform") ?? process.platform, uid: value("uid") ?? process.getuid?.(),
@@ -274,6 +302,75 @@ async function scanVerifiedRootfs(file, expectedIdentity, uid, scanRootfs, diffI
   if (primaryError !== undefined) throw primaryError;
   if (closeError !== undefined) throw rootfsError("seaweed_rootfs_materialization_scan_close_failed");
   return scanned;
+}
+
+function pipeOptions(input) {
+  if (input === undefined) return Object.freeze({ signal: undefined });
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw rootfsError("seaweed_rootfs_materialization_pipe_arguments_invalid");
+  }
+  const fields = Object.getOwnPropertyDescriptors(input);
+  if (Reflect.ownKeys(fields).some((key) => key !== "signal" || !("value" in fields[key]))) {
+    throw rootfsError("seaweed_rootfs_materialization_pipe_arguments_invalid");
+  }
+  const signal = fields.signal?.value;
+  if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
+    throw rootfsError("seaweed_rootfs_materialization_pipe_arguments_invalid");
+  }
+  return Object.freeze({ signal });
+}
+
+async function pipeVerifiedRootfs(authority, writable, options, active, leaseSignal) {
+  if (!(writable instanceof Writable)) throw rootfsError("seaweed_rootfs_materialization_pipe_arguments_invalid");
+  const { signal } = pipeOptions(options);
+  const operationSignal = signal === undefined ? leaseSignal : globalThis.AbortSignal.any([signal, leaseSignal]);
+  if (!active()) throw rootfsError("seaweed_rootfs_materialization_pipe_expired");
+  let sentinelHandle; let streamHandle; let input; let primaryError; let closeError;
+  let observedBytes = 0; const digest = createHash("sha256");
+  try {
+    sentinelHandle = await open(authority.outputFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+    streamHandle = await open(authority.outputFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const [sentinelBefore, streamBefore] = await Promise.all([
+      sentinelHandle.stat({ bigint: true }), streamHandle.stat({ bigint: true }),
+    ]);
+    if (!sameIdentity(authority.outputIdentity, identity(sentinelBefore))
+      || !sameIdentity(authority.outputIdentity, identity(streamBefore))
+      || !await exactFile(authority.outputFile, authority.outputIdentity, authority.uid)) {
+      throw rootfsError("seaweed_rootfs_materialization_pipe_substituted");
+    }
+    input = streamHandle.createReadStream({ autoClose: false });
+    const verifier = new Transform({
+      transform(chunk, _encoding, callback) {
+        observedBytes += chunk.length; digest.update(chunk); callback(null, chunk);
+      },
+    });
+    await pipeline(input, verifier, writable, { signal: operationSignal });
+    const sentinelAfter = await sentinelHandle.stat({ bigint: true });
+    if (!active()) throw rootfsError("seaweed_rootfs_materialization_pipe_expired");
+    if (!sameIdentity(authority.outputIdentity, identity(sentinelAfter))
+      || !await exactFile(authority.outputFile, authority.outputIdentity, authority.uid)) {
+      throw rootfsError("seaweed_rootfs_materialization_pipe_substituted");
+    }
+    if (observedBytes !== authority.rawSize || `sha256:${digest.digest("hex")}` !== authority.diffId) {
+      throw rootfsError("seaweed_rootfs_materialization_pipe_verification_failed");
+    }
+  } catch (error) { primaryError = error; }
+  try {
+    input?.destroy();
+    if (input !== undefined) await finished(input, { cleanup: true });
+  } catch (error) { closeError = error; }
+  const closeHandle = async (handle) => { if (handle !== undefined) await handle.close(); };
+  const closed = await Promise.allSettled([closeHandle(streamHandle), closeHandle(sentinelHandle)]);
+  for (const [index, result] of closed.entries()) {
+    if (result.status === "rejected" && !(index === 0 && result.reason?.code === "EBADF")) closeError ??= result.reason;
+  }
+  if (primaryError !== undefined) {
+    if (!active()) throw rootfsError("seaweed_rootfs_materialization_pipe_expired");
+    if (isPublicRootfsFailureCode(primaryError?.code)) throw primaryError;
+    throw rootfsError("seaweed_rootfs_materialization_pipe_failed");
+  }
+  if (closeError !== undefined) throw rootfsError("seaweed_rootfs_materialization_pipe_failed");
+  return Object.freeze({ rawSize: observedBytes, diffId: authority.diffId });
 }
 
 function validatedLineage(sourceReceipt, source, recipeRevision, createdAt) {
@@ -481,9 +578,14 @@ async function executeMaterialization(options) {
         diffId: scanned.diffId, memberCount: scanned.members.length, sourceRunId: written.inputs.source.runId,
         baseManifestDigest: `sha256:${createHash("sha256").update(baseManifest).digest("hex")}`, ...lineage });
     });
+    const authenticatedInputs = detachedInputs(written.inputs);
+    const authenticatedPlan = options.testOnly ? written.plan
+      : await stage("receipt", () => createTransformPlan(authenticatedInputs));
     RECEIPT_AUTHORITIES.set(receipt, { parent, uid, parentIdentity, sourceParent: directories.source, baseParent: directories.base,
       outputParent: directories.output, outputFile: finalFile, outputIdentity, directoryIdentities,
-      sourceReceipt, baseReceipt, cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase, cleaning: false });
+      sourceReceipt, baseReceipt, cleanupSource: options.cleanupSource, cleanupBase: options.cleanupBase,
+      inputs: authenticatedInputs, importConfig: detachedFrozen(authenticatedPlan.config),
+      rawSize: scanned.rawSize, diffId: scanned.diffId, memberCount: scanned.members.length, borrows: 0, cleaning: false });
     globalThis.clearTimeout(timer);
     return receipt;
   } catch (error) { failure = error; }
@@ -508,9 +610,49 @@ async function executeMaterialization(options) {
 export async function materializeReviewedSeaweedRootfs(input) { return executeMaterialization(snapshotOptions(input, false)); }
 export async function TEST_ONLY_materializeReviewedSeaweedRootfs(input) { return executeMaterialization(snapshotOptions(input, true)); }
 
+export async function withMaterializedSeaweedRootfs(receipt, callback) {
+  const authority = RECEIPT_AUTHORITIES.get(receipt);
+  if (authority === undefined || authority.cleaning || typeof callback !== "function") {
+    throw rootfsError("seaweed_rootfs_materialization_borrow_unauthorized");
+  }
+  authority.borrows += 1;
+  let active = true; let pipeUsed = false; const pending = new Set();
+  const leaseController = new globalThis.AbortController();
+  const pipeArchiveTo = (writable, options) => {
+    if (!active) return Promise.reject(rootfsError("seaweed_rootfs_materialization_pipe_expired"));
+    if (pipeUsed) return Promise.reject(rootfsError("seaweed_rootfs_materialization_pipe_replayed"));
+    pipeUsed = true;
+    const operation = pipeVerifiedRootfs(authority, writable, options, () => active, leaseController.signal);
+    pending.add(operation);
+    const settled = () => pending.delete(operation);
+    operation.then(settled, settled);
+    return operation;
+  };
+  const validateFilesystem = (entries) => {
+    if (!active) throw rootfsError("seaweed_rootfs_materialization_borrow_expired");
+    try { return Object.freeze(validatePlannedFilesystem(entries, authority.inputs)); }
+    catch (error) { throw stageError("inventory_validate", error); }
+  };
+  const validateRuntimeConfig = (config) => {
+    if (!active) throw rootfsError("seaweed_rootfs_materialization_borrow_expired");
+    try { return Object.freeze(validatePlannedRuntimeConfig(config, authority.inputs)); }
+    catch (error) { throw stageError("inventory_validate", error); }
+  };
+  const capability = Object.freeze({ pipeArchiveTo, importConfig: authority.importConfig,
+    validateFilesystem, validateRuntimeConfig,
+    rawSize: authority.rawSize, diffId: authority.diffId, memberCount: authority.memberCount });
+  try { return await callback(capability); } finally {
+    active = false;
+    leaseController.abort();
+    await Promise.allSettled([...pending]);
+    authority.borrows -= 1;
+  }
+}
+
 export async function cleanupMaterializedSeaweedRootfs(receipt) {
   const authority = RECEIPT_AUTHORITIES.get(receipt);
   if (authority === undefined || authority.cleaning) throw rootfsError("seaweed_rootfs_materialization_cleanup_unauthorized");
+  if (authority.borrows !== 0) throw rootfsError("seaweed_rootfs_materialization_cleanup_borrowed");
   authority.cleaning = true;
   try {
     if (!await removeComposite(authority)) throw rootfsError("seaweed_rootfs_materialization_cleanup_failed");

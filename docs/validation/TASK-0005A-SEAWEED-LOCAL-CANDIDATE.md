@@ -1,0 +1,21 @@
+# TASK-0005A — Authenticated local SeaweedFS image candidate
+
+Status: implementation under review. No native SeaweedFS Docker result is claimed by this document. The third [rootfs diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35933797176) proved and disposed the authenticated 246,512,128-byte rootfs on protected main; this increment must reconstruct it in the same process as the Docker transaction. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+
+## Authority and transaction
+
+The live rootfs receipt remains opaque. `withMaterializedSeaweedRootfs` lends one verified byte stream to Docker stdin, plus a detached reviewed import configuration and validators over authenticated source/base inputs. It exposes no rootfs path. A borrowed archive is read with no-follow file descriptors, checked for inode and metadata continuity before and after transfer, and rehashed to its DiffID while streaming. The borrow blocks cleanup and expires when its callback exits.
+
+The Linux-only candidate transaction accepts an empty private parent directory. It requires Docker server 28.0.4 and a previously absent run-specific tag, creates a fresh empty Docker config directory, and talks only to the local Unix socket. It imports the verified raw rootfs through `docker image import ... -` with the exact reviewed runtime changes and fixed derivative message. The returned image ID alone does not establish ownership: the tag, ID, Linux/amd64 platform, runtime config and one matching DiffID must agree under `docker image inspect` first. An ambiguous or foreign image is never deleted by the transaction.
+
+The owned image is exported through `docker image save` to one exclusive private file. A bounded streaming reader validates the complete outer archive, its known OCI/Docker links and classic configuration identity, exactly one raw layer, all digests and sizes, the rootfs DiffID and full planned filesystem inventory. Unknown archive members, extra layers, changed configuration, truncation, duplicate entries and trailing nonzero bytes fail closed. The image is reinspected before non-force removal; both tag and image ID must then be absent. The saved archive, rootfs and owned directories are removed. If cleanup or ownership proof is uncertain, no success receipt is issued.
+
+The public receipt is `SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1/VERIFIED/PREPARATION_ONLY/NOT_AUTHORIZED`. It records bounded source/base/recipe/Docker and export identities only. Image execution, vulnerability audit, publication and admission remain `NOT_ATTEMPTED`. No image or archive is retained or uploaded. The workflow is a one-time, manual, protected-main Linux diagnostic with read-only repository and Actions permissions; it checks runner capacity, exact checkout and Docker version before reconstructing inputs. The separate `always()` step checks temporary cleanup.
+
+## Verification and limits
+
+The implementation has targeted tests for rootfs borrow lifetime and substitution, import configuration and ownership, saved archive corruption and metadata changes, foreign tags, failures after ownership and cleanup, bounded diagnostic receipts, and workflow restrictions. Actual Docker format and full rootfs handling require an exact-head Linux CI pass, independent implementation review, protected-main integration and the native workflow result. A synthetic import/save diagnostic passed previously on Docker 28.0.4, but cannot substitute for this SeaweedFS run.
+
+This local proof does not authorize the image for the four-service stack. The next stages still need actual derivative runtime behavior, complete fresh vulnerability/SBOM audits with the required database freshness, the ADR-0007 private publication and retrieval controls, and final TASK-0005 lifecycle acceptance. The known stale Java database blocks audit/admission until a valid fresh database is available. The user waived only the external fork access test; it must not be run or described as passed.
+
+Rollback reverts this preparatory diagnostic and workflow. It changes no registry object, production service, persistent data or retained image.

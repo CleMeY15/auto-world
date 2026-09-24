@@ -6,12 +6,14 @@ import path from "node:path";
 import { Readable, Writable } from "node:stream";
 import { finished } from "node:stream/promises";
 import test from "node:test";
+import sourceLock from "../infra/seaweed/seaweed-lock.json" with { type: "json" };
 
 import { scanRawUstar } from "../scripts/seaweed-image/archive.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, createRootfsContentOpener, TEST_ONLY_materializeReviewedSeaweedRootfs,
-  writePlannedRootfs,
+  withMaterializedSeaweedRootfs, writePlannedRootfs,
 } from "../scripts/seaweed-image/materialize-rootfs.mjs";
+import { baseMaterialIdentities, createTransformPlan } from "../scripts/seaweed-image/plan.mjs";
 import { writeUstarArchive } from "../scripts/seaweed-image/write-archive.mjs";
 
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -52,7 +54,7 @@ test("rootfs content routing cannot pass mutated notice bytes through the writer
     /seaweed_ustar_content_(?:hash|size)_mismatch/u);
 });
 
-function transactionScope({ writeFailure = false } = {}) {
+function transactionScope({ writeFailure = false, plannedInputs, plannedPlan } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-rootfs-materialization-")); chmodSync(parent, 0o700);
   const raw = Buffer.from("synthetic verified rootfs"); const diffId = `sha256:${hash(raw)}`;
   const codeRevision = "2".repeat(40); const binarySha = "a".repeat(64); const binarySize = 123_456;
@@ -69,7 +71,7 @@ function transactionScope({ writeFailure = false } = {}) {
     return { state: "CLEANED" };
   };
   const sourceIdentity = { binary: { sha256: binarySha, size: binarySize }, runId: "35884717093", attempt: 1, codeRevision };
-  const inputs = { baseMaterials: new Map([["base-manifest.json", Buffer.from("manifest")]]),
+  const inputs = plannedInputs ?? { baseMaterials: new Map([["base-manifest.json", Buffer.from("manifest")]]),
     source: { ...sourceIdentity, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z" } };
   const options = { parent, recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z",
     platform: "linux", uid: process.getuid(), materializeSource: materialize("source"), materializeBase: materialize("base"),
@@ -78,7 +80,8 @@ function transactionScope({ writeFailure = false } = {}) {
     writeRootfs: async ({ sink }) => {
       if (writeFailure) throw new Error("synthetic writer failure");
       sink.end(raw); await finished(sink);
-      return { inputs, plan: { entries: [] }, receipt: { rawSize: raw.length, diffId, memberCount: 0 } };
+      return { inputs, plan: plannedPlan ?? { entries: [], config: { Entrypoint: ["/entrypoint.sh"], User: "" } },
+        receipt: { rawSize: raw.length, diffId, memberCount: 0 } };
     },
     scanRootfs: async ({ input, diffId: expected }) => {
       const chunks = []; for await (const chunk of input) chunks.push(Buffer.from(chunk));
@@ -87,6 +90,36 @@ function transactionScope({ writeFailure = false } = {}) {
     },
     validateFilesystem: () => ({ kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: 0 }) };
   return { parent, options, inputs, raw, diffId, codeRevision, binarySha, binarySize };
+}
+
+function plannedValidationInputs() {
+  const root = path.resolve(import.meta.dirname, "..");
+  const grpcNotices = [Buffer.from("synthetic grpc notice\n"), Buffer.from("synthetic grpc license\n")];
+  const grpcId = hash(Buffer.from(`google.golang.org/grpc@${sourceLock.grpc.version}`, "utf8"));
+  const notices = grpcNotices.map((bytes, index) => ({
+    archiveEntry: index === 0 ? "google.golang.org/grpc@v/NOTICE.txt" : "google.golang.org/grpc@v/LICENSE",
+    file: `notice-${String(index + 1).padStart(3, "0")}.txt`, sha256: hash(bytes), size: bytes.length,
+  }));
+  const materials = new Map([
+    ["materials/DERIVATIVE-NOTICE.txt", readFileSync(path.join(root, "infra/seaweed/DERIVATIVE-NOTICE.txt"))],
+    ["materials/upstream/LICENSE", readFileSync(path.join(root, "tests/fixtures/seaweed-source/upstream/LICENSE"))],
+    ["materials/upstream/weed/glog/LICENSE",
+      readFileSync(path.join(root, "tests/fixtures/seaweed-source/upstream/weed/glog/LICENSE"))],
+    ...notices.map((notice, index) => [`materials/modules/${grpcId}/${notice.file}`, grpcNotices[index]]),
+  ]);
+  return {
+    baseMaterials: new Map(Object.keys(baseMaterialIdentities)
+      .map((name) => [name, readFileSync(path.join(root, "infra/seaweed-image", name))])),
+    source: { binary: { sha256: "a".repeat(64), size: 123_456 }, runId: "35884717093", attempt: 1,
+      codeRevision: "2".repeat(40), recipeRevision: "1".repeat(40), createdAt: "2026-09-23T12:34:56.789Z" },
+    moduleClosureBytes: Buffer.from(JSON.stringify([{ id: grpcId, path: "google.golang.org/grpc",
+      version: sourceLock.grpc.version, sum: sourceLock.grpc.sum, goModSum: sourceLock.grpc.goModSum,
+      files: { "module.info": { sha256: "1".repeat(64), size: 1 },
+        "module.mod": { sha256: "2".repeat(64), size: 2 }, "source.zip": { sha256: "3".repeat(64), size: 3 } },
+      notices }])),
+    materials,
+    backend: { method: "MOBY_IMAGE_IMPORT", platform: "linux/amd64", serverVersion: "28.0.4", store: "CLASSIC_CONFIG_ID" },
+  };
 }
 
 function useRealRootfsArchive(value) {
@@ -186,6 +219,128 @@ test("composite rootfs transaction returns an opaque receipt and cleans only thr
     await assert.rejects(cleanupMaterializedSeaweedRootfs({ ...receipt }), /cleanup_unauthorized/u);
     assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
     assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("borrows an opaque rootfs stream once and expires the capability after its callback", { skip: !linux }, async () => {
+  const value = transactionScope(); let expiredPipe;
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    await assert.rejects(withMaterializedSeaweedRootfs({ ...receipt }, async () => {}), /borrow_unauthorized/u);
+    const callbackResult = await withMaterializedSeaweedRootfs(receipt, async (rootfs) => {
+      assert.deepEqual(Object.keys(rootfs), ["pipeArchiveTo", "importConfig", "validateFilesystem",
+        "validateRuntimeConfig", "rawSize", "diffId", "memberCount"]);
+      assert.equal(Object.isFrozen(rootfs), true); assert.equal(Object.isFrozen(rootfs.importConfig), true);
+      assert.equal(Object.isFrozen(rootfs.importConfig.Entrypoint), true);
+      assert.throws(() => { rootfs.importConfig.Entrypoint[0] = "tampered"; }, TypeError);
+      assert.deepEqual(rootfs.importConfig, { Entrypoint: ["/entrypoint.sh"], User: "" });
+      assert.equal(rootfs.rawSize, value.raw.length); assert.equal(rootfs.diffId, value.diffId);
+      const chunks = [];
+      const output = new Writable({ write(chunk, _encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+      const piped = await rootfs.pipeArchiveTo(output);
+      assert.deepEqual(piped, { rawSize: value.raw.length, diffId: value.diffId });
+      assert.deepEqual(Buffer.concat(chunks), value.raw);
+      await assert.rejects(rootfs.pipeArchiveTo(new Writable({ write(_chunk, _encoding, callback) { callback(); } })),
+        /pipe_replayed/u);
+      expiredPipe = rootfs.pipeArchiveTo;
+      return "borrowed";
+    });
+    assert.equal(callbackResult, "borrowed");
+    await assert.rejects(expiredPipe(new Writable({ write(_chunk, _encoding, callback) { callback(); } })),
+      /pipe_expired/u);
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("borrows detached import config and validators over authenticated input snapshots", { skip: !linux }, async () => {
+  const plannedInputs = plannedValidationInputs(); const plannedPlan = createTransformPlan(plannedInputs);
+  const value = transactionScope({ plannedInputs, plannedPlan });
+  let escapedFilesystem; let escapedConfig;
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    plannedInputs.source.runId = "9"; plannedInputs.baseMaterials.clear(); plannedInputs.materials.clear();
+    plannedInputs.moduleClosureBytes.fill(0);
+    await withMaterializedSeaweedRootfs(receipt, ({ importConfig, validateFilesystem, validateRuntimeConfig }) => {
+      escapedFilesystem = validateFilesystem; escapedConfig = validateRuntimeConfig;
+      assert.deepEqual(importConfig, plannedPlan.config);
+      assert.deepEqual(validateFilesystem(plannedPlan.entries), {
+        kind: "SEAWEED_INVENTORY_PLAN_MATCH_V1", authority: "PREPARATION_ONLY", entries: plannedPlan.entries.length,
+      });
+      assert.deepEqual(validateRuntimeConfig(plannedPlan.config), {
+        kind: "SEAWEED_CONFIG_PLAN_MATCH_V1", authority: "PREPARATION_ONLY",
+      });
+      assert.throws(() => validateRuntimeConfig({ ...plannedPlan.config, User: "1000" }), (error) => {
+        assert.equal(error.code, "seaweed_rootfs_materialization_inventory_validate_failed");
+        assert.equal(error.originalCode, "seaweed_image_candidate_config_mismatch"); return true;
+      });
+    });
+    assert.throws(() => escapedFilesystem(plannedPlan.entries), /borrow_expired/u);
+    assert.throws(() => escapedConfig(plannedPlan.config), /borrow_expired/u);
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("blocks cleanup throughout a live rootfs borrow", { skip: !linux }, async () => {
+  const value = transactionScope(); let release;
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    const gate = new Promise((resolve) => { release = resolve; });
+    const borrowed = withMaterializedSeaweedRootfs(receipt, async ({ pipeArchiveTo }) => pipeArchiveTo(new Writable({
+      write(_chunk, _encoding, callback) { gate.then(() => callback()); },
+    })));
+    await new Promise((resolve) => globalThis.setImmediate(resolve));
+    await assert.rejects(cleanupMaterializedSeaweedRootfs(receipt), /cleanup_borrowed/u);
+    release(); await borrowed;
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("drains an unawaited rootfs pipe and rejects it after callback expiration", { skip: !linux }, async () => {
+  const value = transactionScope(); let release; let unawaited;
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    const gate = new Promise((resolve) => { release = resolve; });
+    let borrowSettled = false;
+    const borrowed = withMaterializedSeaweedRootfs(receipt, ({ pipeArchiveTo }) => {
+      unawaited = pipeArchiveTo(new Writable({ write(_chunk, _encoding, callback) { gate.then(() => callback()); } }));
+      unawaited.catch(() => {});
+      return "returned-early";
+    }).then((result) => { borrowSettled = true; return result; });
+    await new Promise((resolve) => globalThis.setImmediate(resolve));
+    assert.equal(borrowSettled, false);
+    release(); assert.equal(await borrowed, "returned-early");
+    await assert.rejects(unawaited, /pipe_expired/u);
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("rejects mutated or substituted rootfs archives before borrowing bytes", { skip: !linux }, async () => {
+  for (const mutate of [
+    (file) => writeFileSync(file, "mutated", { mode: 0o600 }),
+    (file) => { const bytes = readFileSync(file); unlinkSync(file); writeFileSync(file, bytes, { mode: 0o600 }); },
+  ]) {
+    const value = transactionScope();
+    try {
+      const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+      mutate(path.join(value.parent, "output/rootfs.tar"));
+      await assert.rejects(withMaterializedSeaweedRootfs(receipt, ({ pipeArchiveTo }) => pipeArchiveTo(new Writable({
+        write(_chunk, _encoding, callback) { callback(); },
+      }))), /pipe_substituted/u);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
+test("bounds destination stream failures without leaking their message", { skip: !linux }, async () => {
+  const value = transactionScope();
+  try {
+    const receipt = await TEST_ONLY_materializeReviewedSeaweedRootfs(value.options);
+    await assert.rejects(withMaterializedSeaweedRootfs(receipt, ({ pipeArchiveTo }) => pipeArchiveTo(new Writable({
+      write(_chunk, _encoding, callback) { callback(new Error("secret destination failure")); },
+    }))), (error) => {
+      assert.equal(error.code, "seaweed_rootfs_materialization_pipe_failed");
+      assert.doesNotMatch(error.message, /secret|destination/u); return true;
+    });
+    assert.equal((await cleanupMaterializedSeaweedRootfs(receipt)).state, "CLEANED");
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
