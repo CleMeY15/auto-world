@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - name: Require the tenth reviewed main dispatch
+      - name: Require the eleventh reviewed main dispatch
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
           test "$RUNNER_ENVIRONMENT" = 'github-hosted'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_RUN_NUMBER" = '10'
+          test "$GITHUB_RUN_NUMBER" = '11'
           test "$GITHUB_RUN_ATTEMPT" = '1'
           test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main'
 

@@ -288,7 +288,9 @@ function ownedContainer(result, expected) {
     destination: mount.destination, rw: !mount.readOnly })).sort((a, b) => a.destination.localeCompare(b.destination));
   const hostValid = expected.mounts.every((mount) => hostMounts.some((actual) => actual.Type === "volume"
     && actual.Source === mount.name && actual.Target === mount.destination
-    && actual.ReadOnly === mount.readOnly && actual.VolumeOptions?.NoCopy === true));
+    && (mount.readOnly ? actual.ReadOnly === true
+      : actual.ReadOnly === false || actual.ReadOnly === undefined)
+    && actual.VolumeOptions?.NoCopy === true));
   const memory = profile === "service" ? 768 * 1024 ** 2 : profile === "helper" ? 256 * 1024 ** 2 : 128 * 1024 ** 2;
   const nanoCpus = profile === "service" ? 750_000_000 : 250_000_000;
   const pids = profile === "service" ? 512 : 64;
@@ -505,7 +507,9 @@ async function execute(input, injected) {
 
     phase = "BACKUP_SOURCE_VOLUME"; reason = "VOLUME_CREATE_INVALID";
     await createVolume("source");
+    reason = "CONTAINER_CREATE_INVALID";
     await createContainer("init-source", INIT_PROFILE, INIT_COMMAND);
+    reason = "VOLUME_INIT_FAILED";
     await waitAndRemove("init-source", "SEAWEED_BACKUP_VOLUME_INITIALIZED");
 
     phase = "BACKUP_SOURCE_SERVICE"; reason = "SOURCE_WRITE_FAILED";

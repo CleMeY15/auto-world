@@ -2,7 +2,9 @@
 
 Status: IN_PROGRESS; corrected-scanner diagnostics VERIFIED; image eligibility and private admission BLOCKED
 
-Current backup/restore checkpoint: the [ninth native SeaweedFS diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35961440990) on protected main `fede46563479847d6d700824f2c82b44f95610bb` FAILED at candidate image cleanup. The separate empty-directory cleanup passed, but no V5 backup/restore proof or complete Docker cleanup is established. See the [failure record](../../docs/validation/TASK-0005A-SEAWEED-BACKUP-RESTORE-DIAGNOSTIC.md). A bounded telemetry repair and new guarded run are pending. TASK-0005 remains IN_PROGRESS and TASK-0006 blocked.
+Current backup/restore checkpoint: the [tenth native SeaweedFS diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35963690247) on protected main `a89445256c4d6a34cf9005790366ee081a00742f` FAILED during source-volume initialization, with uncertain V5 runtime cleanup and failed candidate-image removal. The separate empty-directory cleanup does not prove Docker cleanup. See the [failure record](../../docs/validation/TASK-0005A-SEAWEED-BACKUP-RESTORE-DIAGNOSTIC.md). A Docker inspect compatibility repair and new guarded run are pending; TASK-0005 remains IN_PROGRESS and TASK-0006 blocked.
+
+Prior backup/restore checkpoint: the [ninth native SeaweedFS diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35961440990) on protected main `fede46563479847d6d700824f2c82b44f95610bb` FAILED at candidate image cleanup. The separate empty-directory cleanup passed, but no V5 backup/restore proof or complete Docker cleanup is established. See the [failure record](../../docs/validation/TASK-0005A-SEAWEED-BACKUP-RESTORE-DIAGNOSTIC.md). A bounded telemetry repair and new guarded run are pending. TASK-0005 remains IN_PROGRESS and TASK-0006 blocked.
 Priority: P0
 Owner role: Platform/SRE executor, with independent infrastructure review
 

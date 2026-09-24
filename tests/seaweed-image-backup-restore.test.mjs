@@ -19,7 +19,8 @@ const archiveBytes = 10240;
 function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestoreVolumeDuringCleanup = false,
   malformedBackupCreate = false, abortAtBackup = false, nullPortBindings = false,
   driftHelperTmpfs = false, backupHelperExitCode = 0, restoreHelperExitCode = 0,
-  sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false } = {}) {
+  sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false,
+  explicitRwReadOnly = false, missingRoReadOnly = false, wrongRwReadOnly = false } = {}) {
   const calls = []; const volumes = new Map(); const containers = new Map(); let nonce = ""; let nextId = 1;
   let restoredProbeFailed = false;
   const prefix = `aw-seaweed-backup-${runId}`;
@@ -60,7 +61,11 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
         Memory: memory, MemorySwap: memory, NanoCpus: service ? 750_000_000 : 250_000_000,
         PidsLimit: service ? 512 : 64, Tmpfs: tmpfs,
         Mounts: record.mounts.map((mount) => ({ Type: "volume", Source: mount.name,
-          Target: mount.destination, ReadOnly: mount.readOnly, VolumeOptions: { NoCopy: true } })) },
+          Target: mount.destination,
+          ...(mount.readOnly ? missingRoReadOnly ? {} : { ReadOnly: true }
+            : wrongRwReadOnly ? { ReadOnly: true }
+              : explicitRwReadOnly ? { ReadOnly: false } : {}),
+          VolumeOptions: { NoCopy: true } })) },
       Mounts: record.mounts.map((mount) => ({ Type: "volume", Name: mount.name,
         Destination: mount.destination, RW: !mount.readOnly })),
       NetworkSettings: { Ports: { "8333/tcp": null } } }];
@@ -204,6 +209,36 @@ test("backup restore copies a stopped source through an owned archive into a fre
   assert.ok(helperCreates[0].includes(`type=volume,src=aw-seaweed-backup-${runId}-backup,dst=/backup,volume-nocopy`));
   assert.ok(helperCreates[1].includes(`type=volume,src=aw-seaweed-backup-${runId}-backup,dst=/backup,readonly,volume-nocopy`));
   assert.ok(helperCreates[1].includes(`type=volume,src=aw-seaweed-backup-${runId}-restore,dst=/restore,volume-nocopy`));
+});
+
+test("explicit false and Docker-omitted ReadOnly both prove a writable volume mount", async () => {
+  const value = fixture({ explicitRwReadOnly: true });
+  const proof = await TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker });
+  assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_BACKUP_RESTORE_PROOF_V1");
+  assert.equal(value.containers.size, 0); assert.equal(value.volumes.size, 0);
+});
+
+test("read-only backup mount must explicitly inspect as true", async () => {
+  const value = fixture({ missingRoReadOnly: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_ARCHIVE",
+      reason: "BACKUP_FAILED", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+        phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+      } });
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"
+    && args[2].endsWith("backup-helper")), false);
+});
+
+test("writable source mount is rejected when Docker reports it read-only", async () => {
+  const value = fixture({ wrongRwReadOnly: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_SOURCE_VOLUME",
+      reason: "CONTAINER_CREATE_INVALID", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+        phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+      } });
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
 });
 
 test("Docker null PortBindings is accepted only with no published network bindings", async () => {

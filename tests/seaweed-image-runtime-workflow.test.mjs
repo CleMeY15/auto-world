@@ -15,7 +15,7 @@ test("runtime workflow is one-time, main-only and read-only", async () => {
   assert.match(bytes, /test "\$RUNNER_ENVIRONMENT" = 'github-hosted'/u);
   assert.match(bytes, /test "\$GITHUB_EVENT_NAME" = 'workflow_dispatch'/u);
   assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
-  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '10'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '11'/u);
   assert.match(bytes, /test "\$GITHUB_RUN_ATTEMPT" = '1'/u);
   assert.match(bytes, /test "\$GITHUB_WORKFLOW_REF" = 'CleMeY15\/auto-world\/\.github\/workflows\/seaweed-runtime-candidate\.yml@refs\/heads\/main'/u);
   assert.match(bytes, /concurrency:\n {2}group: seaweed-runtime-candidate\n {2}cancel-in-progress: false/u);
