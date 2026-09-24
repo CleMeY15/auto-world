@@ -12,7 +12,8 @@ import {
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
-  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate, validateCandidateImage,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate,
+  TEST_ONLY_withVerifiedLocalSeaweedCandidate, validateCandidateImage, withVerifiedLocalSeaweedCandidate,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof } from
   "../scripts/seaweed-image/backup-restore.mjs";
@@ -207,6 +208,90 @@ test("local candidate imports by verified stdin, validates export, removes owned
     assert.deepEqual(readdirSync(value.parent), []);
     assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("verified archive callback runs once after validation and before cleanup with frozen bounded context",
+  { skip: !linux }, async () => {
+    const value = scope(); let callbackCalls = 0;
+    try {
+      const result = await TEST_ONLY_withVerifiedLocalSeaweedCandidate(value.inputs, async (context) => {
+        callbackCalls += 1;
+        assert.equal(value.archiveValidated, true);
+        assert.equal(value.imageIds.has(imageId), true);
+        assert.deepEqual(Object.keys(context).sort(),
+          ["archiveProof", "diffId", "file", "imageId", "recipeRevision", "runId", "signal"].sort());
+        assert.equal(Object.isFrozen(context), true);
+        assert.equal(Object.isFrozen(context.archiveProof), true);
+        assert.equal(context.file, path.join(value.parent, "work", "saved.tar"));
+        assert.equal(context.imageId, imageId); assert.equal(context.diffId, diffId);
+        assert.equal(context.runId, value.inputs.runId);
+        assert.equal(context.recipeRevision, value.inputs.recipeRevision);
+        assert.equal(context.signal, value.inputs.signal);
+        assert.deepEqual(context.archiveProof, {
+          kind: "SEAWEED_SAVED_CANDIDATE_PROOF_V1", identityType: "CLASSIC_CONFIG_ID",
+          imageId, tag: value.tag, diffId, rawSize: raw.length, memberCount: 1,
+          serverVersion: "28.0.4", archiveSha256: "5".repeat(64), archiveBytes: 4096,
+        });
+        value.calls.push(["inspection"]);
+      }, value.injected);
+      assert.equal(callbackCalls, 1);
+      assert.equal(result.kind, "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1");
+      assert.ok(value.calls.findIndex((args) => args[0] === "inspection")
+        < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  });
+
+test("verified archive callback preserves the historical receipt", { skip: !linux }, async () => {
+  const historical = scope(); const inspected = scope();
+  try {
+    const historicalReceipt = await TEST_ONLY_materializeLocalSeaweedCandidate(
+      historical.inputs, historical.injected);
+    const inspectedReceipt = await TEST_ONLY_withVerifiedLocalSeaweedCandidate(
+      inspected.inputs, async () => {}, inspected.injected);
+    assert.deepEqual(inspectedReceipt, historicalReceipt);
+  } finally {
+    rmSync(historical.parent, { recursive: true, force: true });
+    rmSync(inspected.parent, { recursive: true, force: true });
+  }
+});
+
+test("verified archive callback failure is bounded and still cleans owned resources", { skip: !linux }, async () => {
+  const value = scope(); let callbackCalls = 0;
+  try {
+    await assert.rejects(TEST_ONLY_withVerifiedLocalSeaweedCandidate(value.inputs, async () => {
+      callbackCalls += 1; throw new Error("private callback failure /runner/private/path");
+    }, value.injected), (error) => {
+      assert.equal(error.code, "seaweed_candidate_inspection_failed");
+      assert.equal(JSON.stringify(error).includes("private"), false);
+      return true;
+    });
+    assert.equal(callbackCalls, 1);
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+    assert.equal(value.disposed, true);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("archive validation failure never invokes the verified archive callback", { skip: !linux }, async () => {
+  const value = scope({ archiveFailure: true }); let callbackCalls = 0;
+  try {
+    await assert.rejects(TEST_ONLY_withVerifiedLocalSeaweedCandidate(value.inputs,
+      async () => { callbackCalls += 1; }, value.injected), { code: "seaweed_candidate_archive_failed" });
+    assert.equal(callbackCalls, 0);
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("verified archive callback API rejects non-functions with a public code", async () => {
+  for (const callback of [undefined, null, {}, "inspect"]) {
+    await assert.rejects(TEST_ONLY_withVerifiedLocalSeaweedCandidate({}, callback, {}),
+      { code: "seaweed_candidate_arguments_invalid" });
+    await assert.rejects(withVerifiedLocalSeaweedCandidate({}, callback),
+      { code: "seaweed_candidate_arguments_invalid" });
+  }
+  assert.equal(isPublicCandidateFailureCode("seaweed_candidate_inspection_failed"), true);
 });
 
 test("unrelated prior image IDs are preserved through import, verification and cleanup", { skip: !linux }, async () => {
