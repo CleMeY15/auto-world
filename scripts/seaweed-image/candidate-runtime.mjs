@@ -20,7 +20,9 @@ const PAYLOAD_A_SHA256 = createHash("sha256").update(PAYLOAD_A).digest("hex");
 const PAYLOAD_B_SHA256 = createHash("sha256").update(PAYLOAD_B).digest("hex");
 const PUBLIC_PHASES = new Set(["RUNTIME_CONTEXT", "RUNTIME_PRECHECK", "RUNTIME_CREATE",
   "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_S3_PROTOCOL", "RUNTIME_HELPERS", "RUNTIME_STOP",
-  "RUNTIME_CLEANUP"]);
+  "RUNTIME_CLEANUP", "PERSISTENCE_CONTEXT", "PERSISTENCE_PRECHECK", "PERSISTENCE_VOLUME_CREATE",
+  "PERSISTENCE_VOLUME_INIT", "PERSISTENCE_SERVICE_ONE", "PERSISTENCE_SERVICE_TWO",
+  "PERSISTENCE_CLEANUP"]);
 const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIED",
   "CREATE_ID_INVALID", "OWNERSHIP_UNCERTAIN", "PROBE_COMMAND", "VERSION_MISMATCH",
   "ANONYMOUS_ALLOWED", "S3_UNAVAILABLE",
@@ -35,6 +37,12 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
+for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_IDENTITY_UNCERTAIN",
+  "CONTAINER_NAME_OCCUPIED", "CONTAINER_CREATE_INVALID", "CONTAINER_IDENTITY_UNCERTAIN",
+  "VOLUME_INIT_FAILED", "FIRST_WRITE_FAILED", "SECOND_READ_FAILED",
+  "PERSISTED_OBJECT_MISSING", "PERSISTED_OBJECT_MISMATCH", "CLEANUP_UNCERTAIN"]) {
+  PUBLIC_REASONS.add(reason);
+}
 const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnostic", credentials: [{
   accessKey: ACCESS_KEY, secretKey: SECRET_KEY,
 }], actions: ["Admin:aw-raw", "Read:aw-raw", "List:aw-raw", "Write:aw-raw"] }] });
@@ -421,3 +429,370 @@ export function TEST_ONLY_expectedSeaweedRuntimeProfileProof(expected) {
   return validateSeaweedRuntimeProfileProof(expectedProof(expected), expected);
 }
 export function TEST_ONLY_signedSeaweedS3ProbeScript() { return SIGNED_PROBE; }
+
+const PERSISTENCE_PURPOSE_LABEL = "com.auto-world.runtime-purpose";
+const PERSISTENCE_PURPOSE = "restart-persistence-v1";
+const PERSISTENCE_PAYLOAD = "auto-world-restart-persistence-payload-v1";
+const PERSISTENCE_PAYLOAD_SHA256 = createHash("sha256").update(PERSISTENCE_PAYLOAD).digest("hex");
+const PERSISTENCE_INIT_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=0:0",
+  "--memory=128m", "--memory-swap=128m", "--cpus=.25", "--pids-limit=64", "--cap-drop=ALL",
+  "--cap-add=CHOWN", "--security-opt=no-new-privileges=true", "--stop-timeout=10",
+  "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=4m,mode=0700", "--entrypoint=/bin/sh"];
+const PERSISTENCE_SERVICE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=1000:1000",
+  "--memory=768m", "--memory-swap=768m", "--cpus=.75", "--pids-limit=512", "--cap-drop=ALL",
+  "--security-opt=no-new-privileges=true", "--stop-timeout=30",
+  "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=0700,uid=1000,gid=1000",
+  "--tmpfs", "/run/aw-private:rw,nosuid,nodev,noexec,size=64k,mode=0700,uid=1000,gid=1000",
+  "--entrypoint=/bin/sh"];
+const PERSISTENCE_INIT_COMMAND = `set -eu
+test -d /data
+entries=$(find /data -mindepth 1 -maxdepth 1 -print) || exit 1
+test -z "$entries"
+chmod 0700 /data
+chown 1000:1000 /data
+test "$(stat -c '%u:%g:%a' /data)" = '1000:1000:700'
+printf '%s\\n' 'SEAWEED_PERSISTENCE_VOLUME_INITIALIZED'`;
+const PERSISTENCE_READY = `command -v curl >/dev/null 2>&1 || exit 61
+test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000 || exit 67
+test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000 || exit 67
+test "$(stat -c '%u:%g:%a' /data)" = '1000:1000:700' && test -w /data || exit 68
+ready=''; i=0
+while test "$i" -lt 60; do
+  ready=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:9333/cluster/status || true)
+  test "$ready" = 200 && break
+  i=$((i + 1)); sleep 1
+done
+test "$ready" = 200 || exit 62
+filerready=''; i=0
+while test "$i" -lt 30; do
+  filerready=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8888/readyz || true)
+  test "$filerready" = 200 && break
+  i=$((i + 1)); sleep 1
+done
+test "$filerready" = 200 || exit 62
+s3ready=''; i=0
+while test "$i" -lt 30; do
+  s3ready=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8333/readyz || true)
+  test "$s3ready" = 200 && break
+  i=$((i + 1)); sleep 1
+done
+test "$s3ready" = 200 || exit 62
+curl --help all 2>/dev/null | grep -q -- '--aws-sigv4' || exit 61
+command -v sha256sum >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 61`;
+const PERSISTENCE_FIRST_PROBE = `set -eu
+${PERSISTENCE_READY}
+work=$(mktemp -d /tmp/aw-persistence.XXXXXXXX) || exit 61
+trap 'rm -f "$work/read"; rmdir "$work"' EXIT
+signed() {
+  curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \\
+    --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' "$@" 2>/dev/null
+}
+bucket=$(signed --request PUT http://127.0.0.1:8333/aw-raw) || exit 63
+test "$bucket" = 200 || exit 63
+put=$(signed --request PUT --header 'If-None-Match: *' --data-binary '${PERSISTENCE_PAYLOAD}' \\
+  http://127.0.0.1:8333/aw-raw/restart-proof) || exit 63
+test "$put" = 200 || exit 63
+read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
+  http://127.0.0.1:8333/aw-raw/restart-proof 2>/dev/null) || exit 63
+test "$read_status" = 200 || exit 63
+test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 64
+printf '%s\\n' 'SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED'`;
+const PERSISTENCE_SECOND_PROBE = `set -eu
+${PERSISTENCE_READY}
+work=$(mktemp -d /tmp/aw-persistence.XXXXXXXX) || exit 61
+trap 'rm -f "$work/read"; rmdir "$work"' EXIT
+read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
+  --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
+  http://127.0.0.1:8333/aw-raw/restart-proof 2>/dev/null) || exit 69
+case "$read_status" in 200) ;; 404) exit 65 ;; *) exit 69 ;; esac
+test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 66
+printf '%s\\n' 'SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED'`;
+const PERSISTENCE_PROFILE_SHA256 = hash({ initializer: PERSISTENCE_INIT_PROFILE,
+  service: PERSISTENCE_SERVICE_PROFILE, mount: "type=volume,src=<owned>,dst=/data,volume-nocopy" });
+const PERSISTENCE_COMMAND_SHA256 = hash([PERSISTENCE_INIT_COMMAND, BOOTSTRAP,
+  PERSISTENCE_FIRST_PROBE, PERSISTENCE_SECOND_PROBE]);
+const PERSISTENCE_PROOF_KEYS = ["kind", "state", "authority", "candidateAuthorization", "imageId", "runId",
+  "recipeRevision", "profileSha256", "commandSha256", "volumeIdentity", "volumeMount", "initializer",
+  "firstService", "secondService", "objectPersistence", "shutdown", "cleanup"];
+
+function expectedPersistenceProof({ imageId, runId, recipeRevision }) {
+  return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1", state: "VERIFIED",
+    authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED", imageId, runId, recipeRevision,
+    profileSha256: PERSISTENCE_PROFILE_SHA256, commandSha256: PERSISTENCE_COMMAND_SHA256,
+    volumeIdentity: "FRESH_NAME_LABELS_CREATED_AT_LOCAL_VERIFIED", volumeMount: "VOLUME_NOCOPY_RW_DATA",
+    initializer: "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000",
+    firstService: "SIGNED_CONDITIONAL_PUT_GET_SHA256",
+    secondService: "DISTINCT_CONTAINER_READY_SIGNED_GET_SHA256",
+    objectPersistence: "PRESERVED_ACROSS_RESTART", shutdown: "BOTH_SERVICES_BOUNDED",
+    cleanup: "OWNED_CONTAINERS_AND_VOLUME_REMOVED" });
+}
+
+export function validateSeaweedRuntimePersistenceProof(proof, expected) {
+  if (!exactObject(expected, ["imageId", "runId", "recipeRevision"]) || !IMAGE_ID.test(expected.imageId)
+    || !RUN_ID.test(expected.runId) || !REVISION.test(expected.recipeRevision)
+    || !exactObject(proof, PERSISTENCE_PROOF_KEYS)) throw failure("seaweed_candidate_runtime_persistence_failed");
+  const canonical = expectedPersistenceProof(expected);
+  for (const key of PERSISTENCE_PROOF_KEYS) {
+    if (proof[key] !== canonical[key]) throw failure("seaweed_candidate_runtime_persistence_failed");
+  }
+  return canonical;
+}
+
+async function inspectPersistenceVolume(docker, name, options, statuses = [0]) {
+  return command(docker, ["volume", "inspect", "--format",
+    `{{.Name}}|{{.Driver}}|{{.Scope}}|{{.CreatedAt}}|{{index .Labels "${OWNERSHIP_LABEL}"}}|{{index .Labels "${PERSISTENCE_PURPOSE_LABEL}"}}`,
+    name], options, statuses);
+}
+
+async function persistenceVolumeAbsent(docker, name, options) {
+  const inspected = await inspectPersistenceVolume(docker, name, options, [0, 1]);
+  if (inspected.status !== 1 || inspected.stdout.trim() !== "") return false;
+  const listed = await command(docker, ["volume", "ls", "--filter", `name=^${name}$`, "--format", "{{.Name}}"], options);
+  return listed.stderr.trim() === "" && listed.stdout.trim() === "";
+}
+
+function ownedPersistenceVolume(result, { name, nonce, createdAfterMs, createdAt }) {
+  if (result.status !== 0) throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+  const fields = result.stdout.trim().split("|");
+  const createdAtMs = Date.parse(fields[3]);
+  if (fields.length !== 6 || fields[0] !== name || fields[1] !== "local" || fields[2] !== "local"
+    || !Number.isFinite(createdAtMs) || createdAfterMs !== undefined
+      && (createdAtMs < createdAfterMs - 5_000 || createdAtMs > Date.now() + 5_000)
+    || createdAt !== undefined && fields[3] !== createdAt
+    || fields[4] !== nonce || fields[5] !== PERSISTENCE_PURPOSE) {
+    throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+  }
+  return { createdAt: fields[3] };
+}
+
+async function inspectPersistenceContainer(docker, name, options, statuses = [0]) {
+  return command(docker, ["container", "inspect", "--format",
+    `{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}|{{index .Config.Labels "${OWNERSHIP_LABEL}"}}|{{index .Config.Labels "${PERSISTENCE_PURPOSE_LABEL}"}}|{{.Image}}|{{(index .Mounts 0).Type}}|{{(index .Mounts 0).Name}}|{{(index .Mounts 0).Destination}}|{{(index .Mounts 0).RW}}|{{(index .HostConfig.Mounts 0).VolumeOptions.NoCopy}}|{{.Config.User}}|{{json .HostConfig.CapAdd}}|{{json .HostConfig.CapDrop}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.SecurityOpt}}`,
+    name], options, statuses);
+}
+
+function ownedPersistenceContainer(result, { nonce, imageId, volumeName, ownedId, role, verifyProfile = false }) {
+  if (result.status !== 0) throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+  const fields = result.stdout.trim().split("|");
+  if (fields.length !== 16 || !CONTAINER_ID.test(fields[0]) || !/^(?:created|exited|running)$/u.test(fields[1])
+    || !/^-?[0-9]+$/u.test(fields[2]) || fields[3] !== nonce || fields[4] !== PERSISTENCE_PURPOSE
+    || fields[5] !== imageId || fields[6] !== "volume" || fields[7] !== volumeName || fields[8] !== "/data"
+    || fields[9] !== "true" || fields[10] !== "true" || ownedId !== undefined && fields[0] !== ownedId) {
+    throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+  }
+  if (verifyProfile) {
+    const init = role === "init";
+    if (!init && role !== "service-1" && role !== "service-2" || fields[11] !== (init ? "0:0" : "1000:1000")
+      || init && fields[12] !== '["CHOWN"]' || !init && fields[12] !== "null" && fields[12] !== "[]"
+      || fields[13] !== '["ALL"]' || fields[14] !== "true"
+      || fields[15] !== '["no-new-privileges:true"]') {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+  }
+  return { id: fields[0], state: fields[1], exitCode: fields[2] };
+}
+
+async function executePersistence(input, injected) {
+  const started = performance.now();
+  const startedAtMs = Date.now();
+  const fail = (phase, reason, cleanup = false) => diagnosticFailure(cleanup
+    ? "seaweed_candidate_runtime_persistence_cleanup_failed" : "seaweed_candidate_runtime_persistence_failed",
+  phase, reason, started);
+  if (!validInput(input)) throw fail("PERSISTENCE_CONTEXT", "INPUT_INVALID");
+  const { parent, dockerConfig, imageId, runId, recipeRevision, signal } = input;
+  if (process.platform !== "linux" && injected === undefined || typeof parent !== "string" || !path.isAbsolute(parent)
+    || path.normalize(parent) !== parent || typeof dockerConfig !== "string" || !path.isAbsolute(dockerConfig)
+    || path.normalize(dockerConfig) !== dockerConfig || !IMAGE_ID.test(imageId) || !RUN_ID.test(runId)
+    || !REVISION.test(recipeRevision) || signal !== undefined && !(signal instanceof globalThis.AbortSignal)
+    || signal?.aborted) throw fail("PERSISTENCE_CONTEXT", "INPUT_INVALID");
+  const docker = injected?.docker ?? defaultDocker;
+  if (typeof docker !== "function" || injected !== undefined && !exactObject(injected, ["docker"])) {
+    throw fail("PERSISTENCE_CONTEXT", "INPUT_INVALID");
+  }
+  const prefix = `aw-seaweed-persistence-${runId}`;
+  const volumeName = `${prefix}-data`;
+  const roles = ["init", "service-1", "service-2"];
+  const names = Object.fromEntries(roles.map((role) => [role, `${prefix}-${role}`]));
+  const env = { PATH: process.env.PATH ?? "", DOCKER_CONFIG: dockerConfig,
+    DOCKER_HOST: "unix:///var/run/docker.sock", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC", TMPDIR: parent };
+  const options = { cwd: parent, env, signal, timeoutMs: COMMAND_TIMEOUT_MS };
+  const cleanupOptions = { cwd: parent, env, timeoutMs: CLEANUP_TIMEOUT_MS };
+  const nonce = randomBytes(24).toString("hex");
+  const owned = new Map(); const attemptedRoles = new Set();
+  let volumeCreateAttempted = false; let volumeCreated = false; let volumeCreatedAt; let primaryFailure;
+  let phase = "PERSISTENCE_PRECHECK"; let reason = "DOCKER_COMMAND";
+  let failurePhase; let failureReason;
+  const mount = `type=volume,src=${volumeName},dst=/data,volume-nocopy`;
+
+  async function createOwnedContainer(role, profile, script) {
+    const name = names[role];
+    attemptedRoles.add(role);
+    const created = await command(docker, ["container", "create", "--name", name,
+      "--label", `${OWNERSHIP_LABEL}=${nonce}`, "--label", `${PERSISTENCE_PURPOSE_LABEL}=${PERSISTENCE_PURPOSE}`,
+      ...profile, "--mount", mount, imageId, "-c", script], options);
+    const id = created.stdout.trim();
+    if (!CONTAINER_ID.test(id)) throw failure("seaweed_candidate_runtime_persistence_failed");
+    reason = "CONTAINER_IDENTITY_UNCERTAIN";
+    const inspected = ownedPersistenceContainer(await inspectPersistenceContainer(docker, name, options),
+      { nonce, imageId, volumeName, ownedId: id, role, verifyProfile: true });
+    if (inspected.state !== "created" || inspected.exitCode !== "0") {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    owned.set(role, id);
+    return name;
+  }
+
+  async function stopAndRemove(role, time) {
+    const name = names[role]; const id = owned.get(role);
+    let inspected = ownedPersistenceContainer(await inspectPersistenceContainer(docker, name, options),
+      { nonce, imageId, volumeName, ownedId: id });
+    if (inspected.state === "running") {
+      await command(docker, ["container", "stop", "--time", String(time), name],
+        { ...options, timeoutMs: (time + 10) * 1000 });
+      inspected = ownedPersistenceContainer(await inspectPersistenceContainer(docker, name, options),
+        { nonce, imageId, volumeName, ownedId: id });
+    }
+    if (inspected.state !== "exited" || inspected.exitCode !== "0") {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    await command(docker, ["container", "rm", name], options);
+    if (!await containerAbsent(docker, name, options)) throw failure("seaweed_candidate_runtime_persistence_failed");
+    owned.delete(role);
+  }
+
+  try {
+    if (!await persistenceVolumeAbsent(docker, volumeName, options)) {
+      reason = "VOLUME_NAME_OCCUPIED"; throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    for (const role of roles) {
+      if (!await containerAbsent(docker, names[role], options)) {
+        reason = "CONTAINER_NAME_OCCUPIED"; throw failure("seaweed_candidate_runtime_persistence_failed");
+      }
+    }
+    phase = "PERSISTENCE_VOLUME_CREATE"; reason = "VOLUME_CREATE_INVALID";
+    volumeCreateAttempted = true;
+    const volume = await command(docker, ["volume", "create", "--driver", "local",
+      "--label", `${OWNERSHIP_LABEL}=${nonce}`, "--label", `${PERSISTENCE_PURPOSE_LABEL}=${PERSISTENCE_PURPOSE}`,
+      volumeName], options);
+    volumeCreated = true;
+    if (volume.stdout.trim() !== volumeName || volume.stderr.trim() !== "") {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    reason = "VOLUME_IDENTITY_UNCERTAIN";
+    volumeCreatedAt = ownedPersistenceVolume(await inspectPersistenceVolume(docker, volumeName, options),
+      { name: volumeName, nonce, createdAfterMs: startedAtMs }).createdAt;
+
+    phase = "PERSISTENCE_VOLUME_INIT"; reason = "CONTAINER_CREATE_INVALID";
+    const initName = await createOwnedContainer("init", PERSISTENCE_INIT_PROFILE, PERSISTENCE_INIT_COMMAND);
+    await command(docker, ["container", "start", initName], options);
+    const waited = await command(docker, ["container", "wait", initName],
+      { ...options, timeoutMs: 30_000 });
+    if (waited.stdout.trim() !== "0" || waited.stderr.trim() !== "") {
+      reason = "VOLUME_INIT_FAILED"; throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    await stopAndRemove("init", 10);
+
+    phase = "PERSISTENCE_SERVICE_ONE"; reason = "CONTAINER_CREATE_INVALID";
+    const firstName = await createOwnedContainer("service-1", PERSISTENCE_SERVICE_PROFILE, BOOTSTRAP);
+    await command(docker, ["container", "start", firstName], options);
+    reason = "FIRST_WRITE_FAILED";
+    const first = await command(docker, ["container", "exec", firstName, "/bin/sh", "-c", PERSISTENCE_FIRST_PROBE],
+      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 63, 64, 67, 68, 127]);
+    if (first.status !== 0 || first.stdout.trim() !== "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED"
+      || first.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_persistence_failed");
+    await stopAndRemove("service-1", 30);
+
+    phase = "PERSISTENCE_SERVICE_TWO"; reason = "CONTAINER_CREATE_INVALID";
+    const secondName = await createOwnedContainer("service-2", PERSISTENCE_SERVICE_PROFILE, BOOTSTRAP);
+    await command(docker, ["container", "start", secondName], options);
+    reason = "SECOND_READ_FAILED";
+    const second = await command(docker, ["container", "exec", secondName, "/bin/sh", "-c", PERSISTENCE_SECOND_PROBE],
+      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 65, 66, 67, 68, 69, 127]);
+    if (second.status !== 0) {
+      reason = second.status === 65 ? "PERSISTED_OBJECT_MISSING"
+        : second.status === 66 ? "PERSISTED_OBJECT_MISMATCH" : "SECOND_READ_FAILED";
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    if (second.stdout.trim() !== "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED" || second.stderr.trim() !== "") {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    await stopAndRemove("service-2", 30);
+  } catch (error) { primaryFailure = error; failurePhase = phase; failureReason = reason; }
+
+  try {
+    for (const role of attemptedRoles) {
+      if (owned.has(role)) continue;
+      const inspected = await inspectPersistenceContainer(docker, names[role], cleanupOptions, [0, 1]);
+      if (inspected.status === 1 && inspected.stdout.trim() === "" && await containerAbsent(docker,
+        names[role], cleanupOptions)) continue;
+      owned.set(role, ownedPersistenceContainer(inspected, { nonce, imageId, volumeName }).id);
+    }
+    for (const role of [...roles].reverse()) {
+      if (!owned.has(role)) continue;
+      const name = names[role]; const id = owned.get(role);
+      const observed = await inspectPersistenceContainer(docker, name, cleanupOptions, [0, 1]);
+      if (observed.status === 1 && observed.stdout.trim() === ""
+        && await containerAbsent(docker, name, cleanupOptions)) {
+        owned.delete(role); continue;
+      }
+      let inspected = ownedPersistenceContainer(observed, { nonce, imageId, volumeName, ownedId: id });
+      if (inspected.state === "running") {
+        await command(docker, ["container", "stop", "--time", role === "init" ? "10" : "30", name],
+          { ...cleanupOptions, timeoutMs: 40_000 });
+        inspected = ownedPersistenceContainer(await inspectPersistenceContainer(docker, name, cleanupOptions),
+          { nonce, imageId, volumeName, ownedId: id });
+      }
+      if (inspected.state !== "exited" && inspected.state !== "created") {
+        throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+      }
+      await command(docker, ["container", "rm", name], cleanupOptions);
+      if (!await containerAbsent(docker, name, cleanupOptions)) {
+        throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+      }
+      owned.delete(role);
+    }
+    if (volumeCreateAttempted && !volumeCreated) {
+      const inspected = await inspectPersistenceVolume(docker, volumeName, cleanupOptions, [0, 1]);
+      if (!(inspected.status === 1 && inspected.stdout.trim() === ""
+        && await persistenceVolumeAbsent(docker, volumeName, cleanupOptions))) {
+        volumeCreatedAt = ownedPersistenceVolume(inspected,
+          { name: volumeName, nonce, createdAfterMs: startedAtMs }).createdAt;
+        volumeCreated = true;
+      }
+    }
+    if (volumeCreated) {
+      ownedPersistenceVolume(await inspectPersistenceVolume(docker, volumeName, cleanupOptions),
+        { name: volumeName, nonce, createdAt: volumeCreatedAt });
+      try {
+        await command(docker, ["volume", "rm", volumeName], cleanupOptions);
+      } catch {
+        const remaining = await inspectPersistenceVolume(docker, volumeName, cleanupOptions, [0, 1]);
+        if (remaining.status === 1 && remaining.stdout.trim() === ""
+          && await persistenceVolumeAbsent(docker, volumeName, cleanupOptions)) {
+          volumeCreated = false;
+        } else {
+          ownedPersistenceVolume(remaining, { name: volumeName, nonce, createdAt: volumeCreatedAt });
+          throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+        }
+      }
+      if (!await persistenceVolumeAbsent(docker, volumeName, cleanupOptions)) {
+        throw failure("seaweed_candidate_runtime_persistence_cleanup_failed");
+      }
+      volumeCreated = false;
+    }
+  } catch { throw fail("PERSISTENCE_CLEANUP", "CLEANUP_UNCERTAIN", true); }
+
+  if (primaryFailure !== undefined) throw diagnosticFailure("seaweed_candidate_runtime_persistence_failed",
+    failurePhase, failureReason, started);
+  const proof = expectedPersistenceProof({ imageId, runId, recipeRevision });
+  return validateSeaweedRuntimePersistenceProof(proof, { imageId, runId, recipeRevision });
+}
+
+export function verifyLocalSeaweedRuntimeRestartPersistence(input) { return executePersistence(input); }
+export function TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input, injected) {
+  return executePersistence(input, injected);
+}
+export function TEST_ONLY_expectedSeaweedRuntimePersistenceProof(expected) {
+  return validateSeaweedRuntimePersistenceProof(expectedPersistenceProof(expected), expected);
+}
