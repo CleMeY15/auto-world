@@ -16,7 +16,8 @@ const PUBLIC_PHASES = new Set(["RUNTIME_CONTEXT", "RUNTIME_PRECHECK", "RUNTIME_C
   "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_HELPERS", "RUNTIME_STOP", "RUNTIME_CLEANUP"]);
 const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIED",
   "CREATE_ID_INVALID", "OWNERSHIP_UNCERTAIN", "PROBE_COMMAND", "VERSION_MISMATCH",
-  "ANONYMOUS_NOT_REFUSED", "UID_MISMATCH", "GID_MISMATCH", "CONFIG_MODE_MISMATCH",
+  "ANONYMOUS_ALLOWED", "S3_UNAVAILABLE",
+  "ANONYMOUS_UNEXPECTED_STATUS", "UID_MISMATCH", "GID_MISMATCH", "CONFIG_MODE_MISMATCH",
   "READINESS_UNAVAILABLE", "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
@@ -37,6 +38,7 @@ case "$version" in *'${DERIVATIVE_VERSION}'*) ;; *) exit 21 ;; esac
 test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000 || exit 23
 test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000 || exit 24
 test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600' || exit 25
+command -v curl >/dev/null 2>&1 || exit 32
 ready=''
 i=0
 while test "$i" -lt 60; do
@@ -45,8 +47,16 @@ while test "$i" -lt 60; do
   i=$((i + 1)); sleep 1
 done
 test "$ready" = 200 || exit 26
+s3ready=''
+i=0
+while test "$i" -lt 30; do
+  s3ready=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8333/readyz || true)
+  test "$s3ready" = 200 && break
+  i=$((i + 1)); sleep 1
+done
+test "$s3ready" = 200 || exit 33
 anonymous=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8333/ || true)
-case "$anonymous" in 401|403) ;; *) exit 22 ;; esac
+case "$anonymous" in 403) ;; 000|'') exit 33 ;; 200) exit 22 ;; *) exit 34 ;; esac
 if nc -z -w 1 127.0.0.1 8181 >/dev/null 2>&1; then exit 27; else test "$?" = 1 || exit 32; fi
 if nc -z -w 1 127.0.0.1 9101 >/dev/null 2>&1; then exit 28; else test "$?" = 1 || exit 32; fi
 test ! -e /usr/bin/weed-volume || exit 29
@@ -162,7 +172,8 @@ function expectedProof({ imageId, runId, recipeRevision }) {
   return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V1", state: "VERIFIED", authority: "DIAGNOSTIC_ONLY",
     candidateAuthorization: "NOT_AUTHORIZED", imageId, runId, recipeRevision, profileSha256: PROFILE_SHA256,
     commandSha256: COMMAND_SHA256, derivativeVersion: DERIVATIVE_VERSION, uid: 1000, gid: 1000,
-    readiness: "CLUSTER_STATUS_200", anonymousAccess: "REFUSED", disabledListeners: "8181,9101",
+    readiness: "CLUSTER_STATUS_200_S3_READYZ_200", anonymousAccess: "REFUSED_403",
+    disabledListeners: "8181,9101",
     rustHelpers: "ABSENT_AND_REJECTED", shutdown: "BOUNDED" });
 }
 
@@ -224,11 +235,12 @@ async function execute(input, injected) {
     await command(docker, ["container", "start", name], options);
     phase = "RUNTIME_PROBE"; reason = "PROBE_COMMAND";
     const probe = await command(docker, ["container", "exec", name, "/bin/sh", "-c", PROBE],
-      options, [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 127]);
-    const probeReasons = { 21: "VERSION_MISMATCH", 22: "ANONYMOUS_NOT_REFUSED", 23: "UID_MISMATCH",
+      { ...options, timeoutMs: 300_000 }, [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 33, 34, 127]);
+    const probeReasons = { 21: "VERSION_MISMATCH", 22: "ANONYMOUS_ALLOWED", 23: "UID_MISMATCH",
       24: "GID_MISMATCH", 25: "CONFIG_MODE_MISMATCH", 26: "READINESS_UNAVAILABLE",
       27: "ICEBERG_LISTENER_OPEN", 28: "LANCE_LISTENER_OPEN", 29: "RUST_HELPER_PRESENT",
-      32: "PROBE_COMMAND", 127: "PROBE_COMMAND" };
+      32: "PROBE_COMMAND", 33: "S3_UNAVAILABLE", 34: "ANONYMOUS_UNEXPECTED_STATUS",
+      127: "PROBE_COMMAND" };
     if (probe.status !== 0) {
       reason = probeReasons[probe.status]; throw failure("seaweed_candidate_runtime_failed");
     }

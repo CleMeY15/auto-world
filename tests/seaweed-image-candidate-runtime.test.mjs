@@ -56,6 +56,10 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
       state = "running"; return { status: 0, stdout: `${args[2]}\n`, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "exec" && args.at(-1).includes?.("SEAWEED_RUNTIME_PROFILE_VERIFIED")) {
+      assert.equal(options.timeoutMs, 300_000);
+      assert.match(args.at(-1), /http:\/\/127\.0\.0\.1:8333\/readyz/u);
+      assert.match(args.at(-1), /test "\$s3ready" = 200 \|\| exit 33/u);
+      assert.match(args.at(-1), /case "\$anonymous" in 403\) ;; 000\|''\) exit 33 ;; 200\) exit 22 ;; \*\) exit 34/u);
       return probeFailure || probeStatus !== undefined
         ? { status: probeStatus ?? 21, stdout: "", stderr: "" }
         : { status: 0, stdout: "SEAWEED_RUNTIME_PROFILE_VERIFIED\n", stderr: "" };
@@ -86,6 +90,8 @@ test("runtime diagnostic applies the fixed isolated profile and returns a bounde
   assert.deepEqual(validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision }), proof);
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.derivativeVersion, "c507336+aw.549ec92660ab");
+  assert.equal(proof.readiness, "CLUSTER_STATUS_200_S3_READYZ_200");
+  assert.equal(proof.anonymousAccess, "REFUSED_403");
   assert.equal(proof.rustHelpers, "ABSENT_AND_REJECTED"); assert.equal(value.state, undefined);
   assert.equal(value.calls.filter((args) => args[1] === "stop").length, 1);
   assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
@@ -101,10 +107,11 @@ test("runtime failure still cleans the owned container", async () => {
 });
 
 for (const [status, reason] of [
-  [21, "VERSION_MISMATCH"], [22, "ANONYMOUS_NOT_REFUSED"], [23, "UID_MISMATCH"],
+  [21, "VERSION_MISMATCH"], [22, "ANONYMOUS_ALLOWED"], [23, "UID_MISMATCH"],
   [24, "GID_MISMATCH"], [25, "CONFIG_MODE_MISMATCH"], [26, "READINESS_UNAVAILABLE"],
   [27, "ICEBERG_LISTENER_OPEN"], [28, "LANCE_LISTENER_OPEN"],
-  [29, "RUST_HELPER_PRESENT"], [32, "PROBE_COMMAND"],
+  [29, "RUST_HELPER_PRESENT"], [32, "PROBE_COMMAND"], [33, "S3_UNAVAILABLE"],
+  [34, "ANONYMOUS_UNEXPECTED_STATUS"],
 ]) {
   test(`runtime probe status ${status} reports bounded reason ${reason}`, async () => {
     const value = fixture({ probeStatus: status });
