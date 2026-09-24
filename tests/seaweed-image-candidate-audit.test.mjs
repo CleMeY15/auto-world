@@ -108,7 +108,7 @@ async function fakeAudit(mode) {
   } finally { rmSync(temp, { recursive: true, force: true }); }
 }
 
-test("orchestrator refuses stale databases before candidate materialization and cleans globally", async () => {
+test("orchestrator refuses stale vulnerability database before candidate materialization and cleans globally", async () => {
   const audit = await fakeAudit("stale");
   assert.equal(audit.error?.message, "scanner_database_age_exceeded");
   assert.equal(audit.receipt.state, "INCOMPLETE");

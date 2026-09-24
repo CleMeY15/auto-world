@@ -104,7 +104,7 @@ test("calendar overflow and 24-hour normalization cannot make reports or DB reco
   const at = new Date("2026-03-03T01:00:00Z");
   for (const impossible of ["2026-02-31T00:00:00Z", "2026-03-02T24:00:00Z"]) {
     assert.throws(() => evaluateImageReport({ ...report(), CreatedAt: impossible }, pin, [], at), /scanner_image_report_invalid/u);
-    assert.throws(() => validateDatabaseMetadata({ Version: 2, UpdatedAt: impossible, DownloadedAt: at.toISOString() }, { now: at, expectedVersion: 2 }), /scanner_database_metadata_invalid/u);
+    assert.throws(() => validateDatabaseMetadata({ Version: 2, UpdatedAt: impossible, DownloadedAt: at.toISOString() }, { now: at, database: "vulnerability" }), /scanner_database_metadata_invalid/u);
     const value = { ...report([finding]), CreatedAt: at.toISOString() };
     const exception = { ...disposition, reviewedAt: impossible, expiresAt: "2026-03-04T00:00:00Z" };
     assert.equal(evaluateImageReport(value, pin, [exception], at).blockers.length, 1);
@@ -116,32 +116,49 @@ test("valid leap-day, timezone offset and fractional timestamps remain supported
   const CreatedAt = "2024-02-29T23:00:00.123456789+01:00";
   assert.equal(evaluateImageReport({ ...report(), CreatedAt }, pin, [], at).blockers.length, 0);
   const metadata = { Version: 2, UpdatedAt: "2024-02-29T01:00:00Z", DownloadedAt: CreatedAt };
-  assert.equal(validateDatabaseMetadata(metadata, { now: at, expectedVersion: 2 }).version, 2);
+  assert.equal(validateDatabaseMetadata(metadata, { now: at, database: "vulnerability" }).version, 2);
 });
 
-test("both database metadata records must be ordered and fresh", () => {
+test("both database metadata records must be ordered, while only vulnerability age is bounded", () => {
   for (const Version of [2, 1]) {
+    const database = Version === 2 ? "vulnerability" : "java";
     const metadata = { Version, UpdatedAt: "2026-09-13T10:00:00Z", DownloadedAt: "2026-09-14T09:00:00Z" };
-    assert.equal(validateDatabaseMetadata(metadata, { now, expectedVersion: Version }).version, Version);
-    for (const changed of [{ UpdatedAt: "2026-09-12T09:59:59Z" }, { UpdatedAt: "2026-09-14T10:00:01Z" }, { UpdatedAt: "2026-09-14T09:30:00Z" }, { DownloadedAt: "2026-09-14T10:00:01Z" }, { DownloadedAt: null }, { Version: 0 }, { Version: 3 - Version }]) {
-      assert.throws(() => validateDatabaseMetadata({ ...metadata, ...changed }, { now, expectedVersion: Version }), /scanner_database_metadata_invalid/u);
+    const accepted = validateDatabaseMetadata(metadata, { now, database });
+    assert.equal(accepted.version, Version);
+    assert.equal(accepted.maxAgeMs, Version === 2 ? MAX_DATABASE_AGE_MS : null);
+    assert.equal(accepted.freshAt48Hours, true);
+    const old = { ...metadata, UpdatedAt: "2026-09-12T09:59:59Z" };
+    if (Version === 2) assert.throws(() => validateDatabaseMetadata(old, { now, database }),
+      /scanner_database_metadata_invalid/u);
+    else {
+      const oldResult = validateDatabaseMetadata(old, { now, database });
+      assert.ok(oldResult.ageMs > MAX_DATABASE_AGE_MS);
+      assert.equal(oldResult.freshAt48Hours, false);
+    }
+    for (const changed of [{ UpdatedAt: "2026-09-14T10:00:01Z" }, { UpdatedAt: "2026-09-14T09:30:00Z" }, { DownloadedAt: "2026-09-14T10:00:01Z" }, { DownloadedAt: null }, { Version: 0 }, { Version: 3 - Version }]) {
+      assert.throws(() => validateDatabaseMetadata({ ...metadata, ...changed }, { now, database }), /scanner_database_metadata_invalid/u);
     }
     assert.throws(() => validateDatabaseMetadata(metadata, { now }), /scanner_database_metadata_invalid/u);
+    assert.throws(() => validateDatabaseMetadata(metadata, { now, database: database === "java" ? "vulnerability" : "java" }),
+      /scanner_database_metadata_invalid/u);
   }
 });
 
-test("database rejection names the failed predicate without changing the freshness boundary", () => {
-  const metadata = { Version: 1, UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS).toISOString(), DownloadedAt: now.toISOString() };
-  assert.equal(validateDatabaseMetadata(metadata, { now, expectedVersion: 1 }).version, 1);
+test("database rejection names the failed predicate while Java age alone is accepted", () => {
+  const metadata = { Version: 2, UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS).toISOString(), DownloadedAt: now.toISOString() };
+  assert.equal(validateDatabaseMetadata(metadata, { now, database: "vulnerability" }).version, 2);
+  const oldJava = { ...metadata, Version: 1,
+    UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS - 1).toISOString() };
+  assert.equal(validateDatabaseMetadata(oldJava, { now, database: "java" }).maxAgeMs, null);
   for (const [change, check] of [
     [{ UpdatedAt: new Date(now.getTime() - MAX_DATABASE_AGE_MS - 1).toISOString() }, "database_age_exceeded"],
     [{ UpdatedAt: "2026-02-31T00:00:00Z" }, "updated_at_timestamp"],
     [{ DownloadedAt: null }, "downloaded_at_timestamp"],
-    [{ Version: 2 }, "schema_version"],
+    [{ Version: 1 }, "schema_version"],
     [{ UpdatedAt: new Date(now.getTime() + 1).toISOString() }, "updated_after_download"],
     [{ DownloadedAt: new Date(now.getTime() + 1).toISOString() }, "downloaded_in_future"],
   ]) {
-    assert.throws(() => validateDatabaseMetadata({ ...metadata, ...change }, { now, expectedVersion: 1 }),
+    assert.throws(() => validateDatabaseMetadata({ ...metadata, ...change }, { now, database: "vulnerability" }),
       (error) => error.message === "scanner_database_metadata_invalid" && error.diagnostic.check === check);
   }
 });

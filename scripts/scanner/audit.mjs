@@ -255,10 +255,11 @@ export async function databaseEvidence(cache, now, output) {
   }
   const metadata = {};
   const validation = [];
-  for (const [name, expectedVersion] of [["vulnerability", 2], ["java", 1]]) {
+  for (const name of ["vulnerability", "java"]) {
     try {
-      metadata[name] = validateDatabaseMetadata(observed[name].value, { now, expectedVersion });
-      validation.push({ name, result: "passed" });
+      metadata[name] = validateDatabaseMetadata(observed[name].value, { now, database: name });
+      validation.push({ name, result: "passed", ageMs: metadata[name].ageMs,
+        maxAgeMs: metadata[name].maxAgeMs, freshAt48Hours: metadata[name].freshAt48Hours });
     } catch (error) {
       validation.push({ name, result: "failed", reason: error.message, check: error.diagnostic?.check });
     }
@@ -267,7 +268,8 @@ export async function databaseEvidence(cache, now, output) {
     // Public upstream metadata only; its original byte identity is retained alongside parsed fields.
     writeFileSync(path.join(output, "database-evidence.json"), `${JSON.stringify({
       checkedAt: now instanceof Date && Number.isFinite(now.getTime()) ? now.toISOString() : null,
-      maxAgeMs: MAX_DATABASE_AGE_MS, files: snapshot, observed, validation,
+      maxAgeMsByDatabase: { vulnerability: MAX_DATABASE_AGE_MS, java: null },
+      files: snapshot, observed, validation,
     }, null, 2)}\n`, { flag: "wx" });
   }
   const rejected = validation.find((entry) => entry.result === "failed");

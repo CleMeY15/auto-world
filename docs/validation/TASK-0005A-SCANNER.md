@@ -2,6 +2,8 @@
 
 Status: scanner diagnostic capability VERIFIED; TASK-0005A IN_PROGRESS; no scanner or image admitted. Latest observation: 2026-09-23.
 
+Policy amendment on 2026-09-24: the Java database still requires exact byte identity, expected schema and valid ordered non-future timestamps, but its measured age no longer has a rejection threshold. The vulnerability database retains the 48-hour maximum age. The audit receipt records both ages and whether each is within 48 hours; an older Java database limits claims about recent Java advisories. The historical failures below remain failures under the policy and code that ran at the time.
+
 ## Database rejection evidence follow-up
 
 The automatic [PR29 diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35847661679) and [main diagnostic](https://github.com/CleMeY15/auto-world/actions/runs/35848007275) both built the scanner twice, then failed at `database_freeze` with `scanner_database_metadata_invalid`. Neither run reached self, fixture or image scans. Their unchanged before/after registry manifests describe a vulnerability database published on 23 September and Java database published on 19 September. Rejected metadata fields were not retained, so the exact failed predicate is not established by these receipts.
