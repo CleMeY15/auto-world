@@ -167,6 +167,7 @@ test("a pre-existing untagged matching image ID never becomes cleanup-owned", { 
     await assert.rejects(TEST_ONLY_materializeLocalSeaweedCandidate(value.inputs, value.injected),
       { code: "seaweed_candidate_ownership_failed" });
     assert.equal(value.disposed, true); assert.deepEqual(readdirSync(value.parent), []);
+    assert.equal(value.calls.some((args) => args[1] === "import"), false);
     assert.equal(value.calls.some((args) => args[1] === "rm"), false);
     assert.equal(value.calls.some((args) => args[1] === "save"), false);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }

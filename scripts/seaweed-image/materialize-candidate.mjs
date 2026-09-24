@@ -289,6 +289,7 @@ async function execute(input, testOnly) {
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("ownership", () => existingImageIds(docker, dockerOptions));
+      if (priorImageIds.size !== 0) throw fail("seaweed_candidate_ownership_failed");
       let imageId; let owned = false; let archiveProof; let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -297,7 +298,6 @@ async function execute(input, testOnly) {
             ...changes, "-", tag], { ...dockerOptions, stdinWriter: (writable) => pipeArchiveTo(writable, { signal }) }));
         imageId = imported.stdout.trim();
         if (!IMAGE_ID.test(imageId)) throw fail("seaweed_candidate_import_failed");
-        if (priorImageIds.has(imageId)) throw fail("seaweed_candidate_ownership_failed");
         await stage("ownership", async () => {
           validateCandidateImage(await inspectImage(docker, tag, dockerOptions),
             { imageId, tag, diffId, rawSize, validateRuntimeConfig });
