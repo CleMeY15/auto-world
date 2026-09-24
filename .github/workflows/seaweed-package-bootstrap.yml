@@ -2,13 +2,13 @@
   "name": "SeaweedFS package bootstrap",
   "on": {"workflow_dispatch": {}},
   "permissions": {},
-  "concurrency": {"group": "seaweed-package-bootstrap", "cancel-in-progress": false},
+  "concurrency": {"group": "seaweed-package-private-read", "cancel-in-progress": false},
   "jobs": {
-    "publish": {
-      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+    "verify": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}",
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 10,
-      "permissions": {"contents": "read", "packages": "write"},
+      "permissions": {"contents": "read", "packages": "read"},
       "steps": [
         {
           "name": "Check out reviewed protected main",
@@ -21,27 +21,27 @@
           "with": {"node-version": "22.23.2", "cache": ""}
         },
         {
-          "name": "Publish fixed harmless scratch payload",
-          "id": "publish",
+          "name": "Verify fixed private package object without execution",
+          "id": "verify",
           "continue-on-error": true,
           "env": {"GITHUB_TOKEN": "${{ github.token }}"},
-          "run": "node scripts/seaweed-image/package-bootstrap.mjs --output \"${RUNNER_TEMP}/seaweed-package-bootstrap\""
+          "run": "node scripts/seaweed-image/package-private-read.mjs --output \"${RUNNER_TEMP}/seaweed-package-private-read\""
         },
         {
-          "name": "Retain bounded public bootstrap receipt only",
+          "name": "Retain bounded public verification receipt only",
           "if": "${{ always() }}",
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
           "with": {
-            "name": "seaweed-package-bootstrap-receipt",
-            "path": "${{ runner.temp }}/seaweed-package-bootstrap/receipt.json",
+            "name": "seaweed-package-private-read-receipt",
+            "path": "${{ runner.temp }}/seaweed-package-private-read/receipt.json",
             "if-no-files-found": "error",
             "retention-days": 14,
             "compression-level": 6
           }
         },
         {
-          "name": "Enforce bootstrap result",
-          "if": "${{ steps.publish.outcome != 'success' }}",
+          "name": "Enforce private read result",
+          "if": "${{ steps.verify.outcome != 'success' }}",
           "run": "exit 1"
         }
       ]
