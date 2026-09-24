@@ -39,6 +39,7 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
 for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_IDENTITY_UNCERTAIN",
   "CONTAINER_NAME_OCCUPIED", "CONTAINER_CREATE_INVALID", "CONTAINER_IDENTITY_UNCERTAIN",
+  "CONTAINER_PROFILE_UNCERTAIN",
   "VOLUME_INIT_FAILED", "FIRST_WRITE_FAILED", "SECOND_READ_FAILED",
   "PERSISTED_OBJECT_MISSING", "PERSISTED_OBJECT_MISMATCH", "CLEANUP_UNCERTAIN"]) {
   PUBLIC_REASONS.add(reason);
@@ -568,7 +569,7 @@ function ownedPersistenceVolume(result, { name, nonce, createdAfterMs, createdAt
 
 async function inspectPersistenceContainer(docker, name, options, statuses = [0]) {
   return command(docker, ["container", "inspect", "--format",
-    `{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}|{{index .Config.Labels "${OWNERSHIP_LABEL}"}}|{{index .Config.Labels "${PERSISTENCE_PURPOSE_LABEL}"}}|{{.Image}}|{{(index .Mounts 0).Type}}|{{(index .Mounts 0).Name}}|{{(index .Mounts 0).Destination}}|{{(index .Mounts 0).RW}}|{{(index .HostConfig.Mounts 0).VolumeOptions.NoCopy}}|{{.Config.User}}|{{json .HostConfig.CapAdd}}|{{json .HostConfig.CapDrop}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.SecurityOpt}}`,
+    `{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}|{{index .Config.Labels "${OWNERSHIP_LABEL}"}}|{{index .Config.Labels "${PERSISTENCE_PURPOSE_LABEL}"}}|{{.Image}}|{{range .Mounts}}{{if eq .Destination "/data"}}{{.Type}}{{end}}{{end}}|{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}|{{range .Mounts}}{{if eq .Destination "/data"}}{{.Destination}}{{end}}{{end}}|{{range .Mounts}}{{if eq .Destination "/data"}}{{.RW}}{{end}}{{end}}|{{range .HostConfig.Mounts}}{{if eq .Target "/data"}}{{.VolumeOptions.NoCopy}}{{end}}{{end}}|{{.Config.User}}|{{json .HostConfig.CapAdd}}|{{json .HostConfig.CapDrop}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.SecurityOpt}}`,
     name], options, statuses);
 }
 
@@ -584,7 +585,7 @@ function ownedPersistenceContainer(result, { nonce, imageId, volumeName, ownedId
   if (verifyProfile) {
     const init = role === "init";
     if (!init && role !== "service-1" && role !== "service-2" || fields[11] !== (init ? "0:0" : "1000:1000")
-      || init && fields[12] !== '["CHOWN"]' || !init && fields[12] !== "null" && fields[12] !== "[]"
+      || init && fields[12] !== '["CAP_CHOWN"]' || !init && fields[12] !== "null" && fields[12] !== "[]"
       || fields[13] !== '["ALL"]' || fields[14] !== "true"
       || fields[15] !== '["no-new-privileges:true"]') {
       throw failure("seaweed_candidate_runtime_persistence_failed");
@@ -634,11 +635,13 @@ async function executePersistence(input, injected) {
     const id = created.stdout.trim();
     if (!CONTAINER_ID.test(id)) throw failure("seaweed_candidate_runtime_persistence_failed");
     reason = "CONTAINER_IDENTITY_UNCERTAIN";
-    const inspected = ownedPersistenceContainer(await inspectPersistenceContainer(docker, name, options),
-      { nonce, imageId, volumeName, ownedId: id, role, verifyProfile: true });
+    const inspection = await inspectPersistenceContainer(docker, name, options);
+    const inspected = ownedPersistenceContainer(inspection, { nonce, imageId, volumeName, ownedId: id });
     if (inspected.state !== "created" || inspected.exitCode !== "0") {
       throw failure("seaweed_candidate_runtime_persistence_failed");
     }
+    reason = "CONTAINER_PROFILE_UNCERTAIN";
+    ownedPersistenceContainer(inspection, { nonce, imageId, volumeName, ownedId: id, role, verifyProfile: true });
     owned.set(role, id);
     return name;
   }

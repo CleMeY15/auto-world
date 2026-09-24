@@ -113,7 +113,8 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
 function input(extra = {}) { return { parent, dockerConfig, imageId, runId, recipeRevision, ...extra }; }
 
 function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malformedFirstCreate = false,
-  foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false } = {}) {
+  foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false,
+  legacyInitCapAdd = false } = {}) {
   const calls = []; const states = new Map(); const ids = new Map(); const inspectCounts = new Map();
   let volumeExists = preexistingVolume; let nonce = ""; let volumeInspections = 0;
   const volumeCreatedAt = new Date().toISOString();
@@ -155,7 +156,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       const role = name.slice(prefix.length + 1); const init = role === "init";
       const user = driftServiceProfile && role === "service-1" && count === 1 ? "0:0"
         : init ? "0:0" : "1000:1000";
-      const capAdd = init ? '["CHOWN"]' : "null";
+      const capAdd = init ? legacyInitCapAdd ? '["CHOWN"]' : '["CAP_CHOWN"]' : "null";
       return { status: 0,
         stdout: `${ids.get(name)}|${state}|0|${observedNonce}|restart-persistence-v1|${imageId}|volume|${volumeName}|/data|true|true|${user}|${capAdd}|["ALL"]|true|["no-new-privileges:true"]\n`,
         stderr: "" };
@@ -440,6 +441,31 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.ok(firstRemoval < secondCreate); assert.ok(secondRemoval < volumeRemoval);
 });
 
+test("persistence inspect selects the data volume by destination without relying on mount order", async () => {
+  const value = persistenceFixture();
+  await TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker });
+  const inspections = value.calls.filter((args) => args[0] === "container" && args[1] === "inspect"
+    && args[3].includes("HostConfig.Mounts"));
+  assert.ok(inspections.length > 0);
+  for (const args of inspections) {
+    assert.match(args[3], /range \.Mounts/u);
+    assert.match(args[3], /if eq \.Destination "\/data"/u);
+    assert.match(args[3], /range \.HostConfig\.Mounts/u);
+    assert.match(args[3], /if eq \.Target "\/data"/u);
+    assert.doesNotMatch(args[3], /index \.Mounts 0|index \.HostConfig\.Mounts 0/u);
+  }
+});
+
+test("persistence rejects noncanonical initializer capability before start and cleans owned resources", async () => {
+  const value = persistenceFixture({ legacyInitCapAdd: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(),
+    { docker: value.docker }), { code: "seaweed_candidate_runtime_persistence_failed",
+    phase: "PERSISTENCE_VOLUME_INIT", reason: "CONTAINER_PROFILE_UNCERTAIN" });
+  assert.equal(value.volumeExists, false);
+  assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
+});
+
 test("a pre-existing persistence volume fails closed without creating or removing resources", async () => {
   const value = persistenceFixture({ preexistingVolume: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
@@ -479,7 +505,7 @@ test("an inspected service privilege drift blocks execution but its strongly own
   const value = persistenceFixture({ driftServiceProfile: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
     { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
-      reason: "CONTAINER_IDENTITY_UNCERTAIN" });
+      reason: "CONTAINER_PROFILE_UNCERTAIN" });
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"
     && args[2].endsWith("service-1")), false);
