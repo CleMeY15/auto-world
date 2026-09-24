@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateImageReport, MAX_DATABASE_AGE_MS, SCANNER_VERSION, validateDatabaseMetadata } from "../scripts/scanner/audit-policy.mjs";
+import { evaluateImageReport, evaluateImageResults, MAX_DATABASE_AGE_MS, SCANNER_VERSION, validateDatabaseMetadata } from "../scripts/scanner/audit-policy.mjs";
 
 const pin = { repository: "synthetic/image", manifestDigest: `sha256:${"a".repeat(64)}`, platform: { digest: `sha256:${"b".repeat(64)}`, os: "linux", architecture: "amd64", variant: null } };
 const now = new Date("2026-09-14T10:00:00Z");
@@ -58,6 +58,15 @@ test("critical, fixable high and end-of-life OS cannot be waived", () => {
   const eos = report();
   eos.Metadata.OS.EOSL = true;
   assert.deepEqual(evaluate(eos).blockers, [{ code: "image_os_end_of_life" }]);
+});
+
+test("the shared result evaluator preserves the registry report finding policy", () => {
+  for (const findings of [[], [finding], [{ ...finding, FixedVersion: "2.0" }], [{ ...finding, Severity: "CRITICAL" }]]) {
+    const value = report(findings);
+    const complete = evaluate(value);
+    const shared = evaluateImageResults(value.Results, { imageDigest: pin.manifestDigest, now });
+    assert.deepEqual({ findings: shared.findings, blockers: shared.blockers }, complete);
+  }
 });
 
 test("OS package inventory includes its epoch and release when matching a finding", () => {

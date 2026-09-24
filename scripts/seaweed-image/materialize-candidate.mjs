@@ -42,6 +42,7 @@ const FAILURE_CODES = new Set([
   "seaweed_candidate_runtime_failed", "seaweed_candidate_runtime_cleanup_failed",
   "seaweed_candidate_runtime_backup_restore_failed", "seaweed_candidate_runtime_backup_restore_cleanup_failed",
   "seaweed_candidate_runtime_host_loopback_failed", "seaweed_candidate_runtime_host_loopback_cleanup_failed",
+  "seaweed_candidate_inspection_failed",
 ]);
 const isPublicRuntimePhase = (value) => isPublicSeaweedRuntimePhase(value)
   || isPublicSeaweedHostLoopbackPhase(value);
@@ -353,7 +354,7 @@ async function cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfs
   return clean;
 }
 
-async function execute(input, testOnly, executionProfile = "NONE") {
+async function execute(input, testOnly, executionProfile = "NONE", inspectArchive) {
   if (!exactObject(input, ["parent", "recipeRevision", "createdAt", "runId", "signal"])
     && !exactObject(input, ["parent", "recipeRevision", "createdAt", "runId"])) throw fail("seaweed_candidate_arguments_invalid");
   const { parent, recipeRevision, createdAt, runId, signal } = input;
@@ -466,6 +467,12 @@ async function execute(input, testOnly, executionProfile = "NONE") {
           || archiveProof.tag !== tag || archiveProof.diffId !== diffId || archiveProof.rawSize !== rawSize
           || archiveProof.memberCount !== memberCount || archiveProof.serverVersion !== serverVersion) {
           throw fail("seaweed_candidate_archive_failed");
+        }
+        if (inspectArchive !== undefined) {
+          const archiveProofSnapshot = Object.freeze({ ...archiveProof });
+          const inspectionContext = Object.freeze({ file: saved, archiveProof: archiveProofSnapshot,
+            imageId, diffId, runId, recipeRevision, signal });
+          try { await inspectArchive(inspectionContext); } catch { throw fail("seaweed_candidate_inspection_failed"); }
         }
         if (verifyRuntime !== undefined || verifyPersistence !== undefined || verifyStrict !== undefined
           || verifyBackupRestore !== undefined || verifyHostLoopback !== undefined) {
@@ -593,6 +600,14 @@ async function execute(input, testOnly, executionProfile = "NONE") {
 
 export async function materializeLocalSeaweedCandidate(input) { return execute(input, undefined); }
 export async function TEST_ONLY_materializeLocalSeaweedCandidate(input, injected) { return execute(input, injected); }
+export async function withVerifiedLocalSeaweedCandidate(input, inspectArchive) {
+  if (typeof inspectArchive !== "function") throw fail("seaweed_candidate_arguments_invalid");
+  return execute(input, undefined, "NONE", inspectArchive);
+}
+export async function TEST_ONLY_withVerifiedLocalSeaweedCandidate(input, inspectArchive, injected) {
+  if (typeof inspectArchive !== "function") throw fail("seaweed_candidate_arguments_invalid");
+  return execute(input, injected, "NONE", inspectArchive);
+}
 export async function materializeAndVerifyLocalSeaweedRuntimeCandidate(input) {
   return execute(input, undefined, "RUNTIME_PROFILE");
 }
