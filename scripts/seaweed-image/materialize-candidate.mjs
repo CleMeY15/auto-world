@@ -7,6 +7,8 @@ import { pipeline } from "node:stream/promises";
 import { isDeepStrictEqual } from "node:util";
 
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
+import { validateSeaweedRuntimeBackupRestoreProof, verifyLocalSeaweedRuntimeBackupRestore } from
+  "./backup-restore.mjs";
 import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
   validateSeaweedRuntimeStrictContentionProof, verifyLocalSeaweedRuntimeProfile,
@@ -34,6 +36,7 @@ const FAILURE_CODES = new Set([
   "seaweed_candidate_temporary_cleanup_failed", "seaweed_candidate_aborted", "seaweed_candidate_failed",
   "seaweed_candidate_store_failed", "seaweed_candidate_store_not_empty",
   "seaweed_candidate_runtime_failed", "seaweed_candidate_runtime_cleanup_failed",
+  "seaweed_candidate_runtime_backup_restore_failed", "seaweed_candidate_runtime_backup_restore_cleanup_failed",
 ]);
 
 function fail(code) {
@@ -311,6 +314,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
     ? testOnly?.verifyPersistence ?? verifyLocalSeaweedRuntimeRestartPersistence : undefined;
   const verifyStrict = executionProfile === "STRICT_CONTENTION_PROFILE"
     ? testOnly?.verifyStrict ?? verifyLocalSeaweedRuntimeStrictContention : undefined;
+  const verifyBackupRestore = executionProfile === "BACKUP_RESTORE_PROFILE"
+    ? testOnly?.verifyBackupRestore ?? verifyLocalSeaweedRuntimeBackupRestore : undefined;
   const docker = testOnly?.docker ?? defaultDocker;
   const rootfsParent = path.join(parent, "rootfs"); const work = path.join(parent, "work");
   const dockerConfig = path.join(work, "docker-config"); const saved = path.join(work, "saved.tar");
@@ -350,7 +355,7 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
       let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof;
-      let persistenceProof; let strictContentionProof;
+      let persistenceProof; let strictContentionProof; let backupRestoreProof;
       let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -397,9 +402,10 @@ async function execute(input, testOnly, executionProfile = "NONE") {
           || archiveProof.memberCount !== memberCount || archiveProof.serverVersion !== serverVersion) {
           throw fail("seaweed_candidate_archive_failed");
         }
-        if (verifyRuntime !== undefined || verifyPersistence !== undefined || verifyStrict !== undefined) {
+        if (verifyRuntime !== undefined || verifyPersistence !== undefined || verifyStrict !== undefined
+          || verifyBackupRestore !== undefined) {
           try {
-            const proof = await (verifyPersistence ?? verifyStrict ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
+            const proof = await (verifyPersistence ?? verifyStrict ?? verifyBackupRestore ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
               runId, recipeRevision, signal }));
             if (verifyPersistence !== undefined) {
               validateSeaweedRuntimePersistenceProof(proof, { imageId, runId, recipeRevision });
@@ -413,6 +419,9 @@ async function execute(input, testOnly, executionProfile = "NONE") {
                 { imageId, runId, recipeRevision });
               runtimeProof = proof.runtimeProof;
               strictContentionProof = proof.strictContentionProof;
+            } else if (verifyBackupRestore !== undefined) {
+              validateSeaweedRuntimeBackupRestoreProof(proof, { imageId, runId, recipeRevision });
+              backupRestoreProof = proof;
             } else {
               validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
               runtimeProof = proof;
@@ -421,6 +430,7 @@ async function execute(input, testOnly, executionProfile = "NONE") {
             const runtimeCode = ownData(error, "code");
             const reported = fail(runtimeCode === "seaweed_candidate_runtime_cleanup_failed"
               || runtimeCode === "seaweed_candidate_runtime_persistence_cleanup_failed"
+              || runtimeCode === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
               ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed");
             const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
             const durationMs = ownData(error, "durationMs");
@@ -452,7 +462,9 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
-      return Object.freeze({ kind: strictContentionProof !== undefined
+      return Object.freeze({ kind: backupRestoreProof !== undefined
+        ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5"
+        : strictContentionProof !== undefined
         ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4"
         : persistenceProof !== undefined ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3"
         : runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
@@ -468,7 +480,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
         archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes,
         ...(runtimeProof === undefined ? {} : { runtimeProof }),
         ...(persistenceProof === undefined ? {} : { persistenceProof }),
-        ...(strictContentionProof === undefined ? {} : { strictContentionProof }) });
+        ...(strictContentionProof === undefined ? {} : { strictContentionProof }),
+        ...(backupRestoreProof === undefined ? {} : { backupRestoreProof }) });
     });
   } catch (error) { failure = error; }
   const clean = await cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfsIdentity, work, workIdentity,
@@ -504,4 +517,10 @@ export async function materializeAndVerifyLocalSeaweedRuntimeStrictContentionCan
 }
 export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate(input, injected) {
   return execute(input, injected, "STRICT_CONTENTION_PROFILE");
+}
+export async function materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(input) {
+  return execute(input, undefined, "BACKUP_RESTORE_PROFILE");
+}
+export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(input, injected) {
+  return execute(input, injected, "BACKUP_RESTORE_PROFILE");
 }

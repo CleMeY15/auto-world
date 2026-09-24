@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
   validateSeaweedRuntimeStrictContentionProof } from "./candidate-runtime.mjs";
+import { validateSeaweedRuntimeBackupRestoreProof } from "./backup-restore.mjs";
 import { isPublicCandidateFailureCode,
+  materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
   materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
   materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate } from "./materialize-candidate.mjs";
 import { baseMaterialIdentities } from "./plan.mjs";
@@ -24,12 +26,12 @@ const validRevision = (value) => typeof value === "string" && /^[0-9a-f]{40}$/u.
 
 function fail(code) { return Object.assign(new Error(code), { code }); }
 
-async function requireContext(env, strict) {
+async function requireContext(env, mode) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.RUNNER_ENVIRONMENT !== "github-hosted"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world"
-    || env.GITHUB_RUN_NUMBER !== (strict ? "8" : "7")
+    || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "9" : "7")
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")
@@ -39,7 +41,8 @@ async function requireContext(env, strict) {
   try {
     if (await realpath(env.RUNNER_TEMP) !== env.RUNNER_TEMP) throw fail("seaweed_candidate_context_invalid");
   } catch { throw fail("seaweed_candidate_context_invalid"); }
-  return path.join(env.RUNNER_TEMP, strict ? "seaweed-runtime-strict-contention" : "seaweed-runtime-candidate");
+  return path.join(env.RUNNER_TEMP, mode === "strict" ? "seaweed-runtime-strict-contention"
+    : mode === "backup" ? "seaweed-runtime-backup-restore" : "seaweed-runtime-candidate");
 }
 
 async function cleanupRoot(root) {
@@ -59,16 +62,19 @@ function elapsedMs(started) {
   return Math.min(10_800_000, Math.max(0, Math.floor(performance.now() - started)));
 }
 
-function publicReceipt(result, env, durationMs, strict) {
+function publicReceipt(result, env, durationMs, mode) {
+  const strict = mode === "strict"; const backup = mode === "backup";
   const keys = ["kind", "state", "authority", "candidateAuthorization", "imageExecution", "publication",
     "vulnerabilityAudit", "admission", "runId", "recipeRevision", "rawSize", "diffId", "memberCount",
     "imageId", "sourceRunId", "sourceCodeRevision", "sourceBinaryDigest", "baseManifestDigest",
     "serverVersion", "archiveKind", "archiveIdentityType", "archiveSha256", "archiveBytes",
-    ...(strict ? ["runtimeProof", "strictContentionProof"] : ["persistenceProof"])];
+    ...(strict ? ["runtimeProof", "strictContentionProof"]
+      : backup ? ["backupRestoreProof"] : ["persistenceProof"])];
   if (result === null || typeof result !== "object" || Object.keys(result).length !== keys.length
     || keys.some((key) => !Object.hasOwn(result, key))
     || result.kind !== (strict ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4"
-      : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3") || result.state !== "VERIFIED"
+      : backup ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5"
+        : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3") || result.state !== "VERIFIED"
     || result.authority !== "DIAGNOSTIC_ONLY" || result.candidateAuthorization !== "NOT_AUTHORIZED"
     || result.imageExecution !== "VERIFIED_DIAGNOSTIC" || result.publication !== "NOT_ATTEMPTED"
     || result.vulnerabilityAudit !== "NOT_ATTEMPTED" || result.admission !== "NOT_ATTEMPTED"
@@ -90,7 +96,8 @@ function publicReceipt(result, env, durationMs, strict) {
     if (strict) {
       validateSeaweedRuntimeProfileProof(result.runtimeProof, expected);
       validateSeaweedRuntimeStrictContentionProof(result.strictContentionProof, expected);
-    } else validateSeaweedRuntimePersistenceProof(result.persistenceProof, expected);
+    } else if (backup) validateSeaweedRuntimeBackupRestoreProof(result.backupRestoreProof, expected);
+    else validateSeaweedRuntimePersistenceProof(result.persistenceProof, expected);
   } catch { throw fail("seaweed_candidate_failed"); }
   const bytes = JSON.stringify({ ...result, diagnostic: { phase: "RUNTIME_COMPLETE", result: "VERIFIED",
     reason: "CHECKS_PASSED", durationMs } });
@@ -99,20 +106,22 @@ function publicReceipt(result, env, durationMs, strict) {
 }
 
 async function executeMain(argv, env, testOnly, started) {
-  if (argv.length !== 1 || !["execute", "cleanup", "execute-strict", "cleanup-strict"].includes(argv[0])) {
+  if (argv.length !== 1 || !["execute", "cleanup", "execute-strict", "cleanup-strict",
+    "execute-backup", "cleanup-backup"].includes(argv[0])) {
     throw fail("seaweed_candidate_arguments_invalid");
   }
-  const strict = argv[0].endsWith("-strict");
-  const root = await requireContext(env, strict);
+  const mode = argv[0].endsWith("-strict") ? "strict" : argv[0].endsWith("-backup") ? "backup" : "persistence";
+  const root = await requireContext(env, mode);
   const log = testOnly.log ?? console.log;
   if (argv[0].startsWith("cleanup")) {
     await cleanupRoot(root);
     log(JSON.stringify({ state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" }));
     return;
   }
-  const materialize = testOnly.materialize ?? (strict
+  const materialize = testOnly.materialize ?? (mode === "strict"
     ? materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate
-    : materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate);
+    : mode === "backup" ? materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate
+      : materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate);
   await mkdir(root, { mode: 0o700 });
   let result; let failure;
   try {
@@ -121,7 +130,7 @@ async function executeMain(argv, env, testOnly, started) {
   } catch (error) { failure = error; }
   await cleanupRoot(root);
   if (failure !== undefined) throw failure;
-  log(publicReceipt(result, env, elapsedMs(started), strict));
+  log(publicReceipt(result, env, elapsedMs(started), mode));
 }
 
 function ownData(error, key) {
