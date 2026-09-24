@@ -159,12 +159,12 @@ test("strict dispatch rejects run seven and tampered contention proof", { skip: 
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
-test("tenth dispatch emits only backup restore V5 after owned cleanup", { skip: !linux }, async () => {
+test("eleventh dispatch emits only backup restore V5 after owned cleanup", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-backup-"));
   const root = path.join(runnerTemp, "seaweed-runtime-backup-restore");
   const events = [];
   try {
-    await TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "10"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "11"), {
       materialize: async ({ parent }) => {
         assert.equal(parent, root); assert.deepEqual(await readdir(parent), []); return backupReceipt();
       },
@@ -176,7 +176,7 @@ test("tenth dispatch emits only backup restore V5 after owned cleanup", { skip: 
       phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED", durationMs: 0,
     });
     await assert.rejects(access(root), { code: "ENOENT" });
-    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-backup"], context(runnerTemp, "10"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-backup"], context(runnerTemp, "11"), {
       log: (line) => events.push(JSON.parse(line)),
     });
     assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
@@ -190,9 +190,11 @@ test("backup dispatch rejects other run numbers and tampered proof", { skip: !li
       { code: "seaweed_candidate_context_invalid" });
     await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "10")),
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "10")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "10"), {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "11")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "11"), {
       materialize: async () => ({ ...backupReceipt(), backupRestoreProof: {
         ...backupReceipt().backupRestoreProof, sourceDisposal: "SOURCE_PRESENT" } }),
     }), { code: "seaweed_candidate_failed" });
