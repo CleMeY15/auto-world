@@ -50,6 +50,8 @@ server -dir=/data -master.telemetry=false -s3 -s3.port=8333 -s3.port.iceberg=0 -
 
 Run as UID/GID `1000:1000`, with the existing `0600` private configuration and internal health service on 9333. Publish S3 only on host `127.0.0.1`, targeting container port 8333; the existing local host default is 9000, while CI selects an ephemeral host port. Preserve the limits of 768 MiB, 0.75 CPU, 512 PIDs and 30-second stop grace. These values come from the unmerged PR7 reference at `31a4a2434d28d2bcb5f1ad2dba3904728e706a1b`, not a newly accepted runtime. Retain its owned-volume/reset/restore safeguards. No topology, production source, public exposure or credential design changes are introduced.
 
+For a read-only root filesystem, provide a bounded writable `/tmp` for the pinned server's internal Unix sockets. The isolated diagnostic uses a private 16 MiB tmpfs owned by UID/GID `1000:1000`, mode `0700`, with `nosuid,nodev,noexec`; it keeps disposable service data in a separate `/data` tmpfs. The pinned [server registration](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/weed/command/server.go#L337-L356) chooses `/tmp` sockets for master, volume, filer and S3, while its [gRPC listener](https://github.com/seaweedfs/seaweedfs/blob/c5073360007d28385a33426a42ac3e4ec504c5a3/weed/pb/grpc_client_server.go#L134-L149) cannot create them on a read-only path. This constrains a runtime mount; it does not alter the image filesystem contract.
+
 Require actual evidence on the exact candidate digest for:
 
 - Cold start, readiness, the expected derivative version, disabled Iceberg/Lance listeners and bounded shutdown.

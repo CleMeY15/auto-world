@@ -41,6 +41,7 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
       assert.ok(args.includes("--cpus=.75")); assert.ok(args.includes("--pids-limit=512"));
       assert.ok(args.includes("--cap-drop=ALL")); assert.ok(args.includes("--security-opt=no-new-privileges=true"));
       assert.ok(args.includes("--stop-timeout=30")); assert.ok(args.includes("--entrypoint=/bin/sh"));
+      assert.ok(args.includes("/tmp:rw,nosuid,nodev,noexec,size=16m,mode=0700,uid=1000,gid=1000"));
       assert.ok(args.includes("--label"));
       const label = args[args.indexOf("--label") + 1];
       assert.match(label, /^com\.auto-world\.runtime-nonce=[0-9a-f]{48}$/u);
@@ -56,7 +57,10 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
       state = "running"; return { status: 0, stdout: `${args[2]}\n`, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "exec" && args.at(-1).includes?.("SEAWEED_RUNTIME_PROFILE_VERIFIED")) {
-      assert.equal(options.timeoutMs, 300_000);
+      assert.equal(options.timeoutMs, 390_000);
+      assert.match(args.at(-1), /stat -c '%u:%g:%a' \/tmp/u);
+      assert.match(args.at(-1), /http:\/\/127\.0\.0\.1:8888\/readyz/u);
+      assert.match(args.at(-1), /test "\$filerready" = 200 \|\| exit 36/u);
       assert.match(args.at(-1), /http:\/\/127\.0\.0\.1:8333\/readyz/u);
       assert.match(args.at(-1), /test "\$s3ready" = 200 \|\| exit 33/u);
       assert.match(args.at(-1), /case "\$anonymous" in 403\) ;; 000\|''\) exit 33 ;; 200\) exit 22 ;; \*\) exit 34/u);
@@ -90,7 +94,7 @@ test("runtime diagnostic applies the fixed isolated profile and returns a bounde
   assert.deepEqual(validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision }), proof);
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.derivativeVersion, "c507336+aw.549ec92660ab");
-  assert.equal(proof.readiness, "CLUSTER_STATUS_200_S3_READYZ_200");
+  assert.equal(proof.readiness, "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200");
   assert.equal(proof.anonymousAccess, "REFUSED_403");
   assert.equal(proof.rustHelpers, "ABSENT_AND_REJECTED"); assert.equal(value.state, undefined);
   assert.equal(value.calls.filter((args) => args[1] === "stop").length, 1);
@@ -111,7 +115,8 @@ for (const [status, reason] of [
   [24, "GID_MISMATCH"], [25, "CONFIG_MODE_MISMATCH"], [26, "READINESS_UNAVAILABLE"],
   [27, "ICEBERG_LISTENER_OPEN"], [28, "LANCE_LISTENER_OPEN"],
   [29, "RUST_HELPER_PRESENT"], [32, "PROBE_COMMAND"], [33, "S3_UNAVAILABLE"],
-  [34, "ANONYMOUS_UNEXPECTED_STATUS"],
+  [34, "ANONYMOUS_UNEXPECTED_STATUS"], [35, "TMPFS_MODE_MISMATCH"],
+  [36, "FILER_UNAVAILABLE"],
 ]) {
   test(`runtime probe status ${status} reports bounded reason ${reason}`, async () => {
     const value = fixture({ probeStatus: status });
