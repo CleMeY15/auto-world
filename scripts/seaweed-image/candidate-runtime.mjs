@@ -3,6 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
+import { runStrictContentionProbe } from "./strict-contention.mjs";
+
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/u;
 const CONTAINER_ID = /^[0-9a-f]{64}$/u;
 const REVISION = /^[0-9a-f]{40}$/u;
@@ -20,6 +22,7 @@ const PAYLOAD_A_SHA256 = createHash("sha256").update(PAYLOAD_A).digest("hex");
 const PAYLOAD_B_SHA256 = createHash("sha256").update(PAYLOAD_B).digest("hex");
 const PUBLIC_PHASES = new Set(["RUNTIME_CONTEXT", "RUNTIME_PRECHECK", "RUNTIME_CREATE",
   "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_S3_PROTOCOL", "RUNTIME_HELPERS", "RUNTIME_STOP",
+  "RUNTIME_STRICT_CONTENTION",
   "RUNTIME_CLEANUP", "PERSISTENCE_CONTEXT", "PERSISTENCE_PRECHECK", "PERSISTENCE_VOLUME_CREATE",
   "PERSISTENCE_VOLUME_INIT", "PERSISTENCE_SERVICE_ONE", "PERSISTENCE_SERVICE_TWO",
   "PERSISTENCE_CLEANUP"]);
@@ -37,6 +40,12 @@ const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIE
   "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
   "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
   "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
+for (const reason of ["STRICT_INPUT_INVALID", "STRICT_SIGNED_PROBE_FAILURE", "STRICT_PRECONDITION_UNEXPECTED",
+  "STRICT_RESPONSE_INVALID", "STRICT_BARRIER_MISSING", "STRICT_EARLY_FINAL",
+  "STRICT_RESULT_UNEXPECTED", "STRICT_READBACK_MISMATCH", "STRICT_TRANSPORT_FAILURE",
+  "STRICT_TIMEOUT"]) {
+  PUBLIC_REASONS.add(reason);
+}
 for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_IDENTITY_UNCERTAIN",
   "CONTAINER_NAME_OCCUPIED", "CONTAINER_CREATE_INVALID", "CONTAINER_IDENTITY_UNCERTAIN",
   "CONTAINER_PROFILE_UNCERTAIN", "CONTAINER_USER_MISMATCH", "CONTAINER_CAP_ADD_MISMATCH",
@@ -284,7 +293,31 @@ export function validateSeaweedRuntimeProfileProof(proof, expected) {
   return canonical;
 }
 
-async function execute(input, injected) {
+const STRICT_PROOF_KEYS = ["kind", "state", "authority", "candidateAuthorization", "imageId",
+  "runId", "recipeRevision", "requestBarrier", "conditionalResult", "winner", "winnerReadback",
+  "isolation", "shutdown"];
+
+function expectedStrictProof({ imageId, runId, recipeRevision, winner }) {
+  return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_STRICT_CONTENTION_PROOF_V1", state: "VERIFIED",
+    authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED", imageId, runId,
+    recipeRevision, requestBarrier: "TWO_SIGNED_HTTP11_100_BEFORE_BODIES",
+    conditionalResult: "ONE_200_ONE_412", winner, winnerReadback: "SIGNED_GET_WINNER_SHA256",
+    isolation: "LOOPBACK_ONLY_NO_PUBLISHED_PORT", shutdown: "BOUNDED" });
+}
+
+export function validateSeaweedRuntimeStrictContentionProof(proof, expected) {
+  if (!exactObject(expected, ["imageId", "runId", "recipeRevision"])
+    || !IMAGE_ID.test(expected.imageId) || !RUN_ID.test(expected.runId)
+    || !REVISION.test(expected.recipeRevision) || !exactObject(proof, STRICT_PROOF_KEYS)
+    || !["A", "B"].includes(proof.winner)) throw failure("seaweed_candidate_runtime_failed");
+  const canonical = expectedStrictProof({ ...expected, winner: proof.winner });
+  for (const key of STRICT_PROOF_KEYS) if (proof[key] !== canonical[key]) {
+    throw failure("seaweed_candidate_runtime_failed");
+  }
+  return canonical;
+}
+
+async function execute(input, injected, strict = false) {
   const started = performance.now();
   if (!validInput(input)) throw diagnosticFailure("seaweed_candidate_runtime_failed",
     "RUNTIME_CONTEXT", "INPUT_INVALID", started);
@@ -298,7 +331,9 @@ async function execute(input, injected) {
   if (signal?.aborted) throw diagnosticFailure("seaweed_candidate_runtime_failed",
     "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   const docker = injected?.docker ?? defaultDocker;
-  if (typeof docker !== "function" || injected !== undefined && !exactObject(injected, ["docker"])) {
+  const strictProbe = injected?.strictProbe ?? runStrictContentionProbe;
+  if (typeof docker !== "function" || typeof strictProbe !== "function"
+    || injected !== undefined && !exactObject(injected, strict ? ["docker", "strictProbe"] : ["docker"])) {
     throw diagnosticFailure("seaweed_candidate_runtime_failed", "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   }
   const name = `aw-seaweed-runtime-${runId}-attempt-1`;
@@ -307,7 +342,7 @@ async function execute(input, injected) {
   const options = { cwd: parent, env, signal, timeoutMs: COMMAND_TIMEOUT_MS };
   const cleanupOptions = { cwd: parent, env, timeoutMs: CLEANUP_TIMEOUT_MS };
   const nonce = randomBytes(24).toString("hex");
-  let ownedId; let createAttempted = false; let primaryFailure; let proof;
+  let ownedId; let createAttempted = false; let primaryFailure; let proof; let strictWinner;
   let phase = "RUNTIME_PRECHECK"; let reason = "DOCKER_COMMAND";
   try {
     if (!await containerAbsent(docker, name, options)) {
@@ -364,6 +399,18 @@ async function execute(input, injected) {
     if (signed.stdout.trim() !== "SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED" || signed.stderr.trim() !== "") {
       reason = "PROBE_OUTPUT_INVALID";
       throw failure("seaweed_candidate_runtime_failed");
+    }
+    if (strict) {
+      phase = "RUNTIME_STRICT_CONTENTION"; reason = "STRICT_TRANSPORT_FAILURE";
+      try {
+        const result = await strictProbe({ name, runId, options, docker, accessKey: ACCESS_KEY,
+          secretKey: SECRET_KEY });
+        if (!["A", "B"].includes(result?.winner)) throw failure("seaweed_candidate_runtime_failed");
+        strictWinner = result.winner;
+      } catch (error) {
+        if (PUBLIC_REASONS.has(error?.reason) && error.reason.startsWith("STRICT_")) reason = error.reason;
+        throw failure("seaweed_candidate_runtime_failed");
+      }
     }
     phase = "RUNTIME_HELPERS"; reason = "RUST_HELPER_COMMAND";
     for (const helper of ["volume-rust", "worker-rust"]) {
@@ -423,7 +470,12 @@ async function execute(input, injected) {
   }
   if (primaryFailure !== undefined) throw diagnosticFailure("seaweed_candidate_runtime_failed",
     phase, reason, started);
-  return proof;
+  if (!strict) return proof;
+  const strictContentionProof = expectedStrictProof({ imageId, runId, recipeRevision,
+    winner: strictWinner });
+  validateSeaweedRuntimeStrictContentionProof(strictContentionProof,
+    { imageId, runId, recipeRevision });
+  return Object.freeze({ runtimeProof: proof, strictContentionProof });
 }
 
 export function verifyLocalSeaweedRuntimeProfile(input) { return execute(input); }
@@ -432,6 +484,13 @@ export function TEST_ONLY_expectedSeaweedRuntimeProfileProof(expected) {
   return validateSeaweedRuntimeProfileProof(expectedProof(expected), expected);
 }
 export function TEST_ONLY_signedSeaweedS3ProbeScript() { return SIGNED_PROBE; }
+export function verifyLocalSeaweedRuntimeStrictContention(input) { return execute(input, undefined, true); }
+export function TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention(input, injected) {
+  return execute(input, injected, true);
+}
+export function TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(expected, winner = "A") {
+  return validateSeaweedRuntimeStrictContentionProof(expectedStrictProof({ ...expected, winner }), expected);
+}
 
 const PERSISTENCE_PURPOSE_LABEL = "com.auto-world.runtime-purpose";
 const PERSISTENCE_PURPOSE = "restart-persistence-v1";

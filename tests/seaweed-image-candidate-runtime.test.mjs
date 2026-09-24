@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof, TEST_ONLY_signedSeaweedS3ProbeScript,
+import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
+  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof, TEST_ONLY_signedSeaweedS3ProbeScript,
   TEST_ONLY_verifyLocalSeaweedRuntimeProfile, TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence,
-  validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
+  TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention, validateSeaweedRuntimePersistenceProof,
+  validateSeaweedRuntimeProfileProof, validateSeaweedRuntimeStrictContentionProof,
   verifyLocalSeaweedRuntimeProfile, verifyLocalSeaweedRuntimeRestartPersistence } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
 
@@ -300,6 +302,52 @@ test("runtime diagnostic applies the fixed isolated profile and returns a bounde
   assert.equal(proof.rustHelpers, "ABSENT_AND_REJECTED"); assert.equal(value.state, undefined);
   assert.equal(value.calls.filter((args) => args[1] === "stop").length, 1);
   assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
+});
+
+test("strict contention proof follows the signed runtime checks and owned cleanup", async () => {
+  const value = fixture();
+  let invoked = false;
+  const result = await TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention(input(), {
+    docker: value.docker,
+    strictProbe: async ({ name, runId: actualRunId, options }) => {
+      invoked = true;
+      assert.equal(name, `aw-seaweed-runtime-${runId}-attempt-1`);
+      assert.equal(actualRunId, runId);
+      assert.equal(options.env.DOCKER_CONFIG, dockerConfig);
+      assert.equal(value.state, "running");
+      return { winner: "B" };
+    },
+  });
+  assert.equal(invoked, true);
+  assert.equal(value.state, undefined);
+  assert.equal(result.runtimeProof.kind, "SEAWEED_LOCAL_RUNTIME_PROOF_V2");
+  assert.equal(result.strictContentionProof.winner, "B");
+  assert.deepEqual(validateSeaweedRuntimeStrictContentionProof(result.strictContentionProof,
+    { imageId, runId, recipeRevision }), result.strictContentionProof);
+  assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
+});
+
+test("strict contention failure is bounded and cleans the owned container", async () => {
+  const value = fixture();
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention(input(), {
+    docker: value.docker,
+    strictProbe: async () => { throw Object.assign(new Error("private detail"),
+      { reason: "STRICT_BARRIER_MISSING" }); },
+  }), { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_STRICT_CONTENTION",
+    reason: "STRICT_BARRIER_MISSING" });
+  assert.equal(value.state, undefined);
+  assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
+});
+
+test("strict proof rejects altered result and extra fields", () => {
+  const expected = { imageId, runId, recipeRevision };
+  const proof = TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(expected);
+  assert.throws(() => validateSeaweedRuntimeStrictContentionProof({ ...proof, winner: "C" }, expected),
+    { code: "seaweed_candidate_runtime_failed" });
+  assert.throws(() => validateSeaweedRuntimeStrictContentionProof({ ...proof, requestBarrier: "UNKNOWN" },
+    expected), { code: "seaweed_candidate_runtime_failed" });
+  assert.throws(() => validateSeaweedRuntimeStrictContentionProof({ ...proof, extra: true }, expected),
+    { code: "seaweed_candidate_runtime_failed" });
 });
 
 test("runtime failure still cleans the owned container", async () => {

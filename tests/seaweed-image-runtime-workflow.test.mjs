@@ -15,7 +15,7 @@ test("runtime workflow is one-time, main-only and read-only", async () => {
   assert.match(bytes, /test "\$RUNNER_ENVIRONMENT" = 'github-hosted'/u);
   assert.match(bytes, /test "\$GITHUB_EVENT_NAME" = 'workflow_dispatch'/u);
   assert.match(bytes, /test "\$GITHUB_REF" = 'refs\/heads\/main'/u);
-  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '7'/u);
+  assert.match(bytes, /test "\$GITHUB_RUN_NUMBER" = '8'/u);
   assert.match(bytes, /test "\$GITHUB_RUN_ATTEMPT" = '1'/u);
   assert.match(bytes, /test "\$GITHUB_WORKFLOW_REF" = 'CleMeY15\/auto-world\/\.github\/workflows\/seaweed-runtime-candidate\.yml@refs\/heads\/main'/u);
   assert.match(bytes, /concurrency:\n {2}group: seaweed-runtime-candidate\n {2}cancel-in-progress: false/u);
@@ -37,9 +37,9 @@ test("runtime workflow pins its Linux toolchain, checkout and capacity gates", a
 
 test("runtime workflow executes and always cleans up without publishing artifacts", async () => {
   const bytes = await readFile(workflow, "utf8");
-  assert.match(bytes, /env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: node scripts\/seaweed-image\/runtime-diagnostic\.mjs execute/u);
-  assert.match(bytes, /- name: Remove diagnostic-owned empty directory\n {8}if: \$\{\{ always\(\) \}\}\n {8}run: node scripts\/seaweed-image\/runtime-diagnostic\.mjs cleanup/u);
-  assert.equal([...bytes.matchAll(/runtime-diagnostic\.mjs execute/gu)].length, 1);
-  assert.equal([...bytes.matchAll(/runtime-diagnostic\.mjs cleanup/gu)].length, 1);
+  assert.match(bytes, /env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: node scripts\/seaweed-image\/runtime-diagnostic\.mjs execute-strict/u);
+  assert.match(bytes, /- name: Remove diagnostic-owned empty directory\n {8}if: \$\{\{ always\(\) \}\}\n {8}run: node scripts\/seaweed-image\/runtime-diagnostic\.mjs cleanup-strict/u);
+  assert.equal([...bytes.matchAll(/runtime-diagnostic\.mjs execute-strict/gu)].length, 1);
+  assert.equal([...bytes.matchAll(/runtime-diagnostic\.mjs cleanup-strict/gu)].length, 1);
   assert.doesNotMatch(bytes, /upload-artifact|download-artifact|docker\s+(?:login|push|build|tag)|docker\/login-action|docker\/build-push-action|gh\s+workflow\s+run|fork/u);
 });
