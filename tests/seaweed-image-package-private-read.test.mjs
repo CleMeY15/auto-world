@@ -53,11 +53,16 @@ function commandRunner({
   anonymousMessage = "unauthorized: authentication required",
   anonymousSuccess = false,
   copiedPayload = SEAWEED_PACKAGE_PRIVATE_READ.payload,
+  failContainerRemoval = false,
+  failImageRemoval = false,
   failPullAfterLocalCreate = false,
+  foreignRecoveredContainer = false,
   localCollision = false,
+  lostCreateResponse = false,
   wrongLabels = false,
 } = {}) {
   const subject = `${SEAWEED_PACKAGE_PRIVATE_READ.image}@${SEAWEED_PACKAGE_PRIVATE_READ.digest}`;
+  const container = "aw-seaweed-package-private-read-35990000000";
   let imagePresent = localCollision;
   let containerPresent = false;
   return (command, args, options) => {
@@ -80,9 +85,17 @@ function commandRunner({
         : { status: 1, stdout: "", stderr: "Error: No such image" };
     }
     if (args[0] === "container" && args[1] === "inspect") {
-      return containerPresent
-        ? { status: 0, stdout: "[]", stderr: "" }
-        : { status: 1, stdout: "", stderr: "Error: No such container" };
+      if (!containerPresent) return { status: 1, stdout: "", stderr: "Error: No such container" };
+      if (args[2] !== "--format") return { status: 0, stdout: "[]", stderr: "" };
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          Name: `/${container}`,
+          Config: { Image: foreignRecoveredContainer ? "ghcr.io/other/image@sha256:foreign" : subject },
+          State: { Running: false },
+        }),
+        stderr: "",
+      };
     }
     if (args[0] === "pull") {
       imagePresent = true;
@@ -111,17 +124,21 @@ function commandRunner({
     }
     if (args[0] === "create") {
       containerPresent = true;
-      return { status: 0, stdout: "container-id", stderr: "" };
+      return lostCreateResponse
+        ? { status: 1, stdout: "", stderr: "response lost" }
+        : { status: 0, stdout: "container-id", stderr: "" };
     }
     if (args[0] === "cp") {
       writeFileSync(args[2], copiedPayload);
       return { status: 0, stdout: "", stderr: "" };
     }
     if (args[0] === "rm") {
+      if (failContainerRemoval) return { status: 1, stdout: "", stderr: "container removal failed" };
       containerPresent = false;
       return { status: 0, stdout: "", stderr: "" };
     }
     if (args[0] === "image" && args[1] === "rm") {
+      if (failImageRemoval) return { status: 1, stdout: "", stderr: "image removal failed" };
       imagePresent = false;
       return { status: 0, stdout: "", stderr: "" };
     }
@@ -263,4 +280,64 @@ test("a failed pull that leaves the previously absent exact digest is cleaned", 
   const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
   assert.equal(receipt.phases.find(({ name }) => name === "authorized_image_pull").result, "FAILED");
   assert.equal(receipt.phases.find(({ name }) => name === "owned_docker_cleanup").result, "PASSED");
+});
+
+test("a lost create response recovers and removes the exact previously absent container", async (context) => {
+  const item = fixture();
+  context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
+  const calls = [];
+  await assert.rejects(runSeaweedPackagePrivateRead({
+    argv: ["--output", item.output],
+    commandRunner: commandRunner({ calls, lostCreateResponse: true }),
+    env: item.env,
+    manifestValidator: exactManifest,
+    platform: "linux",
+  }), /command_failed/u);
+  assert.equal(calls.some(({ args }) => args[0] === "rm"), true);
+  assert.equal(calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), true);
+  const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+  assert.equal(receipt.phases.find(({ name }) => name === "stopped_container_create").result, "FAILED");
+  assert.equal(receipt.phases.find(({ name }) => name === "owned_docker_cleanup").result, "PASSED");
+});
+
+test("a recovered container with foreign identity is preserved and fails cleanup", async (context) => {
+  const item = fixture();
+  context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
+  const calls = [];
+  await assert.rejects(runSeaweedPackagePrivateRead({
+    argv: ["--output", item.output],
+    commandRunner: commandRunner({ calls, foreignRecoveredContainer: true, lostCreateResponse: true }),
+    env: item.env,
+    manifestValidator: exactManifest,
+    platform: "linux",
+  }), /command_failed/u);
+  assert.equal(calls.some(({ args }) => args[0] === "rm"), false);
+  assert.equal(calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), true);
+  const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+  assert.equal(receipt.phases.find(({ name }) => name === "owned_docker_cleanup").result, "FAILED");
+});
+
+test("container cleanup failure does not skip image cleanup and aggregates both absence failures", async (context) => {
+  const item = fixture();
+  context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
+  const calls = [];
+  await assert.rejects(runSeaweedPackagePrivateRead({
+    argv: ["--output", item.output],
+    commandRunner: commandRunner({ calls, failContainerRemoval: true, failImageRemoval: true }),
+    env: item.env,
+    manifestValidator: exactManifest,
+    platform: "linux",
+  }), /container_cleanup_failed/u);
+  const containerRemove = calls.findIndex(({ args }) => args[0] === "rm");
+  const imageRemove = calls.findIndex(({ args }) => args[0] === "image" && args[1] === "rm");
+  assert.equal(containerRemove >= 0, true);
+  assert.equal(imageRemove > containerRemove, true);
+  const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+  const cleanup = receipt.phases.find(({ name }) => name === "owned_docker_cleanup");
+  assert.equal(cleanup.result, "FAILED");
+  assert.deepEqual(cleanup.reasons, [
+    "seaweed_package_private_read_container_cleanup_failed",
+    "seaweed_package_private_read_image_cleanup_failed",
+  ]);
+  assert.equal(receipt.phases.find(({ name }) => name === "owned_temporary_cleanup").result, "PASSED");
 });

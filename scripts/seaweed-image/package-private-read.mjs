@@ -247,6 +247,22 @@ function validateImageMetadata(raw, subject) {
   };
 }
 
+function validateOwnedContainer(raw, container, subject) {
+  let metadata;
+  try {
+    metadata = JSON.parse(raw);
+  } catch {
+    throw new Error("seaweed_package_private_read_container_identity_invalid");
+  }
+  if (
+    metadata?.Name !== `/${container}`
+    || metadata?.Config?.Image !== subject
+    || metadata?.State?.Running !== false
+  ) {
+    throw new Error("seaweed_package_private_read_container_identity_invalid");
+  }
+}
+
 function validatePayload(file) {
   const info = lstatSync(file);
   const expected = Buffer.from(SEAWEED_PACKAGE_PRIVATE_READ.payload, "utf8");
@@ -333,6 +349,7 @@ export async function runSeaweedPackagePrivateRead({
 
   let ownedContainer = false;
   let ownedImage = false;
+  let containerCreateAttempted = false;
   let pullAttempted = false;
   let primaryFailure;
   try {
@@ -381,7 +398,9 @@ export async function runSeaweedPackagePrivateRead({
       return validateImageMetadata(inspected.stdout, subject);
     });
     await phase("stopped_container_create", () => {
-      run(commandRunner, "docker", ["create", "--name", container, "--pull=never", subject, `/${SEAWEED_PACKAGE_PRIVATE_READ.payloadPath}`], authOptions);
+      containerCreateAttempted = true;
+      const result = observeCommand(commandRunner, "docker", ["create", "--name", container, "--pull=never", subject, `/${SEAWEED_PACKAGE_PRIVATE_READ.payloadPath}`], authOptions);
+      if (result.error || result.status !== 0) throw new Error("seaweed_package_private_read_command_failed");
       ownedContainer = true;
     });
     receipt.copiedPayload = await phase("stopped_container_copy", () => {
@@ -398,31 +417,40 @@ export async function runSeaweedPackagePrivateRead({
   }
 
   const dockerCleanupStarted = now();
-  let dockerCleanupFailure;
+  const dockerCleanupFailures = [];
+  try {
+    if (containerCreateAttempted) {
+      const observedContainer = run(commandRunner, "docker", ["container", "inspect", "--format", "{{json .}}", container], authOptions, [0, 1]);
+      ownedContainer = !inspectAbsent(observedContainer, "container");
+      if (ownedContainer) validateOwnedContainer(observedContainer.stdout, container, subject);
+    }
+    if (ownedContainer) {
+      try { run(commandRunner, "docker", ["rm", container], authOptions); } catch { /* Final absence is authoritative. */ }
+      if (!inspectAbsent(run(commandRunner, "docker", ["container", "inspect", container], authOptions, [0, 1]), "container")) {
+        throw new Error("seaweed_package_private_read_container_cleanup_failed");
+      }
+    }
+  } catch {
+    dockerCleanupFailures.push("seaweed_package_private_read_container_cleanup_failed");
+  }
   try {
     if (pullAttempted && !ownedImage) {
       const partialImage = run(commandRunner, "docker", ["image", "inspect", subject], authOptions, [0, 1]);
       ownedImage = !inspectAbsent(partialImage, "image");
     }
-    if (ownedContainer) {
-      run(commandRunner, "docker", ["rm", container], authOptions);
-      if (!inspectAbsent(run(commandRunner, "docker", ["container", "inspect", container], authOptions, [0, 1]), "container")) {
-        throw new Error("seaweed_package_private_read_container_cleanup_failed");
-      }
-    }
     if (ownedImage) {
-      run(commandRunner, "docker", ["image", "rm", subject], authOptions);
+      try { run(commandRunner, "docker", ["image", "rm", subject], authOptions); } catch { /* Final absence is authoritative. */ }
       if (!inspectAbsent(run(commandRunner, "docker", ["image", "inspect", subject], authOptions, [0, 1]), "image")) {
         throw new Error("seaweed_package_private_read_image_cleanup_failed");
       }
     }
-  } catch (error) {
-    dockerCleanupFailure = error;
+  } catch {
+    dockerCleanupFailures.push("seaweed_package_private_read_image_cleanup_failed");
   }
   receipt.phases.push({
     name: "owned_docker_cleanup",
-    result: dockerCleanupFailure ? "FAILED" : "PASSED",
-    ...(dockerCleanupFailure ? { reason: fixedReason(dockerCleanupFailure) } : {}),
+    result: dockerCleanupFailures.length > 0 ? "FAILED" : "PASSED",
+    ...(dockerCleanupFailures.length > 0 ? { reason: dockerCleanupFailures[0], reasons: dockerCleanupFailures } : {}),
     durationMs: now() - dockerCleanupStarted,
   });
 
@@ -450,10 +478,10 @@ export async function runSeaweedPackagePrivateRead({
     ...(temporaryCleanupFailure ? { reason: fixedReason(temporaryCleanupFailure) } : {}),
     durationMs: now() - temporaryCleanupStarted,
   });
-  if (dockerCleanupFailure || temporaryCleanupFailure) receipt.result = "FAILED";
+  if (dockerCleanupFailures.length > 0 || temporaryCleanupFailure) receipt.result = "FAILED";
   writeReceipt(output, receipt);
   if (primaryFailure) throw new Error(fixedReason(primaryFailure));
-  if (dockerCleanupFailure) throw new Error(fixedReason(dockerCleanupFailure));
+  if (dockerCleanupFailures.length > 0) throw new Error(dockerCleanupFailures[0]);
   if (temporaryCleanupFailure) throw new Error(fixedReason(temporaryCleanupFailure));
   return receipt;
 }
