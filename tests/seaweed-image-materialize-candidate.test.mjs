@@ -9,9 +9,12 @@ import test from "node:test";
 import {
   candidateImportChanges, isPublicCandidateFailureCode, TEST_ONLY_materializeLocalSeaweedCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
   TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate, validateCandidateImage,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof } from
+  "../scripts/seaweed-image/backup-restore.mjs";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candidate-archive.mjs";
 import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
   TEST_ONLY_expectedSeaweedRuntimeProfileProof,
@@ -466,6 +469,31 @@ test("strict contention wrapper issues V4 only after both proofs and image clean
     assert.equal(Object.hasOwn(result, "persistenceProof"), false);
     assert.deepEqual([...value.imageIds], [foreignImageId]);
     assert.ok(value.calls.findIndex((args) => args[0] === "strict")
+      < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("backup restore wrapper issues V5 only after proof and image cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  value.injected.verifyBackupRestore = async (input) => {
+    assert.equal(value.archiveValidated, true); assert.equal(value.imageIds.has(imageId), true);
+    value.calls.push(["backup-restore"]);
+    return TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof({ imageId,
+      runId: input.runId, recipeRevision: input.recipeRevision }, "f".repeat(64), 10240);
+  };
+  try {
+    const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(
+      value.inputs, value.injected);
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5");
+    assert.equal(result.backupRestoreProof.archiveBytes, 10240);
+    assert.equal(result.authority, "DIAGNOSTIC_ONLY");
+    assert.equal(result.publication, "NOT_ATTEMPTED");
+    assert.equal(result.vulnerabilityAudit, "NOT_ATTEMPTED");
+    assert.equal(result.admission, "NOT_ATTEMPTED");
+    assert.equal(Object.hasOwn(result, "runtimeProof"), false);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+    assert.ok(value.calls.findIndex((args) => args[0] === "backup-restore")
       < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
     assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }

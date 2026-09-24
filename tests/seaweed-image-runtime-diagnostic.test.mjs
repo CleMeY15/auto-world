@@ -8,6 +8,8 @@ import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
   TEST_ONLY_expectedSeaweedRuntimeProfileProof,
   TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof } from
+  "../scripts/seaweed-image/backup-restore.mjs";
 import { TEST_ONLY_publicRuntimeFailure, TEST_ONLY_runRuntimeDiagnostic } from
   "../scripts/seaweed-image/runtime-diagnostic.mjs";
 
@@ -47,6 +49,14 @@ function strictReceipt() {
     runtimeProof: TEST_ONLY_expectedSeaweedRuntimeProfileProof({ imageId, runId, recipeRevision: revision }),
     strictContentionProof: TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(
       { imageId, runId, recipeRevision: revision }, "B") };
+}
+
+function backupReceipt() {
+  const base = receipt();
+  delete base.persistenceProof;
+  return { ...base, kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5",
+    backupRestoreProof: TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof(
+      { imageId, runId, recipeRevision: revision }, "e".repeat(64), 10240) };
 }
 
 test("runtime diagnostic refuses changed one-time main context before storage", { skip: !linux }, async () => {
@@ -145,6 +155,44 @@ test("strict dispatch rejects run seven and tampered contention proof", { skip: 
     await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "8"), {
       materialize: async () => ({ ...strictReceipt(), strictContentionProof: {
         ...strictReceipt().strictContentionProof, conditionalResult: "TWO_200" } }),
+    }), { code: "seaweed_candidate_failed" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("ninth dispatch emits only backup restore V5 after owned cleanup", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-backup-"));
+  const root = path.join(runnerTemp, "seaweed-runtime-backup-restore");
+  const events = [];
+  try {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9"), {
+      materialize: async ({ parent }) => {
+        assert.equal(parent, root); assert.deepEqual(await readdir(parent), []); return backupReceipt();
+      },
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    const { diagnostic, ...candidate } = events[0];
+    assert.deepEqual(candidate, backupReceipt());
+    assert.deepEqual({ ...diagnostic, durationMs: 0 }, {
+      phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED", durationMs: 0,
+    });
+    await assert.rejects(access(root), { code: "ENOENT" });
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-backup"], context(runnerTemp, "9"), {
+      log: (line) => events.push(JSON.parse(line)),
+    });
+    assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
+  } finally { await rm(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("backup dispatch rejects other run numbers and tampered proof", { skip: !linux }, async () => {
+  const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-backup-guard-"));
+  try {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "8")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "9")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9"), {
+      materialize: async () => ({ ...backupReceipt(), backupRestoreProof: {
+        ...backupReceipt().backupRestoreProof, sourceDisposal: "SOURCE_PRESENT" } }),
     }), { code: "seaweed_candidate_failed" });
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });

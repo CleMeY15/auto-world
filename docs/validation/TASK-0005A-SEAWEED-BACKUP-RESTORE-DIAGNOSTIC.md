@@ -10,9 +10,9 @@ The objective is the narrow backup and isolated restore requirement in [ADR-0008
 
 ## Required run-9 evidence
 
-1. Reuse the exact candidate-image, non-root runtime and signed S3 checks already validated by the [runtime diagnostic](TASK-0005A-SEAWEED-RUNTIME-DIAGNOSTIC.md). A fresh run-9 image identity must be bound to the workflow run and recipe revision.
+1. Build a fresh exact candidate image and use the pinned non-root service profile and signed S3 client established by the [earlier runtime diagnostics](TASK-0005A-SEAWEED-RUNTIME-DIAGNOSTIC.md). Bind the new image identity to the workflow run and recipe revision. Earlier V2/V3/V4 proofs are historical observations on other disposed images; this run does not inherit their unexecuted checks.
 2. Initialize a fresh owned source volume. A signed conditional PUT and GET must agree on the technical object's SHA-256 before backup.
-3. Stop the source service within its bound. Copy the stopped `/data` state to an independently owned backup volume without network access or a foreign Docker mount. Check the copied content before allowing the source to be removed.
+3. Stop the source service within its bound. Copy the stopped `/data` state to an independently owned backup volume without network access or a foreign Docker mount. Verify the archive SHA-256 and byte count before allowing the source to be removed, and repeat that check before extraction.
 4. Remove the source container and volume after exact ownership checks. Create a distinct, empty restore volume, then restore only the owned backup content into it. The source must be absent before the restored service starts.
 5. Start a distinct non-root service on the restored volume and require signed GET of the same object and SHA-256. Stop it within its bound.
 6. Remove only proven-owned helpers, services, volumes, candidate image, local archive, rootfs and temporary directories. Every removal must be preceded by a fresh identity check and followed by absence verification; uncertain ownership blocks a success receipt and preserves the uncertain resource for investigation.
@@ -23,6 +23,6 @@ The public V5 receipt may report `VERIFIED/DIAGNOSTIC_ONLY/NOT_AUTHORIZED` only 
 
 Tests must reject occupied names, foreign or altered labels, image/volume/container identity drift, unexpected helper mounts or privileges, incomplete backup, missing or changed restored object, failed service shutdown, and uncertain cleanup. Exact-head Linux CI, an independent implementation/security review, protected-main CI, and one guarded native run are required before recording a successful V5 result. A failed run remains failed even if its cleanup succeeds.
 
-A successful run would cover one small technical object, one stopped-volume copy and one restore on one runner and Docker daemon. It would not prove online or crash-consistent backup, cross-host recovery, retention, RPO/RTO, arbitrary data sets, the private image archive, fresh vulnerability audit, production admission or the final four-service restart/restore contract. Those gates remain open in TASK-0005A/TASK-0005; TASK-0006 remains blocked.
+A successful run would cover one small technical object, one stopped-volume archive copy and one restore on one runner and Docker daemon. Archive transport integrity and final object readback do not establish an exhaustive source/restored filesystem inventory or preservation of every metadata type. The run would not prove online or crash-consistent backup, cross-host recovery, retention, RPO/RTO, arbitrary data sets, the private image archive, fresh vulnerability audit, production admission or the final four-service restart/restore contract. Those gates remain open in TASK-0005A/TASK-0005; TASK-0006 remains blocked.
 
 Rollback removes the run-9 profile and returns the guarded workflow to the reviewed run-8 definition. Preserve immutable run-8 and any run-9 logs; do not delete any resource whose ownership cannot be proven.
