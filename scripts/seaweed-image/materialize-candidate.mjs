@@ -8,7 +8,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
 import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
-  validateSeaweedRuntimeProfileProof, verifyLocalSeaweedRuntimeProfile } from "./candidate-runtime.mjs";
+  validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
+  verifyLocalSeaweedRuntimeProfile, verifyLocalSeaweedRuntimeRestartPersistence } from "./candidate-runtime.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs, withMaterializedSeaweedRootfs,
 } from "./materialize-rootfs.mjs";
@@ -305,6 +306,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
   const validateArchive = testOnly?.validateArchive ?? validateSavedSeaweedCandidate;
   const verifyRuntime = executionProfile === "RUNTIME_PROFILE"
     ? testOnly?.verifyRuntime ?? verifyLocalSeaweedRuntimeProfile : undefined;
+  const verifyPersistence = executionProfile === "PERSISTENCE_PROFILE"
+    ? testOnly?.verifyPersistence ?? verifyLocalSeaweedRuntimeRestartPersistence : undefined;
   const docker = testOnly?.docker ?? defaultDocker;
   const rootfsParent = path.join(parent, "rootfs"); const work = path.join(parent, "work");
   const dockerConfig = path.join(work, "docker-config"); const saved = path.join(work, "saved.tar");
@@ -343,7 +346,7 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
-      let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof;
+      let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof; let persistenceProof;
       let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -390,13 +393,21 @@ async function execute(input, testOnly, executionProfile = "NONE") {
           || archiveProof.memberCount !== memberCount || archiveProof.serverVersion !== serverVersion) {
           throw fail("seaweed_candidate_archive_failed");
         }
-        if (verifyRuntime !== undefined) {
+        if (verifyRuntime !== undefined || verifyPersistence !== undefined) {
           try {
-            runtimeProof = await verifyRuntime(Object.freeze({ parent: work, dockerConfig, imageId,
+            const proof = await (verifyPersistence ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
               runId, recipeRevision, signal }));
-            validateSeaweedRuntimeProfileProof(runtimeProof, { imageId, runId, recipeRevision });
+            if (verifyPersistence !== undefined) {
+              validateSeaweedRuntimePersistenceProof(proof, { imageId, runId, recipeRevision });
+              persistenceProof = proof;
+            } else {
+              validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
+              runtimeProof = proof;
+            }
           } catch (error) {
-            const reported = fail(ownData(error, "code") === "seaweed_candidate_runtime_cleanup_failed"
+            const runtimeCode = ownData(error, "code");
+            const reported = fail(runtimeCode === "seaweed_candidate_runtime_cleanup_failed"
+              || runtimeCode === "seaweed_candidate_runtime_persistence_cleanup_failed"
               ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed");
             const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
             const durationMs = ownData(error, "durationMs");
@@ -428,18 +439,20 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
-      return Object.freeze({ kind: runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
-        : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
-        authority: runtimeProof === undefined ? "PREPARATION_ONLY" : "DIAGNOSTIC_ONLY",
+      return Object.freeze({ kind: persistenceProof !== undefined ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3"
+        : runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
+          : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
+        authority: executionProfile === "NONE" ? "PREPARATION_ONLY" : "DIAGNOSTIC_ONLY",
         candidateAuthorization: "NOT_AUTHORIZED",
-        imageExecution: runtimeProof === undefined ? "NOT_ATTEMPTED" : "VERIFIED_DIAGNOSTIC",
+        imageExecution: executionProfile === "NONE" ? "NOT_ATTEMPTED" : "VERIFIED_DIAGNOSTIC",
         publication: "NOT_ATTEMPTED", vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED",
         runId, recipeRevision, rawSize, diffId, memberCount, imageId,
         sourceRunId: rootfsReceipt.sourceRunId, sourceCodeRevision: rootfsReceipt.sourceCodeRevision,
         sourceBinaryDigest: rootfsReceipt.sourceBinaryDigest, baseManifestDigest: rootfsReceipt.baseManifestDigest,
         serverVersion, archiveKind: archiveProof.kind, archiveIdentityType: archiveProof.identityType,
         archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes,
-        ...(runtimeProof === undefined ? {} : { runtimeProof }) });
+        ...(runtimeProof === undefined ? {} : { runtimeProof }),
+        ...(persistenceProof === undefined ? {} : { persistenceProof }) });
     });
   } catch (error) { failure = error; }
   const clean = await cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfsIdentity, work, workIdentity,
@@ -463,4 +476,10 @@ export async function materializeAndVerifyLocalSeaweedRuntimeCandidate(input) {
 }
 export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(input, injected) {
   return execute(input, injected, "RUNTIME_PROFILE");
+}
+export async function materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate(input) {
+  return execute(input, undefined, "PERSISTENCE_PROFILE");
+}
+export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate(input, injected) {
+  return execute(input, injected, "PERSISTENCE_PROFILE");
 }

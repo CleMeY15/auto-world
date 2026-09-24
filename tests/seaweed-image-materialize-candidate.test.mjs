@@ -8,10 +8,12 @@ import test from "node:test";
 
 import {
   candidateImportChanges, isPublicCandidateFailureCode, TEST_ONLY_materializeLocalSeaweedCandidate,
-  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate, validateCandidateImage,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate,
+  TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate, validateCandidateImage,
 } from "../scripts/seaweed-image/materialize-candidate.mjs";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE } from "../scripts/seaweed-image/candidate-archive.mjs";
-import { TEST_ONLY_expectedSeaweedRuntimeProfileProof } from "../scripts/seaweed-image/candidate-runtime.mjs";
+import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
+  TEST_ONLY_expectedSeaweedRuntimeProfileProof } from "../scripts/seaweed-image/candidate-runtime.mjs";
 
 const linux = process.platform === "linux";
 const imageId = `sha256:${"b".repeat(64)}`;
@@ -398,3 +400,65 @@ test("archive failure never reaches runtime verification", { skip: !linux }, asy
     assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
+
+function injectPersistence(value, outcome = "verified") {
+  value.injected.verifyPersistence = async (input) => {
+    assert.equal(value.archiveValidated, true);
+    assert.equal(value.imageIds.has(imageId), true);
+    assert.equal(input.imageId, imageId);
+    assert.equal(input.recipeRevision, value.inputs.recipeRevision);
+    assert.equal(input.runId, value.inputs.runId);
+    assert.equal(input.parent, path.join(value.parent, "work"));
+    assert.equal(input.dockerConfig, path.join(value.parent, "work", "docker-config"));
+    value.calls.push(["persistence"]);
+    if (outcome === "failed") throw new Error("persistence probe failed");
+    if (outcome === "cleanup_failed") {
+      throw Object.assign(new Error("private volume identity"),
+        { code: "seaweed_candidate_runtime_persistence_cleanup_failed",
+          phase: "PERSISTENCE_CLEANUP", reason: "CLEANUP_UNCERTAIN", durationMs: 12 });
+    }
+    const proof = TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId,
+      runId: value.inputs.runId, recipeRevision: value.inputs.recipeRevision });
+    return outcome === "tampered" ? { ...proof, objectPersistence: "NOT_VERIFIED" } : proof;
+  };
+}
+
+test("persistence wrapper issues V3 only after archive, runtime and image cleanup", { skip: !linux }, async () => {
+  const value = scope({ unrelatedPriorImage: true });
+  injectPersistence(value);
+  try {
+    const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate(
+      value.inputs, value.injected);
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3");
+    assert.equal(result.authority, "DIAGNOSTIC_ONLY");
+    assert.equal(result.imageExecution, "VERIFIED_DIAGNOSTIC");
+    assert.equal(result.candidateAuthorization, "NOT_AUTHORIZED");
+    assert.equal(result.publication, "NOT_ATTEMPTED");
+    assert.equal(result.vulnerabilityAudit, "NOT_ATTEMPTED");
+    assert.equal(result.admission, "NOT_ATTEMPTED");
+    assert.equal(result.persistenceProof.imageId, imageId);
+    assert.equal(Object.hasOwn(result, "runtimeProof"), false);
+    assert.deepEqual([...value.imageIds], [foreignImageId]);
+    assert.ok(value.calls.findIndex((args) => args[0] === "persistence")
+      < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+for (const outcome of ["failed", "tampered", "cleanup_failed"]) {
+  test(`persistence ${outcome} cannot issue a receipt and still cleans the image`,
+    { skip: !linux }, async () => {
+      const value = scope();
+      injectPersistence(value, outcome);
+      try {
+        await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate(
+          value.inputs, value.injected), outcome === "cleanup_failed"
+          ? { code: "seaweed_candidate_runtime_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
+            reason: "CLEANUP_UNCERTAIN", durationMs: 12 }
+          : { code: "seaweed_candidate_runtime_failed" });
+        assert.equal(value.calls.filter((args) => args[0] === "persistence").length, 1);
+        assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+        assert.deepEqual(readdirSync(value.parent), []);
+      } finally { rmSync(value.parent, { recursive: true, force: true }); }
+    });
+}

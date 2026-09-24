@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { TEST_ONLY_expectedSeaweedRuntimeProfileProof } from
+import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
 import { TEST_ONLY_publicRuntimeFailure, TEST_ONLY_runRuntimeDiagnostic } from
   "../scripts/seaweed-image/runtime-diagnostic.mjs";
@@ -17,13 +17,13 @@ const imageId = `sha256:${"c".repeat(64)}`;
 function context(runnerTemp) {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "4", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "5", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
 
 function receipt() {
-  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
+  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V3", state: "VERIFIED",
     authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
     imageExecution: "VERIFIED_DIAGNOSTIC", publication: "NOT_ATTEMPTED",
     vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED", runId,
@@ -34,7 +34,7 @@ function receipt() {
     baseManifestDigest: "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362",
     serverVersion: "28.0.4", archiveKind: "SEAWEED_SAVED_CANDIDATE_PROOF_V1",
     archiveIdentityType: "CLASSIC_CONFIG_ID", archiveSha256: "d".repeat(64), archiveBytes: 260_000_000,
-    runtimeProof: TEST_ONLY_expectedSeaweedRuntimeProfileProof({ imageId, runId, recipeRevision: revision }) };
+    persistenceProof: TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision: revision }) };
 }
 
 test("runtime diagnostic refuses changed one-time main context before storage", { skip: !linux }, async () => {
@@ -43,6 +43,7 @@ test("runtime diagnostic refuses changed one-time main context before storage", 
   try {
     for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { RUNNER_ENVIRONMENT: "self-hosted" },
       { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "2" }, { GITHUB_RUN_NUMBER: "3" },
+      { GITHUB_RUN_NUMBER: "4" },
       { GITHUB_RUN_ATTEMPT: "2" },
       { GITHUB_REPOSITORY: "foreign/repo" },
       { GITHUB_WORKFLOW_REF: "foreign/workflow" }, { GITHUB_SHA: "not-a-sha" }]) {
@@ -80,13 +81,13 @@ test("runtime diagnostic publishes only the bounded verified receipt after clean
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
-test("runtime diagnostic rejects changed authority, lineage and runtime proof", { skip: !linux }, async () => {
+test("runtime diagnostic rejects changed authority, lineage and persistence proof", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-lineage-"));
   try {
     for (const changed of [{ sourceRunId: "1" }, { authority: "PREPARATION_ONLY" },
-      { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1" },
+      { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2" },
       { candidateAuthorization: "AUTHORIZED" }, { imageExecution: "NOT_ATTEMPTED" },
-      { runtimeProof: { ...receipt().runtimeProof, shutdown: "UNBOUNDED" } }]) {
+      { persistenceProof: { ...receipt().persistenceProof, shutdown: "UNBOUNDED" } }]) {
       let logged = false;
       await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute"], context(runnerTemp), {
         materialize: async () => ({ ...receipt(), ...changed }), log: () => { logged = true; },
