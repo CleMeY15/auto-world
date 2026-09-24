@@ -629,6 +629,14 @@ async function execute(input, injected) {
       volumes.delete(role);
     }
   } catch (error) { cleanupFailure = error; }
+  if (cleanupFailure !== undefined && primaryFailure !== undefined) {
+    const reported = fail(failurePhase, failureReason);
+    reported.runtimeCleanupFailure = Object.freeze({
+      code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+      phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+    });
+    throw reported;
+  }
   if (cleanupFailure !== undefined) throw fail("BACKUP_RESTORE_CLEANUP", "CLEANUP_UNCERTAIN", true);
   if (primaryFailure !== undefined) throw fail(failurePhase, failureReason);
   const proof = expectedProof({ imageId, runId, recipeRevision, archiveSha256, archiveBytes });

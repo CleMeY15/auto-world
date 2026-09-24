@@ -94,7 +94,7 @@ test("candidate image ownership requires the exact ID, tag, platform, one layer 
 function scope({ initialImage = false, existingImageId = false, unrelatedPriorImage = false,
   invalidImageList = false, extraImageAfterImport = false, archiveFailure = false,
   abortAfterOwnership = false, wrongInspectedId = false, configMismatch = false,
-  foreignTagAfterImport = false, foreignTagBeforeCleanup = false } = {}) {
+  foreignTagAfterImport = false, foreignTagBeforeCleanup = false, imageRemoveFailure = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-local-candidate-")); chmodSync(parent, 0o700);
   const runId = "35933797176"; const recipeRevision = "a".repeat(40);
   const abortController = new globalThis.AbortController();
@@ -181,6 +181,8 @@ function scope({ initialImage = false, existingImageId = false, unrelatedPriorIm
       }
       if (args[0] === "image" && args[1] === "rm") {
         assert.ok(args[2] === tag || args[2] === imageId);
+        if (imageRemoveFailure) return { status: 1, stdout: "",
+          stderr: "private Docker failure with /runner/private/path\n" };
         tagPresent = false; imageIds.delete(imageId);
         return { status: 0, stdout: `${imageId}\n`, stderr: "" };
       }
@@ -495,6 +497,55 @@ test("backup restore wrapper issues V5 only after proof and image cleanup", { sk
     assert.deepEqual([...value.imageIds], [foreignImageId]);
     assert.ok(value.calls.findIndex((args) => args[0] === "backup-restore")
       < value.calls.findIndex((args) => args[0] === "image" && args[1] === "rm"));
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("backup and both cleanup failures remain separate and bounded", { skip: !linux }, async () => {
+  const value = scope({ imageRemoveFailure: true });
+  value.injected.verifyBackupRestore = async () => {
+    value.calls.push(["backup-restore"]);
+    throw Object.assign(new Error("private backup cleanup /runner/private/path"), {
+      code: "seaweed_candidate_runtime_backup_restore_failed",
+      phase: "BACKUP_RESTORED_SERVICE", reason: "RESTORED_OBJECT_MISSING", durationMs: 87,
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+        phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+    });
+  };
+  try {
+    await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(
+      value.inputs, value.injected), (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason,
+        durationMs: error.durationMs, imageId: error.imageId,
+        runtimeCleanupFailure: error.runtimeCleanupFailure,
+        secondaryFailure: error.secondaryFailure }, {
+        code: "seaweed_candidate_runtime_failed", phase: "BACKUP_RESTORED_SERVICE",
+        reason: "RESTORED_OBJECT_MISSING", durationMs: 87, imageId,
+        runtimeCleanupFailure: { code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+          phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+        secondaryFailure: { code: "seaweed_candidate_image_cleanup_failed",
+          phase: "CANDIDATE_IMAGE_CLEANUP", reason: "IMAGE_REMOVE_FAILED" },
+      });
+      assert.equal(JSON.stringify(error).includes("private"), false);
+      return true;
+    });
+    assert.equal(value.calls.filter((args) => args[0] === "backup-restore").length, 1);
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+    assert.equal(value.imageIds.has(imageId), true);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("verified backup proof cannot issue V5 when owned image removal fails", { skip: !linux }, async () => {
+  const value = scope({ imageRemoveFailure: true });
+  value.injected.verifyBackupRestore = async (input) => TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof({
+    imageId, runId: input.runId, recipeRevision: input.recipeRevision }, "f".repeat(64), 10240);
+  try {
+    await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(
+      value.inputs, value.injected), { code: "seaweed_candidate_image_cleanup_failed",
+      phase: "CANDIDATE_IMAGE_CLEANUP", reason: "IMAGE_REMOVE_FAILED", imageId });
+    assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+    assert.equal(value.imageIds.has(imageId), true);
     assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });

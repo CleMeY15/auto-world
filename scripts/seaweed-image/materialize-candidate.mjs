@@ -28,6 +28,8 @@ const INSPECT_CONFIG_FIELDS = ["Hostname", "Domainname", "AttachStdin", "AttachS
   "Volumes", "ExposedPorts", "User", "Labels"];
 const INSPECTION_DETAILS = new Set(["options", "id", "tags", "platform", "size", "rootfs",
   "config_keys", "config_unknown", ...INSPECT_CONFIG_FIELDS.map((field) => `config_${field}`)]);
+const IMAGE_CLEANUP_REASONS = new Set(["PRE_CLEANUP_INVENTORY_FAILED", "IMAGE_INSPECTION_FAILED",
+  "IMAGE_REMOVE_FAILED", "POST_REMOVAL_ABSENCE_FAILED", "POST_CLEANUP_INVENTORY_FAILED"]);
 const FAILURE_CODES = new Set([
   "seaweed_candidate_arguments_invalid", "seaweed_candidate_parent_invalid", "seaweed_candidate_parent_not_empty",
   "seaweed_candidate_context_invalid", "seaweed_candidate_materialize_failed", "seaweed_candidate_engine_failed",
@@ -46,6 +48,9 @@ function fail(code) {
 
 export function isPublicCandidateFailureCode(value) { return typeof value === "string" && FAILURE_CODES.has(value); }
 export function isPublicCandidateInspectionDetail(value) { return typeof value === "string" && INSPECTION_DETAILS.has(value); }
+export function isPublicCandidateImageCleanupReason(value) {
+  return typeof value === "string" && IMAGE_CLEANUP_REASONS.has(value);
+}
 
 function ownData(error, key) {
   if (error === null || typeof error !== "object" && typeof error !== "function") return undefined;
@@ -65,6 +70,55 @@ async function stage(name, operation) {
     }
     throw reported;
   }
+}
+
+async function imageCleanupStage(reason, operation) {
+  try { return await operation(); } catch (error) {
+    const reported = fail("seaweed_candidate_image_cleanup_failed");
+    reported.phase = "CANDIDATE_IMAGE_CLEANUP";
+    reported.reason = reason;
+    const detail = ownData(error, "detailCode");
+    if (isPublicCandidateInspectionDetail(detail)) reported.detailCode = detail;
+    throw reported;
+  }
+}
+
+function withSecondaryImageCleanupFailure(primary, secondary) {
+  const reported = fail(isPublicCandidateFailureCode(ownData(primary, "code"))
+    ? ownData(primary, "code") : "seaweed_candidate_failed");
+  const phase = ownData(primary, "phase"); const reason = ownData(primary, "reason");
+  const durationMs = ownData(primary, "durationMs"); const imageId = ownData(primary, "imageId");
+  const detailCode = ownData(primary, "detailCode");
+  if (isPublicSeaweedRuntimePhase(phase)) reported.phase = phase;
+  if (isPublicSeaweedRuntimeReason(reason)) reported.reason = reason;
+  if (Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000) {
+    reported.durationMs = durationMs;
+  }
+  if (IMAGE_ID.test(imageId)) reported.imageId = imageId;
+  if (isPublicCandidateInspectionDetail(detailCode)) reported.detailCode = detailCode;
+  const runtimeCleanupFailure = ownData(primary, "runtimeCleanupFailure");
+  if (isPublicRuntimeCleanupFailure(runtimeCleanupFailure)) {
+    reported.runtimeCleanupFailure = Object.freeze({
+      code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+      phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+    });
+  }
+  const cleanupReason = ownData(secondary, "reason");
+  if (isPublicCandidateImageCleanupReason(cleanupReason)) {
+    reported.secondaryFailure = Object.freeze({ code: "seaweed_candidate_image_cleanup_failed",
+      phase: "CANDIDATE_IMAGE_CLEANUP", reason: cleanupReason });
+  }
+  return reported;
+}
+
+function isPublicRuntimeCleanupFailure(value) {
+  try {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      && Object.keys(value).sort().join("|") === "code|phase|reason"
+      && ownData(value, "code") === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+      && ownData(value, "phase") === "BACKUP_RESTORE_CLEANUP"
+      && ownData(value, "reason") === "CLEANUP_UNCERTAIN";
+  } catch { return false; }
 }
 
 function ownIdentity(stat) {
@@ -438,6 +492,13 @@ async function execute(input, testOnly, executionProfile = "NONE") {
               && Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000) {
               reported.phase = phase; reported.reason = reason; reported.durationMs = durationMs;
             }
+            const runtimeCleanupFailure = ownData(error, "runtimeCleanupFailure");
+            if (isPublicRuntimeCleanupFailure(runtimeCleanupFailure)) {
+              reported.runtimeCleanupFailure = Object.freeze({
+                code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+                phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+              });
+            }
             reported.imageId = imageId;
             throw reported;
           }
@@ -445,20 +506,33 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       } catch (error) { candidateFailure = error; }
       if (owned) {
         try {
-          await stage("image_cleanup", async () => {
-            const currentImageIds = await existingImageIds(docker, cleanupDockerOptions);
-            if (!exactImageIds(currentImageIds, priorImageIds, imageId)) throw ownershipFailure("id");
-            validateCandidateImage(await inspectImage(docker, imageId, cleanupDockerOptions), tagged
+          const currentImageIds = await imageCleanupStage("PRE_CLEANUP_INVENTORY_FAILED",
+            () => existingImageIds(docker, cleanupDockerOptions));
+          if (!exactImageIds(currentImageIds, priorImageIds, imageId)) {
+            await imageCleanupStage("PRE_CLEANUP_INVENTORY_FAILED", () => { throw ownershipFailure("id"); });
+          }
+          await imageCleanupStage("IMAGE_INSPECTION_FAILED", async () => validateCandidateImage(
+            await inspectImage(docker, imageId, cleanupDockerOptions), tagged
               ? { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig }
-              : { imageId, repoTags: [], diffId, rawSize, validateRuntimeConfig() {} });
-            await command(docker, ["image", "rm", tagged ? tag : imageId], cleanupDockerOptions);
+              : { imageId, repoTags: [], diffId, rawSize, validateRuntimeConfig() {} }));
+          await imageCleanupStage("IMAGE_REMOVE_FAILED",
+            () => command(docker, ["image", "rm", tagged ? tag : imageId], cleanupDockerOptions));
+          await imageCleanupStage("POST_REMOVAL_ABSENCE_FAILED", async () => {
             await imageAbsent(docker, tag, cleanupDockerOptions);
             await imageAbsent(docker, imageId, cleanupDockerOptions);
+          });
+          await imageCleanupStage("POST_CLEANUP_INVENTORY_FAILED", async () => {
             if (!exactImageIds(await existingImageIds(docker, cleanupDockerOptions), priorImageIds)) {
               throw ownershipFailure("id");
             }
           });
-        } catch (error) { imageCleanupFailure = error; }
+        } catch (error) {
+          imageCleanupFailure = error;
+          if (IMAGE_ID.test(imageId)) imageCleanupFailure.imageId = imageId;
+        }
+      }
+      if (imageCleanupFailure !== undefined && candidateFailure !== undefined) {
+        throw withSecondaryImageCleanupFailure(candidateFailure, imageCleanupFailure);
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
