@@ -471,6 +471,34 @@ test("strict contention wrapper issues V4 only after both proofs and image clean
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
+for (const outcome of ["failed", "runtime_tampered", "strict_tampered", "cleanup_failed"]) {
+  test(`strict contention ${outcome} cannot issue V4 and still cleans the image`,
+    { skip: !linux }, async () => {
+      const value = scope();
+      value.injected.verifyStrict = async (input) => {
+        value.calls.push(["strict"]);
+        if (outcome === "failed") throw new Error("private strict failure");
+        if (outcome === "cleanup_failed") throw Object.assign(new Error("private cleanup"),
+          { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+            reason: "OWNERSHIP_UNCERTAIN", durationMs: 12 });
+        const expected = { imageId, runId: input.runId, recipeRevision: input.recipeRevision };
+        const runtimeProof = TEST_ONLY_expectedSeaweedRuntimeProfileProof(expected);
+        const strictContentionProof = TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof(expected);
+        return { runtimeProof: outcome === "runtime_tampered" ? { ...runtimeProof, uid: 0 } : runtimeProof,
+          strictContentionProof: outcome === "strict_tampered"
+            ? { ...strictContentionProof, winnerReadback: "UNVERIFIED" } : strictContentionProof };
+      };
+      try {
+        await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate(
+          value.inputs, value.injected), { code: outcome === "cleanup_failed"
+          ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed" });
+        assert.equal(value.calls.filter((args) => args[0] === "strict").length, 1);
+        assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
+        assert.deepEqual(readdirSync(value.parent), []);
+      } finally { rmSync(value.parent, { recursive: true, force: true }); }
+    });
+}
+
 for (const outcome of ["failed", "tampered", "cleanup_failed"]) {
   test(`persistence ${outcome} cannot issue a receipt and still cleans the image`,
     { skip: !linux }, async () => {

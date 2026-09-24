@@ -34,7 +34,8 @@ export function signedPutHeaders({ key, payload, accessKey, secretKey, now }) {
 
 function defaultOpen({ name, options }) {
   return spawn("docker", ["container", "exec", "-i", name, "nc", "-w", "30", "127.0.0.1", "8333"],
-    { cwd: options.cwd, env: options.env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    { cwd: options.cwd, env: options.env, signal: options.signal, windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"] });
 }
 
 export function createStrictAttempt(child) {
@@ -102,23 +103,42 @@ async function dockerStatus(docker, args, options, reason = "STRICT_SIGNED_PROBE
 
 export async function runStrictContentionProbe({ name, runId, options, docker, accessKey, secretKey },
   injected = {}) {
+  if (!/^[1-9][0-9]{0,19}$/u.test(runId)
+    || name !== `aw-seaweed-runtime-${runId}-attempt-1`
+    || !/^[A-Za-z0-9]{1,64}$/u.test(accessKey)
+    || !/^[A-Za-z0-9-]{1,128}$/u.test(secretKey)
+    || typeof docker !== "function") throw fail("STRICT_INPUT_INVALID");
   if (options.signal?.aborted) throw fail("STRICT_TRANSPORT_FAILURE");
   const key = `strict-${runId}`;
   const url = `http://${HOST}/aw-raw/${key}`;
   const curlAuth = `--aws-sigv4 'aws:amz:us-east-1:s3' --user '${accessKey}:${secretKey}'`;
-  const absent = await dockerStatus(docker, ["container", "exec", name, "/bin/sh", "-c",
-    `curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 ${curlAuth} '${url}'`], options);
-  if (absent !== "404") throw fail("STRICT_PRECONDITION_UNEXPECTED");
-
   const open = injected.open ?? defaultOpen;
   const now = (injected.now ?? (() => new Date()))();
+  const deadlineMs = injected.deadlineMs ?? DEADLINE_MS;
+  if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > DEADLINE_MS) {
+    throw fail("STRICT_INPUT_INVALID");
+  }
   const attempts = [];
-  const abort = () => { for (const attempt of attempts) attempt.dispose(); };
+  const controller = new globalThis.AbortController();
+  const probeOptions = { ...options, signal: controller.signal,
+    timeoutMs: Math.min(options.timeoutMs ?? DEADLINE_MS, deadlineMs) };
+  const abort = () => {
+    controller.abort();
+    for (const attempt of attempts) attempt.dispose();
+  };
   let timedOut = false;
-  const timer = globalThis.setTimeout(() => { timedOut = true; abort(); }, DEADLINE_MS);
+  const timer = globalThis.setTimeout(() => { timedOut = true; abort(); }, deadlineMs);
   options.signal?.addEventListener("abort", abort, { once: true });
   try {
-    for (let i = 0; i < PAYLOADS.length; i++) attempts.push(createStrictAttempt(open({ name, options })));
+    if (options.signal?.aborted) throw fail("STRICT_TRANSPORT_FAILURE");
+    const absent = await dockerStatus(docker, ["container", "exec", name, "/bin/sh", "-c",
+      `curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 ${curlAuth} '${url}'`],
+    probeOptions);
+    if (controller.signal.aborted) throw fail("STRICT_TRANSPORT_FAILURE");
+    if (absent !== "404") throw fail("STRICT_PRECONDITION_UNEXPECTED");
+    for (let i = 0; i < PAYLOADS.length; i++) {
+      attempts.push(createStrictAttempt(open({ name, options: probeOptions })));
+    }
     for (let i = 0; i < attempts.length; i++) {
       attempts[i].write(signedPutHeaders({ key, payload: PAYLOADS[i], accessKey, secretKey, now }));
     }
@@ -136,7 +156,7 @@ export async function runStrictContentionProbe({ name, runId, options, docker, a
       + `test "$status" = 200 || exit 1\ntest "$(sha256sum "$work" | cut -d ' ' -f 1)" = '${expectedHash}'`
       + ` || exit 1\nprintf '%s\\n' 'SEAWEED_STRICT_READBACK_VERIFIED'`;
     const result = await dockerStatus(docker, ["container", "exec", name, "/bin/sh", "-c", readback],
-      options, "STRICT_READBACK_MISMATCH");
+      probeOptions, "STRICT_READBACK_MISMATCH");
     if (result !== "SEAWEED_STRICT_READBACK_VERIFIED") throw fail("STRICT_READBACK_MISMATCH");
     return { winner: winner === 0 ? "A" : "B" };
   } catch (error) {

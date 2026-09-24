@@ -79,7 +79,7 @@ function dockerFixture({ absent = "404", readback = "SEAWEED_STRICT_READBACK_VER
 
 function probeInput(overrides = {}) {
   return {
-    name: "aw-seaweed-runtime-strict",
+    name: `aw-seaweed-runtime-${RUN_ID}-attempt-1`,
     runId: RUN_ID,
     options: { cwd: "strict-parent", env: { DOCKER_CONFIG: "strict-docker-config" } },
     accessKey: ACCESS_KEY,
@@ -194,6 +194,21 @@ test("winner identification follows the 200 socket when B wins", async () => {
   await driveSuccessfulBarrier({ firstStatus: 412, secondStatus: 200, expectedWinner: "B" });
 });
 
+test("final response after the first 100 but before the second 100 never releases bodies", async () => {
+  const dockerValue = dockerFixture();
+  const children = [];
+  const pending = runStrictContentionProbe({ ...probeInput(), docker: dockerValue.docker }, {
+    now: () => NOW,
+    open() { const fake = fakeChild(); children.push(fake); return fake.child; },
+  });
+  await waitUntil(() => children.length === 2 && children.every((child) => child.writes.length === 1));
+  emitResponse(children[0], 100);
+  emitResponse(children[0], 200);
+  emitResponse(children[1], 100);
+  await assert.rejects(pending, { reason: "STRICT_EARLY_FINAL" });
+  assert.deepEqual(children.map((child) => child.writes.length), [1, 1]);
+});
+
 for (const [firstStatus, secondStatus] of [[200, 200], [200, 409], [412, 412]]) {
   test(`unexpected contention outcome ${firstStatus}/${secondStatus} fails closed`, async () => {
     const dockerValue = dockerFixture();
@@ -212,7 +227,7 @@ for (const [firstStatus, secondStatus] of [[200, 200], [200, 409], [412, 412]]) 
   });
 }
 
-test("transport timeout or abort while waiting for the second 100 fails closed", async () => {
+test("abort while waiting for the second 100 fails closed", async () => {
   const dockerValue = dockerFixture();
   const controller = fakeAbortController();
   const children = [];
@@ -229,6 +244,40 @@ test("transport timeout or abort while waiting for the second 100 fails closed",
   assert.equal(children.every((child) => child.writes.length === 1), true,
     "abort must not release either request body");
   assert.equal(children.every((child) => child.killed), true);
+});
+
+test("abort during the initial signed GET cannot open sockets afterward", async () => {
+  const controller = fakeAbortController();
+  let opened = 0;
+  const pending = runStrictContentionProbe({ ...probeInput({ options: {
+    cwd: "strict-parent", env: { DOCKER_CONFIG: "strict-docker-config" }, signal: controller.signal,
+  } }), docker: async () => { controller.abort(); return { status: 0, stdout: "404\n", stderr: "" }; } }, {
+    now: () => NOW, open() { opened += 1; return fakeChild().child; },
+  });
+  await assert.rejects(pending, { reason: "STRICT_TRANSPORT_FAILURE" });
+  assert.equal(opened, 0);
+});
+
+test("bounded deadline kills both waiting clients without releasing bodies", async () => {
+  const dockerValue = dockerFixture();
+  const children = [];
+  const pending = runStrictContentionProbe({ ...probeInput(), docker: dockerValue.docker }, {
+    now: () => NOW, deadlineMs: 10,
+    open() { const fake = fakeChild(); children.push(fake); return fake.child; },
+  });
+  await waitUntil(() => children.length === 2 && children.every((child) => child.writes.length === 1));
+  emitResponse(children[0], 100);
+  await assert.rejects(pending, { reason: "STRICT_TIMEOUT" });
+  assert.equal(children.every((child) => child.killed), true);
+  assert.deepEqual(children.map((child) => child.writes.length), [1, 1]);
+});
+
+test("invalid shell-facing input is rejected before the precondition request", async () => {
+  let calls = 0;
+  await assert.rejects(runStrictContentionProbe({ ...probeInput({ secretKey: "unsafe'value" }),
+    docker: async () => { calls += 1; return { status: 0, stdout: "404\n", stderr: "" }; } }),
+  { reason: "STRICT_INPUT_INVALID" });
+  assert.equal(calls, 0);
 });
 
 test("non-404 initial state blocks both sockets", async () => {
