@@ -66,7 +66,13 @@ test("runtime diagnostic publishes only the bounded verified receipt after clean
       },
       log: (line) => { events.push(JSON.parse(line)); },
     });
-    assert.deepEqual(events, ["materialized", receipt()]);
+    assert.equal(events[0], "materialized");
+    const { diagnostic, ...candidate } = events[1];
+    assert.deepEqual(candidate, receipt());
+    assert.equal(diagnostic.phase, "RUNTIME_COMPLETE");
+    assert.equal(diagnostic.result, "VERIFIED");
+    assert.equal(diagnostic.reason, "CHECKS_PASSED");
+    assert.ok(Number.isSafeInteger(diagnostic.durationMs) && diagnostic.durationMs >= 0);
     await assert.rejects(access(path.join(runnerTemp, "seaweed-runtime-candidate")), { code: "ENOENT" });
     await TEST_ONLY_runRuntimeDiagnostic(["cleanup"], context(runnerTemp), { log: () => {} });
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
@@ -102,12 +108,24 @@ test("runtime cleanup preserves an unexpected nonempty directory", { skip: !linu
 
 test("runtime failures expose only fixed public codes", () => {
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({ code: "unsafe /private/path" })),
-    { state: "FAILED", code: "seaweed_candidate_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+    { state: "FAILED", code: "seaweed_candidate_failed", candidateAuthorization: "NOT_AUTHORIZED",
+      diagnostic: { phase: "CANDIDATE_TRANSACTION", result: "FAILED",
+        reason: "seaweed_candidate_failed", durationMs: 0 } });
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({ code: "seaweed_candidate_runtime_failed",
     message: "secret /private/path" })),
-  { state: "FAILED", code: "seaweed_candidate_runtime_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+  { state: "FAILED", code: "seaweed_candidate_runtime_failed", candidateAuthorization: "NOT_AUTHORIZED",
+    diagnostic: { phase: "RUNTIME_PROBE", result: "FAILED",
+      reason: "seaweed_candidate_runtime_failed", durationMs: 0 } });
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({ code: "seaweed_candidate_runtime_cleanup_failed" })),
-    { state: "FAILED", code: "seaweed_candidate_runtime_cleanup_failed", candidateAuthorization: "NOT_AUTHORIZED" });
+    { state: "FAILED", code: "seaweed_candidate_runtime_cleanup_failed", candidateAuthorization: "NOT_AUTHORIZED",
+      diagnostic: { phase: "RUNTIME_CLEANUP", result: "FAILED",
+        reason: "seaweed_candidate_runtime_cleanup_failed", durationMs: 0 } });
   const accessor = Object.defineProperty({}, "code", { get() { throw new Error("private"); } });
   assert.equal(JSON.parse(TEST_ONLY_publicRuntimeFailure(accessor)).code, "seaweed_candidate_failed");
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({ code: "seaweed_candidate_runtime_failed",
+    phase: "RUNTIME_PROBE", reason: "READINESS_UNAVAILABLE", durationMs: 503, imageId,
+    runId, recipeRevision: revision, message: "private" })),
+  { state: "FAILED", code: "seaweed_candidate_runtime_failed", candidateAuthorization: "NOT_AUTHORIZED",
+    diagnostic: { phase: "RUNTIME_PROBE", result: "FAILED", reason: "READINESS_UNAVAILABLE",
+      durationMs: 503 }, imageId, runId, recipeRevision: revision });
 });

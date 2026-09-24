@@ -324,6 +324,10 @@ function injectRuntime(value, outcome = "verified") {
     assert.equal(input.dockerConfig, path.join(value.parent, "work", "docker-config"));
     value.calls.push(["runtime"]);
     if (outcome === "failed") throw new Error("runtime probe failed");
+    if (outcome === "diagnosed") {
+      throw Object.assign(new Error("private runtime output"), { code: "seaweed_candidate_runtime_failed",
+        phase: "RUNTIME_PROBE", reason: "READINESS_UNAVAILABLE", durationMs: 123 });
+    }
     if (outcome === "cleanup_failed") {
       throw Object.assign(new Error("private path must not escape"),
         { code: "seaweed_candidate_runtime_cleanup_failed" });
@@ -365,15 +369,18 @@ test("historical candidate wrapper never invokes runtime verification", { skip: 
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
-for (const outcome of ["failed", "tampered", "cleanup_failed"]) {
+for (const outcome of ["failed", "diagnosed", "tampered", "cleanup_failed"]) {
   test(`runtime ${outcome} cannot issue a verified receipt and still cleans the owned image`,
     { skip: !linux }, async () => {
       const value = scope();
       injectRuntime(value, outcome);
       try {
         await assert.rejects(TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(value.inputs,
-          value.injected), { code: outcome === "cleanup_failed"
-          ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed" });
+          value.injected), outcome === "diagnosed"
+          ? { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE",
+            reason: "READINESS_UNAVAILABLE", durationMs: 123, imageId }
+          : { code: outcome === "cleanup_failed"
+            ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed" });
         assert.equal(value.calls.filter((args) => args[0] === "runtime").length, 1);
         assert.equal(value.calls.filter((args) => args[0] === "image" && args[1] === "rm").length, 1);
         assert.deepEqual(readdirSync(value.parent), []);

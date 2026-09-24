@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/u;
 const CONTAINER_ID = /^[0-9a-f]{64}$/u;
@@ -10,6 +11,15 @@ const MAX_OUTPUT_BYTES = 1024 ** 2;
 const COMMAND_TIMEOUT_MS = 90_000;
 const CLEANUP_TIMEOUT_MS = 60_000;
 const DERIVATIVE_VERSION = "c507336+aw.549ec92660ab";
+const OWNERSHIP_LABEL = "com.auto-world.runtime-nonce";
+const PUBLIC_PHASES = new Set(["RUNTIME_CONTEXT", "RUNTIME_PRECHECK", "RUNTIME_CREATE",
+  "RUNTIME_START", "RUNTIME_PROBE", "RUNTIME_HELPERS", "RUNTIME_STOP", "RUNTIME_CLEANUP"]);
+const PUBLIC_REASONS = new Set(["INPUT_INVALID", "DOCKER_COMMAND", "NAME_OCCUPIED",
+  "CREATE_ID_INVALID", "OWNERSHIP_UNCERTAIN", "PROBE_COMMAND", "VERSION_MISMATCH",
+  "ANONYMOUS_NOT_REFUSED", "UID_MISMATCH", "GID_MISMATCH", "CONFIG_MODE_MISMATCH",
+  "READINESS_UNAVAILABLE", "ICEBERG_LISTENER_OPEN", "LANCE_LISTENER_OPEN",
+  "RUST_HELPER_PRESENT", "PROBE_OUTPUT_INVALID", "RUST_HELPER_ACCEPTED",
+  "RUST_HELPER_COMMAND", "STOP_FAILED", "EXIT_UNEXPECTED"]);
 const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnostic", credentials: [{
   accessKey: "AWDIAGNOSTICACCESS", secretKey: "aw-diagnostic-secret-not-for-production-0001",
 }], actions: ["Admin:aw-runtime-diagnostic", "Read:aw-runtime-diagnostic", "List:aw-runtime-diagnostic",
@@ -22,11 +32,11 @@ printf '%s\\n' '${RUNTIME_CONFIG}' > /run/aw-private/s3.json
 test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600'
 exec /entrypoint.sh ${SERVER_COMMAND.map((value) => `'${value}'`).join(" ")}`;
 const PROBE = `set -eu
-version=$(/usr/bin/weed version 2>&1)
+version=$(/usr/bin/weed version 2>&1) || exit 21
 case "$version" in *'${DERIVATIVE_VERSION}'*) ;; *) exit 21 ;; esac
-test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000
-test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000
-test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600'
+test "$(awk '/^Uid:/ {print $2}' /proc/1/status)" = 1000 || exit 23
+test "$(awk '/^Gid:/ {print $2}' /proc/1/status)" = 1000 || exit 24
+test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600' || exit 25
 ready=''
 i=0
 while test "$i" -lt 60; do
@@ -34,13 +44,13 @@ while test "$i" -lt 60; do
   test "$ready" = 200 && break
   i=$((i + 1)); sleep 1
 done
-test "$ready" = 200
+test "$ready" = 200 || exit 26
 anonymous=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8333/ || true)
 case "$anonymous" in 401|403) ;; *) exit 22 ;; esac
-! nc -z -w 1 127.0.0.1 8181
-! nc -z -w 1 127.0.0.1 9101
-test ! -e /usr/bin/weed-volume
-test ! -e /usr/bin/weed-worker
+if nc -z -w 1 127.0.0.1 8181; then exit 27; else test "$?" = 1 || exit 32; fi
+if nc -z -w 1 127.0.0.1 9101; then exit 28; else test "$?" = 1 || exit 32; fi
+test ! -e /usr/bin/weed-volume || exit 29
+test ! -e /usr/bin/weed-worker || exit 29
 printf '%s\\n' 'SEAWEED_RUNTIME_PROFILE_VERIFIED'`;
 const CREATE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=1000:1000", "--memory=768m",
   "--memory-swap=768m", "--cpus=.75", "--pids-limit=512", "--cap-drop=ALL",
@@ -60,6 +70,17 @@ function failure(code) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "DIAGNOSTIC_ONLY",
     candidateAuthorization: "NOT_AUTHORIZED" });
 }
+
+function diagnosticFailure(code, phase, reason, started) {
+  const error = failure(code);
+  error.phase = phase;
+  error.reason = reason;
+  error.durationMs = Math.min(10_800_000, Math.max(0, Math.floor(performance.now() - started)));
+  return error;
+}
+
+export function isPublicSeaweedRuntimePhase(value) { return PUBLIC_PHASES.has(value); }
+export function isPublicSeaweedRuntimeReason(value) { return PUBLIC_REASONS.has(value); }
 
 function exactObject(value, keys) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -111,8 +132,30 @@ async function command(docker, args, options, statuses = [0]) {
 }
 
 async function inspectContainer(docker, name, options, statuses = [0]) {
-  return command(docker, ["container", "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}",
+  return command(docker, ["container", "inspect", "--format",
+    `{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}|{{index .Config.Labels "${OWNERSHIP_LABEL}"}}|{{.Image}}`,
     name], options, statuses);
+}
+
+async function containerAbsent(docker, name, options) {
+  const inspected = await inspectContainer(docker, name, options, [0, 1]);
+  if (inspected.status !== 1 || inspected.stdout.trim() !== "") return false;
+  const listed = await command(docker, ["container", "ls", "--all", "--no-trunc", "--filter",
+    `name=^/${name}$`, "--format", "{{.ID}}|{{.Names}}"], options);
+  if (listed.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_failed");
+  return listed.stdout.trim() === "";
+}
+
+function ownedContainer(result, { nonce, imageId, ownedId } = {}) {
+  if (result.status !== 0) throw failure("seaweed_candidate_runtime_cleanup_failed");
+  const fields = result.stdout.trim().split("|");
+  if (fields.length !== 5 || !CONTAINER_ID.test(fields[0])
+    || !/^(?:created|exited|running)$/u.test(fields[1]) || !/^-?[0-9]+$/u.test(fields[2])
+    || fields[3] !== nonce || fields[4] !== imageId
+    || ownedId !== undefined && fields[0] !== ownedId) {
+    throw failure("seaweed_candidate_runtime_cleanup_failed");
+  }
+  return { id: fields[0], state: fields[1], exitCode: fields[2] };
 }
 
 function expectedProof({ imageId, runId, recipeRevision }) {
@@ -133,75 +176,124 @@ export function validateSeaweedRuntimeProfileProof(proof, expected) {
 }
 
 async function execute(input, injected) {
-  if (!validInput(input)) throw failure("seaweed_candidate_runtime_failed");
+  const started = performance.now();
+  if (!validInput(input)) throw diagnosticFailure("seaweed_candidate_runtime_failed",
+    "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   const { parent, dockerConfig, imageId, runId, recipeRevision, signal } = input;
   if (process.platform !== "linux" && injected === undefined || typeof parent !== "string" || !path.isAbsolute(parent)
     || path.normalize(parent) !== parent || typeof dockerConfig !== "string" || !path.isAbsolute(dockerConfig)
     || path.normalize(dockerConfig) !== dockerConfig || !IMAGE_ID.test(imageId) || !RUN_ID.test(runId)
     || !REVISION.test(recipeRevision) || signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
-    throw failure("seaweed_candidate_runtime_failed");
+    throw diagnosticFailure("seaweed_candidate_runtime_failed", "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   }
-  if (signal?.aborted) throw failure("seaweed_candidate_runtime_failed");
+  if (signal?.aborted) throw diagnosticFailure("seaweed_candidate_runtime_failed",
+    "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   const docker = injected?.docker ?? defaultDocker;
   if (typeof docker !== "function" || injected !== undefined && !exactObject(injected, ["docker"])) {
-    throw failure("seaweed_candidate_runtime_failed");
+    throw diagnosticFailure("seaweed_candidate_runtime_failed", "RUNTIME_CONTEXT", "INPUT_INVALID", started);
   }
   const name = `aw-seaweed-runtime-${runId}-attempt-1`;
   const env = { PATH: process.env.PATH ?? "", DOCKER_CONFIG: dockerConfig,
     DOCKER_HOST: "unix:///var/run/docker.sock", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC", TMPDIR: parent };
   const options = { cwd: parent, env, signal, timeoutMs: COMMAND_TIMEOUT_MS };
   const cleanupOptions = { cwd: parent, env, timeoutMs: CLEANUP_TIMEOUT_MS };
-  let ownedId; let primaryFailure; let proof;
+  const nonce = randomBytes(24).toString("hex");
+  let ownedId; let createAttempted = false; let primaryFailure; let proof;
+  let phase = "RUNTIME_PRECHECK"; let reason = "DOCKER_COMMAND";
   try {
-    const absent = await inspectContainer(docker, name, options, [0, 1]);
-    if (absent.status !== 1 || absent.stdout.trim() !== "") throw failure("seaweed_candidate_runtime_failed");
-    const created = await command(docker, ["container", "create", "--name", name, ...CREATE_PROFILE, imageId,
+    if (!await containerAbsent(docker, name, options)) {
+      reason = "NAME_OCCUPIED"; throw failure("seaweed_candidate_runtime_failed");
+    }
+    phase = "RUNTIME_CREATE"; reason = "DOCKER_COMMAND";
+    createAttempted = true;
+    const created = await command(docker, ["container", "create", "--name", name,
+      "--label", `${OWNERSHIP_LABEL}=${nonce}`, ...CREATE_PROFILE, imageId,
       "-c", BOOTSTRAP], options);
-    ownedId = created.stdout.trim();
-    if (!CONTAINER_ID.test(ownedId)) throw failure("seaweed_candidate_runtime_failed");
-    const inspected = await inspectContainer(docker, name, options);
-    if (inspected.stdout.trim() !== `${ownedId}|created|0`) throw failure("seaweed_candidate_runtime_failed");
-    await command(docker, ["container", "start", name], options);
-    const probe = await command(docker, ["container", "exec", name, "/bin/sh", "-c", PROBE], options);
-    if (probe.stdout.trim() !== "SEAWEED_RUNTIME_PROFILE_VERIFIED" || probe.stderr.trim() !== "") {
+    const returnedId = created.stdout.trim();
+    if (!CONTAINER_ID.test(returnedId)) {
+      reason = "CREATE_ID_INVALID"; throw failure("seaweed_candidate_runtime_failed");
+    }
+    reason = "OWNERSHIP_UNCERTAIN";
+    const inspected = ownedContainer(await inspectContainer(docker, name, options), { nonce, imageId,
+      ownedId: returnedId });
+    ownedId = inspected.id;
+    if (inspected.state !== "created" || inspected.exitCode !== "0") {
       throw failure("seaweed_candidate_runtime_failed");
     }
+    phase = "RUNTIME_START"; reason = "DOCKER_COMMAND";
+    await command(docker, ["container", "start", name], options);
+    phase = "RUNTIME_PROBE"; reason = "PROBE_COMMAND";
+    const probe = await command(docker, ["container", "exec", name, "/bin/sh", "-c", PROBE],
+      options, [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 32, 127]);
+    const probeReasons = { 21: "VERSION_MISMATCH", 22: "ANONYMOUS_NOT_REFUSED", 23: "UID_MISMATCH",
+      24: "GID_MISMATCH", 25: "CONFIG_MODE_MISMATCH", 26: "READINESS_UNAVAILABLE",
+      27: "ICEBERG_LISTENER_OPEN", 28: "LANCE_LISTENER_OPEN", 29: "RUST_HELPER_PRESENT",
+      32: "PROBE_COMMAND", 127: "PROBE_COMMAND" };
+    if (probe.status !== 0) {
+      reason = probeReasons[probe.status]; throw failure("seaweed_candidate_runtime_failed");
+    }
+    if (probe.stdout.trim() !== "SEAWEED_RUNTIME_PROFILE_VERIFIED" || probe.stderr.trim() !== "") {
+      reason = "PROBE_OUTPUT_INVALID";
+      throw failure("seaweed_candidate_runtime_failed");
+    }
+    phase = "RUNTIME_HELPERS"; reason = "RUST_HELPER_COMMAND";
     for (const helper of ["volume-rust", "worker-rust"]) {
       const rejected = await command(docker, ["container", "exec", name, "/entrypoint.sh", helper], options,
-        [1, 126, 127]);
+        [0, 1, 126, 127]);
       if (rejected.status === 0 || Buffer.byteLength(rejected.stdout) + Buffer.byteLength(rejected.stderr) === 0) {
+        reason = "RUST_HELPER_ACCEPTED";
         throw failure("seaweed_candidate_runtime_failed");
       }
     }
+    phase = "RUNTIME_STOP"; reason = "STOP_FAILED";
     await command(docker, ["container", "stop", "--time", "30", name], { ...options, timeoutMs: 40_000 });
-    const stopped = await inspectContainer(docker, name, options);
-    if (stopped.stdout.trim() !== `${ownedId}|exited|0`) throw failure("seaweed_candidate_runtime_failed");
+    reason = "OWNERSHIP_UNCERTAIN";
+    const stopped = ownedContainer(await inspectContainer(docker, name, options),
+      { nonce, imageId, ownedId });
+    if (stopped.state !== "exited" || stopped.exitCode !== "0") {
+      reason = "EXIT_UNEXPECTED";
+      throw failure("seaweed_candidate_runtime_failed");
+    }
     proof = expectedProof({ imageId, runId, recipeRevision });
     validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
   } catch (error) { primaryFailure = error; }
-  if (ownedId !== undefined) {
+  if (createAttempted && ownedId === undefined) {
     try {
       const inspected = await inspectContainer(docker, name, cleanupOptions, [0, 1]);
-      if (inspected.status !== 0) {
-        throw failure("seaweed_candidate_runtime_cleanup_failed");
+      if (inspected.status === 1 && inspected.stdout.trim() === ""
+        && await containerAbsent(docker, name, cleanupOptions)) {
+        // The daemon confirms that an interrupted or failed create left no named container.
+      } else {
+        ownedId = ownedContainer(inspected, { nonce, imageId }).id;
       }
-      const [observedId, observedState, observedExitCode] = inspected.stdout.trim().split("|");
-      if (observedId !== ownedId || !/^(?:created|exited|running)$/u.test(observedState)
-        || !/^-?[0-9]+$/u.test(observedExitCode)) throw failure("seaweed_candidate_runtime_cleanup_failed");
-      if (observedState === "running") {
+    } catch { throw diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
+      "RUNTIME_CLEANUP", "OWNERSHIP_UNCERTAIN", started); }
+  }
+  if (ownedId !== undefined) {
+    let cleanupReason = "OWNERSHIP_UNCERTAIN";
+    try {
+      const inspected = ownedContainer(await inspectContainer(docker, name, cleanupOptions),
+        { nonce, imageId, ownedId });
+      if (inspected.state === "running") {
+        cleanupReason = "STOP_FAILED";
         await command(docker, ["container", "stop", "--time", "30", name],
           { ...cleanupOptions, timeoutMs: 40_000 });
-        const stopped = await inspectContainer(docker, name, cleanupOptions);
-        if (stopped.stdout.trim().split("|").slice(0, 2).join("|") !== `${ownedId}|exited`) {
+        cleanupReason = "OWNERSHIP_UNCERTAIN";
+        const stopped = ownedContainer(await inspectContainer(docker, name, cleanupOptions),
+          { nonce, imageId, ownedId });
+        if (stopped.state !== "exited") {
           throw failure("seaweed_candidate_runtime_cleanup_failed");
         }
       }
       await command(docker, ["container", "rm", name], cleanupOptions);
-      const absent = await inspectContainer(docker, name, cleanupOptions, [0, 1]);
-      if (absent.status !== 1 || absent.stdout.trim() !== "") throw failure("seaweed_candidate_runtime_cleanup_failed");
-    } catch { throw failure("seaweed_candidate_runtime_cleanup_failed"); }
+      if (!await containerAbsent(docker, name, cleanupOptions)) {
+        throw failure("seaweed_candidate_runtime_cleanup_failed");
+      }
+    } catch { throw diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
+      "RUNTIME_CLEANUP", cleanupReason, started); }
   }
-  if (primaryFailure !== undefined) throw failure("seaweed_candidate_runtime_failed");
+  if (primaryFailure !== undefined) throw diagnosticFailure("seaweed_candidate_runtime_failed",
+    phase, reason, started);
   return proof;
 }
 

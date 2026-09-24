@@ -7,7 +7,8 @@ import { pipeline } from "node:stream/promises";
 import { isDeepStrictEqual } from "node:util";
 
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
-import { validateSeaweedRuntimeProfileProof, verifyLocalSeaweedRuntimeProfile } from "./candidate-runtime.mjs";
+import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
+  validateSeaweedRuntimeProfileProof, verifyLocalSeaweedRuntimeProfile } from "./candidate-runtime.mjs";
 import {
   cleanupMaterializedSeaweedRootfs, materializeReviewedSeaweedRootfs, withMaterializedSeaweedRootfs,
 } from "./materialize-rootfs.mjs";
@@ -395,8 +396,16 @@ async function execute(input, testOnly, executionProfile = "NONE") {
               runId, recipeRevision, signal }));
             validateSeaweedRuntimeProfileProof(runtimeProof, { imageId, runId, recipeRevision });
           } catch (error) {
-            throw fail(error?.code === "seaweed_candidate_runtime_cleanup_failed"
+            const reported = fail(ownData(error, "code") === "seaweed_candidate_runtime_cleanup_failed"
               ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed");
+            const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
+            const durationMs = ownData(error, "durationMs");
+            if (isPublicSeaweedRuntimePhase(phase) && isPublicSeaweedRuntimeReason(reason)
+              && Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000) {
+              reported.phase = phase; reported.reason = reason; reported.durationMs = durationMs;
+            }
+            reported.imageId = imageId;
+            throw reported;
           }
         }
       } catch (error) { candidateFailure = error; }
