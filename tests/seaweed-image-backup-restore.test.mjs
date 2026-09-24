@@ -16,11 +16,12 @@ const dockerConfig = path.resolve("aw-backup-test/docker-config");
 const archiveSha256 = "c".repeat(64);
 const archiveBytes = 10240;
 
-function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestoreVolume = false,
+function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestoreVolumeDuringCleanup = false,
   malformedBackupCreate = false, abortAtBackup = false, nullPortBindings = false,
   driftHelperTmpfs = false, backupHelperExitCode = 0, restoreHelperExitCode = 0,
   sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false } = {}) {
   const calls = []; const volumes = new Map(); const containers = new Map(); let nonce = ""; let nextId = 1;
+  let restoredProbeFailed = false;
   const prefix = `aw-seaweed-backup-${runId}`;
   const controller = new globalThis.AbortController();
   if (preexistingVolume) volumes.set(`${prefix}-source`, {
@@ -71,7 +72,8 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
     if (args[0] === "volume" && args[1] === "inspect") {
       const record = volumes.get(args[2]);
       if (record === undefined) return { status: 1, stdout: "[]\n", stderr: "not found\n" };
-      const observedNonce = foreignRestoreVolume && record.role === "restore" ? "e".repeat(48) : record.nonce;
+      const observedNonce = foreignRestoreVolumeDuringCleanup && restoredProbeFailed && record.role === "restore"
+        ? "e".repeat(48) : record.nonce;
       return { status: 0, stdout: JSON.stringify([{ Name: args[2], Driver: "local", Scope: "local",
         CreatedAt: record.createdAt, Labels: {
           "com.auto-world.runtime-nonce": observedNonce,
@@ -140,9 +142,11 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
       if (args.at(-1).includes("SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED")) {
         return { status: 0, stdout: "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED\n", stderr: "" };
       }
-      return restoredStatus === 0
-        ? { status: 0, stdout: "SEAWEED_BACKUP_RESTORED_READ_VERIFIED\n", stderr: "" }
-        : { status: restoredStatus, stdout: "", stderr: "" };
+      if (restoredStatus === 0) {
+        return { status: 0, stdout: "SEAWEED_BACKUP_RESTORED_READ_VERIFIED\n", stderr: "" };
+      }
+      restoredProbeFailed = true;
+      return { status: restoredStatus, stdout: "", stderr: "" };
     }
     if (args[0] === "container" && args[1] === "stop") {
       const record = containers.get(args.at(-1)); record.state = "exited";
@@ -302,10 +306,21 @@ test("lost helper create response is recovered only by exact identity and fully 
 });
 
 test("foreign volume identity blocks deletion during cleanup", async () => {
-  const value = fixture({ restoredStatus: 85, foreignRestoreVolume: true });
+  const value = fixture({ restoredStatus: 85, foreignRestoreVolumeDuringCleanup: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_backup_restore_cleanup_failed", phase: "BACKUP_RESTORE_CLEANUP",
-      reason: "CLEANUP_UNCERTAIN" });
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason,
+        runtimeCleanupFailure: error.runtimeCleanupFailure }, {
+        code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_RESTORED_SERVICE",
+        reason: "RESTORED_OBJECT_MISSING",
+        runtimeCleanupFailure: {
+          code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+          phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+        },
+      });
+      assert.equal(JSON.stringify(error).includes("private"), false);
+      return true;
+    });
   assert.equal(value.volumes.has(`aw-seaweed-backup-${runId}-restore`), true);
   assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"
     && args[2].endsWith("-restore")), false);

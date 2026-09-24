@@ -159,12 +159,12 @@ test("strict dispatch rejects run seven and tampered contention proof", { skip: 
   } finally { await rm(runnerTemp, { recursive: true, force: true }); }
 });
 
-test("ninth dispatch emits only backup restore V5 after owned cleanup", { skip: !linux }, async () => {
+test("tenth dispatch emits only backup restore V5 after owned cleanup", { skip: !linux }, async () => {
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-backup-"));
   const root = path.join(runnerTemp, "seaweed-runtime-backup-restore");
   const events = [];
   try {
-    await TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "10"), {
       materialize: async ({ parent }) => {
         assert.equal(parent, root); assert.deepEqual(await readdir(parent), []); return backupReceipt();
       },
@@ -176,7 +176,7 @@ test("ninth dispatch emits only backup restore V5 after owned cleanup", { skip: 
       phase: "RUNTIME_COMPLETE", result: "VERIFIED", reason: "CHECKS_PASSED", durationMs: 0,
     });
     await assert.rejects(access(root), { code: "ENOENT" });
-    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-backup"], context(runnerTemp, "9"), {
+    await TEST_ONLY_runRuntimeDiagnostic(["cleanup-backup"], context(runnerTemp, "10"), {
       log: (line) => events.push(JSON.parse(line)),
     });
     assert.deepEqual(events[1], { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" });
@@ -188,9 +188,11 @@ test("backup dispatch rejects other run numbers and tampered proof", { skip: !li
   try {
     await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "8")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "9")),
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9")),
       { code: "seaweed_candidate_context_invalid" });
-    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "9"), {
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-strict"], context(runnerTemp, "10")),
+      { code: "seaweed_candidate_context_invalid" });
+    await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute-backup"], context(runnerTemp, "10"), {
       materialize: async () => ({ ...backupReceipt(), backupRestoreProof: {
         ...backupReceipt().backupRestoreProof, sourceDisposal: "SOURCE_PRESENT" } }),
     }), { code: "seaweed_candidate_failed" });
@@ -231,4 +233,32 @@ test("runtime failures expose only fixed public codes", () => {
   { state: "FAILED", code: "seaweed_candidate_runtime_failed", candidateAuthorization: "NOT_AUTHORIZED",
     diagnostic: { phase: "RUNTIME_PROBE", result: "FAILED", reason: "READINESS_UNAVAILABLE",
       durationMs: 503 }, imageId, runId, recipeRevision: revision });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({
+    code: "seaweed_candidate_runtime_failed", phase: "BACKUP_RESTORED_SERVICE",
+    reason: "RESTORED_OBJECT_MISSING", durationMs: 87, imageId,
+    runtimeCleanupFailure: { code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+      phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN" },
+    secondaryFailure: { code: "seaweed_candidate_image_cleanup_failed",
+      phase: "CANDIDATE_IMAGE_CLEANUP", reason: "IMAGE_REMOVE_FAILED",
+      stderr: "private /runner/path" },
+  })), {
+    state: "FAILED", code: "seaweed_candidate_runtime_failed",
+    candidateAuthorization: "NOT_AUTHORIZED",
+    diagnostic: { phase: "BACKUP_RESTORED_SERVICE", result: "FAILED",
+      reason: "RESTORED_OBJECT_MISSING", durationMs: 87 },
+    imageId,
+    runtimeCleanupDiagnostic: { code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+      phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN", result: "FAILED" },
+    secondaryDiagnostic: { code: "seaweed_candidate_image_cleanup_failed",
+      phase: "CANDIDATE_IMAGE_CLEANUP", result: "FAILED", reason: "IMAGE_REMOVE_FAILED" },
+  });
+  assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({
+    code: "seaweed_candidate_image_cleanup_failed", phase: "CANDIDATE_IMAGE_CLEANUP",
+    reason: "IMAGE_REMOVE_FAILED", durationMs: 41, imageId,
+  })), {
+    state: "FAILED", code: "seaweed_candidate_image_cleanup_failed",
+    candidateAuthorization: "NOT_AUTHORIZED",
+    diagnostic: { phase: "CANDIDATE_IMAGE_CLEANUP", result: "FAILED",
+      reason: "IMAGE_REMOVE_FAILED", durationMs: 41 }, imageId,
+  });
 });

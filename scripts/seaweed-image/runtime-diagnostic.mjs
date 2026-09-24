@@ -8,6 +8,7 @@ import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimeStrictContentionProof } from "./candidate-runtime.mjs";
 import { validateSeaweedRuntimeBackupRestoreProof } from "./backup-restore.mjs";
 import { isPublicCandidateFailureCode,
+  isPublicCandidateImageCleanupReason,
   materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate,
   materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
   materializeAndVerifyLocalSeaweedRuntimeStrictContentionCandidate } from "./materialize-candidate.mjs";
@@ -31,7 +32,7 @@ async function requireContext(env, mode) {
     || env.RUNNER_ENVIRONMENT !== "github-hosted"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world"
-    || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "9" : "7")
+    || env.GITHUB_RUN_NUMBER !== (mode === "strict" ? "8" : mode === "backup" ? "10" : "7")
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")
@@ -154,16 +155,45 @@ function fallbackPhase(code) {
   return "CANDIDATE_TRANSACTION";
 }
 
+function publicRuntimeCleanupFailure(error) {
+  const value = ownData(error, "runtimeCleanupFailure");
+  try {
+    if (value === null || typeof value !== "object" || Array.isArray(value)
+      || Object.keys(value).sort().join("|") !== "code|phase|reason"
+      || ownData(value, "code") !== "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+      || ownData(value, "phase") !== "BACKUP_RESTORE_CLEANUP"
+      || ownData(value, "reason") !== "CLEANUP_UNCERTAIN") return undefined;
+  } catch { return undefined; }
+  return Object.freeze({ code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+    phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN" });
+}
+
 async function main(argv = process.argv.slice(2), env = process.env, testOnly = {}) {
   const started = performance.now();
   try { return await executeMain(argv, env, testOnly, started); } catch (error) {
     const reported = fail(ownData(error, "code"));
     const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
-    reported.phase = isPublicSeaweedRuntimePhase(phase) ? phase : fallbackPhase(reported.code);
-    reported.reason = isPublicSeaweedRuntimeReason(reason) ? reason : reported.code;
+    reported.phase = isPublicSeaweedRuntimePhase(phase) || CLI_PHASES.has(phase)
+      ? phase : fallbackPhase(reported.code);
+    reported.reason = isPublicSeaweedRuntimeReason(reason) || isPublicCandidateImageCleanupReason(reason)
+      ? reason : reported.code;
     reported.durationMs = elapsedMs(started);
     const imageId = ownData(error, "imageId");
     if (validImageId(imageId)) reported.imageId = imageId;
+    const runtimeCleanupFailure = publicRuntimeCleanupFailure(error);
+    if (runtimeCleanupFailure !== undefined) {
+      reported.runtimeCleanupFailure = runtimeCleanupFailure;
+    }
+    const secondaryFailure = ownData(error, "secondaryFailure");
+    const secondaryCode = ownData(secondaryFailure, "code");
+    const secondaryPhase = ownData(secondaryFailure, "phase");
+    const secondaryReason = ownData(secondaryFailure, "reason");
+    if (secondaryCode === "seaweed_candidate_image_cleanup_failed"
+      && secondaryPhase === "CANDIDATE_IMAGE_CLEANUP"
+      && isPublicCandidateImageCleanupReason(secondaryReason)) {
+      reported.secondaryFailure = Object.freeze({ code: secondaryCode,
+        phase: secondaryPhase, reason: secondaryReason });
+    }
     if (validRunId(env.GITHUB_RUN_ID)) reported.runId = env.GITHUB_RUN_ID;
     if (validRevision(env.GITHUB_SHA)) reported.recipeRevision = env.GITHUB_SHA;
     throw reported;
@@ -176,16 +206,31 @@ function publicFailure(error) {
   const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
   const durationMs = ownData(error, "durationMs"); const imageId = ownData(error, "imageId");
   const runId = ownData(error, "runId"); const recipeRevision = ownData(error, "recipeRevision");
+  const secondaryFailure = ownData(error, "secondaryFailure");
+  const secondaryCode = ownData(secondaryFailure, "code");
+  const secondaryPhase = ownData(secondaryFailure, "phase");
+  const secondaryReason = ownData(secondaryFailure, "reason");
+  const secondaryDiagnostic = secondaryCode === "seaweed_candidate_image_cleanup_failed"
+    && secondaryPhase === "CANDIDATE_IMAGE_CLEANUP"
+    && isPublicCandidateImageCleanupReason(secondaryReason)
+    ? { code: secondaryCode, phase: secondaryPhase, result: "FAILED", reason: secondaryReason } : undefined;
+  const runtimeCleanupFailure = publicRuntimeCleanupFailure(error);
+  const runtimeCleanupDiagnostic = runtimeCleanupFailure === undefined ? undefined : {
+    ...runtimeCleanupFailure, result: "FAILED",
+  };
   return JSON.stringify({ state: "FAILED", code, candidateAuthorization: "NOT_AUTHORIZED",
     diagnostic: { phase: isPublicSeaweedRuntimePhase(phase) || CLI_PHASES.has(phase)
       ? phase : fallbackPhase(code), result: "FAILED",
     reason: isPublicSeaweedRuntimeReason(reason) || isPublicCandidateFailureCode(reason)
+      || isPublicCandidateImageCleanupReason(reason)
       ? reason : code,
     durationMs: Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000
       ? durationMs : 0 },
     ...(validImageId(imageId) ? { imageId } : {}),
     ...(validRunId(runId) ? { runId } : {}),
-    ...(validRevision(recipeRevision) ? { recipeRevision } : {}) });
+    ...(validRevision(recipeRevision) ? { recipeRevision } : {}),
+    ...(runtimeCleanupDiagnostic === undefined ? {} : { runtimeCleanupDiagnostic }),
+    ...(secondaryDiagnostic === undefined ? {} : { secondaryDiagnostic }) });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
