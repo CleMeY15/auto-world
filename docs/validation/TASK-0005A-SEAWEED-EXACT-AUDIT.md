@@ -1,0 +1,25 @@
+# TASK-0005A — exact local SeaweedFS candidate audit
+
+State: implementation under review; **no native audit has run**. TASK-0005A and TASK-0005 remain IN_PROGRESS, TASK-0006 blocked. An audit result cannot authorize the candidate by itself.
+
+## Boundary and trigger
+
+The manual `seaweed-candidate-audit.yml` workflow is confined to one reviewed protected-main run, with read-only source/artifact permission and no package or signing capability. It builds the corrected scanner twice from locked public materials and requires matching binary, closure and build-info evidence. It downloads the official vulnerability and Java databases by immutable manifest digest, compares registry identity before and after download, verifies both metadata records are no more than 48 hours old, and freezes their bytes before constructing a candidate.
+
+On 2026-09-24 the [upstream Java database workflow](https://github.com/aquasecurity/trivy-java-db/actions/workflows/cron.yml) is `disabled_inactivity`; its last successful [scheduled run 35408377819](https://github.com/aquasecurity/trivy-java-db/actions/runs/35408377819) started on 2026-09-19. This does not meet Auto World's 48-hour gate. **Do not dispatch** the candidate audit while that condition persists. The diagnostic fails closed on stale, future, changed or inconsistent databases; it never edits their timestamps or substitutes a private database.
+
+## Exact-subject sequence
+
+After database validation, the local materializer reconstructs a fresh SeaweedFS derivative from the reviewed public source and base materials. Its archive is validated against the image ID, one-layer DiffID, filesystem, configuration and Docker save identities before a callback may read it. The callback receives one bounded, short-lived path to that owned archive; the materializer removes its owned image, archive and temporary material on both success and callback failure.
+
+The scanner reads the validated Docker save archive with `trivy image --input` in the pinned carrier. The scanner container has no network, Docker socket, capabilities, writable root filesystem or write access to the archive and frozen databases. The candidate image is never executed in this workflow. The JSON vulnerability report and CycloneDX inventory are captured from the same archive; frozen scanner, database and archive bytes are rechecked after each scan. The local policy requires exact scanner-visible archive name, Docker image ID and tag, Linux/amd64 metadata and explicit boolean end-of-life evidence, one `usr/bin/weed` Go executable inventory, absence of the removed Rust executable targets, complete one-to-one package/SBOM inventory and the unchanged HIGH/CRITICAL vulnerability thresholds. It accepts no vulnerability disposition.
+
+The audit uses a private empty `DOCKER_CONFIG`, a 240-minute operation deadline inside a 270-minute execution step and a 360-minute job, with bounded earlier steps. The abort signal reaches candidate materialization. Each database or scan container has a run-scoped name and random ownership nonce; the runner checks for a collision, inspects exact image/name/labels before any forced removal, then proves absence. A timeout, ambiguous ownership or failed cleanup makes the receipt `INCOMPLETE`. The runner retains its fixed audit failure code after the materializer has disposed the candidate; an image or temporary cleanup failure takes precedence.
+
+The bounded public receipt binds run/revision, source and recipe, image ID, DiffID, archive/config/layer identities, scanner build identity, both database manifests and frozen files, report hashes, finding/blocker counts and cleanup. A complete report with blockers is `BLOCKED` and fails the job after cleanup. A command, freshness, identity, report, policy or cleanup error is `INCOMPLETE`; it is never recorded as a clean scan. Public Actions artifacts may retain only the technical scanner builds, JSON/SBOM reports and bounded receipts, never the candidate archive or private image layers.
+
+## Acceptance and remaining limits
+
+The implementation requires targeted negative tests, full lint/typecheck/build/tests, independent infrastructure/security review, exact-head CI and protected-main CI before one guarded native run. The orchestration tests cover stale database refusal before materialization, complete and blocked reports, archive mutation and cleanup; they use injected commands and are not a native scanner result. That run must show the actual `--input` report metadata, complete inventory, immutable database identities, cleanup and final blocker status; synthetic tests alone cannot validate Trivy's archive behavior. A native success here would still prove only one fresh exact-subject audit. Private publication, official attestation, retention/restore, admission and the four-service data lifecycle remain separate ADR-0007/TASK-0005 gates. The user-skipped external fork access probe remains `SKIPPED_BY_USER` and is not restored by this workflow.
+
+Rollback disables or removes this manual diagnostic while preserving its historical receipts. It does not change any admitted image, service data or production traffic.

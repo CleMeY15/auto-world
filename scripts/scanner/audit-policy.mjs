@@ -92,27 +92,20 @@ function approvedDisposition(entry, identity, at) {
     expiresAt - reviewedAt <= MAX_DISPOSITION_MS;
 }
 
-export function evaluateImageReport(report, pin, dispositions = [], now = new Date()) {
-  validatePin(pin);
+// Shared result evaluator for registry and local-archive image audits. Callers
+// must validate the report subject and platform before using this function.
+export function evaluateImageResults(results, { imageDigest, dispositions = [], now = new Date() } = {}) {
+  if (!DIGEST.test(imageDigest ?? "")) invalid("scanner_image_digest_invalid");
   const at = clock(now);
   if (!Array.isArray(dispositions)) invalid("scanner_dispositions_invalid");
-  const createdAt = timestamp(report?.CreatedAt);
-  const expectedNames = [pin.manifestDigest, pin.platform.digest].map((digest) => `${pin.repository}@${digest}`);
-  if (!object(report) || report.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION ||
-      !Number.isFinite(createdAt) || createdAt > at || at - createdAt > MAX_DATABASE_AGE_MS ||
-      report.ArtifactType !== "container_image" || !expectedNames.includes(report.ArtifactName) ||
-      report.Metadata?.ImageConfig?.os !== pin.platform.os || report.Metadata?.ImageConfig?.architecture !== pin.platform.architecture ||
-      !Array.isArray(report.Results) || report.Results.length === 0 || report.Results.length > 4096) invalid();
+  if (!Array.isArray(results) || results.length === 0 || results.length > 4096) invalid();
 
   const blockers = [];
   const findings = [];
   const targets = new Set();
   let packageCount = 0;
   let findingCount = 0;
-  if (report.Metadata.OS?.EOSL === true) blockers.push({ code: "image_os_end_of_life" });
-  if (report.Metadata.OS?.EOSL !== undefined && typeof report.Metadata.OS.EOSL !== "boolean") invalid();
-
-  for (const result of report.Results) {
+  for (const result of results) {
     if (!object(result) || !text(result.Target) || !text(result.Type) ||
         !["os-pkgs", "lang-pkgs"].includes(result.Class) ||
         !Array.isArray(result.Packages) || result.Packages.length === 0 ||
@@ -130,7 +123,7 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
           (finding.FixedVersion !== undefined && typeof finding.FixedVersion !== "string") ||
           !packageIdentities.has(JSON.stringify([finding.PkgName, finding.InstalledVersion]))) invalid();
       const identity = {
-        imageDigest: pin.manifestDigest, target: result.Target,
+        imageDigest, target: result.Target,
         vulnerabilityId: finding.VulnerabilityID, packageName: finding.PkgName,
         installedVersion: finding.InstalledVersion, severity: finding.Severity,
         fixedVersion: finding.FixedVersion ?? "",
@@ -143,6 +136,26 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
       }
     }
   }
+  return { findings, blockers, targets, packageCount };
+}
+
+export function evaluateImageReport(report, pin, dispositions = [], now = new Date()) {
+  validatePin(pin);
+  const at = clock(now);
+  if (!Array.isArray(dispositions)) invalid("scanner_dispositions_invalid");
+  const createdAt = timestamp(report?.CreatedAt);
+  const expectedNames = [pin.manifestDigest, pin.platform.digest].map((digest) => `${pin.repository}@${digest}`);
+  if (!object(report) || report.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION ||
+      !Number.isFinite(createdAt) || createdAt > at || at - createdAt > MAX_DATABASE_AGE_MS ||
+      report.ArtifactType !== "container_image" || !expectedNames.includes(report.ArtifactName) ||
+      report.Metadata?.ImageConfig?.os !== pin.platform.os || report.Metadata?.ImageConfig?.architecture !== pin.platform.architecture ||
+      !Array.isArray(report.Results) || report.Results.length === 0 || report.Results.length > 4096) invalid();
+
+  const evaluated = evaluateImageResults(report.Results, { imageDigest: pin.manifestDigest, dispositions, now });
+  const { findings, targets } = evaluated;
+  const blockers = [...evaluated.blockers];
+  if (report.Metadata.OS?.EOSL === true) blockers.unshift({ code: "image_os_end_of_life" });
+  if (report.Metadata.OS?.EOSL !== undefined && typeof report.Metadata.OS.EOSL !== "boolean") invalid();
   if (pin.platform.digest === SEAWEED_INVENTORIED_PLATFORM) {
     for (const [target, resultClass, type] of SEAWEED_EXECUTABLE_TARGETS) {
       if (!targets.has(JSON.stringify([target, resultClass, type]))) {

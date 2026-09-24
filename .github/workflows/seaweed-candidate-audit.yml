@@ -1,0 +1,130 @@
+name: SeaweedFS exact local candidate audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: seaweed-candidate-audit
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Independent scanner build ${{ matrix.repeat }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        repeat: [1, 2]
+    steps:
+      - name: Require the first reviewed main dispatch
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_RUN_NUMBER" = '1'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main'
+
+      - name: Check out reviewed source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.23.2
+          cache: ''
+
+      - name: Build corrected scanner from pinned source
+        run: node scripts/scanner/build.mjs --repeat ${{ matrix.repeat }} --output "${RUNNER_TEMP}/scanner-build-${{ matrix.repeat }}"
+
+      - name: Retain bounded public scanner build evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: scanner-build-${{ matrix.repeat }}
+          path: ${{ runner.temp }}/scanner-build-${{ matrix.repeat }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
+
+  audit:
+    name: Fresh exact-subject audit and cleanup
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Require the first reviewed main dispatch
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$GITHUB_RUN_NUMBER" = '1'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main'
+
+      - name: Check temporary capacity and pinned Docker daemon
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          available_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          test "$available_kib" -ge 12582912
+          test "$(docker version --format '{{.Server.Version}}')" = '28.0.4'
+
+      - name: Check out reviewed source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        timeout-minutes: 10
+        with:
+          persist-credentials: false
+
+      - name: Verify checked-out recipe revision
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        timeout-minutes: 10
+        with:
+          node-version: 22.23.2
+          cache: ''
+
+      - name: Retrieve independent scanner builds
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        timeout-minutes: 15
+        with:
+          pattern: scanner-build-*
+          path: ${{ runner.temp }}/scanner-builds
+
+      - name: Audit exact saved candidate and dispose
+        timeout-minutes: 270
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/seaweed-image/candidate-audit.mjs execute
+
+      - name: Remove diagnostic-owned empty directory
+        if: ${{ always() }}
+        run: node scripts/seaweed-image/candidate-audit.mjs cleanup
+
+      - name: Retain bounded public technical reports and receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: seaweed-candidate-audit
+          path: ${{ runner.temp }}/seaweed-candidate-audit-evidence
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
