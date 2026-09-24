@@ -134,13 +134,16 @@ function configInspectionDetail(actual, expected) {
   return "config_unknown";
 }
 
-export function validateCandidateImage(metadata, { imageId, tag, diffId, rawSize, validateRuntimeConfig,
+export function validateCandidateImage(metadata, { imageId, tag, repoTags, diffId, rawSize, validateRuntimeConfig,
   expectedConfig } = {}) {
-  if (!IMAGE_ID.test(imageId) || !IMAGE_ID.test(diffId) || typeof tag !== "string"
+  const expectedRepoTags = repoTags ?? (typeof tag === "string" ? [tag] : undefined);
+  if (!IMAGE_ID.test(imageId) || !IMAGE_ID.test(diffId)
+    || !Array.isArray(expectedRepoTags) || expectedRepoTags.some((value) => typeof value !== "string")
     || !Number.isSafeInteger(rawSize) || rawSize < 1024 || rawSize > MAX_SAVED_BYTES
     || typeof validateRuntimeConfig !== "function") throw ownershipFailure("options");
   if (metadata?.Id !== imageId) throw ownershipFailure("id");
-  if (!Array.isArray(metadata.RepoTags) || metadata.RepoTags.length !== 1 || metadata.RepoTags[0] !== tag) {
+  const actualRepoTags = metadata?.RepoTags === null && expectedRepoTags.length === 0 ? [] : metadata?.RepoTags;
+  if (!Array.isArray(actualRepoTags) || !isDeepStrictEqual(actualRepoTags, expectedRepoTags)) {
     throw ownershipFailure("tags");
   }
   if (metadata.Os !== "linux" || metadata.Architecture !== "amd64") throw ownershipFailure("platform");
@@ -217,6 +220,13 @@ async function existingImageIds(docker, options) {
   const lines = result.stdout.trim() === "" ? [] : result.stdout.trim().split(/\r?\n/u);
   if (lines.some((line) => !IMAGE_ID.test(line))) throw fail("seaweed_candidate_failed");
   return new Set(lines);
+}
+
+function exactImageIds(actual, baseline, candidateId) {
+  if (!(actual instanceof Set) || !(baseline instanceof Set)
+    || actual.size !== baseline.size + (candidateId === undefined ? 0 : 1)) return false;
+  for (const imageId of baseline) if (!actual.has(imageId)) return false;
+  return candidateId === undefined || !baseline.has(candidateId) && actual.has(candidateId);
 }
 
 async function inspectImage(docker, tag, options) {
@@ -328,19 +338,30 @@ async function execute(input, testOnly) {
       const serverVersion = "28.0.4";
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
-      if (priorImageIds.size !== 0) throw fail("seaweed_candidate_store_not_empty");
-      let imageId; let owned = false; let archiveProof; let imageCleanupFailure; let candidateFailure;
+      let imageId; let owned = false; let tagged = false; let archiveProof;
+      let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
         const imported = await stage("import", () => command(docker,
           ["image", "import", "--platform", "linux/amd64", "--message", SEAWEED_CANDIDATE_IMPORT_MESSAGE,
-            ...changes, "-", tag], { ...dockerOptions, stdinWriter: (writable) => pipeArchiveTo(writable, { signal }) }));
+            ...changes, "-"], { ...dockerOptions, stdinWriter: (writable) => pipeArchiveTo(writable, { signal }) }));
         imageId = imported.stdout.trim();
         if (!IMAGE_ID.test(imageId)) throw fail("seaweed_candidate_import_failed");
+        if (priorImageIds.has(imageId)) throw ownershipFailure("id");
         await stage("ownership", async () => {
+          const currentImageIds = await existingImageIds(docker, dockerOptions);
+          if (!exactImageIds(currentImageIds, priorImageIds, imageId)) throw ownershipFailure("id");
+          const metadata = await inspectImage(docker, imageId, dockerOptions);
+          validateCandidateImage(metadata,
+            { imageId, repoTags: [], diffId, rawSize, validateRuntimeConfig() {} });
+          owned = true;
+          validateCandidateImage(metadata,
+            { imageId, repoTags: [], diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig });
+          await imageAbsent(docker, tag, dockerOptions);
+          await command(docker, ["image", "tag", imageId, tag], dockerOptions);
+          tagged = true;
           validateCandidateImage(await inspectImage(docker, tag, dockerOptions),
             { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig });
-          owned = true;
         });
         await stage("save", async () => {
           const handle = await open(saved, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
@@ -368,11 +389,17 @@ async function execute(input, testOnly) {
       if (owned) {
         try {
           await stage("image_cleanup", async () => {
-            validateCandidateImage(await inspectImage(docker, tag, cleanupDockerOptions),
-              { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig });
-            await command(docker, ["image", "rm", tag], cleanupDockerOptions);
+            const currentImageIds = await existingImageIds(docker, cleanupDockerOptions);
+            if (!exactImageIds(currentImageIds, priorImageIds, imageId)) throw ownershipFailure("id");
+            validateCandidateImage(await inspectImage(docker, imageId, cleanupDockerOptions), tagged
+              ? { imageId, tag, diffId, rawSize, validateRuntimeConfig, expectedConfig: importConfig }
+              : { imageId, repoTags: [], diffId, rawSize, validateRuntimeConfig() {} });
+            await command(docker, ["image", "rm", tagged ? tag : imageId], cleanupDockerOptions);
             await imageAbsent(docker, tag, cleanupDockerOptions);
             await imageAbsent(docker, imageId, cleanupDockerOptions);
+            if (!exactImageIds(await existingImageIds(docker, cleanupDockerOptions), priorImageIds)) {
+              throw ownershipFailure("id");
+            }
           });
         } catch (error) { imageCleanupFailure = error; }
       }
