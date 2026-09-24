@@ -88,12 +88,16 @@ export function evaluateLocalSeaweedCandidateAudit(input = {}) {
       report.ArtifactType !== "container_image" || report.ArtifactName !== subject.artifactName ||
       report.Metadata?.ImageID !== subject.imageId || config?.os !== "linux" || config?.architecture !== "amd64" ||
       ![undefined, null].includes(config?.variant) || !Array.isArray(repoTags) || repoTags.length !== 1 ||
-      repoTags[0] !== subject.tag || !object(os) || typeof os.EOSL !== "boolean" ||
+      repoTags[0] !== subject.tag || !exactObject(os, ["Family", "Name"], ["EOSL"]) ||
+      !text(os.Family) || !text(os.Name) || (os.EOSL !== undefined && typeof os.EOSL !== "boolean") ||
       !Array.isArray(report.Results) || report.Results.length === 0 || report.Results.length > 4096) invalid();
 
   const weedTargets = report.Results.filter((entry) => entry?.Target === "usr/bin/weed" &&
     entry?.Class === "lang-pkgs" && entry?.Type === "gobinary");
-  if (weedTargets.length !== 1 || report.Results.some((entry) => forbiddenExecutable(entry?.Target))) invalid();
+  const osTargets = report.Results.filter((entry) => entry?.Class === "os-pkgs");
+  if (weedTargets.length !== 1 || osTargets.length !== 1 || osTargets[0].Type !== os.Family ||
+      osTargets[0].Target !== `${subject.artifactName} (${os.Family} ${os.Name})` ||
+      report.Results.some((entry) => forbiddenExecutable(entry?.Target))) invalid();
 
   const jsonPackages = new Set();
   for (const result of report.Results) {
@@ -117,16 +121,21 @@ export function evaluateLocalSeaweedCandidateAudit(input = {}) {
   }
 
   const root = sbom?.metadata?.component;
-  if (!object(sbom) || sbom.bomFormat !== "CycloneDX" || !/^1\.[4-6]$/u.test(sbom.specVersion ?? "") ||
+  if (!object(sbom) || sbom.bomFormat !== "CycloneDX" || !/^1\.[4-7]$/u.test(sbom.specVersion ?? "") ||
       !Number.isSafeInteger(sbom.version) || sbom.version < 1 || root?.type !== "container" ||
       root.name !== subject.artifactName || !Array.isArray(sbom.components) || sbom.components.length === 0 ||
-      sbom.components.length > MAX_COMPONENTS + 1) invalid();
+      sbom.components.length > MAX_COMPONENTS + 2) invalid();
   const applications = sbom.components.filter((component) => component?.type === "application");
   if (applications.length !== 1 || applications[0].name !== "usr/bin/weed" ||
       property(applications[0], "aquasecurity:trivy:Type") !== "gobinary" ||
       property(applications[0], "aquasecurity:trivy:Class") !== "lang-pkgs") invalid();
+  const operatingSystems = sbom.components.filter((component) => component?.type === "operating-system");
+  if (operatingSystems.length !== 1 || operatingSystems[0].name !== os.Family ||
+      operatingSystems[0].version !== os.Name ||
+      property(operatingSystems[0], "aquasecurity:trivy:Type") !== os.Family ||
+      property(operatingSystems[0], "aquasecurity:trivy:Class") !== "os-pkgs") invalid();
   const libraries = sbom.components.filter((component) => component?.type === "library");
-  if (libraries.length + applications.length !== sbom.components.length) invalid();
+  if (libraries.length + applications.length + operatingSystems.length !== sbom.components.length) invalid();
   const sbomPackages = new Set();
   for (const component of libraries) {
     if (!object(component) || !text(component.name) || !text(component.version) || forbiddenExecutable(component.name)) invalid();

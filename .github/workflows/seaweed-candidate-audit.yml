@@ -21,7 +21,7 @@ jobs:
       matrix:
         repeat: [1, 2]
     steps:
-      - name: Require the first reviewed main dispatch
+      - name: Require the second reviewed main dispatch
         timeout-minutes: 2
         run: |
           set -euo pipefail
@@ -29,7 +29,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = 'github-hosted'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_RUN_NUMBER" = '1'
+          test "$GITHUB_RUN_NUMBER" = '2'
           test "$GITHUB_RUN_ATTEMPT" = '1'
           test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main'
 
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     steps:
-      - name: Require the first reviewed main dispatch
+      - name: Require the second reviewed main dispatch
         timeout-minutes: 2
         run: |
           set -euo pipefail
@@ -71,7 +71,7 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = 'github-hosted'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_RUN_NUMBER" = '1'
+          test "$GITHUB_RUN_NUMBER" = '2'
           test "$GITHUB_RUN_ATTEMPT" = '1'
           test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main'
 

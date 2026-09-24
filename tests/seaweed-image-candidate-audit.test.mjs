@@ -247,13 +247,13 @@ test("dispatch context refuses forks, later attempts, different workflows and ro
       GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
       GITHUB_REPOSITORY: "CleMeY15/auto-world",
       GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main",
-      GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision,
+      GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision,
       GITHUB_RUN_ID: "35999999999", RUNNER_TEMP: temp };
     const host = { platform: "linux", uid: 1001, gid: 1001 };
     assert.equal(requireCandidateAuditContext(env, host).recipeRevision, revision);
     for (const change of [
       { GITHUB_REF: "refs/heads/feature" }, { GITHUB_REPOSITORY: "attacker/fork" },
-      { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_RUN_NUMBER: "2" },
+      { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "3" },
       { GITHUB_WORKFLOW_REF: "attacker/fork/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main" },
     ]) assert.throws(() => requireCandidateAuditContext({ ...env, ...change }, host),
       /seaweed_audit_context_invalid/u);
@@ -285,7 +285,7 @@ test("manual audit workflow is guarded, read-only and does not publish candidate
   const workflow = readFileSync(new URL("../.github/workflows/seaweed-candidate-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^on:\n {2}workflow_dispatch:/mu);
   assert.match(workflow, /^permissions:\n {2}contents: read\n {2}actions: read/mu);
-  assert.equal((workflow.match(/test "\$GITHUB_RUN_NUMBER" = '1'/gu) ?? []).length, 2);
+  assert.equal((workflow.match(/test "\$GITHUB_RUN_NUMBER" = '2'/gu) ?? []).length, 2);
   assert.equal((workflow.match(/test "\$GITHUB_RUN_ATTEMPT" = '1'/gu) ?? []).length, 2);
   assert.match(workflow, /node scripts\/seaweed-image\/candidate-audit\.mjs execute/u);
   assert.match(workflow, /node scripts\/seaweed-image\/candidate-audit\.mjs cleanup/u);
