@@ -6,7 +6,7 @@ import path from "node:path";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence, fixtureScanMode, parseAuditArguments, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
 
-test("database freeze retains both identities and rejected metadata before failing closed", async () => {
+test("database freeze records old Java age while still rejecting stale vulnerability and invalid metadata", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "scanner-db-evidence-"));
   try {
     const cache = path.join(directory, "cache");
@@ -21,31 +21,45 @@ test("database freeze retains both identities and rejected metadata before faili
     await writeFile(path.join(cache, "java-db/trivy-java.db"), "synthetic java database");
     await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
     await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
-    await assert.rejects(databaseEvidence(cache, now, output), (error) => {
-      assert.equal(error.message, "scanner_database_metadata_invalid");
-      assert.deepEqual(error.diagnostic.databases, [
-        { name: "vulnerability", result: "passed" },
-        { name: "java", result: "failed", reason: "scanner_database_metadata_invalid", check: "database_age_exceeded" },
-      ]);
-      return true;
-    });
+    const accepted = await databaseEvidence(cache, now, output);
+    assert.ok(accepted.metadata.java.ageMs > 48 * 60 * 60 * 1000);
+    assert.equal(accepted.metadata.java.maxAgeMs, null);
+    assert.equal(accepted.metadata.java.freshAt48Hours, false);
+    assert.ok(accepted.metadata.vulnerability.ageMs < 48 * 60 * 60 * 1000);
+    assert.equal(accepted.metadata.vulnerability.freshAt48Hours, true);
     const evidenceFile = path.join(output, "database-evidence.json");
     const evidenceBytes = await readFile(evidenceFile);
     const evidence = JSON.parse(evidenceBytes);
     assert.equal(evidence.checkedAt, now.toISOString());
-    assert.equal(evidence.maxAgeMs, 48 * 60 * 60 * 1000);
+    assert.deepEqual(evidence.maxAgeMsByDatabase, {
+      vulnerability: 48 * 60 * 60 * 1000, java: null,
+    });
+    for (const name of ["vulnerability", "java"]) {
+      assert.deepEqual(evidence.validation.find((entry) => entry.name === name),
+        { name, result: "passed", ageMs: accepted.metadata[name].ageMs,
+          maxAgeMs: accepted.metadata[name].maxAgeMs, freshAt48Hours: accepted.metadata[name].freshAt48Hours });
+    }
     assert.deepEqual(evidence.observed.java.value, java);
     assert.deepEqual(evidence.observed.vulnerability.value, vulnerability);
     for (const [name, index] of [["vulnerability", 1], ["java", 3]]) {
       const [actual] = await captureFiles([{ path: evidence.files[index].path, cap: 8 * 1024 ** 2 }]);
       assert.deepEqual(evidence.observed[name].identity, { sha256: actual.sha256, size: actual.size });
     }
-    // Failure details survive, and a second call cannot overwrite prior evidence.
+    // The exact accepted metadata survives, and a second call cannot overwrite prior evidence.
     await assert.rejects(databaseEvidence(cache, now, output), { code: "EEXIST" });
     assert.deepEqual(await readFile(evidenceFile), evidenceBytes);
-    java.UpdatedAt = vulnerability.UpdatedAt;
-    await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
-    assert.equal((await databaseEvidence(cache, now)).metadata.java.version, 1);
+    vulnerability.UpdatedAt = "2026-09-19T01:03:27Z";
+    await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
+    await assert.rejects(databaseEvidence(cache, now), (error) => {
+      assert.deepEqual(error.diagnostic.databases, [
+        { name: "vulnerability", result: "failed", reason: "scanner_database_metadata_invalid",
+          check: "database_age_exceeded" },
+        { name: "java", result: "passed", ageMs: accepted.metadata.java.ageMs,
+          maxAgeMs: null, freshAt48Hours: false },
+      ]);
+      return true;
+    });
+    vulnerability.UpdatedAt = "2026-09-23T07:19:42Z";
     vulnerability.DownloadedAt = "2026-09-24T00:00:00Z";
     java.Version = 2;
     await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
