@@ -26,7 +26,7 @@ async function requireContext(env) {
   if (process.platform !== "linux" || env.GITHUB_ACTIONS !== "true"
     || env.RUNNER_ENVIRONMENT !== "github-hosted"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
-    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "3"
+    || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_RUN_NUMBER !== "4"
     || env.GITHUB_RUN_ATTEMPT !== "1" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || !/^[0-9a-f]{40}$/u.test(env.GITHUB_SHA ?? "")
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "")
@@ -63,7 +63,7 @@ function publicReceipt(result, env, durationMs) {
     "serverVersion", "archiveKind", "archiveIdentityType", "archiveSha256", "archiveBytes", "runtimeProof"];
   if (result === null || typeof result !== "object" || Object.keys(result).length !== keys.length
     || keys.some((key) => !Object.hasOwn(result, key))
-    || result.kind !== "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1" || result.state !== "VERIFIED"
+    || result.kind !== "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2" || result.state !== "VERIFIED"
     || result.authority !== "DIAGNOSTIC_ONLY" || result.candidateAuthorization !== "NOT_AUTHORIZED"
     || result.imageExecution !== "VERIFIED_DIAGNOSTIC" || result.publication !== "NOT_ATTEMPTED"
     || result.vulnerabilityAudit !== "NOT_ATTEMPTED" || result.admission !== "NOT_ATTEMPTED"

@@ -429,7 +429,7 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
       return Object.freeze({ kind: runtimeProof === undefined ? "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1"
-        : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+        : "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
         authority: runtimeProof === undefined ? "PREPARATION_ONLY" : "DIAGNOSTIC_ONLY",
         candidateAuthorization: "NOT_AUTHORIZED",
         imageExecution: runtimeProof === undefined ? "NOT_ATTEMPTED" : "VERIFIED_DIAGNOSTIC",

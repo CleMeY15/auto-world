@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { TEST_ONLY_verifyLocalSeaweedRuntimeProfile, validateSeaweedRuntimeProfileProof,
-  verifyLocalSeaweedRuntimeProfile } from "../scripts/seaweed-image/candidate-runtime.mjs";
+import { TEST_ONLY_signedSeaweedS3ProbeScript, TEST_ONLY_verifyLocalSeaweedRuntimeProfile,
+  validateSeaweedRuntimeProfileProof, verifyLocalSeaweedRuntimeProfile } from
+  "../scripts/seaweed-image/candidate-runtime.mjs";
 
 const imageId = `sha256:${"a".repeat(64)}`;
 const runId = "35941171343";
@@ -13,7 +17,8 @@ const dockerConfig = path.resolve("runtime-test-docker-config");
 
 function fixture({ probeFailure = false, cleanupFailure = false, preexisting = false,
   createMalformed = false, createThrows = false, foreignAfterCreate = false,
-  probeStatus, helperAccepted = false, unexpectedExit = false } = {}) {
+  probeStatus, signedStatus, signedMalformed = false,
+  helperAccepted = false, unexpectedExit = false } = {}) {
   const calls = []; const containerId = "c".repeat(64); let state = preexisting ? "running" : undefined;
   let nonce = ""; let inspectionsAfterCreate = 0;
   const docker = async (args, options) => {
@@ -68,6 +73,23 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
         ? { status: probeStatus ?? 21, stdout: "", stderr: "" }
         : { status: 0, stdout: "SEAWEED_RUNTIME_PROFILE_VERIFIED\n", stderr: "" };
     }
+    if (args[0] === "container" && args[1] === "exec"
+      && args.at(-1).includes?.("SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED")) {
+      const script = args.at(-1);
+      assert.equal(options.timeoutMs, 90_000);
+      assert.match(script, /--aws-sigv4 'aws:amz:us-east-1:s3'/u);
+      assert.match(script, /http:\/\/127\.0\.0\.1:8333\/aw-raw\/proof/u);
+      assert.match(script, /http:\/\/127\.0\.0\.1:8333\/aw-forbidden/u);
+      assert.match(script, /--header 'If-None-Match: \*'/u);
+      assert.match(script, /case "\$wrong" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 44 ;; \*\) exit 50 ;; esac/u);
+      assert.match(script, /test "\$same" = 412 && test "\$different" = 412/u);
+      assert.match(script, /case "\$forbidden" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 45 ;; \*\) exit 51 ;; esac/u);
+      assert.match(script, /case "\$unsigned" in 403\) ;; 000\|''\) exit 49 ;; 2\?\?\) exit 48 ;; \*\) exit 52 ;; esac/u);
+      assert.match(script, /test "\$a" = 200 && \{ test "\$b" = 412 \|\| test "\$b" = 409; \}/u);
+      return signedStatus !== undefined ? { status: signedStatus, stdout: "", stderr: "" }
+        : { status: 0, stdout: signedMalformed ? "UNVERIFIED\n"
+          : "SEAWEED_SIGNED_S3_PROTOCOL_VERIFIED\n", stderr: "" };
+    }
     if (args[0] === "container" && args[1] === "exec") {
       assert.ok(["volume-rust", "worker-rust"].includes(args.at(-1)));
       return helperAccepted ? { status: 0, stdout: "helper ran\n", stderr: "" }
@@ -88,14 +110,68 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
 
 function input(extra = {}) { return { parent, dockerConfig, imageId, runId, recipeRevision, ...extra }; }
 
+test("signed S3 probe parses under the Linux container shell", { skip: process.platform !== "linux" }, () => {
+  const result = spawnSync("sh", ["-n"], { input: TEST_ONLY_signedSeaweedS3ProbeScript(), encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "");
+});
+
+test("signed S3 shell distinguishes accepted access from unexpected HTTP failures",
+  { skip: process.platform !== "linux" }, () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "aw-s3-status-"));
+    try {
+      const curl = path.join(directory, "curl");
+      const sha256sum = path.join(directory, "sha256sum");
+      writeFileSync(curl, `#!/bin/sh
+case " $* " in *' --help all '*) printf '%s\\n' '--aws-sigv4'; exit 0 ;; esac
+case " $* " in
+  *' --user AWDIAGNOSTICACCESS:incorrect '*) printf '%s' "\${AW_TEST_WRONG:-403}" ;;
+  *'/aw-forbidden '*) printf '%s' "\${AW_TEST_FORBIDDEN:-403}" ;;
+  *' --request PUT '*'/aw-raw/proof '*) printf '%s' "\${AW_TEST_PUT:-200}" ;;
+  *' --request PUT '*'/aw-raw '*) printf '%s' "\${AW_TEST_BUCKET:-200}" ;;
+  *' --aws-sigv4 '*'/aw-raw/proof '*) printf '%s' "\${AW_TEST_READ:-200}" ;;
+  *'/aw-raw/proof '*) printf '%s' "\${AW_TEST_UNSIGNED:-403}" ;;
+  *) exit 2 ;;
+esac
+`);
+      writeFileSync(sha256sum, `#!/bin/sh
+printf '%s  %s\\n' 'b30f82db4f920b641336de83b57cf6bc22537f38f08f0f16680526b067245fa1' "$1"
+`);
+      chmodSync(curl, 0o700); chmodSync(sha256sum, 0o700);
+      for (const [name, status, exitCode] of [
+        ["BUCKET", "500", 53], ["BUCKET", "403", 42],
+        ["READ", "404", 54],
+        ["WRONG", "404", 50], ["WRONG", "200", 44],
+        ["FORBIDDEN", "429", 51], ["FORBIDDEN", "200", 45],
+        ["UNSIGNED", "500", 52], ["UNSIGNED", "200", 48],
+      ]) {
+        const result = spawnSync("sh", ["-c", TEST_ONLY_signedSeaweedS3ProbeScript()], {
+          env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, [`AW_TEST_${name}`]: status },
+          encoding: "utf8",
+        });
+        assert.equal(result.status, exitCode, `${name} ${status}: ${result.stderr}`);
+        assert.equal(result.stdout, "");
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
 test("runtime diagnostic applies the fixed isolated profile and returns a bounded proof", async () => {
   const value = fixture();
   const proof = await TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker });
   assert.deepEqual(validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision }), proof);
+  assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PROOF_V2");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.derivativeVersion, "c507336+aw.549ec92660ab");
+  assert.equal(proof.profileSha256, "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c");
+  assert.equal(proof.commandSha256, "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507");
   assert.equal(proof.readiness, "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200");
   assert.equal(proof.anonymousAccess, "REFUSED_403");
+  assert.equal(proof.authenticatedAccess, "SIGNED_CREATE_PUT_GET_SHA256");
+  assert.equal(proof.scopeEnforcement, "WRONG_KEY_AND_BUCKET_REFUSED_403");
+  assert.equal(proof.conditionalWrites, "REPLAY_AND_OVERWRITE_REFUSED_412");
+  assert.equal(proof.parallelAttempt, "SINGLE_PAIR_ONE_WINNER_READBACK");
   assert.equal(proof.rustHelpers, "ABSENT_AND_REJECTED"); assert.equal(value.state, undefined);
   assert.equal(value.calls.filter((args) => args[1] === "stop").length, 1);
   assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
@@ -123,6 +199,34 @@ for (const [status, reason] of [
     await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
       { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE", reason });
     assert.equal(value.state, undefined);
+  });
+}
+
+test("a successful shell exit without the signed S3 marker cannot issue a proof", async () => {
+  const value = fixture({ signedMalformed: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_S3_PROTOCOL",
+      reason: "PROBE_OUTPUT_INVALID" });
+  assert.equal(value.state, undefined);
+});
+
+for (const [status, reason] of [
+  [41, "SIGNED_CLIENT_UNAVAILABLE"], [42, "ALLOWED_SCOPE_DENIED"],
+  [43, "READBACK_MISMATCH"], [44, "WRONG_CREDENTIAL_ACCEPTED"],
+  [45, "FORBIDDEN_SCOPE_ALLOWED"], [46, "CONDITIONAL_WRITE_UNEXPECTED"],
+  [47, "CONCURRENT_WRITE_UNEXPECTED"], [48, "ANONYMOUS_OBJECT_ALLOWED"],
+  [49, "SIGNED_TRANSPORT_FAILURE"],
+  [50, "WRONG_CREDENTIAL_UNEXPECTED_STATUS"], [51, "FORBIDDEN_SCOPE_UNEXPECTED_STATUS"],
+  [52, "ANONYMOUS_OBJECT_UNEXPECTED_STATUS"], [53, "ALLOWED_SCOPE_UNEXPECTED_STATUS"],
+  [54, "READ_UNEXPECTED_STATUS"],
+  [127, "SIGNED_CLIENT_UNAVAILABLE"],
+]) {
+  test(`signed S3 probe status ${status} reports bounded reason ${reason}`, async () => {
+    const value = fixture({ signedStatus: status });
+    await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
+      { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_S3_PROTOCOL", reason });
+    assert.equal(value.state, undefined);
+    assert.equal(value.calls.filter((args) => args[1] === "rm").length, 1);
   });
 }
 
@@ -182,6 +286,10 @@ test("proof and input validators reject extra or altered fields", async () => {
     { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_failed" });
   assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, uid: 0 }, { imageId, runId, recipeRevision }),
     { code: "seaweed_candidate_runtime_failed" });
+  assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, parallelAttempt: "NOT_ATTEMPTED" },
+    { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_failed" });
+  assert.throws(() => validateSeaweedRuntimeProfileProof({ ...proof, kind: "SEAWEED_LOCAL_RUNTIME_PROOF_V1" },
+    { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_failed" });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile({ ...input(), args: ["--privileged"] },
     { docker: value.docker }), { code: "seaweed_candidate_runtime_failed" });
   if (process.platform !== "linux") await assert.rejects(verifyLocalSeaweedRuntimeProfile(input()),

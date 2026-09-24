@@ -17,13 +17,13 @@ const imageId = `sha256:${"c".repeat(64)}`;
 function context(runnerTemp) {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
-    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "3", GITHUB_RUN_ATTEMPT: "1",
+    GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_NUMBER: "4", GITHUB_RUN_ATTEMPT: "1",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main",
     GITHUB_SHA: revision, GITHUB_RUN_ID: runId, RUNNER_TEMP: runnerTemp };
 }
 
 function receipt() {
-  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+  return { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2", state: "VERIFIED",
     authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
     imageExecution: "VERIFIED_DIAGNOSTIC", publication: "NOT_ATTEMPTED",
     vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED", runId,
@@ -42,7 +42,8 @@ test("runtime diagnostic refuses changed one-time main context before storage", 
   const root = path.join(runnerTemp, "seaweed-runtime-candidate");
   try {
     for (const changed of [{ GITHUB_REF: "refs/heads/other" }, { RUNNER_ENVIRONMENT: "self-hosted" },
-      { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "2" }, { GITHUB_RUN_ATTEMPT: "2" },
+      { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "2" }, { GITHUB_RUN_NUMBER: "3" },
+      { GITHUB_RUN_ATTEMPT: "2" },
       { GITHUB_REPOSITORY: "foreign/repo" },
       { GITHUB_WORKFLOW_REF: "foreign/workflow" }, { GITHUB_SHA: "not-a-sha" }]) {
       await assert.rejects(TEST_ONLY_runRuntimeDiagnostic(["execute"], { ...context(runnerTemp), ...changed }),
@@ -83,6 +84,7 @@ test("runtime diagnostic rejects changed authority, lineage and runtime proof", 
   const runnerTemp = await mkdtemp(path.join(os.tmpdir(), "aw-runtime-lineage-"));
   try {
     for (const changed of [{ sourceRunId: "1" }, { authority: "PREPARATION_ONLY" },
+      { kind: "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1" },
       { candidateAuthorization: "AUTHORIZED" }, { imageExecution: "NOT_ATTEMPTED" },
       { runtimeProof: { ...receipt().runtimeProof, shutdown: "UNBOUNDED" } }]) {
       let logged = false;

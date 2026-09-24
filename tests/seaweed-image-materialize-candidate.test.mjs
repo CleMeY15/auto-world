@@ -343,7 +343,7 @@ test("runtime wrapper verifies only after the saved archive and before image cle
   injectRuntime(value);
   try {
     const result = await TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate(value.inputs, value.injected);
-    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V1");
+    assert.equal(result.kind, "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V2");
     assert.equal(result.authority, "DIAGNOSTIC_ONLY");
     assert.equal(result.imageExecution, "VERIFIED_DIAGNOSTIC");
     assert.equal(result.candidateAuthorization, "NOT_AUTHORIZED");
