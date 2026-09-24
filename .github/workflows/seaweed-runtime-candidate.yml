@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - name: Require the eleventh reviewed main dispatch
+      - name: Require the twelfth reviewed main dispatch
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = 'CleMeY15/auto-world'
           test "$RUNNER_ENVIRONMENT" = 'github-hosted'
           test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$GITHUB_RUN_NUMBER" = '11'
+          test "$GITHUB_RUN_NUMBER" = '12'
           test "$GITHUB_RUN_ATTEMPT" = '1'
           test "$GITHUB_WORKFLOW_REF" = 'CleMeY15/auto-world/.github/workflows/seaweed-runtime-candidate.yml@refs/heads/main'
 
@@ -56,11 +56,11 @@ jobs:
           node-version: 22.23.2
           cache: ''
 
-      - name: Verify offline backup and isolated restore and dispose
+      - name: Verify disposable host loopback S3 access and dispose
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/seaweed-image/runtime-diagnostic.mjs execute-backup
+        run: node scripts/seaweed-image/runtime-diagnostic.mjs execute-host-loopback
 
       - name: Remove diagnostic-owned empty directory
         if: ${{ always() }}
-        run: node scripts/seaweed-image/runtime-diagnostic.mjs cleanup-backup
+        run: node scripts/seaweed-image/runtime-diagnostic.mjs cleanup-host-loopback

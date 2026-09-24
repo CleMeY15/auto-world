@@ -9,6 +9,8 @@ import { isDeepStrictEqual } from "node:util";
 import { SEAWEED_CANDIDATE_IMPORT_MESSAGE, validateSavedSeaweedCandidate } from "./candidate-archive.mjs";
 import { validateSeaweedRuntimeBackupRestoreProof, verifyLocalSeaweedRuntimeBackupRestore } from
   "./backup-restore.mjs";
+import { isPublicSeaweedHostLoopbackPhase, isPublicSeaweedHostLoopbackReason,
+  validateSeaweedRuntimeHostLoopbackProof, verifyLocalSeaweedRuntimeHostLoopback } from "./host-loopback.mjs";
 import { isPublicSeaweedRuntimePhase, isPublicSeaweedRuntimeReason,
   validateSeaweedRuntimePersistenceProof, validateSeaweedRuntimeProfileProof,
   validateSeaweedRuntimeStrictContentionProof, verifyLocalSeaweedRuntimeProfile,
@@ -39,7 +41,12 @@ const FAILURE_CODES = new Set([
   "seaweed_candidate_store_failed", "seaweed_candidate_store_not_empty",
   "seaweed_candidate_runtime_failed", "seaweed_candidate_runtime_cleanup_failed",
   "seaweed_candidate_runtime_backup_restore_failed", "seaweed_candidate_runtime_backup_restore_cleanup_failed",
+  "seaweed_candidate_runtime_host_loopback_failed", "seaweed_candidate_runtime_host_loopback_cleanup_failed",
 ]);
+const isPublicRuntimePhase = (value) => isPublicSeaweedRuntimePhase(value)
+  || isPublicSeaweedHostLoopbackPhase(value);
+const isPublicRuntimeReason = (value) => isPublicSeaweedRuntimeReason(value)
+  || isPublicSeaweedHostLoopbackReason(value);
 
 function fail(code) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "PREPARATION_ONLY",
@@ -89,8 +96,8 @@ function withSecondaryImageCleanupFailure(primary, secondary) {
   const phase = ownData(primary, "phase"); const reason = ownData(primary, "reason");
   const durationMs = ownData(primary, "durationMs"); const imageId = ownData(primary, "imageId");
   const detailCode = ownData(primary, "detailCode");
-  if (isPublicSeaweedRuntimePhase(phase)) reported.phase = phase;
-  if (isPublicSeaweedRuntimeReason(reason)) reported.reason = reason;
+  if (isPublicRuntimePhase(phase)) reported.phase = phase;
+  if (isPublicRuntimeReason(reason)) reported.reason = reason;
   if (Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000) {
     reported.durationMs = durationMs;
   }
@@ -99,8 +106,8 @@ function withSecondaryImageCleanupFailure(primary, secondary) {
   const runtimeCleanupFailure = ownData(primary, "runtimeCleanupFailure");
   if (isPublicRuntimeCleanupFailure(runtimeCleanupFailure)) {
     reported.runtimeCleanupFailure = Object.freeze({
-      code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
-      phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+      code: ownData(runtimeCleanupFailure, "code"),
+      phase: ownData(runtimeCleanupFailure, "phase"), reason: "CLEANUP_UNCERTAIN",
     });
   }
   const cleanupReason = ownData(secondary, "reason");
@@ -115,8 +122,10 @@ function isPublicRuntimeCleanupFailure(value) {
   try {
     return value !== null && typeof value === "object" && !Array.isArray(value)
       && Object.keys(value).sort().join("|") === "code|phase|reason"
-      && ownData(value, "code") === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
-      && ownData(value, "phase") === "BACKUP_RESTORE_CLEANUP"
+      && ((ownData(value, "code") === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+        && ownData(value, "phase") === "BACKUP_RESTORE_CLEANUP")
+        || (ownData(value, "code") === "seaweed_candidate_runtime_host_loopback_cleanup_failed"
+          && ownData(value, "phase") === "HOST_LOOPBACK_CLEANUP"))
       && ownData(value, "reason") === "CLEANUP_UNCERTAIN";
   } catch { return false; }
 }
@@ -370,6 +379,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
     ? testOnly?.verifyStrict ?? verifyLocalSeaweedRuntimeStrictContention : undefined;
   const verifyBackupRestore = executionProfile === "BACKUP_RESTORE_PROFILE"
     ? testOnly?.verifyBackupRestore ?? verifyLocalSeaweedRuntimeBackupRestore : undefined;
+  const verifyHostLoopback = executionProfile === "HOST_LOOPBACK_PROFILE"
+    ? testOnly?.verifyHostLoopback ?? verifyLocalSeaweedRuntimeHostLoopback : undefined;
   const docker = testOnly?.docker ?? defaultDocker;
   const rootfsParent = path.join(parent, "rootfs"); const work = path.join(parent, "work");
   const dockerConfig = path.join(work, "docker-config"); const saved = path.join(work, "saved.tar");
@@ -409,7 +420,7 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       await stage("tag", () => imageAbsent(docker, tag, dockerOptions));
       const priorImageIds = await stage("store", () => existingImageIds(docker, dockerOptions));
       let imageId; let owned = false; let tagged = false; let archiveProof; let runtimeProof;
-      let persistenceProof; let strictContentionProof; let backupRestoreProof;
+      let persistenceProof; let strictContentionProof; let backupRestoreProof; let hostLoopbackProof;
       let imageCleanupFailure; let candidateFailure;
       try {
         const changes = candidateImportChanges(importConfig).flatMap((change) => ["--change", change]);
@@ -457,9 +468,10 @@ async function execute(input, testOnly, executionProfile = "NONE") {
           throw fail("seaweed_candidate_archive_failed");
         }
         if (verifyRuntime !== undefined || verifyPersistence !== undefined || verifyStrict !== undefined
-          || verifyBackupRestore !== undefined) {
+          || verifyBackupRestore !== undefined || verifyHostLoopback !== undefined) {
           try {
-            const proof = await (verifyPersistence ?? verifyStrict ?? verifyBackupRestore ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
+            const proof = await (verifyPersistence ?? verifyStrict ?? verifyBackupRestore
+              ?? verifyHostLoopback ?? verifyRuntime)(Object.freeze({ parent: work, dockerConfig, imageId,
               runId, recipeRevision, signal }));
             if (verifyPersistence !== undefined) {
               validateSeaweedRuntimePersistenceProof(proof, { imageId, runId, recipeRevision });
@@ -476,6 +488,9 @@ async function execute(input, testOnly, executionProfile = "NONE") {
             } else if (verifyBackupRestore !== undefined) {
               validateSeaweedRuntimeBackupRestoreProof(proof, { imageId, runId, recipeRevision });
               backupRestoreProof = proof;
+            } else if (verifyHostLoopback !== undefined) {
+              validateSeaweedRuntimeHostLoopbackProof(proof, { imageId, runId, recipeRevision });
+              hostLoopbackProof = proof;
             } else {
               validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
               runtimeProof = proof;
@@ -485,18 +500,19 @@ async function execute(input, testOnly, executionProfile = "NONE") {
             const reported = fail(runtimeCode === "seaweed_candidate_runtime_cleanup_failed"
               || runtimeCode === "seaweed_candidate_runtime_persistence_cleanup_failed"
               || runtimeCode === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+              || runtimeCode === "seaweed_candidate_runtime_host_loopback_cleanup_failed"
               ? "seaweed_candidate_runtime_cleanup_failed" : "seaweed_candidate_runtime_failed");
             const phase = ownData(error, "phase"); const reason = ownData(error, "reason");
             const durationMs = ownData(error, "durationMs");
-            if (isPublicSeaweedRuntimePhase(phase) && isPublicSeaweedRuntimeReason(reason)
+            if (isPublicRuntimePhase(phase) && isPublicRuntimeReason(reason)
               && Number.isSafeInteger(durationMs) && durationMs >= 0 && durationMs <= 10_800_000) {
               reported.phase = phase; reported.reason = reason; reported.durationMs = durationMs;
             }
             const runtimeCleanupFailure = ownData(error, "runtimeCleanupFailure");
             if (isPublicRuntimeCleanupFailure(runtimeCleanupFailure)) {
               reported.runtimeCleanupFailure = Object.freeze({
-                code: "seaweed_candidate_runtime_backup_restore_cleanup_failed",
-                phase: "BACKUP_RESTORE_CLEANUP", reason: "CLEANUP_UNCERTAIN",
+                code: ownData(runtimeCleanupFailure, "code"),
+                phase: ownData(runtimeCleanupFailure, "phase"), reason: "CLEANUP_UNCERTAIN",
               });
             }
             reported.imageId = imageId;
@@ -536,7 +552,9 @@ async function execute(input, testOnly, executionProfile = "NONE") {
       }
       if (imageCleanupFailure !== undefined) throw imageCleanupFailure;
       if (candidateFailure !== undefined) throw candidateFailure;
-      return Object.freeze({ kind: backupRestoreProof !== undefined
+      return Object.freeze({ kind: hostLoopbackProof !== undefined
+        ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V6"
+        : backupRestoreProof !== undefined
         ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V5"
         : strictContentionProof !== undefined
         ? "SEAWEED_LOCAL_RUNTIME_CANDIDATE_RECEIPT_V4"
@@ -555,7 +573,8 @@ async function execute(input, testOnly, executionProfile = "NONE") {
         ...(runtimeProof === undefined ? {} : { runtimeProof }),
         ...(persistenceProof === undefined ? {} : { persistenceProof }),
         ...(strictContentionProof === undefined ? {} : { strictContentionProof }),
-        ...(backupRestoreProof === undefined ? {} : { backupRestoreProof }) });
+        ...(backupRestoreProof === undefined ? {} : { backupRestoreProof }),
+        ...(hostLoopbackProof === undefined ? {} : { hostLoopbackProof }) });
     });
   } catch (error) { failure = error; }
   const clean = await cleanupOwned({ rootfsReceipt, cleanupRootfs, rootfsParent, rootfsIdentity, work, workIdentity,
@@ -597,4 +616,10 @@ export async function materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandid
 }
 export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeBackupRestoreCandidate(input, injected) {
   return execute(input, injected, "BACKUP_RESTORE_PROFILE");
+}
+export async function materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate(input) {
+  return execute(input, undefined, "HOST_LOOPBACK_PROFILE");
+}
+export async function TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeHostLoopbackCandidate(input, injected) {
+  return execute(input, injected, "HOST_LOOPBACK_PROFILE");
 }
