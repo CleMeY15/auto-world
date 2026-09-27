@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { cleanupOwnedResource, containerProfileInspectArguments, dockerBuildArguments, ephemeralContainerArguments,
   parseDiagnosticArguments, postgresContainerArguments,
-  runPostgresDiagnostic, validateCommandResult, validateDiagnosticLock, validateMaterialBytes }
+  runPostgresDiagnostic, validateCommandResult, validateDiagnosticLock, validateDockerVersion, validateMaterialBytes }
   from "../scripts/postgres-image/diagnostic.mjs";
 
 const dockerfile = readFileSync(new URL("../infra/postgres-image/Dockerfile", import.meta.url));
@@ -14,6 +14,20 @@ const nonce = "a".repeat(24);
 const clone = (value) => globalThis.structuredClone(value);
 const result = (status, stdout = "", stderr = "") => ({ status, signal: null, error: undefined,
   stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) });
+
+test("native Docker JSON CPU capability names are required before the preflight passes", () => {
+  const version = { Client: { Version: "28.0.4" }, Server: { Version: "28.0.4",
+    Platform: { Name: "Docker Engine - Community" } } };
+  const info = { ServerVersion: "28.0.4", Driver: "overlay2", CgroupVersion: "2", MemoryLimit: true,
+    SwapLimit: true, CpuCfsQuota: true, CpuCfsPeriod: true, OSType: "linux", Architecture: "x86_64" };
+  assert.doesNotThrow(() => validateDockerVersion(version, info, lock));
+  for (const field of ["MemoryLimit", "SwapLimit", "CpuCfsQuota", "CpuCfsPeriod"]) {
+    assert.throws(() => validateDockerVersion(version, { ...info, [field]: false }, lock), /postgres_diagnostic_docker_invalid/u);
+  }
+  const wrongCase = { ...info, CPUCfsQuota: true, CPUCfsPeriod: true };
+  delete wrongCase.CpuCfsQuota; delete wrongCase.CpuCfsPeriod;
+  assert.throws(() => validateDockerVersion(version, wrongCase, lock), /postgres_diagnostic_docker_invalid/u);
+});
 
 test("the lock binds the exact base, signed Alpine materials, executable and recipe", () => {
   assert.deepEqual(validateDiagnosticLock(lock, dockerfile), lock);

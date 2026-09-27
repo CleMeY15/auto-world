@@ -285,12 +285,12 @@ function repositoryInputs(gitCommand) {
   return Object.freeze({ revision, dockerfile, lockBytes, lock, materials });
 }
 
-function validateDockerVersion(version, info, lock) {
+export function validateDockerVersion(version, info, lock) {
   if (!plain(version) || !plain(info) || version.Client?.Version !== lock.docker.clientVersion
     || version.Server?.Version !== lock.docker.serverVersion || version.Server?.Platform?.Name !== lock.docker.engine
     || info.ServerVersion !== lock.docker.serverVersion || info.Driver !== lock.docker.storageDriver
     || info.CgroupVersion !== lock.docker.cgroupVersion || info.MemoryLimit !== true || info.SwapLimit !== true
-    || info.CPUCfsQuota !== true || info.CPUCfsPeriod !== true
+    || info.CpuCfsQuota !== true || info.CpuCfsPeriod !== true
     || info.OSType !== lock.base.os || info.Architecture !== "x86_64") {
     fail("postgres_diagnostic_docker_invalid");
   }
@@ -492,11 +492,11 @@ export async function runPostgresDiagnostic(argv = process.argv.slice(2), depend
     writeExclusive(path.join(context, lock.apk.fileName), apkBytes);
     writeExclusive(path.join(context, lock.apk.index.fileName), indexBytes);
 
-    const { version, info } = record("DOCKER_PREFLIGHT", () => ({
-      version: parseJson(validateCommandResult(invoke(["version", "--format", "{{json .}}"], "docker-version")).stdout),
-      info: parseJson(validateCommandResult(invoke(["info", "--format", "{{json .}}"], "docker-info")).stdout),
-    }));
-    validateDockerVersion(version, info, lock);
+    record("DOCKER_PREFLIGHT", () => {
+      const version = parseJson(validateCommandResult(invoke(["version", "--format", "{{json .}}"], "docker-version")).stdout);
+      const info = parseJson(validateCommandResult(invoke(["info", "--format", "{{json .}}"], "docker-info")).stdout);
+      validateDockerVersion(version, info, lock);
+    });
     const baseRef = `${lock.base.repository}@${lock.base.platformDigest}`;
     const baseInspectResult = record("BASE_IDENTITY", () => validateCommandResult(invoke(["image", "inspect", baseRef], "base-inspect")));
     const base = validateBaseInspect(parseJson(baseInspectResult.stdout), lock);
