@@ -319,6 +319,21 @@ test("runtime failures expose only fixed public codes", () => {
     runtimeCleanupDiagnostic: { code: "seaweed_candidate_runtime_host_loopback_cleanup_failed",
       phase: "HOST_LOOPBACK_CLEANUP", reason: "CLEANUP_UNCERTAIN", result: "FAILED" },
   });
+  for (const [code, phase] of [
+    ["seaweed_candidate_runtime_cleanup_failed", "RUNTIME_CLEANUP"],
+    ["seaweed_candidate_runtime_persistence_cleanup_failed", "PERSISTENCE_CLEANUP"],
+  ]) {
+    const publicFailure = JSON.parse(TEST_ONLY_publicRuntimeFailure({
+      code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE",
+      reason: "READINESS_UNAVAILABLE", durationMs: 19,
+      runtimeCleanupFailure: { code, phase, reason: "CLEANUP_UNCERTAIN" },
+      message: "private command output",
+    }));
+    assert.equal(publicFailure.diagnostic.reason, "READINESS_UNAVAILABLE");
+    assert.deepEqual(publicFailure.runtimeCleanupDiagnostic,
+      { code, phase, reason: "CLEANUP_UNCERTAIN", result: "FAILED" });
+    assert.equal(JSON.stringify(publicFailure).includes("private"), false);
+  }
   assert.deepEqual(JSON.parse(TEST_ONLY_publicRuntimeFailure({
     code: "seaweed_candidate_image_cleanup_failed", phase: "CANDIDATE_IMAGE_CLEANUP",
     reason: "IMAGE_REMOVE_FAILED", durationMs: 41, imageId,
