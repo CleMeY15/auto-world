@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +8,7 @@ import { buildFixtureTar } from "../scripts/image-import-fixture/archive.mjs";
 
 import { candidateInputDockerArguments } from "../scripts/seaweed-image/candidate-audit.mjs";
 import { authenticatePostgresCodeBundle, executePostgresScan, parsePostgresScanArguments, postgresOwnedContainerArguments,
+  preparePostgresScannerControls,
   TEST_ONLY_copyAuthenticatedFile, TEST_ONLY_recordOperationFailure, TEST_ONLY_runOwnedContainer,
   validatePostgresDiagnosticEvidence,
   writePostgresCommandFailureEvidence } from "../scripts/postgres-image/scan.mjs";
@@ -279,6 +280,44 @@ test("execution refuses non-root, non-Linux, and credential-bearing environments
     /postgres_scan_requires_linux_root/u);
   await assert.rejects(executePostgresScan(context, { runtime: { platform: "linux", uid: 0, gid: 0 },
     environment: { GITHUB_TOKEN: "not-recorded" } }), /postgres_scan_auth_environment_refused/u);
+});
+
+test("scanner controls remain readable by the non-root container under a private umask", {
+  skip: process.platform !== "linux" ? "POSIX mode assertion requires Linux" : false,
+}, () => {
+  const work = mkdtempSync(path.join(os.tmpdir(), "aw-pg-control-modes-"));
+  const previousMask = process.umask(0o077);
+  try {
+    chmodSync(work, 0o700);
+    const scanner = path.join(work, "scanner"); const bytes = Buffer.from("authenticated-scanner-test");
+    writeFileSync(scanner, bytes, { mode: 0o600 });
+    const pair = { scanner, scannerCopy: { sha256: sha256(bytes), size: bytes.length },
+      lock: { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.8" } } };
+    const controls = preparePostgresScannerControls(work, pair);
+    assert.equal(lstatSync(work).mode & 0o777, 0o700);
+    for (const directory of [controls.scannerSubject, controls.versionProbe]) {
+      assert.equal(lstatSync(directory).mode & 0o777, 0o555);
+    }
+    assert.equal(lstatSync(controls.scannerSubjectCopy.path).mode & 0o777, 0o555);
+    assert.equal(lstatSync(controls.versionProbeFile).mode & 0o777, 0o444);
+    assert.equal(controls.scannerSubjectCopy.sha256, pair.scannerCopy.sha256);
+    assert.match(readFileSync(controls.versionProbeFile, "utf8"), /github.com\/aquasecurity\/trivy v0\.74\.0/u);
+  } finally {
+    process.umask(previousMask);
+    for (const name of ["scanner-subject", "scanner-version-probe"]) {
+      const directory = path.join(work, name); if (existsSync(directory)) chmodSync(directory, 0o700);
+    }
+    rmSync(work, { recursive: true });
+  }
+});
+
+test("bounded scanner and archive failure codes survive diagnostics while arbitrary text is redacted", () => {
+  for (const code of ["scanner_self_report_invalid", "scanner_frozen_input_changed", "seaweed_archive_diffid_mismatch"]) {
+    const receipt = { state: "COMPLETE" }; TEST_ONLY_recordOperationFailure(receipt, new Error(code));
+    assert.equal(receipt.failure.code, code); assert.equal(receipt.state, "INCOMPLETE");
+  }
+  const receipt = {}; TEST_ONLY_recordOperationFailure(receipt, new Error("sensitive /host/path"));
+  assert.equal(receipt.failure.code, "postgres_scan_failed");
 });
 
 test("the native filesystem gate rejects unrelated rootfs content before scanner authentication or Docker", {

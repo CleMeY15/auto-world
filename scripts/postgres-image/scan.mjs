@@ -33,6 +33,7 @@ const OWNER_LABEL = "com.auto-world.postgres-diagnostic";
 const PURPOSE_LABEL = "com.auto-world.postgres-diagnostic-purpose";
 const PURPOSE = "gosu-correction-runtime";
 const LOCAL_IMPORT = /\bfrom\s+["'](\.[^"']+)["']/gu;
+const FAILURE_CODE = /^(?:postgres|scanner|seaweed_archive)_[a-z_]+$/u;
 
 function fail(code) { throw new Error(code); }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
@@ -354,10 +355,22 @@ export function TEST_ONLY_runOwnedContainer(args, options) { return runOwnedCont
 
 function recordOperationFailure(receipt, error) {
   if (!error?.policyBlocked || receipt.state !== "BLOCKED") receipt.state = "INCOMPLETE";
-  receipt.failure = { code: /^postgres_[a-z_]+$/u.test(error?.message ?? "") ? error.message : "postgres_scan_failed" };
+  receipt.failure = { code: FAILURE_CODE.test(error?.message ?? "") ? error.message : "postgres_scan_failed" };
 }
 
 export function TEST_ONLY_recordOperationFailure(receipt, error) { recordOperationFailure(receipt, error); }
+
+export function preparePostgresScannerControls(work, pair) {
+  const scannerSubject = path.join(work, "scanner-subject"); mkdirSync(scannerSubject, { mode: 0o700 });
+  const scannerSubjectCopy = copyAuthenticatedFile(pair.scanner, path.join(scannerSubject, "trivy"),
+    pair.scannerCopy, 512 * MiB, 0o555);
+  chmodSync(scannerSubject, 0o555);
+  const versionProbe = path.join(work, "scanner-version-probe"); mkdirSync(versionProbe, { mode: 0o700 });
+  const versionProbeFile = path.join(versionProbe, "go.mod");
+  writeFileSync(versionProbeFile, versionProbeBytes(pair.lock), { flag: "wx", mode: 0o600 });
+  chmodSync(versionProbeFile, 0o444); chmodSync(versionProbe, 0o555);
+  return { scannerSubject, scannerSubjectCopy, versionProbe, versionProbeFile };
+}
 
 function makeReadOnly(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -507,11 +520,7 @@ export async function executePostgresScan(context, dependencies = {}) {
     makeReadOnly(cache);
     const archive = path.join(context.work, "candidate-image.tar");
     const archiveCopy = copyAuthenticatedFile(archiveOriginal.path, archive, archiveOriginal, GiB, 0o444);
-    const scannerSubject = path.join(context.work, "scanner-subject"); mkdirSync(scannerSubject, { mode: 0o755 });
-    const scannerSubjectCopy = copyAuthenticatedFile(pair.scanner, path.join(scannerSubject, "trivy"),
-      pair.scannerCopy, 512 * MiB, 0o555);
-    const versionProbe = path.join(context.work, "scanner-version-probe"); mkdirSync(versionProbe, { mode: 0o755 });
-    writeFileSync(path.join(versionProbe, "go.mod"), versionProbeBytes(pair.lock), { flag: "wx", mode: 0o444 });
+    const { scannerSubject, scannerSubjectCopy, versionProbe, versionProbeFile } = preparePostgresScannerControls(context.work, pair);
     const fixtureRoot = path.join(ROOT, "infra/scanner/materials/scanner-fixtures");
     const fixtureFiles = pair.lock.fixtures.filter((entry) => entry.path.includes("scanner-fixtures/")).map((entry) => {
       const file = path.join(ROOT, entry.path); const observed = identity(file, 4 * MiB);
@@ -519,7 +528,7 @@ export async function executePostgresScan(context, dependencies = {}) {
       return { path: file, cap: 4 * MiB };
     });
     const frozenFiles = [...codeBundle.snapshots, ...inputSnapshots, ...await captureFiles([{ ...pair.scannerCopy },
-      { ...scannerSubjectCopy }, { ...archiveCopy }, { path: path.join(versionProbe, "go.mod"), cap: 8 * MiB },
+      { ...scannerSubjectCopy }, { ...archiveCopy }, { path: versionProbeFile, cap: 8 * MiB },
       ...pair.frozenBuildFiles, ...database.files.map((entry) => ({ path: entry.path, cap: entry.cap })), ...fixtureFiles])];
     receipt.phase = "SCANNER_CONTROLS";
     await (dependencies.executeControls ?? executeControls)({ lock: pair.lock, scanner: pair.scanner, cache, output: context.output,
@@ -582,7 +591,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   runPostgresScan().then((receipt) => console.log(JSON.stringify({ state: receipt.state, admission: receipt.admission,
     blockerCount: receipt.blockerCount }))).catch((error) => {
     console.error(JSON.stringify({ state: "INCOMPLETE", admission: "NOT_AUTHORIZED",
-      reason: /^postgres_[a-z_]+$/u.test(error?.message ?? "") ? error.message : "postgres_scan_failed" }));
+      reason: FAILURE_CODE.test(error?.message ?? "") ? error.message : "postgres_scan_failed" }));
     process.exitCode = 1;
   });
 }
