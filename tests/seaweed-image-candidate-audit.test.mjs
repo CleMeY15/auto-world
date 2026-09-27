@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { candidateInputDockerArguments, ownedContainerRun, ownedContainerRunArguments,
+import { candidateInputDockerArguments, executeCandidateAudit, ownedContainerRun, ownedContainerRunArguments,
   requireCandidateAuditContext, TEST_ONLY_executeCandidateAudit,
   validateAuditedCandidateReceipt } from "../scripts/seaweed-image/candidate-audit.mjs";
 import { captureFiles } from "../scripts/scanner/controls.mjs";
@@ -88,7 +88,8 @@ async function fakeAudit(mode) {
         }
         throw callbackFailure;
       }
-      return { kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+      return { kind: mode === "remote" ? "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" : "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+          ...(mode === "remote" ? { subject: `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}` } : {}),
           authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
           imageExecution: "NOT_ATTEMPTED", publication: "NOT_ATTEMPTED",
           vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED",
@@ -97,6 +98,19 @@ async function fakeAudit(mode) {
           recipeRevision: context.recipeRevision };
     },
   };
+  if (mode === "remote") {
+    dependencies.auditKind = "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1";
+    dependencies.validateCandidateReceipt = (candidate, proof, actualContext) => {
+      assert.equal(candidate.kind, "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1");
+      assert.equal(candidate.archiveSha256, proof.archiveSha256);
+      assert.equal(candidate.archiveBytes, proof.archiveBytes);
+      assert.equal(candidate.imageId, proof.imageId);
+      assert.equal(candidate.diffId, proof.diffId);
+      assert.equal(candidate.runId, actualContext.runId);
+      assert.equal(candidate.recipeRevision, actualContext.recipeRevision);
+      return true;
+    };
+  }
   let result; let error;
   try {
     try { result = await TEST_ONLY_executeCandidateAudit(context, dependencies); }
@@ -276,9 +290,28 @@ test("candidate audit receipt binds the disposed exact archive without elevating
     { imageId: digest }, { diffId: digest }, { archiveSha256: "f".repeat(64) },
     { archiveBytes: 4097 }, { runId: "1" }, { recipeRevision: "f".repeat(40) },
     { vulnerabilityAudit: "PASSED" }, { imageExecution: "VERIFIED_DIAGNOSTIC" },
-    { candidateAuthorization: "AUTHORIZED" },
+    { candidateAuthorization: "AUTHORIZED" }, { kind: "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" },
   ]) assert.throws(() => validateAuditedCandidateReceipt({ ...receipt, ...change }, proof, context),
     /seaweed_audit_candidate_receipt_invalid/u);
+});
+
+test("remote audit provider preserves its distinct receipt and exact registry subject", async () => {
+  const audit = await fakeAudit("remote");
+  assert.equal(audit.error, undefined);
+  assert.equal(audit.receipt.kind, "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1");
+  assert.equal(audit.receipt.registrySubject, `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}`);
+  assert.equal(audit.receipt.scannerInput, "LOCAL_DOCKER_SAVE_ARCHIVE");
+  assert.equal(audit.receipt.candidate.kind, "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1");
+  assert.equal(audit.receipt.state, "COMPLETE");
+  assert.equal(audit.receipt.authority, "DIAGNOSTIC_ONLY");
+  assert.equal(audit.archiveGone, true);
+});
+
+test("remote audit cannot use the local provider or validator by default", async () => {
+  await assert.rejects(executeCandidateAudit({}, {
+    auditKind: "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+  }), /seaweed_audit_provider_invalid/u);
+  await assert.rejects(executeCandidateAudit({}, { auditKind: "UNKNOWN" }), /seaweed_audit_provider_invalid/u);
 });
 
 test("manual audit workflow is guarded, read-only and does not publish candidate layers", () => {
