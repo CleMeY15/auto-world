@@ -1,0 +1,43 @@
+# TASK-0005A — exact remote SeaweedFS candidate audit plan
+
+Status: IMPLEMENTATION_UNDER_REVIEW. The workflow has not run. There is no remote audit receipt, native run identifier, newly verified digest, signature or admission decision.
+
+## Boundary
+
+This increment prepares the read-only audit of the exact private candidate produced by the separately reviewed publication transaction. The new manual workflow accepts no input and is limited to its first run, first attempt, on protected `main` in `CleMeY15/auto-world`. Its scanner-build matrix has `contents: read` only. The audit job has `contents: read`, `actions: read` and `packages: read`; it has no package write, OIDC, attestation or signing authority.
+
+The job uses a GitHub-hosted Ubuntu 24.04 runner, Docker server 28.0.4, Node 22.23.2 and the same pinned checkout, Node setup, scanner build, artifact upload and artifact download actions as the accepted local candidate audit. It requires at least 12 GiB free under `RUNNER_TEMP`. The job is limited to 360 minutes, its audit step to 270 minutes and the implementation's operation deadline to 240 minutes so cleanup retains time inside both outer bounds.
+
+This is the first managed remote-audit route. Its [fixed policy](../../infra/seaweed-image/candidate-remote.json) binds the actual [publication receipt](../../infra/seaweed-image/candidate-publication-receipt.json) from run `36324316631` to exact subject `ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504`. No remote audit run or successful audit is claimed yet.
+
+## Bounded recovery of the confirmed subject
+
+The publisher's result is **FAILED**, with confirmed `PUBLISHED_UNADMITTED` storage. Its only failed phase is `owned_docker_cleanup`, reason `seaweed_candidate_publish_image_cleanup_failed`; all expected publication, authenticated/anonymous-read and temporary-cleanup phases passed. The original 6,126-byte receipt has SHA-256 `695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f` and is retained without text conversion. Public artifact `10933995168` and run/source identities are recorded in the [publication evidence](TASK-0005A-SEAWEED-CANDIDATE-PUBLICATION.md).
+
+Independent architecture review approves read-only recovery of this exact object. The loader must require the fixed receipt hash, all expected phase names exactly once, this sole recorded Docker-cleanup failure and every other phase passed. It must preserve `publisher.result: FAILED` and cannot generalize the exception to another failure or skip its own cleanup. The suspected multi-reference removal behavior is not claimed as the established cause. No new publication or remote tag change is needed; only a local disposable save alias is created. The scanner's existing isolated helper containers remain permitted, while the candidate is never executed.
+
+## Subject and provenance
+
+The audit must resolve the fixed publisher receipt and exact private registry subject without workflow input. It authenticates remote manifest reads with the workflow's read-only package token and refuses a changed, missing, ambiguous or unauthorized subject. `RAW_MANIFEST_VERIFIED` records an authenticated exact raw manifest identity. `ENGINE_VERIFIED` records Docker's managed pull verification for that subject. `ARCHIVE_VERIFIED` records the bounded local Docker-save scanner input after it has been checked against the remote subject and engine identity.
+
+These proof levels have different subjects. The registry manifest and its remote config and compressed-layer descriptors identify the private remote image. The local Docker-save archive is a disposable scanner input with its own archive, configuration, layer and DiffID identities. The compressed descriptor size is `RECORDED_ONLY`: the workflow does not claim an independent rehash of the registry's raw compressed blob. It must not equate that descriptor with the uncompressed saved layer, the DiffID or the whole Docker-save archive.
+
+This uses the managed tooling boundary accepted in ADR-0007. Moby 28.0.4 checks the requested [manifest digest](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/pull_v2.go#L914-L928), the [compressed layer digest](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/pull_v2.go#L228-L257), the [configuration digest](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/pull_v2.go#L848-L868), and the extracted [DiffID](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/distribution/pull_v2.go#L713-L725). The application separately hashes the raw remote manifest and validates the entire saved configuration and uncompressed layer stream. Their fixed hashes anchor the filesystem and runtime configuration already reviewed during publication; no mutable tag or reconstructed image can replace the fixed subject. A fresh runner and local collision checks prevent reuse of the candidate image, but the receipt does not claim an independent download measurement for every compressed blob.
+
+The saved-archive contract is limited to Docker 28.0.4's classic Linux image store. Its exporter [hashes the raw tar stream and emits an uncompressed OCI descriptor](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/image/tarexport/save.go#L494-L570), including after a pull; [TarStream verifies the registered DiffID](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/layer/ro_layer.go#L22-L35). The outer archive has its own identity and local alias. A containerd-store archive has a different shape and is rejected by the existing strict validator, without fallback. Docker save uses stdout into a pre-opened private file descriptor: the CLI's [output-file path replaces the original inode through a temporary-file rename](https://github.com/docker/cli/blob/v28.0.4/cli/command/utils.go#L23-L46), so that path is deliberately not used.
+
+The candidate image is never started or executed. Docker is used only as managed transport and materialization tooling for the exact subject and disposable local scanner input. The audit grants no registry write and cannot alter, sign or admit the candidate.
+
+## Audit and public evidence
+
+Two independent scanner builds are produced from the existing pinned public scanner source and downloaded only from the same workflow run. The audit preserves the accepted local policy: identical scanner build evidence, exact JSON and CycloneDX subjects, complete package inventory, end-of-life rejection, unchanged HIGH and CRITICAL vulnerability thresholds, vulnerability database freshness within 48 hours, and the existing Java database waiver. Java database age remains explicit in the receipt and reports without becoming a maximum-age gate. Integrity, timestamp, report-shape, finding and cleanup checks remain mandatory.
+
+The fixed public evidence directory is `${RUNNER_TEMP}/seaweed-candidate-remote-audit-evidence`. It may contain only the approved technical vulnerability JSON, CycloneDX report, bounded scanner-database metadata and bounded audit receipt already allowed for the local candidate audit. It must not contain the private Docker-save archive, registry layers, credentials, Docker configuration, source archives, raw registry responses or unfiltered command output. The workflow always calls the audit cleanup subcommand before uploading that directory.
+
+A successful receipt must bind the exact remote subject, all applicable proof levels, the distinct local scanner input, scanner and database identities, report hashes and counts, the unchanged policy result and owned cleanup. A blocked report remains blocked. An identity, freshness, transport, report, policy, timeout or cleanup failure remains incomplete and cannot be restated as a clean audit.
+
+## Remaining gates
+
+The public source ZIP retention already completed for the publication plan is useful preservation evidence, but it is not the complete image closure and does not prove restoration of the remote candidate. After this workflow is reviewed and integrated, the first native remote audit and its exact evidence remain required. Complete private closure retention and restore, official signing or attestation, consumer admission and the final four-service lifecycle remain later gates. TASK-0005A and TASK-0005 remain in progress, and TASK-0006 remains blocked.
+
+Rollback disables or removes this unexecuted manual workflow through review while preserving publication and historical audit evidence. It does not delete a remote candidate, change package settings or alter an admission inventory.

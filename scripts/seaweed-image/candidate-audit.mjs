@@ -233,7 +233,14 @@ export function validateAuditedCandidateReceipt(candidate, proof, context) {
   return true;
 }
 
-async function execute(context, dependencies = {}) {
+export async function executeCandidateAudit(context, dependencies = {}) {
+  const auditKind = dependencies.auditKind ?? "SEAWEED_EXACT_CANDIDATE_AUDIT_V1";
+  if (!["SEAWEED_EXACT_CANDIDATE_AUDIT_V1", "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"].includes(auditKind)
+    || auditKind === "SEAWEED_EXACT_CANDIDATE_AUDIT_V1" && dependencies.validateCandidateReceipt !== undefined
+    || auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"
+      && (typeof dependencies.materialize !== "function" || typeof dependencies.validateCandidateReceipt !== "function")) {
+    fail("seaweed_audit_provider_invalid");
+  }
   const ensureOwned = dependencies.ownedDirectory ?? ownedDirectory;
   const runCommand = dependencies.command ?? command;
   const readScannerPair = dependencies.scannerPair ?? scannerPair;
@@ -241,6 +248,7 @@ async function execute(context, dependencies = {}) {
   const readDatabases = dependencies.databaseEvidence ?? databaseEvidence;
   const inputArguments = dependencies.inputArguments ?? candidateInputDockerArguments;
   const evaluatePolicy = dependencies.evaluatePolicy ?? evaluateLocalSeaweedCandidateAudit;
+  const validateCandidateReceipt = dependencies.validateCandidateReceipt ?? validateAuditedCandidateReceipt;
   if (existsSync(context.root) || existsSync(context.output)) fail("seaweed_audit_output_exists");
   mkdirSync(context.root, { mode: 0o700 });
   mkdirSync(context.output, { mode: 0o700 });
@@ -256,7 +264,7 @@ async function execute(context, dependencies = {}) {
   const deadlineTimer = globalThis.setTimeout(() => abortController.abort(), OPERATION_DEADLINE_MS);
   const docker = (args, options = {}) => runCommand(args, { ...options, deadlineAt, dockerConfig });
   const cleanupDocker = (args) => runCommand(args, { timeout: 60_000, dockerConfig });
-  const receipt = { kind: "SEAWEED_EXACT_CANDIDATE_AUDIT_V1", state: "INCOMPLETE",
+  const receipt = { kind: auditKind, state: "INCOMPLETE",
     authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
     publication: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED", imageExecution: "NOT_ATTEMPTED",
     runId: context.runId, recipeRevision: context.recipeRevision, phase: "PREPARE",
@@ -340,7 +348,13 @@ async function execute(context, dependencies = {}) {
       }
     });
     receipt.phase = "CANDIDATE_CLEANUP";
-    validateAuditedCandidateReceipt(candidateReceipt, proof, context);
+    if (validateCandidateReceipt(candidateReceipt, proof, context) !== true) {
+      fail("seaweed_audit_candidate_receipt_invalid");
+    }
+    if (auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1") {
+      receipt.registrySubject = candidateReceipt.subject;
+      receipt.scannerInput = "LOCAL_DOCKER_SAVE_ARCHIVE";
+    }
     receipt.candidate = candidateReceipt;
     receipt.findingCount = evaluation.findings.length;
     receipt.blockerCount = evaluation.blockers.length;
@@ -394,7 +408,7 @@ async function execute(context, dependencies = {}) {
 }
 
 export async function TEST_ONLY_executeCandidateAudit(context, dependencies) {
-  return execute(context, dependencies);
+  return executeCandidateAudit(context, dependencies);
 }
 
 export async function runCandidateAudit(argv = process.argv.slice(2), env = process.env,
@@ -405,7 +419,7 @@ export async function runCandidateAudit(argv = process.argv.slice(2), env = proc
     cleanedRoot(context.root);
     return { state: "CLEANED", candidateAuthorization: "NOT_AUTHORIZED" };
   }
-  return execute(context, dependencies);
+  return executeCandidateAudit(context, dependencies);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
