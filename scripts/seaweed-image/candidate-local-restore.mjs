@@ -321,6 +321,8 @@ function validateDependencies(value) {
 }
 
 function validateSuite(suite, expected) {
+  if (!exactKeys(suite, ["basic", "persistence", "strict", "backup", "hostLoopback"])
+    || !exactKeys(suite.strict, ["runtimeProof", "strictProof"])) fail("seaweed_local_restore_runtime_invalid");
   try {
     const basic = validateSeaweedRuntimeProfileProof(suite.basic, expected);
     const persistence = validateSeaweedRuntimePersistenceProof(suite.persistence, expected);
@@ -355,6 +357,8 @@ export function validateLocalSeaweedRestoreReceipt(receipt, expected) {
     || receipt.registryAccess !== "NOT_ATTEMPTED" || receipt.registryFallback !== "DISABLED"
     || receipt.subject !== expected.subject
     || receipt.engine !== "DOCKER_28.0.4_CLASSIC_LOCAL"
+    || !exactKeys(receipt.archive, ["state", "sha256", "bytes", "loadResponse"])
+    || !exactKeys(receipt.image, ["imageId", "identityType", "repoDigestExpectation"])
     || receipt.archive?.state !== "VALIDATED_BEFORE_AND_AFTER_LOAD"
     || receipt.archive.sha256 !== expected.archiveSha256 || receipt.archive.bytes !== expected.archiveBytes
     || receipt.archive.loadResponse !== "SUCCESS"

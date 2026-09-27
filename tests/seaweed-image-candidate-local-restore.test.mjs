@@ -142,6 +142,12 @@ test("offline restore validates evidence and the same open archive before load, 
     priorRuntimeRunId: priorRuntime.runId,
     priorRuntimeRecipeRevision: priorRuntime.recipeRevision };
   assert.deepEqual(validateLocalSeaweedRestoreReceipt(receipt, receiptExpected), receipt);
+  for (const key of ["archive", "image", "suite"]) {
+    assert.throws(() => validateLocalSeaweedRestoreReceipt({ ...receipt,
+      [key]: { ...receipt[key], unexpected: "must not be retained" } }, receiptExpected));
+  }
+  assert.throws(() => validateLocalSeaweedRestoreReceipt({ ...receipt,
+    suite: { ...receipt.suite, strict: { ...receipt.suite.strict, unexpected: "rejected" } } }, receiptExpected));
   assert.throws(() => validateLocalSeaweedRestoreReceipt({ ...receipt, priorEvidence: {
     ...receipt.priorEvidence, priorRuntimeRunId: "40000000099" } }, receiptExpected),
   /seaweed_local_restore_receipt_invalid/u);
