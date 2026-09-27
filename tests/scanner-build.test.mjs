@@ -60,7 +60,7 @@ test("scanner lock binds corrected source, compiler, patches, fixtures, baseline
   assert.equal(lock.baseline.platformDigest, "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9");
   assert.deepEqual(lock.images.map((entry) => entry.role), ["postgres", "opensearch", "redis", "seaweedfs", "aws-cli", "baseline-trivy"]);
   assert.deepEqual(lock.alternatives.map((entry) => [entry.role, entry.alternativeFor, entry.manifestDigest, entry.platform.digest]), [
-    ["postgres-alpine", "postgres", "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73", "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"],
-    ["redis-alpine", "redis", "sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576", "sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354"],
+    ["postgres-alpine", "postgres", "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24", "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3"],
+    ["redis-alpine", "redis", "sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0", "sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23"],
   ]);
 });

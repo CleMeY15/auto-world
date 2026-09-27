@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "state": "REGISTRY_PROVENANCE_ONLY_NOT_SCANNED_NOT_ADMITTED",
+  "fetchedAt": "2026-09-27T18:37:50.606Z",
+  "registry": "registry-1.docker.io",
+  "maximumResponseBytes": 1048576,
+  "records": [
+    {
+      "role": "postgres",
+      "repository": "postgres",
+      "tag": "17.11-trixie",
+      "version": "17.11-trixie",
+      "requestedPlatform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null
+      },
+      "index": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/17.11-trixie",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f",
+        "digest": "sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "rawFile": "docs/validation/service-image-refresh/postgres-index.json",
+        "rawSha256": "sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f",
+        "rawSize": 10237
+      },
+      "platform": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:e31e3d5327d1806f6177827c9710643e4f35f7ab3f14d26d05332753d3e95ee0",
+        "digest": "sha256:e31e3d5327d1806f6177827c9710643e4f35f7ab3f14d26d05332753d3e95ee0",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "descriptorSize": 3628,
+        "rawFile": "docs/validation/service-image-refresh/postgres-platform.json",
+        "rawSha256": "sha256:e31e3d5327d1806f6177827c9710643e4f35f7ab3f14d26d05332753d3e95ee0",
+        "rawSize": 3628
+      }
+    },
+    {
+      "role": "postgres-alpine",
+      "repository": "postgres",
+      "tag": "17.11-alpine3.24",
+      "version": "17.11-alpine3.24",
+      "requestedPlatform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null
+      },
+      "index": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/17.11-alpine3.24",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+        "digest": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "rawFile": "docs/validation/service-image-refresh/postgres-alpine-index.json",
+        "rawSha256": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+        "rawSize": 10301
+      },
+      "platform": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+        "digest": "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "descriptorSize": 2866,
+        "rawFile": "docs/validation/service-image-refresh/postgres-alpine-platform.json",
+        "rawSha256": "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+        "rawSize": 2866
+      }
+    },
+    {
+      "role": "opensearch",
+      "repository": "opensearchproject/opensearch",
+      "tag": "3.8.0",
+      "version": "3.8.0",
+      "requestedPlatform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null
+      },
+      "index": {
+        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/3.8.0",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
+        "digest": "sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "rawFile": "docs/validation/service-image-refresh/opensearch-index.json",
+        "rawSha256": "sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
+        "rawSize": 647
+      },
+      "platform": {
+        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
+        "digest": "sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "descriptorSize": 1622,
+        "rawFile": "docs/validation/service-image-refresh/opensearch-platform.json",
+        "rawSha256": "sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
+        "rawSize": 1622
+      }
+    },
+    {
+      "role": "redis",
+      "repository": "redis",
+      "tag": "8.10.2-trixie",
+      "version": "8.10.2-trixie",
+      "requestedPlatform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null
+      },
+      "index": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/8.10.2-trixie",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/sha256:d5ac52db24d4e70566fe9944f22cf5bdc2bc739b05c0f426335161ea6c23f3b3",
+        "digest": "sha256:d5ac52db24d4e70566fe9944f22cf5bdc2bc739b05c0f426335161ea6c23f3b3",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "rawFile": "docs/validation/service-image-refresh/redis-index.json",
+        "rawSha256": "sha256:d5ac52db24d4e70566fe9944f22cf5bdc2bc739b05c0f426335161ea6c23f3b3",
+        "rawSize": 8949
+      },
+      "platform": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/sha256:7ef5b5cec96495a04ca7feff88a9492efeab8053fb284d24bdd73344c9245a48",
+        "digest": "sha256:7ef5b5cec96495a04ca7feff88a9492efeab8053fb284d24bdd73344c9245a48",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "descriptorSize": 2287,
+        "rawFile": "docs/validation/service-image-refresh/redis-platform.json",
+        "rawSha256": "sha256:7ef5b5cec96495a04ca7feff88a9492efeab8053fb284d24bdd73344c9245a48",
+        "rawSize": 2287
+      }
+    },
+    {
+      "role": "redis-alpine",
+      "repository": "redis",
+      "tag": "8.10.2-alpine3.23",
+      "version": "8.10.2-alpine3.23",
+      "requestedPlatform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null
+      },
+      "index": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/8.10.2-alpine3.23",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0",
+        "digest": "sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0",
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "rawFile": "docs/validation/service-image-refresh/redis-alpine-index.json",
+        "rawSha256": "sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0",
+        "rawSize": 10213
+      },
+      "platform": {
+        "sourceUrl": "https://registry-1.docker.io/v2/library/redis/manifests/sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23",
+        "digest": "sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23",
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "descriptorSize": 2289,
+        "rawFile": "docs/validation/service-image-refresh/redis-alpine-platform.json",
+        "rawSha256": "sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23",
+        "rawSize": 2289
+      }
+    }
+  ]
+}
