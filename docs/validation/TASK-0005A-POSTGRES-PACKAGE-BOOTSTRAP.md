@@ -1,6 +1,27 @@
 # TASK-0005A — PostgreSQL harmless package bootstrap
 
-Status: IMPLEMENTED_PENDING_GATES, NOT_EXECUTED, NOT_ADMITTED. No PostgreSQL candidate layer is authorized by this producer.
+Status: NATIVE_FIRST_WRITE_PASSED, PRIVATE_SETTINGS_OBSERVED, NOT_ADMITTED. The exhausted writer is disabled. No PostgreSQL candidate layer was published.
+
+## Native result
+
+[PR100](https://github.com/CleMeY15/auto-world/pull/100) merged at `d283bc7ebf39f8432447dffb01a2325d3178584a`, with the exact reviewed tree of `6b8c63a7e716001b6156524e536fbb7d48f94590`. Independent code APPROVE, Architect CLEAR and subsequent distinct Critic APPROVE found no remaining issue. Fresh Linux full checks passed 846/846 tests with zero failures/skips, lint/typecheck/build, Secretlint across 474 files and dependency audit. [Exact-head CI 36353045635](https://github.com/CleMeY15/auto-world/actions/runs/36353045635) and [main CI 36353435355](https://github.com/CleMeY15/auto-world/actions/runs/36353435355) passed.
+
+The immediate authenticated preflight completed at `2026-09-27T21:57:33.758Z`: actor `CleMeY15`, existing `read:packages` scope, protected exact main, four source blobs identical to reviewed Git bytes, no previous workflow run, target exact 404 and known private SeaweedFS package positive 200. Both paginated package-list endpoints returned `200 []` despite the accessible private object. These retained list responses are explicitly opaque, not exhaustive visibility proof; the Critic required the direct private positive control in addition to the target 404. Twelve bounded HTTP responses and the gate receipt are privately retained.
+
+The single [native run 36353596729](https://github.com/CleMeY15/auto-world/actions/runs/36353596729), number 1, attempt 1 on the exact merged main, **SUCCEEDED**. All 13 phases passed. Receipt state/result is `PUBLISHED_UNADMITTED/PASSED`, admission `NOT_AUTHORIZED`, and all support dates remain null. The owned image was removed and before/after complete local image inventories have identical SHA-256 `94bfcd36ff519484160d873438a0d288bd16ee6b7c8060eddb0de87e5e75d09f` and 431-byte identities. Docker 28.0.4, Buildx 0.37.1 and Node 22.23.2 were recorded.
+
+| Native identity | Value |
+| --- | --- |
+| Manifest digest | `sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408` |
+| Config digest | `sha256:cb3e9858fc85bf1fbc4fbaca353cb5b4263b20bd88fb1e6963b4081887eee1bf` |
+| Raw manifest | 524 bytes |
+| Receipt | 5022 bytes, SHA-256 `9da3d25232fa9d5edfb61b8301167b5acb52d20d01a7a737a86323bdc90111eb` |
+| Package ID | `15408021` |
+| Package creation | `2026-09-27T21:58:07Z`, within run window `21:57:54Z`–`21:58:11Z` |
+
+The package initially appeared **Public** in both API and authenticated Settings. The same object was then changed to **Private**, without deletion or republication, and the API corroborated the unchanged ID. Settings show source `CleMeY15/auto-world`, inherited source permissions enabled, one Actions repository (`auto-world`, Admin), zero direct members and no Codespaces repository grant. The existing fork waiver remains `SKIPPED_BY_USER/NOT_VERIFIED`; these settings do not establish anonymous denial or authorized exact-digest retrieval.
+
+The original receipt, run/artifact metadata, initial/private package responses, Settings observation and exact four-file source archive are retained in the existing private archive. Workflow `368603665` was disabled after the single run. The [next read-only increment](TASK-0005A-POSTGRES-PRIVATE-READ.md) must retire the writer in source and prove access against this pinned subject before any candidate layer.
 
 ## Goal and authority
 
