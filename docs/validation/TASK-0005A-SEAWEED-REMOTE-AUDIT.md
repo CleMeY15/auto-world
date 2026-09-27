@@ -1,6 +1,6 @@
 # TASK-0005A — exact remote SeaweedFS candidate audit plan
 
-Status: IMPLEMENTATION_UNDER_REVIEW. The workflow has not run. There is no remote audit receipt, native run identifier, newly verified digest, signature or admission decision.
+Status: NATIVE_AUDIT_RUNNING. [PR86](https://github.com/CleMeY15/auto-world/pull/86) merged at `407d013e08630964c9c756dfe1451b0c910cef28` with identical reviewed blobs, independent code/security review and passing [exact-head CI](https://github.com/CleMeY15/auto-world/actions/runs/36325604271) and [main CI](https://github.com/CleMeY15/auto-world/actions/runs/36325764162). Both Linux runs passed all 686 root tests with zero skips and all quality gates. The [first native audit](https://github.com/CleMeY15/auto-world/actions/runs/36325906357), run 1 attempt 1, is executing on that exact main. No successful remote audit, signature or admission decision is claimed yet.
 
 ## Boundary
 
@@ -8,7 +8,7 @@ This increment prepares the read-only audit of the exact private candidate produ
 
 The job uses a GitHub-hosted Ubuntu 24.04 runner, Docker server 28.0.4, Node 22.23.2 and the same pinned checkout, Node setup, scanner build, artifact upload and artifact download actions as the accepted local candidate audit. It requires at least 12 GiB free under `RUNNER_TEMP`. The job is limited to 360 minutes, its audit step to 270 minutes and the implementation's operation deadline to 240 minutes so cleanup retains time inside both outer bounds.
 
-This is the first managed remote-audit route. Its [fixed policy](../../infra/seaweed-image/candidate-remote.json) binds the actual [publication receipt](../../infra/seaweed-image/candidate-publication-receipt.json) from run `36324316631` to exact subject `ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504`. No remote audit run or successful audit is claimed yet.
+This is the first managed remote-audit route. Its [fixed policy](../../infra/seaweed-image/candidate-remote.json) binds the actual [publication receipt](../../infra/seaweed-image/candidate-publication-receipt.json) from run `36324316631` to exact subject `ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504`. Native run `36325906357` is pending acceptance.
 
 ## Bounded recovery of the confirmed subject
 
