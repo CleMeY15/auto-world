@@ -6,9 +6,11 @@ import path from "node:path";
 import test from "node:test";
 
 import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
-  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof, TEST_ONLY_signedSeaweedS3ProbeScript,
+  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof, TEST_ONLY_persistenceSecondReadAssertionScript,
+  TEST_ONLY_signedSeaweedS3ProbeScript,
   TEST_ONLY_verifyLocalSeaweedRuntimeProfile, TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence,
-  TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention, validateSeaweedRuntimePersistenceProof,
+  TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention, isPublicSeaweedRuntimeReason,
+  validateSeaweedRuntimePersistenceProof,
   validateSeaweedRuntimeProfileProof, validateSeaweedRuntimeStrictContentionProof,
   verifyLocalSeaweedRuntimeProfile, verifyLocalSeaweedRuntimeRestartPersistence } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
@@ -209,7 +211,8 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         return { status: 0, stdout: "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED\n", stderr: "" };
       }
       assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
-      assert.match(args.at(-1), /case "\$read_status" in 200\) ;; 404\) exit 65 ;; \*\) exit 69 ;; esac/u);
+      assert.match(args.at(-1),
+        /case "\$read_status" in 200\) ;; 404\) exit 65 ;; 401\|403\) exit 70 ;; 5\?\?\) exit 71 ;; \*\) exit 72 ;; esac/u);
       return secondStatus === 0
         ? { status: 0, stdout: "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n", stderr: "" }
         : { status: secondStatus, stdout: "", stderr: "" };
@@ -243,6 +246,36 @@ test("restart persistence commands parse under the Linux shell", { skip: process
     assert.equal(result.stdout, "");
   }
 });
+
+test("restart persistence second read shell classifies bounded failures and verifies the exact body",
+  { skip: process.platform !== "linux" }, () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "aw-persistence-read-"));
+    const readPath = path.join(directory, "read");
+    const harness = ["set -eu", "work=\"$1\"", "curl_rc=\"$2\"", "read_status=\"$3\"",
+      TEST_ONLY_persistenceSecondReadAssertionScript()].join("\n");
+    const run = (curlRc, readStatus, payload = "auto-world-restart-persistence-payload-v1") => {
+      writeFileSync(readPath, payload, { mode: 0o600 });
+      return spawnSync("sh", ["-c", harness, "sh", directory, String(curlRc), readStatus], { encoding: "utf8" });
+    };
+    try {
+      const success = run(0, "200");
+      assert.equal(success.status, 0, success.stderr);
+      assert.equal(success.stdout, "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n");
+      for (const [curlRc, readStatus, expectedStatus] of [
+        [7, "000", 69], [0, "401", 70], [0, "403", 70], [0, "500", 71], [0, "503", 71],
+        [0, "302", 72], [0, "404", 65],
+      ]) {
+        const result = run(curlRc, readStatus);
+        assert.equal(result.status, expectedStatus, result.stderr);
+        assert.equal(result.stdout, "");
+      }
+      const mismatch = run(0, "200", "changed");
+      assert.equal(mismatch.status, 66, mismatch.stderr);
+      assert.equal(mismatch.stdout, "");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
 test("signed S3 shell distinguishes accepted access from unexpected HTTP failures",
   { skip: process.platform !== "linux" }, () => {
@@ -489,10 +522,15 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.profileSha256, "22c4449e4307d819f8fde9fbb1c2dbf3d583b5fb066bc89153e1b4c1b3e70024");
-  assert.equal(proof.commandSha256, "db3c7b637ddf1878d0a861fe03142dbdcb4acf8a469a7a2945c24d15453e721d");
+  assert.equal(proof.commandSha256, "376f07f07a8ed870e5a46f708144b78269eeb9e6923c6fd94666eb43d09152bf");
   assert.equal(proof.initializer, "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000");
   assert.equal(proof.objectPersistence, "PRESERVED_ACROSS_RESTART");
   assert.equal(proof.cleanup, "OWNED_CONTAINERS_AND_VOLUME_REMOVED");
+  const secondProbe = value.calls.filter((args) => args[0] === "container" && args[1] === "exec").at(-1).at(-1);
+  assert.match(secondProbe, /test "\$curl_rc" = 0 \|\| exit 69/u);
+  assert.match(secondProbe, /401\|403\) exit 70/u);
+  assert.match(secondProbe, /5\?\?\) exit 71/u);
+  assert.match(secondProbe, /\*\) exit 72/u);
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   const firstRemoval = value.calls.findIndex((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("service-1"));
@@ -540,19 +578,27 @@ test("a pre-existing persistence volume fails closed without creating or removin
 for (const [status, reason] of [[65, "PERSISTED_OBJECT_MISSING"], [66, "PERSISTED_OBJECT_MISMATCH"]]) {
   test(`second service status ${status} reports ${reason} and cleans every owned resource`, async () => {
     const value = persistenceFixture({ secondStatus: status });
+    assert.equal(isPublicSeaweedRuntimeReason(reason), true);
     await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
       { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO", reason });
     assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   });
 }
 
-test("second service transport and non-404 HTTP failures are not reported as a missing object", async () => {
-  const value = persistenceFixture({ secondStatus: 69 });
-  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
-      reason: "SECOND_READ_FAILED" });
-  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
-});
+for (const [status, reason] of [
+  [69, "SECOND_READ_TRANSPORT_FAILURE"],
+  [70, "SECOND_READ_AUTH_FAILURE"],
+  [71, "SECOND_READ_SERVER_FAILURE"],
+  [72, "SECOND_READ_UNEXPECTED_STATUS"],
+]) {
+  assert.equal(isPublicSeaweedRuntimeReason(reason), true);
+  test(`second service status ${status} reports ${reason} without claiming a missing object`, async () => {
+    const value = persistenceFixture({ secondStatus: status });
+    await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+      { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO", reason });
+    assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  });
+}
 
 test("a lost create response recovers the exactly owned container before complete cleanup", async () => {
   const value = persistenceFixture({ malformedFirstCreate: true });
