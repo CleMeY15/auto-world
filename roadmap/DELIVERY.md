@@ -1,6 +1,6 @@
 # Auto World delivery ledger
 
-Status: ACTIVE — TASK-0005 SeaweedFS post-runtime admission evidence; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
+Status: ACTIVE — TASK-0005 service image eligibility refresh after SeaweedFS attestation; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome
@@ -8,6 +8,8 @@ Operate as a continuous development team that selects the single first READY tas
 
 ## Current checkpoint
 The entries below are chronological; the first is the current frontier and older entries describe their state at that checkpoint.
+
+- [PR95](https://github.com/CleMeY15/auto-world/pull/95) merged original SeaweedFS attestation evidence and retired the producer at `5a15e9d81d0b51124c64b9cb118351e863764d4a`, with an identical reviewed tree, independent code APPROVE/architecture CLEAR, 784 fresh-Linux tests without failures/skips, and passing [head CI](https://github.com/CleMeY15/auto-world/actions/runs/36340643440)/[main CI](https://github.com/CleMeY15/auto-world/actions/runs/36340915463). [PR96](https://github.com/CleMeY15/auto-world/pull/96) prepares five exact refreshed public service-image candidates; the existing [manual baseline audit](https://github.com/CleMeY15/auto-world/actions/runs/36341060453) is pending. [Evidence boundary and next validation](../docs/validation/TASK-0005A-SERVICE-IMAGE-REFRESH.md): historical SeaweedFS proofs remain immutable, all new subjects require fresh audits, no admission or support activation is claimed. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
 
 - [PR94](https://github.com/CleMeY15/auto-world/pull/94) merged the official exact-subject signer/verifier at `83d93ca2801ab2385c680e98acd12ed21f5110b9` after independent approval, fresh Linux full checks (779 root tests) and exact-head/main CI. [Native run 36339762446](https://github.com/CleMeY15/auto-world/actions/runs/36339762446) passed both positive pairs, six rejection controls and three malformed-input error controls. The [original attestation closure](../docs/validation/TASK-0005A-SEAWEED-ATTESTATION.md) is retained in Git and private Windows/ext4 copies; the one-shot producer is disabled and removed. State is ATTESTED_UNADMITTED. Next: fresh manual audit of the other service/helper roles, then complete reviewed admission/currentness and four-service integration. The one-year support clock has not started; TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
 

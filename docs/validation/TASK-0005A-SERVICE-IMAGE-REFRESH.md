@@ -16,7 +16,15 @@ Official image publications now offer refreshed PostgreSQL/OpenSearch builds and
 - OpenSearch remains on the released 3.8.0 version. A rebuilt tag is a different image subject and receives its own audit. Source: [official release](https://github.com/opensearch-project/OpenSearch/releases/tag/3.8.0).
 - Redis moves from 8.10.1 to the published 8.10.2 security patch, comparing Trixie and the existing Alpine alternative, explicitly Alpine 3.23. Source: [official release](https://github.com/redis/redis/releases/tag/8.10.2).
 
-Resolve index and platform manifests from the official registry, retain their original bytes and SHA-256 values, and bind the inventory to the unique `linux/amd64` descriptor. Tags are discovery metadata only; scans use immutable digests. A newer digest does not imply fewer vulnerabilities or compatibility.
+The [registry provenance record](service-image-refresh/manifest-provenance.json) binds the five explicit tags and immutable index/platform URLs to ten original manifest files fetched from `registry-1.docker.io` on 27 September. Each response was limited to 1 MiB, hashed before parsing and checked against its expected digest. Each index has exactly one requested `linux/amd64` descriptor, whose digest and byte size match the retained platform manifest. No image layer was fetched or executed for this discovery. Tags are discovery metadata only; scans use immutable digests. A newer digest does not imply fewer vulnerabilities or compatibility.
+
+| Role | Explicit publication tag | Exact platform candidate |
+| --- | --- | --- |
+| PostgreSQL | `17.11-trixie` | `sha256:e31e3d5327d1806f6177827c9710643e4f35f7ab3f14d26d05332753d3e95ee0` |
+| PostgreSQL alternative | `17.11-alpine3.24` | `sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3` |
+| OpenSearch | `3.8.0` | `sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0` |
+| Redis | `8.10.2-trixie` | `sha256:7ef5b5cec96495a04ca7feff88a9492efeab8053fb284d24bdd73344c9245a48` |
+| Redis alternative | `8.10.2-alpine3.23` | `sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23` |
 
 ## Evidence boundary and verification
 
