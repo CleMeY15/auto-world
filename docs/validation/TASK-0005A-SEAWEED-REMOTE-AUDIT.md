@@ -8,7 +8,13 @@ This increment prepares the read-only audit of the exact private candidate produ
 
 The job uses a GitHub-hosted Ubuntu 24.04 runner, Docker server 28.0.4, Node 22.23.2 and the same pinned checkout, Node setup, scanner build, artifact upload and artifact download actions as the accepted local candidate audit. It requires at least 12 GiB free under `RUNNER_TEMP`. The job is limited to 360 minutes, its audit step to 270 minutes and the implementation's operation deadline to 240 minutes so cleanup retains time inside both outer bounds.
 
-This is the first managed remote-audit route. A native policy receipt for it is not available yet. Completion requires the actual fixed publication policy supplied by the candidate publisher and one reviewed native run against its exact remote subject. No run number beyond the workflow's guarded first run, manifest digest, image ID or report digest is invented here.
+This is the first managed remote-audit route. Its [fixed policy](../../infra/seaweed-image/candidate-remote.json) binds the actual [publication receipt](../../infra/seaweed-image/candidate-publication-receipt.json) from run `36324316631` to exact subject `ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504`. No remote audit run or successful audit is claimed yet.
+
+## Bounded recovery of the confirmed subject
+
+The publisher's result is **FAILED**, with confirmed `PUBLISHED_UNADMITTED` storage. Its only failed phase is `owned_docker_cleanup`, reason `seaweed_candidate_publish_image_cleanup_failed`; all expected publication, authenticated/anonymous-read and temporary-cleanup phases passed. The original 6,126-byte receipt has SHA-256 `695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f` and is retained without text conversion. Public artifact `10933995168` and run/source identities are recorded in the [publication evidence](TASK-0005A-SEAWEED-CANDIDATE-PUBLICATION.md).
+
+Independent architecture review approves read-only recovery of this exact object. The loader must require the fixed receipt hash, all expected phase names exactly once, this sole recorded Docker-cleanup failure and every other phase passed. It must preserve `publisher.result: FAILED` and cannot generalize the exception to another failure or skip its own cleanup. The suspected multi-reference removal behavior is not claimed as the established cause. No new publication or remote tag change is needed; only a local disposable save alias is created. The scanner's existing isolated helper containers remain permitted, while the candidate is never executed.
 
 ## Subject and provenance
 

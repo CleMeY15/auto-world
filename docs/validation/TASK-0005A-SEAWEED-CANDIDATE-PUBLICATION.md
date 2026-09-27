@@ -1,6 +1,18 @@
 # TASK-0005A — Private SeaweedFS candidate publication
 
-Status: IMPLEMENTATION_UNDER_REVIEW. No SeaweedFS candidate layer has been published, signed, admitted or used by a service.
+Status: NATIVE_FAILED_AFTER_CONFIRMED_PUBLICATION. The candidate is privately stored and unadmitted. No candidate signature, admission or service use is established.
+
+## Native result — 27 September 2026
+
+[PR85](https://github.com/CleMeY15/auto-world/pull/85) merged at protected main `c9aa67d4a7f1730070d44a41f398fd1ddf07627e` after sequential independent Architect and Critic approval of exact head `236b65aadd62fca1670a2cf6682fe9cc1bb19616`. The integrated blobs are identical. Fresh-clone checks, [exact-head CI 36322994020](https://github.com/CleMeY15/auto-world/actions/runs/36322994020) and [main CI 36323579261](https://github.com/CleMeY15/auto-world/actions/runs/36323579261) passed; both Linux runs passed all 659 root tests with zero skips. The main run's global status was delayed after its successful job; publication waited for the actual global success. An attempted targeted quality rerun was refused and did not start another attempt.
+
+The guarded [native run 36324316631](https://github.com/CleMeY15/auto-world/actions/runs/36324316631), number 1 attempt 1 on that exact main, **FAILED** solely in `owned_docker_cleanup`, with reason `seaweed_candidate_publish_image_cleanup_failed`. All preceding phases passed, including the single push, matching authenticated raw manifest reads and anonymous denial for the exact candidate digest. Owned temporary cleanup also passed. The receipt therefore preserves `PUBLISHED_UNADMITTED/FAILED`, admission `NOT_AUTHORIZED` and execution `NOT_ATTEMPTED`; the image must not be republished to conceal or replace this result.
+
+The confirmed subject is `ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504`. Its manifest is 529 bytes; config digest `sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785` is 2,175 bytes; its compressed layer descriptor is `sha256:33c668b2e3a39312f6ec2a4ff03adee3a6fa81caa5faf401f50f687fd2c30319`, 97,894,228 bytes. The saved layer DiffID is `sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95`, with 246,512,128 raw bytes and 3,032 members. Descriptor identities do not independently verify the remote compressed bytes.
+
+Public artifact `10933995168` (`seaweed-candidate-publish-receipt`) is 2,108 bytes with API ZIP digest `sha256:5626716d4906b68488917710b4e283e559ac2d4bc0e07156352f0663d7ac3a6c`. Its original receipt is [retained byte-for-byte](../../infra/seaweed-image/candidate-publication-receipt.json): 6,126 bytes, SHA-256 `695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f`. The owned Docker failure does not establish whether any image remained. Automatic removal of a digest reference during multi-reference removal is a hypothesis, not a measured cause.
+
+The separately reviewed [remote audit recovery](TASK-0005A-SEAWEED-REMOTE-AUDIT.md) pins this exact failed receipt and confirmed subject. It permits only a fresh read-only verification and audit, preserves the publisher's failure, and requires its own complete cleanup. It introduces no publisher retry, registry deletion, candidate execution or admission.
 
 ## Boundary and prerequisites
 
