@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL gosu correction diagnostic
 
-Status: NATIVE_RUNTIME_VERIFIED, AUDIT_PENDING, NOT_ADMITTED. No registry publication or supported startup is authorized by this diagnostic.
+Status: NATIVE_RUNTIME_AND_AUDIT_VERIFIED, NOT_ADMITTED. No registry publication or supported startup is authorized by this diagnostic.
 
 ## Exact problem and proposed correction
 
@@ -53,7 +53,27 @@ The [exact pinned Trivy analyzer](https://github.com/aquasecurity/trivy/blob/e1f
 
 Audit 3 at `0ac13976a5a5b200cf5231625681e30bdca3ef41` followed independent approval, 829/829 Linux tests (zero failures/skips), all full checks and [exact-head CI36350221036](https://github.com/CleMeY15/auto-world/actions/runs/36350221036). Its two reports now include 46 Alpine packages and four Go modules, with zero reported HIGH/CRITICAL findings. Policy still stopped at `package_shape`: Trivy omits the version of the main `github.com/tianon/gosu` module, consistent with its retained `(devel)` Go build metadata. Audit 3 remains `INCOMPLETE`; twelve owned scanner containers and the work directory were cleaned.
 
-The policy now recognizes only this exact versionless root in the authenticated gosu target: fixed name/ID/PURL, root relationship, Go analyzer and exact final layer, no version/epoch/release fields and exactly the three expected versioned dependencies. The Go target must contain exactly those four modules. CycloneDX must contain the same versionless module, layer and dependency edges. Inventory parity uses a null version without assigning a guessed release; all 50 packages remain counted. Only that validated main module is omitted from the derived package list passed to the unchanged shared finding matcher. Findings are never removed, so a finding against an unmatchable root still fails closed. Every other OS/Go package requires a version. A read-only preview accepts the retained audit-3 reports with 50 packages, 52 components and zero blockers; it does not rewrite the failed native receipt. Final native verification remains required after review and exact-head checks.
+The policy recognizes only this exact versionless root in the authenticated gosu target: fixed name/ID/PURL, root relationship, Go analyzer and exact final layer, no version/epoch/release fields and exactly the three expected versioned dependencies. The Go target must contain exactly those four modules. CycloneDX must contain the same versionless module, layer and dependency edges. Inventory parity uses a null version without assigning a guessed release; all 50 packages remain counted. Only that validated main module is omitted from the derived package list passed to the unchanged shared finding matcher. Findings are never removed, so a finding against an unmatchable root still fails closed. Every other OS/Go package requires a version. The read-only preview of audit 3 did not rewrite its failed native receipt; the separate native verification below establishes the final diagnostic result.
+
+## Complete native audit — 27 September 2026
+
+Audit 4 at exact revision `50f17da43ceb298e75b4f497e86794dedf2bb4eb` returned `COMPLETE`, zero findings and zero blockers. Before execution, independent code and architecture reviews approved that revision, the fresh Linux full check passed 831/831 root tests with zero failures/skips, and [exact-head CI36350840294](https://github.com/CleMeY15/auto-world/actions/runs/36350840294) succeeded. The JSON report was created at `2026-09-27T21:16:17.824684693Z`. It contains all 46 Alpine packages and four Go modules, with exactly matching 50-library CycloneDX inventory plus its OS and application components (52 components total). No old gosu target remains and no HIGH/CRITICAL finding is reported.
+
+The audit authenticated both scanner builds, replayed self/version/fixture and same-database controls, and verified unchanged complete database payloads and before/after registry manifests. Vulnerability metadata was updated at `2026-09-27T19:01:19.120032153Z`, downloaded at `2026-09-27T21:15:14.756233382Z`; Java metadata was updated at `2026-09-27T01:08:08.997214067Z`, downloaded at `2026-09-27T21:15:47.022790486Z`. This is an audit-time result, not an indefinitely current eligibility claim. All twelve owned scanner containers were absent after cleanup, the work directory was removed, and no command failure was recorded. A separate live ownership-filtered container listing was empty.
+
+An independent read-only review rehashed all 44 code-bundle files, builder inputs and exports, both scanner builds, complete databases and reports, then replayed filesystem, scanner controls and policy. Its verdict was `APPROVE_FACTS0`, with no findings and no modification of the original evidence.
+
+The complete 21-file audit evidence (2,989,788,752 bytes, including both full database payloads) remains private, with a byte-verified second copy on this PC. That copy is not an independent backup. The following byte identities are a bounded public projection, not a replacement for the private original reports and receipt:
+
+| Evidence | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Audit receipt | 15,935 | `7ef5385187349fa6891a69ed2d68c56179ce6e22b8b2cd3e36de60220d16d9c2` |
+| Vulnerability JSON | 103,336 | `a7eda6784192a5c739940ffc0a9ec663e1928d3010159dadb15d77b7723a5929` |
+| CycloneDX SBOM | 76,609 | `93a42c045a7f19ff45c9f294f40d7786fe658e063cf14507e8b9b862eb35a70b` |
+| Database evidence | 2,275 | `152c8da2848b02da4f1838415c529686096bc9b77cb0e29797fa71b71cd65883` |
+| Filesystem evidence | 2,228,033 | `77236e574626c5c08dc4a516c6892d618027130dcc15d024b11e861d02b75ab6` |
+
+The original public PostgreSQL base still has its historical 22 blockers; this corrected local archive is a distinct diagnostic subject. It has no published OCI manifest digest or attestation. Publication, admission, activation, support dates and the four-service lifecycle remain separate work.
 
 ## Operational boundary and rollback
 
