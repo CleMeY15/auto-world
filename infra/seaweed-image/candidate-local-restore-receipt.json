@@ -1,0 +1,262 @@
+{
+  "kind": "SEAWEED_LOCAL_RESTORE_RECEIPT_V1",
+  "state": "VERIFIED",
+  "authority": "DIAGNOSTIC_ONLY",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "admission": "NOT_AUTHORIZED",
+  "origin": "LOCAL_DIAGNOSTIC",
+  "executionId": "local-1790530188451576057",
+  "githubRunId": null,
+  "runId": "1790530188451576057",
+  "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+  "registryAccess": "NOT_ATTEMPTED",
+  "registryFallback": "DISABLED",
+  "engine": "DOCKER_28.0.4_CLASSIC_LOCAL",
+  "archive": {
+    "state": "VALIDATED_BEFORE_AND_AFTER_LOAD",
+    "sha256": "a0f94b5c4c4f57ed339fb50edeb909045d34ce04bd3d0b4356c85051e6ee17af",
+    "bytes": 246525440,
+    "loadResponse": "SUCCESS"
+  },
+  "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "image": {
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "identityType": "CLASSIC_CONFIG_ID",
+    "repoDigestExpectation": "NOT_APPLICABLE_TO_SAVED_ARCHIVE_RESTORE"
+  },
+  "priorEvidence": {
+    "auditBinding": {
+      "kind": "SEAWEED_REMOTE_AUDIT_BINDING_V1",
+      "state": "COMPLETE",
+      "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "runId": "36325906357",
+      "runNumber": "1",
+      "runAttempt": "1",
+      "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+      "artifact": {
+        "id": 10934246908,
+        "name": "seaweed-candidate-remote-audit",
+        "bytes": 453587,
+        "digest": "sha256:dd39a83ee38a53b0a45e03fd1d04f1f2e339302985bf3e10e8f7890f185a207f"
+      },
+      "files": {
+        "receipt": {
+          "sha256": "0c34eef9f7145070cd041931b21df62f2595d69a4817ef1cb84bd080ba2a4293",
+          "bytes": 9201
+        },
+        "vulnerability": {
+          "sha256": "94e3b23bde5efcaa88efd461ac4bd1329d2d8c6222ac9cb8f5b258baff00461b",
+          "bytes": 174533
+        },
+        "cyclonedx": {
+          "sha256": "48cf7bf16832af524b4654e7ac14b1f545fd77f1487285c354606d065d706d41",
+          "bytes": 263873
+        }
+      }
+    },
+    "priorRuntimeRunId": "36331678311",
+    "priorRuntimeRecipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390"
+  },
+  "suite": {
+    "basic": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_PROOF_V2",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "1790530188451576057",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "profileSha256": "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c",
+      "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+      "derivativeVersion": "c507336+aw.549ec92660ab",
+      "uid": 1000,
+      "gid": 1000,
+      "readiness": "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200",
+      "anonymousAccess": "REFUSED_403",
+      "authenticatedAccess": "SIGNED_CREATE_PUT_GET_SHA256",
+      "scopeEnforcement": "WRONG_KEY_AND_BUCKET_REFUSED_403",
+      "conditionalWrites": "REPLAY_AND_OVERWRITE_REFUSED_412",
+      "parallelAttempt": "SINGLE_PAIR_ONE_WINNER_READBACK",
+      "disabledListeners": "8181,9101",
+      "rustHelpers": "ABSENT_AND_REJECTED",
+      "shutdown": "BOUNDED"
+    },
+    "persistence": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "1790530188451576057",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "profileSha256": "a226ec182826290d26e2022c19d3685135188b522d50c62987cf37f7ad2d1f1a",
+      "commandSha256": "f64736918fcdef1c08a2a66b8051aba9a4453ffcdf3b13aea0c61fbf869ea1db",
+      "volumeIdentity": "FRESH_NAME_LABELS_CREATED_AT_LOCAL_VERIFIED",
+      "volumeMount": "VOLUME_NOCOPY_RW_DATA",
+      "initializer": "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000",
+      "firstService": "SIGNED_CONDITIONAL_PUT_GET_SHA256",
+      "secondService": "DISTINCT_CONTAINER_READY_METADATA_LOOKUP_DIRECT_SIGNED_GET_SHA256",
+      "objectPersistence": "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART",
+      "persistedDataReadiness": "V1:24c5e2e15f97b44831673747176315184a83a21f920af0368aa8f2d8aaf9262d",
+      "shutdown": "BOTH_SERVICES_BOUNDED",
+      "cleanup": "OWNED_CONTAINERS_AND_VOLUME_REMOVED"
+    },
+    "strict": {
+      "runtimeProof": {
+        "kind": "SEAWEED_LOCAL_RUNTIME_PROOF_V2",
+        "state": "VERIFIED",
+        "authority": "DIAGNOSTIC_ONLY",
+        "candidateAuthorization": "NOT_AUTHORIZED",
+        "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "runId": "1790530188451576057",
+        "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+        "profileSha256": "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c",
+        "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+        "derivativeVersion": "c507336+aw.549ec92660ab",
+        "uid": 1000,
+        "gid": 1000,
+        "readiness": "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200",
+        "anonymousAccess": "REFUSED_403",
+        "authenticatedAccess": "SIGNED_CREATE_PUT_GET_SHA256",
+        "scopeEnforcement": "WRONG_KEY_AND_BUCKET_REFUSED_403",
+        "conditionalWrites": "REPLAY_AND_OVERWRITE_REFUSED_412",
+        "parallelAttempt": "SINGLE_PAIR_ONE_WINNER_READBACK",
+        "disabledListeners": "8181,9101",
+        "rustHelpers": "ABSENT_AND_REJECTED",
+        "shutdown": "BOUNDED"
+      },
+      "strictProof": {
+        "kind": "SEAWEED_LOCAL_RUNTIME_STRICT_CONTENTION_PROOF_V1",
+        "state": "VERIFIED",
+        "authority": "DIAGNOSTIC_ONLY",
+        "candidateAuthorization": "NOT_AUTHORIZED",
+        "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "runId": "1790530188451576057",
+        "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+        "requestBarrier": "TWO_SIGNED_HTTP11_100_BEFORE_BODIES",
+        "conditionalResult": "ONE_200_ONE_412",
+        "winner": "A",
+        "winnerReadback": "SIGNED_GET_WINNER_SHA256",
+        "isolation": "LOOPBACK_ONLY_NO_PUBLISHED_PORT",
+        "shutdown": "BOUNDED"
+      }
+    },
+    "backup": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_BACKUP_RESTORE_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "1790530188451576057",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "profileSha256": "06f340c8e2a3709cbc7a35c2a4d4045a843cdcef4fb7c5820ebf947088640e31",
+      "commandSha256": "1c18bd86001da5ba176775ae05075b7b2e913d94d0727809299e907428433242",
+      "sourceVolumeIdentity": "FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "backupVolumeIdentity": "DISTINCT_FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "restoreVolumeIdentity": "DISTINCT_FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "sourceObject": "SIGNED_CONDITIONAL_PUT_GET_SHA256",
+      "offlineBackup": "STOPPED_SOURCE_TO_BACKUP_VOLUME",
+      "archiveSha256": "efa5cce3f94b31bdb5c741a6893ced6c94bcc038cfa19e781573087e2b52e8f2",
+      "archiveBytes": 98304,
+      "sourceDisposal": "SOURCE_CONTAINER_AND_VOLUME_ABSENT_BEFORE_RESTORE",
+      "restoreIsolation": "NO_NETWORK_HELPER_TO_FRESH_VOLUME",
+      "restoredObject": "ORIGINAL_FID_METADATA_LOOKUP_DIRECT_AND_SIGNED_GET_EXACT_SHA256",
+      "persistedDataReadiness": "V1:24c5e2e15f97b44831673747176315184a83a21f920af0368aa8f2d8aaf9262d",
+      "shutdown": "SOURCE_AND_RESTORED_SERVICES_BOUNDED",
+      "cleanup": "OWNED_CONTAINERS_AND_VOLUMES_REMOVED"
+    },
+    "hostLoopback": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_HOST_LOOPBACK_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "1790530188451576057",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "profileSha256": "81b35e87eb27661a441570797be08fee5258b72dfc4720a45d1c5a64a43ec2ff",
+      "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+      "networkMode": "BRIDGE_ONLY",
+      "hostBinding": "127.0.0.1_EPHEMERAL_TO_8333_TCP",
+      "readiness": "HOST_READYZ_200",
+      "anonymousAccess": "HOST_UNSIGNED_REFUSED_403",
+      "authenticatedAccess": "HOST_SIGNED_CREATE_PUT_GET_SHA256",
+      "credentialEnforcement": "HOST_BAD_SECRET_REFUSED_403",
+      "conditionalWrites": "HOST_REPLAY_REFUSED_412",
+      "shutdown": "BOUNDED_PORT_UNREACHABLE",
+      "cleanup": "OWNED_CONTAINER_REMOVED"
+    }
+  },
+  "phases": [
+    {
+      "name": "prior_evidence",
+      "result": "PASSED",
+      "durationMs": 9
+    },
+    {
+      "name": "private_storage",
+      "result": "PASSED",
+      "durationMs": 0
+    },
+    {
+      "name": "archive_validation_before_load",
+      "result": "PASSED",
+      "durationMs": 868
+    },
+    {
+      "name": "engine_preflight",
+      "result": "PASSED",
+      "durationMs": 1251
+    },
+    {
+      "name": "archive_load",
+      "result": "PASSED",
+      "durationMs": 3126
+    },
+    {
+      "name": "archive_validation_after_load",
+      "result": "PASSED",
+      "durationMs": 797
+    },
+    {
+      "name": "runtime_basic",
+      "result": "PASSED",
+      "durationMs": 27318
+    },
+    {
+      "name": "runtime_persistence",
+      "result": "PASSED",
+      "durationMs": 74322
+    },
+    {
+      "name": "runtime_strict",
+      "result": "PASSED",
+      "durationMs": 32699
+    },
+    {
+      "name": "runtime_backup",
+      "result": "PASSED",
+      "durationMs": 97048
+    },
+    {
+      "name": "runtime_host_loopback",
+      "result": "PASSED",
+      "durationMs": 26774
+    },
+    {
+      "name": "runtime_inventory",
+      "result": "PASSED",
+      "durationMs": 683
+    },
+    {
+      "name": "owned_cleanup",
+      "result": "PASSED",
+      "durationMs": 1869
+    },
+    {
+      "name": "temporary_cleanup",
+      "result": "PASSED",
+      "durationMs": 0
+    }
+  ],
+  "cleanup": "OWNED_IMAGE_AND_TEMPORARY_STATE_REMOVED"
+}
