@@ -40,7 +40,7 @@ const BOOTSTRAP = Object.freeze({
 });
 
 export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
-  workflowPath: ".github/workflows/postgres-candidate-publish-v2.yml",
+  workflowPath: ".github/workflows/postgres-candidate-publish-v3.yml",
   repository: "CleMeY15/auto-world",
   owner: "CleMeY15",
   image: "ghcr.io/clemey15/auto-world-postgres-gosu",
@@ -49,7 +49,7 @@ export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
   outputDirectory: "postgres-candidate-publish",
   platform: "linux/amd64",
   sourceFiles: Object.freeze([
-    ".github/workflows/postgres-candidate-publish-v2.yml",
+    ".github/workflows/postgres-candidate-publish-v3.yml",
     "scripts/postgres-image/candidate-publish.mjs",
     "scripts/postgres-image/candidate-proof.mjs",
     "scripts/postgres-image/diagnostic.mjs",
@@ -494,8 +494,8 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
     receipt.filesystem = await phase("filesystem_policy", async () => {
       const verified = await filesystemVerifier({
       baseFile: baseExport.file, candidateFile: candidateExport.file, baseIdentity: baseExport.identity,
-      candidateIdentity: candidateExport.identity, baseConfig: baseInspect, candidateConfig: candidateInspect,
-      additionalLabels: receipt.candidate.labels, parentImage: receipt.base.imageId,
+      candidateIdentity: candidateExport.identity, baseConfig: baseInspect.Config, candidateConfig: candidateInspect.Config,
+      additionalLabels: receipt.candidate.labels, parentImage: candidateInspect.Parent,
       startedAt: new Date(started).toISOString(), completedAt: new Date(now()).toISOString(),
       });
       return verified.result ?? verified;

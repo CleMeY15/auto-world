@@ -11,10 +11,12 @@ import {
   defaultCommandRunner, readBoundedDockerFile, validateBaseManifest, validateCandidatePublishContext,
 } from "../scripts/postgres-image/candidate-publish.mjs";
 import { validatePostgresCandidateRemoteManifest } from "../scripts/postgres-image/candidate-proof.mjs";
+import { validatePostgresConfigDelta } from "../scripts/postgres-image/evidence.mjs";
 
 const sourceSha = "a".repeat(40);
 const baseId = lock.base.configId;
 const candidateId = `sha256:${"c".repeat(64)}`;
+const candidateParentId = `sha256:${"8".repeat(64)}`;
 const baseLayers = Array.from({ length: 10 }, (_, index) => `sha256:${String(index + 1).repeat(64).slice(0, 64)}`);
 const candidateLayers = [...baseLayers, `sha256:${"b".repeat(64)}`, `sha256:${"d".repeat(64)}`];
 const descriptors = baseLayers.map((digest, index) => ({
@@ -50,12 +52,13 @@ function response(value, status = 200) { return new globalThis.Response(JSON.str
 function inspectBase() {
   return [{ Id: baseId, Os: "linux", Architecture: "amd64", RepoDigests: [`postgres@${lock.base.platformDigest}`],
     RootFS: { Type: "layers", Layers: baseLayers }, Config: { Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"],
-      User: "", ExposedPorts: { "5432/tcp": {} }, Labels: {} } }];
+      Image: "", User: "", ExposedPorts: { "5432/tcp": {} }, Labels: {} } }];
 }
 function inspectCandidate(nonce) {
   return [{ Id: candidateId, Os: "linux", Architecture: "amd64", RepoDigests: [], RepoTags: [`aw-postgres-gosu:${nonce}`],
+    Parent: candidateParentId,
     RootFS: { Type: "layers", Layers: candidateLayers }, Config: { Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"],
-      User: "", ExposedPorts: { "5432/tcp": {} }, Labels: {
+      Image: candidateParentId, User: "", ExposedPorts: { "5432/tcp": {} }, Labels: {
         "com.auto-world.postgres-diagnostic": nonce,
         "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime",
       } } }];
@@ -188,6 +191,8 @@ test("candidate publisher arguments and GitHub context are closed", () => {
     assert.equal(validateCandidatePublishContext(item.env, "linux").sourceSha, sourceSha);
     for (const env of [{ ...item.env, GITHUB_RUN_NUMBER: "2" }, { ...item.env, GITHUB_RUN_ATTEMPT: "2" },
       { ...item.env, GITHUB_JOB: "other" }, { ...item.env, GITHUB_REF: "refs/heads/dev" },
+      { ...item.env, GITHUB_WORKFLOW_REF:
+        `${POSTGRES_CANDIDATE_PUBLISH.repository}/.github/workflows/postgres-candidate-publish-v2.yml@refs/heads/main` },
       { ...item.env, DOCKER_CONTEXT: "foreign" }]) {
       assert.throws(() => validateCandidatePublishContext(env, "linux"), /postgres_candidate_publish_/u);
     }
@@ -243,9 +248,27 @@ test("public base manifest is bound by raw digest and closed descriptors", () =>
 test("publisher builds and proves locally before login, pushes once, and cleans exact inventories", async () => {
   const item = fixture(); const mocked = fake(item);
   try {
+    const nonce = (awaitHash(`${sourceSha}:${item.env.GITHUB_RUN_ID}:1`)).slice(0, 24);
+    let filesystemVerified = false;
     const receipt = await runPostgresCandidatePublish(["--output", item.output], {
       env: item.env, commandRunner: mocked.commandRunner, fetchImpl: mocked.fetchImpl, ...validators,
+      filesystemVerifier: async (value) => {
+        validatePostgresConfigDelta(value.baseConfig, value.candidateConfig,
+          value.additionalLabels, value.parentImage);
+        assert.deepEqual(value.baseConfig, inspectBase()[0].Config);
+        assert.deepEqual(value.candidateConfig, inspectCandidate(nonce)[0].Config);
+        assert.equal(value.parentImage, inspectCandidate(nonce)[0].Parent);
+        assert.equal(value.parentImage, candidateParentId);
+        assert.notEqual(value.parentImage, baseId);
+        assert.throws(() => validatePostgresConfigDelta(inspectBase()[0], value.candidateConfig,
+          value.additionalLabels, value.parentImage), /postgres_gosu_filesystem_delta_invalid/u);
+        assert.throws(() => validatePostgresConfigDelta(value.baseConfig, value.candidateConfig,
+          value.additionalLabels, baseId), /postgres_gosu_filesystem_delta_invalid/u);
+        filesystemVerified = true;
+        return { result: { policy: "PASSED" } };
+      },
     });
+    assert.equal(filesystemVerified, true);
     assert.equal(receipt.result, "PASSED"); assert.equal(receipt.publication, "PUBLISHED_UNADMITTED");
     const commands = mocked.events.filter((event) => event.kind === "command");
     const login = commands.findIndex((event) => event.args[0] === "login");
