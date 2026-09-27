@@ -60,11 +60,13 @@
     "clientVersion": "28.0.4",
     "serverVersion": "28.0.4",
     "engine": "Docker Engine - Community",
-    "storageDriver": "overlay2"
+    "storageDriver": "overlay2",
+    "builder": "classic",
+    "cgroupVersion": "2"
   },
   "recipe": {
     "path": "infra/postgres-image/Dockerfile",
-    "sha256": "c93b4a74ea1cc80ed4f5d8395062b8894a6a75fbff3fc360c30173f8d6b1c362"
+    "sha256": "a7efa706b746a73de653301a76b88eac94b24f971ad74eba7e70b995201eaf4b"
   },
   "runtime": {
     "postgresUid": 70,

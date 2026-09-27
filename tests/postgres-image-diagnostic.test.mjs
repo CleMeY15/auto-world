@@ -25,6 +25,8 @@ test("the lock binds the exact base, signed Alpine materials, executable and rec
     (value) => { value.apk.expectedKeys[0].sha256 = "0".repeat(64); },
     (value) => { value.apk.executable.goVersion = "go1.24.6"; },
     (value) => { value.docker.serverVersion = "28.0.5"; },
+    (value) => { value.docker.builder = "buildkit"; },
+    (value) => { value.docker.cgroupVersion = "1"; },
   ]) {
     const changed = clone(lock); mutate(changed);
     assert.throws(() => validateDiagnosticLock(changed, dockerfile), /postgres_diagnostic_lock_invalid/u);
@@ -61,6 +63,9 @@ test("the recipe removes the embedded binary and installs only through the signe
   assert.match(recipe, /command -v gosu.*\/usr\/bin\/gosu/u);
   assert.match(recipe, /6d3214ab9d2f1e9ffda75ea2f6bb1f454a13a78dd70318e09eee814ce32cce03/u);
   assert.match(recipe, /go1\.26\.8 on linux\/amd64/u);
+  assert.match(recipe, /cat \/sys\/fs\/cgroup\/memory\.max.*1073741824/u);
+  assert.match(recipe, /cat \/sys\/fs\/cgroup\/memory\.swap\.max.*0/u);
+  assert.match(recipe, /cat \/sys\/fs\/cgroup\/cpu\.max.*100000 100000/u);
   assert.doesNotMatch(recipe, /allow-untrusted|https?:\/\//u);
   assert.doesNotMatch(recipe, /ENTRYPOINT|CMD|EXPOSE|USER/u);
 });
@@ -68,7 +73,8 @@ test("the recipe removes the embedded binary and installs only through the signe
 test("build and runtime plans are offline, unprivileged, bounded and publish no port", () => {
   const context = path.resolve("diagnostic-context");
   const build = dockerBuildArguments(lock, context, `aw-postgres-gosu:${nonce}`, nonce);
-  assert.deepEqual(build.slice(0, 6), ["build", "--network=none", "--pull=false", "--no-cache", "--progress=plain", "--label"]);
+  assert.deepEqual(build.slice(0, 13), ["build", "--network=none", "--pull=false", "--no-cache", "--force-rm",
+    "--memory", "1073741824", "--memory-swap", "1073741824", "--cpu-period", "100000", "--cpu-quota", "100000"]);
   assert.equal(build.at(-1), context);
   assert.doesNotMatch(build.join(" "), /--push|--load|--secret|--ssh|--build-arg/u);
 

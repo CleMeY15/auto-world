@@ -86,9 +86,10 @@ export function validateDiagnosticLock(value, dockerfileBytes) {
   if (!exactKeys(value, ["schemaVersion", "state", "authority", "base", "apk", "docker", "recipe", "runtime", "limits"])
     || value.schemaVersion !== 1 || value.state !== "diagnostic_only" || value.authority !== "LOCAL_DIAGNOSTIC"
     || JSON.stringify(value.base) !== JSON.stringify(BASE)
-    || !exactKeys(value.docker, ["clientVersion", "serverVersion", "engine", "storageDriver"])
+    || !exactKeys(value.docker, ["clientVersion", "serverVersion", "engine", "storageDriver", "builder", "cgroupVersion"])
     || value.docker.clientVersion !== "28.0.4" || value.docker.serverVersion !== "28.0.4"
     || value.docker.engine !== "Docker Engine - Community" || value.docker.storageDriver !== "overlay2"
+    || value.docker.builder !== "classic" || value.docker.cgroupVersion !== "2"
     || !exactKeys(value.recipe, ["path", "sha256"])
     || value.recipe.path !== "infra/postgres-image/Dockerfile" || value.recipe.sha256 !== sha256(dockerfileBytes)
     || !exactKeys(value.runtime, ["postgresUid", "postgresGid", "gosuPath", "removedPath", "payloadSha256"])
@@ -142,7 +143,8 @@ export function dockerBuildArguments(lock, context, tag, nonce) {
     || !/^aw-postgres-gosu:[0-9a-f]{24}$/u.test(tag) || !/^[0-9a-f]{24}$/u.test(nonce)) {
     fail("postgres_diagnostic_build_arguments_invalid");
   }
-  return ["build", "--network=none", "--pull=false", "--no-cache", "--progress=plain",
+  return ["build", "--network=none", "--pull=false", "--no-cache", "--force-rm",
+    "--memory", "1073741824", "--memory-swap", "1073741824", "--cpu-period", "100000", "--cpu-quota", "100000",
     "--label", `${LABEL_OWNER}=${nonce}`, "--label", `${LABEL_PURPOSE}=${PURPOSE}`,
     "--tag", tag, "--file", path.join(context, "Dockerfile"), context];
 }
@@ -287,6 +289,8 @@ function validateDockerVersion(version, info, lock) {
   if (!plain(version) || !plain(info) || version.Client?.Version !== lock.docker.clientVersion
     || version.Server?.Version !== lock.docker.serverVersion || version.Server?.Platform?.Name !== lock.docker.engine
     || info.ServerVersion !== lock.docker.serverVersion || info.Driver !== lock.docker.storageDriver
+    || info.CgroupVersion !== lock.docker.cgroupVersion || info.MemoryLimit !== true || info.SwapLimit !== true
+    || info.CPUCfsQuota !== true || info.CPUCfsPeriod !== true
     || info.OSType !== lock.base.os || info.Architecture !== "x86_64") {
     fail("postgres_diagnostic_docker_invalid");
   }
@@ -318,7 +322,7 @@ function commandEnvironment(work) {
   const dockerConfig = path.join(work, "docker-config"); const home = path.join(work, "home");
   mkdirSync(dockerConfig, { mode: 0o700 }); mkdirSync(home, { mode: 0o700 });
   return { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", HOME: home, DOCKER_CONFIG: dockerConfig,
-    DOCKER_HOST: "unix:///var/run/docker.sock" };
+    DOCKER_HOST: "unix:///var/run/docker.sock", DOCKER_BUILDKIT: "0" };
 }
 function safeName(nonce, suffix) { return `aw-pg-gosu-${nonce}-${suffix}`; }
 function assertNoRuntimeCredentials(environment) {
@@ -551,9 +555,9 @@ export async function runPostgresDiagnostic(argv = process.argv.slice(2), depend
       const name = safeName(nonce, suffix); const id = createOwned(name,
         postgresContainerArguments({ name, tag, nonce, volume, envFile }));
       phase = `RUNTIME_${suffix.toUpperCase()}_START`;
-      validateCommandResult(invoke(["start", id], `${name}-start`), phase);
       const profile = parseJson(validateCommandResult(invoke(containerProfileInspectArguments(id), `${name}-inspect`), phase).stdout);
       fixedContainerProfile(profile, name, nonce, volume);
+      validateCommandResult(invoke(["start", id], `${name}-start`), phase);
       await waitReady(name);
       const processScript = "awk '/^Uid:/{print \"uid=\"$2}/^Gid:/{print \"gid=\"$2}' /proc/1/status; printf 'exe='; readlink /proc/1/exe";
       const processProbe = parseProcessProbe(validateCommandResult(

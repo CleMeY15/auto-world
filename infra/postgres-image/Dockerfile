@@ -3,6 +3,10 @@ FROM postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560
 COPY --chown=0:0 APKINDEX.tar.gz gosu-1.19-r5.apk /tmp/auto-world-apk/
 
 RUN set -eu; \
+    test "$(cat /sys/fs/cgroup/memory.max)" = 1073741824; \
+    test "$(cat /sys/fs/cgroup/memory.swap.max)" = 0; \
+    test "$(cat /sys/fs/cgroup/cpu.max)" = '100000 100000'; \
+    printf '%s\n' 'auto-world-build-resources:verified'; \
     test -x /usr/local/bin/gosu; \
     test "$(wc -c < /etc/apk/keys/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub)" = 800; \
     test "$(sha256sum /etc/apk/keys/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub | cut -d ' ' -f 1)" = 207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f; \

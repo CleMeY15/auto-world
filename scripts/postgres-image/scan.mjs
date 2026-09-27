@@ -297,7 +297,7 @@ export async function executePostgresScan(context, dependencies = {}) {
   if (existsSync(context.work) || existsSync(context.output)) fail("postgres_scan_output_exists");
   mkdirSync(context.work, { mode: 0o700 }); mkdirSync(context.output, { mode: 0o700 });
   privateDirectory(context.work, { empty: true }); privateDirectory(context.output, { empty: true });
-  const receipt = { kind: "POSTGRES_GOSU_LOCAL_AUDIT_V1", state: "INCOMPLETE", authority: "DIAGNOSTIC_ONLY",
+  const receipt = { kind: "POSTGRES_GOSU_LOCAL_AUDIT_V1", state: "INCOMPLETE", authority: "DIAGNOSTIC_ONLY", evidenceVisibility: "PRIVATE_LOCAL_ONLY",
     admission: "NOT_AUTHORIZED", supportStartedAt: null, publication: "NOT_ATTEMPTED", phase: "INPUT",
     commandFailures: [], containerCleanup: [] };
   const deadlineAt = Date.now() + DEADLINE_MS;
