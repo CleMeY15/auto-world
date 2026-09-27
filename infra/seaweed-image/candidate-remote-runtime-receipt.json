@@ -1,0 +1,309 @@
+{
+  "kind": "SEAWEED_REMOTE_RUNTIME_CANDIDATE_RECEIPT_V1",
+  "state": "VERIFIED",
+  "authority": "DIAGNOSTIC_ONLY",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "publication": "PUBLISHED_UNADMITTED",
+  "imageExecution": "VERIFIED_DIAGNOSTIC",
+  "vulnerabilityAudit": "EXACT_REMOTE_AUDIT_COMPLETE",
+  "registryWrite": "NOT_ATTEMPTED",
+  "signing": "NOT_ATTEMPTED",
+  "admission": "NOT_AUTHORIZED",
+  "runId": "36331678311",
+  "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+  "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "auditBinding": {
+    "kind": "SEAWEED_REMOTE_AUDIT_BINDING_V1",
+    "state": "COMPLETE",
+    "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "runId": "36325906357",
+    "runNumber": "1",
+    "runAttempt": "1",
+    "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+    "artifact": {
+      "id": 10934246908,
+      "name": "seaweed-candidate-remote-audit",
+      "bytes": 453587,
+      "digest": "sha256:dd39a83ee38a53b0a45e03fd1d04f1f2e339302985bf3e10e8f7890f185a207f"
+    },
+    "files": {
+      "receipt": {
+        "sha256": "0c34eef9f7145070cd041931b21df62f2595d69a4817ef1cb84bd080ba2a4293",
+        "bytes": 9201
+      },
+      "vulnerability": {
+        "sha256": "94e3b23bde5efcaa88efd461ac4bd1329d2d8c6222ac9cb8f5b258baff00461b",
+        "bytes": 174533
+      },
+      "cyclonedx": {
+        "sha256": "48cf7bf16832af524b4654e7ac14b1f545fd77f1487285c354606d065d706d41",
+        "bytes": 263873
+      }
+    }
+  },
+  "material": {
+    "kind": "SEAWEED_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1",
+    "state": "VERIFIED",
+    "authority": "DIAGNOSTIC_ONLY",
+    "candidateAuthorization": "NOT_AUTHORIZED",
+    "publication": "PUBLISHED_UNADMITTED",
+    "execution": "VERIFIED_DIAGNOSTIC",
+    "registryWrite": "NOT_ATTEMPTED",
+    "runId": "36331678311",
+    "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+    "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "alias": "auto-world-seaweed-s3:remote-36331678311-attempt-1",
+    "remoteManifest": {
+      "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "bytes": 529,
+      "state": "RAW_MANIFEST_VERIFIED",
+      "config": {
+        "digest": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "size": 2175,
+        "mediaType": "application/vnd.docker.container.image.v1+json"
+      },
+      "layer": {
+        "digest": "sha256:33c668b2e3a39312f6ec2a4ff03adee3a6fa81caa5faf401f50f687fd2c30319",
+        "size": 97894228,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+        "compressedSizeVerification": "RECORDED_ONLY"
+      }
+    },
+    "engine": {
+      "state": "ENGINE_VERIFIED",
+      "docker": "28.0.4|28.0.4",
+      "buildx": "github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a",
+      "serverVersion": "28.0.4",
+      "pullResponse": "SUCCESS",
+      "compressedDigestVerification": "MANAGED_MOBY_PULL",
+      "compressedSizeVerification": "RECORDED_ONLY"
+    },
+    "image": {
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "platform": "linux/amd64"
+    },
+    "archive": {
+      "state": "ARCHIVE_VERIFIED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "archiveSha256": "4447e4eb33d60f0b747655124cc86009ab93204d38896d72db4539a30f67d412",
+      "archiveBytes": 246525440,
+      "saveResponse": "SUCCESS"
+    },
+    "publisher": {
+      "result": "FAILED",
+      "runId": "36324316631",
+      "recipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "receiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f"
+    },
+    "provenance": {
+      "publisherRunId": "36324316631",
+      "publisherRecipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "publisherReceiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f",
+      "sourceRunId": "35884717093",
+      "sourceCodeRevision": "6dbc6964e121e54dc5409f5e646f9ae25c01788f"
+    },
+    "phases": [
+      {
+        "name": "managed_engine",
+        "result": "PASSED",
+        "durationMs": 20
+      },
+      {
+        "name": "registry_login",
+        "result": "PASSED",
+        "durationMs": 428
+      },
+      {
+        "name": "raw_tag_manifest",
+        "result": "PASSED",
+        "durationMs": 944
+      },
+      {
+        "name": "anonymous_digest_denied",
+        "result": "PASSED",
+        "durationMs": 278
+      },
+      {
+        "name": "raw_digest_manifest",
+        "result": "PASSED",
+        "durationMs": 757
+      },
+      {
+        "name": "local_inventory_before",
+        "result": "PASSED",
+        "durationMs": 16
+      },
+      {
+        "name": "local_collision_check",
+        "result": "PASSED",
+        "durationMs": 42
+      },
+      {
+        "name": "exact_digest_pull",
+        "result": "PASSED",
+        "durationMs": 5272
+      },
+      {
+        "name": "simple_local_alias",
+        "result": "PASSED",
+        "durationMs": 30
+      },
+      {
+        "name": "private_docker_save",
+        "result": "PASSED",
+        "durationMs": 1213
+      },
+      {
+        "name": "full_archive_validation",
+        "result": "PASSED",
+        "durationMs": 887
+      },
+      {
+        "name": "runtime_diagnostics",
+        "result": "PASSED",
+        "durationMs": 211022
+      },
+      {
+        "name": "owned_docker_cleanup",
+        "result": "PASSED",
+        "durationMs": 359
+      },
+      {
+        "name": "owned_temporary_cleanup",
+        "result": "PASSED",
+        "durationMs": 23
+      }
+    ]
+  },
+  "suite": {
+    "basic": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_PROOF_V2",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "36331678311",
+      "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+      "profileSha256": "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c",
+      "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+      "derivativeVersion": "c507336+aw.549ec92660ab",
+      "uid": 1000,
+      "gid": 1000,
+      "readiness": "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200",
+      "anonymousAccess": "REFUSED_403",
+      "authenticatedAccess": "SIGNED_CREATE_PUT_GET_SHA256",
+      "scopeEnforcement": "WRONG_KEY_AND_BUCKET_REFUSED_403",
+      "conditionalWrites": "REPLAY_AND_OVERWRITE_REFUSED_412",
+      "parallelAttempt": "SINGLE_PAIR_ONE_WINNER_READBACK",
+      "disabledListeners": "8181,9101",
+      "rustHelpers": "ABSENT_AND_REJECTED",
+      "shutdown": "BOUNDED"
+    },
+    "persistence": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "36331678311",
+      "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+      "profileSha256": "a226ec182826290d26e2022c19d3685135188b522d50c62987cf37f7ad2d1f1a",
+      "commandSha256": "f64736918fcdef1c08a2a66b8051aba9a4453ffcdf3b13aea0c61fbf869ea1db",
+      "volumeIdentity": "FRESH_NAME_LABELS_CREATED_AT_LOCAL_VERIFIED",
+      "volumeMount": "VOLUME_NOCOPY_RW_DATA",
+      "initializer": "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000",
+      "firstService": "SIGNED_CONDITIONAL_PUT_GET_SHA256",
+      "secondService": "DISTINCT_CONTAINER_READY_METADATA_LOOKUP_DIRECT_SIGNED_GET_SHA256",
+      "objectPersistence": "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART",
+      "persistedDataReadiness": "V1:24c5e2e15f97b44831673747176315184a83a21f920af0368aa8f2d8aaf9262d",
+      "shutdown": "BOTH_SERVICES_BOUNDED",
+      "cleanup": "OWNED_CONTAINERS_AND_VOLUME_REMOVED"
+    },
+    "strict": {
+      "runtimeProof": {
+        "kind": "SEAWEED_LOCAL_RUNTIME_PROOF_V2",
+        "state": "VERIFIED",
+        "authority": "DIAGNOSTIC_ONLY",
+        "candidateAuthorization": "NOT_AUTHORIZED",
+        "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "runId": "36331678311",
+        "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+        "profileSha256": "18917ea3a8f6d3fc9dcb082bc6ccfe93612ac9ec3436c28d6feaf2ae4fe0483c",
+        "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+        "derivativeVersion": "c507336+aw.549ec92660ab",
+        "uid": 1000,
+        "gid": 1000,
+        "readiness": "CLUSTER_STATUS_200_FILER_READYZ_200_S3_READYZ_200",
+        "anonymousAccess": "REFUSED_403",
+        "authenticatedAccess": "SIGNED_CREATE_PUT_GET_SHA256",
+        "scopeEnforcement": "WRONG_KEY_AND_BUCKET_REFUSED_403",
+        "conditionalWrites": "REPLAY_AND_OVERWRITE_REFUSED_412",
+        "parallelAttempt": "SINGLE_PAIR_ONE_WINNER_READBACK",
+        "disabledListeners": "8181,9101",
+        "rustHelpers": "ABSENT_AND_REJECTED",
+        "shutdown": "BOUNDED"
+      },
+      "strictProof": {
+        "kind": "SEAWEED_LOCAL_RUNTIME_STRICT_CONTENTION_PROOF_V1",
+        "state": "VERIFIED",
+        "authority": "DIAGNOSTIC_ONLY",
+        "candidateAuthorization": "NOT_AUTHORIZED",
+        "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "runId": "36331678311",
+        "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+        "requestBarrier": "TWO_SIGNED_HTTP11_100_BEFORE_BODIES",
+        "conditionalResult": "ONE_200_ONE_412",
+        "winner": "A",
+        "winnerReadback": "SIGNED_GET_WINNER_SHA256",
+        "isolation": "LOOPBACK_ONLY_NO_PUBLISHED_PORT",
+        "shutdown": "BOUNDED"
+      }
+    },
+    "backup": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_BACKUP_RESTORE_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "36331678311",
+      "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+      "profileSha256": "06f340c8e2a3709cbc7a35c2a4d4045a843cdcef4fb7c5820ebf947088640e31",
+      "commandSha256": "1c18bd86001da5ba176775ae05075b7b2e913d94d0727809299e907428433242",
+      "sourceVolumeIdentity": "FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "backupVolumeIdentity": "DISTINCT_FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "restoreVolumeIdentity": "DISTINCT_FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
+      "sourceObject": "SIGNED_CONDITIONAL_PUT_GET_SHA256",
+      "offlineBackup": "STOPPED_SOURCE_TO_BACKUP_VOLUME",
+      "archiveSha256": "42b52f8cbb039c1640f6c56a5abe15ae902d0ebdb8e58bda466486db16b118b4",
+      "archiveBytes": 98304,
+      "sourceDisposal": "SOURCE_CONTAINER_AND_VOLUME_ABSENT_BEFORE_RESTORE",
+      "restoreIsolation": "NO_NETWORK_HELPER_TO_FRESH_VOLUME",
+      "restoredObject": "ORIGINAL_FID_METADATA_LOOKUP_DIRECT_AND_SIGNED_GET_EXACT_SHA256",
+      "persistedDataReadiness": "V1:24c5e2e15f97b44831673747176315184a83a21f920af0368aa8f2d8aaf9262d",
+      "shutdown": "SOURCE_AND_RESTORED_SERVICES_BOUNDED",
+      "cleanup": "OWNED_CONTAINERS_AND_VOLUMES_REMOVED"
+    },
+    "hostLoopback": {
+      "kind": "SEAWEED_LOCAL_RUNTIME_HOST_LOOPBACK_PROOF_V1",
+      "state": "VERIFIED",
+      "authority": "DIAGNOSTIC_ONLY",
+      "candidateAuthorization": "NOT_AUTHORIZED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "runId": "36331678311",
+      "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+      "profileSha256": "81b35e87eb27661a441570797be08fee5258b72dfc4720a45d1c5a64a43ec2ff",
+      "commandSha256": "74a975271752c4ea64213fbf069d20fb9aa6acdb602e81957a78986511888507",
+      "networkMode": "BRIDGE_ONLY",
+      "hostBinding": "127.0.0.1_EPHEMERAL_TO_8333_TCP",
+      "readiness": "HOST_READYZ_200",
+      "anonymousAccess": "HOST_UNSIGNED_REFUSED_403",
+      "authenticatedAccess": "HOST_SIGNED_CREATE_PUT_GET_SHA256",
+      "credentialEnforcement": "HOST_BAD_SECRET_REFUSED_403",
+      "conditionalWrites": "HOST_REPLAY_REFUSED_412",
+      "shutdown": "BOUNDED_PORT_UNREACHABLE",
+      "cleanup": "OWNED_CONTAINER_REMOVED"
+    }
+  }
+}
