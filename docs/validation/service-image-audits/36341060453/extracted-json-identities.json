@@ -1,0 +1,122 @@
+[
+  {
+    "name": "audit-receipt.json",
+    "bytes": 176153,
+    "sha256": "395527097c249b308307f3277b35060d8e1a3440bb3be317ad9e7bffb24c0e72"
+  },
+  {
+    "name": "database-evidence.json",
+    "bytes": 2145,
+    "sha256": "005b3dd17da2c18058291da1893e55ccc0fcfe2be6f6ab483d770d9f36566d74"
+  },
+  {
+    "name": "baseline-image-inspect.json",
+    "bytes": 3268,
+    "sha256": "fb67d0b22ae65e3b83e3c757392acc39e5d59ff8119e495f855f4410c2ca6588"
+  },
+  {
+    "name": "database-java-after-manifest.json",
+    "bytes": 624,
+    "sha256": "e5922bfd4ec2aafa93226148b28f8cce4df87557544ed1bbc80a5b24d218d123"
+  },
+  {
+    "name": "database-java-before-manifest.json",
+    "bytes": 624,
+    "sha256": "e5922bfd4ec2aafa93226148b28f8cce4df87557544ed1bbc80a5b24d218d123"
+  },
+  {
+    "name": "database-vulnerability-after-manifest.json",
+    "bytes": 616,
+    "sha256": "4567b9f40c2dc13ead24d5e314563033a890a06b21fd6cb526e7236bfd0f0a72"
+  },
+  {
+    "name": "database-vulnerability-before-manifest.json",
+    "bytes": 616,
+    "sha256": "4567b9f40c2dc13ead24d5e314563033a890a06b21fd6cb526e7236bfd0f0a72"
+  },
+  {
+    "name": "docker-version.json",
+    "bytes": 1080,
+    "sha256": "fbcd5dc9b1477fdaf04c738f9d12764ab9cfd5cf33406b81a50ea8e1d5cae44a"
+  },
+  {
+    "name": "fixture-gomod-vulnerable-baseline.json",
+    "bytes": 417942,
+    "sha256": "cc4cba94fea65e04af60985fa0967e62c606d7d442e22c3c403891457d149eff"
+  },
+  {
+    "name": "fixture-gomod-vulnerable-candidate.json",
+    "bytes": 417945,
+    "sha256": "f054170a529fc8f898733ff1482666f550fe571cba73455602a425e7abaf98c7"
+  },
+  {
+    "name": "fixture-java-jar-clean-candidate-candidate.json",
+    "bytes": 803,
+    "sha256": "5a9b6ce60f3eca7cb20cf492f8c26017499bc4ad7693553177a65f7565c1b918"
+  },
+  {
+    "name": "fixture-java-war-vulnerable-baseline.json",
+    "bytes": 125446,
+    "sha256": "b951b5b5eca1d9ae8884367ab82f1ca9ab00db8bc96930309a9ae89ae5281278"
+  },
+  {
+    "name": "fixture-java-war-vulnerable-candidate.json",
+    "bytes": 125443,
+    "sha256": "aef88c0a6abd67460a38079749d2b856a65deab770b821bf2001b044860fa2bd"
+  },
+  {
+    "name": "image-aws-cli.json",
+    "bytes": 985731,
+    "sha256": "37e668147adbee91d946ba334fd9f1134b6b30310ff8971580700553fe5ab40d"
+  },
+  {
+    "name": "image-baseline-trivy.json",
+    "bytes": 337445,
+    "sha256": "7e9f07bf758f5ae695dfc5e9df6f99c346ef8beca7735695e46822325f7d521f"
+  },
+  {
+    "name": "image-opensearch.json",
+    "bytes": 1635308,
+    "sha256": "d18fab4794d85012637206b2afed9ced7ffb6bda7b422349c178dde0928ac33d"
+  },
+  {
+    "name": "image-postgres-alpine.json",
+    "bytes": 327996,
+    "sha256": "7dc42d1ff1fafd2468feb65f852a2bfca34780e6d2aa2e4185a3bdaaf5311b74"
+  },
+  {
+    "name": "image-postgres.json",
+    "bytes": 1291919,
+    "sha256": "d87134f461e68fcb46362785099a926a5e7bb0dcb1bab9d95c632a99621334db"
+  },
+  {
+    "name": "image-redis-alpine.json",
+    "bytes": 96260,
+    "sha256": "a586f388add276c2ed0648fb73fb079ac1043c6ff4254772e2d13a2aec22ad3c"
+  },
+  {
+    "name": "image-redis.json",
+    "bytes": 503789,
+    "sha256": "9adcfee8b3675bda7b0ce7e2fbde143b5afbbe67b1556c9c62b8d61f8e42010f"
+  },
+  {
+    "name": "image-seaweedfs.json",
+    "bytes": 213984,
+    "sha256": "9408e59737a12d30f85bb9b727b432bda0457159b36d76cf9535999ec8beb38c"
+  },
+  {
+    "name": "scanner-main-version-probe.json",
+    "bytes": 1199,
+    "sha256": "9aafc040af09ba46d761f8af2954ddf19920a945934f228604c79f900c890954"
+  },
+  {
+    "name": "scanner-sbom.cdx.json",
+    "bytes": 262799,
+    "sha256": "f5437f437fd1c22e46f788d0191e8acef907bc71c3533b04d814711160a5b8b4"
+  },
+  {
+    "name": "scanner-self.json",
+    "bytes": 158271,
+    "sha256": "a89f01db4a54dbe9c6b4b7ce93b7254b6e9c8d2746bf0a74892e3a8dece47c60"
+  }
+]

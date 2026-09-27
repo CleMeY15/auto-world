@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "state": "REGISTRY_PROVENANCE_ONLY_NOT_SCANNED_NOT_ADMITTED",
+  "fetchedAt": "2026-09-27T18:57:58.460Z",
+  "registry": "registry-1.docker.io",
+  "maximumResponseBytes": 1048576,
+  "subject": {
+    "role": "aws-cli",
+    "repository": "amazon/aws-cli",
+    "tag": "2.36.46",
+    "requestedPlatform": {
+      "os": "linux",
+      "architecture": "amd64",
+      "variant": null
+    }
+  },
+  "index": {
+    "tagSourceUrl": "https://registry-1.docker.io/v2/amazon/aws-cli/manifests/2.36.46",
+    "immutableSourceUrl": "https://registry-1.docker.io/v2/amazon/aws-cli/manifests/sha256:eedfdcb56e9a1b02fabcf656977ca226f40860c6672aca41d435e036bc95a075",
+    "digest": "sha256:eedfdcb56e9a1b02fabcf656977ca226f40860c6672aca41d435e036bc95a075",
+    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "rawFile": "docs/validation/aws-cli-refresh/index.json",
+    "rawSha256": "sha256:eedfdcb56e9a1b02fabcf656977ca226f40860c6672aca41d435e036bc95a075",
+    "rawSize": 743
+  },
+  "platform": {
+    "sourceUrl": "https://registry-1.docker.io/v2/amazon/aws-cli/manifests/sha256:696ad2e7f8aac020bbbeaa511713cc844131ce593b275fdb101285ab02f6cbca",
+    "digest": "sha256:696ad2e7f8aac020bbbeaa511713cc844131ce593b275fdb101285ab02f6cbca",
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "descriptorSize": 1367,
+    "rawFile": "docs/validation/aws-cli-refresh/platform.json",
+    "rawSha256": "sha256:696ad2e7f8aac020bbbeaa511713cc844131ce593b275fdb101285ab02f6cbca",
+    "rawSize": 1367
+  },
+  "config": {
+    "sourceUrl": "https://registry-1.docker.io/v2/amazon/aws-cli/blobs/sha256:c68f011a88049fd3e173164e6651edcc8cacd7c2f98c5295d9e534dc1278139e",
+    "digest": "sha256:c68f011a88049fd3e173164e6651edcc8cacd7c2f98c5295d9e534dc1278139e",
+    "mediaType": "application/vnd.docker.container.image.v1+json",
+    "descriptorSize": 2587,
+    "rawFile": "docs/validation/aws-cli-refresh/config.json",
+    "rawSha256": "sha256:c68f011a88049fd3e173164e6651edcc8cacd7c2f98c5295d9e534dc1278139e",
+    "rawSize": 2587,
+    "candidateEvidence": {
+      "baseRelease": "2023.12.20260914",
+      "baseHistoryCommand": "ADD al2023-container-raw-2023.12.20260914.0-amd64.tar.xz / # buildkit",
+      "updateHistoryCommand": "/bin/sh -c dnf update -y   && dnf install -y less groff findutils jq   && dnf clean all"
+    }
+  }
+}
