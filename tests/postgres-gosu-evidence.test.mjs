@@ -77,6 +77,8 @@ const auditSubject = {
   configDigest: `sha256:${"1".repeat(64)}`,
   diffIds: [`sha256:${"5".repeat(64)}`, `sha256:${"6".repeat(64)}`],
 };
+const gosuModule = "github.com/tianon/gosu";
+const gosuPurl = `pkg:golang/${gosuModule}`;
 
 function vulnerabilityReport() {
   return {
@@ -92,6 +94,9 @@ function vulnerabilityReport() {
       { Target: "usr/bin/gosu", Class: "lang-pkgs", Type: "gobinary", Packages: [
         { Name: "github.com/moby/sys/user", Version: "v0.1.0" }, { Name: "stdlib", Version: "v1.26.8" },
         { Name: "golang.org/x/sys", Version: "v0.1.0" },
+        { Name: gosuModule, ID: gosuModule, Relationship: "root", Identifier: { PURL: gosuPurl },
+          AnalyzedBy: "gobinary", Layer: { DiffID: auditSubject.diffIds.at(-1) },
+          DependsOn: ["github.com/moby/sys/user@v0.1.0", "golang.org/x/sys@v0.1.0", "stdlib@v1.26.8"] },
       ], Vulnerabilities: [] },
     ],
   };
@@ -99,6 +104,7 @@ function vulnerabilityReport() {
 
 function cyclonedxReport() {
   const pkg = (name, version, type) => ({ type: "library", name, version,
+    ...(type === "gobinary" ? { "bom-ref": `pkg:golang/${name}@${version}` } : {}),
     properties: [{ name: "aquasecurity:trivy:PkgType", value: type }] });
   return {
     bomFormat: "CycloneDX", specVersion: "1.7", version: 1,
@@ -111,11 +117,18 @@ function cyclonedxReport() {
       pkg("alpine-baselayout", "3.7.0-r0", "alpine"),
       pkg("gosu", "1.19-r5", "alpine"), pkg("github.com/moby/sys/user", "v0.1.0", "gobinary"),
       pkg("golang.org/x/sys", "v0.1.0", "gobinary"), pkg("stdlib", "v1.26.8", "gobinary"),
+      { type: "library", name: gosuModule, purl: gosuPurl, "bom-ref": gosuPurl, properties: [
+        { name: "aquasecurity:trivy:PkgType", value: "gobinary" },
+        { name: "aquasecurity:trivy:PkgID", value: gosuModule },
+        { name: "aquasecurity:trivy:LayerDiffID", value: auditSubject.diffIds.at(-1) },
+      ] },
       { type: "operating-system", name: "alpine", version: "3.24.1", properties: [
         { name: "aquasecurity:trivy:Class", value: "os-pkgs" },
         { name: "aquasecurity:trivy:Type", value: "alpine" },
       ] },
     ],
+    dependencies: [{ ref: gosuPurl, dependsOn: ["pkg:golang/github.com/moby/sys/user@v0.1.0",
+      "pkg:golang/golang.org/x/sys@v0.1.0", "pkg:golang/stdlib@v1.26.8"] }],
   };
 }
 
@@ -141,6 +154,64 @@ test("a clean exact saved-archive audit is complete and remains diagnostic-only"
   assert.equal(result.databases.java.maxAgeMs, null);
   assert.equal(result.databases.java.freshAt48Hours, false);
   assert.deepEqual(result.blockers, []);
+  assert.equal(result.inventory.packageCount, 6);
+});
+
+test("only the exact unversioned gosu main module is accepted in both inventories", () => {
+  for (const mutate of [
+    (pkg) => { pkg.Version = ""; }, (pkg) => { pkg.Version = null; },
+    (pkg) => { pkg.Version = "1.19"; }, (pkg) => { pkg.Epoch = 0; },
+    (pkg) => { pkg.Release = ""; }, (pkg) => { pkg.Name = "example.org/other"; },
+    (pkg) => { pkg.ID += "@1.19"; }, (pkg) => { pkg.Relationship = "direct"; },
+    (pkg) => { pkg.Identifier.PURL += "@1.19"; }, (pkg) => { pkg.DependsOn.pop(); },
+    (pkg) => { delete pkg.Identifier; }, (pkg) => { delete pkg.DependsOn; },
+    (pkg) => { pkg.AnalyzedBy = "apk"; }, (pkg) => { pkg.Layer.DiffID = auditSubject.diffIds[0]; },
+    (pkg) => { pkg.DependsOn.push(pkg.DependsOn[0]); },
+  ]) {
+    const report = vulnerabilityReport(); mutate(report.Results[1].Packages.at(-1));
+    assert.throws(() => evaluate({ vulnerabilityReport: report }), /postgres_gosu_audit_invalid/u);
+  }
+  for (const mutate of [
+    (pkg) => { pkg.version = ""; }, (pkg) => { pkg.version = null; },
+    (pkg) => { pkg.version = "1.19"; }, (pkg) => { pkg.name += "-other"; },
+    (pkg) => { pkg.purl += "@1.19"; }, (pkg) => { pkg.properties[0].value = "alpine"; },
+    (pkg) => { pkg.properties[1].value += "@1.19"; },
+    (pkg) => { pkg.properties[2].value = auditSubject.diffIds[0]; },
+  ]) {
+    const sbom = cyclonedxReport(); mutate(sbom.components.find((pkg) => pkg.name === gosuModule));
+    assert.throws(() => evaluate({ cyclonedxReport: sbom }), /postgres_gosu_audit_invalid/u);
+  }
+  const missingRoot = vulnerabilityReport(); missingRoot.Results[1].Packages.pop();
+  assert.throws(() => evaluate({ vulnerabilityReport: missingRoot }), /postgres_gosu_audit_invalid/u);
+  const duplicateRoot = vulnerabilityReport();
+  duplicateRoot.Results[1].Packages.push(clone(duplicateRoot.Results[1].Packages.at(-1)));
+  assert.throws(() => evaluate({ vulnerabilityReport: duplicateRoot }), /postgres_gosu_audit_invalid/u);
+  const missingSbomRoot = cyclonedxReport();
+  missingSbomRoot.components = missingSbomRoot.components.filter((pkg) => pkg.name !== gosuModule);
+  assert.throws(() => evaluate({ cyclonedxReport: missingSbomRoot }), /postgres_gosu_audit_invalid/u);
+  for (const mutate of [
+    (sbom) => { delete sbom.dependencies; }, (sbom) => { sbom.dependencies[0].dependsOn.pop(); },
+    (sbom) => { sbom.dependencies.push(clone(sbom.dependencies[0])); },
+    (sbom) => { sbom.dependencies[0].dependsOn.push(sbom.dependencies[0].dependsOn[0]); },
+    (sbom) => { sbom.components.find((pkg) => pkg.name === "stdlib")["bom-ref"] = "wrong"; },
+    (sbom) => { sbom.components.push(clone(sbom.components.find((pkg) => pkg.name === gosuModule))); },
+  ]) {
+    const sbom = cyclonedxReport(); mutate(sbom);
+    assert.throws(() => evaluate({ cyclonedxReport: sbom }), /postgres_gosu_audit_invalid/u);
+  }
+});
+
+test("all dependencies and OS packages still require versions, and root findings fail closed", () => {
+  for (const target of [0, 1]) {
+    const report = vulnerabilityReport(); delete report.Results[target].Packages[0].Version;
+    const sbom = cyclonedxReport(); delete sbom.components[target === 0 ? 1 : 3].version;
+    assert.throws(() => evaluate({ vulnerabilityReport: report }), /postgres_gosu_audit_invalid/u);
+    assert.throws(() => evaluate({ cyclonedxReport: sbom }), /postgres_gosu_audit_invalid/u);
+  }
+  const report = vulnerabilityReport();
+  report.Results[1].Vulnerabilities = [{ Severity: "CRITICAL", VulnerabilityID: "CVE-2099-0001",
+    PkgName: gosuModule, InstalledVersion: "1.19" }];
+  assert.throws(() => evaluate({ vulnerabilityReport: report }), /postgres_gosu_audit_invalid/u);
 });
 
 test("archive, image, config, and DiffID bindings reject substitution", () => {

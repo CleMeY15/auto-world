@@ -6,6 +6,10 @@ const HEX = /^[a-f0-9]{64}$/u;
 const TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|([+-])(\d{2}):(\d{2}))$/u;
 const MAX_TEXT = 16_384;
 const MAX_COMPONENTS = 100_000;
+const GOSU_MODULE = "github.com/tianon/gosu";
+const GOSU_PURL = `pkg:golang/${GOSU_MODULE}`;
+const GO_PACKAGES = [["stdlib", "v1.26.8"], ["github.com/moby/sys/user", "v0.1.0"], ["golang.org/x/sys", "v0.1.0"]];
+const GO_DEPENDENCIES = GO_PACKAGES.map(([name, version]) => `${name}@${version}`).sort();
 
 function invalid(check = "shape") {
   const error = new Error("postgres_gosu_audit_invalid");
@@ -43,6 +47,18 @@ function packageVersion(pkg) {
       (pkg.Release !== undefined && (typeof pkg.Release !== "string" || pkg.Release.length > MAX_TEXT)) ||
       (pkg.Epoch !== undefined && (!Number.isSafeInteger(pkg.Epoch) || pkg.Epoch < 0))) invalid("package_shape");
   return `${pkg.Epoch ? `${pkg.Epoch}:` : ""}${pkg.Version}${pkg.Release ? `-${pkg.Release}` : ""}`;
+}
+
+function exactDependencies(actual, expected) {
+  return Array.isArray(actual) && actual.length === expected.length &&
+    isDeepStrictEqual([...actual].sort(), expected);
+}
+
+function unversionedGosuRoot(pkg, diffId) {
+  return object(pkg) && pkg.Name === GOSU_MODULE && pkg.ID === GOSU_MODULE && pkg.Relationship === "root" &&
+    ["Version", "Epoch", "Release"].every((key) => !Object.hasOwn(pkg, key)) &&
+    pkg.Identifier?.PURL === GOSU_PURL && pkg.AnalyzedBy === "gobinary" && pkg.Layer?.DiffID === diffId &&
+    exactDependencies(pkg.DependsOn, GO_DEPENDENCIES);
 }
 
 function property(component, name) {
@@ -109,13 +125,13 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
 
   const gosuTargets = report.Results.filter((entry) => entry?.Target === "usr/bin/gosu" && entry?.Class === "lang-pkgs" && entry?.Type === "gobinary");
   const osTargets = report.Results.filter((entry) => entry?.Class === "os-pkgs");
-  const expectedGoPackages = [["stdlib", "v1.26.8"], ["github.com/moby/sys/user", "v0.1.0"],
-    ["golang.org/x/sys", "v0.1.0"]];
+  const isGosuRoot = (pkg) => unversionedGosuRoot(pkg, auditSubject.diffIds.at(-1));
   if (gosuTargets.length !== 1 || osTargets.length !== 1 || osTargets[0].Type !== os.Family ||
       osTargets[0].Target !== `${auditSubject.artifactName} (${os.Family} ${os.Name})` ||
       report.Results.some((entry) => forbiddenOldGosu(entry?.Target)) ||
       !Array.isArray(gosuTargets[0].Packages) || !Array.isArray(osTargets[0].Packages) ||
-      expectedGoPackages.some(([name, version]) => gosuTargets[0].Packages.filter((pkg) =>
+      gosuTargets[0].Packages.length !== 4 || gosuTargets[0].Packages.filter(isGosuRoot).length !== 1 ||
+      GO_PACKAGES.some(([name, version]) => gosuTargets[0].Packages.filter((pkg) =>
         pkg?.Name === name && packageVersion(pkg) === version).length !== 1) ||
       osTargets[0].Packages.filter((pkg) => pkg?.Name === "gosu" && packageVersion(pkg) === "1.19-r5").length !== 1) invalid("inventory_targets");
 
@@ -124,7 +140,8 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
     if (!Array.isArray(result?.Packages) || result.Packages.length === 0) invalid("package_inventory");
     for (const pkg of result.Packages) {
       if (forbiddenOldGosu(pkg?.Name)) invalid("old_gosu_inventory");
-      const identity = JSON.stringify([pkg.Name, packageVersion(pkg), result.Type]);
+      const version = result === gosuTargets[0] && isGosuRoot(pkg) ? null : packageVersion(pkg);
+      const identity = JSON.stringify([pkg.Name, version, result.Type]);
       if (jsonPackages.has(identity)) invalid("duplicate_package");
       jsonPackages.add(identity);
       if (jsonPackages.size > MAX_COMPONENTS) invalid("package_limit");
@@ -132,7 +149,12 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
   }
 
   let evaluated;
-  try { evaluated = evaluateImageResults(report.Results, { imageDigest: auditSubject.imageId, now }); }
+  // The authenticated APK binds this main module, whose Go build metadata says (devel).
+  // Keep its null-version inventory identity; never invent a version for vulnerability matching.
+  // Findings are not filtered, so any finding against this root fails closed in the shared evaluator.
+  const versionedResults = report.Results.map((result) => result === gosuTargets[0]
+    ? { ...result, Packages: result.Packages.filter((pkg) => !isGosuRoot(pkg)) } : result);
+  try { evaluated = evaluateImageResults(versionedResults, { imageDigest: auditSubject.imageId, now }); }
   catch { invalid("findings"); }
 
   const root = sbom?.metadata?.component;
@@ -151,8 +173,22 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
   if (libraries.length + applications.length + operatingSystems.length !== sbom.components.length) invalid("sbom_types");
   const sbomPackages = new Set();
   for (const component of libraries) {
-    if (!object(component) || !text(component.name) || !text(component.version) || forbiddenOldGosu(component.name)) invalid("sbom_package");
-    const identity = JSON.stringify([component.name, component.version, property(component, "aquasecurity:trivy:PkgType")]);
+    if (!object(component) || !text(component.name) || forbiddenOldGosu(component.name)) invalid("sbom_package");
+    const type = property(component, "aquasecurity:trivy:PkgType");
+    let version = component.version;
+    if (component.name === GOSU_MODULE) {
+      if (type !== "gobinary" || Object.hasOwn(component, "version") || component.purl !== GOSU_PURL ||
+          component["bom-ref"] !== GOSU_PURL || property(component, "aquasecurity:trivy:PkgID") !== GOSU_MODULE ||
+          property(component, "aquasecurity:trivy:LayerDiffID") !== auditSubject.diffIds.at(-1) ||
+          !Array.isArray(sbom.dependencies) || sbom.dependencies.length > MAX_COMPONENTS + 2) invalid("sbom_root");
+      const dependencies = sbom.dependencies.filter((entry) => entry?.ref === GOSU_PURL);
+      if (dependencies.length !== 1 || !exactDependencies(dependencies[0].dependsOn,
+        GO_DEPENDENCIES.map((entry) => `pkg:golang/${entry}`)) || GO_PACKAGES.some(([name, expectedVersion]) =>
+        libraries.filter((entry) => entry.name === name && entry.version === expectedVersion &&
+          entry["bom-ref"] === `pkg:golang/${name}@${expectedVersion}`).length !== 1)) invalid("sbom_root_dependencies");
+      version = null;
+    } else if (!text(version)) invalid("sbom_package");
+    const identity = JSON.stringify([component.name, version, type]);
     if (sbomPackages.has(identity)) invalid("sbom_duplicate");
     sbomPackages.add(identity);
   }
@@ -163,6 +199,6 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
   if (os.EOSL) blockers.push({ code: "image_os_end_of_life", subject: auditSubject });
   return Object.freeze({ state: blockers.length === 0 ? "COMPLETE" : "BLOCKED", diagnosticOnly: true,
     subject: auditSubject, databases, findings, blockers,
-    inventory: Object.freeze({ resultCount: report.Results.length, packageCount: evaluated.packageCount,
+    inventory: Object.freeze({ resultCount: report.Results.length, packageCount: jsonPackages.size,
       sbomComponentCount: sbom.components.length }) });
 }
