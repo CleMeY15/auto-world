@@ -151,8 +151,8 @@ test("cleanup removes only the exact labeled container identity and preserves un
   const imageCalls = [];
   cleanupOwnedResource("image", `aw-postgres-gosu:${nonce}`, imageId, nonce, (args) => {
     imageCalls.push(args);
-    return args[1] === "inspect" ? result(0, JSON.stringify([{ Id: imageId,
-      Config: { Labels: { "com.auto-world.postgres-diagnostic": nonce } } }])) : result(0);
+    return args[1] === "inspect" ? result(0, JSON.stringify({ Id: imageId,
+      Labels: { "com.auto-world.postgres-diagnostic": nonce } })) : result(0);
   });
   assert.deepEqual(imageCalls.at(-1), ["image", "rm", imageId]);
 
