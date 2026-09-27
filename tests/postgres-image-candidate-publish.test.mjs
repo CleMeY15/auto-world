@@ -8,7 +8,7 @@ import test from "node:test";
 import lock from "../infra/postgres-image/lock.json" with { type: "json" };
 import {
   POSTGRES_CANDIDATE_PUBLISH, parseCandidatePublishArguments, runPostgresCandidatePublish,
-  readBoundedDockerFile, validateBaseManifest, validateCandidatePublishContext,
+  defaultCommandRunner, readBoundedDockerFile, validateBaseManifest, validateCandidatePublishContext,
 } from "../scripts/postgres-image/candidate-publish.mjs";
 import { validatePostgresCandidateRemoteManifest } from "../scripts/postgres-image/candidate-proof.mjs";
 
@@ -192,6 +192,21 @@ test("candidate publisher arguments and GitHub context are closed", () => {
       assert.throws(() => validateCandidatePublishContext(env, "linux"), /postgres_candidate_publish_/u);
     }
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("real command runner preserves binary git-show bytes when encoding is explicitly null", () => {
+  const file = "infra/postgres-image/materials/gosu-1.19-r5.apk";
+  const result = defaultCommandRunner("git", ["show", `HEAD:${file}`], {
+    cwd: process.cwd(), env: process.env, encoding: null, timeout: 30_000,
+  });
+  assert.equal(result.status, 0);
+  assert.ok(Buffer.isBuffer(result.stdout));
+  assert.deepEqual(result.stdout, readFileSync(path.join(process.cwd(), file)));
+  const textResult = defaultCommandRunner("git", ["rev-parse", "HEAD"], {
+    cwd: process.cwd(), env: process.env, timeout: 30_000,
+  });
+  assert.equal(textResult.status, 0);
+  assert.equal(typeof textResult.stdout, "string");
 });
 
 test("Docker-created files reject symlinks and oversize before reading", () => {

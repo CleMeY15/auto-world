@@ -1,6 +1,10 @@
 # TASK-0005A — PostgreSQL candidate publication
 
-Status: IMPLEMENTED_PENDING_VALIDATION, NOT_EXECUTED, NOT_ADMITTED. No PostgreSQL candidate layer has been written to GHCR.
+Status: FIRST_RUN_FAILED_BEFORE_PUBLICATION, V2_REPAIR_PENDING, NOT_ADMITTED. No PostgreSQL candidate layer has been written to GHCR.
+
+[PR103](https://github.com/CleMeY15/auto-world/pull/103) merged at `109b4d199e5d3a78a9703c127ff2982e3c08d334` with an identical reviewed tree, 869 passing fresh-Linux root tests, [exact-head CI 36358140596](https://github.com/CleMeY15/auto-world/actions/runs/36358140596), [merged-main CI 36358267971](https://github.com/CleMeY15/auto-world/actions/runs/36358267971), independent code approval, Architect CLEAR and subsequent distinct Critic APPROVE. Its first [native run 36358406893](https://github.com/CleMeY15/auto-world/actions/runs/36358406893), number 1 attempt 1, **FAILED** in `checkout_and_source_closure` after 106 ms. The retained receipt SHA-256 is `5b0e6af0b4488c66e8165af9e60d989d75751312f0e3fb0461c786647e7fe672`: `FAILED_BEFORE_PUBLICATION`, `publication=NOT_ATTEMPTED`, `admission=NOT_AUTHORIZED`, support dates null, both cleanups PASSED. The job uploaded only its bounded receipt. Workflow `368636628` was disabled immediately and must not be re-enabled or rerun. Package ID `15408021` remained Private with one bootstrap version after the failed run.
+
+The failure is a byte-handling bug in the publisher's Git runner: `encoding: null` requested for `git show HEAD:infra/postgres-image/materials/gosu-1.19-r5.apk` was replaced by UTF-8 through `??`, changing the 830,337-byte APK before comparison. The original bytes SHA-256 `cd51335dcbc412f28088452a2407ff13e01dce9e11718feee4beec69cf2ebcad` became 1,534,499 bytes after the UTF-8 round-trip. The focused V2 repair preserves explicit `null`, adds a real binary Git regression test and uses a new input-free workflow with its own single-run budget. The original failure stays failed; V2 must pass fresh checks, exact-head/main CI, independent review and the Architect→distinct Critic gate before any dispatch.
 
 ## Goal and prerequisite
 
