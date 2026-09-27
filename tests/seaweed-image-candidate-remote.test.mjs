@@ -23,6 +23,13 @@ const auditRunId = "40000000002";
 const publisherRevision = "1".repeat(40);
 const auditRevision = "2".repeat(40);
 const config = Object.freeze({ Entrypoint: ["/entrypoint.sh"], Cmd: ["mini", "-dir=/data"] });
+const successPhaseNames = [
+  "managed_engine", "registry_login", "raw_tag_manifest", "anonymous_digest_denied", "raw_digest_manifest",
+  "local_inventory_before", "local_collision_check", "exact_digest_pull", "simple_local_alias",
+  "private_docker_save", "full_archive_validation", "private_archive_callback", "owned_docker_cleanup",
+  "owned_temporary_cleanup",
+];
+const successPhases = () => successPhaseNames.map((name) => ({ name, result: "PASSED", durationMs: 1 }));
 
 function rawManifest() {
   return JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
@@ -118,16 +125,24 @@ test("remote receipt validator rejects local-receipt substitution and failed pha
       receiptSha256: value.publisher.receiptSha256 },
     provenance: { publisherRunId, publisherRecipeRevision: publisherRevision,
       publisherReceiptSha256: value.publisher.receiptSha256, sourceRunId: value.source.runId,
-      sourceCodeRevision: value.source.codeRevision }, phases: [{ name: "x", result: "PASSED", durationMs: 1 }] };
+      sourceCodeRevision: value.source.codeRevision }, phases: successPhases() };
   assert.equal(validateRemoteSeaweedCandidateReceipt(receipt, value).kind, receipt.kind);
   assert.throws(() => validateRemoteSeaweedCandidateReceipt({ ...receipt,
     kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1" }, value), /receipt_invalid/u);
   assert.throws(() => validateRemoteSeaweedCandidateReceipt({ ...receipt,
-    phases: [{ name: "x", result: "FAILED", durationMs: 1 }] }, value), /receipt_invalid/u);
+    phases: successPhases().map((phase, index) => index === 0 ? { ...phase, result: "FAILED" } : phase) }, value),
+  /receipt_invalid/u);
+  for (const phases of [
+    successPhases().slice(0, -1),
+    [successPhases()[1], successPhases()[0], ...successPhases().slice(2)],
+    [...successPhases().slice(0, -1), successPhases().at(-2)],
+    [...successPhases().slice(0, -1), { ...successPhases().at(-1), name: "temporary_cleanup" }],
+  ]) assert.throws(() => validateRemoteSeaweedCandidateReceipt({ ...receipt, phases }, value), /receipt_invalid/u);
 });
 
 function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false,
-  candidateCollision = false, aliasRemovalDeletesImage = false, aliasRemovalStatus = 0 } = {}) {
+  candidateCollision = false, aliasRemovalDeletesImage = false, aliasRemovalStatus = 0,
+  cleanupFailure = false, aliasConfigFailure = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-remote-candidate-")); chmodSync(parent, 0o700);
   const value = policy(); const alias = `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`;
   const foreign = `sha256:${"f".repeat(64)}`; const calls = [];
@@ -165,6 +180,7 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
     if (args[0] === "image" && args[1] === "tag") { tagged = true; return { status: 0, stdout: "", stderr: "" }; }
     if (args[0] === "image" && args[1] === "rm") {
       if (args[2] === alias) {
+        if (cleanupFailure) return { status: 1, stdout: "", stderr: "removal failed" };
         tagged = false;
         if (aliasRemovalDeletesImage) pulled = false;
         return { status: aliasRemovalStatus, stdout: "", stderr: aliasRemovalStatus ? "No such image" : "" };
@@ -192,7 +208,10 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
   };
   const input = { parent, policy: value, runId: auditRunId, recipeRevision: auditRevision,
     signal: undefined, validateFilesystem(entries) { assert.deepEqual(entries, [{ path: "verified" }]); },
-    validateRuntimeConfig(actual) { assert.deepEqual(actual, config); } };
+    validateRuntimeConfig(actual) {
+      assert.deepEqual(actual, config);
+      if (aliasConfigFailure && tagged) throw new Error("semantic config failure");
+    } };
   const inspectArchive = async (snapshot) => {
     assert.equal(snapshot.recipeRevision, auditRevision); assert.equal(snapshot.runId, auditRunId);
     assert.equal(snapshot.subject, value.subject); assert.equal(statSync(snapshot.file).size, 1024);
@@ -232,7 +251,7 @@ test("ambiguous pull inventory is never removed as owned", { skip: !linux }, asy
   const value = harness({ inventoryDrift: true });
   try {
     await assert.rejects(withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies),
-      /pull_ownership_unverified/u);
+      /cleanup_ownership_unverified/u);
     assert.equal(value.calls.some((call) => call.args[0] === "image" && call.args[1] === "rm"), false);
     assert.deepEqual(statSync(value.parent).isDirectory(), true);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
@@ -263,8 +282,41 @@ test("consumer failure still removes the verified owned image and private archiv
   const value = harness({ callbackFailure: true });
   try {
     await assert.rejects(withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies),
-      /command_failed/u);
+      (error) => {
+        assert.equal(error.message, "seaweed_candidate_inspection_failed");
+        assert.deepEqual(Object.keys(error).sort(), ["authority", "candidateAuthorization", "code", "state"]);
+        assert.equal(error.code, "seaweed_candidate_inspection_failed");
+        assert.equal(error.state, "INCOMPLETE");
+        assert.equal(error.authority, "PREPARATION_ONLY");
+        assert.equal(error.candidateAuthorization, "NOT_AUTHORIZED");
+        return true;
+      });
     assert.equal(value.calls.some((call) => call.args[0] === "image" && call.args[1] === "rm"), true);
     assert.equal(existsSync(value.parent), true);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("cleanup uncertainty takes precedence over the sanitized callback marker", { skip: !linux }, async () => {
+  const value = harness({ callbackFailure: true, cleanupFailure: true });
+  try {
+    await assert.rejects(withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies),
+      (error) => {
+        assert.equal(error.message, "seaweed_remote_candidate_image_cleanup_failed");
+        assert.equal(error.code, undefined);
+        return true;
+      });
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("semantic alias config failure still removes the proven owned alias", { skip: !linux }, async () => {
+  const value = harness({ aliasConfigFailure: true });
+  try {
+    await assert.rejects(withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies),
+      /command_failed/u);
+    const removals = value.calls.filter((call) => call.args[0] === "image" && call.args[1] === "rm");
+    assert.deepEqual(removals.map((call) => call.args[2]), [
+      `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`, value.input.policy.subject,
+    ]);
+    assert.deepEqual(readdirSync(value.parent), []);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
