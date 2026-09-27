@@ -19,7 +19,7 @@ const recipeRevision = "b".repeat(40);
 const parent = path.resolve("runtime-test-parent");
 const dockerConfig = path.resolve("runtime-test-docker-config");
 
-function fixture({ probeFailure = false, cleanupFailure = false, preexisting = false,
+function fixture({ probeFailure = false, cleanupFailure = false, cleanupFailureAfter = 1, preexisting = false,
   createMalformed = false, createThrows = false, foreignAfterCreate = false,
   probeStatus, signedStatus, signedMalformed = false,
   helperAccepted = false, unexpectedExit = false } = {}) {
@@ -31,7 +31,8 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
     if (args[0] === "container" && args[1] === "inspect") {
       if (state === undefined) return { status: 1, stdout: "", stderr: "not found\n" };
       inspectionsAfterCreate += 1;
-      const observedId = cleanupFailure && inspectionsAfterCreate > 1 ? "d".repeat(64) : containerId;
+      const observedId = cleanupFailure && inspectionsAfterCreate > cleanupFailureAfter
+        ? "d".repeat(64) : containerId;
       const observedNonce = foreignAfterCreate ? "f".repeat(48) : nonce;
       return { status: 0,
         stdout: `${observedId}|${state}|${unexpectedExit && state === "exited" ? 1 : 0}|${observedNonce}|${imageId}\n`,
@@ -418,10 +419,20 @@ test("a nonzero PID-1 exit blocks the proof after bounded stop", async () => {
   assert.equal(value.state, undefined);
 });
 
-test("cleanup identity drift takes priority and never removes the foreign container", async () => {
+test("runtime primary failure is preserved with cleanup identity drift and never removes the foreign container", async () => {
   const value = fixture({ probeFailure: true, cleanupFailure: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_cleanup_failed" });
+    { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE", reason: "VERSION_MISMATCH",
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
+  assert.equal(value.calls.some((args) => args[1] === "rm"), false);
+});
+
+test("runtime cleanup-only identity drift retains the cleanup diagnostic", async () => {
+  const value = fixture({ cleanupFailure: true, cleanupFailureAfter: 2 });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+      reason: "OWNERSHIP_UNCERTAIN" });
   assert.equal(value.calls.some((args) => args[1] === "rm"), false);
 });
 
@@ -446,8 +457,9 @@ for (const scenario of ["createMalformed", "createThrows"]) {
 test("an unowned name after a lost create response is preserved and blocks cleanup", async () => {
   const value = fixture({ createMalformed: true, foreignAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
-      reason: "OWNERSHIP_UNCERTAIN" });
+    { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_CREATE", reason: "CREATE_ID_INVALID",
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
   assert.equal(value.state, "created");
   assert.equal(value.calls.some((args) => args[1] === "rm"), false);
 });
@@ -572,8 +584,19 @@ test("an inspected security option drift blocks execution and cleans owned resou
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
 });
 
-test("volume ownership drift blocks cleanup and never removes the foreign volume", async () => {
+test("persistence primary failure is preserved with volume cleanup drift and never removes the foreign volume", async () => {
   const value = persistenceFixture({ secondStatus: 65, foreignVolumeAfterCreate: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+      reason: "PERSISTED_OBJECT_MISSING", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
+  assert.equal(value.volumeExists, true);
+  assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
+});
+
+test("persistence cleanup-only volume drift retains the cleanup diagnostic", async () => {
+  const value = persistenceFixture({ foreignVolumeAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
     { code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
       reason: "CLEANUP_UNCERTAIN" });
@@ -581,11 +604,13 @@ test("volume ownership drift blocks cleanup and never removes the foreign volume
   assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
 });
 
-test("container ownership drift blocks cleanup and never removes the foreign container", async () => {
+test("persistence primary failure is preserved with container cleanup drift and never removes the foreign container", async () => {
   const value = persistenceFixture({ secondStatus: 65, foreignSecondAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
-      reason: "CLEANUP_UNCERTAIN" });
+    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+      reason: "PERSISTED_OBJECT_MISSING", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("service-2")), false);
   assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
