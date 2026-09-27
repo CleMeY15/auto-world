@@ -17,6 +17,7 @@ const diffId = `sha256:${"c".repeat(64)}`;
 const revision = "d".repeat(40);
 
 async function fakeAudit(mode) {
+  const remote = ["remote", "remote_false", "remote_undefined", "remote_throw"].includes(mode);
   const temp = mkdtempSync(path.join(os.tmpdir(), "aw-candidate-audit-execute-"));
   const context = { root: path.join(temp, "work"), output: path.join(temp, "evidence"),
     builds: path.join(temp, "builds"), runId: "35999999999", recipeRevision: revision,
@@ -88,8 +89,8 @@ async function fakeAudit(mode) {
         }
         throw callbackFailure;
       }
-      return { kind: mode === "remote" ? "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" : "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
-          ...(mode === "remote" ? { subject: `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}` } : {}),
+      return { kind: remote ? "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" : "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+          ...(remote ? { subject: `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}` } : {}),
           authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
           imageExecution: "NOT_ATTEMPTED", publication: "NOT_ATTEMPTED",
           vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED",
@@ -98,7 +99,7 @@ async function fakeAudit(mode) {
           recipeRevision: context.recipeRevision };
     },
   };
-  if (mode === "remote") {
+  if (remote) {
     dependencies.auditKind = "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1";
     dependencies.validateCandidateReceipt = (candidate, proof, actualContext) => {
       assert.equal(candidate.kind, "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1");
@@ -108,6 +109,9 @@ async function fakeAudit(mode) {
       assert.equal(candidate.diffId, proof.diffId);
       assert.equal(candidate.runId, actualContext.runId);
       assert.equal(candidate.recipeRevision, actualContext.recipeRevision);
+      if (mode === "remote_false") return false;
+      if (mode === "remote_undefined") return undefined;
+      if (mode === "remote_throw") throw new Error("seaweed_remote_receipt_rejected");
       return true;
     };
   }
@@ -312,6 +316,22 @@ test("remote audit cannot use the local provider or validator by default", async
     auditKind: "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
   }), /seaweed_audit_provider_invalid/u);
   await assert.rejects(executeCandidateAudit({}, { auditKind: "UNKNOWN" }), /seaweed_audit_provider_invalid/u);
+  await assert.rejects(executeCandidateAudit({}, {
+    materialize: () => {}, validateCandidateReceipt: () => true,
+  }), /seaweed_audit_provider_invalid/u);
+});
+
+test("unconfirmed or rejected remote receipt remains incomplete after archive cleanup", async () => {
+  for (const mode of ["remote_false", "remote_undefined", "remote_throw"]) {
+    const audit = await fakeAudit(mode);
+    assert.equal(audit.receipt.state, "INCOMPLETE");
+    assert.equal(audit.receipt.failure.code, mode === "remote_throw"
+      ? "seaweed_remote_receipt_rejected" : "seaweed_audit_candidate_receipt_invalid");
+    assert.equal(audit.archiveGone, true);
+    assert.equal(audit.workEmpty, true);
+    assert.equal(Object.hasOwn(audit.receipt, "registrySubject"), false);
+    assert.equal(Object.hasOwn(audit.receipt, "candidate"), false);
+  }
 });
 
 test("manual audit workflow is guarded, read-only and does not publish candidate layers", () => {

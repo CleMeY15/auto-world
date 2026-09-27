@@ -236,6 +236,7 @@ export function validateAuditedCandidateReceipt(candidate, proof, context) {
 export async function executeCandidateAudit(context, dependencies = {}) {
   const auditKind = dependencies.auditKind ?? "SEAWEED_EXACT_CANDIDATE_AUDIT_V1";
   if (!["SEAWEED_EXACT_CANDIDATE_AUDIT_V1", "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"].includes(auditKind)
+    || auditKind === "SEAWEED_EXACT_CANDIDATE_AUDIT_V1" && dependencies.validateCandidateReceipt !== undefined
     || auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"
       && (typeof dependencies.materialize !== "function" || typeof dependencies.validateCandidateReceipt !== "function")) {
     fail("seaweed_audit_provider_invalid");
@@ -347,7 +348,9 @@ export async function executeCandidateAudit(context, dependencies = {}) {
       }
     });
     receipt.phase = "CANDIDATE_CLEANUP";
-    validateCandidateReceipt(candidateReceipt, proof, context);
+    if (validateCandidateReceipt(candidateReceipt, proof, context) !== true) {
+      fail("seaweed_audit_candidate_receipt_invalid");
+    }
     if (auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1") {
       receipt.registrySubject = candidateReceipt.subject;
       receipt.scannerInput = "LOCAL_DOCKER_SAVE_ARCHIVE";
