@@ -199,7 +199,7 @@ export async function verifyRemoteAuditMain(context, env, { commandRunner = defa
     fail("seaweed_remote_audit_checkout_invalid");
   }
   const controller = new globalThis.AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs); timer.unref?.();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(MAIN_BRANCH_URL, { redirect: "error", signal: controller.signal, headers: {
       Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`,
