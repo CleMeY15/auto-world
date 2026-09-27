@@ -1,0 +1,80 @@
+{
+  "name": "SeaweedFS exact remote candidate runtime",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "seaweed-candidate-remote-runtime", "cancel-in-progress": false},
+  "jobs": {
+    "runtime": {
+      "name": "Exact remote subject runtime and cleanup",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 120,
+      "permissions": {"contents": "read", "actions": "read", "packages": "read"},
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-runtime.yml@refs/heads/main'"
+        },
+        {
+          "name": "Check temporary capacity and pinned Docker daemon",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\navailable_kib=\"$(df -Pk \"$RUNNER_TEMP\" | awk 'NR == 2 { print $4 }')\"\ntest \"$available_kib\" -ge 4194304\ntest \"$(docker version --format '{{.Server.Version}}')\" = '28.0.4'"
+        },
+        {
+          "name": "Check out reviewed source without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "timeout-minutes": 10,
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Verify checked-out recipe revision",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "timeout-minutes": 10,
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Retrieve the fixed prior remote audit evidence",
+          "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+          "timeout-minutes": 10,
+          "with": {
+            "name": "seaweed-candidate-remote-audit",
+            "repository": "CleMeY15/auto-world",
+            "run-id": "36325906357",
+            "github-token": "${{ github.token }}",
+            "path": "${{ runner.temp }}/seaweed-candidate-remote-audit-input"
+          }
+        },
+        {
+          "name": "Verify accepted audit then run exact-subject diagnostics",
+          "timeout-minutes": 105,
+          "env": {"GH_TOKEN": "${{ github.token }}", "GITHUB_TOKEN": "${{ github.token }}"},
+          "run": "node scripts/seaweed-image/candidate-remote-runtime-diagnostic.mjs execute"
+        },
+        {
+          "name": "Remove runtime-owned empty directory",
+          "if": "${{ always() }}",
+          "timeout-minutes": 2,
+          "run": "node scripts/seaweed-image/candidate-remote-runtime-diagnostic.mjs cleanup"
+        },
+        {
+          "name": "Retain only the bounded runtime receipt",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "seaweed-candidate-remote-runtime",
+            "path": "${{ runner.temp }}/seaweed-candidate-remote-runtime-evidence/runtime-receipt.json",
+            "if-no-files-found": "warn",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    }
+  }
+}
