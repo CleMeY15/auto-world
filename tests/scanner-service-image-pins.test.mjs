@@ -56,7 +56,7 @@ test("the refresh record is bounded technical provenance without credentials or 
   }
 });
 
-test("scanner trust inputs and non-refreshed image pins preserve their reviewed values", () => {
+test("scanner trust inputs, SeaweedFS, baseline and the newly reviewed AWS CLI pin preserve expected values", () => {
   const retained = {
     schemaVersion: lock.schemaVersion,
     state: lock.state,
@@ -69,5 +69,5 @@ test("scanner trust inputs and non-refreshed image pins preserve their reviewed 
     images: lock.images.filter(({ role }) => ["seaweedfs", "aws-cli", "baseline-trivy"].includes(role)),
   };
   assert.equal(createHash("sha256").update(JSON.stringify(retained)).digest("hex"),
-    "ce320d83eaf25c674b9e6b5b9beea04c8ae22c726130634fd6a75f7d036d328b");
+    "a905ea865b3ae0fed5ca3340ad469b83d5a9b2837fdf10f958d8538aa7d4e149");
 });
