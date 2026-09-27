@@ -37,12 +37,14 @@ const LAYER_MEDIA_TYPES = new Set([
   "application/vnd.docker.image.rootfs.diff.tar.gzip",
   "application/vnd.oci.image.layer.v1.tar+gzip",
 ]);
-const SUCCESS_PHASE_NAMES = Object.freeze([
+const SCANNER_PHASE_NAMES = Object.freeze([
   "managed_engine", "registry_login", "raw_tag_manifest", "anonymous_digest_denied", "raw_digest_manifest",
   "local_inventory_before", "local_collision_check", "exact_digest_pull", "simple_local_alias",
   "private_docker_save", "full_archive_validation", "private_archive_callback", "owned_docker_cleanup",
   "owned_temporary_cleanup",
 ]);
+const RUNTIME_PHASE_NAMES = Object.freeze(SCANNER_PHASE_NAMES.map((name) => name === "private_archive_callback"
+  ? "runtime_diagnostics" : name));
 const FAILED_PUBLICATION_EXCEPTION = Object.freeze({
   runId: "36324316631",
   recipeRevision: "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
@@ -77,6 +79,12 @@ function isInspectionFailure(error) {
     && error.code === "seaweed_candidate_inspection_failed" && error.state === "INCOMPLETE"
     && error.authority === "PREPARATION_ONLY" && error.candidateAuthorization === "NOT_AUTHORIZED"
     && Object.keys(error).sort().join("|") === "authority|candidateAuthorization|code|state";
+}
+function runtimeMaterialFailure({ inspectionFailed, primaryFailure, imageCleanupFailure, temporaryCleanupFailure }) {
+  return Object.assign(new Error("seaweed_remote_runtime_material_failed"), {
+    code: "seaweed_remote_runtime_material_failed", inspectionFailed, primaryFailure,
+    imageCleanupFailure, temporaryCleanupFailure,
+  });
 }
 function cloneFrozen(value) {
   if (Array.isArray(value)) return Object.freeze(value.map(cloneFrozen));
@@ -338,7 +346,7 @@ function validateArchiveProof(proof, policy, alias) {
   return cloneFrozen(proof);
 }
 
-export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
+function validateRemoteReceipt(receipt, policyInput, contract) {
   const policy = validateRemoteSeaweedCandidatePolicy(policyInput);
   if (!exactKeys(receipt, ["kind", "state", "authority", "candidateAuthorization", "publication", "execution",
     "registryWrite", "runId", "recipeRevision", "subject", "alias", "remoteManifest", "engine", "image",
@@ -351,10 +359,10 @@ export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
     || !exactKeys(receipt.publisher, ["result", "runId", "recipeRevision", "receiptSha256"])
     || !exactKeys(receipt.provenance, ["publisherRunId", "publisherRecipeRevision", "publisherReceiptSha256",
       "sourceRunId", "sourceCodeRevision"])
-    || receipt.kind !== "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1"
-    || receipt.state !== "VERIFIED" || receipt.authority !== "REMOTE_READ_ONLY"
+    || receipt.kind !== contract.kind
+    || receipt.state !== "VERIFIED" || receipt.authority !== contract.authority
     || receipt.candidateAuthorization !== "NOT_AUTHORIZED" || receipt.publication !== "PUBLISHED_UNADMITTED"
-    || receipt.execution !== "NOT_ATTEMPTED" || receipt.registryWrite !== "NOT_ATTEMPTED"
+    || receipt.execution !== contract.execution || receipt.registryWrite !== "NOT_ATTEMPTED"
     || !RUN_ID.test(receipt.runId) || !REVISION.test(receipt.recipeRevision)
     || receipt.subject !== policy.subject || receipt.alias !== `auto-world-seaweed-s3:remote-${receipt.runId}-attempt-1`
     || receipt.remoteManifest?.state !== "RAW_MANIFEST_VERIFIED"
@@ -382,19 +390,35 @@ export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
     || receipt.provenance?.publisherReceiptSha256 !== policy.publisher.receiptSha256
     || receipt.provenance?.sourceRunId !== policy.source.runId
     || receipt.provenance?.sourceCodeRevision !== policy.source.codeRevision
-    || !Array.isArray(receipt.phases) || receipt.phases.length !== SUCCESS_PHASE_NAMES.length
-    || !sameArray(receipt.phases.map((phase) => phase?.name), SUCCESS_PHASE_NAMES)
+    || !Array.isArray(receipt.phases) || receipt.phases.length !== contract.phases.length
+    || !sameArray(receipt.phases.map((phase) => phase?.name), contract.phases)
     || receipt.phases.some((phase) => !exactKeys(phase, ["name", "result", "durationMs"])
       || typeof phase.name !== "string" || phase.name.length < 1 || phase.name.length > 128
       || phase.result !== "PASSED" || !Number.isSafeInteger(phase.durationMs) || phase.durationMs < 0)) {
-    fail("seaweed_remote_candidate_receipt_invalid");
+    fail(contract.invalidCode);
   }
   return cloneFrozen(receipt);
 }
 
-export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArchive, dependencies = {}) {
+export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
+  return validateRemoteReceipt(receipt, policyInput, {
+    kind: "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1", authority: "REMOTE_READ_ONLY",
+    execution: "NOT_ATTEMPTED", phases: SCANNER_PHASE_NAMES,
+    invalidCode: "seaweed_remote_candidate_receipt_invalid",
+  });
+}
+
+export function validateRemoteSeaweedRuntimeMaterialReceipt(receipt, policyInput) {
+  return validateRemoteReceipt(receipt, policyInput, {
+    kind: "SEAWEED_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1", authority: "DIAGNOSTIC_ONLY",
+    execution: "VERIFIED_DIAGNOSTIC", phases: RUNTIME_PHASE_NAMES,
+    invalidCode: "seaweed_remote_runtime_material_receipt_invalid",
+  });
+}
+
+async function withRemoteSeaweedMaterial(inputValue, inspectMaterial, dependencies, lane) {
   const input = validateInput(inputValue);
-  if (typeof inspectArchive !== "function" || !plain(dependencies)
+  if (typeof inspectMaterial !== "function" || !plain(dependencies)
     || Object.keys(dependencies).some((key) => !["commandRunner", "saveRunner", "validateArchive", "now", "platform", "env"].includes(key))) {
     fail("seaweed_remote_candidate_arguments_invalid");
   }
@@ -428,7 +452,8 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
     try { const result = await operation(); phases.push({ name, result: "PASSED", durationMs: now() - phaseStarted }); return result; }
     catch (error) { phases.push({ name, result: "FAILED", reason: fixedReason(error), durationMs: now() - phaseStarted }); throw error; }
   };
-  let primaryFailure; let result; let priorIds = []; let pullAttempted = false; let owned = false; let tagged = false;
+  let primaryFailure; let result; let inspectedResult; let inspectionFailed = false;
+  let priorIds = []; let pullAttempted = false; let owned = false; let tagged = false;
   try {
     const version = bounded((await phase("managed_engine", () => run(commandRunner, "docker",
       ["version", "--format", "{{.Client.Version}}|{{.Server.Version}}"], options(authBase)))).stdout);
@@ -506,14 +531,26 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
       validateRuntimeConfig: input.validateRuntimeConfig, signal: operationController.signal,
     })), policy, alias);
     const saveResponse = saveResult.error || saveResult.status !== 0 ? "FAILED_BUT_EXACT_ARCHIVE_CONFIRMED" : "SUCCESS";
-    const snapshot = Object.freeze({ file: archiveFile, archiveProof, policy, subject: policy.subject,
-      imageId: policy.candidate.imageId, diffId: policy.candidate.diffId, runId: input.runId,
-      recipeRevision: input.recipeRevision, signal: operationController.signal });
-    await phase("private_archive_callback", async () => {
-      try { await inspectArchive(snapshot); } catch { throw inspectionFailure(); }
+    const callbackName = lane === "runtime" ? "runtime_diagnostics" : "private_archive_callback";
+    const snapshot = lane === "runtime"
+      ? Object.freeze({ parent: work, dockerConfig: auth, imageId: policy.candidate.imageId,
+        diffId: policy.candidate.diffId, runId: input.runId, recipeRevision: input.recipeRevision,
+        signal: operationController.signal, subject: policy.subject, archiveProof })
+      : Object.freeze({ file: archiveFile, archiveProof, policy, subject: policy.subject,
+        imageId: policy.candidate.imageId, diffId: policy.candidate.diffId, runId: input.runId,
+        recipeRevision: input.recipeRevision, signal: operationController.signal });
+    await phase(callbackName, async () => {
+      try { inspectedResult = await inspectMaterial(snapshot); } catch {
+        inspectionFailed = true;
+        if (lane === "runtime") throw new Error("seaweed_remote_runtime_diagnostics_failed");
+        throw inspectionFailure();
+      }
     });
-    result = { kind: "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1", state: "VERIFIED", authority: "REMOTE_READ_ONLY",
-      candidateAuthorization: "NOT_AUTHORIZED", publication: "PUBLISHED_UNADMITTED", execution: "NOT_ATTEMPTED",
+    result = { kind: lane === "runtime" ? "SEAWEED_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1"
+      : "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+      authority: lane === "runtime" ? "DIAGNOSTIC_ONLY" : "REMOTE_READ_ONLY",
+      candidateAuthorization: "NOT_AUTHORIZED", publication: "PUBLISHED_UNADMITTED",
+      execution: lane === "runtime" ? "VERIFIED_DIAGNOSTIC" : "NOT_ATTEMPTED",
       registryWrite: "NOT_ATTEMPTED", runId: input.runId, recipeRevision: input.recipeRevision,
       subject: policy.subject, alias, remoteManifest: manifest,
       engine: { state: "ENGINE_VERIFIED", docker: version, buildx, serverVersion: EXPECTED_SERVER_VERSION,
@@ -574,11 +611,29 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
   } catch (error) { temporaryFailure = error; }
   phases.push({ name: "owned_temporary_cleanup", result: temporaryFailure ? "FAILED" : "PASSED",
     ...(temporaryFailure ? { reason: fixedReason(temporaryFailure) } : {}), durationMs: now() - temporaryStarted });
+  if (lane === "runtime" && (primaryFailure || cleanupFailures.length || temporaryFailure)) {
+    throw runtimeMaterialFailure({ inspectionFailed,
+      primaryFailure: primaryFailure
+        ? inspectionFailed ? "seaweed_remote_runtime_diagnostics_failed" : fixedReason(primaryFailure) : null,
+      imageCleanupFailure: cleanupFailures[0] ?? null,
+      temporaryCleanupFailure: temporaryFailure ? fixedReason(temporaryFailure) : null });
+  }
   if (cleanupFailures.length) throw new Error(cleanupFailures[0]);
   if (temporaryFailure) throw new Error(fixedReason(temporaryFailure));
   if (primaryFailure) {
     if (isInspectionFailure(primaryFailure)) throw primaryFailure;
     throw new Error(fixedReason(primaryFailure));
   }
+  if (lane === "runtime") return Object.freeze({
+    material: validateRemoteSeaweedRuntimeMaterialReceipt(result, policy), runtime: inspectedResult,
+  });
   return validateRemoteSeaweedCandidateReceipt(result, policy);
+}
+
+export function withVerifiedRemoteSeaweedCandidate(input, inspectArchive, dependencies = {}) {
+  return withRemoteSeaweedMaterial(input, inspectArchive, dependencies, "scanner");
+}
+
+export function withVerifiedRemoteSeaweedRuntimeMaterial(input, inspectRuntime, dependencies = {}) {
+  return withRemoteSeaweedMaterial(input, inspectRuntime, dependencies, "runtime");
 }

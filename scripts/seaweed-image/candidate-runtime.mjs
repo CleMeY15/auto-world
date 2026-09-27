@@ -440,6 +440,7 @@ async function execute(input, injected, strict = false) {
     proof = expectedProof({ imageId, runId, recipeRevision });
     validateSeaweedRuntimeProfileProof(proof, { imageId, runId, recipeRevision });
   } catch (error) { primaryFailure = error; }
+  let cleanupFailure;
   if (createAttempted && ownedId === undefined) {
     try {
       const inspected = await inspectContainer(docker, name, cleanupOptions, [0, 1]);
@@ -449,10 +450,10 @@ async function execute(input, injected, strict = false) {
       } else {
         ownedId = ownedContainer(inspected, { nonce, imageId }).id;
       }
-    } catch { throw diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
+    } catch { cleanupFailure = diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
       "RUNTIME_CLEANUP", "OWNERSHIP_UNCERTAIN", started); }
   }
-  if (ownedId !== undefined) {
+  if (ownedId !== undefined && cleanupFailure === undefined) {
     let cleanupReason = "OWNERSHIP_UNCERTAIN";
     try {
       const inspected = ownedContainer(await inspectContainer(docker, name, cleanupOptions),
@@ -472,9 +473,16 @@ async function execute(input, injected, strict = false) {
       if (!await containerAbsent(docker, name, cleanupOptions)) {
         throw failure("seaweed_candidate_runtime_cleanup_failed");
       }
-    } catch { throw diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
+    } catch { cleanupFailure = diagnosticFailure("seaweed_candidate_runtime_cleanup_failed",
       "RUNTIME_CLEANUP", cleanupReason, started); }
   }
+  if (cleanupFailure !== undefined && primaryFailure !== undefined) {
+    const reported = diagnosticFailure("seaweed_candidate_runtime_failed", phase, reason, started);
+    reported.runtimeCleanupFailure = Object.freeze({ code: cleanupFailure.code,
+      phase: cleanupFailure.phase, reason: "CLEANUP_UNCERTAIN" });
+    throw reported;
+  }
+  if (cleanupFailure !== undefined) throw cleanupFailure;
   if (primaryFailure !== undefined) throw diagnosticFailure("seaweed_candidate_runtime_failed",
     phase, reason, started);
   if (!strict) return proof;
@@ -744,6 +752,7 @@ async function executePersistence(input, injected) {
     owned.delete(role);
   }
 
+  let cleanupFailure;
   try {
     if (!await persistenceVolumeAbsent(docker, volumeName, options)) {
       reason = "VOLUME_NAME_OCCUPIED"; throw failure("seaweed_candidate_runtime_persistence_failed");
@@ -864,8 +873,16 @@ async function executePersistence(input, injected) {
       }
       volumeCreated = false;
     }
-  } catch { throw fail("PERSISTENCE_CLEANUP", "CLEANUP_UNCERTAIN", true); }
+  } catch { cleanupFailure = fail("PERSISTENCE_CLEANUP", "CLEANUP_UNCERTAIN", true); }
 
+  if (cleanupFailure !== undefined && primaryFailure !== undefined) {
+    const reported = diagnosticFailure("seaweed_candidate_runtime_persistence_failed",
+      failurePhase, failureReason, started);
+    reported.runtimeCleanupFailure = Object.freeze({ code: cleanupFailure.code,
+      phase: cleanupFailure.phase, reason: cleanupFailure.reason });
+    throw reported;
+  }
+  if (cleanupFailure !== undefined) throw cleanupFailure;
   if (primaryFailure !== undefined) throw diagnosticFailure("seaweed_candidate_runtime_persistence_failed",
     failurePhase, failureReason, started);
   const proof = expectedPersistenceProof({ imageId, runId, recipeRevision });

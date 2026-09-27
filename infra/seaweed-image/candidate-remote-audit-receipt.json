@@ -1,0 +1,278 @@
+{
+  "kind": "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+  "state": "COMPLETE",
+  "authority": "DIAGNOSTIC_ONLY",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "publication": "NOT_ATTEMPTED",
+  "admission": "NOT_ATTEMPTED",
+  "imageExecution": "NOT_ATTEMPTED",
+  "runId": "36325906357",
+  "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+  "phase": "COMPLETE",
+  "containerCleanup": [
+    {
+      "kind": "db-vulnerability",
+      "state": "OWNED_CONTAINER_ABSENT"
+    },
+    {
+      "kind": "db-java",
+      "state": "OWNED_CONTAINER_ABSENT"
+    },
+    {
+      "kind": "scan-json",
+      "state": "OWNED_CONTAINER_ABSENT"
+    },
+    {
+      "kind": "scan-cyclonedx",
+      "state": "OWNED_CONTAINER_ABSENT"
+    }
+  ],
+  "scanner": {
+    "version": "0.74.0-autoworld.2",
+    "sourceCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
+    "binary": {
+      "sha256": "1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d",
+      "size": 168288382
+    },
+    "builds": [
+      {
+        "sha256": "1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d",
+        "size": 168288382
+      },
+      {
+        "sha256": "1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d",
+        "size": 168288382
+      }
+    ],
+    "lockSha256": "3bcfd01a6b85d7f45646d6139961f438d2a5decb1b80342c12dd3984bfa7da23"
+  },
+  "databases": {
+    "files": [
+      {
+        "path": "/home/runner/work/_temp/seaweed-candidate-remote-audit-work/scanner-work/cache/db/trivy.db",
+        "sha256": "4bf01c98f9af59d4ec9ab6c8f4f22740230830e8be9172970e74dcb8257cd53b",
+        "size": 1446756352,
+        "cap": 2147483648
+      },
+      {
+        "path": "/home/runner/work/_temp/seaweed-candidate-remote-audit-work/scanner-work/cache/db/metadata.json",
+        "sha256": "4a4779fdf286dd0a0f0ca8f3c0df850cb140b72f0193074172ba59d33f1892ab",
+        "size": 153,
+        "cap": 8388608
+      },
+      {
+        "path": "/home/runner/work/_temp/seaweed-candidate-remote-audit-work/scanner-work/cache/java-db/trivy-java.db",
+        "sha256": "e99e2d1212f4f1ef8281f95ffa72b667ce3fb8d00db0c4b2ddfcc3283b87612c",
+        "size": 1537712128,
+        "cap": 2147483648
+      },
+      {
+        "path": "/home/runner/work/_temp/seaweed-candidate-remote-audit-work/scanner-work/cache/java-db/metadata.json",
+        "sha256": "a84b59e6ed6f2aeef7cbdd75ea669359f15f8254519bc6dd6467752200e44df6",
+        "size": 153,
+        "cap": 8388608
+      }
+    ],
+    "metadata": {
+      "vulnerability": {
+        "updatedAt": "2026-09-27T13:06:25.102527619Z",
+        "downloadedAt": "2026-09-27T14:40:28.802012816Z",
+        "version": 2,
+        "ageMs": 5684402,
+        "maxAgeMs": 172800000,
+        "freshAt48Hours": true
+      },
+      "java": {
+        "updatedAt": "2026-09-27T01:08:08.997214067Z",
+        "downloadedAt": "2026-09-27T14:41:06.963895544Z",
+        "version": 1,
+        "ageMs": 48780507,
+        "maxAgeMs": null,
+        "freshAt48Hours": true
+      }
+    },
+    "registry": [
+      {
+        "name": "vulnerability",
+        "repository": "ghcr.io/aquasecurity/trivy-db",
+        "tag": "2",
+        "digest": "sha256:4567b9f40c2dc13ead24d5e314563033a890a06b21fd6cb526e7236bfd0f0a72",
+        "size": 616,
+        "layerBytes": 123356153
+      },
+      {
+        "name": "java",
+        "repository": "ghcr.io/aquasecurity/trivy-java-db",
+        "tag": "1",
+        "digest": "sha256:e5922bfd4ec2aafa93226148b28f8cce4df87557544ed1bbc80a5b24d218d123",
+        "size": 624,
+        "layerBytes": 973426852
+      }
+    ]
+  },
+  "subject": {
+    "artifactName": "/candidate/saved.tar",
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "archiveSha256": "08ef5ae5b6f988299d02faa34cac28aa5a4fb479abc9582d34b687f57bea7a01",
+    "tag": "auto-world-seaweed-s3:remote-36325906357-attempt-1",
+    "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "archiveBytes": 246525440,
+    "configSha256": "d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "configBytes": 2175,
+    "layerSha256": "14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "layerBytes": 246512128
+  },
+  "reports": {
+    "vulnerability": {
+      "sha256": "94e3b23bde5efcaa88efd461ac4bd1329d2d8c6222ac9cb8f5b258baff00461b",
+      "size": 174533
+    },
+    "cyclonedx": {
+      "sha256": "48cf7bf16832af524b4654e7ac14b1f545fd77f1487285c354606d065d706d41",
+      "size": 263873
+    }
+  },
+  "registrySubject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "scannerInput": "LOCAL_DOCKER_SAVE_ARCHIVE",
+  "candidate": {
+    "kind": "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1",
+    "state": "VERIFIED",
+    "authority": "REMOTE_READ_ONLY",
+    "candidateAuthorization": "NOT_AUTHORIZED",
+    "publication": "PUBLISHED_UNADMITTED",
+    "execution": "NOT_ATTEMPTED",
+    "registryWrite": "NOT_ATTEMPTED",
+    "runId": "36325906357",
+    "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+    "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "alias": "auto-world-seaweed-s3:remote-36325906357-attempt-1",
+    "remoteManifest": {
+      "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "bytes": 529,
+      "state": "RAW_MANIFEST_VERIFIED",
+      "config": {
+        "digest": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "size": 2175,
+        "mediaType": "application/vnd.docker.container.image.v1+json"
+      },
+      "layer": {
+        "digest": "sha256:33c668b2e3a39312f6ec2a4ff03adee3a6fa81caa5faf401f50f687fd2c30319",
+        "size": 97894228,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+        "compressedSizeVerification": "RECORDED_ONLY"
+      }
+    },
+    "engine": {
+      "state": "ENGINE_VERIFIED",
+      "docker": "28.0.4|28.0.4",
+      "buildx": "github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a",
+      "serverVersion": "28.0.4",
+      "pullResponse": "SUCCESS",
+      "compressedDigestVerification": "MANAGED_MOBY_PULL",
+      "compressedSizeVerification": "RECORDED_ONLY"
+    },
+    "image": {
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "platform": "linux/amd64"
+    },
+    "archive": {
+      "state": "ARCHIVE_VERIFIED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "archiveSha256": "08ef5ae5b6f988299d02faa34cac28aa5a4fb479abc9582d34b687f57bea7a01",
+      "archiveBytes": 246525440,
+      "saveResponse": "SUCCESS"
+    },
+    "publisher": {
+      "result": "FAILED",
+      "runId": "36324316631",
+      "recipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "receiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f"
+    },
+    "provenance": {
+      "publisherRunId": "36324316631",
+      "publisherRecipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "publisherReceiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f",
+      "sourceRunId": "35884717093",
+      "sourceCodeRevision": "6dbc6964e121e54dc5409f5e646f9ae25c01788f"
+    },
+    "phases": [
+      {
+        "name": "managed_engine",
+        "result": "PASSED",
+        "durationMs": 16
+      },
+      {
+        "name": "registry_login",
+        "result": "PASSED",
+        "durationMs": 632
+      },
+      {
+        "name": "raw_tag_manifest",
+        "result": "PASSED",
+        "durationMs": 881
+      },
+      {
+        "name": "anonymous_digest_denied",
+        "result": "PASSED",
+        "durationMs": 291
+      },
+      {
+        "name": "raw_digest_manifest",
+        "result": "PASSED",
+        "durationMs": 793
+      },
+      {
+        "name": "local_inventory_before",
+        "result": "PASSED",
+        "durationMs": 14
+      },
+      {
+        "name": "local_collision_check",
+        "result": "PASSED",
+        "durationMs": 48
+      },
+      {
+        "name": "exact_digest_pull",
+        "result": "PASSED",
+        "durationMs": 5037
+      },
+      {
+        "name": "simple_local_alias",
+        "result": "PASSED",
+        "durationMs": 27
+      },
+      {
+        "name": "private_docker_save",
+        "result": "PASSED",
+        "durationMs": 989
+      },
+      {
+        "name": "full_archive_validation",
+        "result": "PASSED",
+        "durationMs": 762
+      },
+      {
+        "name": "private_archive_callback",
+        "result": "PASSED",
+        "durationMs": 14173
+      },
+      {
+        "name": "owned_docker_cleanup",
+        "result": "PASSED",
+        "durationMs": 434
+      },
+      {
+        "name": "owned_temporary_cleanup",
+        "result": "PASSED",
+        "durationMs": 20
+      }
+    ]
+  },
+  "findingCount": 0,
+  "blockerCount": 0,
+  "blockers": [],
+  "blockersTruncated": false,
+  "artifactBytes": 443138
+}
