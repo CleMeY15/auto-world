@@ -18,3 +18,4 @@ infra/seaweed-image/candidate-local-restore-receipt.json -text
 infra/seaweed-image/attestation/** -text
 docs/validation/seaweed-attestation/** -text
 docs/validation/service-image-refresh/** -text
+docs/validation/service-image-audits/** -text
