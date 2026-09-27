@@ -4,7 +4,7 @@ import test from "node:test";
 
 const workflow = JSON.parse(await readFile(
   new URL("../.github/workflows/seaweed-candidate-remote-runtime.yml", import.meta.url), "utf8"));
-const mainOnly = "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}";
+const mainOnly = "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 3 && github.run_attempt == 1 }}";
 const runtime = workflow.jobs.runtime;
 const steps = runtime.steps;
 
@@ -22,14 +22,14 @@ test("remote runtime grants only read permissions on a unique reviewed main disp
     /packages":"write|contents":"write|actions":"write|id-token|attestations|secrets|pull_request|workflow_run|workflow_call|schedule|repository_dispatch/iu);
 });
 
-test("runtime guards repository, runner and exact second reviewed dispatch before checkout", () => {
+test("runtime guards repository, runner and exact third reviewed dispatch before checkout", () => {
   const guard = steps[0];
-  assert.equal(guard.name, "Require the second reviewed main dispatch");
+  assert.equal(guard.name, "Require the third reviewed main dispatch");
   assert.equal(guard["timeout-minutes"], 2);
   assert.match(guard.run, /^set -euo pipefail$/mu);
   for (const [variable, value] of [["GITHUB_REPOSITORY", "CleMeY15/auto-world"],
     ["RUNNER_ENVIRONMENT", "github-hosted"], ["GITHUB_EVENT_NAME", "workflow_dispatch"],
-    ["GITHUB_REF", "refs/heads/main"], ["GITHUB_RUN_NUMBER", "2"], ["GITHUB_RUN_ATTEMPT", "1"],
+    ["GITHUB_REF", "refs/heads/main"], ["GITHUB_RUN_NUMBER", "3"], ["GITHUB_RUN_ATTEMPT", "1"],
     ["GITHUB_WORKFLOW_REF", "CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-runtime.yml@refs/heads/main"]]) {
     assert.ok(guard.run.includes(`test "$${variable}" = '${value}'`));
   }

@@ -16,6 +16,8 @@ import {
 } from "../scripts/seaweed-image/candidate-remote-runtime.mjs";
 import { validateRemoteSeaweedRuntimeMaterialReceipt } from
   "../scripts/seaweed-image/candidate-remote.mjs";
+import { publicRemoteRuntimeFailure } from
+  "../scripts/seaweed-image/candidate-remote-runtime-diagnostic.mjs";
 
 const imageId = `sha256:${"a".repeat(64)}`;
 const diffId = `sha256:${"b".repeat(64)}`;
@@ -239,4 +241,34 @@ test("unknown failure values and malformed provider success never escape into pu
   };
   await assert.rejects(withVerifiedRemoteSeaweedRuntimeCandidate(input(), malformed),
     /seaweed_remote_runtime_candidate_failed/u);
+});
+
+test("persisted data failures survive both public sanitizers without internal metadata", async () => {
+  for (const [verifier, code, phase] of [
+    ["verifyPersistence", "seaweed_candidate_runtime_persistence_failed", "PERSISTENCE_SERVICE_TWO"],
+    ["verifyBackup", "seaweed_candidate_runtime_backup_restore_failed", "BACKUP_RESTORED_SERVICE"],
+  ]) {
+    for (const reason of ["PERSISTED_METADATA_INVALID", "PERSISTED_IDENTITY_CHANGED",
+      "PERSISTED_REGISTRATION_INVALID", "PERSISTED_DIRECT_READ_MISMATCH", "PERSISTED_DATA_NOT_READY",
+      "PERSISTED_READINESS_PROBE_INVALID"]) {
+      const deps = successfulDependencies([]);
+      deps[verifier] = async () => { throw Object.assign(new Error("private metadata"), {
+        code, phase, reason, fid: "7,123400000000", internalReason: "DIRECT_PROBE_INVALID",
+        responseBody: "private metadata", path: "/tmp/private",
+      }); };
+      await assert.rejects(withVerifiedRemoteSeaweedRuntimeCandidate(input(), deps), (error) => {
+        const receipt = publicRemoteRuntimeFailure(error);
+        assert.deepEqual(receipt, {
+          kind: "SEAWEED_REMOTE_RUNTIME_DIAGNOSTIC_FAILURE_V1", state: "FAILED",
+          authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
+          admission: "NOT_AUTHORIZED", publication: "PUBLISHED_UNADMITTED", imageExecution: "NOT_VERIFIED",
+          code: "seaweed_remote_runtime_candidate_failed",
+          diagnosticFailure: { code, phase, reason, runtimeCleanupFailure: null },
+          materialPrimaryFailure: "seaweed_remote_runtime_diagnostics_failed",
+          imageCleanupFailure: null, temporaryCleanupFailure: null,
+        });
+        return true;
+      });
+    }
+  }
 });
