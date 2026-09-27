@@ -15,3 +15,5 @@ infra/seaweed-image/candidate-remote-runtime-receipt.json -text
 infra/seaweed-image/candidate-local-retention-receipt.json -text
 infra/seaweed-image/candidate-local-restore-receipt.json -text
 .github/workflows/*.yml text eol=lf
+infra/seaweed-image/attestation/** -text
+docs/validation/seaweed-attestation/** -text

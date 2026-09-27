@@ -1,14 +1,25 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { SIGNER_JOB_BUDGET_MS } from "../scripts/seaweed-image/candidate-attestation.mjs";
 
 const workflow = JSON.parse(await readFile(
-  new URL("../.github/workflows/seaweed-candidate-attest.yml", import.meta.url), "utf8"));
+  new URL("../docs/validation/seaweed-attestation/workflow.json", import.meta.url), "utf8"));
 const { signer, verifier } = workflow.jobs;
 const actions = (job) => job.steps.filter((step) => step.uses);
 const stepNamed = (job, name) => job.steps.find((step) => step.name === name);
 const guard = "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}";
+
+test("successful one-shot producer is retired while its reviewed recipe remains inspectable", async () => {
+  await assert.rejects(access(new URL("../.github/workflows/seaweed-candidate-attest.yml", import.meta.url)),
+    { code: "ENOENT" });
+  const run = JSON.parse(await readFile(new URL("../docs/validation/seaweed-attestation/run.json", import.meta.url)));
+  assert.equal(run.id, 36339762446);
+  assert.equal(run.head_sha, "83d93ca2801ab2385c680e98acd12ed21f5110b9");
+  assert.equal(run.conclusion, "success");
+  assert.equal(run.run_number, 1);
+  assert.equal(run.run_attempt, 1);
+});
 
 test("signing is input-free, first-attempt protected-main only with separate verifier authority", () => {
   assert.deepEqual(workflow.on, { workflow_dispatch: {} });
