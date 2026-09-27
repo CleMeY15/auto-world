@@ -356,9 +356,18 @@ export function TEST_ONLY_runOwnedContainer(args, options) { return runOwnedCont
 function recordOperationFailure(receipt, error) {
   if (!error?.policyBlocked || receipt.state !== "BLOCKED") receipt.state = "INCOMPLETE";
   receipt.failure = { code: FAILURE_CODE.test(error?.message ?? "") ? error.message : "postgres_scan_failed" };
+  const check = error?.diagnostic?.check;
+  if (error?.message === "postgres_gosu_audit_invalid" && typeof check === "string" && /^[a-z_]{1,64}$/u.test(check)) {
+    receipt.failure.check = check;
+  }
 }
 
 export function TEST_ONLY_recordOperationFailure(receipt, error) { recordOperationFailure(receipt, error); }
+
+export function postgresCandidateInputDockerArguments(options) {
+  // Include Go dependencies even when Alpine owns the executable in its package database.
+  return [...candidateInputDockerArguments(options), "--detection-priority", "comprehensive"];
+}
 
 export function preparePostgresScannerControls(work, pair) {
   const scannerSubject = path.join(work, "scanner-subject"); mkdirSync(scannerSubject, { mode: 0o700 });
@@ -537,7 +546,7 @@ export async function executePostgresScan(context, dependencies = {}) {
     const reports = { vulnerability: path.join(context.output, "candidate-vulnerabilities.json"),
       cyclonedx: path.join(context.output, "candidate-sbom.cdx.json") };
     for (const [format, file] of [["json", reports.vulnerability], ["cyclonedx", reports.cyclonedx]]) {
-      runOwnedContainer(candidateInputDockerArguments({ carrier, scanner: pair.scanner, cache,
+      runOwnedContainer(postgresCandidateInputDockerArguments({ carrier, scanner: pair.scanner, cache,
         archive, uid: SCAN_UID, gid: SCAN_GID, format }),
       { kind: `candidate-${format}`, docker, cleanupDocker, cleanupRecords: receipt.containerCleanup,
         output: file, timeout: 30 * 60_000 });
@@ -546,11 +555,11 @@ export async function executePostgresScan(context, dependencies = {}) {
     receipt.phase = "POLICY";
     const vulnerability = await readBoundedJson(reports.vulnerability, 64 * MiB);
     const cyclonedx = await readBoundedJson(reports.cyclonedx, 64 * MiB);
+    receipt.reports = { vulnerability: vulnerability.identity, cyclonedx: cyclonedx.identity };
     const evaluation = evaluateLocalPostgresGosuAudit({ vulnerabilityReport: vulnerability.value,
       cyclonedxReport: cyclonedx.value, subject: verified.subject, archiveEvidence: verified.subject,
       databaseEvidence: { vulnerability: databaseRecord.observed.vulnerability.value,
         java: databaseRecord.observed.java.value }, now: new Date() });
-    receipt.reports = { vulnerability: vulnerability.identity, cyclonedx: cyclonedx.identity };
     await assertFilesUnchanged(frozenFiles);
     receipt.findingCount = evaluation.findings.length; receipt.blockerCount = evaluation.blockers.length;
     receipt.blockers = evaluation.blockers.slice(0, 32); receipt.blockersTruncated = evaluation.blockers.length > 32;

@@ -8,7 +8,7 @@ import { buildFixtureTar } from "../scripts/image-import-fixture/archive.mjs";
 
 import { candidateInputDockerArguments } from "../scripts/seaweed-image/candidate-audit.mjs";
 import { authenticatePostgresCodeBundle, executePostgresScan, parsePostgresScanArguments, postgresOwnedContainerArguments,
-  preparePostgresScannerControls,
+  postgresCandidateInputDockerArguments, preparePostgresScannerControls,
   TEST_ONLY_copyAuthenticatedFile, TEST_ONLY_recordOperationFailure, TEST_ONLY_runOwnedContainer,
   validatePostgresDiagnosticEvidence,
   writePostgresCommandFailureEvidence } from "../scripts/postgres-image/scan.mjs";
@@ -201,8 +201,36 @@ test("a completed policy evaluation retains BLOCKED while operational failures b
   assert.deepEqual(incomplete, { state: "INCOMPLETE", failure: { code: "postgres_scan_command_failed" } });
 });
 
+test("invalid audit receipts retain a bounded policy check without arbitrary error details", () => {
+  const error = new Error("postgres_gosu_audit_invalid");
+  error.diagnostic = { check: "inventory_targets", detail: "/private/raw-path" };
+  const receipt = {};
+  TEST_ONLY_recordOperationFailure(receipt, error);
+  assert.deepEqual(receipt, { state: "INCOMPLETE", failure: {
+    code: "postgres_gosu_audit_invalid", check: "inventory_targets",
+  } });
+  for (const check of ["/private/raw-path", "line\nbreak", "x".repeat(65), "", undefined, ["inventory_targets"]]) {
+    error.diagnostic.check = check;
+    TEST_ONLY_recordOperationFailure(receipt, error);
+    assert.deepEqual(receipt.failure, { code: "postgres_gosu_audit_invalid" });
+  }
+});
+
+test("both PostgreSQL report formats include APK-owned Go dependencies without changing shared scans", () => {
+  for (const format of ["json", "cyclonedx"]) {
+    const options = { carrier: `aquasec/trivy@sha256:${"7".repeat(64)}`, scanner: "/private/scanner",
+      cache: "/private/cache", archive: "/private/candidate-image.tar", uid: 1000, gid: 1000, format };
+    const shared = candidateInputDockerArguments(options);
+    const postgres = postgresCandidateInputDockerArguments(options);
+    assert.equal(shared.includes("--detection-priority"), false);
+    assert.deepEqual(postgres, [...shared, "--detection-priority", "comprehensive"]);
+  }
+  assert.throws(() => postgresCandidateInputDockerArguments({ format: "unsupported" }),
+    /seaweed_audit_scan_arguments_invalid/u);
+});
+
 test("candidate archive scans retain the reviewed offline container profile and add owned identity", () => {
-  const args = candidateInputDockerArguments({
+  const args = postgresCandidateInputDockerArguments({
     carrier: `aquasec/trivy@sha256:${"7".repeat(64)}`, scanner: "/private/scanner", cache: "/private/cache",
     archive: "/private/candidate-image.tar", uid: 1000, gid: 1000, format: "json",
   });

@@ -175,6 +175,19 @@ test("missing, wrong, or lingering gosu inventories are rejected", () => {
   }
 });
 
+test("matching OS-only JSON and SBOM cannot hide the APK-owned gosu Go inventory", () => {
+  const report = vulnerabilityReport();
+  report.Results = report.Results.filter((entry) => entry.Class === "os-pkgs");
+  const sbom = cyclonedxReport();
+  sbom.components = sbom.components.filter((entry) => entry.type !== "application" &&
+    !entry.properties.some((property) => property.value === "gobinary"));
+  assert.throws(() => evaluate({ vulnerabilityReport: report, cyclonedxReport: sbom }), (error) => {
+    assert.equal(error.message, "postgres_gosu_audit_invalid");
+    assert.equal(error.diagnostic?.check, "inventory_targets");
+    return true;
+  });
+});
+
 test("complete one-to-one JSON and CycloneDX package inventories are required", () => {
   const report = vulnerabilityReport(); report.Results[0].Packages = [];
   assert.throws(() => evaluate({ vulnerabilityReport: report }), /postgres_gosu_audit_invalid/u);
