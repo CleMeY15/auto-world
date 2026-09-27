@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const workflow = JSON.parse(readFileSync(new URL("../.github/workflows/postgres-candidate-publish.yml", import.meta.url), "utf8"));
+const workflow = JSON.parse(readFileSync(new URL("../.github/workflows/postgres-candidate-publish-v2.yml", import.meta.url), "utf8"));
 
 test("PostgreSQL candidate publisher has one input-free protected-main first-write lane", () => {
   assert.deepEqual(Object.keys(workflow).sort(), ["concurrency", "jobs", "name", "on", "permissions"]);
-  assert.equal(workflow.name, "PostgreSQL candidate first write");
+  assert.equal(workflow.name, "PostgreSQL candidate first write v2");
   assert.deepEqual(workflow.on, { workflow_dispatch: {} });
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(workflow.concurrency, { group: "postgres-candidate-first-write", "cancel-in-progress": false });

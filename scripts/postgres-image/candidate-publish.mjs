@@ -40,7 +40,7 @@ const BOOTSTRAP = Object.freeze({
 });
 
 export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
-  workflowPath: ".github/workflows/postgres-candidate-publish.yml",
+  workflowPath: ".github/workflows/postgres-candidate-publish-v2.yml",
   repository: "CleMeY15/auto-world",
   owner: "CleMeY15",
   image: "ghcr.io/clemey15/auto-world-postgres-gosu",
@@ -49,7 +49,7 @@ export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
   outputDirectory: "postgres-candidate-publish",
   platform: "linux/amd64",
   sourceFiles: Object.freeze([
-    ".github/workflows/postgres-candidate-publish.yml",
+    ".github/workflows/postgres-candidate-publish-v2.yml",
     "scripts/postgres-image/candidate-publish.mjs",
     "scripts/postgres-image/candidate-proof.mjs",
     "scripts/postgres-image/diagnostic.mjs",
@@ -137,8 +137,9 @@ function cleanEnvironment(dockerConfig, temporaryDirectory) {
     TZ: "UTC", TMPDIR: temporaryDirectory, DOCKER_HOST: "unix:///var/run/docker.sock",
     DOCKER_CONFIG: dockerConfig, BUILDX_CONFIG: path.join(dockerConfig, "buildx"), DOCKER_BUILDKIT: "0" };
 }
-function defaultCommandRunner(command, args, options) {
-  return spawnSync(command, args, { cwd: options.cwd, encoding: options.encoding ?? "utf8", env: options.env,
+export function defaultCommandRunner(command, args, options) {
+  return spawnSync(command, args, { cwd: options.cwd,
+    encoding: options.encoding === undefined ? "utf8" : options.encoding, env: options.env,
     input: options.input, maxBuffer: MAX_OUTPUT_BYTES, timeout: options.timeout, windowsHide: true });
 }
 function observe(runner, command, args, options) {
