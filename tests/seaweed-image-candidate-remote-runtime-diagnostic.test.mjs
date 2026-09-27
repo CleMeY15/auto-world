@@ -54,6 +54,9 @@ function evidenceFixture(changeReceipt) {
       layerSha256: candidatePolicy.source.savedLayerSha256, layerBytes: candidatePolicy.source.savedLayerBytes,
       tag: `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1` },
     candidate: { runId: auditRunId, recipeRevision: auditRevision, subject: candidatePolicy.subject,
+      alias: `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`,
+      archive: { imageId: candidatePolicy.candidate.imageId, diffId: candidatePolicy.candidate.diffId,
+        archiveSha256: "b".repeat(64), archiveBytes: 8192 },
       execution: "NOT_ATTEMPTED", phases: [
         { name: "owned_docker_cleanup", result: "PASSED", durationMs: 1 },
         { name: "owned_temporary_cleanup", result: "PASSED", durationMs: 1 },
@@ -160,6 +163,14 @@ test("audit evidence requires exact bytes, complete zero-blocker receipt and fre
     (receipt) => { receipt.state = "INCOMPLETE"; },
     (receipt) => { receipt.candidate.phases.at(-2).result = "FAILED"; },
     (receipt) => { receipt.databases.metadata.vulnerability.updatedAt = "2026-09-20T00:00:00Z"; },
+    (receipt) => { receipt.subject.artifactName = "/candidate/substituted.tar"; },
+    (receipt) => { receipt.subject.archiveSha256 = "9".repeat(64); },
+    (receipt) => { receipt.subject.archiveBytes += 1; },
+    (receipt) => { receipt.subject.tag = "auto-world-seaweed-s3:substituted"; },
+    (receipt) => { receipt.subject.configSha256 = "8".repeat(64); },
+    (receipt) => { receipt.subject.configBytes += 1; },
+    (receipt) => { receipt.subject.layerSha256 = "7".repeat(64); },
+    (receipt) => { receipt.subject.layerBytes += 1; },
   ]) {
     const changed = evidenceFixture(mutate);
     assert.throws(() => validate(changed), /audit_invalid/u);

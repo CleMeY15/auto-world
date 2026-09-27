@@ -250,8 +250,23 @@ export function validateRemoteAuditEvidence({ runtimePolicy: runtimePolicyInput,
   } catch { fail("seaweed_remote_runtime_audit_invalid"); }
   if (evaluation?.state !== "COMPLETE" || !Array.isArray(evaluation.blockers) || evaluation.blockers.length !== 0
     || !Array.isArray(evaluation.findings) || evaluation.findings.length !== receipt.findingCount
+    || receipt.subject?.artifactName !== "/candidate/saved.tar"
     || receipt.subject?.imageId !== candidatePolicy.candidate.imageId
-    || receipt.subject?.diffId !== candidatePolicy.candidate.diffId) fail("seaweed_remote_runtime_audit_invalid");
+    || receipt.subject?.diffId !== candidatePolicy.candidate.diffId
+    || receipt.subject?.imageId !== receipt.candidate?.archive?.imageId
+    || receipt.subject?.diffId !== receipt.candidate?.archive?.diffId
+    || receipt.subject?.archiveSha256 !== receipt.candidate?.archive?.archiveSha256
+    || receipt.subject?.archiveBytes !== receipt.candidate?.archive?.archiveBytes
+    || receipt.subject?.tag !== receipt.candidate?.alias
+    || receipt.subject?.configSha256 !== candidatePolicy.source.configSha256
+    || receipt.subject?.configBytes !== candidatePolicy.source.configBytes
+    || `sha256:${receipt.subject?.configSha256}` !== candidatePolicy.candidate.imageId
+    || receipt.subject?.layerSha256 !== candidatePolicy.source.savedLayerSha256
+    || receipt.subject?.layerBytes !== candidatePolicy.source.savedLayerBytes
+    || receipt.subject?.layerBytes !== candidatePolicy.candidate.rawSize
+    || `sha256:${receipt.subject?.layerSha256}` !== candidatePolicy.candidate.diffId) {
+    fail("seaweed_remote_runtime_audit_invalid");
+  }
   return Object.freeze({ runtimePolicy, candidatePolicy, receipt, receiptIdentity,
     vulnerabilityIdentity, cyclonedxIdentity });
 }
