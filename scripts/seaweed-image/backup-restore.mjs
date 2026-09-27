@@ -531,11 +531,17 @@ async function execute(input, injected) {
         PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 81, 82, 83, 84, 87, 88, 127]);
     if (source.status !== 0 || source.stdout.trim() !== "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED"
       || source.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_backup_restore_failed");
-    const sourceIdentity = await capturePersistedDataIdentity({
-      runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
-      containerName: sourceService, deadline: sourceDeadline, objectPath: OBJECT_PATH,
-      expectedSize: Buffer.byteLength(PAYLOAD), options,
-    });
+    let sourceIdentity;
+    try {
+      sourceIdentity = await capturePersistedDataIdentity({
+        runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+        containerName: sourceService, deadline: sourceDeadline, objectPath: OBJECT_PATH,
+        expectedSize: Buffer.byteLength(PAYLOAD), options,
+      });
+    } catch (error) {
+      reason = classifyPersistedDataReadinessFailure(error) ?? "SOURCE_WRITE_FAILED";
+      throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    }
     reason = "SOURCE_STOP_FAILED";
     await stopService("service-source");
 
@@ -596,6 +602,7 @@ async function execute(input, injected) {
     if (ready.status !== 0 || ready.stdout.trim() !== "" || ready.stderr.trim() !== "") {
       throw failure("seaweed_candidate_runtime_backup_restore_failed");
     }
+    let finalReadTimeoutMs;
     try {
       await verifyPersistedDataReadiness({
         runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
@@ -603,13 +610,14 @@ async function execute(input, injected) {
         expectedSize: Buffer.byteLength(PAYLOAD), expectedSha256: PAYLOAD_SHA256,
         identity: sourceIdentity, options,
       });
+      remainingReadinessBudget(restoredDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
+      finalReadTimeoutMs = remainingReadinessBudget(restoredDeadline);
     } catch (error) {
       reason = classifyPersistedDataReadinessFailure(error) ?? "RESTORED_READ_FAILED";
       throw failure("seaweed_candidate_runtime_backup_restore_failed");
     }
-    remainingReadinessBudget(restoredDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
     const restored = await command(docker, ["container", "exec", restoredService, "/bin/sh", "-c", RESTORED_PROBE],
-      { ...options, timeoutMs: remainingReadinessBudget(restoredDeadline) }, [0, 81, 85, 86, 89, 127]);
+      { ...options, timeoutMs: finalReadTimeoutMs }, [0, 81, 85, 86, 89, 127]);
     if (restored.status !== 0) {
       reason = restored.status === 85 ? "RESTORED_OBJECT_MISSING"
         : restored.status === 86 ? "RESTORED_OBJECT_MISMATCH" : "RESTORED_READ_FAILED";

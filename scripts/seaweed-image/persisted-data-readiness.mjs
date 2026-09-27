@@ -14,7 +14,7 @@ const TRANSIENT_CURL_EXIT_CODES = new Set([5, 6, 7, 28, 35, 52, 56]);
 export const PERSISTED_DATA_READINESS_PROTOCOL = Object.freeze({
   kind: "SEAWEED_PERSISTED_DATA_READINESS_PROTOCOL",
   version: 1,
-  metadata: "EXACT_SINGLE_CHUNK_FID_AND_SIZE",
+  metadata: "EXACT_SINGLE_NONINLINE_UNCOMPRESSED_CHUNK_FID_AND_SIZE",
   lookup: "EXACT_VOLUME_ID_SINGLE_LOOPBACK_LOCATION",
   directRead: "FIXED_LOOPBACK_HTTP_200_SIZE_SHA256",
   maxResponseBytes: MAX_RESPONSE_BYTES,
@@ -43,6 +43,10 @@ export function classifyPersistedDataReadinessFailure(error) {
     "LOOKUP_STATUS_INVALID"].includes(reason)) return "PERSISTED_REGISTRATION_INVALID";
   if (reason === "DIRECT_DATA_MISMATCH") return "PERSISTED_DIRECT_READ_MISMATCH";
   if (reason === "DEADLINE_EXHAUSTED") return "PERSISTED_DATA_NOT_READY";
+  if (["DIRECT_OVERSIZED", "DIRECT_PROBE_INVALID", "DIRECT_STATUS_INVALID", "METADATA_PROBE_INVALID",
+    "LOOKUP_PROBE_INVALID", "PROBE_COMMAND_INVALID", "PROBE_INVALID", "TRANSPORT_INVALID"].includes(reason)) {
+    return "PERSISTED_READINESS_PROBE_INVALID";
+  }
   return undefined;
 }
 
@@ -105,6 +109,7 @@ export function parsePersistedObjectMetadata(body, expectedSize) {
       "0")}${cookie.toString(16).padStart(8, "0")}`;
   if (volumeId === undefined || chunkSize !== expectedSize || fileSize !== expectedSize
     || chunk.offset !== undefined && integerNumber(chunk.offset) !== 0
+    || chunk.is_compressed !== undefined && chunk.is_compressed !== false
     || chunk.is_chunk_manifest !== undefined && chunk.is_chunk_manifest !== false
     || structuredVolumeId !== volumeId || canonicalFileId !== chunk.file_id) fail("METADATA_INVALID");
   return Object.freeze({ fid: chunk.file_id, volumeId: String(volumeId), size: expectedSize });
@@ -213,9 +218,17 @@ function validateTransaction(input) {
 }
 
 async function runProbe(input, script, reserveMs) {
-  const result = await input.runCommand(["container", "exec", input.containerName, "/bin/sh", "-c", script],
-    requestOptions(input.options, input.deadline, reserveMs, input.now), [0]);
-  if (result.stderr.trim() !== "") fail("PROBE_INVALID");
+  const commandOptions = requestOptions(input.options, input.deadline, reserveMs, input.now);
+  let result;
+  try {
+    result = await input.runCommand(["container", "exec", input.containerName, "/bin/sh", "-c", script],
+      commandOptions, [0]);
+  } catch {
+    if (input.options.signal?.aborted) fail("ABORTED");
+    fail("PROBE_COMMAND_INVALID");
+  }
+  if (result === null || typeof result !== "object" || typeof result.stdout !== "string"
+    || typeof result.stderr !== "string" || result.stderr.trim() !== "") fail("PROBE_INVALID");
   return result.stdout;
 }
 
@@ -281,9 +294,11 @@ export async function verifyPersistedDataReadiness(input) {
   await poll(actual, async () => {
     const response = parseDirectResponse(await runProbe(actual, directScript(input.identity.fid),
       PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs), actual.expectedSize, actual.expectedSha256);
-    if (transient(response) || response.status === 404 || response.status >= 500) return { done: false };
+    if (transient(response) || response.status === 404
+      || response.status >= 500 && response.status <= 599) return { done: false };
     if (response.status !== 200) fail("DIRECT_STATUS_INVALID");
     if (!response.matches) fail("DIRECT_DATA_MISMATCH");
+    remainingReadinessBudget(actual.deadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs, actual.now);
     return { done: true };
   }, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
 }

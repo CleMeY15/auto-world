@@ -80,6 +80,12 @@ test("metadata parser binds canonical text fid to exact numeric fid including ui
   assert.throws(() => parsePersistedObjectMetadata(stringOffset, expectedSize), { reason: "METADATA_INVALID" });
   const stringCookie = metadata.replace('"file_key":1', '"file_key":1,"cookie":"0"');
   assert.throws(() => parsePersistedObjectMetadata(stringCookie, expectedSize), { reason: "METADATA_INVALID" });
+  assert.doesNotThrow(() => parsePersistedObjectMetadata(metadata.replace('"size":14',
+    '"size":14,"is_compressed":false'), expectedSize));
+  for (const compressed of ["true", '"false"']) {
+    assert.throws(() => parsePersistedObjectMetadata(metadata.replace('"size":14',
+      `"size":14,"is_compressed":${compressed}`), expectedSize), { reason: "METADATA_INVALID" });
+  }
 });
 
 test("lookup parser rejects a foreign advertised location", () => {
@@ -154,6 +160,11 @@ test("metadata and direct transient readiness responses retry, but auth and mixe
     await assert.rejects(capturePersistedDataIdentity(base(value)));
     assert.equal(value.counts().metadataCalls, 1);
   }
+  const direct600 = transaction({ direct: () => direct(600) });
+  await assert.rejects(verifyPersistedDataReadiness({ ...base(direct600),
+    identity: { fid, volumeId: "7", size: expectedSize }, expectedSha256 }),
+  { reason: "DIRECT_STATUS_INVALID" });
+  assert.equal(direct600.counts().directCalls, 1);
 });
 
 test("each request and retry sleep shrink against one deadline while preserving the final 12 second reserve", async () => {
@@ -171,6 +182,14 @@ test("each request and retry sleep shrink against one deadline while preserving 
   { reason: "DEADLINE_EXHAUSTED" });
   assert.deepEqual(waits, [500]);
   assert.equal(exhausted.counts().metadataCalls, 1);
+
+  let afterDirect = 0;
+  const reserveConsumed = transaction({ timeoutMs: 1_000,
+    direct: () => { afterDirect = 1_001; return direct(); } });
+  await assert.rejects(verifyPersistedDataReadiness({ ...base(reserveConsumed), deadline: 13_000,
+    identity: { fid, volumeId: "7", size: expectedSize }, expectedSha256, now: () => afterDirect }),
+  { reason: "DEADLINE_EXHAUSTED" });
+  assert.equal(reserveConsumed.counts().directCalls, 1);
 });
 
 test("oversized bounded responses abort without retry or raw data in the error", async () => {
@@ -203,9 +222,27 @@ test("internal failures map to a closed public readiness vocabulary", () => {
     ["LOOKUP_LOCATION_MISMATCH", "PERSISTED_REGISTRATION_INVALID"],
     ["DIRECT_DATA_MISMATCH", "PERSISTED_DIRECT_READ_MISMATCH"],
     ["DEADLINE_EXHAUSTED", "PERSISTED_DATA_NOT_READY"],
+    ["DIRECT_OVERSIZED", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["DIRECT_PROBE_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["DIRECT_STATUS_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["METADATA_PROBE_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["LOOKUP_PROBE_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["PROBE_COMMAND_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["PROBE_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
+    ["TRANSPORT_INVALID", "PERSISTED_READINESS_PROBE_INVALID"],
   ]) {
     assert.equal(classifyPersistedDataReadinessFailure(new PersistedDataReadinessError(reason)), expected);
   }
   assert.equal(classifyPersistedDataReadinessFailure(new PersistedDataReadinessError("INPUT_INVALID")), undefined);
   assert.equal(classifyPersistedDataReadinessFailure(new Error("private")), undefined);
+});
+
+test("a rejected command adapter becomes a fixed probe failure without exposing its error", async () => {
+  const runCommand = async () => { throw new Error(`private ${fid}`); };
+  await assert.rejects(capturePersistedDataIdentity({ ...base({ runCommand }), runCommand }), (error) => {
+    assert.equal(error.reason, "PROBE_COMMAND_INVALID");
+    assert.equal(classifyPersistedDataReadinessFailure(error), "PERSISTED_READINESS_PROBE_INVALID");
+    assert.equal(JSON.stringify(error).includes(fid), false);
+    return true;
+  });
 });

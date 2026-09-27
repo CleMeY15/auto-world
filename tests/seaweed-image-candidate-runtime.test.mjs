@@ -127,7 +127,8 @@ function input(extra = {}) { return { parent, dockerConfig, imageId, runId, reci
 
 function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malformedFirstCreate = false,
   foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false,
-  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]', wrongLookupLocation = false } = {}) {
+  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]', wrongLookupLocation = false,
+  invalidSourceMetadata = false, throwSourceMetadata = false } = {}) {
   const calls = []; const states = new Map(); const ids = new Map(); const inspectCounts = new Map();
   let volumeExists = preexistingVolume; let nonce = ""; let volumeInspections = 0;
   const volumeCreatedAt = new Date().toISOString();
@@ -221,6 +222,10 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         return { status: 0, stdout: "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED\n", stderr: "" };
       }
       if (script.includes("AW_METADATA_V1")) {
+        if (throwSourceMetadata && args[2].endsWith("service-1")) throw new Error(`private ${persistenceFid}`);
+        if (invalidSourceMetadata && args[2].endsWith("service-1")) {
+          return { status: 0, stdout: "AW_METADATA_V1\n0\n200\n{", stderr: "" };
+        }
         return { status: 0, stdout: `AW_METADATA_V1\n0\n200\n${persistenceMetadata}`, stderr: "" };
       }
       if (script.includes("AW_LOOKUP_V1")) {
@@ -546,7 +551,7 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
   assert.equal(proof.profileSha256, "a226ec182826290d26e2022c19d3685135188b522d50c62987cf37f7ad2d1f1a");
-  assert.equal(proof.commandSha256, "bf58165464fa74d8d6f11a5da662b745255630f76eb3701fb32555de01f730fa");
+  assert.equal(proof.commandSha256, "f64736918fcdef1c08a2a66b8051aba9a4453ffcdf3b13aea0c61fbf869ea1db");
   assert.equal(proof.initializer, "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000");
   assert.equal(proof.objectPersistence, "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART");
   assert.match(proof.persistedDataReadiness, /^V1:[0-9a-f]{64}$/u);
@@ -604,6 +609,34 @@ test("a foreign lookup location fails readiness and still cleans both services a
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "exec"
     && args.at(-1).includes("SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")), false);
+});
+
+test("invalid source metadata is classified before shutdown and every owned resource is cleaned", async () => {
+  const value = persistenceFixture({ invalidSourceMetadata: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
+          reason: "PERSISTED_METADATA_INVALID" });
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "create"
+    && args.includes(`aw-seaweed-persistence-${runId}-service-2`)), false);
+});
+
+test("a rejected source probe command has a fixed public reason and does not leak its private error", async () => {
+  const value = persistenceFixture({ throwSourceMetadata: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
+          reason: "PERSISTED_READINESS_PROBE_INVALID" });
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
 });
 
 test("persistence rejects noncanonical initializer capability before start and cleans owned resources", async () => {

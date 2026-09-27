@@ -28,7 +28,7 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
   driftHelperTmpfs = false, backupHelperExitCode = 0, restoreHelperExitCode = 0,
   sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false,
   explicitRwReadOnly = false, missingRoReadOnly = false, wrongRwReadOnly = false,
-  wrongLookupLocation = false } = {}) {
+  wrongLookupLocation = false, invalidSourceMetadata = false } = {}) {
   const calls = []; const volumes = new Map(); const containers = new Map(); let nonce = ""; let nextId = 1;
   let restoredProbeFailed = false;
   const prefix = `aw-seaweed-backup-${runId}`;
@@ -158,6 +158,9 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
         return { status: 0, stdout: "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED\n", stderr: "" };
       }
       if (script.includes("AW_METADATA_V1")) {
+        if (invalidSourceMetadata && args[2].endsWith("service-source")) {
+          return { status: 0, stdout: "AW_METADATA_V1\n0\n200\n{", stderr: "" };
+        }
         return { status: 0, stdout: `AW_METADATA_V1\n0\n200\n${persistedMetadata}`, stderr: "" };
       }
       if (script.includes("AW_LOOKUP_V1")) {
@@ -206,7 +209,7 @@ test("backup restore copies a stopped source through an owned archive into a fre
     { imageId, runId, recipeRevision }, archiveSha256, archiveBytes));
   assert.deepEqual(validateSeaweedRuntimeBackupRestoreProof(proof, { imageId, runId, recipeRevision }), proof);
   assert.equal(proof.profileSha256, "06f340c8e2a3709cbc7a35c2a4d4045a843cdcef4fb7c5820ebf947088640e31");
-  assert.equal(proof.commandSha256, "bd75d600fcaaa982de5d309912d1968f428333c4f43b7cff1b5ec3bc92cb8dc8");
+  assert.equal(proof.commandSha256, "1c18bd86001da5ba176775ae05075b7b2e913d94d0727809299e907428433242");
   assert.match(proof.persistedDataReadiness, /^V1:[0-9a-f]{64}$/u);
   assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
   const sourceStop = value.calls.findIndex((args) => args[0] === "container" && args[1] === "stop"
@@ -267,6 +270,21 @@ test("a foreign restored lookup location aborts before signed read and cleanup r
   assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "exec"
     && args.at(-1).includes("SEAWEED_BACKUP_RESTORED_READ_VERIFIED")), false);
+});
+
+test("invalid source metadata is classified before backup and cleanup remains complete", async () => {
+  const value = fixture({ invalidSourceMetadata: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_SOURCE_SERVICE",
+          reason: "PERSISTED_METADATA_INVALID" });
+      assert.equal(JSON.stringify(error).includes(persistedFid), false);
+      return true;
+    });
+  assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "create"
+    && args.at(-1).endsWith("-backup")), false);
 });
 
 test("read-only backup mount must explicitly inspect as true", async () => {

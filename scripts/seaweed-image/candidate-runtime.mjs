@@ -62,7 +62,8 @@ for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_I
   PUBLIC_REASONS.add(reason);
 }
 for (const reason of ["PERSISTED_METADATA_INVALID", "PERSISTED_IDENTITY_CHANGED",
-  "PERSISTED_REGISTRATION_INVALID", "PERSISTED_DIRECT_READ_MISMATCH", "PERSISTED_DATA_NOT_READY"]) {
+  "PERSISTED_REGISTRATION_INVALID", "PERSISTED_DIRECT_READ_MISMATCH", "PERSISTED_DATA_NOT_READY",
+  "PERSISTED_READINESS_PROBE_INVALID"]) {
   PUBLIC_REASONS.add(reason);
 }
 for (const reason of ["SOURCE_WRITE_FAILED", "SOURCE_STOP_FAILED", "BACKUP_FAILED",
@@ -816,11 +817,17 @@ async function executePersistence(input, injected) {
         PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 61, 62, 63, 64, 67, 68, 127]);
     if (first.status !== 0 || first.stdout.trim() !== "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED"
       || first.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_persistence_failed");
-    const identity = await capturePersistedDataIdentity({
-      runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
-      containerName: firstName, deadline: firstDeadline, objectPath: PERSISTENCE_OBJECT_PATH,
-      expectedSize: Buffer.byteLength(PERSISTENCE_PAYLOAD), options,
-    });
+    let identity;
+    try {
+      identity = await capturePersistedDataIdentity({
+        runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+        containerName: firstName, deadline: firstDeadline, objectPath: PERSISTENCE_OBJECT_PATH,
+        expectedSize: Buffer.byteLength(PERSISTENCE_PAYLOAD), options,
+      });
+    } catch (error) {
+      reason = classifyPersistedDataReadinessFailure(error) ?? "FIRST_WRITE_FAILED";
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
     await stopAndRemove("service-1", 30);
 
     phase = "PERSISTENCE_SERVICE_TWO"; reason = "CONTAINER_CREATE_INVALID";
@@ -834,6 +841,7 @@ async function executePersistence(input, injected) {
     if (ready.status !== 0 || ready.stdout.trim() !== "" || ready.stderr.trim() !== "") {
       throw failure("seaweed_candidate_runtime_persistence_failed");
     }
+    let finalReadTimeoutMs;
     try {
       await verifyPersistedDataReadiness({
         runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
@@ -841,13 +849,14 @@ async function executePersistence(input, injected) {
         expectedSize: Buffer.byteLength(PERSISTENCE_PAYLOAD), expectedSha256: PERSISTENCE_PAYLOAD_SHA256,
         identity, options,
       });
+      remainingReadinessBudget(secondDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
+      finalReadTimeoutMs = remainingReadinessBudget(secondDeadline);
     } catch (error) {
       reason = classifyPersistedDataReadinessFailure(error) ?? "SECOND_READ_FAILED";
       throw failure("seaweed_candidate_runtime_persistence_failed");
     }
-    remainingReadinessBudget(secondDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
     const second = await command(docker, ["container", "exec", secondName, "/bin/sh", "-c", PERSISTENCE_SECOND_PROBE],
-      { ...options, timeoutMs: remainingReadinessBudget(secondDeadline) },
+      { ...options, timeoutMs: finalReadTimeoutMs },
       [0, 61, 65, 66, 69, 70, 71, 72, 127]);
     if (second.status !== 0) {
       reason = second.status === 65 ? "PERSISTED_OBJECT_MISSING"
