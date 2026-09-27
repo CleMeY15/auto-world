@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeSync } from "node:fs";
+import {
+  chmodSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,7 +13,9 @@ import {
   validateRemoteCandidateRawManifest,
   validateRemoteSeaweedCandidatePolicy,
   validateRemoteSeaweedCandidateReceipt,
+  validateRemoteSeaweedRuntimeMaterialReceipt,
   withVerifiedRemoteSeaweedCandidate,
+  withVerifiedRemoteSeaweedRuntimeMaterial,
 } from "../scripts/seaweed-image/candidate-remote.mjs";
 
 const linux = process.platform === "linux";
@@ -30,6 +34,8 @@ const successPhaseNames = [
   "owned_temporary_cleanup",
 ];
 const successPhases = () => successPhaseNames.map((name) => ({ name, result: "PASSED", durationMs: 1 }));
+const runtimePhases = () => successPhases().map((phase) => phase.name === "private_archive_callback"
+  ? { ...phase, name: "runtime_diagnostics" } : phase);
 
 function rawManifest() {
   return JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
@@ -127,6 +133,13 @@ test("remote receipt validator rejects local-receipt substitution and failed pha
       publisherReceiptSha256: value.publisher.receiptSha256, sourceRunId: value.source.runId,
       sourceCodeRevision: value.source.codeRevision }, phases: successPhases() };
   assert.equal(validateRemoteSeaweedCandidateReceipt(receipt, value).kind, receipt.kind);
+  const runtimeReceipt = { ...receipt, kind: "SEAWEED_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1",
+    authority: "DIAGNOSTIC_ONLY", execution: "VERIFIED_DIAGNOSTIC", phases: runtimePhases() };
+  assert.equal(validateRemoteSeaweedRuntimeMaterialReceipt(runtimeReceipt, value).kind, runtimeReceipt.kind);
+  assert.throws(() => validateRemoteSeaweedCandidateReceipt(runtimeReceipt, value), /receipt_invalid/u);
+  assert.throws(() => validateRemoteSeaweedRuntimeMaterialReceipt(receipt, value), /receipt_invalid/u);
+  assert.throws(() => validateRemoteSeaweedRuntimeMaterialReceipt({ ...runtimeReceipt,
+    phases: successPhases() }, value), /receipt_invalid/u);
   assert.throws(() => validateRemoteSeaweedCandidateReceipt({ ...receipt,
     kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1" }, value), /receipt_invalid/u);
   assert.throws(() => validateRemoteSeaweedCandidateReceipt({ ...receipt,
@@ -142,7 +155,7 @@ test("remote receipt validator rejects local-receipt substitution and failed pha
 
 function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false,
   candidateCollision = false, aliasRemovalDeletesImage = false, aliasRemovalStatus = 0,
-  cleanupFailure = false, aliasConfigFailure = false } = {}) {
+  cleanupFailure = false, aliasConfigFailure = false, temporaryCleanupFailure = false } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-remote-candidate-")); chmodSync(parent, 0o700);
   const value = policy(); const alias = `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`;
   const foreign = `sha256:${"f".repeat(64)}`; const calls = [];
@@ -217,7 +230,24 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
     assert.equal(snapshot.subject, value.subject); assert.equal(statSync(snapshot.file).size, 1024);
     if (callbackFailure) throw new Error("consumer failure");
   };
-  return { parent, calls, input, inspectArchive, dependencies: { commandRunner, saveRunner, validateArchive,
+  const runtimeResult = Object.freeze({ state: "VERIFIED_RUNTIME_SUITE" });
+  const inspectRuntime = async (snapshot) => {
+    assert.deepEqual(Object.keys(snapshot).sort(), ["archiveProof", "diffId", "dockerConfig", "imageId", "parent",
+      "recipeRevision", "runId", "signal", "subject"]);
+    assert.equal(snapshot.parent, path.join(parent, `remote-${auditRunId}-attempt-1`));
+    assert.equal(snapshot.dockerConfig, path.join(snapshot.parent, "docker-auth"));
+    assert.equal(snapshot.recipeRevision, auditRevision); assert.equal(snapshot.runId, auditRunId);
+    assert.equal(snapshot.imageId, imageId); assert.equal(snapshot.diffId, diffId);
+    assert.equal(snapshot.subject, value.subject); assert.equal(snapshot.archiveProof.imageId, imageId);
+    if (temporaryCleanupFailure) {
+      const moved = `${snapshot.parent}-moved`;
+      renameSync(snapshot.parent, moved); symlinkSync(moved, snapshot.parent, "dir");
+    }
+    if (callbackFailure) throw new Error("private runtime failure");
+    return runtimeResult;
+  };
+  return { parent, calls, input, inspectArchive, inspectRuntime, runtimeResult,
+    dependencies: { commandRunner, saveRunner, validateArchive,
     platform: "linux", env: { PATH: process.env.PATH ?? "", HOME: parent, GITHUB_TOKEN: "private-test-token" } } };
 }
 
@@ -318,5 +348,39 @@ test("semantic alias config failure still removes the proven owned alias", { ski
       `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`, value.input.policy.subject,
     ]);
     assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime material wrapper exposes only owned material and returns a distinct diagnostic receipt",
+  { skip: !linux }, async () => {
+  const value = harness();
+  try {
+    const result = await withVerifiedRemoteSeaweedRuntimeMaterial(value.input, value.inspectRuntime,
+      value.dependencies);
+    assert.equal(result.material.kind, "SEAWEED_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1");
+    assert.equal(result.material.authority, "DIAGNOSTIC_ONLY");
+    assert.equal(result.material.execution, "VERIFIED_DIAGNOSTIC");
+    assert.deepEqual(result.material.phases.map((phase) => phase.name),
+      successPhaseNames.map((name) => name === "private_archive_callback" ? "runtime_diagnostics" : name));
+    assert.equal(result.runtime, value.runtimeResult);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime material failure keeps diagnostic and image cleanup failures separate", { skip: !linux }, async () => {
+  const value = harness({ callbackFailure: true, cleanupFailure: true, temporaryCleanupFailure: true });
+  try {
+    await assert.rejects(withVerifiedRemoteSeaweedRuntimeMaterial(value.input, value.inspectRuntime,
+      value.dependencies), (error) => {
+      assert.equal(error.message, "seaweed_remote_runtime_material_failed");
+      assert.deepEqual(Object.keys(error).sort(), ["code", "imageCleanupFailure", "inspectionFailed",
+        "primaryFailure", "temporaryCleanupFailure"]);
+      assert.equal(error.code, "seaweed_remote_runtime_material_failed");
+      assert.equal(error.inspectionFailed, true);
+      assert.equal(error.primaryFailure, "seaweed_remote_runtime_diagnostics_failed");
+      assert.equal(error.imageCleanupFailure, "seaweed_remote_candidate_image_cleanup_failed");
+      assert.equal(error.temporaryCleanupFailure, "seaweed_remote_candidate_temporary_cleanup_failed");
+      return true;
+    });
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
