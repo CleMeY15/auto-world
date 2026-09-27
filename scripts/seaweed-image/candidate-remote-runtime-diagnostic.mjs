@@ -79,7 +79,7 @@ export function requireRemoteRuntimeContext(env, { platform = process.platform,
     || env.GITHUB_ACTIONS !== "true" || env.RUNNER_ENVIRONMENT !== "github-hosted"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_JOB !== "runtime"
     || env.GITHUB_REF !== "refs/heads/main" || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world"
-    || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF || env.GITHUB_RUN_NUMBER !== "1"
+    || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF || env.GITHUB_RUN_NUMBER !== "2"
     || env.GITHUB_RUN_ATTEMPT !== "1" || !REVISION.test(env.GITHUB_SHA ?? "")
     || !RUN_ID.test(env.GITHUB_RUN_ID ?? "") || typeof env.RUNNER_TEMP !== "string"
     || !path.isAbsolute(env.RUNNER_TEMP) || path.normalize(env.RUNNER_TEMP) !== env.RUNNER_TEMP

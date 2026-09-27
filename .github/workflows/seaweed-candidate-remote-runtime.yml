@@ -6,15 +6,15 @@
   "jobs": {
     "runtime": {
       "name": "Exact remote subject runtime and cleanup",
-      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}",
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 120,
       "permissions": {"contents": "read", "actions": "read", "packages": "read"},
       "steps": [
         {
-          "name": "Require the first reviewed main dispatch",
+          "name": "Require the second reviewed main dispatch",
           "timeout-minutes": 2,
-          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-runtime.yml@refs/heads/main'"
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '2'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-runtime.yml@refs/heads/main'"
         },
         {
           "name": "Check temporary capacity and pinned Docker daemon",

@@ -53,7 +53,8 @@ for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_I
   "CONTAINER_PROFILE_UNCERTAIN", "CONTAINER_USER_MISMATCH", "CONTAINER_CAP_ADD_MISMATCH",
   "CONTAINER_CAP_DROP_MISMATCH", "CONTAINER_ROOTFS_MODE_MISMATCH",
   "CONTAINER_SECURITY_OPT_MISMATCH",
-  "VOLUME_INIT_FAILED", "FIRST_WRITE_FAILED", "SECOND_READ_FAILED",
+  "VOLUME_INIT_FAILED", "FIRST_WRITE_FAILED", "SECOND_READ_FAILED", "SECOND_READ_TRANSPORT_FAILURE",
+  "SECOND_READ_AUTH_FAILURE", "SECOND_READ_SERVER_FAILURE", "SECOND_READ_UNEXPECTED_STATUS",
   "PERSISTED_OBJECT_MISSING", "PERSISTED_OBJECT_MISMATCH", "CLEANUP_UNCERTAIN"]) {
   PUBLIC_REASONS.add(reason);
 }
@@ -577,16 +578,19 @@ read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --m
 test "$read_status" = 200 || exit 63
 test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 64
 printf '%s\\n' 'SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED'`;
+const PERSISTENCE_SECOND_READ_ASSERTION = `test "$curl_rc" = 0 || exit 69
+case "$read_status" in 200) ;; 404) exit 65 ;; 401|403) exit 70 ;; 5??) exit 71 ;; *) exit 72 ;; esac
+test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 66
+printf '%s\\n' 'SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED'`;
 const PERSISTENCE_SECOND_PROBE = `set -eu
 ${PERSISTENCE_READY}
 work=$(mktemp -d /tmp/aw-persistence.XXXXXXXX) || exit 61
 trap 'rm -f "$work/read"; rmdir "$work"' EXIT
+read_status=''; curl_rc=0
 read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
   --aws-sigv4 'aws:amz:us-east-1:s3' --user '${ACCESS_KEY}:${SECRET_KEY}' \\
-  http://127.0.0.1:8333/aw-raw/restart-proof 2>/dev/null) || exit 69
-case "$read_status" in 200) ;; 404) exit 65 ;; *) exit 69 ;; esac
-test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 66
-printf '%s\\n' 'SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED'`;
+  http://127.0.0.1:8333/aw-raw/restart-proof 2>/dev/null) || curl_rc=$?
+${PERSISTENCE_SECOND_READ_ASSERTION}`;
 const PERSISTENCE_PROFILE_SHA256 = hash({ initializer: PERSISTENCE_INIT_PROFILE,
   service: PERSISTENCE_SERVICE_PROFILE, mount: "type=volume,src=<owned>,dst=/data,volume-nocopy" });
 const PERSISTENCE_COMMAND_SHA256 = hash([PERSISTENCE_INIT_COMMAND, BOOTSTRAP,
@@ -800,10 +804,14 @@ async function executePersistence(input, injected) {
     await command(docker, ["container", "start", secondName], options);
     reason = "SECOND_READ_FAILED";
     const second = await command(docker, ["container", "exec", secondName, "/bin/sh", "-c", PERSISTENCE_SECOND_PROBE],
-      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 65, 66, 67, 68, 69, 127]);
+      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 65, 66, 67, 68, 69, 70, 71, 72, 127]);
     if (second.status !== 0) {
       reason = second.status === 65 ? "PERSISTED_OBJECT_MISSING"
-        : second.status === 66 ? "PERSISTED_OBJECT_MISMATCH" : "SECOND_READ_FAILED";
+        : second.status === 66 ? "PERSISTED_OBJECT_MISMATCH"
+          : second.status === 69 ? "SECOND_READ_TRANSPORT_FAILURE"
+            : second.status === 70 ? "SECOND_READ_AUTH_FAILURE"
+              : second.status === 71 ? "SECOND_READ_SERVER_FAILURE"
+                : second.status === 72 ? "SECOND_READ_UNEXPECTED_STATUS" : "SECOND_READ_FAILED";
       throw failure("seaweed_candidate_runtime_persistence_failed");
     }
     if (second.stdout.trim() !== "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED" || second.stderr.trim() !== "") {
@@ -895,4 +903,7 @@ export function TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input, inj
 }
 export function TEST_ONLY_expectedSeaweedRuntimePersistenceProof(expected) {
   return validateSeaweedRuntimePersistenceProof(expectedPersistenceProof(expected), expected);
+}
+export function TEST_ONLY_persistenceSecondReadAssertionScript() {
+  return PERSISTENCE_SECOND_READ_ASSERTION;
 }
