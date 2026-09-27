@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -42,7 +42,8 @@ function policy(changes = {}) {
         compressedSizeVerification: "RECORDED_ONLY" } },
     candidate: { imageId, diffId, rawSize: 1024, memberCount: 1 },
     publisher: { workflowPath: ".github/workflows/seaweed-candidate-publish.yml", runId: publisherRunId,
-      runNumber: "1", runAttempt: "1", recipeRevision: publisherRevision, receiptSha256: "d".repeat(64) },
+      runNumber: "1", runAttempt: "1", recipeRevision: publisherRevision, receiptSha256: "d".repeat(64),
+      result: "PASSED" },
     source: { runId: "35875100636", codeRevision: "3".repeat(40), binaryDigest: `sha256:${"4".repeat(64)}`,
       baseManifestDigest: `sha256:${"5".repeat(64)}`, archiveSha256: "6".repeat(64), archiveBytes: 4096,
       configSha256: "a".repeat(64), configBytes: 321, savedLayerSha256: "7".repeat(64), savedLayerBytes: 1024 } };
@@ -67,6 +68,9 @@ test("reviewed remote policy is exact, cross-bound and deeply frozen", () => {
     policy({ manifest: { ...policy().manifest, layer: { ...policy().manifest.layer,
       compressedSizeVerification: "VERIFIED" } } }),
   ]) assert.throws(() => validateRemoteSeaweedCandidatePolicy(changed), /policy_invalid/u);
+  assert.throws(() => validateRemoteSeaweedCandidatePolicy(policy({
+    publisher: { ...policy().publisher, result: "FAILED" },
+  })), /policy_invalid/u);
 });
 
 test("raw manifest requires exact bytes, descriptors and no descriptor URLs", () => {
@@ -110,6 +114,8 @@ test("remote receipt validator rejects local-receipt substitution and failed pha
       compressedSizeVerification: "RECORDED_ONLY" }, image: { imageId, diffId, platform: "linux/amd64" },
     archive: { state: "ARCHIVE_VERIFIED", imageId, diffId, archiveSha256: "e".repeat(64), archiveBytes: 4096,
       saveResponse: "SUCCESS" },
+    publisher: { result: value.publisher.result, runId: publisherRunId, recipeRevision: publisherRevision,
+      receiptSha256: value.publisher.receiptSha256 },
     provenance: { publisherRunId, publisherRecipeRevision: publisherRevision,
       publisherReceiptSha256: value.publisher.receiptSha256, sourceRunId: value.source.runId,
       sourceCodeRevision: value.source.codeRevision }, phases: [{ name: "x", result: "PASSED", durationMs: 1 }] };
@@ -120,7 +126,8 @@ test("remote receipt validator rejects local-receipt substitution and failed pha
     phases: [{ name: "x", result: "FAILED", durationMs: 1 }] }, value), /receipt_invalid/u);
 });
 
-function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false } = {}) {
+function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false,
+  candidateCollision = false, aliasRemovalDeletesImage = false, aliasRemovalStatus = 0 } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-remote-candidate-")); chmodSync(parent, 0o700);
   const value = policy(); const alias = `auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`;
   const foreign = `sha256:${"f".repeat(64)}`; const calls = [];
@@ -141,20 +148,38 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
     }
     if (args[0] === "image" && args[1] === "ls") {
       const drift = pulled && inventoryDrift ? `sha256:${"8".repeat(64)}\n` : "";
-      return { status: 0, stdout: pulled ? `${foreign}\n${imageId}\n${imageId}\n${drift}` : `${foreign}\n${foreign}\n`, stderr: "" };
+      return { status: 0, stdout: pulled || candidateCollision
+        ? `${foreign}\n${imageId}\n${imageId}\n${drift}` : `${foreign}\n${foreign}\n`, stderr: "" };
     }
     if (args[0] === "image" && args[1] === "inspect") {
-      if (!pulled) return { status: 1, stdout: "", stderr: "Error response from daemon: No such image\n" };
+      const reference = args.at(-1);
+      const present = reference === alias ? tagged
+        : reference === value.subject ? pulled : reference === imageId ? pulled || candidateCollision : false;
+      if (!present) {
+        return { status: 1, stdout: "", stderr: "Error response from daemon: No such image\n" };
+      }
       if (args[2] === "--format") return { status: 0, stdout: imageMetadata(value, tagged ? alias : undefined), stderr: "" };
       return { status: 0, stdout: "[]", stderr: "" };
     }
     if (args[0] === "pull") { pulled = true; return { status: pullStatus, stdout: "", stderr: pullStatus ? "lost response" : "" }; }
     if (args[0] === "image" && args[1] === "tag") { tagged = true; return { status: 0, stdout: "", stderr: "" }; }
-    if (args[0] === "image" && args[1] === "save") {
-      writeFileSync(args[3], Buffer.alloc(1024, 9)); return { status: saveStatus, stdout: "", stderr: saveStatus ? "lost response" : "" };
+    if (args[0] === "image" && args[1] === "rm") {
+      if (args[2] === alias) {
+        tagged = false;
+        if (aliasRemovalDeletesImage) pulled = false;
+        return { status: aliasRemovalStatus, stdout: "", stderr: aliasRemovalStatus ? "No such image" : "" };
+      }
+      if (args[2] === value.subject) pulled = false;
+      return { status: 0, stdout: "", stderr: "" };
     }
-    if (args[0] === "image" && args[1] === "rm") { pulled = false; tagged = false; return { status: 0, stdout: "", stderr: "" }; }
     throw new Error(`unexpected command: ${command} ${args.join(" ")}`);
+  };
+  const saveRunner = async (_command, args, options) => {
+    assert.deepEqual(args, ["image", "save", alias]);
+    assert.equal(Object.hasOwn(options.env, "GITHUB_TOKEN"), false);
+    writeSync(options.handle, Buffer.alloc(1024, 9));
+    calls.push({ command: "docker", args: [...args], anonymous: false });
+    return { status: saveStatus, stdout: "", stderr: saveStatus ? "lost response" : "" };
   };
   const validateArchive = async (options) => {
     assert.equal(options.tag, alias); assert.equal(options.imageId, imageId); assert.equal(options.diffId, diffId);
@@ -173,7 +198,7 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
     assert.equal(snapshot.subject, value.subject); assert.equal(statSync(snapshot.file).size, 1024);
     if (callbackFailure) throw new Error("consumer failure");
   };
-  return { parent, calls, input, inspectArchive, dependencies: { commandRunner, validateArchive,
+  return { parent, calls, input, inspectArchive, dependencies: { commandRunner, saveRunner, validateArchive,
     platform: "linux", env: { PATH: process.env.PATH ?? "", HOME: parent, GITHUB_TOKEN: "private-test-token" } } };
 }
 
@@ -210,6 +235,27 @@ test("ambiguous pull inventory is never removed as owned", { skip: !linux }, asy
       /pull_ownership_unverified/u);
     assert.equal(value.calls.some((call) => call.args[0] === "image" && call.args[1] === "rm"), false);
     assert.deepEqual(statSync(value.parent).isDirectory(), true);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("a pre-existing candidate config ID blocks the pull before ownership can be claimed", { skip: !linux }, async () => {
+  const value = harness({ candidateCollision: true });
+  try {
+    await assert.rejects(withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies),
+      /local_collision/u);
+    assert.equal(value.calls.some((call) => call.args[0] === "pull"), false);
+    assert.equal(value.calls.some((call) => call.args[0] === "image" && call.args[1] === "rm"), false);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("cleanup accepts a nonzero alias removal when final exact absence proves cleanup", { skip: !linux }, async () => {
+  const value = harness({ aliasRemovalDeletesImage: true, aliasRemovalStatus: 1 });
+  try {
+    const receipt = await withVerifiedRemoteSeaweedCandidate(value.input, value.inspectArchive, value.dependencies);
+    assert.equal(receipt.phases.find((phase) => phase.name === "owned_docker_cleanup")?.result, "PASSED");
+    const removals = value.calls.filter((call) => call.args[0] === "image" && call.args[1] === "rm");
+    assert.deepEqual(removals.map((call) => call.args[2]),
+      [`auto-world-seaweed-s3:remote-${auditRunId}-attempt-1`]);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 

@@ -1,9 +1,11 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  closeSync, constants, existsSync, fchmodSync, fstatSync, lstatSync, mkdirSync, openSync,
-  realpathSync, readdirSync, rmSync,
+  closeSync, constants, existsSync, fchmodSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync,
+  realpathSync, readdirSync, rmSync, writeSync,
 } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import { Writable } from "node:stream";
 import path from "node:path";
 import process from "node:process";
 
@@ -35,6 +37,14 @@ const LAYER_MEDIA_TYPES = new Set([
   "application/vnd.docker.image.rootfs.diff.tar.gzip",
   "application/vnd.oci.image.layer.v1.tar+gzip",
 ]);
+const FAILED_PUBLICATION_EXCEPTION = Object.freeze({
+  runId: "36324316631",
+  recipeRevision: "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+  receiptSha256: "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f",
+  manifestDigest: "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  imageId: "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+  diffId: "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+});
 
 function fail(code) { throw new Error(code); }
 function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
@@ -64,7 +74,8 @@ export function validateRemoteSeaweedCandidatePolicy(value) {
     || !exactKeys(value.manifest.config, ["digest", "size", "mediaType"])
     || !exactKeys(value.manifest.layer, ["digest", "size", "mediaType", "compressedSizeVerification"])
     || !exactKeys(value.candidate, ["imageId", "diffId", "rawSize", "memberCount"])
-    || !exactKeys(value.publisher, ["workflowPath", "runId", "runNumber", "runAttempt", "recipeRevision", "receiptSha256"])
+    || !exactKeys(value.publisher, ["workflowPath", "runId", "runNumber", "runAttempt", "recipeRevision",
+      "receiptSha256", "result"])
     || !exactKeys(value.source, ["runId", "codeRevision", "binaryDigest", "baseManifestDigest", "archiveSha256",
       "archiveBytes", "configSha256", "configBytes", "savedLayerSha256", "savedLayerBytes"])) {
     fail("seaweed_remote_candidate_policy_invalid");
@@ -89,6 +100,7 @@ export function validateRemoteSeaweedCandidatePolicy(value) {
     || publisher.workflowPath !== ".github/workflows/seaweed-candidate-publish.yml"
     || !RUN_ID.test(publisher.runId) || publisher.runNumber !== "1" || publisher.runAttempt !== "1"
     || !REVISION.test(publisher.recipeRevision) || !SHA256.test(publisher.receiptSha256)
+    || !["PASSED", "FAILED"].includes(publisher.result)
     || !RUN_ID.test(source.runId) || !REVISION.test(source.codeRevision)
     || !DIGEST.test(source.binaryDigest) || !DIGEST.test(source.baseManifestDigest)
     || !SHA256.test(source.archiveSha256) || !Number.isSafeInteger(source.archiveBytes)
@@ -97,6 +109,12 @@ export function validateRemoteSeaweedCandidatePolicy(value) {
     || source.configBytes !== manifest.config.size || candidate.imageId !== `sha256:${source.configSha256}`
     || !SHA256.test(source.savedLayerSha256) || !Number.isSafeInteger(source.savedLayerBytes)
     || source.savedLayerBytes !== candidate.rawSize) fail("seaweed_remote_candidate_policy_invalid");
+  if (publisher.result === "FAILED" && (publisher.runId !== FAILED_PUBLICATION_EXCEPTION.runId
+    || publisher.recipeRevision !== FAILED_PUBLICATION_EXCEPTION.recipeRevision
+    || publisher.receiptSha256 !== FAILED_PUBLICATION_EXCEPTION.receiptSha256
+    || manifest.digest !== FAILED_PUBLICATION_EXCEPTION.manifestDigest
+    || candidate.imageId !== FAILED_PUBLICATION_EXCEPTION.imageId
+    || candidate.diffId !== FAILED_PUBLICATION_EXCEPTION.diffId)) fail("seaweed_remote_candidate_policy_invalid");
   return cloneFrozen(value);
 }
 
@@ -149,6 +167,54 @@ function commandEnvironment(env, dockerConfig, temporaryDirectory) {
 function defaultCommandRunner(command, args, options) {
   return spawnSync(command, args, { cwd: options.cwd, encoding: "utf8", env: options.env, input: options.input,
     maxBuffer: MAX_OUTPUT_BYTES, timeout: options.timeoutMs, windowsHide: true });
+}
+async function capture(stream, kill) {
+  const chunks = []; let bytes = 0;
+  try {
+    for await (const chunk of stream) {
+      bytes += chunk.length;
+      if (bytes > MAX_OUTPUT_BYTES) fail("seaweed_remote_candidate_output_exceeded");
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks).toString("utf8");
+  } catch (error) { kill(); throw error; }
+}
+function saveSink(handle) {
+  let written = 0;
+  return new Writable({ write(chunk, _encoding, callback) {
+    try {
+      written += chunk.length;
+      if (written > MAX_ARCHIVE_BYTES) fail("seaweed_remote_candidate_archive_file_invalid");
+      let offset = 0;
+      while (offset < chunk.length) {
+        const bytesWritten = writeSync(handle, chunk, offset, chunk.length - offset);
+        if (bytesWritten < 1) fail("seaweed_remote_candidate_archive_file_invalid");
+        offset += bytesWritten;
+      }
+      callback();
+    } catch (error) { callback(error); }
+  } });
+}
+async function defaultSaveRunner(command, args, options) {
+  const child = spawn(command, args, { cwd: options.cwd, env: options.env, windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"] });
+  let timedOut = false;
+  const kill = () => { if (!child.killed) child.kill("SIGKILL"); };
+  const timer = globalThis.setTimeout(() => { timedOut = true; kill(); }, options.timeoutMs);
+  const abort = () => kill();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  const exit = new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (status, exitSignal) => resolve({ status, exitSignal }));
+  });
+  const stdout = pipeline(child.stdout, saveSink(options.handle)); stdout.catch(kill);
+  const stderr = capture(child.stderr, kill);
+  const results = await Promise.allSettled([exit, stdout, stderr]);
+  globalThis.clearTimeout(timer); options.signal?.removeEventListener("abort", abort);
+  if (timedOut || options.signal?.aborted || results.some((result) => result.status === "rejected")) {
+    fail("seaweed_remote_candidate_command_failed");
+  }
+  return { ...results[0].value, stdout: "", stderr: results[2].value };
 }
 function observe(commandRunner, command, args, options) {
   if (options.signal?.aborted) fail("seaweed_remote_candidate_aborted");
@@ -227,8 +293,8 @@ function createPrivateFile(file) {
     if (!info.isFile() || info.nlink !== 1 || info.uid !== uid || (info.mode & 0o777) !== 0o600 || info.size !== 0) {
       fail("seaweed_remote_candidate_archive_file_invalid");
     }
-    return Object.freeze({ dev: info.dev, ino: info.ino, uid: info.uid });
-  } finally { closeSync(handle); }
+    return Object.freeze({ handle, identity: Object.freeze({ dev: info.dev, ino: info.ino, uid: info.uid }) });
+  } catch (error) { closeSync(handle); throw error; }
 }
 function validatePrivateFile(file, identity) {
   const info = lstatSync(file); const uid = process.getuid?.() ?? 0;
@@ -258,12 +324,13 @@ export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
   const policy = validateRemoteSeaweedCandidatePolicy(policyInput);
   if (!exactKeys(receipt, ["kind", "state", "authority", "candidateAuthorization", "publication", "execution",
     "registryWrite", "runId", "recipeRevision", "subject", "alias", "remoteManifest", "engine", "image",
-    "archive", "provenance", "phases"])
+    "archive", "publisher", "provenance", "phases"])
     || !exactKeys(receipt.remoteManifest, ["digest", "bytes", "state", "config", "layer"])
     || !exactKeys(receipt.engine, ["state", "docker", "buildx", "serverVersion", "pullResponse",
       "compressedDigestVerification", "compressedSizeVerification"])
     || !exactKeys(receipt.image, ["imageId", "diffId", "platform"])
     || !exactKeys(receipt.archive, ["state", "imageId", "diffId", "archiveSha256", "archiveBytes", "saveResponse"])
+    || !exactKeys(receipt.publisher, ["result", "runId", "recipeRevision", "receiptSha256"])
     || !exactKeys(receipt.provenance, ["publisherRunId", "publisherRecipeRevision", "publisherReceiptSha256",
       "sourceRunId", "sourceCodeRevision"])
     || receipt.kind !== "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1"
@@ -288,6 +355,10 @@ export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
     || receipt.archive?.diffId !== policy.candidate.diffId || !SHA256.test(receipt.archive?.archiveSha256 ?? "")
     || !Number.isSafeInteger(receipt.archive?.archiveBytes) || receipt.archive.archiveBytes < 1024
     || !["SUCCESS", "FAILED_BUT_EXACT_ARCHIVE_CONFIRMED"].includes(receipt.archive.saveResponse)
+    || receipt.publisher?.result !== policy.publisher.result
+    || receipt.publisher?.runId !== policy.publisher.runId
+    || receipt.publisher?.recipeRevision !== policy.publisher.recipeRevision
+    || receipt.publisher?.receiptSha256 !== policy.publisher.receiptSha256
     || receipt.provenance?.publisherRunId !== policy.publisher.runId
     || receipt.provenance?.publisherRecipeRevision !== policy.publisher.recipeRevision
     || receipt.provenance?.publisherReceiptSha256 !== policy.publisher.receiptSha256
@@ -305,7 +376,7 @@ export function validateRemoteSeaweedCandidateReceipt(receipt, policyInput) {
 export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArchive, dependencies = {}) {
   const input = validateInput(inputValue);
   if (typeof inspectArchive !== "function" || !plain(dependencies)
-    || Object.keys(dependencies).some((key) => !["commandRunner", "validateArchive", "now", "platform", "env"].includes(key))) {
+    || Object.keys(dependencies).some((key) => !["commandRunner", "saveRunner", "validateArchive", "now", "platform", "env"].includes(key))) {
     fail("seaweed_remote_candidate_arguments_invalid");
   }
   const platform = dependencies.platform ?? process.platform;
@@ -313,6 +384,7 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
   if (input.signal?.aborted) fail("seaweed_remote_candidate_aborted");
   assertPrivateEmptyDirectory(input.parent);
   const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;
+  const saveRunner = dependencies.saveRunner ?? defaultSaveRunner;
   const archiveValidator = dependencies.validateArchive ?? validateSavedSeaweedCandidate;
   const now = dependencies.now ?? Date.now; const env = dependencies.env ?? process.env; const started = now();
   if (typeof env.GITHUB_TOKEN !== "string" || env.GITHUB_TOKEN.length < 1 || env.GITHUB_TOKEN.length > 8192) {
@@ -364,7 +436,7 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
     priorIds = await phase("local_inventory_before", () => imageIds(run(commandRunner, "docker",
       ["image", "ls", "--all", "--no-trunc", "--format", "{{.ID}}"], options(authBase)).stdout));
     await phase("local_collision_check", () => {
-      for (const reference of [policy.subject, alias]) {
+      for (const reference of [policy.subject, alias, policy.candidate.imageId]) {
         if (!inspectAbsent(observe(commandRunner, "docker", ["image", "inspect", reference], options(authBase)))) {
           fail("seaweed_remote_candidate_local_collision");
         }
@@ -393,10 +465,21 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
       if (response.error || response.status !== 0) return "FAILED_BUT_EXACT_STATE_CONFIRMED";
       return "SUCCESS";
     });
-    const fileIdentity = createPrivateFile(archiveFile);
-    const saveResult = await phase("private_docker_save", () => observe(commandRunner, "docker",
-      ["image", "save", "--output", archiveFile, alias], options(authBase)));
-    validatePrivateFile(archiveFile, fileIdentity);
+    const privateFile = createPrivateFile(archiveFile);
+    let saveResult;
+    try {
+      saveResult = await phase("private_docker_save", async () => {
+        const saveOptions = { ...options(authBase), handle: privateFile.handle };
+        const response = await saveRunner("docker", ["image", "save", alias], saveOptions);
+        if (typeof response?.stdout !== "string" || typeof response?.stderr !== "string"
+          || Buffer.byteLength(response.stdout) + Buffer.byteLength(response.stderr) > MAX_OUTPUT_BYTES) {
+          fail("seaweed_remote_candidate_command_failed");
+        }
+        return response;
+      });
+      fsyncSync(privateFile.handle);
+      validatePrivateFile(archiveFile, privateFile.identity);
+    } finally { closeSync(privateFile.handle); }
     const archiveProof = validateArchiveProof(await phase("full_archive_validation", () => archiveValidator({
       file: archiveFile, imageId: policy.candidate.imageId, tag: alias, diffId: policy.candidate.diffId,
       rawSize: policy.candidate.rawSize, memberCount: policy.candidate.memberCount,
@@ -417,6 +500,8 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
       image: { imageId: policy.candidate.imageId, diffId: policy.candidate.diffId, platform: policy.platform },
       archive: { state: "ARCHIVE_VERIFIED", imageId: archiveProof.imageId, diffId: archiveProof.diffId,
         archiveSha256: archiveProof.archiveSha256, archiveBytes: archiveProof.archiveBytes, saveResponse },
+      publisher: { result: policy.publisher.result, runId: policy.publisher.runId,
+        recipeRevision: policy.publisher.recipeRevision, receiptSha256: policy.publisher.receiptSha256 },
       provenance: { publisherRunId: policy.publisher.runId, publisherRecipeRevision: policy.publisher.recipeRevision,
         publisherReceiptSha256: policy.publisher.receiptSha256, sourceRunId: policy.source.runId,
         sourceCodeRevision: policy.source.codeRevision }, phases };
@@ -431,9 +516,18 @@ export async function withVerifiedRemoteSeaweedCandidate(inputValue, inspectArch
       if (!sameArray(current, expectedInventory(priorIds, policy.candidate.imageId))) fail("seaweed_remote_candidate_cleanup_ownership_unverified");
       validateRemoteCandidateImage(run(commandRunner, "docker",
         ["image", "inspect", "--format", "{{json .}}", policy.subject], cleanupOptions()).stdout, policy, tagged ? alias : undefined);
-      const references = tagged ? [alias, policy.subject] : [policy.subject];
-      const removed = observe(commandRunner, "docker", ["image", "rm", ...references], cleanupOptions());
-      if (removed.error || removed.status !== 0) fail("seaweed_remote_candidate_image_cleanup_failed");
+      if (tagged) {
+        observe(commandRunner, "docker", ["image", "rm", alias], cleanupOptions());
+        if (!inspectAbsent(observe(commandRunner, "docker", ["image", "inspect", alias], cleanupOptions()))) {
+          fail("seaweed_remote_candidate_image_cleanup_failed");
+        }
+      }
+      const subjectState = observe(commandRunner, "docker", ["image", "inspect", policy.subject], cleanupOptions());
+      if (!inspectAbsent(subjectState)) {
+        validateRemoteCandidateImage(run(commandRunner, "docker",
+          ["image", "inspect", "--format", "{{json .}}", policy.subject], cleanupOptions()).stdout, policy);
+        observe(commandRunner, "docker", ["image", "rm", policy.subject], cleanupOptions());
+      }
       for (const reference of [alias, policy.subject, policy.candidate.imageId]) {
         if (!inspectAbsent(observe(commandRunner, "docker", ["image", "inspect", reference], cleanupOptions()))) {
           fail("seaweed_remote_candidate_image_cleanup_failed");
