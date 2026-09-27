@@ -1,6 +1,6 @@
 # TASK-0005A — local SeaweedFS evidence retention and restore boundary
 
-Status: PUBLIC_EVIDENCE_RETAINED / INCOMPLETE. This record preserves progress toward [ADR-0007](../decisions/ADR-0007-private-image-admission.md)'s second private copy. It does not establish a complete image archive, an offline restoration or admission.
+Status: SETUP_AUTHORIZED / REBOOT_PENDING / INCOMPLETE. This record preserves progress toward [ADR-0007](../decisions/ADR-0007-private-image-admission.md)'s second private copy. It does not establish a complete image archive, an offline restoration or admission.
 
 ## Verified local evidence, 27 September 2026
 
@@ -18,14 +18,20 @@ The existing ignored local archive now contains a digest-addressed directory nam
 
 The local manifest records individual sizes and hashes, `PUBLIC_EVIDENCE_ONLY`, `INCOMPLETE` and `NOT_AUTHORIZED`. It is kept in ignored storage, not published with local account information. No image archive, credential or private registry layer has been uploaded as a public Actions artifact.
 
+## Authorized workstation setup checkpoint, 27 September 2026
+
+The user explicitly authorized preparing this workstation with WSL/Docker and adding read-only private-package access to the existing GitHub authentication. The credential refresh completed in the existing keyring: the `read:packages` scope is present and an authenticated REST read of the exact private package succeeds. No token value or credential is recorded here.
+
+Official `wsl --install --no-distribution --web-download` installed WSL `2.7.14.0` with kernel `6.18.33.2-2`; `VirtualMachinePlatform` and `Microsoft-Windows-Subsystem-Linux` are enabled without forcing a restart. Firmware virtualization is available, but the hypervisor is not active and Windows reports a pending reboot. The attempted official Ubuntu installation without launch stopped at that reboot requirement, so no Linux distribution or Docker engine is installed or registered yet. A bounded setup-state record remains only in the ignored private archive and excludes credentials from tracked evidence.
+
 ## Concrete next restore slice
 
-1. Establish an authorized local read-only package credential and a compatible Linux Docker engine. The current local OAuth scopes lack `read:packages`; no Docker command, service or installation was found on this workstation. Do not infer a token expansion or silently choose a new host installation.
+1. Preserve user work, then complete the already authorized workstation setup after the required Windows reboot. Install the official Ubuntu distribution and a compatible Linux Docker engine only after reviewing their source/version against the existing engine contract; do not silently select a new Docker version or relax that contract.
 2. Retrieve the exact manifest subject and retain a complete loadable image archive with its manifest/configuration identities. Validate the full saved archive, image ID, DiffID, filesystem and runtime configuration against the already reviewed candidate policy. No tag substitution or rebuilt image may stand in for the stored subject.
 3. Complete the digest-addressed image/evidence/source/notices/SBOM/recipe inventory, preserving original bytes and distinct publication, audit and runtime results. Record explicit support dates before any activation; the retention commitment is supported lifetime plus 365 days, with no automatic deletion.
 4. Demonstrate restoration from the retained copy on a clean, compatible Linux Docker engine, without registry download as a fallback. Verify loaded identity and rerun the five existing runtime profiles, including isolated data backup/restore and all owned-resource cleanup. Retain the bounded restoration receipt locally.
 5. Only after complete retrieval/restoration proof proceed to the separately reviewed official attestation, consumer admission and four-service lifecycle integration.
 
-The third exact-subject native runtime run passed all five profiles, including isolated data backup/restore. It does not prove recovery of a locally retained image/evidence archive after registry loss. Both earlier failed runtime attempts remain preserved. Missing package-read authority, the local engine choice and complete archive restoration evidence remain explicit boundaries; the user has been asked to choose/authorize the local Linux engine and package-read setup. No new account, storage service, dependency or token scope has been introduced by this retention step.
+The third exact-subject native runtime run passed all five profiles, including isolated data backup/restore. It does not prove recovery of a locally retained image/evidence archive after registry loss. Both earlier failed runtime attempts remain preserved. Package-read authority is now verified and the local setup is authorized; the immediate blocker is the required Windows reboot, which was not automatically performed. Ubuntu/Docker installation, the complete image archive, offline restoration, signing and admission remain pending.
 
 Rollback preserves these files and all prior evidence. It does not delete source ZIPs, revoke or rewrite historical receipts, change a remote package, or admit a candidate. TASK-0005A and TASK-0005 remain IN_PROGRESS; TASK-0006 remains blocked.
