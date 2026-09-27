@@ -20,6 +20,7 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const MAX_POLICY_BYTES = 64 * 1024;
 const MAX_RECEIPT_BYTES = 1024 * 1024;
 const MAX_API_BYTES = 256 * 1024;
+const MAIN_TIMEOUT_MS = 60_000;
 const PUBLISH_PHASES = ["managed_tool_identity", "checkout_identity", "registry_login",
   "candidate_materialization_and_private_copy", "copied_archive_revalidation", "local_inventory_before",
   "local_references_absent", "load_private_archive", "exact_local_image", "bootstrap_authorized_read_before",
@@ -42,6 +43,7 @@ export function requireRemoteCandidateAuditContext(env, { platform = process.pla
   uid = process.getuid?.(), gid = process.getgid?.() } = {}) {
   if (platform !== "linux" || !Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(gid) || gid < 1
     || env.GITHUB_ACTIONS !== "true" || env.RUNNER_ENVIRONMENT !== "github-hosted"
+    || env.GITHUB_JOB !== "audit"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch" || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_REPOSITORY !== "CleMeY15/auto-world" || env.GITHUB_WORKFLOW_REF !== WORKFLOW_REF
     || env.GITHUB_RUN_NUMBER !== "1" || env.GITHUB_RUN_ATTEMPT !== "1"
@@ -184,27 +186,33 @@ async function readBoundedResponse(response, cap) {
 }
 
 export async function verifyRemoteAuditMain(context, env, { commandRunner = defaultCommandRunner,
-  fetchImpl = globalThis.fetch } = {}) {
+  fetchImpl = globalThis.fetch, timeoutMs = MAIN_TIMEOUT_MS } = {}) {
   const token = env.GITHUB_TOKEN;
   if (typeof token !== "string" || token.length < 1 || token.length > 8192
-    || env.GH_TOKEN !== token) fail("seaweed_remote_audit_environment_invalid");
+    || env.GH_TOKEN !== token || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAIN_TIMEOUT_MS) {
+    fail("seaweed_remote_audit_environment_invalid");
+  }
   const result = commandRunner("git", ["rev-parse", "HEAD"], { cwd: context.workspace,
     env: { PATH: env.PATH ?? "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, maxBuffer: 4096, timeoutMs: 60_000 });
   if (result?.error || result?.status !== 0
     || !Buffer.isBuffer(result.stdout) || result.stdout.toString("utf8").trim() !== context.recipeRevision) {
     fail("seaweed_remote_audit_checkout_invalid");
   }
-  let response;
+  const controller = new globalThis.AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs); timer.unref?.();
   try {
-    response = await fetchImpl(MAIN_BRANCH_URL, { redirect: "error", headers: {
+    const response = await fetchImpl(MAIN_BRANCH_URL, { redirect: "error", signal: controller.signal, headers: {
       Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`,
       "User-Agent": "auto-world-seaweed-remote-audit", "X-GitHub-Api-Version": "2022-11-28",
     } });
-  } catch { fail("seaweed_remote_audit_main_invalid"); }
-  const branch = parseJson(await readBoundedResponse(response, MAX_API_BYTES));
-  if (branch?.name !== "main" || branch?.protected !== true
-    || branch?.commit?.sha !== context.recipeRevision) fail("seaweed_remote_audit_main_invalid");
-  return true;
+    const branch = parseJson(await readBoundedResponse(response, MAX_API_BYTES));
+    if (branch?.name !== "main" || branch?.protected !== true
+      || branch?.commit?.sha !== context.recipeRevision) fail("seaweed_remote_audit_main_invalid");
+    return true;
+  } catch (error) {
+    if (error?.message === "seaweed_remote_audit_main_invalid") throw error;
+    fail("seaweed_remote_audit_main_invalid");
+  } finally { globalThis.clearTimeout(timer); }
 }
 
 function committedBytes(relative, cap, context, commandRunner) {
@@ -254,12 +262,17 @@ export async function runRemoteCandidateAudit(argv = process.argv.slice(2), env 
     validateFilesystem: (entries) => validateRemoteAuditFilesystem(entries, policy),
     validateRuntimeConfig: (config) => validateRemoteAuditRuntimeConfig(config, baseline),
   }, inspect, dependencies.remoteProviderDependencies);
-  const validateCandidateReceipt = (receipt) => {
+  const validateCandidateReceipt = (receipt, proof, receiptContext) => {
     receiptValidator(receipt, policy);
-    if (receipt.runId !== context.runId || receipt.recipeRevision !== context.recipeRevision
+    if (receiptContext?.runId !== context.runId || receiptContext?.recipeRevision !== context.recipeRevision
+      || receipt.runId !== receiptContext.runId || receipt.recipeRevision !== receiptContext.recipeRevision
       || receipt.subject !== policy.subject || receipt.publisher?.result !== policy.publisher.result) {
       fail("seaweed_remote_audit_candidate_receipt_invalid");
     }
+    if (receipt.image?.imageId !== proof?.imageId || receipt.image?.diffId !== proof?.diffId
+      || receipt.archive?.imageId !== proof?.imageId || receipt.archive?.diffId !== proof?.diffId
+      || receipt.archive?.archiveSha256 !== proof?.archiveSha256
+      || receipt.archive?.archiveBytes !== proof?.archiveBytes) fail("seaweed_remote_audit_candidate_receipt_invalid");
     return true;
   };
   const runAudit = dependencies.executeAudit ?? executeCandidateAudit;

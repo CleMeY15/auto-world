@@ -81,7 +81,7 @@ function fixture(changeReceipt) {
 
 function environment(root) {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", GITHUB_EVENT_NAME: "workflow_dispatch",
-    GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world",
+    GITHUB_JOB: "audit", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-audit.yml@refs/heads/main",
     GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: auditRevision, GITHUB_RUN_ID: "40000000000",
     RUNNER_TEMP: root, GITHUB_WORKSPACE: root, GITHUB_TOKEN: "token", GH_TOKEN: "token", PATH: "path" };
@@ -150,6 +150,7 @@ test("remote audit context rejects branch, fork, rerun, other workflow and root 
     assert.equal(context.root, path.join(root, "seaweed-candidate-remote-audit-work"));
     for (const change of [{ GITHUB_REF: "refs/heads/feature" }, { GITHUB_REPOSITORY: "attacker/fork" },
       { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_RUN_NUMBER: "2" },
+      { GITHUB_JOB: "build" },
       { GITHUB_WORKFLOW_REF: "attacker/fork/.github/workflows/seaweed-candidate-remote-audit.yml@refs/heads/main" }]) {
       assert.throws(() => requireRemoteCandidateAuditContext({ ...env, ...change }, host), /context_invalid/u);
     }
@@ -168,6 +169,10 @@ test("checkout and current protected main are verified before execution", async 
     fetchImpl: async () => response({ name: "main", protected: false, commit: { sha: auditRevision } }) }), /main_invalid/u);
   await assert.rejects(verifyRemoteAuditMain(context, { ...env, GH_TOKEN: "other" }, { commandRunner }),
     /environment_invalid/u);
+  await assert.rejects(verifyRemoteAuditMain(context, env, { commandRunner, timeoutMs: 5,
+    fetchImpl: async (url, options) => new Promise((resolve, reject) => {
+      options.signal.addEventListener("abort", () => reject(new Error("transport timeout")), { once: true });
+    }) }), /main_invalid/u);
 });
 
 test("execute selects the remote provider and rejects a local receipt", async () => {
@@ -187,7 +192,8 @@ test("execute selects the remote provider and rejects a local receipt", async ()
         selected = true; assert.equal(input.policy.subject, subject); assert.equal(Object.hasOwn(input, "createdAt"), false);
         return { kind: "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1", runId: input.runId,
           recipeRevision: input.recipeRevision, subject: input.policy.subject,
-          publisher: { result: input.policy.publisher.result } };
+          publisher: { result: input.policy.publisher.result }, image: { imageId, diffId },
+          archive: { imageId, diffId, archiveSha256: "6".repeat(64), archiveBytes: 8192 } };
       },
       remoteReceiptValidator: (receiptValue) => {
         if (receiptValue.kind !== "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1") throw new Error("remote_only");
@@ -198,8 +204,11 @@ test("execute selects the remote provider and rejects a local receipt", async ()
         const receiptValue = await deps.materialize({ parent: context.root, runId: context.runId,
           recipeRevision: context.recipeRevision, createdAt: "must-not-reach-provider",
           signal: new globalThis.AbortController().signal }, async () => {});
-        assert.equal(deps.validateCandidateReceipt(receiptValue), true);
-        assert.throws(() => deps.validateCandidateReceipt({ kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1" }), /remote_only/u);
+        const proof = { imageId, diffId, archiveSha256: "6".repeat(64), archiveBytes: 8192 };
+        assert.equal(deps.validateCandidateReceipt(receiptValue, proof, context), true);
+        assert.throws(() => deps.validateCandidateReceipt({ kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1" }, proof, context), /remote_only/u);
+        assert.throws(() => deps.validateCandidateReceipt(receiptValue,
+          { ...proof, archiveSha256: "7".repeat(64) }, context), /candidate_receipt_invalid/u);
         return { state: "COMPLETE" };
       },
     });
