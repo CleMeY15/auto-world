@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { cleanupOwnedResource, containerProfileInspectArguments, dockerBuildArguments, ephemeralContainerArguments,
-  parseDiagnosticArguments, postgresContainerArguments,
+  fixedContainerProfile, fixedEphemeralProfile, parseDiagnosticArguments, postgresContainerArguments,
   runPostgresDiagnostic, validateCommandResult, validateDiagnosticLock, validateDockerVersion, validateMaterialBytes }
   from "../scripts/postgres-image/diagnostic.mjs";
 
@@ -14,6 +14,36 @@ const nonce = "a".repeat(24);
 const clone = (value) => globalThis.structuredClone(value);
 const result = (status, stdout = "", stderr = "") => ({ status, signal: null, error: undefined,
   stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) });
+
+test("native Docker capability names match the exact probe and PostgreSQL profiles", () => {
+  const probeName = `aw-pg-gosu-${nonce}-probe`;
+  const probe = { Name: `/${probeName}`, Labels: { "com.auto-world.postgres-diagnostic": nonce,
+    "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime" }, NetworkMode: "none",
+  ReadonlyRootfs: true, RestartPolicyName: "no", Memory: 134217728, MemorySwap: 134217728,
+  NanoCpus: 500000000, PidsLimit: 64, ShmSize: 67108864, CapDrop: ["ALL"],
+  CapAdd: ["CAP_SETGID", "CAP_SETUID"], SecurityOpt: ["no-new-privileges=true"], PortBindings: {},
+  Tmpfs: { "/var/lib/postgresql/data": "rw,nosuid,nodev,noexec,size=16777216,mode=0700" }, Mounts: [] };
+  assert.doesNotThrow(() => fixedEphemeralProfile(probe, probeName, nonce));
+  const runtimeName = `aw-pg-gosu-${nonce}-one`; const volume = `aw-pg-gosu-${nonce}-data`;
+  const runtime = { ...probe, Name: `/${runtimeName}`, Memory: 1073741824, MemorySwap: 1073741824,
+    NanoCpus: 1000000000, PidsLimit: 256, ShmSize: 134217728,
+    CapAdd: ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER", "CAP_SETGID", "CAP_SETUID"],
+    Mounts: [{ Type: "volume", Name: volume, Destination: "/var/lib/postgresql/data" }] };
+  assert.doesNotThrow(() => fixedContainerProfile(runtime, runtimeName, nonce, volume));
+  for (const capabilities of [[], ["SETGID", "SETUID"], ["CAP_SETUID"],
+    ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_ADMIN"], ["CAP_SETGID", "CAP_SETUID", "CAP_SETUID"]]) {
+    assert.throws(() => fixedEphemeralProfile({ ...probe, CapAdd: capabilities }, probeName, nonce),
+      /postgres_diagnostic_ephemeral_profile_invalid/u);
+  }
+  for (const capabilities of [[], runtime.CapAdd.slice(1), [...runtime.CapAdd, "CAP_SYS_ADMIN"]]) {
+    assert.throws(() => fixedContainerProfile({ ...runtime, CapAdd: capabilities }, runtimeName, nonce, volume),
+      /postgres_diagnostic_runtime_profile_invalid/u);
+  }
+  const exportName = `aw-pg-gosu-${nonce}-candidate-export`;
+  assert.doesNotThrow(() => fixedEphemeralProfile({ ...probe, Name: `/${exportName}`, CapAdd: null }, exportName, nonce));
+  assert.throws(() => fixedEphemeralProfile({ ...probe, Name: `/${exportName}` }, exportName, nonce),
+    /postgres_diagnostic_ephemeral_profile_invalid/u);
+});
 
 test("native Docker JSON CPU capability names are required before the preflight passes", () => {
   const version = { Client: { Version: "28.0.4" }, Server: { Version: "28.0.4",

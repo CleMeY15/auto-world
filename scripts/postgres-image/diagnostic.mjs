@@ -330,22 +330,22 @@ function assertNoRuntimeCredentials(environment) {
     fail("postgres_diagnostic_environment_invalid");
   }
 }
-function fixedContainerProfile(value, name, nonce, volume) {
+export function fixedContainerProfile(value, name, nonce, volume) {
   if (!plain(value) || value.Name !== `/${name}` || value.Labels?.[LABEL_OWNER] !== nonce
     || value.Labels?.[LABEL_PURPOSE] !== PURPOSE || value.NetworkMode !== "none"
     || value.ReadonlyRootfs !== true || value.RestartPolicyName !== "no" || value.Memory !== FIXED_LIMITS.memoryBytes
     || value.MemorySwap !== FIXED_LIMITS.memorySwapBytes || value.NanoCpus !== FIXED_LIMITS.nanoCpus
     || value.PidsLimit !== FIXED_LIMITS.pids || value.ShmSize !== FIXED_LIMITS.shmBytes
     || !value.CapDrop?.includes("ALL") || !Array.isArray(value.CapAdd)
-    || JSON.stringify([...value.CapAdd].sort()) !== JSON.stringify([...ALLOWED_CAPABILITIES].sort())
+    || JSON.stringify([...value.CapAdd].sort()) !== JSON.stringify(ALLOWED_CAPABILITIES.map((capability) => `CAP_${capability}`).sort())
     || !value.SecurityOpt?.includes("no-new-privileges=true")
     || (plain(value.PortBindings) && Object.keys(value.PortBindings).length > 0)
     || !value.Mounts?.some((mount) => mount.Type === "volume" && mount.Name === volume
       && mount.Destination === "/var/lib/postgresql/data")) fail("postgres_diagnostic_runtime_profile_invalid");
   return value;
 }
-function fixedEphemeralProfile(value, name, nonce) {
-  const capabilities = name.endsWith("-probe") ? ["SETGID", "SETUID"] : [];
+export function fixedEphemeralProfile(value, name, nonce) {
+  const capabilities = name.endsWith("-probe") ? ["CAP_SETGID", "CAP_SETUID"] : [];
   if (!plain(value) || value.Name !== `/${name}` || value.Labels?.[LABEL_OWNER] !== nonce
     || value.Labels?.[LABEL_PURPOSE] !== PURPOSE || value.NetworkMode !== "none"
     || value.ReadonlyRootfs !== true || value.RestartPolicyName !== "no"
