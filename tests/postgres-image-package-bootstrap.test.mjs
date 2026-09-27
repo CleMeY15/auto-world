@@ -469,6 +469,9 @@ test("the monotonic budget stops before publication and preserves the cleanup re
   assert.equal(receipt.publication, "NOT_ATTEMPTED");
   assert.equal(receipt.result, "FAILED");
   assert.deepEqual(receipt.localImageCleanup, { state: "NOT_CREATED" });
+  assert.equal(receipt.phases.filter((phase) => phase.result === "FAILED").length, 1);
+  assert.equal(receipt.phases.find((phase) => phase.result === "FAILED").reason,
+    "postgres_package_bootstrap_job_timeout");
   assert.deepEqual(receipt.phases.at(-1), {
     name: "owned_cleanup", result: "PASSED", durationMs: 70_000,
   });

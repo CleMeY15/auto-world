@@ -371,9 +371,9 @@ export async function runPostgresPackageBootstrap({
     localInventoryAfter: null, phases: [],
   };
   const phase = async (name, operation) => {
-    commandOptions();
     const phaseStarted = now();
     try {
+      commandOptions();
       const value = await operation();
       receipt.phases.push({ name, result: "PASSED", durationMs: Math.max(0, now() - phaseStarted) });
       return value;
