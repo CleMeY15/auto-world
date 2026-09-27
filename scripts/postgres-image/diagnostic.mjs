@@ -398,7 +398,7 @@ function resourceAbsent(kind, name, result) {
   validateCommandTransport(result, "CLEANUP");
   if (result.status !== 1 || !["", "[]"].includes(result.stdout.toString("utf8").trim())) return false;
   const escaped = escapeRegex(name); const message = result.stderr.toString("utf8").trim();
-  if (kind === "container") return new RegExp(`^Error: No such (?:object|container): ${escaped}$`, "u").test(message);
+  if (kind === "container") return new RegExp(`^(?:Error: No such (?:object|container): |Error response from daemon: No such container: )${escaped}$`, "u").test(message);
   if (kind === "image") return new RegExp(`^(?:Error: No such object: |Error response from daemon: No such image: )${escaped}$`, "u").test(message);
   return new RegExp(`^Error response from daemon: get ${escaped}: no such volume$`, "u").test(message);
 }

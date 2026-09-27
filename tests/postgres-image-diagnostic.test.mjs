@@ -187,6 +187,8 @@ test("cleanup removes only the exact labeled container identity and preserves un
   assert.equal(removed, false);
   assert.equal(cleanupOwnedResource("container", `aw-pg-gosu-${nonce}-one`, id, nonce,
     () => result(1, "", `Error: No such container: aw-pg-gosu-${nonce}-one\n`)), "ABSENT");
+  assert.equal(cleanupOwnedResource("container", `aw-pg-gosu-${nonce}-one`, id, nonce,
+    () => result(1, "\n", `Error response from daemon: No such container: aw-pg-gosu-${nonce}-one\n`)), "ABSENT");
   assert.equal(cleanupOwnedResource("image", `aw-postgres-gosu:${nonce}`, null, nonce,
     () => result(1, "", `Error response from daemon: No such image: aw-postgres-gosu:${nonce}\n`)), "ABSENT");
   assert.equal(cleanupOwnedResource("volume", `aw-pg-gosu-${nonce}-data`, null, nonce,
