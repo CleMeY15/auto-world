@@ -295,7 +295,7 @@ export function validateDockerVersion(version, info, lock) {
     fail("postgres_diagnostic_docker_invalid");
   }
 }
-function validateBaseInspect(value, lock) {
+export function validateBaseInspect(value, lock) {
   if (!Array.isArray(value) || value.length !== 1) fail("postgres_diagnostic_base_invalid");
   const image = value[0];
   if (image.Id !== lock.base.configId || image.Os !== lock.base.os || image.Architecture !== lock.base.architecture
@@ -303,7 +303,7 @@ function validateBaseInspect(value, lock) {
     || !Array.isArray(image.RootFS?.Layers) || image.RootFS.Layers.length < 1) fail("postgres_diagnostic_base_invalid");
   return image;
 }
-function validateCandidateInspect(value, lock, base, nonce) {
+export function validateCandidateInspect(value, lock, base, nonce) {
   if (!Array.isArray(value) || value.length !== 1) fail("postgres_diagnostic_candidate_invalid");
   const image = value[0]; const layers = image.RootFS?.Layers;
   if (!IMAGE_ID.test(image.Id) || image.Id === base.Id || image.Os !== lock.base.os || image.Architecture !== lock.base.architecture
