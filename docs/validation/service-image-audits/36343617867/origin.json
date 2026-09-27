@@ -1,0 +1,22 @@
+{
+  "run": {
+    "id": 36343617867,
+    "headSha": "0889fdf9aa1a89ae8a6a0c633e8545e1b6c71fd1",
+    "headBranch": "main",
+    "event": "workflow_dispatch",
+    "path": ".github/workflows/scanner-audit.yml",
+    "runNumber": 28,
+    "runAttempt": 1,
+    "conclusion": "failure",
+    "createdAt": "2026-09-27T19:14:25Z",
+    "updatedAt": "2026-09-27T19:30:37Z"
+  },
+  "artifact": {
+    "id": 10939613331,
+    "name": "scanner-audit",
+    "bytes": 6416495,
+    "digest": "sha256:66c891244331596766cf5a79a4f693495b06acea57c605f9dc40488313922744",
+    "expiresAt": "2026-10-11T19:30:34Z"
+  },
+  "retainedAt": "2026-09-27T19:31:21.170Z"
+}
