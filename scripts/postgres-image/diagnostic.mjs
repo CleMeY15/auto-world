@@ -412,7 +412,7 @@ export function cleanupOwnedResource(kind, name, expectedId, nonce, invoke) {
   const owned = ownedLabel(value, nonce);
   if (!owned || (expectedId !== null && actualId !== expectedId)) fail("postgres_diagnostic_ownership_uncertain");
   const removeArgs = kind === "container" ? ["container", "rm", "--force", "--volumes", actualId]
-    : kind === "volume" ? ["volume", "rm", actualId] : ["image", "rm", name];
+    : kind === "volume" ? ["volume", "rm", actualId] : ["image", "rm", actualId];
   validateCommandResult(invoke(removeArgs, `cleanup_${kind}_remove`), `CLEANUP_${kind.toUpperCase()}`);
   return "REMOVED";
 }

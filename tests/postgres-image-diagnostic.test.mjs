@@ -147,6 +147,14 @@ test("cleanup removes only the exact labeled container identity and preserves un
   };
   assert.equal(cleanupOwnedResource("container", `aw-pg-gosu-${nonce}-one`, id, nonce, invoke), "REMOVED");
   assert.deepEqual(calls.at(-1), ["container", "rm", "--force", "--volumes", id]);
+  const imageId = `sha256:${id}`;
+  const imageCalls = [];
+  cleanupOwnedResource("image", `aw-postgres-gosu:${nonce}`, imageId, nonce, (args) => {
+    imageCalls.push(args);
+    return args[1] === "inspect" ? result(0, JSON.stringify([{ Id: imageId,
+      Config: { Labels: { "com.auto-world.postgres-diagnostic": nonce } } }])) : result(0);
+  });
+  assert.deepEqual(imageCalls.at(-1), ["image", "rm", imageId]);
 
   let removed = false;
   const foreign = (args) => {
