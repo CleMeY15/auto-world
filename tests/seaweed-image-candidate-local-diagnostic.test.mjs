@@ -52,6 +52,8 @@ test("local diagnostic cannot execute inside a GitHub workflow", async () => {
 });
 
 test("CLI wires committed policy and in-memory retention credential, then offline evidence and durable receipt", { skip: !linux }, async () => {
+  const environment = Object.fromEntries(["GITHUB_ACTIONS", "GH_TOKEN", "GITHUB_TOKEN"].map((key) => [key, process.env[key]]));
+  for (const key of Object.keys(environment)) delete process.env[key];
   const root = mkdtempSync(path.join(os.tmpdir(), "aw-local-cli-"));
   const policy = JSON.parse(readFileSync(new URL("../infra/seaweed-image/candidate-remote.json", import.meta.url)));
   const name = `seaweed-candidate-${policy.manifest.digest.replace(":", "-")}`;
@@ -115,5 +117,10 @@ test("CLI wires committed policy and in-memory retention credential, then offlin
     await assert.rejects(runLocalDiagnostic(["retain", directory], { git: () => "dirty", readToken: async () => {
       assert.fail("dirty checkout must fail before reading credentials");
     } }));
-  } finally { rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    for (const [key, value] of Object.entries(environment)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });

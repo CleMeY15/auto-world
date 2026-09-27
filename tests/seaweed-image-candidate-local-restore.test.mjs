@@ -265,11 +265,11 @@ test("wrong Docker version and containerd image store reject before archive load
   }
 });
 
-test("root-owned ext4 private paths pass the production storage validator", {
-  skip: process.platform !== "linux" || process.getuid?.() !== 0,
+test("owned ext4 private paths pass the production storage validator, including root", {
+  skip: process.platform !== "linux",
 }, async (t) => {
   const paths = fixture(); t.after(() => rmSync(paths.temp, { recursive: true, force: true }));
-  const deps = dependencies(paths); delete deps.privateStorageValidator; deps.uid = 0;
+  const deps = dependencies(paths); delete deps.privateStorageValidator; delete deps.uid;
   delete deps.openedArchiveValidator;
   const receipt = await restoreLocalSeaweedCandidate(input(paths), deps);
   assert.equal(receipt.state, "VERIFIED");
