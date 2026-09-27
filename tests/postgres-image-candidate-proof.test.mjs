@@ -206,6 +206,33 @@ test("remote proof binds digest, config and exact base descriptor prefix while l
   assert.equal(proof.remoteLayerVerification, "PENDING_INDEPENDENT_READ");
 });
 
+test("remote proof accepts OCI base descriptors converted to Docker schema 2 without changing compressed bytes", () => {
+  const value = remoteFixture(); const manifest = globalThis.structuredClone(value.manifest);
+  manifest.mediaType = "application/vnd.docker.distribution.manifest.v2+json";
+  manifest.config.mediaType = "application/vnd.docker.container.image.v1+json";
+  for (const layer of manifest.layers) layer.mediaType = "application/vnd.docker.image.rootfs.diff.tar.gzip";
+  const raw = JSON.stringify(manifest); const options = { digest: digest(Buffer.from(raw)),
+    configDigest: value.imageId, expectedLayers: 12, baseLayers: value.remoteLayers.slice(0, 10) };
+  const proof = validatePostgresCandidateRemoteManifest(raw, options);
+  assert.equal(proof.mediaType, manifest.mediaType);
+  assert.equal(proof.baseLayerCount, 10);
+  assert.equal(proof.remoteLayerVerification, "PENDING_INDEPENDENT_READ");
+  const substituted = globalThis.structuredClone(manifest);
+  substituted.layers[0].size += 1;
+  const substitutedRaw = JSON.stringify(substituted);
+  assert.throws(() => validatePostgresCandidateRemoteManifest(substitutedRaw,
+    { ...options, digest: digest(Buffer.from(substitutedRaw)) }), /postgres_candidate_proof_remote_manifest_invalid/u);
+  const wrongType = globalThis.structuredClone(manifest);
+  wrongType.layers[0].mediaType = "application/vnd.oci.image.layer.v1.tar+gzip";
+  const wrongTypeRaw = JSON.stringify(wrongType);
+  assert.throws(() => validatePostgresCandidateRemoteManifest(wrongTypeRaw,
+    { ...options, digest: digest(Buffer.from(wrongTypeRaw)) }), /postgres_candidate_proof_remote_manifest_invalid/u);
+  const mixedBase = options.baseLayers.map((layer) => ({ ...layer }));
+  mixedBase[0].mediaType = "application/vnd.docker.image.rootfs.diff.tar.gzip";
+  assert.throws(() => validatePostgresCandidateRemoteManifest(raw,
+    { ...options, baseLayers: mixedBase }), /postgres_candidate_proof_options_invalid/u);
+});
+
 test("remote proof rejects digest, config, base prefix, descriptor, count and extra-field substitution", () => {
   const value = remoteFixture(); const options = { digest: value.digest, configDigest: value.imageId,
     expectedLayers: 12, baseLayers: value.remoteLayers.slice(0, 10) };

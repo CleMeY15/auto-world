@@ -10,6 +10,7 @@ import {
   POSTGRES_CANDIDATE_PUBLISH, parseCandidatePublishArguments, runPostgresCandidatePublish,
   readBoundedDockerFile, validateBaseManifest, validateCandidatePublishContext,
 } from "../scripts/postgres-image/candidate-publish.mjs";
+import { validatePostgresCandidateRemoteManifest } from "../scripts/postgres-image/candidate-proof.mjs";
 
 const sourceSha = "a".repeat(40);
 const baseId = lock.base.configId;
@@ -22,10 +23,12 @@ const descriptors = baseLayers.map((digest, index) => ({
 const baseManifest = JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
   config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: baseId, size: 4_000 }, layers: descriptors,
   annotations: { "org.opencontainers.image.version": "17.11-alpine3.24" } });
-const remoteManifest = JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
-  config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: candidateId, size: 5_000 },
-  layers: [...descriptors, { mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: `sha256:${"e".repeat(64)}`, size: 2_001 },
-    { mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: `sha256:${"f".repeat(64)}`, size: 2_002 }] });
+const dockerLayerType = "application/vnd.docker.image.rootfs.diff.tar.gzip";
+const remoteManifest = JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.docker.distribution.manifest.v2+json",
+  config: { mediaType: "application/vnd.docker.container.image.v1+json", digest: candidateId, size: 5_000 },
+  layers: [...descriptors.map((layer) => ({ ...layer, mediaType: dockerLayerType })),
+    { mediaType: dockerLayerType, digest: `sha256:${"e".repeat(64)}`, size: 2_001 },
+    { mediaType: dockerLayerType, digest: `sha256:${"f".repeat(64)}`, size: 2_002 }] });
 
 function fixture(runId = "36380000001") {
   const runnerTemp = mkdtempSync(path.join(os.tmpdir(), "aw-postgres-candidate-publish-"));
@@ -175,8 +178,7 @@ const validators = {
   archiveValidator: (_bytes, options) => ({ sha256: "a".repeat(64), size: 7, configDigest: options.imageId,
     diffIds: options.expectedDiffIds, layerDigests: options.expectedDiffIds, layerSizes: options.expectedDiffIds.map(() => 1) }),
   bootstrapValidator: () => ({ digest: "sha256:bootstrap", size: 13 }),
-  remoteValidator: (_raw, options) => ({ sha256: options.digest, size: 10, configDigest: options.configDigest,
-    layers: [], remoteLayerVerification: "PENDING_INDEPENDENT_READ" }),
+  remoteValidator: validatePostgresCandidateRemoteManifest,
 };
 
 test("candidate publisher arguments and GitHub context are closed", () => {

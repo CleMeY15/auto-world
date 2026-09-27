@@ -279,6 +279,7 @@ function remoteOptions(options) {
     fail("options_invalid");
   }
   for (const value of baseLayers) descriptor(value, [OCI_GZIP_LAYER, DOCKER_GZIP_LAYER], "options_invalid");
+  if (baseLayers.some((value) => value.mediaType !== baseLayers[0].mediaType)) fail("options_invalid");
   return Object.freeze({ digest: options.digest, configDigest: options.configDigest, expectedLayers,
     baseLayers: freezeArray(baseLayers) });
 }
@@ -306,8 +307,9 @@ export function validatePostgresCandidateRemoteManifest(raw, options) {
     descriptor(value, [layerMediaType], "remote_manifest_invalid");
     return { digest: value.digest, size: value.size, mediaType: value.mediaType };
   });
+  const equivalentBaseLayers = expected.baseLayers.map((value) => ({ ...value, mediaType: layerMediaType }));
   if (new Set(layers.map(({ digest }) => digest)).size !== layers.length
-    || !expected.baseLayers.every((value, index) => exact(layers[index], value))) fail("remote_manifest_invalid");
+    || !equivalentBaseLayers.every((value, index) => exact(layers[index], value))) fail("remote_manifest_invalid");
   return Object.freeze({ sha256: expected.digest, size: bytes.length, mediaType: manifest.mediaType,
     configDigest: expected.configDigest, configBytes: manifest.config.size, layers: freezeArray(layers),
     baseLayerCount: expected.baseLayers.length, newLayerCount: expected.expectedLayers - expected.baseLayers.length,
