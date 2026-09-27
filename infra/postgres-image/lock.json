@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "state": "diagnostic_only",
+  "authority": "LOCAL_DIAGNOSTIC",
+  "base": {
+    "repository": "postgres",
+    "tag": "17.11-alpine3.24",
+    "indexDigest": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+    "platformDigest": "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+    "configId": "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537",
+    "os": "linux",
+    "architecture": "amd64",
+    "variant": null
+  },
+  "apk": {
+    "package": "gosu",
+    "version": "1.19-r5",
+    "architecture": "x86_64",
+    "fileName": "gosu-1.19-r5.apk",
+    "sourcePath": "infra/postgres-image/materials/gosu-1.19-r5.apk",
+    "sha256": "cd51335dcbc412f28088452a2407ff13e01dce9e11718feee4beec69cf2ebcad",
+    "size": 830337,
+    "sourceUrl": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/gosu-1.19-r5.apk",
+    "index": {
+      "fileName": "APKINDEX.tar.gz",
+      "sourcePath": "infra/postgres-image/materials/APKINDEX-v3.24-community-x86_64.tar.gz",
+      "sha256": "87d288609457bab7c5dd63f13e3ebda73511adfedafebd9226dac4e55f3c69f3",
+      "size": 2517261,
+      "sourceUrl": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/APKINDEX.tar.gz"
+    },
+    "expectedKeys": [
+      {
+        "name": "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+        "sourcePath": "infra/postgres-image/materials/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+        "sha256": "207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f",
+        "size": 800
+      }
+    ],
+    "apkbuild": {
+      "sourcePath": "infra/postgres-image/materials/APKBUILD-1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+      "commit": "1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+      "sha256": "e8ebdfafcedf25013b39055c83171936109c9ffb4c0262d8aef4139e0a481192",
+      "size": 825
+    },
+    "provenance": {
+      "sourcePath": "infra/postgres-image/materials/provenance.json",
+      "sha256": "42c2700a73a76ffe44436143474d2edafd2a02d5890d87fff3b33eae5d0af577",
+      "size": 2836
+    },
+    "executable": {
+      "path": "/usr/bin/gosu",
+      "sha256": "6d3214ab9d2f1e9ffda75ea2f6bb1f454a13a78dd70318e09eee814ce32cce03",
+      "size": 1977120,
+      "mode": "0755",
+      "goVersion": "go1.26.8"
+    },
+    "versionOutput": "1.19 (go1.26.8 on linux/amd64; gc)"
+  },
+  "docker": {
+    "clientVersion": "28.0.4",
+    "serverVersion": "28.0.4",
+    "engine": "Docker Engine - Community",
+    "storageDriver": "overlay2",
+    "builder": "classic",
+    "cgroupVersion": "2"
+  },
+  "recipe": {
+    "path": "infra/postgres-image/Dockerfile",
+    "sha256": "a7efa706b746a73de653301a76b88eac94b24f971ad74eba7e70b995201eaf4b"
+  },
+  "runtime": {
+    "postgresUid": 70,
+    "postgresGid": 70,
+    "gosuPath": "/usr/bin/gosu",
+    "removedPath": "/usr/local/bin/gosu",
+    "payloadSha256": "856a9908dfc18440b8251d53bfdb409aa50d5d7dd66471bf5cdf982ca740f7eb"
+  },
+  "limits": {
+    "commandOutputBytes": 4194304,
+    "commandTimeoutMs": 120000,
+    "buildTimeoutMs": 600000,
+    "readinessTimeoutMs": 60000,
+    "archiveBytes": 1073741824,
+    "memoryBytes": 1073741824,
+    "memorySwapBytes": 1073741824,
+    "nanoCpus": 1000000000,
+    "pids": 256,
+    "shmBytes": 134217728
+  }
+}

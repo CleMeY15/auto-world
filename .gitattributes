@@ -20,3 +20,4 @@ docs/validation/seaweed-attestation/** -text
 docs/validation/service-image-refresh/** -text
 docs/validation/service-image-audits/** -text
 docs/validation/aws-cli-refresh/** -text
+infra/postgres-image/materials/** -text
