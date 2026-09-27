@@ -108,7 +108,7 @@ function environment(root) {
   return { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_JOB: "runtime", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world",
     GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-candidate-remote-runtime.yml@refs/heads/main",
-    GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: runtimeRevision,
+    GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: runtimeRevision,
     GITHUB_RUN_ID: "40000000000", RUNNER_TEMP: root, GITHUB_WORKSPACE: root,
     GITHUB_TOKEN: "token", GH_TOKEN: "token", PATH: "/bin" };
 }
@@ -121,14 +121,15 @@ const auditValidation = {
   evaluatePolicy: () => ({ state: "COMPLETE", findings: [], blockers: [] }),
 };
 
-test("runtime context is fixed to the first hosted main runtime job", () => {
+test("runtime context is fixed to the second reviewed hosted main runtime job", () => {
   const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "aw-remote-runtime-context-")));
   try {
     const env = environment(root); const host = { platform: "linux", uid: 1001, gid: 1001 };
     const context = requireRemoteRuntimeContext(env, host);
     assert.equal(context.auditInput, path.join(root, "seaweed-candidate-remote-audit-input"));
     for (const changed of [{ GITHUB_JOB: "audit" }, { GITHUB_REF: "refs/heads/feature" },
-      { GITHUB_REPOSITORY: "attacker/fork" }, { GITHUB_RUN_NUMBER: "2" },
+      { GITHUB_REPOSITORY: "attacker/fork" }, { GITHUB_RUN_NUMBER: "1" },
+      { GITHUB_RUN_NUMBER: "3" },
       { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_WORKFLOW_REF: "attacker/workflow" }]) {
       assert.throws(() => requireRemoteRuntimeContext({ ...env, ...changed }, host), /context_invalid/u);
     }
@@ -138,7 +139,10 @@ test("runtime context is fixed to the first hosted main runtime job", () => {
 
 test("runtime policy binds the reviewed audit, artifact and all three evidence files", () => {
   const { runtimePolicy } = evidenceFixture();
-  assert.equal(validateRemoteRuntimePolicy(runtimePolicy, candidatePolicy).subject, candidatePolicy.subject);
+  const validated = validateRemoteRuntimePolicy(runtimePolicy, candidatePolicy);
+  assert.equal(validated.subject, candidatePolicy.subject);
+  assert.equal(validated.audit.runNumber, "1");
+  assert.equal(validated.audit.runAttempt, "1");
   for (const change of [
     (policy) => { policy.subject = `${candidatePolicy.image}@sha256:${"0".repeat(64)}`; },
     (policy) => { policy.audit.recipeRevision = "invalid"; },
