@@ -1,6 +1,6 @@
 # TASK-0005A — exact remote SeaweedFS runtime diagnostic
 
-Status: IMPLEMENTATION_IN_PROGRESS. No native runtime receipt exists for the published subject. The remote audit run `36325906357` must complete successfully before this lane is dispatched.
+Status: IMPLEMENTATION_IN_PROGRESS. No native runtime receipt exists for the published subject. The remote audit run `36325906357` completed successfully with zero findings/blockers and successful cleanup. Its actual receipt/report hashes and artifact identity are pinned in [the runtime policy](../../infra/seaweed-image/candidate-remote-runtime.json); [audit evidence](TASK-0005A-SEAWEED-REMOTE-AUDIT.md) records the native result. This runtime lane still needs full verification, independent review, integration and native execution.
 
 ## Reviewed implementation plan
 
@@ -13,7 +13,9 @@ Architecture review selected a separate read-only workflow for the fixed private
 5. Preserve the primary runtime diagnostic, runtime cleanup uncertainty, image cleanup failure and temporary cleanup failure separately. Never force-remove uncertain Docker resources. Upload only bounded, sanitized technical receipts, with no private image archive, layer, credential or source payload.
 6. Add an input-free, first-run/first-attempt protected-main workflow with `contents/actions/packages: read`, pinned tooling and a GitHub-hosted Linux runner. Verify the complete implementation with targeted tests, a fresh-clone full check, independent review, exact-head CI and merged-main CI before native dispatch.
 
-The existing exact-subject audit gate has to pass before a concrete runtime policy is committed. A pending or failed audit cannot authorize execution. The final receipt remains `DIAGNOSTIC_ONLY`, `PUBLISHED_UNADMITTED` and `NOT_AUTHORIZED` for admission, with truthful `VERIFIED_DIAGNOSTIC` image execution and no registry write or signing.
+The exact-subject audit gate passed before the concrete runtime policy was committed. A pending or failed audit cannot authorize execution. The final receipt remains `DIAGNOSTIC_ONLY`, `PUBLISHED_UNADMITTED` and `NOT_AUTHORIZED` for admission, with truthful `VERIFIED_DIAGNOSTIC` image execution and no registry write or signing.
+
+Integration review also found that the existing basic and persistence verifiers discarded the primary diagnostic when their own cleanup failed. Their adapters now preserve the primary phase/reason and a separate bounded cleanup failure, consistently with the existing backup and host-loopback behavior. Real verifier regressions cover combined failures and refusal to remove uncertain resources; legacy local adapters retain both diagnostics as well. Ownership and removal controls remain mandatory.
 
 ## Remaining admission boundary
 
