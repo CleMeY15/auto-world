@@ -10,7 +10,7 @@ import process from "node:process";
 import lockJson from "../../infra/postgres-image/lock.json" with { type: "json" };
 import { classifyAnonymousRemoteRead, validateRemoteManifest } from "../package-bootstrap/registry-proof.mjs";
 import {
-  dockerBuildArguments, validateBaseInspect, validateCandidateInspect, validateDiagnosticLock,
+  dockerBuildArguments, ephemeralContainerArguments, validateBaseInspect, validateCandidateInspect, validateDiagnosticLock,
   validateDockerVersion, validateMaterialBytes,
 } from "./diagnostic.mjs";
 import { verifyPostgresFilesystem } from "./filesystem.mjs";
@@ -103,6 +103,7 @@ export function validateCandidatePublishContext(env, platform = process.platform
     fail("postgres_candidate_publish_identity_invalid");
   }
   if (typeof env.GITHUB_TOKEN !== "string" || env.GITHUB_TOKEN.length < 1
+    || typeof env.DOCKER_CONTEXT === "string" && env.DOCKER_CONTEXT.length > 0
     || !path.isAbsolute(env.RUNNER_TEMP ?? "") || !path.isAbsolute(env.GITHUB_WORKSPACE ?? "")) {
     fail("postgres_candidate_publish_environment_invalid");
   }
@@ -131,12 +132,10 @@ function requireDirectory(directory, expected) {
   }
 }
 
-function cleanEnvironment(env, dockerConfig, temporaryDirectory) {
-  const result = { PATH: "/usr/bin:/bin", HOME: temporaryDirectory, LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
+function cleanEnvironment(dockerConfig, temporaryDirectory) {
+  return { PATH: "/usr/bin:/bin", HOME: temporaryDirectory, LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
     TZ: "UTC", TMPDIR: temporaryDirectory, DOCKER_HOST: "unix:///var/run/docker.sock",
     DOCKER_CONFIG: dockerConfig, BUILDX_CONFIG: path.join(dockerConfig, "buildx"), DOCKER_BUILDKIT: "0" };
-  if (typeof env.DOCKER_CONTEXT === "string") result.DOCKER_CONTEXT = env.DOCKER_CONTEXT;
-  return result;
 }
 function defaultCommandRunner(command, args, options) {
   return spawnSync(command, args, { cwd: options.cwd, encoding: options.encoding ?? "utf8", env: options.env,
@@ -192,9 +191,12 @@ function parseJson(value, code) {
   try { return JSON.parse(text(value)); } catch { fail(code); }
 }
 function inventory(runner, options, kind) {
-  const args = kind === "image" ? ["image", "ls", "--no-trunc", "--quiet"] : ["container", "ls", "--all", "--no-trunc", "--quiet"];
+  const args = kind === "image" ? ["image", "ls", "--no-trunc", "--quiet"]
+    : kind === "container" ? ["container", "ls", "--all", "--no-trunc", "--quiet"]
+      : ["volume", "ls", "--quiet"];
   const values = text(run(runner, "docker", args, options).stdout).split(/\r?\n/u).filter(Boolean);
-  const pattern = kind === "image" ? IMAGE_ID : CONTAINER_ID;
+  const pattern = kind === "image" ? IMAGE_ID : kind === "container" ? CONTAINER_ID
+    : /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u;
   if (values.some((value) => !pattern.test(value))) fail("postgres_candidate_publish_local_inventory_invalid");
   return [...new Set(values)].sort();
 }
@@ -227,9 +229,18 @@ export function validateBaseManifest(raw, expectedDigest = lockJson.base.platfor
     }],
   ]);
   const media = manifestMediaTypes.get(manifest?.mediaType);
-  if (!exactKeys(manifest, ["schemaVersion", "mediaType", "config", "layers"])
+  const annotations = manifest?.annotations;
+  const annotationKeys = annotations && typeof annotations === "object" && !Array.isArray(annotations)
+    ? Object.keys(annotations) : [];
+  if (!exactKeys(manifest, ["schemaVersion", "mediaType", "config", "layers",
+    ...(annotations === undefined ? [] : ["annotations"])])
     || manifest.schemaVersion !== 2 || !DIGEST.test(expectedDigest ?? "")
     || `sha256:${sha256(Buffer.from(raw, "utf8"))}` !== expectedDigest || !media
+    || annotations !== undefined && (manifest.mediaType !== "application/vnd.oci.image.manifest.v1+json"
+      || annotationKeys.length < 1 || annotationKeys.length > 16
+      || annotationKeys.some((key) => key.length < 1 || key.length > 128 || /[^\x20-\x7e]/u.test(key)
+        || typeof annotations[key] !== "string" || annotations[key].length > 512
+        || /[^\x20-\x7e]/u.test(annotations[key])))
     || !exactKeys(manifest.config, ["mediaType", "digest", "size"]) || manifest.config.mediaType !== media.config
     || manifest.config.digest !== lockJson.base.configId || !Number.isSafeInteger(manifest.config.size)
     || manifest.config.size < 1 || manifest.config.size > MAX_OUTPUT_BYTES
@@ -316,11 +327,16 @@ function validateStoppedContainer(raw, expected) {
   const container = Array.isArray(value) && value.length === 1 ? value[0] : undefined;
   if (!container || (expected.id !== undefined && container.Id !== expected.id) || !CONTAINER_ID.test(container.Id ?? "")
     || container.Name !== `/${expected.name}`
+    || container.Image !== expected.imageId
     || container.Config?.Labels?.[OWNER_LABEL] !== expected.nonce
     || container.Config?.Labels?.[PURPOSE_LABEL] !== PURPOSE || container.State?.Status !== "created"
     || container.State?.Running !== false || container.HostConfig?.NetworkMode !== "none"
     || container.HostConfig?.ReadonlyRootfs !== true || !container.HostConfig?.CapDrop?.includes("ALL")
-    || !container.HostConfig?.SecurityOpt?.includes("no-new-privileges=true")) {
+    || !container.HostConfig?.SecurityOpt?.includes("no-new-privileges=true")
+    || container.HostConfig?.Tmpfs?.["/var/lib/postgresql/data"]
+      !== "rw,nosuid,nodev,noexec,size=16777216,mode=0700"
+    || Object.keys(container.HostConfig?.Tmpfs ?? {}).length !== 1
+    || !Array.isArray(container.Mounts) || container.Mounts.some((mount) => mount.Type === "volume")) {
     fail("postgres_candidate_publish_container_invalid");
   }
   return { id: container.Id, name: expected.name };
@@ -332,7 +348,10 @@ function validateBootstrap(raw) {
 }
 function anonymousDenied(result) {
   if (result.error || result.signal) fail("postgres_candidate_publish_anonymous_check_failed");
-  const value = classifyAnonymousRemoteRead({ status: result.status, stdout: text(result.stdout), stderr: text(result.stderr) });
+  let value;
+  try {
+    value = classifyAnonymousRemoteRead({ status: result.status, stdout: text(result.stdout), stderr: text(result.stderr) });
+  } catch { fail("postgres_candidate_publish_anonymous_check_failed"); }
   if (value !== "AUTHORIZATION_DENIED") fail("postgres_candidate_publish_anonymous_check_failed");
   return value;
 }
@@ -366,7 +385,7 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
     requireDirectory(context.runnerTemp, runnerTempIdentity); requireDirectory(work, workIdentity);
     const remaining = deadline - now() - (cleanup ? 0 : CLEANUP_RESERVE_MS);
     if (remaining < 1_000) fail(cleanup ? "postgres_candidate_publish_cleanup_timeout" : "postgres_candidate_publish_timeout");
-    return { cwd: context.workspace, env: cleanEnvironment(env, dockerConfig, work), encoding,
+    return { cwd: context.workspace, env: cleanEnvironment(dockerConfig, work), encoding,
       timeout: Math.min(cleanup ? CLEANUP_TIMEOUT_MS : COMMAND_TIMEOUT_MS, remaining) };
   };
   const receipt = { schemaVersion: 1, kind: "POSTGRES_GOSU_CANDIDATE_PUBLISH_V1", state: "PREPARING",
@@ -383,7 +402,7 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
   const localTag = `aw-postgres-gosu:${nonce}`;
   const remoteTag = `candidate-${context.runId}-attempt-1`;
   const remoteReference = `${POSTGRES_CANDIDATE_PUBLISH.image}:${remoteTag}`;
-  let baselineImages; let baselineContainers; let baseAdded = false; let basePullAttempted = false;
+  let baselineImages; let baselineContainers; let baselineVolumes; let baseAdded = false; let basePullAttempted = false;
   let candidateId; let candidateBuildAttempted = false; let remoteTagCreated = false; let pushAttempted = false;
   let baseInspect; let candidateInspect;
   const attemptedContainers = new Map(); let primaryFailure;
@@ -402,12 +421,14 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
     });
     await phase("local_collision_and_inventory", () => {
       baselineImages = inventory(runner, options(), "image"); baselineContainers = inventory(runner, options(), "container");
+      baselineVolumes = inventory(runner, options(), "volume");
       for (const ref of [localTag, remoteReference]) {
         if (!absent(observe(runner, "docker", ["image", "inspect", ref], options()), "image", ref)) {
           fail("postgres_candidate_publish_local_collision");
         }
       }
-      receipt.localInventoryBefore = { images: baselineImages.length, containers: baselineContainers.length };
+      receipt.localInventoryBefore = { images: baselineImages.length, containers: baselineContainers.length,
+        volumes: baselineVolumes.length };
     });
     const baseRef = `${receipt.code.lock.base.repository}@${receipt.code.lock.base.platformDigest}`;
     const baseRaw = await phase("exact_public_base_manifest", () => {
@@ -450,15 +471,15 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
         fail("postgres_candidate_publish_image_ownership_uncertain");
       }
     });
-    const exportRootfs = async (kind, image) => phase(`${kind}_stopped_container_export`, () => {
-      const name = `aw-pg-candidate-${nonce}-${kind}`;
+    const exportRootfs = async (kind, image, imageId) => phase(`${kind}_stopped_container_export`, () => {
+      const name = `aw-pg-gosu-${nonce}-${kind}-export`;
       attemptedContainers.set(name, undefined);
-      const create = run(runner, "docker", ["create", "--name", name, "--label", `${OWNER_LABEL}=${nonce}`,
-        "--label", `${PURPOSE_LABEL}=${PURPOSE}`, "--network", "none", "--read-only", "--cap-drop", "ALL",
-        "--security-opt", "no-new-privileges=true", "--entrypoint", "/bin/true", image], options());
+      const create = run(runner, "docker", ephemeralContainerArguments({ name, image, nonce,
+        entrypoint: "/bin/true" }), options());
       const id = text(create.stdout).trim(); if (!CONTAINER_ID.test(id)) fail("postgres_candidate_publish_container_invalid");
       attemptedContainers.set(name, id);
-      validateStoppedContainer(run(runner, "docker", ["container", "inspect", id], options()).stdout, { id, name, nonce });
+      validateStoppedContainer(run(runner, "docker", ["container", "inspect", id], options()).stdout,
+        { id, name, nonce, imageId });
       const added = inventory(runner, options(), "container").filter((item) => !baselineContainers.includes(item));
       if (added.length !== attemptedContainers.size || !added.includes(id)) {
         fail("postgres_candidate_publish_container_ownership_uncertain");
@@ -467,8 +488,8 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
       run(runner, "docker", ["export", "--output", file, id], options());
       return { file, identity: fileIdentity(file) };
     });
-    const baseExport = await exportRootfs("base", baseRef);
-    const candidateExport = await exportRootfs("candidate", localTag);
+    const baseExport = await exportRootfs("base", baseRef, receipt.base.imageId);
+    const candidateExport = await exportRootfs("candidate", localTag, candidateId);
     receipt.filesystem = await phase("filesystem_policy", async () => {
       const verified = await filesystemVerifier({
       baseFile: baseExport.file, candidateFile: candidateExport.file, baseIdentity: baseExport.identity,
@@ -530,12 +551,13 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
         expectedLayers: 12, baseLayers: baseRaw.proof.layers });
       if (!same(verified, receipt.remote)) fail("postgres_candidate_publish_remote_digest_mismatch");
     });
+    receipt.publication = "PUBLISHED_UNADMITTED"; receipt.state = "PUBLISHED_UNADMITTED";
     receipt.pushResponse = pushResult.error || pushResult.signal || pushResult.status !== 0
       ? "FAILED_BUT_REMOTE_EXACT_SUBJECT_CONFIRMED" : "SUCCESS";
     await phase("anonymous_candidate_denied", () => anonymousDenied(observe(runner, "docker",
       ["buildx", "imagetools", "inspect", "--raw", receipt.subject],
       options())));
-    receipt.publication = "PUBLISHED_UNADMITTED"; receipt.state = "PUBLISHED_UNADMITTED"; receipt.result = "PASSED";
+    receipt.result = "PASSED";
   } catch (error) { primaryFailure = error; }
 
   const cleanupStarted = now(); const cleanupFailures = [];
@@ -543,13 +565,14 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
     try {
       const inspected = observe(runner, "docker", ["container", "inspect", name], options(authConfig, true));
       if (absent(inspected, "container", name)) continue;
-      const proven = validateStoppedContainer(inspected.stdout, { id: recordedId, name, nonce });
+      const proven = validateStoppedContainer(inspected.stdout, { id: recordedId, name, nonce,
+        imageId: name.endsWith("-base-export") ? receipt.base?.imageId : candidateId });
       const id = proven.id;
       const added = inventory(runner, options(authConfig, true), "container").filter((item) => !baselineContainers.includes(item));
       if (!added.includes(id) || added.some((item) => ![...attemptedContainers.values()].includes(item))) {
         fail("postgres_candidate_publish_container_ownership_uncertain");
       }
-      const removed = observe(runner, "docker", ["rm", id], options(authConfig, true));
+      const removed = observe(runner, "docker", ["rm", "--volumes", id], options(authConfig, true));
       if ((removed.error || removed.signal || removed.status !== 0)
         && !absent(observe(runner, "docker", ["container", "inspect", id], options(authConfig, true)), "container", id)) {
         fail("postgres_candidate_publish_container_cleanup_failed");
@@ -633,6 +656,9 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
     }
     if (baselineImages && !same(inventory(runner, options(authConfig, true), "image"), baselineImages)) {
       fail("postgres_candidate_publish_image_cleanup_uncertain");
+    }
+    if (baselineVolumes && !same(inventory(runner, options(authConfig, true), "volume"), baselineVolumes)) {
+      fail("postgres_candidate_publish_volume_cleanup_uncertain");
     }
   } catch (error) { cleanupFailures.push(fixedReason(error)); }
   receipt.phases.push({ name: "owned_docker_cleanup", result: cleanupFailures.length ? "FAILED" : "PASSED",

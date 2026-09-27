@@ -20,7 +20,8 @@ const descriptors = baseLayers.map((digest, index) => ({
   mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest, size: 1_000 + index,
 }));
 const baseManifest = JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
-  config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: baseId, size: 4_000 }, layers: descriptors });
+  config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: baseId, size: 4_000 }, layers: descriptors,
+  annotations: { "org.opencontainers.image.version": "17.11-alpine3.24" } });
 const remoteManifest = JSON.stringify({ schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
   config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: candidateId, size: 5_000 },
   layers: [...descriptors, { mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: `sha256:${"e".repeat(64)}`, size: 2_001 },
@@ -58,7 +59,8 @@ function inspectCandidate(nonce) {
 }
 
 function fake(item, { protectedMain = true, protectedSequence, pushFails = false, pushFailsButPublishes = false,
-  injectForeignImage = false, orphanBaseId = false } = {}) {
+  injectForeignImage = false, orphanBaseId = false, candidateAnonymous = "denied",
+  substituteExportImage = false, inheritedVolumeMount = false } = {}) {
   const events = []; const containers = new Map(); let basePresent = orphanBaseId; let baseRefPresent = false;
   let candidatePresent = false;
   let pushed = false; let tagged = false; let foreignPresent = false; let createCounter = 0;
@@ -86,9 +88,14 @@ function fake(item, { protectedMain = true, protectedSequence, pushFails = false
     if (args[0] === "buildx" && args[1] === "version") return { status: 0, stdout: "github.com/docker/buildx v0.37.1", stderr: "" };
     if (args[0] === "image" && args[1] === "ls") return { status: 0, stdout: `${imageInventory().join("\n")}${imageInventory().length ? "\n" : ""}`, stderr: "" };
     if (args[0] === "container" && args[1] === "ls") return { status: 0, stdout: `${[...containers.keys()].join("\n")}${containers.size ? "\n" : ""}`, stderr: "" };
+    if (args[0] === "volume" && args[1] === "ls") return { status: 0, stdout: "", stderr: "" };
     if (args[0] === "buildx" && args[1] === "imagetools") {
       const ref = args.at(-1); const anonymous = options.env.DOCKER_CONFIG.includes("docker-anonymous");
       if (ref === `postgres@${lock.base.platformDigest}`) return { status: 0, stdout: baseManifest, stderr: "" };
+      if (anonymous && pushed && ref.startsWith(`${POSTGRES_CANDIDATE_PUBLISH.image}@sha256:`)) {
+        if (candidateAnonymous === "public") return { status: 0, stdout: remoteManifest, stderr: "" };
+        if (candidateAnonymous === "ambiguous") return { status: 1, stdout: "", stderr: "temporary failure" };
+      }
       if (anonymous) return { status: 1, stdout: "", stderr: "unauthorized: authentication required" };
       if (ref.includes("@sha256:9ee2")) return { status: 0, stdout: "bootstrap-raw", stderr: "" };
       if (ref === remoteReference) return pushed
@@ -111,16 +118,21 @@ function fake(item, { protectedMain = true, protectedSequence, pushFails = false
     }
     if (args[0] === "create") {
       createCounter += 1; const id = String(createCounter).repeat(64); const name = args[args.indexOf("--name") + 1];
-      containers.set(id, { name }); return { status: 0, stdout: `${id}\n`, stderr: "" };
+      const imageId = substituteExportImage ? `sha256:${"9".repeat(64)}`
+        : args.at(-1) === `postgres@${lock.base.platformDigest}` ? baseId : candidateId;
+      containers.set(id, { name, imageId }); return { status: 0, stdout: `${id}\n`, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "inspect") {
       const ref = args.at(-1); const entry = containers.get(ref) ?? [...containers.entries()].find(([, value]) => value.name === ref)?.[1];
       const id = containers.has(ref) ? ref : [...containers.entries()].find(([, value]) => value.name === ref)?.[0];
       if (!entry) return { status: 1, stdout: "", stderr: `Error: No such container: ${ref}` };
-      return { status: 0, stdout: JSON.stringify([{ Id: id, Name: `/${entry.name}`, State: { Status: "created", Running: false },
+      return { status: 0, stdout: JSON.stringify([{ Id: id, Name: `/${entry.name}`, Image: entry.imageId,
+        State: { Status: "created", Running: false }, Mounts: inheritedVolumeMount
+          ? [{ Type: "volume", Destination: "/var/lib/postgresql/data" }] : [],
         Config: { Labels: { "com.auto-world.postgres-diagnostic": nonce,
           "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime" } },
-        HostConfig: { NetworkMode: "none", ReadonlyRootfs: true, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges=true"] } }]), stderr: "" };
+        HostConfig: { NetworkMode: "none", ReadonlyRootfs: true, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges=true"],
+          Tmpfs: { "/var/lib/postgresql/data": "rw,nosuid,nodev,noexec,size=16777216,mode=0700" } } }]), stderr: "" };
     }
     if (args[0] === "export") { writeFileSync(args[args.indexOf("--output") + 1], "rootfs"); return { status: 0, stdout: "", stderr: "" }; }
     if (args[0] === "image" && args[1] === "save") { writeFileSync(args[args.indexOf("--output") + 1], "archive"); return { status: 0, stdout: "", stderr: "" }; }
@@ -130,7 +142,7 @@ function fake(item, { protectedMain = true, protectedSequence, pushFails = false
       if (pushFailsButPublishes) { pushed = true; return { status: 1, stdout: "", stderr: "transport closed" }; }
       if (pushFails) return { status: 1, stdout: "", stderr: "transport closed" };
       pushed = true; return { status: 0, stdout: "pushed", stderr: "" }; }
-    if (args[0] === "rm") { containers.delete(args[1]); return { status: 0, stdout: args[1], stderr: "" }; }
+    if (args[0] === "rm") { containers.delete(args.at(-1)); return { status: 0, stdout: args.at(-1), stderr: "" }; }
     if (args[0] === "image" && args[1] === "rm") {
       const reference = args[2];
       if (reference === candidateId) { candidateTags.clear(); candidatePresent = false; }
@@ -173,7 +185,8 @@ test("candidate publisher arguments and GitHub context are closed", () => {
     assert.deepEqual(parseCandidatePublishArguments(["--output", item.output]), { output: item.output });
     assert.equal(validateCandidatePublishContext(item.env, "linux").sourceSha, sourceSha);
     for (const env of [{ ...item.env, GITHUB_RUN_NUMBER: "2" }, { ...item.env, GITHUB_RUN_ATTEMPT: "2" },
-      { ...item.env, GITHUB_JOB: "other" }, { ...item.env, GITHUB_REF: "refs/heads/dev" }]) {
+      { ...item.env, GITHUB_JOB: "other" }, { ...item.env, GITHUB_REF: "refs/heads/dev" },
+      { ...item.env, DOCKER_CONTEXT: "foreign" }]) {
       assert.throws(() => validateCandidatePublishContext(env, "linux"), /postgres_candidate_publish_/u);
     }
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
@@ -198,6 +211,16 @@ test("public base manifest is bound by raw digest and closed descriptors", () =>
   const changed = JSON.parse(baseManifest); changed.layers[0].foreign = true;
   const raw = JSON.stringify(changed); const changedDigest = `sha256:${createHash("sha256").update(raw).digest("hex")}`;
   assert.throws(() => validateBaseManifest(raw, changedDigest), /postgres_candidate_publish_base_manifest_invalid/u);
+  for (const mutate of [
+    (manifest) => { manifest.annotations = []; },
+    (manifest) => { manifest.annotations["org.opencontainers.image.version"] = "bad\nvalue"; },
+    (manifest) => { manifest.config.foreign = true; },
+  ]) {
+    const altered = JSON.parse(baseManifest); mutate(altered); const bytes = JSON.stringify(altered);
+    const alteredDigest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+    assert.throws(() => validateBaseManifest(bytes, alteredDigest),
+      /postgres_candidate_publish_base_manifest_invalid/u);
+  }
 });
 
 test("publisher builds and proves locally before login, pushes once, and cleans exact inventories", async () => {
@@ -215,6 +238,13 @@ test("publisher builds and proves locally before login, pushes once, and cleans 
     assert.ok(build > -1 && save > build && login > save); assert.equal(pushes.length, 1);
     assert.ok(commands.every((event) => !["run", "start", "exec"].includes(event.args[0])));
     assert.ok(commands.every((event) => event.env.GITHUB_TOKEN === undefined));
+    assert.ok(commands.every((event) => event.env.DOCKER_CONTEXT === undefined));
+    const creates = commands.filter((event) => event.args[0] === "create");
+    assert.equal(creates.length, 2);
+    assert.ok(creates.every((event) => event.args.includes("--tmpfs")
+      && event.args.some((arg) => arg.startsWith("/var/lib/postgresql/data:"))));
+    assert.ok(commands.some((event) => event.args[0] === "volume" && event.args[1] === "ls"));
+    assert.ok(commands.filter((event) => event.args[0] === "rm").every((event) => event.args[1] === "--volumes"));
     assert.equal(commands.find((event) => event.args[0] === "login").input, "test-registry-token\n");
     const candidateRemovals = commands.filter((event) => event.args[0] === "image" && event.args[1] === "rm"
       && [remoteReference(item), ...commands.filter((value) => value.args[0] === "build")
@@ -229,6 +259,35 @@ test("publisher builds and proves locally before login, pushes once, and cleans 
     assert.equal(JSON.stringify(disk).includes("test-registry-token"), false);
     assert.equal(JSON.stringify(disk).includes(item.runnerTemp), false);
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("anonymous public or ambiguous read fails the job without erasing a confirmed candidate write", async () => {
+  for (const candidateAnonymous of ["public", "ambiguous"]) {
+    const item = fixture(); const mocked = fake(item, { candidateAnonymous });
+    try {
+      await assert.rejects(runPostgresCandidatePublish(["--output", item.output], {
+        env: item.env, commandRunner: mocked.commandRunner, fetchImpl: mocked.fetchImpl, ...validators,
+      }), /postgres_candidate_publish_anonymous_check_failed/u);
+      const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+      assert.equal(receipt.publication, "PUBLISHED_UNADMITTED");
+      assert.equal(receipt.state, "PUBLISHED_UNADMITTED");
+      assert.equal(receipt.result, "FAILED");
+      assert.equal(receipt.phases.find((phase) => phase.name === "anonymous_candidate_denied").result, "FAILED");
+      assert.equal(mocked.events.filter((event) => event.kind === "command" && event.args[0] === "push").length, 1);
+    } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+  }
+});
+
+test("stopped export rejects substituted image and inherited PostgreSQL volume", async () => {
+  for (const options of [{ substituteExportImage: true }, { inheritedVolumeMount: true }]) {
+    const item = fixture(); const mocked = fake(item, options);
+    try {
+      await assert.rejects(runPostgresCandidatePublish(["--output", item.output], {
+        env: item.env, commandRunner: mocked.commandRunner, fetchImpl: mocked.fetchImpl, ...validators,
+      }), /postgres_candidate_publish_container_invalid/u);
+      assert.equal(mocked.events.some((event) => event.kind === "command" && event.args[0] === "push"), false);
+    } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+  }
 });
 
 test("unprotected main rejects before Docker credentials or publication", async () => {
