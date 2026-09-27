@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { buildFixtureTar } from "../scripts/image-import-fixture/archive.mjs";
 
 import { candidateInputDockerArguments } from "../scripts/seaweed-image/candidate-audit.mjs";
 import { authenticatePostgresCodeBundle, executePostgresScan, parsePostgresScanArguments, postgresOwnedContainerArguments,
@@ -16,6 +17,7 @@ const lock = JSON.parse(lockBytes);
 const dockerfileBytes = readFileSync(new URL("../infra/postgres-image/Dockerfile", import.meta.url));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const imageId = `sha256:${"1".repeat(64)}`;
+const parentImage = `sha256:${"0".repeat(64)}`;
 const baseDiffIds = [`sha256:${"2".repeat(64)}`];
 const diffIds = [...baseDiffIds, `sha256:${"3".repeat(64)}`];
 const archiveSha256 = "4".repeat(64);
@@ -31,9 +33,9 @@ const phaseNames = ["DOCKER_PREFLIGHT", "BASE_IDENTITY", "CANDIDATE_BUILD", "CAN
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 function evidenceFixture() {
-  const baseConfig = { User: "", Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"],
+  const baseConfig = { Image: "", User: "", Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"],
     Env: ["PG_MAJOR=17"], Labels: { "org.opencontainers.image.source": "postgres" } };
-  const candidateConfig = { Cmd: ["postgres"], Entrypoint: ["docker-entrypoint.sh"], User: "",
+  const candidateConfig = { Image: parentImage, Cmd: ["postgres"], Entrypoint: ["docker-entrypoint.sh"], User: "",
     Env: ["PG_MAJOR=17"], Labels: { ...baseConfig.Labels, ...labels } };
   const archiveEvidence = { artifactName: "/candidate/saved.tar", imageId, archiveSha256,
     tag: `aw-postgres-gosu:${nonce}`, configDigest: imageId, diffIds };
@@ -63,10 +65,11 @@ function evidenceFixture() {
       },
       phases: phaseNames.map((name, durationMs) => ({ name, result: "PASSED", durationMs })),
     },
-    baseInspect: [{ Id: lock.base.configId, Os: lock.base.os, Architecture: lock.base.architecture,
+    baseInspect: [{ Id: lock.base.configId, Parent: "", Os: lock.base.os, Architecture: lock.base.architecture,
       RepoDigests: [`${lock.base.repository}@${lock.base.platformDigest}`], RootFS: { Layers: baseDiffIds },
       Config: baseConfig }],
-    candidateInspect: [{ Id: imageId, Os: lock.base.os, Architecture: lock.base.architecture,
+    candidateInspect: [{ Id: imageId, Parent: parentImage, DockerVersion: lock.docker.serverVersion,
+      Os: lock.base.os, Architecture: lock.base.architecture,
       RootFS: { Layers: diffIds }, Config: candidateConfig }],
     archiveIdentity: { path: "/private/candidate-image.tar", sha256: archiveSha256, size: 1234, cap: 1024 ** 3 },
     baseRootfsIdentity: { path: "/private/base-rootfs.tar", sha256: baseRootfsSha256, size: 2345, cap: 1024 ** 3 },
@@ -107,6 +110,9 @@ test("diagnostic evidence binds the complete builder receipt and committed Postg
     (value) => { value.candidateInspect[0].Id = `sha256:${"9".repeat(64)}`; },
     (value) => { value.candidateInspect[0].RootFS.Layers.reverse(); },
     (value) => { value.candidateInspect[0].Config.Cmd = ["postgres", "-c", "fsync=off"]; },
+    (value) => { value.candidateInspect[0].Config.Image = imageId; },
+    (value) => { delete value.candidateInspect[0].Parent; },
+    (value) => { value.candidateInspect[0].DockerVersion = "28.0.5"; },
     (value) => { value.candidateInspect[0].Config.Labels.foreign = "unexpected"; },
     (value) => { value.receipt.runtime.secondProcess.uid = 0; },
     (value) => { value.receipt.runtime.cleanup = "INCOMPLETE"; },
@@ -273,4 +279,41 @@ test("execution refuses non-root, non-Linux, and credential-bearing environments
     /postgres_scan_requires_linux_root/u);
   await assert.rejects(executePostgresScan(context, { runtime: { platform: "linux", uid: 0, gid: 0 },
     environment: { GITHUB_TOKEN: "not-recorded" } }), /postgres_scan_auth_environment_refused/u);
+});
+
+test("the native filesystem gate rejects unrelated rootfs content before scanner authentication or Docker", {
+  skip: process.platform !== "linux" ? "private directory ownership gate requires Linux" : false,
+}, async () => {
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "aw-pg-filesystem-gate-")));
+  const context = Object.fromEntries(["diagnostic", "scannerInputs", "work", "output"].map((name) => [name, path.join(root, name)]));
+  try {
+    for (const directory of [context.diagnostic, context.scannerInputs]) {
+      mkdirSync(directory, { mode: 0o700 }); chmodSync(directory, 0o700);
+    }
+    const value = evidenceFixture(); const tar = buildFixtureTar(); const digest = sha256(tar);
+    const identity = { sha256: digest, bytes: tar.length };
+    value.receipt.candidate.archive = clone(identity); value.receipt.candidate.rootfs = clone(identity);
+    value.receipt.baseExport.rootfs = clone(identity); value.receipt.archiveEvidence.archiveSha256 = digest;
+    value.receipt.startedAt = new Date(Date.now() - 60_000).toISOString();
+    value.receipt.completedAt = new Date(Date.now() - 30_000).toISOString();
+    for (const name of ["candidate-image.tar", "base-rootfs.tar", "candidate-rootfs.tar"]) {
+      writeFileSync(path.join(context.diagnostic, name), tar, { mode: 0o600 });
+    }
+    for (const [name, data] of [["receipt.json", value.receipt], ["base-inspect.json", value.baseInspect],
+      ["candidate-inspect.json", value.candidateInspect]]) {
+      writeFileSync(path.join(context.diagnostic, name), JSON.stringify(data), { mode: 0o600 });
+    }
+    let scannerCalls = 0; let dockerCalls = 0;
+    const codeFile = path.join(context.diagnostic, "receipt.json"); const codeBytes = readFileSync(codeFile);
+    const codeSnapshot = { path: codeFile, sha256: sha256(codeBytes), size: codeBytes.length, cap: 4 * 1024 ** 2 };
+    await assert.rejects(executePostgresScan(context, { runtime: { platform: "linux", uid: 0, gid: 0 }, environment: {},
+      codeBundle: () => ({ revision: "8".repeat(40), files: [codeSnapshot], snapshots: [codeSnapshot] }),
+      scannerPair: () => { scannerCalls += 1; throw new Error("scanner_reached"); },
+      command: () => { dockerCalls += 1; throw new Error("docker_reached"); },
+    }), /postgres_gosu_filesystem_policy_invalid/u);
+    assert.equal(scannerCalls, 0); assert.equal(dockerCalls, 0);
+    const receipt = JSON.parse(readFileSync(path.join(context.output, "audit-receipt.json")));
+    assert.equal(receipt.phase, "FILESYSTEM_DELTA"); assert.equal(receipt.state, "INCOMPLETE");
+    assert.equal(receipt.workCleanup, "COMPLETE"); assert.equal(existsSync(context.work), false);
+  } finally { rmSync(root, { recursive: true }); }
 });

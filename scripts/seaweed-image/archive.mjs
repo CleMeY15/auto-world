@@ -103,7 +103,17 @@ function validateLinkTarget(path, linkname) {
   if (stack.length === 0) throw archiveError("seaweed_archive_tar_link_invalid");
 }
 
-function parseHeader(block, maximumSize) {
+function canonicalHardlinkTarget(linkname) {
+  try {
+    const target = canonicalPath(linkname, false);
+    if (target !== linkname) throw archiveError("seaweed_archive_tar_link_invalid");
+    return target;
+  } catch {
+    throw archiveError("seaweed_archive_tar_link_invalid");
+  }
+}
+
+function parseHeader(block, maximumSize, allowHardlinks) {
   if (!block.subarray(257, 263).equals(Buffer.from("ustar\0"))
     || !block.subarray(263, 265).equals(Buffer.from("00"))) {
     throw archiveError("seaweed_archive_tar_format_invalid");
@@ -116,7 +126,8 @@ function parseHeader(block, maximumSize) {
     throw archiveError("seaweed_archive_tar_checksum_invalid");
   }
   const typeFlag = String.fromCharCode(block[156]);
-  const type = typeFlag === "0" ? "file" : typeFlag === "2" ? "symlink" : typeFlag === "5" ? "directory" : null;
+  const type = typeFlag === "0" ? "file" : typeFlag === "2" ? "symlink" : typeFlag === "5" ? "directory"
+    : typeFlag === "1" && allowHardlinks ? "hardlink" : null;
   if (type === null) throw archiveError("seaweed_archive_tar_type_invalid");
   const name = parseString(block, 0, 100);
   const prefix = parseString(block, 345, 155);
@@ -133,19 +144,23 @@ function parseHeader(block, maximumSize) {
     || parseOctal(block, 337, 8, { allowEmpty: true }) !== 0) {
     throw archiveError("seaweed_archive_tar_header_invalid");
   }
-  if ((type !== "file" && size !== 0) || (type !== "symlink" && linkname !== "")) {
+  if ((type !== "file" && size !== 0) || (!["symlink", "hardlink"].includes(type) && linkname !== "")) {
     throw archiveError("seaweed_archive_tar_header_invalid");
   }
   if (type === "symlink") validateLinkTarget(path, linkname);
-  return { path, type, mode, uid, gid, mtime, size, ...(type === "symlink" ? { linkname } : {}) };
+  const validatedLinkname = type === "hardlink" ? canonicalHardlinkTarget(linkname) : linkname;
+  return { path, type, mode, uid, gid, mtime, size,
+    ...(["symlink", "hardlink"].includes(type) ? { linkname: validatedLinkname } : {}) };
 }
 
 class TarScanner {
-  constructor({ maxRawBytes, maxMembers }) {
+  constructor({ maxRawBytes, maxMembers, allowHardlinks = false }) {
     this.maxRawBytes = maxRawBytes;
     this.maxMembers = maxMembers;
+    this.allowHardlinks = allowHardlinks;
     this.members = [];
     this.names = new Set();
+    this.entries = new Map();
     this.header = Buffer.alloc(BLOCK_BYTES);
     this.headerBytes = 0;
     this.rawOffset = 0;
@@ -195,9 +210,17 @@ class TarScanner {
       return;
     }
     if (this.eoaBlocks !== 0) throw archiveError("seaweed_archive_tar_eoa_invalid");
-    const entry = parseHeader(this.header, this.maxRawBytes);
+    const entry = parseHeader(this.header, this.maxRawBytes, this.allowHardlinks);
     if (this.names.has(entry.path)) throw archiveError("seaweed_archive_tar_duplicate_invalid");
+    if (entry.type === "hardlink") {
+      const target = this.entries.get(entry.linkname);
+      if (!target || target.type !== "file" ||
+          ["mode", "uid", "gid", "mtime"].some((field) => entry[field] !== target[field])) {
+        throw archiveError("seaweed_archive_tar_link_invalid");
+      }
+    }
     this.names.add(entry.path);
+    this.entries.set(entry.path, entry);
     if (this.members.length >= this.maxMembers) throw archiveError("seaweed_archive_tar_member_limit");
     const member = {
       memberOrdinal: this.members.length,
@@ -291,7 +314,8 @@ export async function scanGzipLayer({ input, descriptor, diffId, maxRawBytes = M
   }
 }
 
-export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES, maxMembers = MAX_MEMBERS, signal } = {}) {
+export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES, maxMembers = MAX_MEMBERS, signal,
+  allowHardlinks = false } = {}) {
   if (input === null || typeof input !== "object" || typeof input.pipe !== "function" || typeof input.destroy !== "function") {
     throw archiveError("seaweed_archive_input_invalid");
   }
@@ -299,12 +323,13 @@ export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES,
     requireDigest(diffId, "seaweed_archive_diffid_invalid");
     requireLimit(maxRawBytes, MAX_RAW_BYTES, "seaweed_archive_limit_invalid");
     requireLimit(maxMembers, MAX_MEMBERS, "seaweed_archive_limit_invalid");
+    if (typeof allowHardlinks !== "boolean") throw archiveError("seaweed_archive_hardlink_option_invalid");
     if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
       throw archiveError("seaweed_archive_signal_invalid");
     }
     let rawSize = 0;
     const rawHash = createHash("sha256");
-    const scanner = new TarScanner({ maxRawBytes, maxMembers });
+    const scanner = new TarScanner({ maxRawBytes, maxMembers, allowHardlinks });
     const rawSink = new Writable({
       write(chunk, _encoding, callback) {
         try {

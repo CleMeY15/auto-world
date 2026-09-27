@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 import { evaluateLocalPostgresGosuAudit } from "./audit-policy.mjs";
+import { verifyPostgresFilesystem } from "./filesystem.mjs";
+import { validatePostgresConfigDelta } from "./evidence.mjs";
 import { baselineFixtureArguments, candidateDockerArguments, databaseDownloadDockerArguments, databaseEvidence,
   fixtureScanMode, validateDatabaseRegistryManifest, versionProbeBytes } from "../scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, readBoundedJson,
@@ -148,14 +150,8 @@ export function writePostgresCommandFailureEvidence(directory, ordinal,
     stderr: Object.freeze({ file: `command-failures/${stderrName}`, sha256: hash(stderr), size: stderr.length }) });
 }
 
-function sameConfigExceptLabels(base, candidate, additions) {
-  if (!plain(base) || !plain(candidate) || !plain(additions)) return false;
-  const baseLabels = base.Labels ?? {};
-  const candidateLabels = candidate.Labels ?? {};
-  if (!plain(baseLabels) || !plain(candidateLabels) || Object.keys(additions).some((key) => Object.hasOwn(baseLabels, key))) return false;
-  const before = { ...base }; const after = { ...candidate };
-  delete before.Labels; delete after.Labels;
-  return isDeepStrictEqual(before, after) && isDeepStrictEqual(candidateLabels, { ...baseLabels, ...additions });
+function sameConfigExceptLabels(base, candidate, additions, parentImage) {
+  try { validatePostgresConfigDelta(base, candidate, additions, parentImage); return true; } catch { return false; }
 }
 
 function strictTimestamp(value) {
@@ -224,7 +220,8 @@ export function validatePostgresDiagnosticEvidence({ receipt, baseInspect, candi
       !recordedIdentity(recorded.archive, archiveIdentity) || !recordedIdentity(recorded.rootfs, candidateRootfsIdentity) ||
       !exactKeys(labels, [OWNER_LABEL, PURPOSE_LABEL]) || !NONCE.test(labels[OWNER_LABEL] ?? "") ||
       recorded.tag !== `aw-postgres-gosu:${labels[OWNER_LABEL]}` || labels[PURPOSE_LABEL] !== PURPOSE ||
-      !sameConfigExceptLabels(base.Config, candidate.Config, labels) ||
+      base.Parent !== "" || !DIGEST.test(candidate.Parent ?? "") || candidate.DockerVersion !== lock.docker.serverVersion ||
+      !sameConfigExceptLabels(base.Config, candidate.Config, labels, candidate.Parent) ||
       !exactKeys(evidence, ["artifactName", "imageId", "archiveSha256", "tag", "configDigest", "diffIds"]) ||
       evidence.artifactName !== INPUT_NAME || evidence.imageId !== recorded.imageId || evidence.configDigest !== recorded.configDigest ||
       evidence.archiveSha256 !== archiveIdentity.sha256 || evidence.tag !== recorded.tag || !isDeepStrictEqual(evidence.diffIds, candidateDiffIds) ||
@@ -473,9 +470,20 @@ export async function executePostgresScan(context, dependencies = {}) {
       baseRootfs: { sha256: baseRootfsOriginal.sha256, size: baseRootfsOriginal.size },
       candidateRootfs: { sha256: candidateRootfsOriginal.sha256, size: candidateRootfsOriginal.size } };
     const inputSnapshots = [archiveOriginal, baseRootfsOriginal, candidateRootfsOriginal,
-      { path: diagnosticReceiptFile, cap: 4 * MiB, ...diagnosticReceiptRecord.identity },
-      { path: baseInspectFile, cap: 4 * MiB, ...baseInspectRecord.identity },
-      { path: candidateInspectFile, cap: 4 * MiB, ...candidateInspectRecord.identity }];
+      { path: diagnosticReceiptFile, ...diagnosticReceiptRecord.identity, cap: 4 * MiB },
+      { path: baseInspectFile, ...baseInspectRecord.identity, cap: 4 * MiB },
+      { path: candidateInspectFile, ...candidateInspectRecord.identity, cap: 4 * MiB }];
+    await assertFilesUnchanged(inputSnapshots);
+    receipt.phase = "FILESYSTEM_DELTA";
+    const filesystem = await verifyPostgresFilesystem({ baseFile: baseRootfsFile, candidateFile: candidateRootfsFile,
+      baseIdentity: baseRootfsOriginal, candidateIdentity: candidateRootfsOriginal,
+      baseConfig: baseInspect[0].Config, candidateConfig: candidateInspect[0].Config,
+      additionalLabels: verified.additionalLabels, parentImage: candidateInspect[0].Parent,
+      startedAt: diagnosticReceipt.startedAt, completedAt: diagnosticReceipt.completedAt });
+    const filesystemFile = path.join(context.output, "filesystem-evidence.json");
+    writeFileSync(filesystemFile, `${JSON.stringify(filesystem, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    receipt.filesystem = { ...filesystem.result, evidence: identity(filesystemFile, 32 * MiB) };
+    inputSnapshots.push({ path: filesystemFile, ...receipt.filesystem.evidence, cap: 32 * MiB });
     await assertFilesUnchanged(inputSnapshots);
     receipt.phase = "SCANNER_PAIR";
     const pair = await scannerPair(context.scannerInputs, context.work);

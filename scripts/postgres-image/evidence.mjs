@@ -8,6 +8,9 @@ const GOSU_NEW_ENTRY = Object.freeze({
 });
 const SAFE_PATH = /^(?!\/)(?!.*(?:^|\/)\.\.?($|\/))(?!.*\\)(?!.*\/\/)[\x21-\x7e]+(?<!\/)$/u;
 const APK_PATH = /^(?:etc\/apk\/world|lib\/apk\/db\/(?:installed|scripts\.tar|triggers))$/u;
+const MTIME_PATHS = new Set([".dockerenv", "dev", "dev/console", "dev/pts", "dev/shm", "etc", "etc/hostname",
+  "etc/hosts", "etc/mtab", "etc/resolv.conf", "tmp", "lib/apk/db/scripts.tar.gz", "lib/apk/db/triggers",
+  "etc/apk", "lib/apk/db", "usr/bin", "usr/local/bin"]);
 
 function invalid(check) {
   const error = new Error("postgres_gosu_filesystem_delta_invalid");
@@ -25,15 +28,16 @@ function exactKeys(value, keys) {
 }
 
 function validateEntry(entry) {
-  if (!object(entry) || !SAFE_PATH.test(entry.path ?? "") || !["file", "directory", "symlink"].includes(entry.type) ||
+  if (!object(entry) || !SAFE_PATH.test(entry.path ?? "") || !["file", "directory", "symlink", "hardlink"].includes(entry.type) ||
       !Number.isSafeInteger(entry.mode) || entry.mode < 0 || entry.mode > 0o7777 ||
       !Number.isSafeInteger(entry.uid) || entry.uid < 0 || !Number.isSafeInteger(entry.gid) || entry.gid < 0 ||
       !Number.isSafeInteger(entry.mtime) || entry.mtime < 0 || !Number.isSafeInteger(entry.size) || entry.size < 0) invalid("entry_shape");
   const keys = entry.type === "file" ? ["path", "type", "mode", "uid", "gid", "mtime", "size", "sha256"]
-    : entry.type === "symlink" ? ["path", "type", "mode", "uid", "gid", "mtime", "size", "linkname"]
+    : ["symlink", "hardlink"].includes(entry.type) ? ["path", "type", "mode", "uid", "gid", "mtime", "size", "linkname"]
       : ["path", "type", "mode", "uid", "gid", "mtime", "size"];
   if (!exactKeys(entry, keys) || (entry.type === "file" && !/^[a-f0-9]{64}$/u.test(entry.sha256)) ||
-      (entry.type === "symlink" && (typeof entry.linkname !== "string" || entry.linkname.length === 0))) invalid("entry_shape");
+      (["symlink", "hardlink"].includes(entry.type) && (typeof entry.linkname !== "string" || entry.linkname.length === 0)) ||
+      (entry.type === "hardlink" && (!SAFE_PATH.test(entry.linkname) || entry.size !== 0))) invalid("entry_shape");
 }
 
 function inventory(entries, check) {
@@ -42,6 +46,12 @@ function inventory(entries, check) {
   for (const entry of entries) {
     validateEntry(entry);
     if (result.has(entry.path)) invalid("duplicate_path");
+    if (entry.type === "hardlink") {
+      const target = result.get(entry.linkname);
+      if (target?.type !== "file" || ["mode", "uid", "gid", "mtime"].some((key) => target[key] !== entry[key])) {
+        invalid("hardlink_target");
+      }
+    }
     result.set(entry.path, entry);
   }
   return result;
@@ -58,7 +68,7 @@ function withoutMtime(entry) {
   return copy;
 }
 
-function validateConfig(baseConfig, candidateConfig, expectedAdditionalLabels) {
+export function validatePostgresConfigDelta(baseConfig, candidateConfig, expectedAdditionalLabels, expectedParentImage) {
   if (!object(baseConfig) || !object(candidateConfig) || !object(expectedAdditionalLabels)) invalid("config_shape");
   const labelEntries = Object.entries(expectedAdditionalLabels);
   if (labelEntries.length > 32 || labelEntries.some(([key, value]) => !key || key.length > 256 ||
@@ -72,6 +82,12 @@ function validateConfig(baseConfig, candidateConfig, expectedAdditionalLabels) {
   const candidateWithoutLabels = { ...candidateConfig };
   delete baseWithoutLabels.Labels;
   delete candidateWithoutLabels.Labels;
+  if (expectedParentImage !== undefined) {
+    if (!/^sha256:[a-f0-9]{64}$/u.test(expectedParentImage) || baseWithoutLabels.Image !== "" ||
+        candidateWithoutLabels.Image !== expectedParentImage) invalid("config_parent_image");
+    delete baseWithoutLabels.Image;
+    delete candidateWithoutLabels.Image;
+  }
   if (!isDeepStrictEqual(baseWithoutLabels, candidateWithoutLabels) ||
       !isDeepStrictEqual(candidateLabels, { ...baseLabels, ...expectedAdditionalLabels })) invalid("config_changed");
 }
@@ -99,11 +115,12 @@ function validateExpectedApkChanges(changes, base, candidate) {
 }
 
 export function validatePostgresGosuFilesystemDelta(input = {}) {
-  if (!exactKeys(input, ["baseEntries", "candidateEntries", "baseConfig", "candidateConfig", "expectedAdditionalLabels",
-    "expectedApkChanges"])) {
+  const keys = ["baseEntries", "candidateEntries", "baseConfig", "candidateConfig", "expectedAdditionalLabels", "expectedApkChanges"];
+  const optionalKeys = ["expectedMtimeChanges", "expectedParentImage"].filter((key) => Object.hasOwn(input, key));
+  if (!exactKeys(input, [...keys, ...optionalKeys])) {
     invalid("input_shape");
   }
-  validateConfig(input.baseConfig, input.candidateConfig, input.expectedAdditionalLabels);
+  validatePostgresConfigDelta(input.baseConfig, input.candidateConfig, input.expectedAdditionalLabels, input.expectedParentImage);
   const base = inventory(input.baseEntries, "base_inventory");
   const candidate = inventory(input.candidateEntries, "candidate_inventory");
   const oldGosu = base.get(GOSU_OLD);
@@ -114,14 +131,27 @@ export function validatePostgresGosuFilesystemDelta(input = {}) {
   if (!newGosu || !Object.entries(GOSU_NEW_ENTRY).every(([key, value]) => newGosu[key] === value)) invalid("new_gosu_identity");
 
   const apkPaths = validateExpectedApkChanges(input.expectedApkChanges, base, candidate);
+  const mtimePaths = new Set();
+  const mtimeChanges = input.expectedMtimeChanges ?? [];
+  if (!Array.isArray(mtimeChanges) || mtimeChanges.length > MTIME_PATHS.size) invalid("mtime_changes_shape");
+  for (const change of mtimeChanges) {
+    if (!exactKeys(change, ["path", "before", "after"]) || !MTIME_PATHS.has(change.path) || mtimePaths.has(change.path)) {
+      invalid("mtime_changes_shape");
+    }
+    validateEntry(change.before); validateEntry(change.after);
+    if (change.before.path !== change.path || change.after.path !== change.path ||
+        !isDeepStrictEqual(base.get(change.path), change.before) || !isDeepStrictEqual(candidate.get(change.path), change.after) ||
+        !isDeepStrictEqual(withoutMtime(change.before), withoutMtime(change.after))) invalid("mtime_change_identity");
+    mtimePaths.add(change.path);
+  }
   const changedPaths = new Set([GOSU_OLD, GOSU_NEW, ...apkPaths]);
   const directoryMtimePaths = new Set([...changedPaths].flatMap(ancestors));
   const allPaths = new Set([...base.keys(), ...candidate.keys()]);
   for (const path of allPaths) {
     const before = base.get(path);
     const after = candidate.get(path);
-    if (changedPaths.has(path)) continue;
-    if (before && after && directoryMtimePaths.has(path) && before.type === "directory" && after.type === "directory" &&
+    if (changedPaths.has(path) || mtimePaths.has(path)) continue;
+    if (!Object.hasOwn(input, "expectedMtimeChanges") && before && after && directoryMtimePaths.has(path) && before.type === "directory" && after.type === "directory" &&
         isDeepStrictEqual(withoutMtime(before), withoutMtime(after))) continue;
     if (!isDeepStrictEqual(before, after)) invalid(executable(before) || executable(after) ? "unexpected_executable_change" : "unexpected_filesystem_change");
   }
@@ -129,6 +159,7 @@ export function validatePostgresGosuFilesystemDelta(input = {}) {
     state: "VERIFIED_DIAGNOSTIC_DELTA", deleted: Object.freeze([GOSU_OLD]), added: Object.freeze([GOSU_NEW]),
     apkChanged: Object.freeze([...apkPaths].sort()), directoryMtimeOnly: Object.freeze([...directoryMtimePaths]
       .filter((path) => base.get(path)?.mtime !== candidate.get(path)?.mtime).sort()),
+    exportMtimeOnly: Object.freeze([...mtimePaths].filter((path) => base.get(path)?.mtime !== candidate.get(path)?.mtime).sort()),
   });
 }
 
