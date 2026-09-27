@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import test from "node:test";
 
@@ -15,12 +16,19 @@ const parent = path.resolve("aw-backup-test");
 const dockerConfig = path.resolve("aw-backup-test/docker-config");
 const archiveSha256 = "c".repeat(64);
 const archiveBytes = 10240;
+const payload = "auto-world-backup-restore-payload-v1";
+const payloadSha256 = createHash("sha256").update(payload).digest("hex");
+const persistedFid = "7,0100000000";
+const persistedMetadata = JSON.stringify({ FileSize: Buffer.byteLength(payload), Content: null,
+  chunks: [{ file_id: persistedFid, size: Buffer.byteLength(payload),
+    fid: { volume_id: 7, file_key: 1 } }] });
 
 function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestoreVolumeDuringCleanup = false,
   malformedBackupCreate = false, abortAtBackup = false, nullPortBindings = false,
   driftHelperTmpfs = false, backupHelperExitCode = 0, restoreHelperExitCode = 0,
   sourceStopExitCode = 0, privilegedHelper = false, restartedHelper = false,
-  explicitRwReadOnly = false, missingRoReadOnly = false, wrongRwReadOnly = false } = {}) {
+  explicitRwReadOnly = false, missingRoReadOnly = false, wrongRwReadOnly = false,
+  wrongLookupLocation = false } = {}) {
   const calls = []; const volumes = new Map(); const containers = new Map(); let nonce = ""; let nextId = 1;
   let restoredProbeFailed = false;
   const prefix = `aw-seaweed-backup-${runId}`;
@@ -120,6 +128,7 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
       assert.ok(args.includes("--network=none")); assert.ok(args.includes("--read-only"));
       assert.ok(args.includes("--cap-drop=ALL")); assert.ok(args.includes("--security-opt=no-new-privileges=true"));
       assert.equal(args.includes("--publish"), false); assert.equal(args.includes("--privileged"), false);
+      if (role.startsWith("service-")) assert.match(args.at(-1), /'-ip=127\.0\.0\.1'/u);
       for (const mount of mounts) assert.ok(args.includes(`type=volume,src=${mount.name},dst=${mount.destination},${mount.readOnly ? "readonly," : ""}volume-nocopy`));
       const id = String(nextId++ % 10).repeat(64);
       containers.set(name, { id, role, nonce: actualNonce, mounts, state: "created", exitCode: 0 });
@@ -144,8 +153,23 @@ function fixture({ preexistingVolume = false, restoredStatus = 0, foreignRestore
       return { status: 0, stdout, stderr: "" };
     }
     if (args[0] === "container" && args[1] === "exec") {
-      if (args.at(-1).includes("SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED")) {
+      const script = args.at(-1);
+      if (script.includes("SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED")) {
         return { status: 0, stdout: "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED\n", stderr: "" };
+      }
+      if (script.includes("AW_METADATA_V1")) {
+        return { status: 0, stdout: `AW_METADATA_V1\n0\n200\n${persistedMetadata}`, stderr: "" };
+      }
+      if (script.includes("AW_LOOKUP_V1")) {
+        return { status: 0, stdout: `AW_LOOKUP_V1\n0\n200\n${JSON.stringify({ volumeOrFileId: "7",
+          locations: [{ url: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080",
+            publicUrl: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080" }] })}`, stderr: "" };
+      }
+      if (script.includes("AW_DIRECT_V1")) {
+        return { status: 0, stdout: `AW_DIRECT_V1\n0\n200\n${Buffer.byteLength(payload)}\n${payloadSha256}\n`, stderr: "" };
+      }
+      if (!script.includes("SEAWEED_BACKUP_RESTORED_READ_VERIFIED")) {
+        return { status: 0, stdout: "", stderr: "" };
       }
       if (restoredStatus === 0) {
         return { status: 0, stdout: "SEAWEED_BACKUP_RESTORED_READ_VERIFIED\n", stderr: "" };
@@ -181,16 +205,27 @@ test("backup restore copies a stopped source through an owned archive into a fre
   assert.deepEqual(proof, TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof(
     { imageId, runId, recipeRevision }, archiveSha256, archiveBytes));
   assert.deepEqual(validateSeaweedRuntimeBackupRestoreProof(proof, { imageId, runId, recipeRevision }), proof);
+  assert.equal(proof.profileSha256, "06f340c8e2a3709cbc7a35c2a4d4045a843cdcef4fb7c5820ebf947088640e31");
+  assert.equal(proof.commandSha256, "bd75d600fcaaa982de5d309912d1968f428333c4f43b7cff1b5ec3bc92cb8dc8");
+  assert.match(proof.persistedDataReadiness, /^V1:[0-9a-f]{64}$/u);
   assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
   const sourceStop = value.calls.findIndex((args) => args[0] === "container" && args[1] === "stop"
     && args.at(-1).endsWith("service-source"));
+  const sourceMetadata = value.calls.findIndex((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("AW_METADATA_V1"));
   const backupCreate = value.calls.findIndex((args) => args[0] === "container" && args[1] === "create"
     && args.includes(`${`aw-seaweed-backup-${runId}`}-backup-helper`));
   const sourceRemove = value.calls.findIndex((args) => args[0] === "volume" && args[1] === "rm"
     && args[2].endsWith("-source"));
   const restoreCreate = value.calls.findIndex((args) => args[0] === "volume" && args[1] === "create"
     && args.at(-1).endsWith("-restore"));
-  assert.ok(sourceStop < backupCreate); assert.ok(backupCreate < sourceRemove); assert.ok(sourceRemove < restoreCreate);
+  assert.ok(sourceMetadata < sourceStop); assert.ok(sourceStop < backupCreate);
+  assert.ok(backupCreate < sourceRemove); assert.ok(sourceRemove < restoreCreate);
+  const directRead = value.calls.findIndex((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("AW_DIRECT_V1"));
+  const finalSignedRead = value.calls.findIndex((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("SEAWEED_BACKUP_RESTORED_READ_VERIFIED"));
+  assert.ok(directRead >= 0 && directRead < finalSignedRead);
   const helperCreates = value.calls.filter((args) => args[0] === "container" && args[1] === "create"
     && args.some((part) => part.endsWith("helper")));
   assert.equal(helperCreates.length, 2);
@@ -216,6 +251,22 @@ test("explicit false and Docker-omitted ReadOnly both prove a writable volume mo
   const proof = await TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker });
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_BACKUP_RESTORE_PROOF_V1");
   assert.equal(value.containers.size, 0); assert.equal(value.volumes.size, 0);
+});
+
+test("a foreign restored lookup location aborts before signed read and cleanup remains complete", async () => {
+  const value = fixture({ wrongLookupLocation: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeBackupRestore(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_backup_restore_failed", phase: "BACKUP_RESTORED_SERVICE",
+          reason: "PERSISTED_REGISTRATION_INVALID" });
+      assert.equal(JSON.stringify(error).includes("10.0.0.4"), false);
+      assert.equal(JSON.stringify(error).includes(persistedFid), false);
+      return true;
+    });
+  assert.equal(value.volumes.size, 0); assert.equal(value.containers.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("SEAWEED_BACKUP_RESTORED_READ_VERIFIED")), false);
 });
 
 test("read-only backup mount must explicitly inspect as true", async () => {
@@ -372,6 +423,9 @@ test("aborted operation still uses non-aborted cleanup and removes exact owned r
 test("proof validator rejects mutation, extra fields and invalid archive bounds", () => {
   const expected = { imageId, runId, recipeRevision };
   const proof = TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof(expected, archiveSha256, archiveBytes);
+  assert.throws(() => validateSeaweedRuntimeBackupRestoreProof({ ...proof,
+    commandSha256: "0".repeat(64) }, expected),
+  { code: "seaweed_candidate_runtime_backup_restore_failed" });
   assert.throws(() => validateSeaweedRuntimeBackupRestoreProof({ ...proof, cleanup: "NOT_ATTEMPTED" }, expected),
     { code: "seaweed_candidate_runtime_backup_restore_failed" });
   assert.throws(() => validateSeaweedRuntimeBackupRestoreProof({ ...proof, extra: true }, expected),

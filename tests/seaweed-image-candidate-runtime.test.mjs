@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,6 +21,12 @@ const runId = "35941171343";
 const recipeRevision = "b".repeat(40);
 const parent = path.resolve("runtime-test-parent");
 const dockerConfig = path.resolve("runtime-test-docker-config");
+const persistencePayload = "auto-world-restart-persistence-payload-v1";
+const persistencePayloadSha256 = createHash("sha256").update(persistencePayload).digest("hex");
+const persistenceFid = "7,0100000000";
+const persistenceMetadata = JSON.stringify({ FileSize: Buffer.byteLength(persistencePayload), Content: null,
+  chunks: [{ file_id: persistenceFid, size: Buffer.byteLength(persistencePayload),
+    fid: { volume_id: 7, file_key: 1 } }] });
 
 function fixture({ probeFailure = false, cleanupFailure = false, cleanupFailureAfter = 1, preexisting = false,
   createMalformed = false, createThrows = false, foreignAfterCreate = false,
@@ -60,7 +67,8 @@ function fixture({ probeFailure = false, cleanupFailure = false, cleanupFailureA
       nonce = label.split("=")[1];
       assert.equal(args.includes("--publish"), false); assert.equal(args.at(-2), "-c");
       assert.match(args.at(-1), /umask 077/u); assert.match(args.at(-1), /s3\.port\.iceberg=0/u);
-      assert.match(args.at(-1), /s3\.port\.lance=0/u); state = "created";
+      assert.match(args.at(-1), /s3\.port\.lance=0/u);
+      assert.doesNotMatch(args.at(-1), /-ip=127\.0\.0\.1/u); state = "created";
       if (createThrows) throw new Error("daemon response lost after creation");
       if (createMalformed) return { status: 0, stdout: "malformed\n", stderr: "" };
       return { status: 0, stdout: `${containerId}\n`, stderr: "" };
@@ -119,7 +127,7 @@ function input(extra = {}) { return { parent, dockerConfig, imageId, runId, reci
 
 function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malformedFirstCreate = false,
   foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false,
-  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]' } = {}) {
+  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]', wrongLookupLocation = false } = {}) {
   const calls = []; const states = new Map(); const ids = new Map(); const inspectCounts = new Map();
   let volumeExists = preexistingVolume; let nonce = ""; let volumeInspections = 0;
   const volumeCreatedAt = new Date().toISOString();
@@ -188,6 +196,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       } else {
         assert.ok(args.includes("--user=1000:1000")); assert.ok(args.includes("--cap-drop=ALL"));
         assert.equal(args.some((value) => value.startsWith?.("--cap-add")), false);
+        assert.match(args.at(-1), /'-ip=127\.0\.0\.1'/u);
       }
       ids.set(name, id); states.set(name, "created");
       if (malformedFirstCreate && role === "service-1") return { status: 0, stdout: "lost\n", stderr: "" };
@@ -200,6 +209,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       states.set(args[2], "exited"); return { status: 0, stdout: "0\n", stderr: "" };
     }
     if (args[0] === "container" && args[1] === "exec") {
+      const script = args.at(-1);
       if (args.at(-1).includes("SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED")) {
         assert.ok(args.at(-1).includes("awk '/^Uid:/ {print $2}' /proc/1/status"));
         assert.ok(args.at(-1).includes("awk '/^Gid:/ {print $2}' /proc/1/status"));
@@ -210,8 +220,22 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         assert.match(args.at(-1), /test "\$bucket" = 200 \|\| exit 63/u);
         return { status: 0, stdout: "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED\n", stderr: "" };
       }
-      assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
-      assert.match(args.at(-1),
+      if (script.includes("AW_METADATA_V1")) {
+        return { status: 0, stdout: `AW_METADATA_V1\n0\n200\n${persistenceMetadata}`, stderr: "" };
+      }
+      if (script.includes("AW_LOOKUP_V1")) {
+        return { status: 0, stdout: `AW_LOOKUP_V1\n0\n200\n${JSON.stringify({ volumeOrFileId: "7",
+          locations: [{ url: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080",
+            publicUrl: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080" }] })}`, stderr: "" };
+      }
+      if (script.includes("AW_DIRECT_V1")) {
+        return { status: 0, stdout: `AW_DIRECT_V1\n0\n200\n${Buffer.byteLength(persistencePayload)}\n${persistencePayloadSha256}\n`, stderr: "" };
+      }
+      if (!script.includes("SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")) {
+        assert.ok(script.includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      assert.match(script,
         /case "\$read_status" in 200\) ;; 404\) exit 65 ;; 401\|403\) exit 70 ;; 5\?\?\) exit 71 ;; \*\) exit 72 ;; esac/u);
       return secondStatus === 0
         ? { status: 0, stdout: "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n", stderr: "" }
@@ -239,7 +263,7 @@ test("restart persistence commands parse under the Linux shell", { skip: process
   await TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker });
   const scripts = value.calls.filter((args) => args[0] === "container"
     && (args[1] === "create" || args[1] === "exec")).map((args) => args.at(-1));
-  assert.equal(scripts.length, 5);
+  assert.equal(scripts.length, 10);
   for (const script of scripts) {
     const result = spawnSync("sh", ["-n"], { input: script, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
@@ -521,16 +545,24 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.deepEqual(proof, TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision }));
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
-  assert.equal(proof.profileSha256, "22c4449e4307d819f8fde9fbb1c2dbf3d583b5fb066bc89153e1b4c1b3e70024");
-  assert.equal(proof.commandSha256, "376f07f07a8ed870e5a46f708144b78269eeb9e6923c6fd94666eb43d09152bf");
+  assert.equal(proof.profileSha256, "a226ec182826290d26e2022c19d3685135188b522d50c62987cf37f7ad2d1f1a");
+  assert.equal(proof.commandSha256, "bf58165464fa74d8d6f11a5da662b745255630f76eb3701fb32555de01f730fa");
   assert.equal(proof.initializer, "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000");
-  assert.equal(proof.objectPersistence, "PRESERVED_ACROSS_RESTART");
+  assert.equal(proof.objectPersistence, "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART");
+  assert.match(proof.persistedDataReadiness, /^V1:[0-9a-f]{64}$/u);
   assert.equal(proof.cleanup, "OWNED_CONTAINERS_AND_VOLUME_REMOVED");
   const secondProbe = value.calls.filter((args) => args[0] === "container" && args[1] === "exec").at(-1).at(-1);
   assert.match(secondProbe, /test "\$curl_rc" = 0 \|\| exit 69/u);
   assert.match(secondProbe, /401\|403\) exit 70/u);
   assert.match(secondProbe, /5\?\?\) exit 71/u);
   assert.match(secondProbe, /\*\) exit 72/u);
+  const serviceTwoExecs = value.calls.filter((args) => args[0] === "container" && args[1] === "exec"
+    && args[2].endsWith("service-2"));
+  assert.deepEqual(serviceTwoExecs.map((args) => args.at(-1).match(
+    /AW_(METADATA|LOOKUP|DIRECT)_V1|SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED/u)?.[0] ?? "READY"),
+  ["READY", "AW_METADATA_V1", "AW_LOOKUP_V1", "AW_DIRECT_V1", "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED"]);
+  assert.equal(serviceTwoExecs.filter((args) => args.at(-1).includes(
+    "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")).length, 1);
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   const firstRemoval = value.calls.findIndex((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("service-1"));
@@ -555,6 +587,23 @@ test("persistence inspect selects the data volume by destination without relying
     assert.match(args[3], /if eq \.Target "\/data"/u);
     assert.doesNotMatch(args[3], /index \.Mounts 0|index \.HostConfig\.Mounts 0/u);
   }
+});
+
+test("a foreign lookup location fails readiness and still cleans both services and the volume", async () => {
+  const value = persistenceFixture({ wrongLookupLocation: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+          reason: "PERSISTED_REGISTRATION_INVALID" });
+      assert.equal(JSON.stringify(error).includes("10.0.0.4"), false);
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(isPublicSeaweedRuntimeReason("PERSISTED_REGISTRATION_INVALID"), true);
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")), false);
 });
 
 test("persistence rejects noncanonical initializer capability before start and cleans owned resources", async () => {
@@ -664,6 +713,9 @@ test("persistence primary failure is preserved with container cleanup drift and 
 
 test("persistence proof and input validators reject mutation and platform misuse", async () => {
   const proof = TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision });
+  assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof,
+    commandSha256: "376f07f07a8ed870e5a46f708144b78269eeb9e6923c6fd94666eb43d09152bf" },
+  { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_persistence_failed" });
   assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof, cleanup: "NOT_ATTEMPTED" },
     { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_persistence_failed" });
   assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof, extra: true },

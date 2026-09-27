@@ -3,6 +3,9 @@ import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
+import { capturePersistedDataIdentity, classifyPersistedDataReadinessFailure, PERSISTED_DATA_READINESS_PROTOCOL,
+  PERSISTED_DATA_READINESS_PROTOCOL_SHA256, remainingReadinessBudget,
+  verifyPersistedDataReadiness } from "./persisted-data-readiness.mjs";
 import { runStrictContentionProbe } from "./strict-contention.mjs";
 
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/u;
@@ -58,6 +61,10 @@ for (const reason of ["VOLUME_NAME_OCCUPIED", "VOLUME_CREATE_INVALID", "VOLUME_I
   "PERSISTED_OBJECT_MISSING", "PERSISTED_OBJECT_MISMATCH", "CLEANUP_UNCERTAIN"]) {
   PUBLIC_REASONS.add(reason);
 }
+for (const reason of ["PERSISTED_METADATA_INVALID", "PERSISTED_IDENTITY_CHANGED",
+  "PERSISTED_REGISTRATION_INVALID", "PERSISTED_DIRECT_READ_MISMATCH", "PERSISTED_DATA_NOT_READY"]) {
+  PUBLIC_REASONS.add(reason);
+}
 for (const reason of ["SOURCE_WRITE_FAILED", "SOURCE_STOP_FAILED", "BACKUP_FAILED",
   "SOURCE_DISPOSAL_FAILED", "RESTORE_FAILED", "RESTORED_READ_FAILED", "RESTORED_STOP_FAILED",
   "RESTORED_OBJECT_MISSING", "RESTORED_OBJECT_MISMATCH"]) {
@@ -68,11 +75,12 @@ const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnos
 }], actions: ["Admin:aw-raw", "Read:aw-raw", "List:aw-raw", "Write:aw-raw"] }] });
 const SERVER_COMMAND = ["server", "-dir=/data", "-master.telemetry=false", "-s3", "-s3.port=8333",
   "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/run/aw-private/s3.json"];
-const BOOTSTRAP = `set -eu
+function bootstrapFor(serverCommand) { return `set -eu
 umask 077
 printf '%s\\n' '${RUNTIME_CONFIG}' > /run/aw-private/s3.json
 test "$(stat -c '%u:%g:%a' /run/aw-private/s3.json)" = '1000:1000:600'
-exec /entrypoint.sh ${SERVER_COMMAND.map((value) => `'${value}'`).join(" ")}`;
+exec /entrypoint.sh ${serverCommand.map((value) => `'${value}'`).join(" ")}`; }
+const BOOTSTRAP = bootstrapFor(SERVER_COMMAND);
 const PROBE = `set -eu
 version=$(/usr/bin/weed version 2>&1) || exit 21
 case "$version" in *'${DERIVATIVE_VERSION}'*) ;; *) exit 21 ;; esac
@@ -512,6 +520,9 @@ const PERSISTENCE_PURPOSE_LABEL = "com.auto-world.runtime-purpose";
 const PERSISTENCE_PURPOSE = "restart-persistence-v1";
 const PERSISTENCE_PAYLOAD = "auto-world-restart-persistence-payload-v1";
 const PERSISTENCE_PAYLOAD_SHA256 = createHash("sha256").update(PERSISTENCE_PAYLOAD).digest("hex");
+const PERSISTENCE_OBJECT_PATH = "/buckets/aw-raw/restart-proof";
+const PERSISTENCE_SERVER_COMMAND = [...SERVER_COMMAND, "-ip=127.0.0.1"];
+const PERSISTENCE_BOOTSTRAP = bootstrapFor(PERSISTENCE_SERVER_COMMAND);
 const PERSISTENCE_INIT_PROFILE = ["--pull=never", "--network=none", "--read-only", "--user=0:0",
   "--memory=128m", "--memory-swap=128m", "--cpus=.25", "--pids-limit=64", "--cap-drop=ALL",
   "--cap-add=CHOWN", "--security-opt=no-new-privileges=true", "--stop-timeout=10",
@@ -583,7 +594,9 @@ case "$read_status" in 200) ;; 404) exit 65 ;; 401|403) exit 70 ;; 5??) exit 71 
 test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PERSISTENCE_PAYLOAD_SHA256}' || exit 66
 printf '%s\\n' 'SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED'`;
 const PERSISTENCE_SECOND_PROBE = `set -eu
-${PERSISTENCE_READY}
+command -v curl >/dev/null 2>&1 || exit 61
+curl --help all 2>/dev/null | grep -q -- '--aws-sigv4' || exit 61
+command -v sha256sum >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 61
 work=$(mktemp -d /tmp/aw-persistence.XXXXXXXX) || exit 61
 trap 'rm -f "$work/read"; rmdir "$work"' EXIT
 read_status=''; curl_rc=0
@@ -592,12 +605,14 @@ read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --m
   http://127.0.0.1:8333/aw-raw/restart-proof 2>/dev/null) || curl_rc=$?
 ${PERSISTENCE_SECOND_READ_ASSERTION}`;
 const PERSISTENCE_PROFILE_SHA256 = hash({ initializer: PERSISTENCE_INIT_PROFILE,
-  service: PERSISTENCE_SERVICE_PROFILE, mount: "type=volume,src=<owned>,dst=/data,volume-nocopy" });
-const PERSISTENCE_COMMAND_SHA256 = hash([PERSISTENCE_INIT_COMMAND, BOOTSTRAP,
-  PERSISTENCE_FIRST_PROBE, PERSISTENCE_SECOND_PROBE]);
+  service: PERSISTENCE_SERVICE_PROFILE, serverCommand: PERSISTENCE_SERVER_COMMAND,
+  mount: "type=volume,src=<owned>,dst=/data,volume-nocopy" });
+const PERSISTENCE_COMMAND_SHA256 = hash([PERSISTENCE_INIT_COMMAND, PERSISTENCE_BOOTSTRAP,
+  PERSISTENCE_FIRST_PROBE, PERSISTENCE_READY, PERSISTENCE_SECOND_PROBE,
+  PERSISTED_DATA_READINESS_PROTOCOL, PERSISTED_DATA_READINESS_PROTOCOL_SHA256]);
 const PERSISTENCE_PROOF_KEYS = ["kind", "state", "authority", "candidateAuthorization", "imageId", "runId",
   "recipeRevision", "profileSha256", "commandSha256", "volumeIdentity", "volumeMount", "initializer",
-  "firstService", "secondService", "objectPersistence", "shutdown", "cleanup"];
+  "firstService", "secondService", "objectPersistence", "persistedDataReadiness", "shutdown", "cleanup"];
 
 function expectedPersistenceProof({ imageId, runId, recipeRevision }) {
   return Object.freeze({ kind: "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1", state: "VERIFIED",
@@ -606,8 +621,10 @@ function expectedPersistenceProof({ imageId, runId, recipeRevision }) {
     volumeIdentity: "FRESH_NAME_LABELS_CREATED_AT_LOCAL_VERIFIED", volumeMount: "VOLUME_NOCOPY_RW_DATA",
     initializer: "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000",
     firstService: "SIGNED_CONDITIONAL_PUT_GET_SHA256",
-    secondService: "DISTINCT_CONTAINER_READY_SIGNED_GET_SHA256",
-    objectPersistence: "PRESERVED_ACROSS_RESTART", shutdown: "BOTH_SERVICES_BOUNDED",
+    secondService: "DISTINCT_CONTAINER_READY_METADATA_LOOKUP_DIRECT_SIGNED_GET_SHA256",
+    objectPersistence: "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART",
+    persistedDataReadiness: `V1:${PERSISTED_DATA_READINESS_PROTOCOL_SHA256}`,
+    shutdown: "BOTH_SERVICES_BOUNDED",
     cleanup: "OWNED_CONTAINERS_AND_VOLUME_REMOVED" });
 }
 
@@ -790,21 +807,48 @@ async function executePersistence(input, injected) {
     await stopAndRemove("init", 10);
 
     phase = "PERSISTENCE_SERVICE_ONE"; reason = "CONTAINER_CREATE_INVALID";
-    const firstName = await createOwnedContainer("service-1", PERSISTENCE_SERVICE_PROFILE, BOOTSTRAP);
+    const firstName = await createOwnedContainer("service-1", PERSISTENCE_SERVICE_PROFILE, PERSISTENCE_BOOTSTRAP);
     await command(docker, ["container", "start", firstName], options);
     reason = "FIRST_WRITE_FAILED";
+    const firstDeadline = performance.now() + 390_000;
     const first = await command(docker, ["container", "exec", firstName, "/bin/sh", "-c", PERSISTENCE_FIRST_PROBE],
-      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 63, 64, 67, 68, 127]);
+      { ...options, timeoutMs: remainingReadinessBudget(firstDeadline,
+        PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 61, 62, 63, 64, 67, 68, 127]);
     if (first.status !== 0 || first.stdout.trim() !== "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED"
       || first.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_persistence_failed");
+    const identity = await capturePersistedDataIdentity({
+      runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+      containerName: firstName, deadline: firstDeadline, objectPath: PERSISTENCE_OBJECT_PATH,
+      expectedSize: Buffer.byteLength(PERSISTENCE_PAYLOAD), options,
+    });
     await stopAndRemove("service-1", 30);
 
     phase = "PERSISTENCE_SERVICE_TWO"; reason = "CONTAINER_CREATE_INVALID";
-    const secondName = await createOwnedContainer("service-2", PERSISTENCE_SERVICE_PROFILE, BOOTSTRAP);
+    const secondName = await createOwnedContainer("service-2", PERSISTENCE_SERVICE_PROFILE, PERSISTENCE_BOOTSTRAP);
     await command(docker, ["container", "start", secondName], options);
     reason = "SECOND_READ_FAILED";
+    const secondDeadline = performance.now() + 390_000;
+    const ready = await command(docker, ["container", "exec", secondName, "/bin/sh", "-c", PERSISTENCE_READY],
+      { ...options, timeoutMs: remainingReadinessBudget(secondDeadline,
+        PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 61, 62, 67, 68, 127]);
+    if (ready.status !== 0 || ready.stdout.trim() !== "" || ready.stderr.trim() !== "") {
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    try {
+      await verifyPersistedDataReadiness({
+        runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+        containerName: secondName, deadline: secondDeadline, objectPath: PERSISTENCE_OBJECT_PATH,
+        expectedSize: Buffer.byteLength(PERSISTENCE_PAYLOAD), expectedSha256: PERSISTENCE_PAYLOAD_SHA256,
+        identity, options,
+      });
+    } catch (error) {
+      reason = classifyPersistedDataReadinessFailure(error) ?? "SECOND_READ_FAILED";
+      throw failure("seaweed_candidate_runtime_persistence_failed");
+    }
+    remainingReadinessBudget(secondDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
     const second = await command(docker, ["container", "exec", secondName, "/bin/sh", "-c", PERSISTENCE_SECOND_PROBE],
-      { ...options, timeoutMs: 390_000 }, [0, 61, 62, 65, 66, 67, 68, 69, 70, 71, 72, 127]);
+      { ...options, timeoutMs: remainingReadinessBudget(secondDeadline) },
+      [0, 61, 65, 66, 69, 70, 71, 72, 127]);
     if (second.status !== 0) {
       reason = second.status === 65 ? "PERSISTED_OBJECT_MISSING"
         : second.status === 66 ? "PERSISTED_OBJECT_MISMATCH"
