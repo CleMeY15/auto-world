@@ -312,6 +312,7 @@ export async function executePostgresScan(context, dependencies = {}) {
   const docker = (args, options = {}) => runCommand(args, { ...options, deadlineAt, dockerConfig, failureRecorder });
   const cleanupDocker = (args, options = {}) => runCommand(args, { ...options, timeout: 60_000, dockerConfig,
     failureRecorder, phase: options.phase ?? "container-cleanup" });
+  let operationFailure;
   try {
     const archiveOriginal = identity(path.join(context.diagnostic, "candidate-image.tar"), GiB);
     const diagnosticReceiptFile = path.join(context.diagnostic, "receipt.json");
@@ -394,13 +395,11 @@ export async function executePostgresScan(context, dependencies = {}) {
     receipt.blockers = evaluation.blockers.slice(0, 32); receipt.blockersTruncated = evaluation.blockers.length > 32;
     receipt.state = evaluation.state; receipt.phase = "COMPLETE";
     if (receipt.state !== "COMPLETE") fail("postgres_scan_policy_blocked");
-    return receipt;
   } catch (error) {
     receipt.state = "INCOMPLETE"; receipt.failure = { code: /^postgres_[a-z_]+$/u.test(error?.message ?? "")
       ? error.message : "postgres_scan_failed" };
-    throw error;
+    operationFailure = error;
   } finally {
-    let cleanupFailure;
     try {
       if (existsSync(context.work)) {
         privateDirectory(context.work);
@@ -411,11 +410,12 @@ export async function executePostgresScan(context, dependencies = {}) {
       receipt.state = "INCOMPLETE";
       receipt.workCleanup = "INCOMPLETE";
       receipt.failure = { code: "postgres_scan_work_cleanup_failed" };
-      cleanupFailure = new Error(receipt.failure.code);
+      operationFailure = new Error(receipt.failure.code);
     }
     writeFileSync(path.join(context.output, "audit-receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-    if (cleanupFailure) throw cleanupFailure;
   }
+  if (operationFailure) throw operationFailure;
+  return receipt;
 }
 
 export async function runPostgresScan(argv = process.argv.slice(2)) {
