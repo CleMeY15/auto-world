@@ -7,7 +7,7 @@ import test from "node:test";
 
 import lock from "../infra/postgres-image/lock.json" with { type: "json" };
 import {
-  POSTGRES_CANDIDATE_PUBLISH, parseCandidatePublishArguments, runPostgresCandidatePublish,
+  POSTGRES_CANDIDATE_PUBLISH, classifyRemoteTagAbsence, parseCandidatePublishArguments, runPostgresCandidatePublish,
   defaultCommandRunner, readBoundedDockerFile, validateBaseManifest, validateCandidatePublishContext,
 } from "../scripts/postgres-image/candidate-publish.mjs";
 import { validatePostgresCandidateRemoteManifest } from "../scripts/postgres-image/candidate-proof.mjs";
@@ -66,7 +66,7 @@ function inspectCandidate(nonce) {
 
 function fake(item, { protectedMain = true, protectedSequence, pushFails = false, pushFailsButPublishes = false,
   injectForeignImage = false, orphanBaseId = false, candidateAnonymous = "denied",
-  substituteExportImage = false, inheritedVolumeMount = false } = {}) {
+  substituteExportImage = false, inheritedVolumeMount = false, remoteTagCheckResult } = {}) {
   const events = []; const containers = new Map(); let basePresent = orphanBaseId; let baseRefPresent = false;
   let candidatePresent = false;
   let pushed = false; let tagged = false; let foreignPresent = false; let createCounter = 0;
@@ -106,7 +106,7 @@ function fake(item, { protectedMain = true, protectedSequence, pushFails = false
       if (ref.includes("@sha256:9ee2")) return { status: 0, stdout: "bootstrap-raw", stderr: "" };
       if (ref === remoteReference) return pushed
         ? { status: 0, stdout: remoteManifest, stderr: "" }
-        : { status: 1, stdout: "", stderr: "manifest unknown: manifest not found" };
+        : remoteTagCheckResult ?? { status: 1, stdout: "", stderr: `ERROR: ${remoteReference}: not found` };
       if (pushed && ref.startsWith(`${POSTGRES_CANDIDATE_PUBLISH.image}@sha256:`)) {
         return { status: 0, stdout: remoteManifest, stderr: "" };
       }
@@ -193,10 +193,57 @@ test("candidate publisher arguments and GitHub context are closed", () => {
       { ...item.env, GITHUB_JOB: "other" }, { ...item.env, GITHUB_REF: "refs/heads/dev" },
       { ...item.env, GITHUB_WORKFLOW_REF:
         `${POSTGRES_CANDIDATE_PUBLISH.repository}/.github/workflows/postgres-candidate-publish-v2.yml@refs/heads/main` },
+      { ...item.env, GITHUB_WORKFLOW_REF:
+        `${POSTGRES_CANDIDATE_PUBLISH.repository}/.github/workflows/postgres-candidate-publish-v3.yml@refs/heads/main` },
       { ...item.env, DOCKER_CONTEXT: "foreign" }]) {
       assert.throws(() => validateCandidatePublishContext(env, "linux"), /postgres_candidate_publish_/u);
     }
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("missing remote tag accepts only the exact Buildx response for the expected reference", () => {
+  const reference = "ghcr.io/clemey15/auto-world-postgres-gosu:candidate-36360408945-attempt-1";
+  for (const result of [
+    { status: 1, stdout: "", stderr: `ERROR: ${reference}: not found` },
+    { status: 1, stdout: "", stderr: `ERROR: ${reference}: not found\n` },
+    { status: 1, stdout: "", stderr: `ERROR: ${reference}: not found\r\n` },
+  ]) assert.equal(classifyRemoteTagAbsence(result, reference), "ABSENT");
+
+  for (const result of [
+    { status: 0, stdout: remoteManifest, stderr: "" },
+    { status: 1, stdout: "", stderr: "ERROR: ghcr.io/clemey15/other: not found" },
+    { status: 1, stdout: "", stderr: `ERROR: ${reference}: not found\nextra` },
+    { status: 1, stdout: "", stderr: `ERROR: ${reference}: not found\n\n` },
+    { status: 1, stdout: "unexpected", stderr: `ERROR: ${reference}: not found` },
+    { status: 1, stdout: "", stderr: `error: ${reference}: not found` },
+    { status: 1, stdout: "", stderr: "MANIFEST_UNKNOWN: manifest unknown" },
+    { status: 1, stdout: "", stderr: "unauthorized: authentication required" },
+    { status: 1, stdout: "", stderr: "TLS handshake timeout" },
+    { status: 1, stdout: "", stderr: "dial tcp: connection refused" },
+    { status: null, signal: "SIGTERM", stdout: "", stderr: `${reference}: not found` },
+  ]) assert.throws(() => classifyRemoteTagAbsence(result, reference),
+    /postgres_candidate_publish_remote_tag_(?:exists|check_error)/u);
+  assert.throws(() => classifyRemoteTagAbsence(
+    { status: 1, stdout: "", stderr: `${reference}: not found` }, undefined),
+  /postgres_candidate_publish_remote_tag_check_error/u);
+});
+
+test("ambiguous remote tag results stop before local tagging or the only push", async () => {
+  for (const kind of ["extra-line", "stdout", "generic-manifest"]) {
+    const item = fixture(); const expected = remoteReference(item);
+    const remoteTagCheckResult = kind === "extra-line"
+      ? { status: 1, stdout: "", stderr: `ERROR: ${expected}: not found\nextra` }
+      : kind === "stdout" ? { status: 1, stdout: "unexpected", stderr: `ERROR: ${expected}: not found` }
+        : { status: 1, stdout: "", stderr: "MANIFEST_UNKNOWN: manifest unknown" };
+    const mocked = fake(item, { remoteTagCheckResult });
+    try {
+      await assert.rejects(runPostgresCandidatePublish(["--output", item.output], {
+        env: item.env, commandRunner: mocked.commandRunner, fetchImpl: mocked.fetchImpl, ...validators,
+      }), /postgres_candidate_publish_remote_tag_check_error/u);
+      assert.equal(mocked.events.some((event) => event.kind === "command" && event.args[0] === "tag"), false);
+      assert.equal(mocked.events.some((event) => event.kind === "command" && event.args[0] === "push"), false);
+    } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+  }
 });
 
 test("real command runner preserves binary git-show bytes when encoding is explicitly null", () => {

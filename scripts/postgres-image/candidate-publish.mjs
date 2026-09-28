@@ -40,7 +40,7 @@ const BOOTSTRAP = Object.freeze({
 });
 
 export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
-  workflowPath: ".github/workflows/postgres-candidate-publish-v3.yml",
+  workflowPath: ".github/workflows/postgres-candidate-publish-v4.yml",
   repository: "CleMeY15/auto-world",
   owner: "CleMeY15",
   image: "ghcr.io/clemey15/auto-world-postgres-gosu",
@@ -49,7 +49,7 @@ export const POSTGRES_CANDIDATE_PUBLISH = Object.freeze({
   outputDirectory: "postgres-candidate-publish",
   platform: "linux/amd64",
   sourceFiles: Object.freeze([
-    ".github/workflows/postgres-candidate-publish-v3.yml",
+    ".github/workflows/postgres-candidate-publish-v4.yml",
     "scripts/postgres-image/candidate-publish.mjs",
     "scripts/postgres-image/candidate-proof.mjs",
     "scripts/postgres-image/diagnostic.mjs",
@@ -208,14 +208,20 @@ function absent(result, kind, reference) {
   return result.status === 1 && (kind === "image" ? /no such image/iu : /no such (?:container|object)/iu).test(combined)
     && combined.toLowerCase().includes(reference.toLowerCase());
 }
-function classifyRemoteTagAbsence(result) {
-  const combined = `${text(result.stdout)}\n${text(result.stderr)}`.toLowerCase();
+export function classifyRemoteTagAbsence(result, expectedReference) {
+  if (typeof expectedReference !== "string" || expectedReference.length < 1 || expectedReference.length > 512
+    || /[^\x20-\x7e]/u.test(expectedReference)) fail("postgres_candidate_publish_remote_tag_check_error");
+  const stdout = text(result.stdout); const stderr = text(result.stderr);
+  const combined = `${stdout}\n${stderr}`.toLowerCase();
   if (result.error || result.signal || Buffer.byteLength(combined) > MAX_OUTPUT_BYTES
-    || /unauthorized|denied|forbidden|timeout|tls|certificate|connection|no such host/u.test(combined)) {
+    || /unauthorized|denied|forbidden|timeout|timed out|tls|certificate|dial tcp|connection|no such host/u.test(combined)) {
     fail("postgres_candidate_publish_remote_tag_check_error");
   }
   if (result.status === 0) fail("postgres_candidate_publish_remote_tag_exists");
-  if (result.status === 1 && /manifest unknown|manifest.*not found|not found.*manifest/u.test(combined)) return "ABSENT";
+  const stderrWithoutFinalNewline = stderr.endsWith("\r\n") ? stderr.slice(0, -2)
+    : stderr.endsWith("\n") ? stderr.slice(0, -1) : stderr;
+  if (result.status === 1 && stdout === ""
+    && stderrWithoutFinalNewline === `ERROR: ${expectedReference}: not found`) return "ABSENT";
   fail("postgres_candidate_publish_remote_tag_check_error");
 }
 
@@ -520,7 +526,7 @@ export async function runPostgresCandidatePublish(argv = process.argv.slice(2), 
       return { ...first, anonymousRead: denied };
     });
     await phase("unique_remote_tag_absent", () => classifyRemoteTagAbsence(observe(runner, "docker",
-      ["buildx", "imagetools", "inspect", "--raw", remoteReference], options(authConfig))));
+      ["buildx", "imagetools", "inspect", "--raw", remoteReference], options(authConfig)), remoteReference));
     await phase("candidate_remote_tag", () => {
       run(runner, "docker", ["tag", localTag, remoteReference], options(authConfig)); remoteTagCreated = true;
     });
