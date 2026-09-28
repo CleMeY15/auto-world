@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -37,6 +37,7 @@ function receipt(overrides = {}) {
 }
 
 function dependencies(options = {}) {
+  const receiptKeys = Object.keys(receipt()).sort();
   return { context: { platform: "linux", uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 },
     verifyMain: async () => true,
     readCommitted: (relative) => Buffer.from(JSON.stringify(relative.includes("remote.json") ? policy : { subject })),
@@ -45,7 +46,10 @@ function dependencies(options = {}) {
       if (options.rejectPublication || value.subject !== selectedPolicy.subject) throw new Error("wrong_publication");
       return value;
     },
-    remoteReceiptValidator: (value) => value,
+    remoteReceiptValidator: (value) => {
+      if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(receiptKeys)) throw new Error("wrong_receipt");
+      return value;
+    },
     remoteProvider: options.remoteProvider ?? (async (input, inspect) => {
       const file = path.join(input.parent, "candidate.tar"); writeFileSync(file, "archive"); chmodSync(file, 0o600);
       try {
@@ -93,12 +97,19 @@ test("protected main verification rejects dirty checkout, changed main and token
 
 test("execute binds committed policy and publication receipt and writes only a bounded receipt", async (context) => {
   const item = fixture(); context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
-  const result = await runPostgresRemoteRead(["execute"], item.env, dependencies());
+  const selectedDependencies = dependencies();
+  const result = await runPostgresRemoteRead(["execute"], item.env, selectedDependencies);
   assert.equal(result.subject, subject);
   const selected = requirePostgresRemoteReadContext(item.env,
     { platform: "linux", uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 });
-  assert.equal(validatePostgresRemoteReadArtifact(selected), true);
-  assert.deepEqual(await runPostgresRemoteRead(["cleanup"], item.env, dependencies()),
+  assert.equal(validatePostgresRemoteReadArtifact(selected, selectedDependencies), true);
+  const receiptFile = path.join(selected.output, "receipt.json");
+  const original = readFileSync(receiptFile);
+  const changed = JSON.parse(original.toString("utf8")); changed.accessToken = "github_pat_must_not_escape";
+  writeFileSync(receiptFile, `${JSON.stringify(changed, null, 2)}\n`);
+  assert.throws(() => validatePostgresRemoteReadArtifact(selected, selectedDependencies), /artifact_invalid/u);
+  writeFileSync(receiptFile, original);
+  assert.deepEqual(await runPostgresRemoteRead(["cleanup"], item.env, selectedDependencies),
     { state: "CLEANED", authority: "REMOTE_READ_ONLY", admission: "NOT_AUTHORIZED" });
 });
 
@@ -113,7 +124,7 @@ test("changed policy, publication or returned subject fails closed with a redact
     context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
     await assert.rejects(runPostgresRemoteRead(["execute"], item.env, selectedDependencies));
     const selected = requirePostgresRemoteReadContext(item.env, selectedDependencies.context);
-    assert.equal(validatePostgresRemoteReadArtifact(selected), true);
+    assert.equal(validatePostgresRemoteReadArtifact(selected, selectedDependencies), true);
     await runPostgresRemoteRead(["cleanup"], item.env, selectedDependencies);
   }
 });
@@ -125,11 +136,17 @@ test("provider failure is retained without secrets and cleanup rejects extra art
   } });
   await assert.rejects(runPostgresRemoteRead(["execute"], item.env, selectedDependencies), /provider leaked/u);
   const selected = requirePostgresRemoteReadContext(item.env, selectedDependencies.context);
-  assert.equal(validatePostgresRemoteReadArtifact(selected), true);
+  assert.equal(validatePostgresRemoteReadArtifact(selected, selectedDependencies), true);
+  const receiptFile = path.join(selected.output, "receipt.json");
+  const original = readFileSync(receiptFile);
+  const changed = JSON.parse(original.toString("utf8")); changed.secretToken = "github_pat_must_not_escape";
+  writeFileSync(receiptFile, `${JSON.stringify(changed, null, 2)}\n`);
+  assert.throws(() => validatePostgresRemoteReadArtifact(selected, selectedDependencies), /artifact_invalid/u);
+  writeFileSync(receiptFile, original);
   writeFileSync(path.join(selected.output, "private-archive.tar"), "must-not-upload");
   await assert.rejects(runPostgresRemoteRead(["cleanup"], item.env, selectedDependencies), /artifact_invalid/u);
   rmSync(path.join(selected.output, "private-archive.tar"));
-  assert.equal(validatePostgresRemoteReadArtifact(selected), true);
+  assert.equal(validatePostgresRemoteReadArtifact(selected, selectedDependencies), true);
 });
 
 test("receipt contract rejects wrong authority, subject, execution, audit and support dates", () => {

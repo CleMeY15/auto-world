@@ -515,8 +515,8 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
       validatePostgresRemoteImage(run(commandRunner, "docker",
         ["image", "inspect", "--format", "{{json .}}", policy.subject], options(authBase)).stdout, policy, alias);
       tagged = true;
-      if (response.error || response.status !== 0) return "FAILED_BUT_EXACT_STATE_CONFIRMED";
-      return "SUCCESS";
+      if (response.error || response.status !== 0) fail("postgres_remote_candidate_alias_failed");
+      return true;
     });
     const privateFile = createPrivateFile(archiveFile);
     let saveResult;

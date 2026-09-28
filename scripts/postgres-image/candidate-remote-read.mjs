@@ -21,11 +21,18 @@ const MAX_PUBLICATION_RECEIPT_BYTES = 1024 * 1024;
 const MAX_REMOTE_RECEIPT_BYTES = 256 * 1024;
 const MAX_API_BYTES = 256 * 1024;
 const MAIN_TIMEOUT_MS = 60_000;
+const FAILURE_RECEIPT_KEYS = Object.freeze(["schemaVersion", "kind", "state", "authority", "runId",
+  "recipeRevision", "reason", "publication", "registryWrite", "vulnerabilityAudit", "imageExecution",
+  "admission", "supportStartedAt", "supportEndsAt", "archiveUntil"]);
+const SENSITIVE_RECEIPT = /(?:ghp_|github_pat_|bearer\s|authorization|password|token)[^\n]{0,256}/iu;
 
 function fail(code) { throw new Error(code); }
 function plain(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     && Object.getPrototypeOf(value) === Object.prototype;
+}
+function exactKeys(value, keys) {
+  return plain(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
 }
 function fixedReason(error) {
   return /^postgres_remote_read_[a-z0-9_]+$/u.test(error?.message ?? "")
@@ -188,8 +195,7 @@ export function validatePostgresRemoteReadReceipt(receiptInput, context, policy,
     fail("postgres_remote_read_receipt_invalid");
   }
   const serialized = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, "utf8");
-  if (serialized.length > MAX_REMOTE_RECEIPT_BYTES
-    || /(?:ghp_|github_pat_|bearer\s|authorization|password|token)[^\n]{0,256}/iu.test(serialized.toString("utf8"))) {
+  if (serialized.length > MAX_REMOTE_RECEIPT_BYTES || SENSITIVE_RECEIPT.test(serialized.toString("utf8"))) {
     fail("postgres_remote_read_receipt_invalid");
   }
   return serialized;
@@ -236,7 +242,7 @@ function cleanupRoot(context) {
   }
 }
 
-export function validatePostgresRemoteReadArtifact(context) {
+export function validatePostgresRemoteReadArtifact(context, dependencies = {}) {
   let entries;
   try {
     const output = lstatSync(context.output);
@@ -252,11 +258,30 @@ export function validatePostgresRemoteReadArtifact(context) {
   if (entries.length !== 1 || entries[0] !== "receipt.json") fail("postgres_remote_read_artifact_invalid");
   const bytes = readBoundedRegularFile(path.join(context.output, "receipt.json"), MAX_REMOTE_RECEIPT_BYTES);
   const receipt = parseJson(bytes);
-  if (!plain(receipt) || !["POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1", "POSTGRES_REMOTE_READ_FAILURE_V1"].includes(receipt.kind)
-    || receipt.runId !== context.runId || receipt.recipeRevision !== context.recipeRevision
-    || receipt.authority !== "REMOTE_READ_ONLY" || receipt.registryWrite !== "NOT_ATTEMPTED"
-    || receipt.vulnerabilityAudit !== "NOT_ATTEMPTED" || receipt.imageExecution !== "NOT_ATTEMPTED"
-    || receipt.admission !== "NOT_AUTHORIZED") fail("postgres_remote_read_artifact_invalid");
+  let canonical;
+  if (receipt?.kind === "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1") {
+    const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;
+    const readCommitted = dependencies.readCommitted ?? committedBytes;
+    const policy = (dependencies.policyValidator ?? validatePostgresRemotePolicy)(parseJson(readCommitted(
+      POLICY_PATH, MAX_POLICY_BYTES, context, commandRunner)));
+    let validated;
+    try {
+      validated = (dependencies.remoteReceiptValidator ?? validatePostgresRemoteCandidateReceipt)(receipt, policy);
+    } catch { fail("postgres_remote_read_artifact_invalid"); }
+    canonical = Buffer.from(`${JSON.stringify(validated, null, 2)}\n`, "utf8");
+  } else if (receipt?.kind === "POSTGRES_REMOTE_READ_FAILURE_V1") {
+    if (!exactKeys(receipt, FAILURE_RECEIPT_KEYS) || receipt.schemaVersion !== 1 || receipt.state !== "FAILED"
+      || receipt.authority !== "REMOTE_READ_ONLY" || fixedReason({ message: receipt.reason }) !== receipt.reason
+      || receipt.publication !== "PUBLISHED_UNADMITTED" || receipt.registryWrite !== "NOT_ATTEMPTED"
+      || receipt.vulnerabilityAudit !== "NOT_ATTEMPTED" || receipt.imageExecution !== "NOT_ATTEMPTED"
+      || receipt.admission !== "NOT_AUTHORIZED" || receipt.supportStartedAt !== null
+      || receipt.supportEndsAt !== null || receipt.archiveUntil !== null) fail("postgres_remote_read_artifact_invalid");
+    canonical = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+  } else fail("postgres_remote_read_artifact_invalid");
+  if (receipt.runId !== context.runId || receipt.recipeRevision !== context.recipeRevision
+    || !bytes.equals(canonical) || SENSITIVE_RECEIPT.test(bytes.toString("utf8"))) {
+    fail("postgres_remote_read_artifact_invalid");
+  }
   return true;
 }
 
@@ -267,7 +292,10 @@ export async function runPostgresRemoteRead(argv = process.argv.slice(2), env = 
   const context = requirePostgresRemoteReadContext(env, dependencies.context);
   if (argv[0] === "cleanup") {
     (dependencies.cleanupRoot ?? cleanupRoot)(context);
-    (dependencies.validateArtifact ?? validatePostgresRemoteReadArtifact)(context);
+    (dependencies.validateArtifact ?? validatePostgresRemoteReadArtifact)(context, {
+      commandRunner: dependencies.commandRunner, readCommitted: dependencies.readCommitted,
+      policyValidator: dependencies.policyValidator, remoteReceiptValidator: dependencies.remoteReceiptValidator,
+    });
     return Object.freeze({ state: "CLEANED", authority: "REMOTE_READ_ONLY", admission: "NOT_AUTHORIZED" });
   }
   const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;

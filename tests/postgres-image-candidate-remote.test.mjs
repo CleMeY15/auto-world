@@ -236,7 +236,7 @@ test("cleanup reserve is independent and bounded", () => {
 });
 
 function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false,
-  candidateCollision = false, cleanupFailure = false } = {}) {
+  candidateCollision = false, cleanupFailure = false, tagStatus = 0 } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-postgres-remote-"));
   chmodSync(parent, 0o700);
   const value = remoteMaterial();
@@ -285,7 +285,7 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
     }
     if (args[0] === "image" && args[1] === "tag") {
       tagged = true;
-      return { status: 0, stdout: "", stderr: "" };
+      return { status: tagStatus, stdout: "", stderr: tagStatus ? "response lost after alias creation" : "" };
     }
     if (args[0] === "image" && args[1] === "rm") {
       if (cleanupFailure) return { status: 1, stdout: "", stderr: "removal failed" };
@@ -357,6 +357,20 @@ test("lost pull and save responses remain honest only after exact independent st
       rmSync(value.parent, { recursive: true, force: true });
     }
   });
+
+test("nonzero local tag response fails closed after cleaning the observed owned alias", { skip: !linux }, async () => {
+  const value = harness({ tagStatus: 1 });
+  try {
+    await assert.rejects(withVerifiedRemotePostgresCandidate(value.input, value.inspectArchive, value.dependencies),
+      /postgres_remote_candidate_alias_failed/u);
+    assert.equal(value.calls.some(({ args }) => args[0] === "image" && args[1] === "save"), false);
+    const removals = value.calls.filter(({ args }) => args[0] === "image" && args[1] === "rm");
+    assert.deepEqual(removals.map(({ args }) => args[2]), [value.value.alias, value.value.policy.subject]);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally {
+    rmSync(value.parent, { recursive: true, force: true });
+  }
+});
 
 test("callback failure still removes the owned image and private archive", { skip: !linux }, async () => {
   const value = harness({ callbackFailure: true });
