@@ -3,12 +3,13 @@ import { constants, closeSync, existsSync, fchmodSync, fstatSync, lstatSync, mkd
   readFileSync, realpathSync, readdirSync, rmdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 import { validatePostgresRemoteCandidateReceipt, validatePostgresRemotePolicy, validatePostgresRemotePublicationReceipt,
   withVerifiedRemotePostgresCandidate } from "./candidate-remote.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
-const WORKFLOW_PATH = ".github/workflows/postgres-candidate-remote-read.yml";
+const WORKFLOW_PATH = ".github/workflows/postgres-candidate-remote-read-v2.yml";
 const WORKFLOW_REF = `CleMeY15/auto-world/${WORKFLOW_PATH}@refs/heads/main`;
 const MAIN_BRANCH_URL = "https://api.github.com/repos/CleMeY15/auto-world/branches/main";
 const POLICY_PATH = "infra/postgres-image/candidate-remote.json";
@@ -37,6 +38,7 @@ function exactKeys(value, keys) {
 function fixedReason(error) {
   return /^postgres_remote_read_[a-z0-9_]+$/u.test(error?.message ?? "")
     || /^postgres_remote_candidate_[a-z0-9_]+$/u.test(error?.message ?? "")
+    || error?.message === "postgres_candidate_inspection_failed"
     ? error.message : "postgres_remote_read_failed";
 }
 
@@ -162,7 +164,7 @@ function makePrivateDirectory(directory, parent, context) {
 
 function validateInspection(value, context, policy) {
   if (!plain(value) || typeof value.file !== "string" || !path.isAbsolute(value.file)
-    || !value.file.startsWith(`${context.root}${path.sep}`) || value.policy !== policy
+    || !value.file.startsWith(`${context.root}${path.sep}`) || !isDeepStrictEqual(value.policy, policy)
     || value.subject !== policy.subject || value.runId !== context.runId
     || value.recipeRevision !== context.recipeRevision || value.signal?.aborted
     || value.imageId !== policy.manifest.config.digest || !Array.isArray(value.diffIds)

@@ -22,7 +22,7 @@ function fixture(runId = "40000000001") {
   const env = { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", GITHUB_JOB: "read",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
     GITHUB_REPOSITORY: "CleMeY15/auto-world",
-    GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-read.yml@refs/heads/main",
+    GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-read-v2.yml@refs/heads/main",
     GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision, GITHUB_RUN_ID: runId,
     RUNNER_TEMP: runnerTemp, GITHUB_WORKSPACE: workspace, GITHUB_TOKEN: "secret", GH_TOKEN: "secret", PATH: "/bin" };
   return { runnerTemp, env };
@@ -54,9 +54,11 @@ function dependencies(options = {}) {
       const file = path.join(input.parent, "candidate.tar"); writeFileSync(file, "archive"); chmodSync(file, 0o600);
       try {
         const selectedDiffIds = options.wrongDiffIds ? diffIds.slice(1) : diffIds;
+        const selectedPolicy = JSON.parse(JSON.stringify(input.policy));
+        if (options.wrongPolicy) selectedPolicy.candidate.diffIds[0] = `sha256:${"f".repeat(64)}`;
         await inspect({ file, archiveProof: { imageId, diffIds: selectedDiffIds,
           archiveSha256: "d".repeat(64), archiveBytes: 7 },
-        policy: input.policy, subject: input.policy.subject, imageId, diffIds: selectedDiffIds, runId: input.runId,
+        policy: selectedPolicy, subject: input.policy.subject, imageId, diffIds: selectedDiffIds, runId: input.runId,
         recipeRevision: input.recipeRevision, signal: new globalThis.AbortController().signal });
       } finally { rmSync(file); }
       return receipt({ runId: input.runId, recipeRevision: input.recipeRevision });
@@ -69,7 +71,8 @@ test("remote-read context rejects forks, alternate runs, attempts, refs and work
   assert.equal(requirePostgresRemoteReadContext(item.env, host).runId, item.env.GITHUB_RUN_ID);
   for (const change of [{ GITHUB_REPOSITORY: "attacker/fork" }, { GITHUB_RUN_NUMBER: "2" },
     { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_REF: "refs/heads/feature" }, { GITHUB_JOB: "publish" },
-    { GITHUB_WORKFLOW_REF: "attacker/fork/.github/workflows/postgres-candidate-remote-read.yml@refs/heads/main" }]) {
+    { GITHUB_WORKFLOW_REF: "attacker/fork/.github/workflows/postgres-candidate-remote-read-v2.yml@refs/heads/main" },
+    { GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-read.yml@refs/heads/main" }]) {
     assert.throws(() => requirePostgresRemoteReadContext({ ...item.env, ...change }, host), /context_invalid/u);
   }
   assert.throws(() => requirePostgresRemoteReadContext(item.env, { ...host, uid: 0 }), /context_invalid/u);
@@ -119,6 +122,7 @@ test("changed policy, publication or returned subject fails closed with a redact
     dependencies({ remoteProvider: async (input) => receipt({ runId: input.runId,
       recipeRevision: input.recipeRevision, subject: `${subject}-wrong` }) }),
     dependencies({ wrongDiffIds: true }),
+    dependencies({ wrongPolicy: true }),
   ].entries()) {
     const item = fixture(`4000000001${index}`);
     context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
