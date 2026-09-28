@@ -1,0 +1,111 @@
+{
+  "kind": "POSTGRES_REMOTE_CANDIDATE_POLICY_V1",
+  "authority": "REVIEWED_MAIN_POLICY",
+  "repository": "CleMeY15/auto-world",
+  "owner": "CleMeY15",
+  "image": "ghcr.io/clemey15/auto-world-postgres-gosu",
+  "platform": "linux/amd64",
+  "publishedTag": "candidate-36361670116-attempt-1",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "manifest": {
+    "digest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+    "bytes": 2824,
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "config": {
+      "digest": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+      "size": 12499,
+      "mediaType": "application/vnd.docker.container.image.v1+json"
+    },
+    "layers": [
+      {
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "size": 3849738,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:4ece9a32c307dbfc879fbd2c64ff04d734f92c3cfe543fbbfcf51f559be3952f",
+        "size": 968,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:43f9814c9a3b143548b1ebbd9d05484da68959f1b2dc5cf2228343fc7134b6fb",
+        "size": 901408,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:3333950675b238bd8da3dadabf5d301377545c089e7f436d18d16c97a1b7c1c8",
+        "size": 116,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:f3b07e8a357c707bed4f36d7e89173727f890be5fbc8e1c1eb7feb6c1d9deb38",
+        "size": 112421988,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:eb805f20f0602d17dfb400aecc1cddcf941e356b9764969284c7e15d8a0710a6",
+        "size": 9999,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:7ccdb0dcae74d20ea15876b699902cff26696bbdf9e1109c97e9f7d9505444f2",
+        "size": 128,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:93a3470d5852d77008a03e87eb60177e36b5522afb5d283d96ce6e2b0a3d481d",
+        "size": 169,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:b0a0d9d2abf27214e4640bd5d31419c3788d19626acf51afcf85345d321935b7",
+        "size": 6111,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:a8a481ae6efc854716b4eb46d5f3da24edfb72ba8bfca5146c92bbef4390ed35",
+        "size": 183,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:284f988fd1fd5d0daaaca32da2fa703a782f837491b375d40ae292e8657b93de",
+        "size": 3347181,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:7847fa93c9720b70d2c1f588fd20592ac25a8748a43e5cc8e39b03249e15e9bb",
+        "size": 880041,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      }
+    ],
+    "baseLayerCount": 10,
+    "newLayerCount": 2
+  },
+  "candidate": {
+    "imageId": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+    "diffIds": [
+      "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+      "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+      "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+      "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+      "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+      "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+      "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+      "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+      "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+      "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72",
+      "sha256:d438b225a8977c23dd26527e196bdff21f4565ec24f22b931aa69aaf38a2df24",
+      "sha256:90b3a336de1c13f00f45fbf3e985e3366ad191aa9919864ac946f735d965e092"
+    ]
+  },
+  "publisher": {
+    "workflowPath": ".github/workflows/postgres-candidate-publish-v4.yml",
+    "runId": "36361670116",
+    "runNumber": "1",
+    "runAttempt": "1",
+    "recipeRevision": "b93b0c76ec76abe283d66a17fa62eab7e580e679",
+    "receiptSha256": "d0cad244921e91229027c625440aa654624f1e754a975901b5b9a763135d3287",
+    "receiptBytes": 22970,
+    "result": "PASSED"
+  }
+}
