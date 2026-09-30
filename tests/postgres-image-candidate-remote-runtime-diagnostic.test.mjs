@@ -11,6 +11,7 @@ import { authenticatePostgresRemoteRuntimeSource, authenticatePostgresRuntimeAud
   TEST_ONLY_publicPostgresRemoteRuntimeFailure, validatePostgresRemoteRuntimeDiagnosticArtifact,
   validatePostgresRemoteRuntimePolicy, verifyPostgresRuntimeAuditApi } from "../scripts/postgres-image/candidate-remote-runtime-diagnostic.mjs";
 import { validatePostgresRemotePolicy } from "../scripts/postgres-image/candidate-remote.mjs";
+import { postgresRuntimeFailureDiagnostic } from "../scripts/postgres-image/candidate-runtime.mjs";
 
 const remoteBytes = readFileSync(new URL("../infra/postgres-image/candidate-remote.json", import.meta.url));
 const publicationBytes = readFileSync(new URL("../infra/postgres-image/candidate-publication-receipt.json", import.meta.url));
@@ -33,7 +34,7 @@ function fixture(t, writeInput = true) {
   t.after(() => rmSync(runnerTemp, { recursive: true, force: true }));
   const env = { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", GITHUB_JOB: "runtime",
     GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world",
-    GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic.yml@refs/heads/main",
+    GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic-v2.yml@refs/heads/main",
     GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision, GITHUB_RUN_ID: runId,
     RUNNER_TEMP: runnerTemp, GITHUB_WORKSPACE: workspace, GITHUB_TOKEN: "secret", GH_TOKEN: "secret", PATH: "/bin" };
   const context = requirePostgresRemoteRuntimeDiagnosticContext(env, overrideHost);
@@ -88,7 +89,8 @@ test("runtime context rejects non-main, forks, reruns, wrong workflow/job, root 
   assert.equal(requirePostgresRemoteRuntimeDiagnosticContext(env, overrideHost).runId, runId);
   for (const change of [{ GITHUB_JOB: "audit" }, { GITHUB_EVENT_NAME: "push" }, { GITHUB_RUN_NUMBER: "2" },
     { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_REF: "refs/heads/other" }, { GITHUB_REPOSITORY: "attacker/fork" },
-    { RUNNER_ENVIRONMENT: "self-hosted" }, { GITHUB_WORKFLOW_REF: env.GITHUB_WORKFLOW_REF.replace("runtime-diagnostic", "remote-audit") }]) {
+    { RUNNER_ENVIRONMENT: "self-hosted" }, { GITHUB_WORKFLOW_REF: env.GITHUB_WORKFLOW_REF.replace("runtime-diagnostic-v2", "remote-audit") },
+    { GITHUB_WORKFLOW_REF: env.GITHUB_WORKFLOW_REF.replace("-v2.yml", ".yml") }]) {
     assert.throws(() => requirePostgresRemoteRuntimeDiagnosticContext({ ...env, ...change }, overrideHost), /context_invalid/u);
   }
   assert.throws(() => requirePostgresRemoteRuntimeDiagnosticContext(env, { ...overrideHost, uid: 0 }), /context_invalid/u);
@@ -206,6 +208,67 @@ test("cleanup uncertainty is preserved and blocks receipt upload even when root 
   await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["execute"], item.env, deps), /cleanup_uncertain/u);
   assert.equal(existsSync(item.context.root), true); rmSync(item.context.root, { recursive: true });
   await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps), /cleanup_uncertain/u);
+});
+
+test("CLI retains the provider's closed runtime failure diagnostic and masks unknown runtime prefixes", posix, async (t) => {
+  for (const [message, phase, expected] of [
+    ["postgres_runtime_readiness_timeout", "SERVICE_ONE", { code: "postgres_runtime_readiness_timeout", phase: "SERVICE_ONE" }],
+    ["postgres_runtime_readback_invalid", "SERVICE_TWO", { code: "postgres_runtime_readback_invalid", phase: "SERVICE_TWO" }],
+    ["postgres_runtime_forged_private_test_token", "SERVICE_TWO", { code: "postgres_runtime_failed", phase: "SERVICE_TWO" }],
+  ]) {
+    const item = fixture(t); const providerError = Object.assign(new Error("postgres_remote_runtime_material_failed"), {
+      code: "postgres_remote_runtime_material_failed", inspectionFailed: true,
+      primaryFailure: "postgres_remote_runtime_diagnostics_failed", runtimeCleanupFailure: null,
+      runtimeDiagnostic: postgresRuntimeFailureDiagnostic(Object.assign(new Error(message), { phase })),
+      imageCleanupFailure: null, temporaryCleanupFailure: null,
+    });
+    const deps = dependencies(item, { materialProvider: async () => { throw providerError; } });
+    await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["execute"], item.env, deps), (error) => error === providerError);
+    const bytes = readFileSync(path.join(item.context.output, "receipt.json"));
+    assert.deepEqual(JSON.parse(bytes).failure, { code: "postgres_remote_runtime_material_failed", runtimeDiagnostic: expected });
+    assert.equal(bytes.includes(Buffer.from("private_test_token")), false);
+    assert.deepEqual(JSON.parse(TEST_ONLY_publicPostgresRemoteRuntimeFailure(providerError)).runtimeDiagnostic, expected);
+    assert.equal((await runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps)).state, "CLEANED");
+  }
+});
+
+test("cleanup rejects nested cleanup or ownership uncertainty even with a safe outer code and absent root", posix, async (t) => {
+  for (const code of ["postgres_runtime_cleanup_uncertain", "postgres_runtime_ownership_uncertain"]) {
+    const item = fixture(t); const detail = { code, phase: "CLEANUP" };
+    const providerError = Object.assign(new Error("postgres_remote_runtime_material_failed"), { runtimeDiagnostic: detail });
+    const deps = dependencies(item, { materialProvider: async () => { throw providerError; } });
+    await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["execute"], item.env, deps));
+    assert.equal(existsSync(item.context.root), true);
+    const file = path.join(item.context.output, "receipt.json"); const receipt = JSON.parse(readFileSync(file));
+    assert.deepEqual(receipt.failure, { code: "postgres_remote_runtime_cleanup_uncertain", runtimeDiagnostic: detail });
+    assert.equal(JSON.parse(TEST_ONLY_publicPostgresRemoteRuntimeFailure(providerError)).code, "postgres_remote_runtime_cleanup_uncertain");
+    rmSync(item.context.root, { recursive: true });
+    receipt.failure.code = "postgres_remote_runtime_material_failed"; writeJson(file, receipt);
+    await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps), /cleanup_uncertain/u);
+  }
+});
+
+test("failure artifact supports historical codes and only the exact optional runtime diagnostic extension", posix, async (t) => {
+  const item = fixture(t); const deps = dependencies(item, { materialProvider: async () => {
+    throw new Error("postgres_remote_runtime_material_failed");
+  } });
+  await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["execute"], item.env, deps));
+  const file = path.join(item.context.output, "receipt.json"); const receipt = JSON.parse(readFileSync(file));
+  assert.deepEqual(receipt.failure, { code: "postgres_remote_runtime_material_failed", runtimeDiagnostic: null });
+  delete receipt.failure.runtimeDiagnostic; writeJson(file, receipt);
+  assert.equal((await runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps)).state, "CLEANED");
+  for (const detail of [
+    { code: "postgres_runtime_readiness_timeout", phase: "SERVICE_ONE", stdout: "private subprocess output" },
+    { code: "postgres_runtime_forged_private_test_token", phase: "SERVICE_ONE" },
+    { code: "postgres_runtime_readiness_timeout", phase: "/private/runtime/path" },
+    { code: "postgres_runtime_readiness_timeout" }, "private subprocess output",
+  ]) {
+    receipt.failure = { code: "postgres_remote_runtime_material_failed", runtimeDiagnostic: detail }; writeJson(file, receipt);
+    await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps), /receipt_invalid/u);
+  }
+  receipt.failure = { code: "postgres_remote_runtime_material_failed", runtimeDiagnostic: null, stderr: "private output" };
+  writeJson(file, receipt);
+  await assert.rejects(runPostgresRemoteRuntimeDiagnostic(["cleanup"], item.env, deps), /receipt_invalid/u);
 });
 
 test("unsafe root ownership mode is recorded as cleanup uncertainty rather than a safe input failure", posix, async (t) => {

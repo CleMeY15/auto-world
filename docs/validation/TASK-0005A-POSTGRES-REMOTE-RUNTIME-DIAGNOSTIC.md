@@ -1,6 +1,6 @@
 # TASK-0005A — Exact remote PostgreSQL runtime diagnostic
 
-Status: LOCAL_RUNTIME_VERIFIED, NATIVE_RUNTIME_PENDING, DIAGNOSTIC_ONLY, NOT_ADMITTED.
+Status: LOCAL_RUNTIME_VERIFIED, NATIVE_RUNTIME_V1_FAILED, V2_LOCAL_RUNTIME_VERIFIED, DIAGNOSTIC_ONLY, NOT_ADMITTED.
 
 ## Subject and prerequisites
 
@@ -38,6 +38,23 @@ All fourteen material phases and six runtime phases passed. The corrected gosu `
 
 The closed local receipt is 13,873 bytes, SHA-256 `a0f3bc7e213facdb828ad95cdab47693f9f7c9f6a5612ad61fd057ff1f75ecb9`, retained with its original driver and logs under the ignored local cache `pg-remote-runtime-local-ojRo0tKo`. Earlier local failures remain failed and retained. A harness-only ownership failure occurred before candidate access; subsequent materialized attempts stopped before container creation because the engine expected an empty working directory while the authenticated image configuration uses `/`. The correction requires exactly `/`, rejects empty/foreign paths and preserves the full profile checks. No failed result is reclassified as a successful runtime.
 
-The first bounded native run remains pending. The local receipt retains `DIAGNOSTIC_ONLY`, `NOT_AUTHORIZED` and null support/archive dates.
+At this local checkpoint the first bounded native run was still pending. The local receipt retains `DIAGNOSTIC_ONLY`, `NOT_AUTHORIZED` and null support/archive dates.
 
+## Native V1 failure and bounded V2 correction
+
+[PR115](https://github.com/CleMeY15/auto-world/pull/115) merged the reviewed implementation at protected main `f96dc95e08127d8a3c259f66d87cce282556370b`. Exact final-head CI `36680771797` and main CI `36681219446` passed after the fresh Linux and real local checks above. The first and only [native runtime V1 run `36681413783`](https://github.com/CleMeY15/auto-world/actions/runs/36681413783), number 1/attempt 1, **FAILED** on that exact main. Its managed-runner/source and original-audit download gates passed. The execute step returned `INCOMPLETE/postgres_remote_runtime_material_failed`; standalone cleanup returned `CLEANED`, and only the approved bounded failure receipt was uploaded. The final outcome gate correctly failed the workflow.
+
+Artifact `11081434905` contains only `receipt.json`. Its independently downloaded 1,204-byte ZIP has SHA-256 `61730b337226d8a5b1915fbe62be31cd9d237111b6bf3ba10d87160953b366e7`, matching the API digest. The original 1,066-byte receipt has SHA-256 `26ed7babe7ce028539ab06463c0f1f0cf82316a4b310c5a04d8b07742fb3d307`. It retains the authenticated audit identity, null material/runtime results, `NOT_AUTHORIZED` and null support dates. The originals remain in the ignored `postgres-candidate-remote-runtime-36681413783` cache. This failure establishes no runtime/persistence proof. The generic error envelope does not establish its exact runtime phase or cause.
+
+V1 is disabled and its exhausted definition is retired. The new input-free `postgres-candidate-remote-runtime-diagnostic-v2.yml` permits only its own first main run/first attempt. It preserves the same audit, subject, permissions, freshness, profile and cleanup gates. Bounded failure telemetry adds only an optional closed runtime code/phase; older code-only failure receipts remain valid historical evidence. Unknown or prefix-spoofed messages cannot enter this diagnostic, and nested cleanup uncertainty cannot be masked by a safe outer code.
+
+The readiness correction covers the normal-entrypoint transition where gosu has already switched PID 1 to UID/GID 70 but the entrypoint is still bash while a temporary database server accepts readiness probes. Such an initialization state is awaited within the existing deadline; SQL starts only after PID 1 is the final PostgreSQL executable with the required identity and privileges. This covered case is not asserted to be the unobserved exact cause of V1. The official PostgreSQL [entrypoint source](https://github.com/docker-library/postgres/blob/master/17/alpine3.24/docker-entrypoint.sh) documents this transition. V2 native dispatch remains pending the exact final-head/main CI gates below.
+
+## V2 local verification
+
+On implementation `4cf08c6b209277e9e335b82846f5e6e12c475c54`, fresh non-root Linux checks passed all 961 root tests with zero failures/skips, all package lint/typechecks/tests/builds, Secretlint for 511 files and a dependency audit with no known vulnerabilities. Separate reviews approved the bounded engine, provider, CLI and workflow changes, including historical V1 receipt compatibility and sticky nested cleanup failures.
+
+The default production entrypoint/provider/engine passed a second real non-root Docker simulation, followed by standalone `CLEANED`. Only the protected-main API response was injected for the explicitly local synthetic context `36699999902`; original audit authentication, sixteen report identities, private registry retrieval, archive validation and Docker operations were real. All fourteen material phases and six runtime phases passed. Corrected gosu and final PostgreSQL PID 1 retained UID/GID 70 and `no-new-privileges`. The fixed payload was verified in container `d93aaa5e6d18d7482c1c23c73506b037c5fa0fc7ca70fc47a214086fa6f56087`, then in distinct container `34d2fef58ba9a604ce30ccc87ada8dca821a9e618207d3d37827b6057ba7c904` on the same owned volume. Both services stopped gracefully; all three containers, volume, image, authentication files and private temporary root were removed. The existing foreign images were preserved.
+
+The original 13,871-byte local receipt has SHA-256 `8a05ad46469d991528d5a1bbc5763780c5aed7d14abb99eed6bb6be66971185d`, retained with driver/logs in ignored `pg-remote-runtime-local-PQsO1hz0`. It remains local diagnostic evidence with `NOT_AUTHORIZED` and null support/archive dates. Independent evidence review approved the original receipt and driver, replayed the production artifact validator without overrides and confirmed zero containers/volumes with both foreign images preserved. Implementation CI `36683929958` passed on the exact implementation SHA above. Exact final-head/main CI and the single native V2 dispatch remain required before native runtime verification is claimed.
 Disable the exhausted diagnostic workflow after its single dispatch. Preserve failed receipts and original accepted evidence. Reverting this focused implementation removes the diagnostic lane without changing source admission, production configuration or existing read-only receipts. No deployed service or database migration is introduced.

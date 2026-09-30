@@ -10,6 +10,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { validatePostgresCandidateArchive, validatePostgresCandidateRemoteManifest } from "./candidate-proof.mjs";
+import { postgresRuntimeFailureDiagnostic } from "./candidate-runtime.mjs";
 import { classifyAnonymousRemoteRead } from "../package-bootstrap/registry-proof.mjs";
 
 const MiB = 1024 ** 2;
@@ -85,12 +86,12 @@ function isInspectionFailure(error) {
     && error.authority === "PREPARATION_ONLY" && error.candidateAuthorization === "NOT_AUTHORIZED"
     && Object.keys(error).sort().join("|") === "authority|candidateAuthorization|code|state";
 }
-function runtimeMaterialFailure({ inspectionFailed, primaryFailure, runtimeCleanupFailure,
+function runtimeMaterialFailure({ inspectionFailed, primaryFailure, runtimeCleanupFailure, runtimeDiagnostic,
   imageCleanupFailure, temporaryCleanupFailure }) {
   const code = runtimeCleanupFailure || imageCleanupFailure || temporaryCleanupFailure
     ? "postgres_remote_runtime_cleanup_uncertain" : "postgres_remote_runtime_material_failed";
   return Object.assign(new Error(code), { code, inspectionFailed, primaryFailure,
-    runtimeCleanupFailure, imageCleanupFailure, temporaryCleanupFailure });
+    runtimeCleanupFailure, runtimeDiagnostic, imageCleanupFailure, temporaryCleanupFailure });
 }
 function runtimeDiagnosticsFailure(cleanupFailure) {
   return new Error(cleanupFailure ?? "postgres_remote_runtime_diagnostics_failed");
@@ -486,7 +487,7 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
     catch (error) { phases.push({ name, result: "FAILED", reason: fixedReason(error), durationMs: now() - phaseStarted }); throw error; }
   };
   let primaryFailure; let result; let inspectedResult; let inspectionFailed = false;
-  let runtimeCleanupFailure = null; let runtimeConfig;
+  let runtimeCleanupFailure = null; let runtimeDiagnostic = null; let runtimeConfig;
   let priorIds = []; let pullAttempted = false; let owned = false; let tagged = false;
   try {
     const version = bounded((await phase("managed_engine", () => run(commandRunner, "docker",
@@ -584,6 +585,7 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
           if (error?.message === "postgres_runtime_cleanup_uncertain") {
             runtimeCleanupFailure = "postgres_remote_runtime_cleanup_uncertain";
           }
+          runtimeDiagnostic = postgresRuntimeFailureDiagnostic(error);
           throw runtimeDiagnosticsFailure(runtimeCleanupFailure);
         }
         throw inspectionFailure();
@@ -657,7 +659,7 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
   phases.push({ name: "owned_temporary_cleanup", result: temporaryFailure ? "FAILED" : "PASSED",
     ...(temporaryFailure ? { reason: fixedReason(temporaryFailure) } : {}), durationMs: now() - temporaryStarted });
   if (lane === "runtime" && (primaryFailure || cleanupFailures.length || temporaryFailure)) {
-    throw runtimeMaterialFailure({ inspectionFailed, runtimeCleanupFailure,
+    throw runtimeMaterialFailure({ inspectionFailed, runtimeCleanupFailure, runtimeDiagnostic,
       primaryFailure: primaryFailure
         ? inspectionFailed ? runtimeCleanupFailure ?? "postgres_remote_runtime_diagnostics_failed"
           : fixedReason(primaryFailure) : null,

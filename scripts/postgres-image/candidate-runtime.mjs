@@ -27,8 +27,20 @@ const OUTPUT_CAP = 1024 ** 2;
 const COMMAND_MS = 90_000;
 const CLEANUP_MS = 60_000;
 const OPERATION_MS = 15 * 60_000;
+const FAILURE_CODES = new Set([
+  "postgres_runtime_aborted", "postgres_runtime_arguments_invalid", "postgres_runtime_before_execution_rejected",
+  "postgres_runtime_cleanup_uncertain", "postgres_runtime_command_failed", "postgres_runtime_config_invalid",
+  "postgres_runtime_context_invalid", "postgres_runtime_create_identity_invalid", "postgres_runtime_directory_invalid",
+  "postgres_runtime_distinct_container_invalid", "postgres_runtime_expected_identity_invalid",
+  "postgres_runtime_failed", "postgres_runtime_failure_diagnostic_invalid", "postgres_runtime_gosu_probe_invalid",
+  "postgres_runtime_inspection_invalid", "postgres_runtime_lock_invalid", "postgres_runtime_name_occupied",
+  "postgres_runtime_ownership_uncertain", "postgres_runtime_process_invalid", "postgres_runtime_profile_invalid",
+  "postgres_runtime_randomness_invalid", "postgres_runtime_readback_invalid", "postgres_runtime_readiness_timeout",
+  "postgres_runtime_receipt_invalid", "postgres_runtime_requires_nonroot_linux", "postgres_runtime_stop_invalid",
+  "postgres_runtime_volume_identity_invalid",
+]);
 
-function fail(code) { throw new Error(code); }
+function fail(code) { throw Object.assign(new Error(code), { phase: "CONTEXT" }); }
 function plain(value) { return value !== null && typeof value === "object" && !Array.isArray(value)
   && Object.getPrototypeOf(value) === Object.prototype; }
 function keys(value, expected) { return plain(value)
@@ -37,6 +49,22 @@ function frozen(value) {
   if (Array.isArray(value)) return Object.freeze(value.map(frozen));
   if (plain(value)) return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, frozen(entry)])));
   return value;
+}
+export function validatePostgresRuntimeFailureDiagnostic(value) {
+  if (!keys(value, ["code", "phase"]) || !FAILURE_CODES.has(value.code) || !PHASES.includes(value.phase)) {
+    fail("postgres_runtime_failure_diagnostic_invalid");
+  }
+  return Object.freeze({ code: value.code, phase: value.phase });
+}
+export function postgresRuntimeFailureDiagnostic(error) {
+  let code; let phase;
+  try { code = error?.message; phase = error?.phase; } catch { /* Untrusted errors disclose no properties. */ }
+  return Object.freeze({ code: FAILURE_CODES.has(code) ? code : "postgres_runtime_failed",
+    phase: PHASES.includes(phase) ? phase : "CONTEXT" });
+}
+function runtimeFailure(error, phase) {
+  const diagnostic = postgresRuntimeFailureDiagnostic(error);
+  return Object.assign(new Error(diagnostic.code), { phase: PHASES.includes(phase) ? phase : diagnostic.phase });
 }
 function json(bytes) {
   try { return JSON.parse(bytes.toString("utf8")); } catch { fail("postgres_runtime_inspection_invalid"); }
@@ -187,8 +215,8 @@ function processStatusProof(bytes, lock) {
     .exec(bytes.toString("utf8"));
   const uid = match?.slice(1, 5).map(Number); const gid = match?.slice(5, 9).map(Number);
   if (!match || match[9] !== "1") fail("postgres_runtime_process_invalid");
-  // PID 1 stays root while the normal entrypoint initializes its temporary server.
-  // UID 70 can read status then, but cannot reliably read a root process's exe link.
+  // Root prepares the directories before gosu reexecutes the bash entrypoint as UID 70.
+  // UID 70 can read status during root setup, but cannot reliably read the root exe link.
   if (uid.every((id) => id === 0) && gid.every((id) => id === 0)) return null;
   if (uid.some((id) => id !== lock.runtime.postgresUid) || gid.some((id) => id !== lock.runtime.postgresGid)
   ) fail("postgres_runtime_process_invalid");
@@ -207,6 +235,7 @@ function baseArguments(record, snapshot, nonce, lock) {
   const probe = record.role === "probe";
   return ["create", "--name", record.name, "--pull=never", "--label", `${OWNER}=${nonce}`,
     "--label", `${PURPOSE}=${ROLE}`, "--network", "none", "--read-only", "--restart", "no", "--cap-drop", "ALL",
+    "--ipc", "private", "--cgroupns", "private", "--runtime", "runc",
     ...(probe ? ["SETGID", "SETUID"] : CAPS).flatMap((capability) => ["--cap-add", capability]),
     "--security-opt", "no-new-privileges=true", "--memory", String(probe ? 134217728 : lock.limits.memoryBytes),
     "--memory-swap", String(probe ? 134217728 : lock.limits.memorySwapBytes), "--cpus", String(probe ? 0.5 : lock.limits.nanoCpus / 1e9),
@@ -279,10 +308,12 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
   const runner = dependencies.runner ?? defaultRunner;
   const started = now(); const phases = []; const owned = new Map(); const removed = [];
   let volume; let volumeAttempted = false; let passwordFile; let passwordIdentity;
-  let gosu; let first; let second; let primaryFailure; let volumeProof;
+  let gosu; let first; let second; let primaryFailure; let volumeProof; let activePhase = "CONTEXT";
   const volumeName = `aw-pg-runtime-${nonce}-data`;
   const record = async (name, action) => {
-    const at = now(); const result = await action();
+    activePhase = name;
+    const at = now(); let result;
+    try { result = await action(); } catch (error) { throw runtimeFailure(error, name); }
     phases.push({ name, result: "PASSED", durationMs: Math.max(0, now() - at) }); return result;
   };
   const invoke = async (args, allowed = [0], cleanup = false, timeoutMs = COMMAND_MS) => {
@@ -378,8 +409,11 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
           if (observed) {
             const executable = (await invoke(["exec", "--user", user, entry.id, "/bin/sh", "-ec", "readlink /proc/1/exe"],
               [0], false, deadline - now())).stdout.toString("utf8").trim();
-            if (!/^\/[^\s]{1,255}\/postgres$/u.test(executable)) fail("postgres_runtime_process_invalid");
-            observed = { ...observed, executable };
+            if (["/bin/bash", "/usr/bin/bash"].includes(executable)) observed = undefined;
+            else {
+              if (!/^\/[^\s]{1,255}\/postgres$/u.test(executable)) fail("postgres_runtime_process_invalid");
+              observed = { ...observed, executable };
+            }
           }
           if (observed && now() < deadline) break;
           observed = undefined;
@@ -397,8 +431,7 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
     };
     first = await record("SERVICE_ONE", () => service("one", true));
     second = await record("SERVICE_TWO", () => service("two", false));
-  } catch (error) { primaryFailure = /^postgres_runtime_[a-z0-9_]+$/u.test(error?.message ?? "")
-    ? error : new Error("postgres_runtime_failed"); }
+  } catch (error) { primaryFailure = runtimeFailure(error, activePhase); }
   let cleanupFailure;
   try {
     await record("CLEANUP", async () => {
@@ -433,7 +466,7 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
       if (!uncertain) rmdirSync(work);
       if (uncertain) fail("postgres_runtime_cleanup_uncertain");
     });
-  } catch { cleanupFailure = new Error("postgres_runtime_cleanup_uncertain"); }
+  } catch { cleanupFailure = runtimeFailure(new Error("postgres_runtime_cleanup_uncertain"), "CLEANUP"); }
   if (cleanupFailure) throw cleanupFailure;
   if (primaryFailure) throw primaryFailure;
   return validatePostgresCandidateRuntimeReceipt({ kind: "POSTGRES_CANDIDATE_RUNTIME_RECEIPT_V1", state: "VERIFIED",

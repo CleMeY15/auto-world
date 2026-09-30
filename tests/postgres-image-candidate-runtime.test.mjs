@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { executePostgresCandidateRuntime, validatePostgresCandidateRuntimeReceipt } from "../scripts/postgres-image/candidate-runtime.mjs";
+import { executePostgresCandidateRuntime, postgresRuntimeFailureDiagnostic, validatePostgresCandidateRuntimeReceipt,
+  validatePostgresRuntimeFailureDiagnostic } from "../scripts/postgres-image/candidate-runtime.mjs";
 
 const lock = JSON.parse(readFileSync(new URL("../infra/postgres-image/lock.json", import.meta.url), "utf8"));
 const OWNER = "com.auto-world.postgres-runtime-nonce";
@@ -35,7 +36,7 @@ function harness(options = {}) {
   const input = snapshot(parent); mkdirSync(input.dockerConfig, { mode: 0o700 });
   const containers = new Map(); const calls = []; const checks = [];
   let volume; let saved; let created = 0; let clock = Date.parse("2026-09-30T18:00:00Z");
-  const processCounts = new Map();
+  const processCounts = new Map(); const executables = new Map();
   const argument = (args, key) => args[args.indexOf(key) + 1];
   const flags = (args, key) => args.flatMap((item, index) => item === key ? [args[index + 1]] : []);
   const getContainer = (name) => containers.get(name) ?? [...containers.values()].find((item) => item.Id === name);
@@ -65,6 +66,8 @@ function harness(options = {}) {
       created += 1;
       const name = argument(args, "--name"); const probe = name.endsWith("-probe");
       const index = args.indexOf(input.imageId); assert.ok(index > 0); assert.ok(args.includes("--pull=never"));
+      assert.equal(argument(args, "--ipc"), "private"); assert.equal(argument(args, "--cgroupns"), "private");
+      assert.equal(argument(args, "--runtime"), "runc");
       const tmpfs = Object.fromEntries(flags(args, "--tmpfs").map((entry) => {
         const split = entry.indexOf(":"); return [entry.slice(0, split), entry.slice(split + 1)];
       }));
@@ -85,8 +88,8 @@ function harness(options = {}) {
           MemorySwap: Number(argument(args, "--memory-swap")), NanoCpus: Number(argument(args, "--cpus")) * 1e9,
           PidsLimit: Number(argument(args, "--pids-limit")), ShmSize: Number(argument(args, "--shm-size")), Tmpfs: tmpfs,
           Binds: null, Devices: [], DeviceRequests: null, DeviceCgroupRules: null, VolumesFrom: null, Links: null,
-          ExtraHosts: null, PortBindings: {}, PublishAllPorts: false, PidMode: "", IpcMode: "private", UTSMode: "",
-          UsernsMode: "", CgroupnsMode: "private", ContainerIDFile: "", Runtime: "runc",
+          ExtraHosts: null, PortBindings: {}, PublishAllPorts: false, PidMode: "", IpcMode: argument(args, "--ipc"), UTSMode: "",
+          UsernsMode: "", CgroupnsMode: argument(args, "--cgroupns"), ContainerIDFile: "", Runtime: argument(args, "--runtime"),
           Mounts: probe ? [] : [{ Type: "volume", Source: volume.Name, Target: "/var/lib/postgresql/data",
             VolumeOptions: { NoCopy: true } }] },
         Mounts: [...Object.keys(tmpfs).map((Destination) => ({ Type: "tmpfs", Destination, Source: "", RW: true })),
@@ -109,15 +112,22 @@ function harness(options = {}) {
     }
     if (args[0] === "exec") {
       if (args.includes("pg_isready")) return result(options.notReady ? 1 : 0);
+      const id = args.find((item) => /^[0-9]{64}$/u.test(item));
       if (args.includes("/bin/sh")) {
-        if (args.at(-1) === "readlink /proc/1/exe") return result(0, `${options.wrongExecutable ? "/bin/bash" : "/usr/local/bin/postgres"}\n`);
-        const id = args.find((item) => /^[0-9]{64}$/u.test(item));
+        if (args.at(-1) === "readlink /proc/1/exe") {
+          const initializing = options.bashInitializationForever || options.temporaryBash
+            && processCounts.get(id) === (options.temporaryReady ? 2 : 1);
+          const executable = options.wrongExecutable ? "/bin/sh"
+            : initializing ? options.temporaryBash ?? options.bashInitializationForever : "/usr/local/bin/postgres";
+          executables.set(id, executable); return result(0, `${executable}\n`);
+        }
         const count = (processCounts.get(id) ?? 0) + 1; processCounts.set(id, count);
         if (options.rootInitializationForever || options.temporaryReady && count === 1) {
           return result(0, "uid=0 0 0 0\ngid=0 0 0 0\nnnp=1\n");
         }
         return result(0, `uid=70 ${options.wrongUid ? "0" : "70"} 70 70\ngid=70 70 70 70\nnnp=${options.processNnp ?? 1}\n`);
       }
+      assert.equal(executables.get(id), "/usr/local/bin/postgres", "SQL must wait for the final PostgreSQL PID1");
       if (args.at(-1).startsWith("CREATE TABLE")) { saved = payload; return result(0, "CREATE TABLE\nINSERT 0 1\n"); }
       if (args.at(-1).startsWith("SELECT payload")) return result(0, `${options.wrongRead ? "wrong" : saved}\n`);
     }
@@ -161,6 +171,37 @@ test("context rejects unbound identity, config, proof, callback and unsupported 
     /postgres_runtime_requires_nonroot_linux/u);
 });
 
+test("runtime failure diagnostics allow only fixed codes and phases without private error fields", () => {
+  const codes = ["aborted", "arguments_invalid", "before_execution_rejected", "cleanup_uncertain", "command_failed",
+    "config_invalid", "context_invalid", "create_identity_invalid", "directory_invalid", "distinct_container_invalid",
+    "expected_identity_invalid", "failed", "failure_diagnostic_invalid", "gosu_probe_invalid", "inspection_invalid",
+    "lock_invalid", "name_occupied", "ownership_uncertain", "process_invalid", "profile_invalid", "randomness_invalid",
+    "readback_invalid", "readiness_timeout", "receipt_invalid", "requires_nonroot_linux", "stop_invalid", "volume_identity_invalid"];
+  assert.equal(codes.length, 27);
+  for (const suffix of codes) {
+    const value = { code: `postgres_runtime_${suffix}`, phase: "SERVICE_ONE" };
+    const accepted = validatePostgresRuntimeFailureDiagnostic(value);
+    assert.deepEqual(accepted, value); assert.ok(Object.isFrozen(accepted)); assert.notEqual(accepted, value);
+    const error = Object.assign(new Error(value.code, { cause: new Error("private cause") }),
+      { phase: value.phase, stdout: "private payload", password: "private secret" });
+    const diagnostic = postgresRuntimeFailureDiagnostic(error);
+    assert.deepEqual(diagnostic, value); assert.ok(Object.isFrozen(diagnostic));
+  }
+  for (const invalid of [null, [], { code: "postgres_runtime_private_secret", phase: "CONTEXT" },
+    { code: "postgres_runtime_failed", phase: "RAW_PRIVATE_PHASE" }, { code: "postgres_runtime_failed", phase: "CONTEXT", cause: "private" },
+    { code: "postgres_runtime_failed", phase: "CONTEXT", extra: undefined }]) {
+    assert.throws(() => validatePostgresRuntimeFailureDiagnostic(invalid), /postgres_runtime_failure_diagnostic_invalid/u);
+  }
+  assert.deepEqual(postgresRuntimeFailureDiagnostic(new Error("postgres_runtime_private_secret")),
+    { code: "postgres_runtime_failed", phase: "CONTEXT" });
+  assert.deepEqual(postgresRuntimeFailureDiagnostic(Object.assign(new Error("raw private error"), { phase: "SERVICE_TWO" })),
+    { code: "postgres_runtime_failed", phase: "SERVICE_TWO" });
+  assert.deepEqual(postgresRuntimeFailureDiagnostic(Object.assign(new Error("postgres_runtime_process_invalid"), { phase: "private" })),
+    { code: "postgres_runtime_process_invalid", phase: "CONTEXT" });
+  assert.deepEqual(postgresRuntimeFailureDiagnostic({ get message() { throw new Error("private getter"); } }),
+    { code: "postgres_runtime_failed", phase: "CONTEXT" });
+});
+
 test("actual orchestration proves gosu, normal entrypoint and persistence in distinct owned containers", { skip: !runnable }, async () => {
   const value = harness();
   try {
@@ -200,7 +241,11 @@ test("freshness callback rejection precedes each create/start and cleans earlier
     const value = harness({ rejectBefore });
     try {
       await assert.rejects(executePostgresCandidateRuntime(value.input, value.controls, value.dependencies),
-        (error) => error.message === "postgres_runtime_before_execution_rejected");
+        (error) => {
+          assert.deepEqual(postgresRuntimeFailureDiagnostic(error), { code: "postgres_runtime_before_execution_rejected",
+            phase: ["GOSU_PROBE", "GOSU_PROBE", "VOLUME_CREATE", "SERVICE_ONE", "SERVICE_ONE", "SERVICE_TWO", "SERVICE_TWO"][rejectBefore - 1] });
+          return error.message === "postgres_runtime_before_execution_rejected";
+        });
       assert.equal(value.checks.length, rejectBefore); assert.equal(value.containers.size, 0); assert.equal(value.volume, undefined);
       assert.equal(value.calls.filter(({ args }) => args[0] === "create" || args[0] === "start"
         || args[0] === "volume" && args[1] === "create").length, rejectBefore - 1);
@@ -214,6 +259,9 @@ test("complete Docker profiles reject extra authority and mounts before start", 
     ["probe", (entry) => { entry.HostConfig.Binds = ["/var/run/docker.sock:/docker.sock"]; }],
     ["probe", (entry) => { entry.HostConfig.Devices = [{ PathOnHost: "/dev/sda" }]; }],
     ["probe", (entry) => { entry.HostConfig.PidMode = "host"; }],
+    ["probe", (entry) => { entry.HostConfig.IpcMode = "host"; }],
+    ["probe", (entry) => { entry.HostConfig.CgroupnsMode = "host"; }],
+    ["probe", (entry) => { entry.HostConfig.Runtime = "other"; }],
     ["probe", (entry) => { entry.HostConfig.CapAdd.push("CAP_SYS_ADMIN"); }],
     ["probe", (entry) => { entry.HostConfig.Tmpfs["/foreign"] = "rw"; }],
     ["probe", (entry) => { entry.Config.Cmd.push("ignored"); }],
@@ -238,15 +286,62 @@ test("real privilege, persistence, stop and readiness failures remain fixed diag
   for (const [options, code] of [[{ probeNnp: 0 }, "gosu_probe_invalid"], [{ wrongUid: true }, "process_invalid"],
     [{ processNnp: 0 }, "process_invalid"], [{ wrongExecutable: true }, "process_invalid"], [{ wrongRead: true }, "readback_invalid"],
     [{ badExit: true }, "stop_invalid"], [{ sameId: true }, "distinct_container_invalid"], [{ notReady: true }, "readiness_timeout"],
-    [{ rootInitializationForever: true }, "readiness_timeout"]]) {
+    [{ rootInitializationForever: true }, "readiness_timeout"], [{ bashInitializationForever: "/bin/bash" }, "readiness_timeout"],
+    [{ bashInitializationForever: "/usr/bin/bash" }, "readiness_timeout"]]) {
     const value = harness(options);
     try {
       await assert.rejects(executePostgresCandidateRuntime(value.input, value.controls, value.dependencies),
-        (error) => error.message === `postgres_runtime_${code}`);
+        (error) => {
+          assert.deepEqual(postgresRuntimeFailureDiagnostic(error), { code: `postgres_runtime_${code}`,
+            phase: options.probeNnp === 0 ? "GOSU_PROBE" : options.sameId ? "SERVICE_TWO" : "SERVICE_ONE" });
+          return error.message === `postgres_runtime_${code}`;
+        });
       assert.equal(value.containers.size, 0); assert.equal(value.volume, undefined);
       if (options.rootInitializationForever) assert.ok(!value.calls.some(({ args }) => args.at(-1) === "readlink /proc/1/exe"));
+      if (options.rootInitializationForever || options.bashInitializationForever || options.notReady
+        || options.wrongUid || options.processNnp === 0 || options.wrongExecutable) {
+        assert.ok(!value.calls.some(({ args }) => args.includes("psql")));
+      }
     } finally { value.dispose(); }
   }
+});
+
+test("UID70 bash initialization waits for final postgres within the original readiness deadline", { skip: !runnable }, async () => {
+  for (const temporaryBash of ["/bin/bash", "/usr/bin/bash"]) {
+    const value = harness({ temporaryReady: true, temporaryBash });
+    try {
+      const receipt = await executePostgresCandidateRuntime(value.input, value.controls, value.dependencies);
+      assert.equal(receipt.state, "VERIFIED");
+      for (const id of ["2".repeat(64), "3".repeat(64)]) {
+        const observations = value.calls.filter(({ args }) => args[0] === "exec" && args.includes(id) && args.includes("/bin/sh"));
+        assert.equal(observations.length, 5);
+        assert.equal(observations[2].args.at(-1), "readlink /proc/1/exe");
+        assert.equal(observations[4].args.at(-1), "readlink /proc/1/exe");
+        const sql = value.calls.findIndex(({ args }) => args[0] === "exec" && args.includes(id) && args.includes("psql"));
+        assert.ok(sql > value.calls.indexOf(observations[4]));
+      }
+      assert.equal(value.containers.size, 0); assert.equal(value.volume, undefined);
+    } finally { value.dispose(); }
+  }
+});
+
+test("unrecognized subprocess errors become fixed diagnostics in the active phase", { skip: !runnable }, async () => {
+  const value = harness();
+  try {
+    const runner = value.dependencies.runner;
+    value.dependencies.runner = (...args) => {
+      if (args[1].includes("psql")) throw Object.assign(new Error("postgres_runtime_raw_private_suffix"),
+        { phase: "CLEANUP", stdout: "raw private output", cause: new Error("private cause") });
+      return runner(...args);
+    };
+    await assert.rejects(executePostgresCandidateRuntime(value.input, value.controls, value.dependencies), (error) => {
+      assert.equal(error.message, "postgres_runtime_failed");
+      assert.deepEqual(postgresRuntimeFailureDiagnostic(error), { code: "postgres_runtime_failed", phase: "SERVICE_ONE" });
+      assert.equal(error.cause, undefined); assert.equal(error.stdout, undefined);
+      return true;
+    });
+    assert.equal(value.containers.size, 0); assert.equal(value.volume, undefined);
+  } finally { value.dispose(); }
 });
 
 test("temporary initialization readiness waits for the final postgres PID1 before SQL", { skip: !runnable }, async () => {
@@ -271,7 +366,11 @@ test("foreign volume collision is preserved and cleanup uncertainty overrides ot
     const value = harness(options);
     try {
       await assert.rejects(executePostgresCandidateRuntime(value.input, value.controls, value.dependencies),
-        (error) => error.message === `postgres_runtime_${code}`);
+        (error) => {
+          assert.deepEqual(postgresRuntimeFailureDiagnostic(error), { code: `postgres_runtime_${code}`,
+            phase: options.foreignVolume ? "VOLUME_CREATE" : "CLEANUP" });
+          return error.message === `postgres_runtime_${code}`;
+        });
       if (options.foreignVolume || options.foreignCreatedVolume) {
         assert.ok(!value.calls.some(({ args }) => args[0] === "volume" && args[1] === "rm"));
       }
