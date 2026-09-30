@@ -29,7 +29,7 @@ const exact = (value, keys) => value !== null && typeof value === "object" && !A
   && Object.getPrototypeOf(value) === Object.prototype && isDeepStrictEqual(Object.keys(value).sort(), [...keys].sort());
 const env = () => ({ SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", TEMP: process.env.TEMP, TMP: process.env.TMP,
   PATH: "C:\\Windows\\System32;C:\\Windows" });
-const linuxCommand = (command, args) => ({ command: WSL, args: ["-d", "Ubuntu-24.04", "-u", "autoworld", "--exec",
+const linuxCommand = (command, args) => ({ command: WSL, args: ["-d", "Ubuntu-24.04", "--cd", "/", "-u", "autoworld", "--exec",
   "/usr/bin/env", "-i", "PATH=/opt/auto-world/toolchains/node-v22.23.2-linux-x64/bin:/usr/bin:/bin",
   "HOME=/home/autoworld", "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "TZ=UTC", command, ...args] });
 const worker = (operation) => linuxCommand(LINUX_NODE, [`${LINUX_ROOT}/scripts/postgres-image/private-copy-linux.mjs`, operation]);
