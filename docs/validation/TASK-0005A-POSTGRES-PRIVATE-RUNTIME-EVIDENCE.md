@@ -1,6 +1,6 @@
 # PostgreSQL private runtime evidence addendum
 
-Status: ACCEPTED_LOCAL_DIAGNOSTIC, 2026-10-01. Independent implementation, original-byte/native and separate privacy/preservation reviews APPROVE. Final-head/main CI and merge are the remaining PR delivery gates. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+Status: ACCEPTED_LOCAL_DIAGNOSTIC, 2026-10-01. Independent implementation, original-byte/native and separate privacy/preservation reviews APPROVE. PR124 merged6649766410a86a019fa18b711c78d5af21c40a17 with unchanged reviewed tree7bc2d8c84c591728c3a2c2ccacc15c4c59433f89 from final-head6a4b4cee5190be0ab059bd99adf2d405309ebf98; exact final-head CI36786276233 and merged-main CI36786525955 pass. Later accepted recipe retention is recorded separately in TASK-0005A-POSTGRES-RUNTIME-RECIPE-ARCHIVE.md. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
 
 ## Actual fixed default V3
 
