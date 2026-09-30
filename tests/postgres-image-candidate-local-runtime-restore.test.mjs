@@ -214,6 +214,7 @@ test("native engine refuses unowned audit-evidence shapes and unexpected initial
     if (variant === "file") writeFileSync(evidence, "not a directory", { mode: 0o600 });
     else if (variant === "symlink") { const target = path.join(s.root, "other-audit"); mkdirSync(target, { mode: 0o700 }); symlinkSync(target, evidence); }
     else { mkdirSync(evidence, { mode: variant === "mode" ? 0o750 : 0o700 });
+      if (variant === "mode") { chmodSync(evidence, 0o750); assert.equal(meta(lstatSync(evidence, { bigint: true })).mode, 0o750); }
       if (variant === "extra") writeFileSync(path.join(s.input.workDirectory, "unexpected"), "preserve", { mode: 0o600 }); }
     const h = harness(s);
     await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), { message: "postgres_local_runtime_restore_storage_invalid" });
