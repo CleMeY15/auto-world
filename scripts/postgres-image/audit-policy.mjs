@@ -10,9 +10,11 @@ const GOSU_MODULE = "github.com/tianon/gosu";
 const GOSU_PURL = `pkg:golang/${GOSU_MODULE}`;
 const GO_PACKAGES = [["stdlib", "v1.26.8"], ["github.com/moby/sys/user", "v0.1.0"], ["golang.org/x/sys", "v0.1.0"]];
 const GO_DEPENDENCIES = GO_PACKAGES.map(([name, version]) => `${name}@${version}`).sort();
+const AUDIT_ERRORS = new WeakSet();
 
 function invalid(check = "shape") {
   const error = new Error("postgres_gosu_audit_invalid");
+  AUDIT_ERRORS.add(error);
   error.diagnostic = { check };
   throw error;
 }
@@ -90,39 +92,129 @@ function localize(entry, auditSubject) {
   return { ...finding, subject: auditSubject };
 }
 
-export function evaluateLocalPostgresGosuAudit(input = {}) {
-  if (!exactObject(input, ["vulnerabilityReport", "cyclonedxReport", "subject", "archiveEvidence", "databaseEvidence"], ["now"])) invalid("input");
-  const { vulnerabilityReport: report, cyclonedxReport: sbom, now = new Date() } = input;
-  const auditSubject = subject(input.subject);
-  const observedArchive = subject(input.archiveEvidence);
-  if (!isDeepStrictEqual(auditSubject, observedArchive)) invalid("archive_binding");
-  if (!exactObject(input.databaseEvidence, ["vulnerability", "java"])) invalid("database_evidence");
-  let databases;
-  try {
-    databases = Object.freeze({
-      vulnerability: validateDatabaseMetadata(input.databaseEvidence.vulnerability, { database: "vulnerability", now }),
-      java: validateDatabaseMetadata(input.databaseEvidence.java, { database: "java", now }),
-    });
-  } catch { invalid("database_evidence"); }
-
-  const at = now instanceof Date ? now.getTime() : NaN;
-  const createdAt = timestamp(report?.CreatedAt);
-  if (Object.values(databases).some((database) => createdAt < timestamp(database.downloadedAt))) {
-    invalid("report_precedes_database_download");
+function inventoryData(value, depth = 0, budget = { left: 100_000 }) {
+  if (--budget.left < 0 || depth > 32) invalid("inventory_data");
+  if (value === null || ["string", "boolean", "number"].includes(typeof value)) {
+    if (typeof value === "number" && !Number.isFinite(value)) invalid("inventory_data");
+    return;
   }
-  const config = report?.Metadata?.ImageConfig;
-  const os = report?.Metadata?.OS;
-  if (!Number.isFinite(at) || !object(report) || report.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION ||
-      !Number.isFinite(createdAt) || createdAt > at || at - createdAt > MAX_DATABASE_AGE_MS || report.ArtifactType !== "container_image" ||
-      report.ArtifactName !== auditSubject.artifactName || report.Metadata?.ImageID !== auditSubject.imageId ||
-      config?.os !== "linux" || config?.architecture !== "amd64" || ![undefined, null].includes(config?.variant) ||
-      config?.rootfs?.type !== "layers" || !isDeepStrictEqual(config.rootfs.diff_ids, auditSubject.diffIds) ||
-      !isDeepStrictEqual(report.Metadata?.DiffIDs, auditSubject.diffIds) ||
-      !Array.isArray(report.Metadata?.RepoTags) || report.Metadata.RepoTags.length !== 1 || report.Metadata.RepoTags[0] !== auditSubject.tag ||
-      !exactObject(os, ["Family", "Name"], ["EOSL"]) || os.Family !== "alpine" || !text(os.Name) ||
-      (os.EOSL !== undefined && typeof os.EOSL !== "boolean") || !Array.isArray(report.Results) ||
-      report.Results.length === 0 || report.Results.length > 4096) invalid("report");
+  const array = Array.isArray(value);
+  if (!array && !object(value) || array && Object.getPrototypeOf(value) !== Array.prototype) invalid("inventory_data");
+  const keys = Reflect.ownKeys(value);
+  if (array && (value.length > MAX_COMPONENTS || keys.length !== value.length + 1)) invalid("inventory_data");
+  for (const key of keys) {
+    if (array && key === "length") continue;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (typeof key !== "string" || !descriptor.enumerable || !Object.hasOwn(descriptor, "value") ||
+      array && !/^(?:0|[1-9][0-9]*)$/u.test(key)) invalid("inventory_data");
+    inventoryData(descriptor.value, depth + 1, budget);
+  }
+}
 
+const inventoryFreeze = (value) => Array.isArray(value) ? Object.freeze(value.map(inventoryFreeze)) : object(value)
+  ? Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, inventoryFreeze(child)]))) : value;
+const order = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+function optionalProperty(component, name) {
+  const entries = component.properties.filter((entry) => entry.name === name);
+  if (entries.length > 1 || entries.length === 1 && !text(entries[0].value)) invalid("component_properties");
+  return entries.length ? entries[0].value : null;
+}
+function declared(value, key) {
+  const present = Object.hasOwn(value, key);
+  if (present && !text(value[key])) invalid("inventory_declaration");
+  return { present, value: present ? value[key] : null };
+}
+function licenseDeclarations(pkg, component) {
+  const jsonPresent = Object.hasOwn(pkg, "Licenses");
+  const cdxPresent = Object.hasOwn(component, "licenses");
+  const json = jsonPresent ? pkg.Licenses : null;
+  const cdx = cdxPresent ? component.licenses : null;
+  if (jsonPresent && (!Array.isArray(json) || json.length > 64 || json.some((v) => !text(v)) || new Set(json).size !== json.length) ||
+    cdxPresent && (!Array.isArray(cdx) || cdx.length > 64 || cdx.some((v) => !exactObject(v, ["license"]) ||
+      !object(v.license) || Object.keys(v.license).length !== 1 || !["id", "name"].includes(Object.keys(v.license)[0]) ||
+      !text(Object.values(v.license)[0])))) invalid("inventory_licenses");
+  const cdxText = cdx?.map((v) => Object.values(v.license)[0]) ?? [];
+  if (new Set(cdxText).size !== cdxText.length || jsonPresent && cdxPresent &&
+    !isDeepStrictEqual([...json].sort(order), [...cdxText].sort(order))) invalid("inventory_license_parity");
+  return { json: { present: jsonPresent, values: json }, cyclonedx: { present: cdxPresent, values: cdx },
+    textParity: jsonPresent !== cdxPresent ? "SINGLE_REPORT_DECLARATION" : (json?.length ?? 0) > 0 ? "RAW_DECLARED_TEXT_MATCH" : "NO_DECLARATION" };
+}
+
+// This proves structural agreement only. Native callers must authenticate complete report bytes first.
+export function validatePostgresGosuReportInventory(input) {
+  try {
+    inventoryData(input);
+    if (!exactObject(input, ["vulnerabilityReport", "cyclonedxReport", "expected"]) ||
+      !exactObject(input.expected, ["subject", "packageCount"]) || input.expected.packageCount !== 50) invalid("inventory_expected");
+    const expected = input.expected.subject;
+    if (!exactObject(expected, ["artifactName", "imageId", "configDigest", "diffIds", "tag", "os", "architecture", "osFamily", "osVersion"]) ||
+      !text(expected.artifactName) || typeof expected.imageId !== "string" || !DIGEST.test(expected.imageId) ||
+      expected.configDigest !== expected.imageId || typeof expected.tag !== "string" ||
+      !/^[a-z0-9]+(?:[._/-][a-z0-9]+)*:[A-Za-z0-9_.-]+$/u.test(expected.tag) || expected.os !== "linux" || expected.architecture !== "amd64" ||
+      expected.osFamily !== "alpine" || expected.osVersion !== "3.24.2" || !Array.isArray(expected.diffIds) || expected.diffIds.length !== 12 ||
+      expected.diffIds.some((v) => typeof v !== "string" || !DIGEST.test(v)) || new Set(expected.diffIds).size !== 12) invalid("inventory_expected");
+    const report = input.vulnerabilityReport; const sbom = input.cyclonedxReport;
+    const config = report?.Metadata?.ImageConfig; const os = report?.Metadata?.OS;
+    if (!object(report) || report.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION || !Number.isFinite(timestamp(report.CreatedAt)) ||
+      report.ArtifactType !== "container_image" || report.ArtifactName !== expected.artifactName || report.Metadata?.ImageID !== expected.imageId ||
+      config?.os !== expected.os || config?.architecture !== expected.architecture || ![undefined, null].includes(config?.variant) ||
+      config?.rootfs?.type !== "layers" || !isDeepStrictEqual(config.rootfs.diff_ids, expected.diffIds) ||
+      !isDeepStrictEqual(report.Metadata?.DiffIDs, expected.diffIds) || !isDeepStrictEqual(report.Metadata?.RepoTags, [expected.tag]) ||
+      !exactObject(os, ["Family", "Name"], ["EOSL"]) || os.Family !== expected.osFamily || os.Name !== expected.osVersion ||
+      os.EOSL !== undefined && typeof os.EOSL !== "boolean" || !Array.isArray(report.Results) || report.Results.length !== 2) invalid("inventory_report");
+    const { jsonPackages } = jsonInventory(report, expected, os);
+    const { libraries } = cyclonedxInventory(sbom, expected, os, jsonPackages);
+    if (jsonPackages.size !== 50 || libraries.length !== 50 || sbom.components.length !== 52) invalid("inventory_count");
+    const packages = [];
+    for (const result of report.Results) for (const pkg of result.Packages) {
+      const version = unversionedGosuRoot(pkg, expected.diffIds.at(-1)) ? null : packageVersion(pkg);
+      const component = libraries.find((v) => v.name === pkg.Name && (v.version ?? null) === version &&
+        property(v, "aquasecurity:trivy:PkgType") === result.Type);
+      const purl = component.purl;
+      const packageId = property(component, "aquasecurity:trivy:PkgID");
+      const layerDiffId = property(component, "aquasecurity:trivy:LayerDiffID");
+      if (!text(purl) || !purl.startsWith(result.Type === "alpine" ? "pkg:apk/alpine/" : "pkg:golang/") ||
+        !text(component["bom-ref"]) || !expected.diffIds.includes(layerDiffId) || result.Type === "gobinary" && layerDiffId !== expected.diffIds.at(-1) ||
+        Object.hasOwn(pkg, "ID") && pkg.ID !== packageId || Object.hasOwn(pkg, "Identifier") && pkg.Identifier.PURL !== purl ||
+        Object.hasOwn(pkg, "Layer") && pkg.Layer.DiffID !== layerDiffId) invalid("inventory_package_binding");
+      const originName = declared(pkg, "SrcName"); const originVersion = declared(pkg, "SrcVersion");
+      if (originName.present !== originVersion.present) invalid("inventory_origin");
+      for (const [key, declaration] of [["SrcName", originName], ["SrcVersion", originVersion]]) {
+        const value = optionalProperty(component, `aquasecurity:trivy:${key}`);
+        if (value !== null && (!declaration.present || value !== declaration.value)) invalid("inventory_origin_parity");
+      }
+      packages.push({ packageType: result.Type, name: pkg.Name, version, versionPresent: Object.hasOwn(pkg, "Version"),
+        purl, bomRef: component["bom-ref"], packageId, layerDiffId,
+        origin: { namePresent: originName.present, name: originName.value, versionPresent: originVersion.present, version: originVersion.value },
+        declarations: licenseDeclarations(pkg, component), sourceBinding: "NOT_ESTABLISHED", noticeBinding: "NOT_ESTABLISHED" });
+    }
+    packages.sort((a, b) => order(JSON.stringify([a.packageType, a.name, a.version, a.purl]), JSON.stringify([b.packageType, b.name, b.version, b.purl])));
+    const apk = packages.filter((v) => v.packageType === "alpine"); const go = packages.filter((v) => v.packageType === "gobinary");
+    const virtual = apk.filter((v) => !v.origin.namePresent);
+    if (apk.length !== 46 || go.length !== 4 || virtual.length !== 1 || virtual[0].name !== ".postgresql-rundeps" ||
+      virtual[0].version !== "20260917.213131") invalid("inventory_origins");
+    const groups = new Map();
+    for (const pkg of apk.filter((v) => v.origin.namePresent)) {
+      const key = JSON.stringify([pkg.origin.name, pkg.origin.version]);
+      if (!groups.has(key)) groups.set(key, { name: pkg.origin.name, version: pkg.origin.version, packages: [], sourceState: "NOT_COLLECTED", noticesState: "NOT_COLLECTED" });
+      groups.get(key).packages.push([pkg.name, pkg.version, pkg.packageType]);
+    }
+    if (groups.size !== 35 || new Set(packages.map((v) => v.purl)).size !== 50 || new Set(packages.map((v) => v.bomRef)).size !== 50) invalid("inventory_origins");
+    const apkOrigins = [...groups].sort(([a], [b]) => order(a, b)).map(([, v]) => v);
+    const value = { kind: "POSTGRES_GOSU_REPORT_INVENTORY_V1", state: "PARITY_VERIFIED", subject: expected,
+      counts: { jsonResultCount: 2, packageCount: 50, apkPackageCount: 46, goPackageCount: 4, sbomComponentCount: 52,
+        libraryComponentCount: 50, applicationComponentCount: 1, osComponentCount: 1, namedApkOriginCount: 35, virtualApkCount: 1 },
+      packages, apkOrigins, virtualApk: { name: virtual[0].name, version: virtual[0].version, state: "UNRESOLVED_SYNTHETIC" },
+      goDependencies: { ref: GOSU_PURL, dependsOn: GO_DEPENDENCIES.map((v) => `pkg:golang/${v}`) },
+      nonPackageComponents: [{ name: "usr/bin/gosu", type: "application" }, { name: os.Family, version: os.Name, type: "operating-system" }] };
+    return inventoryFreeze(globalThis.structuredClone(value));
+  } catch (error) {
+    if (AUDIT_ERRORS.has(error)) throw error;
+    invalid("inventory_data");
+  }
+}
+
+function jsonInventory(report, auditSubject, os) {
   const gosuTargets = report.Results.filter((entry) => entry?.Target === "usr/bin/gosu" && entry?.Class === "lang-pkgs" && entry?.Type === "gobinary");
   const osTargets = report.Results.filter((entry) => entry?.Class === "os-pkgs");
   const isGosuRoot = (pkg) => unversionedGosuRoot(pkg, auditSubject.diffIds.at(-1));
@@ -148,15 +240,10 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
     }
   }
 
-  let evaluated;
-  // The authenticated APK binds this main module, whose Go build metadata says (devel).
-  // Keep its null-version inventory identity; never invent a version for vulnerability matching.
-  // Findings are not filtered, so any finding against this root fails closed in the shared evaluator.
-  const versionedResults = report.Results.map((result) => result === gosuTargets[0]
-    ? { ...result, Packages: result.Packages.filter((pkg) => !isGosuRoot(pkg)) } : result);
-  try { evaluated = evaluateImageResults(versionedResults, { imageDigest: auditSubject.imageId, now }); }
-  catch { invalid("findings"); }
+  return { gosuTargets, isGosuRoot, jsonPackages };
+}
 
+function cyclonedxInventory(sbom, auditSubject, os, jsonPackages) {
   const root = sbom?.metadata?.component;
   if (!object(sbom) || sbom.bomFormat !== "CycloneDX" || !/^1\.[4-7]$/u.test(sbom.specVersion ?? "") ||
       !Number.isSafeInteger(sbom.version) || sbom.version < 1 || root?.type !== "container" || root.name !== auditSubject.artifactName ||
@@ -193,6 +280,55 @@ export function evaluateLocalPostgresGosuAudit(input = {}) {
     sbomPackages.add(identity);
   }
   if (sbomPackages.size !== jsonPackages.size || [...jsonPackages].some((identity) => !sbomPackages.has(identity))) invalid("sbom_parity");
+
+  return { libraries, sbomPackages };
+}
+
+export function evaluateLocalPostgresGosuAudit(input = {}) {
+  if (!exactObject(input, ["vulnerabilityReport", "cyclonedxReport", "subject", "archiveEvidence", "databaseEvidence"], ["now"])) invalid("input");
+  const { vulnerabilityReport: report, cyclonedxReport: sbom, now = new Date() } = input;
+  const auditSubject = subject(input.subject);
+  const observedArchive = subject(input.archiveEvidence);
+  if (!isDeepStrictEqual(auditSubject, observedArchive)) invalid("archive_binding");
+  if (!exactObject(input.databaseEvidence, ["vulnerability", "java"])) invalid("database_evidence");
+  let databases;
+  try {
+    databases = Object.freeze({
+      vulnerability: validateDatabaseMetadata(input.databaseEvidence.vulnerability, { database: "vulnerability", now }),
+      java: validateDatabaseMetadata(input.databaseEvidence.java, { database: "java", now }),
+    });
+  } catch { invalid("database_evidence"); }
+
+  const at = now instanceof Date ? now.getTime() : NaN;
+  const createdAt = timestamp(report?.CreatedAt);
+  if (Object.values(databases).some((database) => createdAt < timestamp(database.downloadedAt))) {
+    invalid("report_precedes_database_download");
+  }
+  const config = report?.Metadata?.ImageConfig;
+  const os = report?.Metadata?.OS;
+  if (!Number.isFinite(at) || !object(report) || report.SchemaVersion !== 2 || report.Trivy?.Version !== SCANNER_VERSION ||
+      !Number.isFinite(createdAt) || createdAt > at || at - createdAt > MAX_DATABASE_AGE_MS || report.ArtifactType !== "container_image" ||
+      report.ArtifactName !== auditSubject.artifactName || report.Metadata?.ImageID !== auditSubject.imageId ||
+      config?.os !== "linux" || config?.architecture !== "amd64" || ![undefined, null].includes(config?.variant) ||
+      config?.rootfs?.type !== "layers" || !isDeepStrictEqual(config.rootfs.diff_ids, auditSubject.diffIds) ||
+      !isDeepStrictEqual(report.Metadata?.DiffIDs, auditSubject.diffIds) ||
+      !Array.isArray(report.Metadata?.RepoTags) || report.Metadata.RepoTags.length !== 1 || report.Metadata.RepoTags[0] !== auditSubject.tag ||
+      !exactObject(os, ["Family", "Name"], ["EOSL"]) || os.Family !== "alpine" || !text(os.Name) ||
+      (os.EOSL !== undefined && typeof os.EOSL !== "boolean") || !Array.isArray(report.Results) ||
+      report.Results.length === 0 || report.Results.length > 4096) invalid("report");
+
+  const { gosuTargets, isGosuRoot, jsonPackages } = jsonInventory(report, auditSubject, os);
+
+  let evaluated;
+  // The authenticated APK binds this main module, whose Go build metadata says (devel).
+  // Keep its null-version inventory identity; never invent a version for vulnerability matching.
+  // Findings are not filtered, so any finding against this root fails closed in the shared evaluator.
+  const versionedResults = report.Results.map((result) => result === gosuTargets[0]
+    ? { ...result, Packages: result.Packages.filter((pkg) => !isGosuRoot(pkg)) } : result);
+  try { evaluated = evaluateImageResults(versionedResults, { imageDigest: auditSubject.imageId, now }); }
+  catch { invalid("findings"); }
+
+  cyclonedxInventory(sbom, auditSubject, os, jsonPackages);
 
   const findings = evaluated.findings.map((entry) => localize(entry, auditSubject));
   const blockers = evaluated.blockers.map((entry) => localize(entry, auditSubject));

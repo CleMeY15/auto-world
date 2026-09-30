@@ -1,6 +1,6 @@
 # PostgreSQL declared component and source inventory
 
-Status: IMPLEMENTATION_IN_PROGRESS, 2026-10-01. This leaf remains a historical diagnostic. TASK-0005A/0005 stay IN_PROGRESS and TASK-0006 stays blocked.
+Status: IMPLEMENTED_AWAITING_NATIVE_VALIDATION, 2026-10-01. This leaf remains a historical diagnostic. TASK-0005A/0005 stay IN_PROGRESS and TASK-0006 stays blocked.
 
 ## Problem and implementation plan
 
@@ -25,3 +25,11 @@ Observability is limited to closed phase/error codes, hashes, sizes and native m
 ## Delivery prerequisites
 
 PR125 merged at8aa0b60aed653dc8e5f3b45407923f7d226f40ee with reviewed tree7b1179805c16c5222cb095356895dc8b90790031. Exact final-head CI36788341339 and merged-main CI36788693215 pass. Its retained recipe bundle remains independently accepted and unchanged. Native declared-source collection is not yet run.
+
+## Implementation checkpoint
+
+WindowsNode22 targeted tests pass27/28 with one honest native-actor skip. They preserve the original finding-before-CycloneDX diagnostic priority, check hostile inventory shapes and license representations, and exercise actual child stdout finish/EOF. Existing Linux dependency/config scoped lint passes for all seven new/changed script/test files. These checks do not establish native collector acceptance.
+
+A separate read-only pure check authenticates both complete original report sizes/SHA256, EOF and unchanged native identities before parsing. Its metadata-only result is PARITY_VERIFIED with50packages,46APK,4Go,52components,35origins,one virtual package and the unversioned gosu root. All descriptors close. The509-byte ignored summary SHA9d7ef124ade0eeb940bdf79ef47df9b41225df5eab5546735265c3628f1f1d49 records historical report parity only.
+
+The fixed entry point is `scripts/postgres-image/local-source-inventory-diagnostic.mjs`, with no arguments or environment override. The collector bounds its post-close result callback by remaining operation time, abort signal and ten seconds. Native helper fixtures, complete Linux gates, independent final implementation review, exact-head CI, the sole actual default collection and distinct original/privacy reviews remain required.

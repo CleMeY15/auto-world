@@ -157,6 +157,13 @@ test("a clean exact saved-archive audit is complete and remains diagnostic-only"
   assert.equal(result.inventory.packageCount, 6);
 });
 
+test("inventory extraction preserves findings before CycloneDX failure priority", () => {
+  const report = vulnerabilityReport(); report.Results[0].Vulnerabilities = "malformed fixture";
+  const sbom = cyclonedxReport(); sbom.bomFormat = "malformed fixture";
+  assert.throws(() => evaluate({ vulnerabilityReport: report, cyclonedxReport: sbom }),
+    (error) => error.message === "postgres_gosu_audit_invalid" && error.diagnostic.check === "findings");
+});
+
 test("only the exact unversioned gosu main module is accepted in both inventories", () => {
   for (const mutate of [
     (pkg) => { pkg.Version = ""; }, (pkg) => { pkg.Version = null; },
