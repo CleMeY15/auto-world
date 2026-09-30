@@ -1,6 +1,6 @@
 # PostgreSQL accepted runtime recipe retention
 
-Status: ACCEPTED_LOCAL_RECIPE_RETENTION, 2026-10-01. One reviewed fixed collection returned exit0 with zero stderr. Distinct original-byte/native/default offline and separate privacy/preservation reviews APPROVE. Final-head/main CI and merge remain delivery gates. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+Status: ACCEPTED_LOCAL_RECIPE_RETENTION, 2026-10-01. One reviewed fixed collection returned exit0 with zero stderr. Distinct original-byte/native/default offline and separate privacy/preservation reviews APPROVE. PR125 merged at8aa0b60aed653dc8e5f3b45407923f7d226f40ee with reviewed tree7b1179805c16c5222cb095356895dc8b90790031; exact final-head CI36788341339 and merged-main CI36788693215 pass. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
 
 ## Actual single collection
 
