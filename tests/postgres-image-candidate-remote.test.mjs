@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -90,7 +90,9 @@ import {
   validatePostgresRemotePolicy,
   validatePostgresRemotePublicationReceipt,
   validatePostgresRemoteRawManifest,
+  validatePostgresRemoteRuntimeMaterialReceipt,
   withVerifiedRemotePostgresCandidate,
+  withVerifiedRemotePostgresRuntimeMaterial,
 } from "../scripts/postgres-image/candidate-remote.mjs";
 import { validatePostgresCandidateArchive } from "../scripts/postgres-image/candidate-proof.mjs";
 
@@ -236,7 +238,7 @@ test("cleanup reserve is independent and bounded", () => {
 });
 
 function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callbackFailure = false,
-  candidateCollision = false, cleanupFailure = false, tagStatus = 0 } = {}) {
+  candidateCollision = false, cleanupFailure = false, tagStatus = 0, pullMaterializes = true } = {}) {
   const parent = mkdtempSync(path.join(os.tmpdir(), "aw-postgres-remote-"));
   chmodSync(parent, 0o700);
   const value = remoteMaterial();
@@ -280,7 +282,7 @@ function harness({ pullStatus = 0, saveStatus = 0, inventoryDrift = false, callb
       return { status: 0, stdout: "[]", stderr: "" };
     }
     if (args[0] === "pull") {
-      pulled = true;
+      pulled = pullMaterializes;
       return { status: pullStatus, stdout: "", stderr: pullStatus ? "response lost" : "" };
     }
     if (args[0] === "image" && args[1] === "tag") {
@@ -416,4 +418,235 @@ test("cleanup failure takes precedence over successful inspection", { skip: !lin
   } finally {
     rmSync(value.parent, { recursive: true, force: true });
   }
+});
+
+test("runtime provider exposes detached owned material and returns a distinct diagnostic receipt",
+  { skip: !linux }, async () => {
+    const value = harness(); const runtime = { state: "VERIFIED", imageId: value.value.policy.candidate.imageId };
+    try {
+      const result = await withVerifiedRemotePostgresRuntimeMaterial(value.input, async (snapshot) => {
+        assert.deepEqual(Object.keys(snapshot).sort(), ["archiveProof", "config", "diffIds", "dockerConfig",
+          "imageId", "parent", "recipeRevision", "runId", "signal", "subject"]);
+        assert.equal(snapshot.parent, path.join(value.parent, `remote-${remoteRunId}-attempt-1`));
+        assert.equal(snapshot.dockerConfig, path.join(snapshot.parent, "docker-auth"));
+        assert.equal(snapshot.imageId, value.value.policy.candidate.imageId);
+        assert.equal(snapshot.subject, value.value.policy.subject);
+        assert.equal(snapshot.runId, remoteRunId);
+        assert.equal(snapshot.recipeRevision, remoteRevision);
+        assert.deepEqual(snapshot.diffIds, value.input.policy.candidate.diffIds);
+        assert.notEqual(snapshot.diffIds, value.input.policy.candidate.diffIds);
+        assert.deepEqual(snapshot.config, { Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"] });
+        assert.equal(Object.isFrozen(snapshot), true);
+        assert.equal(Object.isFrozen(snapshot.diffIds), true);
+        assert.equal(Object.isFrozen(snapshot.config), true);
+        assert.equal(Object.isFrozen(snapshot.config.Entrypoint), true);
+        assert.throws(() => { snapshot.config.Cmd[0] = "foreign"; }, TypeError);
+        assert.throws(() => { snapshot.diffIds[0] = digest(Buffer.from("foreign")); }, TypeError);
+        assert.equal(snapshot.archiveProof.archiveSha256, hash(value.value.local.archive));
+        assert.equal(existsSync(path.join(snapshot.parent, "candidate.tar")), true);
+        assert.equal(Object.hasOwn(snapshot, "file"), false);
+        assert.equal(Object.hasOwn(snapshot, "policy"), false);
+        return runtime;
+      }, value.dependencies);
+      const receipt = result.material;
+      assert.equal(result.runtime, runtime);
+      assert.equal(Object.isFrozen(result), true);
+      assert.equal(validatePostgresRemoteRuntimeMaterialReceipt(receipt, value.value.policy).state, "VERIFIED");
+      assert.equal(receipt.kind, "POSTGRES_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1");
+      assert.equal(receipt.authority, "DIAGNOSTIC_ONLY");
+      assert.equal(receipt.imageExecution, "VERIFIED_DIAGNOSTIC");
+      assert.equal(receipt.vulnerabilityAudit, "NOT_ATTEMPTED");
+      assert.equal(receipt.admission, "NOT_AUTHORIZED");
+      assert.equal(receipt.registryWrite, "NOT_ATTEMPTED");
+      assert.equal(receipt.publication, "PUBLISHED_UNADMITTED");
+      assert.equal(receipt.supportStartedAt, null);
+      assert.equal(receipt.supportEndsAt, null);
+      assert.equal(receipt.archiveUntil, null);
+      assert.deepEqual(receipt.phases.map(({ name }) => name), phaseNames.map((name) =>
+        name === "private_archive_callback" ? "runtime_diagnostics" : name));
+      assert.equal(receipt.phases.every(({ result: outcome }) => outcome === "PASSED"), true);
+      assert.deepEqual(receipt.image.diffIds, value.value.policy.candidate.diffIds);
+      assert.equal(JSON.stringify(receipt).includes("docker-auth"), false);
+      assert.equal(JSON.stringify(receipt).includes("private-test-token"), false);
+      assert.throws(() => validatePostgresRemoteCandidateReceipt(receipt, value.value.policy), /candidate_receipt_invalid/u);
+      for (const mutate of [
+        (changed) => { changed.imageExecution = "NOT_ATTEMPTED"; },
+        (changed) => { changed.authority = "REMOTE_READ_ONLY"; },
+        (changed) => { changed.kind = "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1"; },
+        (changed) => { changed.image.diffIds.reverse(); },
+        (changed) => { changed.archive.diffIds.pop(); },
+        (changed) => { changed.phases[11].name = "private_archive_callback"; },
+        (changed) => { changed.supportStartedAt = "2026-09-30T00:00:00.000Z"; },
+        (changed) => { changed.dockerConfig = "private"; },
+      ]) {
+        const changed = globalThis.structuredClone(receipt); mutate(changed);
+        assert.throws(() => validatePostgresRemoteRuntimeMaterialReceipt(changed, value.value.policy),
+          /runtime_material_receipt_invalid/u);
+      }
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  });
+
+test("read material cannot be relabeled as verified runtime", { skip: !linux }, async () => {
+  const value = harness();
+  try {
+    const receipt = await withVerifiedRemotePostgresCandidate(value.input, value.inspectArchive, value.dependencies);
+    assert.equal(receipt.kind, "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1");
+    assert.equal(receipt.authority, "REMOTE_READ_ONLY");
+    assert.equal(receipt.imageExecution, "NOT_ATTEMPTED");
+    assert.deepEqual(receipt.phases.map(({ name }) => name), phaseNames);
+    assert.throws(() => validatePostgresRemoteRuntimeMaterialReceipt(receipt, value.value.policy),
+      /runtime_material_receipt_invalid/u);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime callback errors are masked after confirmed image and temporary cleanup", { skip: !linux }, async () => {
+  const value = harness();
+  try {
+    await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async () => {
+      throw new Error("private-test-token and private output");
+    }, value.dependencies), (error) => {
+      assert.equal(error.message, "postgres_remote_runtime_material_failed");
+      assert.deepEqual(Object.keys(error).sort(), ["code", "imageCleanupFailure", "inspectionFailed",
+        "primaryFailure", "runtimeCleanupFailure", "temporaryCleanupFailure"]);
+      assert.equal(error.code, "postgres_remote_runtime_material_failed");
+      assert.equal(error.inspectionFailed, true);
+      assert.equal(error.primaryFailure, "postgres_remote_runtime_diagnostics_failed");
+      assert.equal(error.runtimeCleanupFailure, null);
+      assert.equal(error.imageCleanupFailure, null);
+      assert.equal(error.temporaryCleanupFailure, null);
+      assert.equal(JSON.stringify(error).includes("private-test-token"), false);
+      return true;
+    });
+    assert.deepEqual(readdirSync(value.parent), []);
+    assert.equal(value.calls.filter(({ args }) => args[0] === "image" && args[1] === "rm").length, 2);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime cleanup uncertainty preserves the private residual regardless of image cleanup", { skip: !linux }, async () => {
+  for (const cleanupFailure of [false, true]) {
+    const value = harness({ cleanupFailure }); let retainedWork; let residual;
+    try {
+      await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async (snapshot) => {
+        retainedWork = snapshot.parent;
+        const runtimeDirectory = path.join(snapshot.parent, "runtime-retained");
+        mkdirSync(runtimeDirectory, { mode: 0o700 });
+        residual = path.join(runtimeDirectory, "private-residual");
+        writeFileSync(residual, "private runtime residual", { mode: 0o600 });
+        throw new Error("postgres_runtime_cleanup_uncertain");
+      }, value.dependencies), (error) => {
+        assert.equal(error.code, "postgres_remote_runtime_cleanup_uncertain");
+        assert.equal(error.inspectionFailed, true);
+        assert.equal(error.primaryFailure, "postgres_remote_runtime_cleanup_uncertain");
+        assert.equal(error.runtimeCleanupFailure, "postgres_remote_runtime_cleanup_uncertain");
+        assert.equal(error.imageCleanupFailure, cleanupFailure ? "postgres_remote_candidate_image_cleanup_failed" : null);
+        assert.equal(error.temporaryCleanupFailure, "postgres_remote_candidate_temporary_cleanup_failed");
+        assert.equal(JSON.stringify(error).includes("private runtime residual"), false);
+        return true;
+      });
+      assert.deepEqual(readdirSync(value.parent), [path.basename(retainedWork)]);
+      assert.equal(readFileSync(residual, "utf8"), "private runtime residual");
+      assert.equal(value.calls.filter(({ args }) => args[0] === "image" && args[1] === "rm").length,
+        cleanupFailure ? 1 : 2);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
+test("runtime diagnostic, image and temporary failures remain separately bounded", { skip: !linux }, async () => {
+  const value = harness({ cleanupFailure: true });
+  try {
+    await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async (snapshot) => {
+      renameSync(snapshot.parent, `${snapshot.parent}-moved`);
+      throw new Error("private diagnostic output");
+    }, value.dependencies), (error) => {
+      assert.equal(error.code, "postgres_remote_runtime_cleanup_uncertain");
+      assert.equal(error.inspectionFailed, true);
+      assert.equal(error.primaryFailure, "postgres_remote_runtime_diagnostics_failed");
+      assert.equal(error.runtimeCleanupFailure, null);
+      assert.equal(error.imageCleanupFailure, "postgres_remote_candidate_image_cleanup_failed");
+      assert.equal(error.temporaryCleanupFailure, "postgres_remote_candidate_temporary_cleanup_failed");
+      assert.equal(JSON.stringify(error).includes("private diagnostic output"), false);
+      return true;
+    });
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("temporary cleanup failure forbids a runtime material result after successful diagnostics",
+  { skip: !linux }, async () => {
+    const value = harness();
+    try {
+      await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async (snapshot) => {
+        renameSync(snapshot.parent, `${snapshot.parent}-moved`);
+        return { state: "VERIFIED" };
+      }, value.dependencies), (error) => {
+        assert.equal(error.code, "postgres_remote_runtime_cleanup_uncertain");
+        assert.equal(error.inspectionFailed, false);
+        assert.equal(error.primaryFailure, null);
+        assert.equal(error.runtimeCleanupFailure, null);
+        assert.equal(error.imageCleanupFailure, null);
+        assert.equal(error.temporaryCleanupFailure, "postgres_remote_candidate_temporary_cleanup_failed");
+        return true;
+      });
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  });
+
+test("failed exact pull without material never reaches runtime or removes a foreign image", { skip: !linux }, async () => {
+  const value = harness({ pullStatus: 1, pullMaterializes: false }); let callbacks = 0;
+  try {
+    await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async () => { callbacks += 1; },
+      value.dependencies), (error) => {
+      assert.equal(error.code, "postgres_remote_runtime_material_failed");
+      assert.equal(error.inspectionFailed, false);
+      assert.equal(error.primaryFailure, "postgres_remote_candidate_pull_ownership_unverified");
+      assert.equal(error.runtimeCleanupFailure, null);
+      assert.equal(error.imageCleanupFailure, null);
+      assert.equal(error.temporaryCleanupFailure, null);
+      return true;
+    });
+    assert.equal(callbacks, 0);
+    assert.equal(value.calls.filter(({ args }) => args[0] === "pull").length, 1);
+    assert.equal(value.calls.some(({ args }) => args[0] === "image" && args[1] === "tag"), false);
+    assert.equal(value.calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), false);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime refuses changed pull ownership and retains cleanup uncertainty", { skip: !linux }, async () => {
+  const value = harness({ inventoryDrift: true }); let callbacks = 0;
+  try {
+    await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async () => { callbacks += 1; },
+      value.dependencies), (error) => {
+      assert.equal(error.code, "postgres_remote_runtime_cleanup_uncertain");
+      assert.equal(error.primaryFailure, "postgres_remote_candidate_pull_ownership_unverified");
+      assert.equal(error.imageCleanupFailure, "postgres_remote_candidate_cleanup_ownership_unverified");
+      return true;
+    });
+    assert.equal(callbacks, 0);
+    assert.equal(value.calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), false);
+    assert.deepEqual(readdirSync(value.parent), []);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
+});
+
+test("runtime rejects missing inspect config before callback while cleaning proven material", { skip: !linux }, async () => {
+  const value = harness(); let callbacks = 0; const original = value.dependencies.commandRunner;
+  value.dependencies.commandRunner = (command, args, options) => {
+    const response = original(command, args, options);
+    if (args[0] === "image" && args[1] === "inspect" && args[2] === "--format" && response.status === 0) {
+      const image = JSON.parse(response.stdout); delete image.Config;
+      return { ...response, stdout: JSON.stringify(image) };
+    }
+    return response;
+  };
+  try {
+    await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async () => { callbacks += 1; },
+      value.dependencies), (error) => {
+      assert.equal(error.code, "postgres_remote_runtime_material_failed");
+      assert.equal(error.primaryFailure, "postgres_remote_candidate_image_invalid");
+      assert.equal(error.imageCleanupFailure, null);
+      return true;
+    });
+    assert.equal(callbacks, 0);
+    assert.deepEqual(readdirSync(value.parent), []);
+    assert.equal(value.calls.some(({ args }) => args[0] === "image" && args[1] === "rm"), true);
+  } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
