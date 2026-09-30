@@ -201,9 +201,25 @@ function installed(file) {
   }
   return identity(named);
 }
+export function validatePostgresPrivateRuntimeEvidenceEnvironment(value) {
+  try {
+    // Only Node's actual process.env may use its native prototype; ordinary inputs remain plain records.
+    if (value !== process.env && !plain(value)) fail("context_invalid");
+    const keys = Object.keys(ENV);
+    const ownKeys = Reflect.ownKeys(value);
+    if (ownKeys.some(key => typeof key !== "string") || !isDeepStrictEqual(ownKeys.sort(), [...keys].sort())) fail("context_invalid");
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (keys.some(key => !Object.hasOwn(descriptors[key], "value") || !descriptors[key].enumerable
+      || typeof descriptors[key].value !== "string")) fail("context_invalid");
+    const snapshot = Object.fromEntries(keys.map(key => [key, descriptors[key].value]));
+    if (!isDeepStrictEqual(snapshot, ENV)) fail("context_invalid");
+    return Object.freeze(snapshot);
+  } catch { fail("context_invalid"); }
+}
 export async function runPostgresPrivateRuntimeEvidenceDiagnostic(argv = [], env = process.env) {
   const deadline = Date.now() + LIMITS.operationMs;
-  if (!Array.isArray(argv) || argv.length || !exact(env, Object.keys(ENV)) || !isDeepStrictEqual(env, ENV)) fail("context_invalid");
+  if (!Array.isArray(argv) || argv.length) fail("context_invalid");
+  validatePostgresPrivateRuntimeEvidenceEnvironment(env);
   rootActor();
   if (process.version !== "v22.23.2" || process.execPath !== PIN.node || ROOT !== PIN.workspace || realpathSync(ROOT) !== ROOT
     || process.cwd() !== ROOT) fail("context_invalid");

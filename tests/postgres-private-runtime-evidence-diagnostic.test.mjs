@@ -10,7 +10,7 @@ import { setImmediate as nextTurn } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { openPostgresPrivateRuntimeEvidenceSources, postgresPrivateRuntimeEvidenceSupervisorFailureDiagnostic,
   runPostgresPrivateRuntimeEvidenceDiagnostic, supervisePostgresPrivateRuntimeEvidenceChild,
-  validatePostgresPrivateRuntimeEvidenceWorkerProcess } from "../scripts/postgres-image/local-private-runtime-evidence-diagnostic.mjs";
+  validatePostgresPrivateRuntimeEvidenceEnvironment, validatePostgresPrivateRuntimeEvidenceWorkerProcess } from "../scripts/postgres-image/local-private-runtime-evidence-diagnostic.mjs";
 import { POSTGRES_PRIVATE_RUNTIME_EVIDENCE_PIN as PIN, postgresPrivateRuntimeEvidenceEnvironment as ENV } from "../scripts/postgres-image/private-runtime-evidence-policy.mjs";
 
 const PREFIX = "postgres_private_runtime_evidence_";
@@ -29,6 +29,22 @@ test("fixed CLI rejects arguments and ambient environment before any original so
     await assert.rejects(runPostgresPrivateRuntimeEvidenceDiagnostic([], env), { message: PREFIX + "context_invalid" });
   }
   if (process.platform !== "linux") await assert.rejects(runPostgresPrivateRuntimeEvidenceDiagnostic([], ENV), { message: PREFIX + "context_invalid" });
+});
+test("environment snapshot accepts only exact enumerable string data without reading accessors or coercing values", () => {
+  const input = { ...ENV }; const snapshot = validatePostgresPrivateRuntimeEvidenceEnvironment(input);
+  assert.deepEqual(snapshot, ENV); assert.notEqual(snapshot, input);
+  assert.equal(Object.getPrototypeOf(snapshot), Object.prototype); assert.equal(Object.isFrozen(snapshot), true);
+  let reads = 0; let conversions = 0;
+  const accessor = { ...ENV }; Object.defineProperty(accessor, "HOME", { get() { reads++; return ENV.HOME; }, enumerable: true });
+  const hidden = { ...ENV }; Object.defineProperty(hidden, "HOME", { value: ENV.HOME, enumerable: false });
+  const impostor = Object.assign(Object.create({}), ENV);
+  const nativePrototypeImpostor = Object.assign(Object.create(Object.getPrototypeOf(process.env)), ENV);
+  const invalid = [null, [], Object.assign(Object.create(null), ENV), impostor, accessor, hidden,
+    { ...ENV, [Symbol("fixture")]: true }, { ...ENV, NODE_OPTIONS: "--fixture" }, { ...ENV, HOME: "/fixture" },
+    { ...ENV, HOME: { toString() { conversions++; return ENV.HOME; } } }];
+  if (Object.getPrototypeOf(process.env) !== Object.prototype) invalid.push(nativePrototypeImpostor);
+  for (const value of invalid) assert.throws(() => validatePostgresPrivateRuntimeEvidenceEnvironment(value), { message: PREFIX + "context_invalid" });
+  assert.equal(reads, 0); assert.equal(conversions, 0);
 });
 test("diagnostics snapshot hostile errors once and never include private text", () => {
   let reads = 0;
@@ -91,6 +107,22 @@ function fixture(run) {
 function reader(f) { return openPostgresPrivateRuntimeEvidenceSources({ sources: f.sources, deadline: Date.now() + 20_000 }); }
 const nativeOptions = { skip: process.platform !== "linux" ? "Linux readonly descriptor API" : !ROOT_NATIVE ? "covered by actual root bootstrap below" : false };
 if (ROOT_NATIVE || process.platform !== "linux") {
+test("native root env-i five-field process.env is accepted only as a detached environment snapshot", nativeOptions, () => {
+  const diagnostic = new URL("../scripts/postgres-image/local-private-runtime-evidence-diagnostic.mjs", import.meta.url).href;
+  const policy = new URL("../scripts/postgres-image/private-runtime-evidence-policy.mjs", import.meta.url).href;
+  const code = `import { isDeepStrictEqual } from 'node:util';
+import { validatePostgresPrivateRuntimeEvidenceEnvironment } from ${JSON.stringify(diagnostic)};
+import { postgresPrivateRuntimeEvidenceEnvironment as ENV } from ${JSON.stringify(policy)};
+const snapshot=validatePostgresPrivateRuntimeEvidenceEnvironment(process.env);
+process.stdout.write(JSON.stringify({state:'PARTIAL_ENVIRONMENT_PROOF',uid:process.getuid(),euid:process.geteuid(),gid:process.getgid(),egid:process.getegid(),node:process.version,
+nativePrototype:Object.getPrototypeOf(process.env)!==Object.prototype,detached:snapshot!==process.env,plain:Object.getPrototypeOf(snapshot)===Object.prototype,
+frozen:Object.isFrozen(snapshot),matches:isDeepStrictEqual(snapshot,ENV)})+'\\n');`;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", code], { cwd: "/", env: ENV,
+    encoding: "utf8", timeout: 10_000, maxBuffer: 4096 });
+  assert.equal(result.error, undefined); assert.equal(result.status, 0); assert.equal(result.signal, null); assert.equal(result.stderr, "");
+  assert.deepEqual(JSON.parse(result.stdout), { state: "PARTIAL_ENVIRONMENT_PROOF", uid: 0, euid: 0, gid: 0, egid: 0, node: "v22.23.2",
+    nativePrototype: true, detached: true, plain: true, frozen: true, matches: true });
+});
 test("native reader fully seals binary bytes and returns roles distinct from OS descriptors", nativeOptions, () => fixture(f => {
   const held = reader(f);
   try {
