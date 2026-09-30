@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL second private copy and reimport
 
-Status: IMPLEMENTATION_PLAN, LOCAL_DIAGNOSTIC, NOT_ADMITTED.
+Status: REAL_SECOND_PRIVATE_COPY_REIMPORTED, LOCAL_DIAGNOSTIC, NOT_ADMITTED. Integration gates are tracked in [PR120](https://github.com/CleMeY15/auto-world/pull/120).
 
 ## Purpose and dependencies
 
@@ -40,6 +40,24 @@ The new receipt records LOCAL_DIAGNOSTIC origin, a local execution ID, null GitH
 This establishes availability of a second local copy and revalidation after retrieval. Both copies share this PC and remain vulnerable to workstation loss or administrator deletion. No immutability or complete image/evidence/source/notices/SBOM/bundle closure is established. Actual cold image loading/service restoration, SQL backup/restore, signing, admission and support activation remain separate gates. No audit refresh is required for copying inert bytes; existing currentness gates remain mandatory before later image execution.
 
 Rollback prevents new copy attempts and preserves originals, private copies and failure evidence. TASK-0005A/TASK-0005 remain IN_PROGRESS and TASK-0006 remains blocked.
+
+## Actual evidence
+
+On 2026-09-30 the default input-free coordinator completed on clean source `2eda0dbf031d6eb3e1f1c486c68facf326a62e76`, with that same clean source in the prepared Linux checkout. Windows Node22.23.2, PowerShell7.6.5 and the actual non-root Linux UID1000/GID1000 were used; no platform/ownership/provider/transport/validator was simulated. The WSL calls explicitly select `/` as their working directory after earlier implicit-directory calls failed to respond; no reboot, service restart or distro termination was performed.
+
+Execution `local-copy-bc66fe4853e3a67e0a3497cb` retained a new Windows directory:
+
+`C:\Users\Administrator\Documents\ChatGPT\Auto-world\.omx\private-archive\postgres-0045bdab5483336d-copy-bc66fe4853e3a67e0a3497cb`
+
+Its actual NTFS volume serial is `4a58df34`, directory FileID `00190000001d4e40`. Native handle checks established no reparse traversal, protected user/SYSTEM ACLs, user ownership and single links. Archive FileID `000e0000001d4ef6` and original-receipt FileID `00160000001d4f10` remained equal through the final Windows seal. Their sizes/hashes are the exact original expectations in the table above. The existing archive parent ACL was unchanged.
+
+The exact Windows bytes were imported into a new `/home/autoworld/pg-private-reimport-BW3BmA` ext4 directory, UID1000/GID1000, mode0700. Both files are mode0600/nlink1, UID1000/GID1000. Archive and original-receipt inodes are `106219` and `106220` on device `2096`; original source inodes `106090` and `84064` remain separately bound, UID1000/GID989. The production validator replayed all 32 members, the 12,499-byte configuration, twelve raw layers and twelve compatibility records. Final Linux source/import byte identities and proofs exactly matched the prior acknowledgements; original source bytes were preserved.
+
+All three phases passed: source export/Windows copy (2460ms), Windows export/Linux reimport (2943ms), and final seals (3199ms). After exclusive empty-slot preparation, identified publication, flush and full reread, `copy-receipt.json` (native FileID `00200000001d4f2e`, protected user/SYSTEM ACL, single link) is 26,562 bytes, SHA-256 `764c1c7d1b2f50b0c66fba894cb31e892134ab8327e2f3e56df921180989235d`. The original receipt was copied byte-for-byte, never rewritten. Its retention recipe `2c6fa14e4fee676afd1942a8dea57e8ca3cbba4e` and execution `local-30158484150150` remain distinct from the new copy recipe/execution.
+
+The closed copy receipt is LOCAL_DIAGNOSTIC/COPIED_AND_REIMPORTED with a null GitHub run ID, no registry read/write, image execution/restore, SQL restore, signing or admission, and three null support/archive dates. This demonstrates a second local private copy and retrieval/revalidation of the inert Docker-save bytes. Compressed registry-layer verification remains `NOT_ESTABLISHED_BY_DOCKER_SAVE`; no cold image load/service restore or full archive closure is inferred.
+
+Fresh actual Linux UID1000/GID1000 checks on this exact source passed 106 focused tests without skips, root/full-package lint, all eleven package typechecks, eighteen package test tasks and nine builds. The full root suite passed 1208 tests with zero failures and seven explicitly Windows-only native tests skipped on Linux; the separate actual Windows native suite passed all seven, zero skips. Secretlint passed for 532 tracked repository files and the dependency audit found no known vulnerabilities. Independent coordinator and Linux/native implementation reviews approved; the native Windows suite was independently replayed. Exact implementation CI [36705187665](https://github.com/CleMeY15/auto-world/actions/runs/36705187665) passed. Independent original-byte review approved full Windows validation and before/after native seals, plus a real default Linux final-seal replay of original/imported bytes and unchanged identities. A separate receipt/privacy/metadata/documentation review approved the original closed receipt and native metadata. Exact final-head/main CI remain required integration gates tracked in PR120.
 
 ## Native API references
 
