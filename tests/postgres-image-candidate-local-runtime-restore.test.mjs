@@ -21,14 +21,14 @@ function descriptor(file, name) { const s = lstatSync(file, { bigint: true }); r
 function directoryFd(file) { const name = readdirSync("/proc/self/fd").find((entry) => {
   try { return readlinkSync(path.join("/proc/self/fd", entry)) === file; } catch { return false; } });
   assert.ok(name, "private directory descriptor is held"); return Number(name); }
-async function scope(t) {
+async function scope(t, runtime = configuration) {
   const root = mkdtempSync("/tmp/aw-pgr-"); chmodSync(root, 0o700); const directory = path.join(root, "imported"); const client = path.join(root, "client"); const endpointDirectory = path.join(root, "endpoint");
   const workDirectory = path.join(root, "work"); const contextName = "aw-runtime-fixture"; const contextMeta = path.join(client, "contexts", "meta", hash(Buffer.from(contextName)));
   for (const d of [directory, client, path.join(client, "contexts"), path.join(client, "contexts", "meta"), contextMeta, endpointDirectory, workDirectory]) mkdirSync(d, { mode: 0o700 });
   const socket = path.join(endpointDirectory, "docker.sock"); const server = createServer(); await new Promise((yes, no) => { server.once("error", no); server.listen(socket, yes); }); server.unref();
   chmodSync(socket, 0o660); chmodSync(endpointDirectory, 0o710);
   t.after(async () => { await new Promise((yes) => server.close(yes)); rmSync(root, { recursive: true }); });
-  const fixture = retainedFixture({ runtime: configuration }); const endpoint = "unix://" + socket;
+  const fixture = retainedFixture({ runtime }); const endpoint = "unix://" + socket;
   writeFileSync(path.join(directory, "candidate.tar"), fixture.archive, { mode: 0o600 }); writeFileSync(path.join(directory, "retention-receipt.json"), fixture.receiptBytes, { mode: 0o600 });
   writeFileSync(path.join(client, "config.json"), bytes({ currentContext: contextName }), { mode: 0o600 });
   writeFileSync(path.join(contextMeta, "meta.json"), bytes({ Name: contextName, Metadata: {}, Endpoints: { docker: { Host: endpoint, SkipTLSVerify: false } } }), { mode: 0o600 });
@@ -210,6 +210,30 @@ test("native readiness status one and two skip process and executable observatio
   assert.equal((await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)).state, "VERIFIED");
   const commands = h.calls.filter((v) => v.phase === "SOURCE_START" && v.args[0] === "exec").map((v) => v.args.includes("pg_isready") ? "readiness" : "process");
   assert.deepEqual(commands, ["readiness", "readiness", "readiness", "process"]); assert.equal(readinessCalls, 3);
+});
+
+test("native command environment omits PGSERVICE while authenticated service inheritance stays absent", { skip: !linux }, async (t) => {
+  const s = await scope(t); const observed = []; const h = harness(s, { transport: (args, _options, state) => {
+    if (args[0] !== "exec") return; const environment = flags(args, "--env"); observed.push(environment);
+    const container = [...state.containers.values()].find((value) => args.includes(value.Id));
+    assert.equal(container.Config.Env.some((value) => value.startsWith("PGSERVICE=")), false);
+    // REL_17_11 libpq treats present-but-empty PGSERVICE as a named service and
+    // returns PQPING_NO_ATTEMPT (3) when that section is absent. This is a source
+    // behavior model, not a native PostgreSQL client reproduction.
+    if (args.includes("pg_isready") && environment.some((value) => value.startsWith("PGSERVICE="))) return ok("", 3);
+  } });
+  assert.equal((await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)).state, "VERIFIED");
+  assert.ok(observed.length > 10);
+  for (const environment of observed) assert.deepEqual(environment, ["PGSERVICEFILE=/dev/null", "PGSYSCONFDIR=/nonexistent", "PGPASSFILE=/dev/null", "PGPASSWORD=", "PGOPTIONS=", "PGHOSTADDR="]);
+});
+
+test("native material with inherited blank or named PGSERVICE is rejected before image loading", { skip: !linux }, async (t) => {
+  for (const value of ["", "untrusted-service"]) await t.test(value === "" ? "blank" : "named", async (sub) => {
+    const s = await scope(sub, { ...configuration, Env: [...configuration.Env, "PGSERVICE=" + value] }); const h = harness(s);
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), { message: "postgres_local_runtime_restore_configuration_invalid" });
+    assert.equal(h.calls.some((entry) => entry.args[0] === "image" && entry.args[1] === "load" || ["create", "start", "exec"].includes(entry.args[0])), false);
+    assert.deepEqual(h.images, []); assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0);
+  });
 });
 
 test("native command failures identify only fixed source-start families without private output", { skip: !linux }, async (t) => {

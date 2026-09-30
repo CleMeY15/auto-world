@@ -69,7 +69,7 @@ function inputValue(value) {
 }
 function lockInputs() { try { return validateDiagnosticLock(JSON.parse(readFileSync(path.join(ROOT, "infra/postgres-image/lock.json"))),
   readFileSync(path.join(ROOT, "infra/postgres-image/Dockerfile"))); } catch { fail("configuration_invalid"); } }
-const SQL_ENV = ["PGSERVICE=", "PGSERVICEFILE=/dev/null", "PGSYSCONFDIR=/nonexistent", "PGPASSFILE=/dev/null", "PGPASSWORD=", "PGOPTIONS=", "PGHOSTADDR="];
+const SQL_ENV = ["PGSERVICEFILE=/dev/null", "PGSYSCONFDIR=/nonexistent", "PGPASSFILE=/dev/null", "PGPASSWORD=", "PGOPTIONS=", "PGHOSTADDR="];
 const SQL_CONNECTION = ["--host=/var/run/postgresql", "--port=5432", "--username=awdiag", "--no-password"];
 export const postgresLocalSqlCommands = freeze({
   createdb: ["createdb", ...SQL_CONNECTION, "--maintenance-db=postgres", "--template=template0", "awdiag"],
@@ -198,7 +198,8 @@ function serviceConfig(configuration) {
   const config = configuration.config;
   if (!plain(config) || !["", "0", "0:0"].includes(config.User) || config.WorkingDir !== "/" || !isDeepStrictEqual(config.Entrypoint, ["docker-entrypoint.sh"])
     || !isDeepStrictEqual(config.Cmd, ["postgres"]) || !keys(config.Volumes, [postgresRuntimeProfileContract.pgdata])
-    || validatePostgresRuntimeEnvironment(config.Env).PGDATA !== postgresRuntimeProfileContract.pgdata) fail("configuration_invalid"); return config;
+    || validatePostgresRuntimeEnvironment(config.Env).PGDATA !== postgresRuntimeProfileContract.pgdata
+    || Object.hasOwn(validatePostgresRuntimeEnvironment(config.Env), "PGSERVICE")) fail("configuration_invalid"); return config;
 }
 export function validatePostgresLocalRuntimeRestoreProof(value, inputRaw) {
   try {
