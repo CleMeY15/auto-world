@@ -1,0 +1,56 @@
+# PostgreSQL private evidence intake and Linux archive health
+
+Status: PLAN_READY_FOR_INDEPENDENT_REVIEW, 2026-09-30. This is a focused follow-up to accepted PR122, not full image admission or complete archive closure. No native intake has run.
+
+## Dependency and outcome
+
+PR122 merged at793a8ebb88b7ebdc6f774ebab45328f68e79649b with the exact reviewed final tree914c00db28a0ef93b3c720cd67ece7306cb06c4d. Final-head CI36747522923 and merged-main CI36747893922 pass. Its accepted fixed default SQL restore recipe70c396301808bf89652b1ba408d9aff282340483 and original81,500-byte receipt SHAff8c49950216a2de33f1e3a6566d1be662a4436f7d136ac2a7d252e21ab1c617 remain distinct from merge/documentation commits. Original-byte/default-validator/native-seal and separate privacy/live-preservation reviews both APPROVE. V1/V2/V3 stay failed.
+
+Deliver one fixed input-free Linux Node22 diagnostic under real UID/GID1000. It creates a new private digest-addressed evidence inventory, authenticates/copies the existing sixteen historical audit/SBOM files, eleven public contracts/materials and the independently pinned copy receipt, retains a complete offline Auto World source bundle covering HEAD and seven distinct original recipes, and revalidates original/import image archives with the existing full-twelve-layer seals. It copies neither305MB image again. Actual source/import availability is tested now; no stronger storage durability follows.
+
+No Docker, registry/API/network, signing, workflow activation, new dependency/account/service, privilege broker, production data or support activation. No modification of the original/import/Windows image archives or existing two-file copy/retention/cold/runtime contracts. Relevant contracts: ROADMAP.md, TASK-0005A/TASK-0005, ADR-0007, DEFINITION_OF_DONE, private-copy-policy/cold-load-input/private-copy-linux, candidate-runtime.json and runtime-restore-audit.
+
+## Historical evidence is separate from current execution permission
+
+Authenticate candidate-runtime.json's fixed4,447-byte/SHA2ce820b577674c127dbf8fa4c5cc0cbfc1957234b432a34efb1f9d68f063dbb5 policy and its sixteen independent file pins. Reuse stagePostgresRuntimeAudit and sealPostgresRuntimeAuditStage with the expected proof: actual native FD/path/ownership/mode/link/hash checks and the five-source Git closure remain mandatory. These APIs use the real clock only for operation deadlines and do not grant current runtime permission.
+
+Do not call preflightLocalPostgresRuntimeAudit, replayLocalPostgresRuntimeAudit, replayPostgresRuntimeAudit or the current-time remote artifact validator. No historical success clock is injected. The new receipt says historical byte integrity VERIFIED, currentness NOT_EVALUATED and runtimePermission NOT_GRANTED. It preserves the accepted original audit COMPLETE result only as independently pinned provenance, not as a fresh semantic vulnerability/control replay. An audit older than48hours remains archivable; it never becomes current authorization from this intake. Existing runtime/security gates remain unchanged.
+
+## Closed payload and independent expectations
+
+Twenty-nine payload files plus one exclusive receipt; no arbitrary path, role or filename input in the default CLI:
+
+- audit/: the exact sixteen files from the fixed accepted Linux audit directory, with original pins and actual UID/GID1000/0700 directory/0600 single-link files.
+- public/: candidate-runtime.json, candidate-remote.json, PostgreSQL lock.json, Dockerfile, candidate-publication-receipt.json, scanner/scanner-lock.json, and the five locked Alpine APKBUILD/index/key/gosu APK/provenance materials. Preserve their reviewed relative paths. The PostgreSQL lock is3,273 bytes/SHA31c293b64423aa6eb241b840b6f2187b9632f9334fb60ec8e1c02be806f583c3; the scanner lock is independently6,886 bytes/SHA7d8b09739a3d1b79e11cb12e4fbf7433aded0a5dc1bbb9104f8dd973620c1251. They cannot substitute for one another.
+- references/copy-receipt.json: exact26,562 bytes/SHA764c1c7d1b2f50b0c66fba894cb31e892134ab8327e2f3e56df921180989235d from the existing fixed NTFS receipt. It is readable by actual UID1000 without permission changes. Authenticate through held FD/full byte pin and stable path/native metadata, then copy exclusively to Linux0600. This authenticates historical bytes and performs no fresh Windows ACL/image-copy health check.
+- source/recipes.bundle: the independently verified generated Git bundle described below.
+
+Expected hashes/recipes come from reviewed constants and authenticated lock/policy bytes, never from an untrusted copied receipt selecting its own expectations. All external report/source bytes remain data, never executable instructions. Source/copy/policy/hash/read/parser faults fail closed before publication.
+
+## Offline source bundle contract
+
+The original retention2c6fa14e4fee676afd1942a8dea57e8ca3cbba4e, copy2eda0dbf031d6eb3e1f1c486c68facf326a62e76 and coldcf702598081863335bd36801713adc5022541d73 commits exist in the local object database but are not HEAD ancestors. A HEAD-only bundle is insufficient. Include HEAD plus explicit private refs for publicationb93b0c76ec76abe283d66a17fa62eab7e580e679, audit5186a241f9ab28add4098648aa4bc56d36b5e6dc, native runtimea1e0cad8dda48ffd335d205203aaff61841bd9f9, retention, copy, cold and accepted SQL70c396301808bf89652b1ba408d9aff282340483.
+
+Reject shallow/partial/promisor/alternates/replace/grafts sources before object reads; no implicit object download or source ref mutation. Use fixed installed Git, closed environment/config/hooks/templates and file-only protocol. Git2.43 has no GIT_NO_LAZY_FETCH guarantee: reject the source conditions rather than rely on that newer option. Fetch only the eight explicit commits into a fresh owned private bare repository with dedicated refs, without hard links or --all on the source. Git bundle create --quiet --version=2 - supports binary stdout; write it directly to an exclusive O_NOFOLLOW0600 held FD, with bounded transport, fsync and complete reread/hash/path/metadata seal.
+
+Require a complete version2 bundle with zero prerequisites and exact eight refs. Verify then import into a second fresh private repository, fsck --full --strict, and compare every expected commit and fixed public blob/hash. Header/list-heads/verify alone is insufficient pack integrity. Recheck source HEAD/clean state, expected public file identities and Git context before/after. Both auxiliary repositories stay inside fresh owned private work, are removed only with identity/path/ownership guards after successful verification, and are retained on failure/uncertain cleanup. This proves Auto World recipe availability, not external source/notices for the candidate's packages.
+
+## Native inventory, health, publication and limits
+
+Use new exclusively created ext4 directories with actual UID/GID1000/0700 and regular O_EXCL/O_NOFOLLOW0600 single-link files. Hold descriptor/path/ancestor identities, complete byte hashes and exact derived directory inventories before/after copies, bundle generation/verification, health checks and publication. Refuse substitutions, unexpected files, aliases, links, owner/group/mode changes, trailing/short bytes and stale source identities. No overwriting or deletion of prior evidence.
+
+AuthenticateColdLoadMaterial binds fixed candidate policy/copy bytes. Default sealPostgresPrivateCopy and validatePostgresPrivateCopyLinuxResult revalidate the original retention and fixed BW3BmA import with all twelve layers/config/DiffIDs and native identities, before and after intake. No fake actor/platform/filesystem or archive transport success is allowed for native acceptance.
+
+Bound operation to15minutes, each Git command to at most90seconds/remaining, generated bundle512MiB, each static file16MiB, closed receipt128KiB and auxiliary disk budget explicitly reserved for two repositories plus bundle and copied payloads. Check available space before writes; cap streams while draining/aborting and prove child close. Output only closed phase/reason/hash/size/identity metadata, never raw report, Git stdout/stderr, credentials, SQL or archive contents. Publish one exclusive fsynced/re-read receipt only after all seals, exact inventories and owned cleanup pass; descriptor/publication/cleanup uncertainty prevents success. Keep private partial evidence on failure.
+
+Receipt kind POSTGRES_PRIVATE_EVIDENCE_INTAKE_V1, state INTAKE_VERIFIED, authority LOCAL_DIAGNOSTIC, githubRunId null, closure INCOMPLETE, admission NOT_AUTHORIZED, registry/network/signing NOT_ATTEMPTED and supportStartedAt/supportEndsAt/archiveUntil null. Required-missing roles remain closed and explicit: root cold/SQL receipts and SQL dump, external software source/notices closure, official attestation bundle, and a second verified Windows copy of this complete new evidence folder. No absence of those artifacts elsewhere is inferred.
+
+## Owners and validation before completion
+
+Root owns fixed policy/CLI, final closed receipt contract and docs/task evidence. A bounded bundle author owns the offline Git helper and its tests; an intake author owns native inventory/copy/health/publisher and tests. Authors are not independent reviewers of their own changes. Existing contracts stay frozen unless a concrete reviewed additive repair is necessary.
+
+Acceptance requires meaningful native fixtures for nonancestor/missing recipes, prerequisite/thin/corrupt/missing-blob bundles, shallow/partial/promisor/alternates/replace/grafts sources, changed HEAD/files, wrong actor/native filesystem/owner/group/mode/link/inode/FD/path/extra inventory, malformed pins, short/trailing bytes, capacity/stream/abort/deadline/child-close, fsync/publication/replacement/descriptor-close and retained failure state. An expired harmless historical fixture must copy/seal without runtime permission; actual clocks/UIDs are never faked. Linux CI runs genuine UID1000 fixtures through a private test bootstrap where its UID1001 checkout is inaccessible; no checkout permission or workflow change.
+
+After scoped tests: fresh full lint/typecheck/test/build/secrets/dependency checks, independent implementation review and exact implementation CI, then one default fixed native invocation on clean reviewed source. Independently replay the original private receipt bytes/default validators/native full inventory/archive health, with a separate privacy/preservation review; update task evidence and require final-head/merged-main CI. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
+
+Observability is the bounded closed receipt and result; no recurring scheduler is added. Rollback disables/reverts only this diagnostic, preserving all image/data/evidence/source originals and privately retained failures. It changes no supported entrypoint, migration, admission or production configuration.
