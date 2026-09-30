@@ -31,3 +31,9 @@ Rollback removes or disables this diagnostic definition and restores the shared 
 ## Native evidence
 
 No native audit outcome is recorded yet. Ordinary quality tests and prior local/archive scans do not establish a fresh audit of this remote digest. TASK-0005A and TASK-0005 remain in progress; TASK-0006 remains dependent on their completion.
+
+## Local artifact-boundary reproduction
+
+The non-root Docker 28.0.4 simulation on merged implementation `10fb69f5d181c8281a20822eecf1a3006e589e4b` independently rematerialized the exact private digest and completed the scanner controls and candidate scans with zero findings/blockers (2 results, 50 packages, 52 SBOM components). It used the current-lock retained scanner builds from run `36343617867` and injected only the protected-main response for the local context. Those two builds passed individually; their historical workflow result was a failure and is not reclassified.
+
+The subsequent cleanup CLI rejected the public artifact boundary, so this simulation did not establish a successful complete CLI run or a native audit. The real Trivy JSON includes `ReportID` (UUIDv7) and the candidate's internal `ArtifactID` (SHA-256); both CycloneDX reports include `$schema` for version 1.7. The original top-level allowlist omitted these fields. The correction validates their formats and binds the schema URI to its supported `specVersion`, retaining the closed file/field boundary and all report hashes. Trivy's internal artifact identity is distinct from the authoritative image config ID. Regression cases rehash malformed identity and schema values into the receipt and still require rejection. No private archive, candidate execution, registry write or support activation is authorized by this correction.
