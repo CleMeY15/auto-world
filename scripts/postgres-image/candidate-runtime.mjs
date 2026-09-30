@@ -15,6 +15,8 @@ const RUN = /^[1-9][0-9]{0,19}$/u;
 const OWNER = "com.auto-world.postgres-runtime-nonce";
 const PURPOSE = "com.auto-world.postgres-runtime-purpose";
 const ROLE = "exact-remote-diagnostic";
+const LOCAL_ROLE = "local-sql-restore";
+const RESOURCE_ROLE = "com.auto-world.postgres-runtime-role";
 const PGDATA = "/var/lib/postgresql/data";
 const PAYLOAD = "auto-world-postgres-gosu-diagnostic-v1";
 const PAYLOAD_SHA256 = createHash("sha256").update(PAYLOAD).digest("hex");
@@ -152,29 +154,29 @@ function empty(value) { return value === null || value === undefined || Array.is
 function mapEmpty(value) { return value === null || plain(value) && Object.keys(value).length === 0; }
 function equalCaps(value, expected) { return Array.isArray(value)
   && isDeepStrictEqual([...value].sort(), [...expected].sort()); }
-function identity(value, record, nonce, imageId) {
+function identity(value, record, nonce, imageId, binding = { purpose: ROLE }) {
   if (!plain(value) || value.Name !== `/${record.name}` || !HEX.test(value.Id ?? "")
     || record.id !== null && value.Id !== record.id || value.Image !== imageId
-    || value.Config?.Labels?.[OWNER] !== nonce || value.Config?.Labels?.[PURPOSE] !== ROLE) {
+    || value.Config?.Labels?.[OWNER] !== nonce || value.Config?.Labels?.[PURPOSE] !== binding.purpose || binding.role !== undefined && value.Config?.Labels?.[RESOURCE_ROLE] !== binding.role) {
     fail("postgres_runtime_ownership_uncertain");
   }
   return value;
 }
-function volumeIdentity(value, name, nonce, at, createdAt) {
+function volumeIdentity(value, name, nonce, at, createdAt, binding = { purpose: ROLE }) {
   const created = Date.parse(value?.CreatedAt ?? "");
   if (!plain(value) || value.Name !== name || value.Driver !== "local" || value.Scope !== "local"
-    || !mapEmpty(value.Options) || !isDeepStrictEqual(value.Labels, { [OWNER]: nonce, [PURPOSE]: ROLE })
+    || !mapEmpty(value.Options) || !isDeepStrictEqual(value.Labels, { [OWNER]: nonce, [PURPOSE]: binding.purpose, ...(binding.role === undefined ? {} : { [RESOURCE_ROLE]: binding.role }) })
     || typeof value.Mountpoint !== "string" || !path.isAbsolute(value.Mountpoint)
     || !Number.isFinite(created) || created > at || created < at - OPERATION_MS
     || createdAt !== undefined && value.CreatedAt !== createdAt) fail("postgres_runtime_volume_identity_invalid");
   return value;
 }
-function profile(value, record, snapshot, nonce, expectedEnv, lock, volume) {
-  identity(value, record, nonce, snapshot.imageId);
+function profile(value, record, snapshot, nonce, expectedEnv, lock, volume, binding = { purpose: ROLE }) {
+  identity(value, record, nonce, snapshot.imageId, binding);
   const probe = record.role === "probe"; const host = value.HostConfig; const config = value.Config;
   const tmpfs = probe ? PROBE_TMPFS : TMPFS;
   const capabilities = probe ? ["SETGID", "SETUID"] : CAPS;
-  const labels = { ...(snapshot.config.Labels ?? {}), [OWNER]: nonce, [PURPOSE]: ROLE };
+  const labels = { ...(snapshot.config.Labels ?? {}), [OWNER]: nonce, [PURPOSE]: binding.purpose, ...(binding.role === undefined ? {} : { [RESOURCE_ROLE]: binding.role }) };
   if (!plain(host) || !plain(config) || !isDeepStrictEqual(config.Labels, labels)
     || config.Image !== snapshot.imageId || config.User !== snapshot.config.User
     || config.WorkingDir !== snapshot.config.WorkingDir || !isDeepStrictEqual(environment(config.Env), expectedEnv)
@@ -231,10 +233,10 @@ function probeCommand(lock) {
     `${lock.runtime.gosuPath} postgres /bin/sh -ec 'apk info --quiet -e "gosu=${lock.apk.version}" >/dev/null; printf "uid=%s\\ngid=%s\\nnnp=%s\\n" "$(id -u)" "$(id -g)" "$(sed -n "s/^NoNewPrivs:[[:space:]]*//p" /proc/self/status)"'`,
   ].join("; ")];
 }
-function baseArguments(record, snapshot, nonce, lock) {
+function baseArguments(record, snapshot, nonce, lock, binding = { purpose: ROLE }) {
   const probe = record.role === "probe";
   return ["create", "--name", record.name, "--pull=never", "--label", `${OWNER}=${nonce}`,
-    "--label", `${PURPOSE}=${ROLE}`, "--network", "none", "--read-only", "--restart", "no", "--cap-drop", "ALL",
+    "--label", `${PURPOSE}=${binding.purpose}`, ...(binding.role === undefined ? [] : ["--label", `${RESOURCE_ROLE}=${binding.role}`]), "--network", "none", "--read-only", "--restart", "no", "--cap-drop", "ALL",
     "--ipc", "private", "--cgroupns", "private", "--runtime", "runc",
     ...(probe ? ["SETGID", "SETUID"] : CAPS).flatMap((capability) => ["--cap-add", capability]),
     "--security-opt", "no-new-privileges=true", "--memory", String(probe ? 134217728 : lock.limits.memoryBytes),
@@ -476,3 +478,21 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
     cleanup: { containers: removed, volume: { name: volumeName, state: "REMOVED" }, temporary: "REMOVED" }, phases },
   Object.fromEntries(["subject", "imageId", "diffIds", "runId", "recipeRevision"].map((key) => [key, snapshot[key]])));
 }
+
+const LOCAL_ROLES = ["probe", "source1", "source2", "restore1", "restore2"];
+function localBinding(nonce, role, volume = false) {
+  if (typeof nonce !== "string" || !/^[0-9a-f]{24}$/u.test(nonce) || typeof role !== "string" || !(volume ? ["source-data", "restore-data"] : LOCAL_ROLES).includes(role)) fail("postgres_runtime_arguments_invalid");
+  return { purpose: LOCAL_ROLE, role };
+}
+export const postgresRuntimeProfileContract = frozen({ pgdata: PGDATA, serviceCaps: CAPS, probeCaps: ["SETGID", "SETUID"], tmpfs: TMPFS, probeTmpfs: PROBE_TMPFS, ownerLabel: OWNER, purposeLabel: PURPOSE, roleLabel: RESOURCE_ROLE, purpose: LOCAL_ROLE });
+export function postgresLocalRuntimeLabels(nonce, role) { return frozen({ [OWNER]: nonce, [PURPOSE]: LOCAL_ROLE, [RESOURCE_ROLE]: localBinding(nonce, role, typeof role === "string" && role.endsWith("-data")).role }); }
+export function postgresLocalRuntimeCreateArguments(record, image, nonce, lock) {
+  return baseArguments(record, image, nonce, lock, localBinding(nonce, record.role));
+}
+export function validatePostgresLocalRuntimeContainer(value, record, image, nonce, expectedEnv, lock, volume) {
+  return profile(value, record, image, nonce, expectedEnv, lock, volume, localBinding(nonce, record.role));
+}
+export function validatePostgresLocalRuntimeVolume(value, name, nonce, at, createdAt, role) {
+  return volumeIdentity(value, name, nonce, at, createdAt, localBinding(nonce, role, true));
+}
+export { environment as validatePostgresRuntimeEnvironment, processStatusProof as validatePostgresRuntimeProcessStatus, absent as isPostgresRuntimeObjectAbsent, transport as validatePostgresRuntimeCommandResult, probeCommand as postgresRuntimeGosuCommand };

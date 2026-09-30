@@ -70,14 +70,8 @@ function files(value) {
     || value[0].identity.uid !== value[1].identity.uid || value[0].identity.gid !== value[1].identity.gid) fail("context_invalid");
   return freeze(value);
 }
-function inputValue(value) {
-  const expected = ["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId",
-    "recipeRevision", "executionId", "identity"];
-  if (!keys(value, Object.hasOwn(value ?? {}, "signal") ? [...expected, "signal"] : expected) || !canonical(value.directory)
-    || !REVISION.test(value.recipeRevision) || !REVISION.test(value.originalRecipeRevision)
-    || !/^local-[1-9][0-9]{0,19}$/u.test(value.originalExecutionId)
-    || !/^local-cold-load-[0-9a-f]{24}$/u.test(value.executionId)
-    || value.signal !== undefined && !(value.signal instanceof globalThis.AbortSignal)) fail("context_invalid");
+export function validatePostgresPrivateCandidateMaterial(value) {
+  if (!keys(value, ["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId"]) || !canonical(value.directory) || !REVISION.test(value.originalRecipeRevision) || !/^local-[1-9][0-9]{0,19}$/u.test(value.originalExecutionId)) fail("context_invalid");
   const policy = validatePostgresRemotePolicy(value.policy); const descriptors = files(value.files);
   const proof = value.archiveProof;
   const tag = "aw-postgres-gosu:" + hash(Buffer.from(value.originalExecutionId.slice(6) + ":" + value.originalRecipeRevision)).slice(0, 24);
@@ -97,8 +91,20 @@ function inputValue(value) {
     || new Set(proof.compatibilityRecords.map((v) => v.blobDigest)).size !== 12
     || proof.rawLayers.reduce((sum, v) => sum + v.size, proof.configBytes + proof.manifestBytes) > proof.archiveBytes
     || proof.remoteLayerVerification !== "NOT_ESTABLISHED_BY_DOCKER_SAVE") fail("archive_invalid");
-  return Object.freeze({ ...value, files: descriptors, policy, archiveProof: freeze(proof), identity: identity(value.identity) });
+  return Object.freeze({ ...value, files: descriptors, policy, archiveProof: freeze(proof) });
 }
+function inputValue(value) {
+  const expected = ["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId",
+    "recipeRevision", "executionId", "identity"];
+  if (!keys(value, Object.hasOwn(value ?? {}, "signal") ? [...expected, "signal"] : expected) || !canonical(value.directory)
+    || !REVISION.test(value.recipeRevision) || !REVISION.test(value.originalRecipeRevision)
+    || !/^local-[1-9][0-9]{0,19}$/u.test(value.originalExecutionId)
+    || !/^local-cold-load-[0-9a-f]{24}$/u.test(value.executionId)
+    || value.signal !== undefined && !(value.signal instanceof globalThis.AbortSignal)) fail("context_invalid");
+  const material = validatePostgresPrivateCandidateMaterial(Object.fromEntries(["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId"].map((key) => [key, value[key]])));
+  return Object.freeze({ ...value, ...material, identity: identity(value.identity) });
+}
+
 function statMetadata(v) { return { dev: String(v.dev), ino: String(v.ino), uid: Number(v.uid), gid: Number(v.gid), mode: Number(v.mode & 0o7777n) }; }
 function fileMetadata(v) { return { ...statMetadata(v), nlink: Number(v.nlink), mtimeNs: String(v.mtimeNs), ctimeNs: String(v.ctimeNs) }; }
 function directory(file, uid, gid, mode) {
@@ -131,6 +137,7 @@ function ext4(file) {
 function parse(bytes, code = "command_failed") { try { return JSON.parse(bytes.toString("utf8")); } catch { fail(code); } }
 function defaultTransport(command, args, options) {
   return new Promise((resolve) => {
+    options.beforeSpawn?.();
     const child = spawn(command, args, { cwd: options.cwd, env: options.env, windowsHide: true,
       stdio: [options.inputFd === undefined ? "ignore" : options.inputFd, "pipe", "pipe"] });
     const chunks = { stdout: [], stderr: [] }; let bytes = 0; let forced = false; let done = false; let timer; let closingTimer; let signalled = false;
@@ -208,22 +215,19 @@ export function validatePostgresCandidateColdLoadProof(value, expectedValue) {
   } catch { fail("proof_invalid"); }
 }
 
-export async function coldLoadPostgresCandidate(inputValueRaw, dependencies = {}) {
-  let phase = "CONTEXT"; const opened = []; let result; let failure; let controller;
+export async function withVerifiedPostgresPrivateCandidate(input, controls, action) {
+  if (!keys(controls, ["check"]) || typeof controls.check !== "function" || typeof action !== "function") fail("context_invalid");
+  const check = controls.check; const opened = []; let result; let failure;
   try {
-    const input = inputValue(inputValueRaw);
-    if (process.platform !== "linux" || !(process.getuid?.() > 0) || !(process.getgid?.() > 0)) fail("requires_linux_nonroot");
+    if (process.platform !== "linux" || !(process.getuid?.() > 0) || !(process.getgid?.() > 0)
+      || process.geteuid?.() !== process.getuid() || process.getegid?.() !== process.getgid()) fail("requires_linux_nonroot");
     const uid = process.getuid(); const gid = process.getgid();
     if (process.geteuid?.() !== uid || process.getegid?.() !== gid) fail("requires_linux_nonroot");
-    if (!keys(dependencies, dependencies.transport === undefined ? ["authorize"] : ["authorize", "transport"])
-      || typeof dependencies.authorize !== "function" || dependencies.transport !== undefined && typeof dependencies.transport !== "function"
-      || input.files.some((v) => v.identity.uid !== uid || v.identity.gid !== gid) || input.identity.socket.gid !== gid
+    validatePostgresPrivateCandidateMaterial(Object.fromEntries(["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId"].map((key) => [key, input[key]])));
+    identity(input.identity);
+    if (input.files.some((v) => v.identity.uid !== uid || v.identity.gid !== gid) || input.identity.socket.gid !== gid
       || ["DOCKER_HOST", "DOCKER_CONTEXT"].some((key) => Object.hasOwn(process.env, key))
       || Object.hasOwn(process.env, "DOCKER_CONFIG") && process.env.DOCKER_CONFIG !== input.identity.dockerConfig) fail("context_invalid");
-    controller = new globalThis.AbortController();
-    const signal = globalThis.AbortSignal.any([controller.signal, globalThis.AbortSignal.timeout(OPERATION_MS), ...(input.signal ? [input.signal] : [])]);
-    const startedAt = Date.now();
-    const check = () => { if (signal.aborted) fail(input.signal?.aborted ? "aborted" : "deadline_exceeded"); };
     check(); ext4(input.directory);
     const directories = new Map([[input.directory, directory(input.directory, uid, gid, 0o700)]]);
     const client = input.identity.dockerConfig; const meta = path.join(client, "contexts", "meta", hash(Buffer.from(input.identity.contextName)));
@@ -287,19 +291,38 @@ export async function coldLoadPostgresCandidate(inputValueRaw, dependencies = {}
       if (!isDeepStrictEqual(value.archiveProof, input.archiveProof)) fail("archive_invalid");
       assertFiles(); check(); return value;
     };
+    const env = Object.freeze({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC", HOME: client, TMPDIR: client, DOCKER_CONFIG: client });
+    result = await action(Object.freeze({ inputFd: materialFiles[0].fd, material, assertFiles, env, cwd: client }));
+  } catch (error) { failure = error; } finally {
+    let failed = false; for (const item of opened) try { closeSync(item.fd); } catch { failed = true; }
+    if (failed) failure = Object.assign(new Error(PREFIX + "descriptor_cleanup_failed"), { phase: "CLEANUP" });
+  }
+  if (failure) throw failure; return result;
+}
+
+export async function coldLoadPostgresCandidate(inputValueRaw, dependencies = {}) {
+  let phase = "CONTEXT"; let result; let failure; let controller;
+  try {
+    const input = inputValue(inputValueRaw);
+    if (!keys(dependencies, dependencies.transport === undefined ? ["authorize"] : ["authorize", "transport"])
+      || typeof dependencies.authorize !== "function" || dependencies.transport !== undefined && typeof dependencies.transport !== "function") fail("context_invalid");
+    controller = new globalThis.AbortController();
+    const signal = globalThis.AbortSignal.any([controller.signal, globalThis.AbortSignal.timeout(OPERATION_MS), ...(input.signal ? [input.signal] : [])]);
+    const startedAt = Date.now(); const check = () => { if (signal.aborted) fail(input.signal?.aborted ? "aborted" : "deadline_exceeded"); };
+    result = await withVerifiedPostgresPrivateCandidate(input, { check }, async (session) => {
+    const { material, assertFiles, env } = session; const client = session.cwd;
+    try {
     const authorize = async (after = false) => {
       const ack = await bounded(() => dependencies.authorize(phase), 10_000, after ? undefined : signal);
       if (!isDeepStrictEqual(ack, { state: "VERIFIED", purpose: "COLD_LOAD_ONLY", phase,
         daemonId: input.identity.daemonId, endpoint: input.identity.endpoint })) fail("authorization_invalid");
     };
-    const env = Object.freeze({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC",
-      HOME: client, TMPDIR: client, DOCKER_CONFIG: client });
     const transport = dependencies.transport ?? defaultTransport;
     const call = async (args, load = false) => {
       check(); assertFiles(); await authorize(); assertFiles(); check(); let observed;
       try { observed = await bounded(() => transport(DOCKER, Object.freeze(["--host", input.identity.endpoint, ...args]), Object.freeze({
         cwd: client, env, signal, timeoutMs: Math.min(90_000, OPERATION_MS - (Date.now() - startedAt)), maxBuffer: CAP,
-        ...(load ? { inputFd: materialFiles[0].fd } : {}) })), OPERATION_MS - (Date.now() - startedAt), signal); }
+        ...(load ? { inputFd: session.inputFd } : {}) })), OPERATION_MS - (Date.now() - startedAt), signal); }
       finally { await authorize(true); }
       assertFiles(); check(); return output(observed, load);
     };
@@ -325,7 +348,7 @@ export async function coldLoadPostgresCandidate(inputValueRaw, dependencies = {}
       await call(["image", "rm", input.archiveProof.tag]); });
     await timed("final_seal", "AFTER_REMOVE", async () => { await inventory(0); const final = material();
       if (!isDeepStrictEqual(final, before)) fail("archive_invalid"); });
-    result = validatePostgresCandidateColdLoadProof({ kind: "POSTGRES_CANDIDATE_COLD_LOAD_PROOF_V1", state: "COLD_LOADED_AND_REMOVED",
+    return validatePostgresCandidateColdLoadProof({ kind: "POSTGRES_CANDIDATE_COLD_LOAD_PROOF_V1", state: "COLD_LOADED_AND_REMOVED",
       authority: "LOCAL_DIAGNOSTIC", recipeRevision: input.recipeRevision, executionId: input.executionId,
       originalRecipeRevision: input.originalRecipeRevision, originalExecutionId: input.originalExecutionId,
       directory: input.directory, files: input.files, archiveProof: input.archiveProof, identity: input.identity, filesystem: "EXT4",
@@ -334,11 +357,12 @@ export async function coldLoadPostgresCandidate(inputValueRaw, dependencies = {}
       cleanup: "OWNED_IMAGE_REMOVED", phases, imageExecution: "NOT_ATTEMPTED", serviceRestore: "NOT_ATTEMPTED", sqlRestore: "NOT_ATTEMPTED",
       registryRead: "NOT_ATTEMPTED", registryWrite: "NOT_ATTEMPTED", signing: "NOT_ATTEMPTED", admission: "NOT_AUTHORIZED",
       supportStartedAt: null, supportEndsAt: null, archiveUntil: null }, input);
+    } catch (error) { controller.abort(); throw error; }
+    });
   } catch (error) {
-    controller?.abort(); failure = Object.assign(new Error(PREFIX + reason(error)), { phase, cleanup: "UNVERIFIED" });
-  }
-  finally { controller?.abort(); for (const item of opened) try { closeSync(item.fd); } catch {
-    failure = Object.assign(new Error(PREFIX + "descriptor_cleanup_failed"), { phase: "CLEANUP", cleanup: "UNVERIFIED" });
-  } }
+    controller?.abort(); failure = Object.assign(new Error(PREFIX + reason(error)), { phase: reason(error) === "descriptor_cleanup_failed" ? "CLEANUP" : phase, cleanup: "UNVERIFIED" });
+  } finally { controller?.abort(); }
   if (failure) throw failure; return result;
 }
+
+export { identity as validatePostgresLocalClientIdentity, info as validatePostgresIsolatedDaemonInfo, image as validatePostgresSavedImageInspection, ext4 as validatePostgresPrivateExt4Storage, defaultTransport as postgresCandidateCommandTransport };

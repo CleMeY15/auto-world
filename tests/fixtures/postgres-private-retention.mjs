@@ -25,13 +25,13 @@ function tar(entries) {
   }
   return Buffer.concat([...parts, Buffer.alloc(1024)]);
 }
-export function privateRetentionFixture() {
+export function privateRetentionFixture(options = {}) {
   const tag = `aw-postgres-gosu:${hash(Buffer.from(`${runId}:${recipeRevision}`)).slice(0, 24)}`;
   const layers = Array.from({ length: 12 }, (_, index) => {
     const buffer = Buffer.alloc(1024); Buffer.from(`raw-layer-${index}\n`).copy(buffer); return buffer;
   });
   const diffIds = layers.map(digest);
-  const runtime = { Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"], WorkingDir: "/" };
+  const runtime = options.runtime ?? { Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"], WorkingDir: "/" };
   const config = json({ architecture: "amd64", os: "linux", docker_version: "28.0.4", config: runtime,
     rootfs: { type: "layers", diff_ids: diffIds } }); const imageId = digest(config);
   const rawLayers = layers.map((value, index) => ({ mediaType: "application/vnd.oci.image.layer.v1.tar", digest: diffIds[index], size: value.length }));
@@ -83,8 +83,8 @@ export function privateRetentionFixture() {
   return { archive, policy, proof, receipt };
 }
 
-export function retainedFixture() {
-  const material = privateRetentionFixture();
+export function retainedFixture(options = {}) {
+  const material = privateRetentionFixture(options);
   const retention = { kind: "POSTGRES_LOCAL_CANDIDATE_RETENTION_RECEIPT_V1", state: "RETAINED", authority: "LOCAL_DIAGNOSTIC",
     origin: "LOCAL_DIAGNOSTIC", executionId: `local-${runId}`, githubRunId: null, candidateAuthorization: "NOT_AUTHORIZED",
     admission: "NOT_AUTHORIZED", signing: "NOT_ATTEMPTED", registryWrite: "NOT_ATTEMPTED", imageExecution: "NOT_ATTEMPTED",
