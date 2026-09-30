@@ -217,12 +217,32 @@ if (process.platform === "linux" && process.getuid() === 1000 && process.getgid(
     try {
       fs.cpSync(path.join(repo, "scripts"), path.join(root, "scripts"), { recursive: true });
       fs.cpSync(path.join(repo, "infra"), path.join(root, "infra"), { recursive: true });
-      fs.mkdirSync(path.join(root, "tests"), { mode: 0o755 });
+      const testDirectory = path.join(root, "tests");
+      fs.mkdirSync(testDirectory, { mode: 0o755 }); fs.chmodSync(testDirectory, 0o755);
       fs.cpSync(path.join(repo, "tests/fixtures"), path.join(root, "tests/fixtures"), { recursive: true });
-      fs.copyFileSync(fileURLToPath(import.meta.url), path.join(root, "tests", path.basename(fileURLToPath(import.meta.url))));
+      const testFile = path.join(testDirectory, path.basename(fileURLToPath(import.meta.url)));
+      fs.copyFileSync(fileURLToPath(import.meta.url), testFile); fs.chmodSync(testFile, 0o644);
+      assert.equal(metadata(testDirectory).uid, 0); assert.equal(metadata(testDirectory).mode, 0o755);
+      assert.equal(metadata(testFile).mode, 0o644);
+      assert.equal(hash(fs.readFileSync(testFile)), hash(fs.readFileSync(fileURLToPath(import.meta.url))));
+      assert.equal(metadata(root).mode, 0o711);
+      const preparePublicTree = (directory) => {
+        assert.ok(directory.startsWith(root + path.sep)); assert.equal(fs.realpathSync(directory), directory);
+        assert.equal(fs.lstatSync(directory).isDirectory(), true); fs.chmodSync(directory, 0o755);
+        assert.equal(metadata(directory).mode, 0o755);
+        for (const name of fs.readdirSync(directory)) {
+          const file = path.join(directory, name); const stat = fs.lstatSync(file);
+          assert.equal(stat.isSymbolicLink(), false);
+          if (stat.isDirectory()) preparePublicTree(file);
+          else { assert.equal(stat.isFile(), true); fs.chmodSync(file, 0o644); assert.equal(metadata(file).mode, 0o644); }
+        }
+      };
+      for (const directory of [path.join(root, "scripts"), path.join(root, "infra"), path.join(root, "tests/fixtures")]) {
+        preparePublicTree(directory);
+      }
       const env = { PATH: "/usr/bin:/bin", HOME: "/tmp", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" };
       const drop = ["--reuid=1000", "--regid=1000", "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--"];
-      const inner = spawnSync("/usr/bin/setpriv", [...drop, process.execPath, "--test", path.join(root, "tests", path.basename(fileURLToPath(import.meta.url)))],
+      const inner = spawnSync("/usr/bin/setpriv", [...drop, process.execPath, "--test", testFile],
         { cwd: root, env, encoding: "utf8", timeout: 120000, maxBuffer: 1024 ** 2 });
       assert.equal(inner.status, 0, inner.stdout + inner.stderr); assert.match(inner.stdout, /# fail 0/u); assert.match(inner.stdout, /# skipped 0/u);
       const source = path.join(root, "root-sources"); fs.mkdirSync(source, { mode: 0o700 });
