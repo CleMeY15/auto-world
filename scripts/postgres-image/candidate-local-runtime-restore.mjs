@@ -37,6 +37,14 @@ const fail = (reason) => { throw new Error(PREFIX + reason); };
 const parse = (v, reason = "command_failed") => { try { return JSON.parse(v.toString("utf8")); } catch { fail(reason); } };
 const canonical = (v) => typeof v === "string" && v.length < 512 && path.posix.isAbsolute(v) && path.posix.normalize(v) === v;
 const iso = (v) => typeof v === "string" && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
+function dockerVolumeCreatedAt(value, firstCheckedAt, lastCheckedAt) {
+  // Moby v28.0.4 volumeToAPIType preserves time.RFC3339 at second precision.
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/u.test(value)
+    || /[+-]00:00$/u.test(value) || !iso(firstCheckedAt) || !iso(lastCheckedAt)) return false;
+  const local = value.slice(0, 19); const calendar = Date.parse(local + "Z"); const timestamp = Date.parse(value);
+  return Number.isFinite(calendar) && new Date(calendar).toISOString().slice(0, 19) === local && Number.isFinite(timestamp)
+    && timestamp >= Math.floor(Date.parse(firstCheckedAt) / 1000) * 1000 && timestamp <= Date.parse(lastCheckedAt);
+}
 function errorReason(error) {
   try { const code = error?.message;
     if (["postgres_sql_backup_descriptor_cleanup_failed", "postgres_local_cold_load_descriptor_cleanup_failed"].includes(code)) return "cleanup_uncertain";
@@ -223,7 +231,7 @@ export function validatePostgresLocalRuntimeRestoreProof(value, inputRaw) {
       || !isDeepStrictEqual(s.sql, { schemaSha256: sha(postgresLocalSqlExpectedSchema), dataSha256: sha(postgresLocalSqlExpectedData) }))
       || new Set([gosu.containerId, ...value.services.map((s) => s.containerId)]).size !== 5) fail("proof_invalid");
     if (!keys(value.volumes, ["source", "restore"]) || ["source", "restore"].some((k) => !keys(value.volumes[k], ["name", "createdAt"])
-      || value.volumes[k].name !== `aw-pg-restore-${nonce}-${k}-data` || !iso(value.volumes[k].createdAt))
+      || value.volumes[k].name !== `aw-pg-restore-${nonce}-${k}-data` || !dockerVolumeCreatedAt(value.volumes[k].createdAt, value.audit?.firstCheckedAt, value.audit?.lastCheckedAt))
       || !keys(value.backup, ["file", "tocSha256", "tocEntries"]) || typeof value.backup.tocSha256 !== "string" || !HEX.test(value.backup.tocSha256) || !Number.isSafeInteger(value.backup.tocEntries)
       || value.backup.tocEntries < 1 || value.backup.tocEntries > 4096 || value.sourceDisposed !== "CONFIRMED_BEFORE_RESTORE") fail("proof_invalid");
     const backup = validatePostgresSqlBackupProof(value.backup.file, path.posix.join(input.workDirectory, "backup"));

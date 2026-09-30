@@ -65,7 +65,7 @@ function harness(s, hooks = {}) {
     if (args[0] === "image" && args[1] === "inspect") return ok(bytes({ Id: s.input.policy.candidate.imageId, Os: "linux", Architecture: "amd64", Size: s.fixture.archive.length, RepoTags: [s.input.archiveProof.tag], RepoDigests: [], RootFS: { Type: "layers", Layers: s.input.policy.candidate.diffIds }, Config: configuration }));
     if (args[0] === "image" && args[1] === "rm") { h.images = []; return ok("Deleted\n"); }
     if (args[0] === "volume" && args[1] === "create") { const name = args.at(-1); h.volumes.set(name, { Name: name, Driver: "local", Scope: "local", Options: null,
-      Labels: Object.fromEntries(flags(args, "--label").map((v) => v.split("="))), CreatedAt: new Date().toISOString(), Mountpoint: `${s.input.identity.dataRoot}/volumes/${name}/_data` }); return ok(name + "\n"); }
+      Labels: Object.fromEntries(flags(args, "--label").map((v) => v.split("="))), CreatedAt: new Date().toISOString().replace(/\.\d{3}Z$/u, "Z"), Mountpoint: `${s.input.identity.dataRoot}/volumes/${name}/_data` }); return ok(name + "\n"); }
     if (args[0] === "volume" && args[1] === "inspect") return h.volumes.has(args.at(-1)) ? ok(bytes(h.volumes.get(args.at(-1)))) : absent("volume", args.at(-1));
     if (args[0] === "volume" && args[1] === "rm") { assert.equal(h.containers.size, 0); h.volumes.delete(args.at(-1)); return ok(args.at(-1) + "\n"); }
     if (args[0] === "create") {
@@ -147,6 +147,51 @@ test("native engine completes five distinct profiles, exact SQL, fresh volume re
     const changed = clone(proof); change(changed); assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
   }
 });
+
+test("native engine retains Docker RFC3339 volume creation timestamps without normalizing their offset", { skip: !linux }, async (t) => {
+  // Moby v28.0.4 volumeToAPIType uses time.RFC3339, not fractional ISO/RFC3339Nano.
+  for (const offset of ["Z", "+01:00"]) await t.test(offset, async (sub) => {
+    const s = await scope(sub); const timestamps = new Map(); const h = harness(s, { transport: (args, _options, state) => {
+      if (args[0] !== "volume" || args[1] !== "inspect" || !state.volumes.has(args.at(-1))) return;
+      const name = args.at(-1); if (!timestamps.has(name)) timestamps.set(name, new Date(Date.now() + (offset === "Z" ? 0 : 3_600_000)).toISOString().slice(0, 19) + offset);
+      state.volumes.get(name).CreatedAt = timestamps.get(name);
+    } });
+    const proof = await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps);
+    assert.deepEqual(proof, validatePostgresLocalRuntimeRestoreProof(proof, s.input));
+    for (const volume of Object.values(proof.volumes)) assert.equal(volume.createdAt, timestamps.get(volume.name));
+    assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0); assert.deepEqual(h.images, []);
+  });
+});
+test("native proof rejects malformed, normalized-calendar and out-of-audit-window volume timestamps", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s); const proof = await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps);
+  const timestamp = proof.volumes.source.createdAt;
+  for (const invalid of [timestamp + "\n", timestamp.replace("Z", ".000Z"), timestamp.replace("Z", ".123456789Z"), timestamp.replace("Z", "+00:00"),
+    timestamp.replace("Z", "+24:00"), timestamp.replace("Z", "+01:60"), "2026-02-30T12:00:00Z", "2026-13-01T12:00:00Z", "2026-09-30T24:00:00Z",
+    [timestamp], new Date(Date.parse(proof.audit.firstCheckedAt) - 60_000).toISOString().slice(0, 19) + "Z",
+    new Date(Date.parse(proof.audit.lastCheckedAt) + 60_000).toISOString().slice(0, 19) + "Z"]) {
+    const changed = clone(proof); changed.volumes.source.createdAt = invalid;
+    assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
+  }
+  // Calendar normalization must be refused even if a forged audit interval encloses its parsed value.
+  const changed = clone(proof); changed.volumes.source.createdAt = "2026-02-30T12:00:00Z";
+  changed.volumes.restore.createdAt = "2026-03-02T12:00:00Z";
+  changed.audit.firstCheckedAt = "2026-03-02T11:59:59.000Z"; changed.audit.lastCheckedAt = "2026-03-02T12:00:01.000Z";
+  changed.audit.validUntil = "2026-03-02T12:01:00.000Z";
+  assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
+});
+
+test("native volume reuse refuses a raw creation timestamp substitution representing the same instant", { skip: !linux }, async (t) => {
+  const s = await scope(t); const inspections = new Map(); const h = harness(s, { transport: (args, _options, state) => {
+    if (args[0] !== "volume" || args[1] !== "inspect" || !state.volumes.has(args.at(-1))) return;
+    const name = args.at(-1); const count = (inspections.get(name) ?? 0) + 1; inspections.set(name, count);
+    if (count === 2) state.volumes.get(name).CreatedAt = state.volumes.get(name).CreatedAt.replace("Z", "+00:00");
+  } });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => {
+    assert.equal(error.message, "postgres_local_runtime_restore_cleanup_uncertain"); assert.equal(error.cleanup, "UNVERIFIED"); return true;
+  });
+  assert.equal(h.calls.some((v) => v.args[0] === "volume" && v.args[1] === "rm"), false);
+});
+
 test("native engine preserves the preexisting private audit-evidence directory through the complete route", { skip: !linux }, async (t) => {
   const s = await scope(t); const evidence = path.join(s.input.workDirectory, "audit-evidence"); mkdirSync(evidence, { mode: 0o700 });
   const report = path.join(evidence, "supervisor-owned-report.json"); const reportBytes = Buffer.from("supervisor validates these bytes\n"); writeFileSync(report, reportBytes, { mode: 0o600 });
