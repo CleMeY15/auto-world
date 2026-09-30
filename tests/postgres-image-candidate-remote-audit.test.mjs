@@ -292,7 +292,10 @@ test("complete public artifact binds candidate, database manifests, metadata and
     "scanner-version-probe.json", "fixture-gomod-vulnerable-candidate.json", "fixture-gomod-vulnerable-baseline.json",
     "fixture-java-war-vulnerable-candidate.json", "fixture-java-war-vulnerable-baseline.json", "fixture-java-jar-clean-candidate-candidate.json"];
   for (const file of reportFiles) {
-    writeJson(path.join(context.output, file), file.endsWith(".cdx.json") ? { bomFormat: "CycloneDX", components: [] } : { SchemaVersion: 2, Results: [] });
+    writeJson(path.join(context.output, file), file.endsWith(".cdx.json")
+      ? { $schema: "http://cyclonedx.org/schema/bom-1.7.schema.json", bomFormat: "CycloneDX", specVersion: "1.7", components: [] }
+      : { SchemaVersion: 2, ReportID: "01a0f0c0-4fe0-73c1-85a8-98f17d70ce7a", Results: [],
+        ...(file === "candidate-vulnerabilities.json" ? { ArtifactID: `sha256:${"c".repeat(64)}` } : {}) });
     const bytes = readFileSync(path.join(context.output, file)); const identity = { sha256: hash(bytes), size: bytes.length };
     if (file === "candidate-vulnerabilities.json") receipt.reports.vulnerability = identity;
     else if (file === "candidate-sbom.cdx.json") receipt.reports.cyclonedx = identity;
@@ -301,6 +304,22 @@ test("complete public artifact binds candidate, database manifests, metadata and
   const receiptFile = path.join(context.output, "audit-receipt.json"); writeJson(receiptFile, receipt);
   const deps = { ...dependencies(), now: () => now, evaluatePolicy: () => expectedEvaluation };
   assert.equal(validatePostgresRemoteAuditArtifact(context, deps), true);
+  // Even when rehashed into the receipt, malformed scanner identity/schema fields cannot pass.
+  for (const [file, field, value, name] of [
+    ["candidate-vulnerabilities.json", "ReportID", 123, "vulnerability"],
+    ["candidate-vulnerabilities.json", "ReportID", "01a0f0c0-4fe0-73c1-05a8-98f17d70ce7a", "vulnerability"],
+    ["candidate-vulnerabilities.json", "ArtifactID", "private/raw-image", "vulnerability"],
+    ["candidate-sbom.cdx.json", "$schema", "https://untrusted.example/bom-1.7.schema.json", "cyclonedx"],
+    ["candidate-sbom.cdx.json", "specVersion", "1.6", "cyclonedx"],
+  ]) {
+    const target = path.join(context.output, file); const original = readFileSync(target);
+    const identity = receipt.reports[name];
+    writeJson(target, { ...JSON.parse(original), [field]: value });
+    const changed = readFileSync(target); receipt.reports[name] = { sha256: hash(changed), size: changed.length };
+    writeJson(receiptFile, receipt);
+    assert.throws(() => validatePostgresRemoteAuditArtifact(context, deps), /artifact_invalid/u);
+    writeFileSync(target, original); receipt.reports[name] = identity; writeJson(receiptFile, receipt);
+  }
   for (const file of ["candidate-vulnerabilities.json", "scanner-self.json", "fixture-gomod-vulnerable-baseline.json",
     "database-java-after-manifest.json", "database-evidence.json"]) {
     const target = path.join(context.output, file); const original = readFileSync(target);

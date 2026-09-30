@@ -331,11 +331,17 @@ export function validatePostgresRemoteAuditArtifact(context, dependencies = {}) 
       rejectSensitiveJson(value); documents[file] = { bytes, value };
       if ((file.startsWith("candidate-") || file.startsWith("scanner-") || file.startsWith("fixture-"))
         && !file.endsWith(".cdx.json") && (value.SchemaVersion !== 2 || !Array.isArray(value.Results)
-          || Object.keys(value).some((key) => !["SchemaVersion", "CreatedAt", "ArtifactName", "ArtifactType", "Metadata", "Results", "Trivy"].includes(key)))) {
+          || Object.keys(value).some((key) => !["SchemaVersion", "ReportID", "CreatedAt", "ArtifactID", "ArtifactName", "ArtifactType", "Metadata", "Results", "Trivy"].includes(key))
+          || Object.hasOwn(value, "ReportID") && (typeof value.ReportID !== "string"
+            || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value.ReportID))
+          || Object.hasOwn(value, "ArtifactID") && (typeof value.ArtifactID !== "string"
+            || !/^sha256:[0-9a-f]{64}$/u.test(value.ArtifactID)))) {
         fail("postgres_remote_audit_artifact_invalid");
       }
       if (file.endsWith(".cdx.json") && (value.bomFormat !== "CycloneDX" || !Array.isArray(value.components)
-        || Object.keys(value).some((key) => !["bomFormat", "specVersion", "serialNumber", "version", "metadata", "components", "dependencies", "vulnerabilities"].includes(key)))) {
+        || Object.keys(value).some((key) => !["$schema", "bomFormat", "specVersion", "serialNumber", "version", "metadata", "components", "dependencies", "vulnerabilities"].includes(key))
+        || Object.hasOwn(value, "$schema") && (!["1.6", "1.7"].includes(value.specVersion)
+          || value.$schema !== `http://cyclonedx.org/schema/bom-${value.specVersion}.schema.json`))) {
         fail("postgres_remote_audit_artifact_invalid");
       }
     }
