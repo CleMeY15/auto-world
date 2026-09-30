@@ -6,7 +6,8 @@ import { createLocalDaemonHelper, validateLocalDaemonConfigurationResult, valida
 const expected = { pid: 98765, startTicks: "123456789", configFile: "/var/tmp/aw-dp-AbCd12/daemon-" + "a".repeat(24) + "/daemon.json" };
 const proof = { pid: expected.pid, startTicks: expected.startTicks, state: "S",
   uid: [0, 0, 0, 0], gid: [0, 0, 0, 0], executable: "/usr/bin/dockerd",
-  argv: ["/usr/bin/dockerd", "--config-file", expected.configFile] };
+  argv: ["/usr/bin/dockerd", "--config-file", expected.configFile,
+    "--containerd-plugins-namespace", "plugins.awdiag-" + "a".repeat(24)] };
 
 test("process proof binds the owned root child, start ticks and exact reviewed command", () => {
   const verified = validateLocalDaemonProcessProof(proof, expected);
@@ -19,6 +20,9 @@ test("process proof rejects PID reuse, foreign processes and altered root comman
     { uid: [0, 1000, 0, 0] }, { gid: [0, 0, 1000, 0] },
     { executable: "/usr/bin/containerd" }, { executable: "/usr/bin/dockerd (deleted)" },
     { argv: ["/usr/bin/dockerd", "--config-file", "/etc/docker/daemon.json"] },
+    { argv: ["/usr/bin/dockerd", "--config-file", expected.configFile] },
+    { argv: [...proof.argv.slice(0, -1), "plugins.moby"] },
+    { argv: [...proof.argv.slice(0, -1), "plugins.awdiag-" + "b".repeat(24)] },
     { argv: [...proof.argv, "--host", "unix:///var/run/docker.sock"] },
     { state: "Z" }, { state: "X" }, { state: undefined }, { state: "unknown" },
   ]) assert.throws(() => validateLocalDaemonProcessProof({ ...proof, ...change }, expected),

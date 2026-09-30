@@ -45,7 +45,8 @@ function validateSpec(spec) {
     || spec.socket !== path.join(spec.root, "docker.sock") || spec.pidFile !== path.join(spec.root, "daemon.pid")
     || spec.logFile !== path.join(spec.root, "daemon.log") || spec.configFile !== path.join(spec.root, "daemon.json")
     || spec.containersNamespace !== "awdiag-" + nonce || spec.pluginsNamespace !== "plugins.awdiag-" + nonce
-    || !isDeepStrictEqual(spec.args, ["--config-file", spec.configFile])
+    || !isDeepStrictEqual(spec.args, ["--config-file", spec.configFile,
+      "--containerd-plugins-namespace", spec.pluginsNamespace])
     || spec.argvSha256 !== sha(bytes([DOCKERD, ...spec.args]))) fail();
   canonicalDirectory(path.dirname(spec.root), 0o700);
   canonicalDirectory(spec.root, 0o700);
@@ -54,7 +55,7 @@ function validateSpec(spec) {
     "data-root": spec.dataRoot, "exec-root": spec.execRoot, pidfile: spec.pidFile,
     hosts: ["unix://" + spec.socket], bridge: "none", iptables: false, ip6tables: false,
     "ip-forward": false, "ip-masq": false, "userland-proxy": false, containerd: CONTAINERD,
-    "containerd-namespace": spec.containersNamespace, "containerd-plugins-namespace": spec.pluginsNamespace,
+    "containerd-namespace": spec.containersNamespace,
     "storage-driver": "overlay2", "default-cgroupns-mode": "private", "default-ipc-mode": "private",
     "default-runtime": "runc",
   };
@@ -62,10 +63,13 @@ function validateSpec(spec) {
   return spec;
 }
 export function validateLocalDaemonProcessProof(value, expected) {
+  const nonce = typeof expected?.configFile === "string"
+    ? /^\/var\/tmp\/aw-dp-[A-Za-z0-9]{6}\/daemon-([0-9a-f]{24})\/daemon\.json$/u.exec(expected.configFile)?.[1] : undefined;
   if (!plain(value) || !plain(expected) || value.pid !== expected.pid || !Number.isSafeInteger(value.pid)
     || value.pid < 2 || value.startTicks !== expected.startTicks || !/^[1-9][0-9]{0,19}$/u.test(value.startTicks ?? "")
     || !isDeepStrictEqual(value.uid, [0, 0, 0, 0]) || !isDeepStrictEqual(value.gid, [0, 0, 0, 0])
-    || value.executable !== DOCKERD || !isDeepStrictEqual(value.argv, [DOCKERD, "--config-file", expected.configFile])
+    || !nonce || value.executable !== DOCKERD || !isDeepStrictEqual(value.argv, [DOCKERD,
+      "--config-file", expected.configFile, "--containerd-plugins-namespace", "plugins.awdiag-" + nonce])
     || !/^[RSDTtWIP]$/u.test(value.state ?? "")) fail();
   return Object.freeze({ pid: value.pid, startTicks: value.startTicks });
 }
@@ -150,7 +154,7 @@ export function createLocalDaemonHelper() {
       const namespaces = result("/usr/bin/ctr", ["--address", CONTAINERD, "namespaces", "list", "--quiet"],
         { env: environment }).toString("utf8").trim().split(/\r?\n/u);
       if (namespaces.includes(spec.containersNamespace) || namespaces.includes(spec.pluginsNamespace)) fail();
-      validateLocalDaemonConfigurationResult(spawnSync(DOCKERD, ["--validate", "--config-file", spec.configFile],
+      validateLocalDaemonConfigurationResult(spawnSync(DOCKERD, ["--validate", ...spec.args],
         { env: environment, encoding: null, timeout: 10_000, maxBuffer: CAP }));
       const fd = openSync(spec.logFile, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW);
       let child;

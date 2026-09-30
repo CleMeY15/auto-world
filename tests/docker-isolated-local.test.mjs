@@ -30,7 +30,7 @@ async function fixture(t) {
   const state = { commands: [], startCalls: 0, stopCalls: 0, verifyCalls: 0, spec: null, server: null,
     mainImages: [...principal.imageIds], mainContainers: [], mainVolumes: [], isolatedImages: [], isolatedContainers: [],
     isolatedVolumes: [], mainInfo: {}, isolatedInfo: {}, proof: {}, startProof: {}, stopProof: {}, tag: "foreign:retained",
-    leavePid: false, transportHook: null, verifyHook: null, startError: null, stopError: null, now: 1_000 };
+    leavePid: false, transportHook: null, verifyHook: null, startError: null, stopError: null, now: 1_000, pidBytes: "4242" };
   const input = { purpose: "EMPTY_DAEMON_PROBE", parent, nonce: "1234567890abcdef12345678", principal };
   const helper = {
     start: async (spec) => {
@@ -40,7 +40,7 @@ async function fixture(t) {
       chmodSync(spec.dataRoot, 0o710);
       state.server = createServer(); state.server.unref();
       await new Promise((resolve, reject) => { state.server.once("error", reject); state.server.listen(spec.socket, resolve); });
-      chmodSync(spec.socket, 0o600); writeFileSync(spec.pidFile, "4242\n", { flag: "wx", mode: 0o600 });
+      chmodSync(spec.socket, 0o600); writeFileSync(spec.pidFile, state.pidBytes, { flag: "wx", mode: 0o600 });
       return { pid: 4242, startTicks: "123456", daemonId: "isolated-daemon", namespacesFresh: true, ...state.startProof };
     },
     verify: async (spec, child) => {
@@ -96,18 +96,24 @@ async function fixture(t) {
 test("isolated empty probe authenticates both daemons, config bytes, namespaces and bounded shutdown", { skip: !linux }, async (t) => {
   const f = await fixture(t); const lease = await f.start(); const { state } = f;
   assert.equal(state.spec.uid, process.getuid()); assert.equal(state.spec.gid, process.getgid());
-  assert.deepEqual(state.spec.args, ["--config-file", state.spec.configFile]);
+  assert.deepEqual(state.spec.args, ["--config-file", state.spec.configFile,
+    "--containerd-plugins-namespace", lease.identity.pluginsNamespace]);
+  assert.equal(state.spec.argvSha256, createHash("sha256").update(Buffer.from(
+    `${JSON.stringify(["/usr/bin/dockerd", ...state.spec.args], null, 2)}\n`)).digest("hex"));
   const config = JSON.parse(readFileSync(state.spec.configFile));
   assert.deepEqual(config, { "data-root": state.spec.dataRoot, "exec-root": state.spec.execRoot, pidfile: state.spec.pidFile,
     hosts: [lease.identity.endpoint], bridge: "none", iptables: false, ip6tables: false, "ip-forward": false,
     "ip-masq": false, "userland-proxy": false, containerd: principal.containerdAddress,
-    "containerd-namespace": lease.identity.containersNamespace, "containerd-plugins-namespace": lease.identity.pluginsNamespace,
+    "containerd-namespace": lease.identity.containersNamespace,
     "storage-driver": "overlay2", "default-cgroupns-mode": "private", "default-ipc-mode": "private", "default-runtime": "runc" });
   assert.notEqual(config["containerd-namespace"], principal.containersNamespace);
-  assert.notEqual(config["containerd-plugins-namespace"], principal.pluginsNamespace);
+  assert.notEqual(lease.identity.pluginsNamespace, principal.pluginsNamespace);
+  assert.equal(Object.hasOwn(config, "containerd-plugins-namespace"), false);
+  assert.equal(Object.hasOwn(config, "containerd-plugin-namespace"), false);
   assert.equal(lstatSync(state.spec.dataRoot).mode & 0o7777, 0o710);
   assert.equal(lstatSync(state.spec.execRoot).mode & 0o7777, 0o700);
   assert.equal(lstatSync(lease.identity.dockerConfig).mode & 0o7777, 0o700);
+  assert.deepEqual(readFileSync(state.spec.pidFile), Buffer.from("4242"));
   const verified = await lease.verify(); assert.equal(verified.state, "VERIFIED_EMPTY"); assert.equal(verified.admission, "NOT_AUTHORIZED");
   assert.equal(verified.images + verified.containers + verified.volumes, 0);
   assert.match(verified.principalSnapshotSha256, /^[0-9a-f]{64}$/u);
@@ -196,6 +202,27 @@ test("daemon log may append during guards without content reads or timestamp/siz
   }
 });
 
+test("pidfile accepts only the pinned Docker decimal bytes and preserves inode identity", { skip: !linux }, async (t) => {
+  const malformed = ["", "4242\n", "4242\r\n", " 4242", "4242 ", "+4242", "-4242", "04242", "4242\0", "4243"];
+  for (const value of malformed) await t.test(`reject initial bytes ${JSON.stringify(value)}`, async (child) => {
+    const f = await fixture(child); f.state.pidBytes = value;
+    await assert.rejects(f.start(), rejection("daemon_local_cleanup_uncertain", "START"));
+    assert.equal(f.state.stopCalls, 0); assert.ok(f.state.server.listening);
+  });
+  for (const mutate of [
+    ...malformed.map((value) => (file) => writeFileSync(file, value)),
+    (file) => { renameSync(file, `${file}.old`); writeFileSync(file, "4242", { flag: "wx", mode: 0o600 }); },
+    (file) => { renameSync(file, `${file}.old`); symlinkSync(`${file}.old`, file); },
+    (file) => linkSync(file, `${file}.hardlink`),
+  ]) await t.test("reject changed authenticated pidfile", async (child) => {
+    const f = await fixture(child); const lease = await f.start(); const before = f.state.commands.length;
+    mutate(f.state.spec.pidFile);
+    await assert.rejects(lease.runner("/usr/bin/docker", INFO), rejection("daemon_local_files_changed", "COMMAND"));
+    assert.equal(f.state.commands.length, before);
+    await assert.rejects(lease.stop(), rejection("daemon_local_cleanup_uncertain", "STOP")); assert.equal(f.state.stopCalls, 0);
+  });
+});
+
 test("daemon log rotation, symlink, hardlink, mode and overflow remain refused", { skip: !linux }, async (t) => {
   for (const mutate of [
     (log) => { renameSync(log, `${log}.old`); writeFileSync(log, "replacement", { flag: "wx", mode: 0o600 }); },
@@ -232,6 +259,8 @@ test("changed daemon identity, namespace or process proof prevents target comman
     (f) => { f.state.isolatedInfo.DockerRootDir = principal.root; },
     (f) => { f.state.isolatedInfo.Containerd = { Address: principal.containerdAddress,
       Namespaces: { Containers: principal.containersNamespace, Plugins: principal.pluginsNamespace } }; },
+    (f) => { f.state.isolatedInfo.Containerd = { Address: principal.containerdAddress,
+      Namespaces: { Containers: f.state.spec.containersNamespace, Plugins: principal.pluginsNamespace } }; },
     (f) => { f.state.proof.startTicks = "999999"; },
     (f) => { f.state.proof.uid = 1000; },
     (f) => { f.state.proof.executable = "/bin/foreign"; },
@@ -241,7 +270,7 @@ test("changed daemon identity, namespace or process proof prevents target comman
   ].entries()) await t.test("reject altered daemon proof", async (child) => {
     const f = await fixture(child); const lease = await f.start(); change(f);
     const before = f.state.commands.filter((entry) => entry.args[0] === "image").length;
-    await assert.rejects(lease.runner("/usr/bin/docker", IMAGES), rejection(index < 3 ? "daemon_local_identity_invalid" : "daemon_local_helper_invalid", "COMMAND"));
+    await assert.rejects(lease.runner("/usr/bin/docker", IMAGES), rejection(index < 4 ? "daemon_local_identity_invalid" : "daemon_local_helper_invalid", "COMMAND"));
     assert.equal(f.state.commands.filter((entry) => entry.args[0] === "image").length, before);
     await assert.rejects(lease.stop(), rejection("daemon_local_cleanup_uncertain", "STOP")); assert.equal(f.state.stopCalls, 0);
   });

@@ -164,7 +164,7 @@ async function startLease(input, dependencies = {}) {
   const daemonConfig = { "data-root": path.join(root, "data"), "exec-root": path.join(root, "exec"), pidfile: pidFile,
     hosts: [endpoint], bridge: "none", iptables: false, ip6tables: false, "ip-forward": false, "ip-masq": false,
     "userland-proxy": false, containerd: principal.containerdAddress, "containerd-namespace": containersNamespace,
-    "containerd-plugins-namespace": pluginsNamespace, "storage-driver": "overlay2", "default-cgroupns-mode": "private",
+    "storage-driver": "overlay2", "default-cgroupns-mode": "private",
     "default-ipc-mode": "private", "default-runtime": "runc" };
   const files = new Map();
   for (const [file, bytes] of [[daemonConfigFile, jsonBytes(daemonConfig)],
@@ -174,7 +174,7 @@ async function startLease(input, dependencies = {}) {
     writePrivate(file, bytes); files.set(file, regular(file, uid, gid, bytes));
   }
   writePrivate(logFile, Buffer.alloc(0)); const logIdentity = mutableLog(logFile, uid, gid);
-  const argv = [DOCKERD, "--config-file", daemonConfigFile];
+  const argv = [DOCKERD, "--config-file", daemonConfigFile, "--containerd-plugins-namespace", pluginsNamespace];
   const spec = freeze({ root, uid, gid, executable: DOCKERD, version: VERSION, args: argv.slice(1),
     configFile: daemonConfigFile, configSha256: digest(jsonBytes(daemonConfig)), argvSha256: digest(jsonBytes(argv)),
     pidFile, logFile, socket, dataRoot: daemonConfig["data-root"], execRoot: daemonConfig["exec-root"],
@@ -200,7 +200,7 @@ async function startLease(input, dependencies = {}) {
         const current = lstatSync(socket);
         if (!current.isSocket() || current.uid !== uid || current.gid !== gid || (current.mode & 0o7777) !== 0o600
           || !unchanged(socketIdentity, { dev: current.dev, ino: current.ino, uid, gid, mode: current.mode })) fail("daemon_local_files_changed");
-        if (!unchanged(pidIdentity, regular(pidFile, uid, gid, Buffer.from(`${child.pid}\n`)))) fail("daemon_local_files_changed");
+        if (!unchanged(pidIdentity, regular(pidFile, uid, gid, Buffer.from(String(child.pid))))) fail("daemon_local_files_changed");
       }
     } catch (error) { throw fixedError(error, phase, "daemon_local_files_changed"); }
   };
@@ -286,7 +286,8 @@ async function startLease(input, dependencies = {}) {
     dirs.set(spec.dataRoot, finalData);
     const socketStat = lstatSync(socket);
     socketIdentity = { dev: socketStat.dev, ino: socketStat.ino, uid, gid, mode: socketStat.mode };
-    pidIdentity = regular(pidFile, uid, gid, Buffer.from(`${started.pid}\n`));
+    // Moby 28.0.4 pidfile.Write serializes strconv.Itoa(pid), without a newline.
+    pidIdentity = regular(pidFile, uid, gid, Buffer.from(String(started.pid)));
     await verify();
     knownEmptyVerified = true;
     await guard();
