@@ -392,22 +392,25 @@ function makeReadOnly(directory) {
   chmodSync(directory, 0o555);
 }
 
-async function executeControls({ lock, scanner, cache, output, fixtureRoot, versionProbe, subjectRoot, docker, cleanupDocker,
-  cleanupRecords, frozen }) {
+export async function executePostgresScannerControls({ lock, scanner, cache, output, fixtureRoot, versionProbe, subjectRoot, docker, cleanupDocker,
+  cleanupRecords, frozen, beforeScan = () => {} }) {
   const carrier = `${lock.baseline.repository}@${lock.baseline.platformDigest}`;
-  const run = (args, kind, file) => runOwnedContainer(args, { kind, docker, cleanupDocker, cleanupRecords,
-    output: file, timeout: 30 * 60_000 });
+  const run = async (args, kind, file) => {
+    await beforeScan();
+    runOwnedContainer(args, { kind, docker, cleanupDocker, cleanupRecords,
+      output: file, timeout: 30 * 60_000 });
+  };
   const selfJson = path.join(output, "scanner-self.json");
   const selfSbom = path.join(output, "scanner-self.cdx.json");
-  run(candidateDockerArguments({ carrier, scanner, cache, mode: "rootfs", target: subjectRoot,
+  await run(candidateDockerArguments({ carrier, scanner, cache, mode: "rootfs", target: subjectRoot,
     extra: ["--offline-scan", "--severity", "HIGH,CRITICAL"] }), "self-json", selfJson);
-  run(candidateDockerArguments({ carrier, scanner, cache, mode: "rootfs", target: subjectRoot,
+  await run(candidateDockerArguments({ carrier, scanner, cache, mode: "rootfs", target: subjectRoot,
     format: "cyclonedx", extra: ["--offline-scan"] }), "self-cyclonedx", selfSbom);
   validateSelfReport((await readBoundedJson(selfJson)).value, (await readBoundedJson(selfSbom)).value,
     frozen.buildInventory, lock.scanner.upstreamVersion);
   await assertFilesUnchanged(frozen.files);
   const probeReport = path.join(output, "scanner-version-probe.json");
-  run(candidateDockerArguments({ carrier, scanner, cache, mode: "fs", target: versionProbe,
+  await run(candidateDockerArguments({ carrier, scanner, cache, mode: "fs", target: versionProbe,
     extra: ["--offline-scan", "--severity", "HIGH,CRITICAL"] }), "version-probe", probeReport);
   validateVersionProbeReport((await readBoundedJson(probeReport)).value, lock.scanner.upstreamVersion);
   await assertFilesUnchanged(frozen.files);
@@ -416,12 +419,12 @@ async function executeControls({ lock, scanner, cache, output, fixtureRoot, vers
     const target = fixture.material[0].path.startsWith("gomod/") ? "gomod" : fixture.material[0].path.replace(/^java\//u, "java/");
     const mode = fixtureScanMode(fixture); const absolute = path.join(fixtureRoot, target);
     const candidateFile = path.join(output, `fixture-${fixture.id}-candidate.json`);
-    run(candidateDockerArguments({ carrier, scanner, cache, mode, target: absolute, extra: ["--offline-scan"] }),
+    await run(candidateDockerArguments({ carrier, scanner, cache, mode, target: absolute, extra: ["--offline-scan"] }),
       `fixture-${fixture.id}-candidate`, candidateFile);
     const candidate = validateFixtureReport(fixture, (await readBoundedJson(candidateFile)).value);
     if (fixture.id !== "java-jar-clean-candidate") {
       const baselineFile = path.join(output, `fixture-${fixture.id}-baseline.json`);
-      run(baselineFixtureArguments(lock, cache, fixtureRoot, mode, target), `fixture-${fixture.id}-baseline`, baselineFile);
+      await run(baselineFixtureArguments(lock, cache, fixtureRoot, mode, target), `fixture-${fixture.id}-baseline`, baselineFile);
       compareSameDatabase(candidate, validateFixtureReport(fixture, (await readBoundedJson(baselineFile)).value, lock.baseline.version));
     }
     await assertFilesUnchanged(frozen.files);
@@ -540,7 +543,7 @@ export async function executePostgresScan(context, dependencies = {}) {
       { ...scannerSubjectCopy }, { ...archiveCopy }, { path: versionProbeFile, cap: 8 * MiB },
       ...pair.frozenBuildFiles, ...database.files.map((entry) => ({ path: entry.path, cap: entry.cap })), ...fixtureFiles])];
     receipt.phase = "SCANNER_CONTROLS";
-    await (dependencies.executeControls ?? executeControls)({ lock: pair.lock, scanner: pair.scanner, cache, output: context.output,
+    await (dependencies.executeControls ?? executePostgresScannerControls)({ lock: pair.lock, scanner: pair.scanner, cache, output: context.output,
       fixtureRoot, versionProbe, subjectRoot: scannerSubject, docker, frozen: { files: frozenFiles,
         buildInventory: pair.buildInfos[0].value }, cleanupDocker, cleanupRecords: receipt.containerCleanup });
     const reports = { vulnerability: path.join(context.output, "candidate-vulnerabilities.json"),

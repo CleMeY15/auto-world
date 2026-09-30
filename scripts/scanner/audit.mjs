@@ -270,7 +270,7 @@ export async function databaseEvidence(cache, now, output) {
       checkedAt: now instanceof Date && Number.isFinite(now.getTime()) ? now.toISOString() : null,
       maxAgeMsByDatabase: { vulnerability: MAX_DATABASE_AGE_MS, java: null },
       files: snapshot, observed, validation,
-    }, null, 2)}\n`, { flag: "wx" });
+    }, null, 2)}\n`, { flag: "wx", mode: 0o600 });
   }
   const rejected = validation.find((entry) => entry.result === "failed");
   if (rejected) {

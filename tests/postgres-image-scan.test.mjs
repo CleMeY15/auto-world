@@ -7,7 +7,7 @@ import test from "node:test";
 import { buildFixtureTar } from "../scripts/image-import-fixture/archive.mjs";
 
 import { candidateInputDockerArguments } from "../scripts/seaweed-image/candidate-audit.mjs";
-import { authenticatePostgresCodeBundle, executePostgresScan, parsePostgresScanArguments, postgresOwnedContainerArguments,
+import { authenticatePostgresCodeBundle, executePostgresScan, executePostgresScannerControls, parsePostgresScanArguments, postgresOwnedContainerArguments,
   postgresCandidateInputDockerArguments, preparePostgresScannerControls,
   TEST_ONLY_copyAuthenticatedFile, TEST_ONLY_recordOperationFailure, TEST_ONLY_runOwnedContainer,
   validatePostgresDiagnosticEvidence,
@@ -32,6 +32,16 @@ const labels = {
 const phaseNames = ["DOCKER_PREFLIGHT", "BASE_IDENTITY", "CANDIDATE_BUILD", "CANDIDATE_IDENTITY",
   "GOSU_PROBE_CREATE", "GOSU_PROBE_PROFILE", "GOSU_PROBE_RUN", "VOLUME_CREATE", "RUNTIME_ONE", "RUNTIME_TWO"];
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+test("scanner controls await fresh database verification before executing a helper", async () => {
+  let dockerCalls = 0;
+  await assert.rejects(executePostgresScannerControls({ lock: { baseline: { repository: "aquasec/trivy",
+    platformDigest: `sha256:${"a".repeat(64)}` } }, scanner: "/tmp/scanner", cache: "/tmp/cache",
+    output: "/tmp/evidence", subjectRoot: "/tmp/subject", docker: () => { dockerCalls += 1; },
+    beforeScan: async () => { await Promise.resolve(); throw new Error("scanner_database_metadata_invalid"); },
+  }), /scanner_database_metadata_invalid/u);
+  assert.equal(dockerCalls, 0);
+});
 
 function evidenceFixture() {
   const baseConfig = { Image: "", User: "", Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"],
