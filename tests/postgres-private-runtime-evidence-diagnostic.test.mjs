@@ -169,18 +169,19 @@ test("native descriptor closure uncertainty remains sticky and never retries a r
   assert.deepEqual(f.sources.map(pin => native(lstatSync(pin.source, { bigint: true }))), f.original);
 }));
 
-function workerCode(mode, directory) {
+function workerCode(mode, directory, specs) {
   return `import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, fsyncSync, mkdirSync, openSync, readFileSync, readSync, writeSync } from 'node:fs';
-import readline from 'node:readline';
+import { postgresPrivateRuntimeEvidenceChannel } from './public/private-runtime-evidence-protocol.mjs';
 const mode=${JSON.stringify(mode)}, directory=${JSON.stringify(directory)};
-const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity})[Symbol.asyncIterator]();
-const next=async()=>JSON.parse((await lines.next()).value);
-const send=frame=>new Promise((resolve,reject)=>process.stdout.write(JSON.stringify(frame)+'\\n',error=>error?reject(error):resolve()));
+const channel=postgresPrivateRuntimeEvidenceChannel(process.stdin,process.stdout,{sources:${JSON.stringify(specs)}});
+const next=()=>channel.next(10000);
+const send=frame=>channel.send(frame,10000);
+const finish=async()=>{await channel.end();if(!channel.writerClosed())throw Error('writer fixture');channel.dispose();};
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const native=s=>({dev:String(s.dev),ino:String(s.ino),uid:Number(s.uid),gid:Number(s.gid),mode:Number(s.mode&0o7777n),nlink:Number(s.nlink),size:Number(s.size),mtimeNs:String(s.mtimeNs),ctimeNs:String(s.ctimeNs)});
 const start=await next();
-if(mode==='failed'){for(const fd of [3,4,5])closeSync(fd);await send({kind:'FAILED',nonce:start.nonce,code:'${PREFIX}historical_invalid',phase:'HISTORY',cleanup:'CONFIRMED'});process.exit(1);}
+if(mode==='failed'){for(const fd of [3,4,5])closeSync(fd);await send({kind:'FAILED',nonce:start.nonce,code:'${PREFIX}historical_invalid',phase:'HISTORY',cleanup:'CONFIRMED'});await finish();process.exitCode=1;}else{
 if(mode==='hang'){await new Promise(resolve=>process.stdin.once('end',resolve));process.exit(1);}
 if(mode==='stderr')process.stderr.write('harmless stderr fixture');
 const recipeRevision='b'.repeat(40), headers={nonce:start.nonce,recipeRevision,executionId:'local-runtime-evidence-'+start.nonce,directory:'/home/autoworld/${PIN.directoryPrefix}'+start.nonce};
@@ -197,23 +198,30 @@ const target=openSync(directory+'/'+names[i],constants.O_RDWR|constants.O_CREAT|
 payloads.push({name:names[i],role:src.role,size:src.size,sha256:src.sha256,sourceIdentity:native(fstatSync(fd,{bigint:true})),identity:native(fstatSync(target,{bigint:true}))});}
 const prepared={kind:'PREPARED',...headers,payloads};
 if(mode==='pipeline'){process.stdout.write(JSON.stringify(prepared)+'\\n'+JSON.stringify(prepared)+'\\n');await new Promise(resolve=>process.stdin.once('end',resolve));process.exit(1);}
-await send(prepared);const commit=await next();if(commit.kind==='ABORT')process.exit(1);if(commit.kind!=='COMMIT')throw Error('commit fixture');
+await channel.sendAndAllowNext(prepared);const commit=await next();if(commit.kind==='ABORT')process.exit(1);if(commit.kind!=='COMMIT')throw Error('commit fixture');
 const receiptBytes=Buffer.from('{"state":"HARMLESS_PARTIAL_TRANSPORT_FIXTURE"}\\n');
 const receiptFd=openSync(directory+'/receipt.json',constants.O_RDWR|constants.O_CREAT|constants.O_EXCL,0o600);writeSync(receiptFd,receiptBytes);fsyncSync(receiptFd);
 const receipt={name:'receipt.json',size:receiptBytes.length,sha256:sha(receiptBytes),identity:native(fstatSync(receiptFd,{bigint:true}))};
-await send({kind:'PUBLISHED',...headers,receipt});const final=await next();if(final.kind==='ABORT')process.exit(1);if(final.kind!=='FINALIZE')throw Error('final fixture');
-if(!(await lines.next()).done)throw Error('EOF fixture');
+await channel.sendAndAllowNext({kind:'PUBLISHED',...headers,receipt});const final=await next();if(final.kind==='ABORT')process.exit(1);if(final.kind!=='FINALIZE')throw Error('final fixture');
+await channel.eof();channel.healthy();
 for(const fd of [...targets,receiptFd,3,4,5])closeSync(fd);
 const result={kind:'RESULT',...headers,receipt,payloads,sourceUnchanged:true,descriptorsClosed:true};
 if(mode==='changed')result.receipt={...receipt,sha256:'a'.repeat(64)};
 await send(result);if(mode==='extra')process.stdout.write('extra');
+await finish();
 if(mode==='exit')process.exitCode=1;
 if(mode==='no-close'){setInterval(()=>{},1000);await new Promise(()=>{});}
+}
 `;
 }
 async function nativeExchange(f, mode = "normal", signal) {
   const worker = `${f.sql}/work/fixture-worker.mjs`; const destination = `${f.sql}/work/copies`;
-  f.write(worker, Buffer.from(workerCode(mode, destination)), 1000, 1000);
+  const publicDirectory = `${f.sql}/work/public`;
+  mkdirSync(publicDirectory, { mode: 0o700 }); chownSync(publicDirectory, 1000, 1000); f.capture(publicDirectory);
+  for (const name of ["private-runtime-evidence-protocol", "private-runtime-evidence-policy", "cold-load-policy", "private-copy-policy", "private-evidence-policy", "runtime-restore-policy"]) {
+    f.write(`${publicDirectory}/${name}.mjs`, readFileSync(new URL(`../scripts/postgres-image/${name}.mjs`, import.meta.url)), 1000, 1000);
+  }
+  f.write(worker, Buffer.from(workerCode(mode, destination, f.sources)), 1000, 1000);
   const held = reader(f); const child = spawn("/usr/bin/setpriv", [...DROP, process.execPath, worker],
     { env: ENV, stdio: ["pipe", "pipe", "pipe", ...held.descriptors] });
   try {
@@ -224,7 +232,7 @@ async function nativeExchange(f, mode = "normal", signal) {
     assert.equal(child.exitCode !== null || child.signalCode !== null, true, "actual child terminates before fixture cleanup");
   }
 }
-test("native actual setpriv UID1000 inherits readonly binary FD slots and completes only a partial transport proof", nativeOptions, () => fixture(async f => {
+test("native actual setpriv UID1000 uses shared IPC through stdout end and completes only a partial transport proof", nativeOptions, () => fixture(async f => {
   const observed = await nativeExchange(f);
   assert.equal(observed.state, "PARTIAL_TRANSPORT_PROOF"); assert.equal(Object.hasOwn(observed, "historicalIntegrity"), false);
   assert.deepEqual(observed.sources.map(file => file.identity), f.original);
@@ -291,5 +299,5 @@ test("actual root bootstrap or unprivileged actor rejection preserves repository
     process.execPath, "--test", FILE], { env: ENV, encoding: "utf8", timeout: 90_000, maxBuffer: 2 * 1024 * 1024 });
   assert.equal(result.error, undefined); assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /# fail 0/u); assert.match(result.stdout, /# skipped 0/u);
-  assert.match(result.stdout, /ok .*native actual setpriv UID1000 inherits readonly binary FD slots/u);
+  assert.match(result.stdout, /ok .*native actual setpriv UID1000 uses shared IPC through stdout end/u);
 });

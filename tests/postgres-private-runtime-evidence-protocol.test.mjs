@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { PassThrough, Writable } from "node:stream";
 import test from "node:test";
 import { POSTGRES_PRIVATE_RUNTIME_EVIDENCE_PIN as PIN, postgresPrivateRuntimeEvidenceLimits as LIMITS } from "../scripts/postgres-image/private-runtime-evidence-policy.mjs";
@@ -149,6 +150,48 @@ test("only completed grant writes open each subsequent receive phase", async () 
     pending = value.control.next(1000); value.input.end(bytes(result()));
     assert.equal((await pending).kind, "RESULT"); await value.control.eof(1000); value.control.healthy();
   } finally { value.close(); }
+});
+
+test("native child stdout retains observed successful finish after the await continuation", () => {
+  const moduleUrl = new URL("../scripts/postgres-image/private-runtime-evidence-protocol.mjs", import.meta.url).href;
+  const frame = { kind: "ABORT", nonce };
+  const code = `import { postgresPrivateRuntimeEvidenceChannel } from ${JSON.stringify(moduleUrl)};
+const control=postgresPrivateRuntimeEvidenceChannel(process.stdin,process.stdout);
+try {
+  const frame=await control.next(5000);
+  await control.send(frame,5000);
+  await control.end(5000);
+  if(!control.writerClosed())throw Error('native stdout finish fixture');
+} finally { control.dispose(); }`;
+  const observed = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+    input: bytes(frame), encoding: "utf8", timeout: 10000, maxBuffer: 4096,
+  });
+  assert.equal(observed.error, undefined); assert.equal(observed.signal, null); assert.equal(observed.status, 0);
+  assert.equal(observed.stderr, ""); assert.equal(observed.stdout, bytes(frame).toString());
+});
+
+test("an actual final callback error cannot establish writer finish or open a receive grant", async () => {
+  const input = new PassThrough();
+  const output = new Writable({ write: (_chunk, _encoding, callback) => callback(),
+    final: callback => callback(new Error("harmless native final fixture")) });
+  const control = postgresPrivateRuntimeEvidenceChannel(input, output, { nonce });
+  try {
+    const pending = control.next(1000); input.write(bytes(prepared())); await pending;
+    await assert.rejects(control.endAndAllowNext(1000), invalid);
+    assert.equal(control.writerClosed(), false); assert.throws(() => control.healthy(), invalid);
+    await assert.rejects(control.next(1000), invalid);
+  } finally { control.dispose(); input.destroy(); output.destroy(); }
+});
+
+test("a late reader or writer error invalidates an already observed successful finish", async () => {
+  for (const side of ["input", "output"]) {
+    const value = channel();
+    try {
+      await value.control.end(1000); assert.equal(value.control.writerClosed(), true);
+      value[side].emit("error", new Error("harmless late terminal fixture"));
+      assert.equal(value.control.writerClosed(), false); assert.throws(() => value.control.healthy(), invalid);
+    } finally { value.close(); }
+  }
 });
 
 test("receive gate remains closed while a grant write callback is pending", async () => {

@@ -124,7 +124,7 @@ export function validatePostgresPrivateRuntimeEvidenceFrame(raw, expected = {}) 
 // One bounded channel owns both byte counters and all reader/writer errors.
 export function postgresPrivateRuntimeEvidenceChannel(input, output, options = {}) {
   let buffer = Buffer.alloc(0); let traffic = 0; let queued; let waiting; let eofWaiting; let writerWaiting;
-  let ended = false; let broken = false; let writerEnded = false; let sending = false; let locked = false;
+  let ended = false; let broken = false; let writerEnded = false; let writerFinished = false; let sending = false; let locked = false;
   const charge = (size) => { traffic += size; if (traffic > LIMITS.trafficBytes) fail(); };
   const reject = () => {
     broken = true;
@@ -179,10 +179,14 @@ export function postgresPrivateRuntimeEvidenceChannel(input, output, options = {
     if (broken || writerEnded || sending || writerWaiting || output.destroyed
       || allowNext && (!locked || queued !== undefined || waiting || eofWaiting || ended || buffer.length)) fail();
     writerEnded = true; writerWaiting = pending;
-    output.end(() => {
+    output.end((error) => {
       writerWaiting = undefined;
-      if (broken) pending.reject(new Error(PREFIX + "control_invalid"));
-      else { if (allowNext) locked = false; pending.resolve(); }
+      if (error || broken || output.writableFinished !== true) { reject(); pending.reject(new Error(PREFIX + "control_invalid")); }
+      else {
+        // Node restores process.stdout after its successful finish; retain the observed callback proof.
+        // Actual peer EOF and child close/exit0 remain separate mandatory supervisor gates.
+        writerFinished = true; if (allowNext) locked = false; pending.resolve();
+      }
     });
   }, timeoutMs);
   return Object.freeze({
@@ -200,7 +204,7 @@ export function postgresPrivateRuntimeEvidenceChannel(input, output, options = {
     end: (timeoutMs = LIMITS.cleanupMs) => endWriter(timeoutMs, false),
     endAndAllowNext: (timeoutMs = LIMITS.cleanupMs) => endWriter(timeoutMs, true),
     healthy: () => { if (broken) fail(); },
-    writerClosed: () => writerEnded && output.writableFinished && !broken,
+    writerClosed: () => writerEnded && writerFinished && !broken,
     // These streams belong to one invocation. Keep terminal error handlers so an
     // asynchronous EPIPE after disposal cannot escape as an unfiltered exception.
     dispose: () => { reject(); input.removeListener("data", onData); input.removeListener("end", onEnd); },
