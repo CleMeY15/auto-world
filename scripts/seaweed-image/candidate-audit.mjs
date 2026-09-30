@@ -25,6 +25,10 @@ const OPERATION_DEADLINE_MS = 240 * 60_000;
 
 function fail(code) { throw new Error(code); }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+function plainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype;
+}
 function ownedDirectory(directory, uid) {
   const stat = lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== uid
@@ -210,7 +214,8 @@ async function scannerPair(buildRoot, work, lockBytes) {
   const scanner = path.join(work, "scanner");
   copyFileSync(built[0].path, scanner, 0);
   chmodSync(scanner, 0o555);
-  return { lock, binary, scanner, builds: built.map((entry) => ({ sha256: entry.sha256, size: entry.size })) };
+  return { lock, binary, scanner, buildInventory: buildInfos[0].value,
+    builds: built.map((entry) => ({ sha256: entry.sha256, size: entry.size })) };
 }
 
 function cleanedRoot(root) {
@@ -233,12 +238,33 @@ export function validateAuditedCandidateReceipt(candidate, proof, context) {
   return true;
 }
 
+function projectSeaweedSnapshot(snapshot) {
+  const proof = snapshot.archiveProof;
+  if (snapshot.imageId !== proof?.imageId || snapshot.diffId !== proof?.diffId) {
+    fail("seaweed_audit_archive_changed");
+  }
+  const subject = { artifactName: INPUT_NAME, imageId: snapshot.imageId,
+    archiveSha256: proof.archiveSha256, tag: proof.tag };
+  return { subject, receiptSubject: { ...subject, diffId: snapshot.diffId,
+    archiveBytes: proof.archiveBytes, configSha256: proof.configSha256,
+    configBytes: proof.configBytes, layerSha256: proof.layerSha256,
+    layerBytes: proof.layerBytes }, policyInput: {} };
+}
+
 export async function executeCandidateAudit(context, dependencies = {}) {
   const auditKind = dependencies.auditKind ?? "SEAWEED_EXACT_CANDIDATE_AUDIT_V1";
-  if (!["SEAWEED_EXACT_CANDIDATE_AUDIT_V1", "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"].includes(auditKind)
+  const remoteAuditKinds = new Set([
+    "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+    "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+  ]);
+  if (!["SEAWEED_EXACT_CANDIDATE_AUDIT_V1", ...remoteAuditKinds].includes(auditKind)
     || auditKind === "SEAWEED_EXACT_CANDIDATE_AUDIT_V1" && dependencies.validateCandidateReceipt !== undefined
-    || auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1"
-      && (typeof dependencies.materialize !== "function" || typeof dependencies.validateCandidateReceipt !== "function")) {
+    || remoteAuditKinds.has(auditKind)
+      && (typeof dependencies.materialize !== "function" || typeof dependencies.validateCandidateReceipt !== "function")
+    || dependencies.projectSnapshot !== undefined && typeof dependencies.projectSnapshot !== "function"
+    || auditKind === "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1"
+      && [dependencies.projectSnapshot, dependencies.inputArguments,
+        dependencies.evaluatePolicy, dependencies.scannerControls].some((value) => typeof value !== "function")) {
     fail("seaweed_audit_provider_invalid");
   }
   const ensureOwned = dependencies.ownedDirectory ?? ownedDirectory;
@@ -249,6 +275,7 @@ export async function executeCandidateAudit(context, dependencies = {}) {
   const inputArguments = dependencies.inputArguments ?? candidateInputDockerArguments;
   const evaluatePolicy = dependencies.evaluatePolicy ?? evaluateLocalSeaweedCandidateAudit;
   const validateCandidateReceipt = dependencies.validateCandidateReceipt ?? validateAuditedCandidateReceipt;
+  const projectSnapshot = dependencies.projectSnapshot ?? projectSeaweedSnapshot;
   if (existsSync(context.root) || existsSync(context.output)) fail("seaweed_audit_output_exists");
   mkdirSync(context.root, { mode: 0o700 });
   mkdirSync(context.output, { mode: 0o700 });
@@ -269,11 +296,15 @@ export async function executeCandidateAudit(context, dependencies = {}) {
     publication: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED", imageExecution: "NOT_ATTEMPTED",
     runId: context.runId, recipeRevision: context.recipeRevision, phase: "PREPARE",
     containerCleanup: [] };
+  if (auditKind === "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1") {
+    Object.assign(receipt, { admission: "NOT_AUTHORIZED", registryWrite: "NOT_ATTEMPTED",
+      supportStartedAt: null, supportEndsAt: null, archiveUntil: null });
+  }
   let thrown; let inspectionFailure;
   try {
     receipt.phase = "SCANNER_REPRODUCIBILITY";
     const lockBytes = readFileSync(LOCK_FILE);
-    const { lock, binary, scanner, builds } = await readScannerPair(context.builds, work, lockBytes);
+    const { lock, binary, scanner, builds, buildInventory } = await readScannerPair(context.builds, work, lockBytes);
     receipt.scanner = { version: lock.scanner.version, sourceCommit: lock.scanner.sourceCommit,
       binary, builds, lockSha256: hash(lockBytes) };
     const carrier = `${lock.baseline.repository}@${lock.baseline.platformDigest}`;
@@ -298,6 +329,19 @@ export async function executeCandidateAudit(context, dependencies = {}) {
     makeReadOnly(cache);
     const frozen = await captureFiles([{ path: scanner, cap: 512 * MiB }, ...database.files.map((entry) =>
       ({ path: entry.path, cap: entry.cap }))]);
+    const verifyDatabases = async () => {
+      const current = await readDatabases(cache, new Date());
+      if (JSON.stringify(current.files) !== JSON.stringify(database.files)) fail("seaweed_audit_database_changed");
+    };
+    if (auditKind === "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1") {
+      receipt.phase = "SCANNER_CONTROLS";
+      receipt.scannerControls = await dependencies.scannerControls({ context, work, cache, output: context.output,
+        lock, scanner, binary, buildInventory, docker, cleanupDocker,
+        proofs: receipt.containerCleanup, frozen, verifyDatabases });
+      if (receipt.scannerControls?.state !== "COMPLETE") fail("seaweed_audit_scanner_controls_invalid");
+      await assertFilesUnchanged(frozen);
+      await verifyDatabases();
+    }
     receipt.phase = "CANDIDATE_MATERIALIZE";
     let evaluation; let archiveIdentity; let proof;
     const materialize = dependencies.materialize ?? withVerifiedLocalSeaweedCandidate;
@@ -306,35 +350,38 @@ export async function executeCandidateAudit(context, dependencies = {}) {
       receipt.phase = "ARCHIVE_IDENTITY";
       [archiveIdentity] = await captureFiles([{ path: snapshot.file, cap: 2 * GiB }]);
       if (archiveIdentity.sha256 !== proof.archiveSha256 || archiveIdentity.size !== proof.archiveBytes
-        || snapshot.imageId !== proof.imageId || snapshot.diffId !== proof.diffId
         || snapshot.runId !== context.runId || snapshot.recipeRevision !== context.recipeRevision) {
         fail("seaweed_audit_archive_changed");
       }
-      const subject = { artifactName: INPUT_NAME, imageId: snapshot.imageId,
-        archiveSha256: proof.archiveSha256, tag: proof.tag };
-      receipt.subject = { ...subject, diffId: snapshot.diffId, archiveBytes: proof.archiveBytes,
-        configSha256: proof.configSha256, configBytes: proof.configBytes,
-        layerSha256: proof.layerSha256, layerBytes: proof.layerBytes };
+      const projection = await projectSnapshot(snapshot, { artifactName: INPUT_NAME,
+        archiveIdentity, databaseEvidence: database.metadata });
+      if (!plainObject(projection) || !plainObject(projection.subject)
+        || projection.receiptSubject !== undefined && !plainObject(projection.receiptSubject)
+        || projection.policyInput !== undefined && !plainObject(projection.policyInput)) {
+        fail("seaweed_audit_snapshot_projection_invalid");
+      }
+      const subject = projection.subject;
+      receipt.subject = projection.receiptSubject ?? subject;
       const reports = [
         { format: "json", file: path.join(context.output, "candidate-vulnerabilities.json") },
         { format: "cyclonedx", file: path.join(context.output, "candidate-sbom.cdx.json") },
       ];
       for (const report of reports) {
         receipt.phase = report.format === "json" ? "VULNERABILITY_SCAN" : "SBOM_SCAN";
+        await verifyDatabases();
         ownedContainerRun(inputArguments({ carrier, scanner, cache, archive: snapshot.file,
           uid: context.uid, gid: context.gid, format: report.format }),
         { kind: `scan-${report.format}`, carrier, runId: context.runId,
           docker, cleanupDocker, proofs: receipt.containerCleanup,
           output: report.file, timeout: 30 * 60_000 });
         await assertFilesUnchanged([...frozen, archiveIdentity]);
-        const current = await readDatabases(cache, new Date());
-        if (JSON.stringify(current.files) !== JSON.stringify(database.files)) fail("seaweed_audit_database_changed");
+        await verifyDatabases();
       }
       receipt.phase = "REPORT_POLICY";
       const vuln = await readBoundedJson(reports[0].file, 64 * MiB);
       const sbom = await readBoundedJson(reports[1].file, 64 * MiB);
-      evaluation = evaluatePolicy({ vulnerabilityReport: vuln.value,
-        cyclonedxReport: sbom.value, subject, now: new Date() });
+      evaluation = await evaluatePolicy({ ...(projection.policyInput ?? {}),
+        vulnerabilityReport: vuln.value, cyclonedxReport: sbom.value, subject, now: new Date() });
       receipt.reports = { vulnerability: vuln.identity, cyclonedx: sbom.identity };
       await assertFilesUnchanged([...frozen, archiveIdentity]);
     };
@@ -351,7 +398,7 @@ export async function executeCandidateAudit(context, dependencies = {}) {
     if (validateCandidateReceipt(candidateReceipt, proof, context) !== true) {
       fail("seaweed_audit_candidate_receipt_invalid");
     }
-    if (auditKind === "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1") {
+    if (remoteAuditKinds.has(auditKind)) {
       receipt.registrySubject = candidateReceipt.subject;
       receipt.scannerInput = "LOCAL_DOCKER_SAVE_ARCHIVE";
     }
@@ -360,12 +407,14 @@ export async function executeCandidateAudit(context, dependencies = {}) {
     receipt.blockerCount = evaluation.blockers.length;
     receipt.blockers = evaluation.blockers.slice(0, 32);
     receipt.blockersTruncated = evaluation.blockers.length > 32;
+    if (auditKind === "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1") receipt.inventory = evaluation.inventory;
     receipt.state = evaluation.state;
     receipt.phase = "COMPLETE";
   } catch (error) {
     // The materializer deliberately hides callback errors after cleaning its image and archive.
     // Only its plain inspection marker proves that no additional cleanup failure was reported.
-    const inspectionMarker = error?.code === "seaweed_candidate_inspection_failed";
+    const inspectionMarker = error?.code === (auditKind === "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1"
+      ? "postgres_candidate_inspection_failed" : "seaweed_candidate_inspection_failed");
     const plainMarker = inspectionMarker && Object.keys(error).sort().join("|")
       === "authority|candidateAuthorization|code|state";
     const reason = inspectionMarker && !plainMarker
@@ -384,8 +433,7 @@ export async function executeCandidateAudit(context, dependencies = {}) {
       }
       if (existsSync(work)) {
         ensureOwned(work, context.uid);
-        const cache = path.join(work, "cache");
-        if (existsSync(cache)) makeWritable(cache, context.uid);
+        makeWritable(work, context.uid);
         rmSync(work, { recursive: true });
       }
       ensureOwned(context.root, context.uid);
