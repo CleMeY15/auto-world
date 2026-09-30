@@ -64,6 +64,19 @@ function regular(file, uid, gid, expected) {
     return { dev: before.dev, ino: before.ino, uid, gid, mode: before.mode, bytes };
   } finally { closeSync(fd); }
 }
+function mutableLog(file, uid, gid) {
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const before = fstatSync(fd); const current = lstatSync(file); const after = fstatSync(fd);
+    for (const stat of [before, current, after]) {
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.uid !== uid || stat.gid !== gid
+        || (stat.mode & 0o7777) !== 0o600 || stat.size > CAP || stat.dev !== before.dev || stat.ino !== before.ino) {
+        fail("daemon_local_files_changed");
+      }
+    }
+    return { dev: before.dev, ino: before.ino, uid, gid, mode: before.mode };
+  } finally { closeSync(fd); }
+}
 function writePrivate(file, bytes) {
   const fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try { writeFileSync(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
@@ -160,7 +173,7 @@ async function startLease(input, dependencies = {}) {
       Endpoints: { docker: { Host: endpoint, SkipTLSVerify: false } } })]]) {
     writePrivate(file, bytes); files.set(file, regular(file, uid, gid, bytes));
   }
-  writePrivate(logFile, Buffer.alloc(0)); const logIdentity = regular(logFile, uid, gid);
+  writePrivate(logFile, Buffer.alloc(0)); const logIdentity = mutableLog(logFile, uid, gid);
   const argv = [DOCKERD, "--config-file", daemonConfigFile];
   const spec = freeze({ root, uid, gid, executable: DOCKERD, version: VERSION, args: argv.slice(1),
     configFile: daemonConfigFile, configSha256: digest(jsonBytes(daemonConfig)), argvSha256: digest(jsonBytes(argv)),
@@ -178,7 +191,7 @@ async function startLease(input, dependencies = {}) {
         if (!unchanged(identity, directory(file, uid, gid, identity.mode & 0o7777))) fail("daemon_local_files_changed");
       }
       for (const [file, identity] of files) if (!unchanged(identity, regular(file, uid, gid, identity.bytes))) fail("daemon_local_files_changed");
-      if (!unchanged(logIdentity, regular(logFile, uid, gid))) fail("daemon_local_files_changed");
+      if (!unchanged(logIdentity, mutableLog(logFile, uid, gid))) fail("daemon_local_files_changed");
       if (!isDeepStrictEqual(readdirSync(client).sort(), ["config.json", "contexts"])
         || !isDeepStrictEqual(readdirSync(path.join(client, "contexts")), ["meta"])
         || !isDeepStrictEqual(readdirSync(path.join(client, "contexts", "meta")), [digest(contextName)])

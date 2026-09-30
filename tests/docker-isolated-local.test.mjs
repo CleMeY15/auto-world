@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync,
+import fs, { appendFileSync, chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync,
   symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { localDaemonFailureDiagnostic, startLocalDaemonLease } from "../scripts/docker-isolated/daemon-local.mjs";
@@ -164,6 +165,50 @@ test("client/context mutations block every Docker command and shutdown, preservi
     assert.equal(f.state.commands.length, before);
     await assert.rejects(lease.stop(), rejection("daemon_local_cleanup_uncertain", "STOP"));
     assert.equal(f.state.stopCalls, 0); assert.ok(f.state.server.listening);
+  });
+});
+
+test("daemon log may append during guards without content reads or timestamp/size equality", { skip: !linux }, async (t) => {
+  const f = await fixture(t); const lease = await f.start(); const log = f.state.spec.logFile;
+  const identity = lstatSync(log); const originalStat = fs.fstatSync; const originalRead = fs.readFileSync; let appends = 0;
+  try {
+    fs.fstatSync = (fd, ...args) => {
+      const stat = originalStat(fd, ...args);
+      if (stat.dev === identity.dev && stat.ino === identity.ino) {
+        appendFileSync(log, "owned daemon append during guard\n"); appends++;
+        return originalStat(fd, ...args);
+      }
+      return stat;
+    };
+    fs.readFileSync = (file, ...args) => {
+      if (typeof file === "number") {
+        const stat = originalStat(file);
+        assert.ok(stat.dev !== identity.dev || stat.ino !== identity.ino, "mutable log content must not be read");
+      }
+      return originalRead(file, ...args);
+    };
+    syncBuiltinESMExports();
+    f.state.transportHook = () => { appendFileSync(log, "owned daemon append during transport\n"); };
+    await lease.verify(); await lease.runner("/usr/bin/docker", INFO); await lease.stop();
+    assert.ok(appends > 0); assert.ok(lstatSync(log).size > identity.size);
+  } finally {
+    fs.fstatSync = originalStat; fs.readFileSync = originalRead; syncBuiltinESMExports();
+  }
+});
+
+test("daemon log rotation, symlink, hardlink, mode and overflow remain refused", { skip: !linux }, async (t) => {
+  for (const mutate of [
+    (log) => { renameSync(log, `${log}.old`); writeFileSync(log, "replacement", { flag: "wx", mode: 0o600 }); },
+    (log) => { renameSync(log, `${log}.old`); symlinkSync(`${log}.old`, log); },
+    (log) => linkSync(log, `${log}.hardlink`),
+    (log) => chmodSync(log, 0o640),
+    (log) => writeFileSync(log, Buffer.alloc(1024 * 1024 + 1)),
+  ]) await t.test("reject altered bounded log", async (child) => {
+    const f = await fixture(child); const lease = await f.start(); const before = f.state.commands.length;
+    mutate(f.state.spec.logFile);
+    await assert.rejects(lease.runner("/usr/bin/docker", INFO), rejection("daemon_local_files_changed", "COMMAND"));
+    assert.equal(f.state.commands.length, before);
+    await assert.rejects(lease.stop(), rejection("daemon_local_cleanup_uncertain", "STOP")); assert.equal(f.state.stopCalls, 0);
   });
 });
 
