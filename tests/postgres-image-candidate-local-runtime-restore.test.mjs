@@ -1,0 +1,207 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import path from "node:path";
+import test from "node:test";
+import { postgresLocalRuntimeRestoreFailureDiagnostic, postgresLocalRuntimeRestorePhases, postgresLocalSqlCommands, postgresLocalSqlExpectedData,
+  postgresLocalSqlExpectedSchema, postgresLocalSqlFixture, validatePostgresLocalRuntimeRestoreFailureDiagnostic, validatePostgresLocalRuntimeRestoreProof,
+  verifyLocalPostgresRuntimeAndSqlRestore } from "../scripts/postgres-image/candidate-local-runtime-restore.mjs";
+import { retainedFixture } from "./fixtures/postgres-private-retention.mjs";
+
+const linux = process.platform === "linux" && process.getuid() > 0 && process.getgid() > 0;
+const hash = (v) => createHash("sha256").update(v).digest("hex"); const bytes = (v) => Buffer.from(JSON.stringify(v, null, 2) + "\n");
+const clone = (v) => globalThis.structuredClone(v); const ok = (stdout = "", status = 0, stderr = "") => ({ status, stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) });
+const configuration = { User: "", Entrypoint: ["docker-entrypoint.sh"], Cmd: ["postgres"], WorkingDir: "/", Env: ["PATH=/usr/local/bin:/usr/bin:/bin", "PGDATA=/var/lib/postgresql/data"],
+  Labels: { "com.auto-world.postgres-diagnostic": "94c2d4878c445bef8d51ff7c", "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime" }, Volumes: { "/var/lib/postgresql/data": {} } };
+function meta(s) { return { dev: String(s.dev), ino: String(s.ino), uid: Number(s.uid), gid: Number(s.gid), mode: Number(s.mode & 0o7777n) }; }
+function descriptor(file, name) { const s = lstatSync(file, { bigint: true }); return { name, size: Number(s.size), sha256: hash(readFileSync(file)), identity: { ...meta(s), nlink: Number(s.nlink), mtimeNs: String(s.mtimeNs), ctimeNs: String(s.ctimeNs) } }; }
+async function scope(t) {
+  const root = mkdtempSync("/tmp/aw-pgr-"); chmodSync(root, 0o700); const directory = path.join(root, "imported"); const client = path.join(root, "client"); const endpointDirectory = path.join(root, "endpoint");
+  const workDirectory = path.join(root, "work"); const contextName = "aw-runtime-fixture"; const contextMeta = path.join(client, "contexts", "meta", hash(Buffer.from(contextName)));
+  for (const d of [directory, client, path.join(client, "contexts"), path.join(client, "contexts", "meta"), contextMeta, endpointDirectory, workDirectory]) mkdirSync(d, { mode: 0o700 });
+  const socket = path.join(endpointDirectory, "docker.sock"); const server = createServer(); await new Promise((yes, no) => { server.once("error", no); server.listen(socket, yes); }); server.unref();
+  chmodSync(socket, 0o660); chmodSync(endpointDirectory, 0o710);
+  t.after(async () => { await new Promise((yes) => server.close(yes)); rmSync(root, { recursive: true }); });
+  const fixture = retainedFixture({ runtime: configuration }); const endpoint = "unix://" + socket;
+  writeFileSync(path.join(directory, "candidate.tar"), fixture.archive, { mode: 0o600 }); writeFileSync(path.join(directory, "retention-receipt.json"), fixture.receiptBytes, { mode: 0o600 });
+  writeFileSync(path.join(client, "config.json"), bytes({ currentContext: contextName }), { mode: 0o600 });
+  writeFileSync(path.join(contextMeta, "meta.json"), bytes({ Name: contextName, Metadata: {}, Endpoints: { docker: { Host: endpoint, SkipTLSVerify: false } } }), { mode: 0o600 });
+  const input = { directory, files: ["candidate.tar", "retention-receipt.json"].map((name) => descriptor(path.join(directory, name), name)), archiveProof: fixture.proof, policy: fixture.policy,
+    originalRecipeRevision: fixture.recipeRevision, originalExecutionId: `local-${fixture.runId}`, recipeRevision: "f".repeat(40), executionId: "local-pg-restore-" + "a".repeat(24), workDirectory, auditReceiptSha256: "e".repeat(64),
+    identity: { endpoint, daemonId: "owned-daemon", dataRoot: path.join(root, "infra", "data"), containerdAddress: "/run/containerd/containerd.sock", containersNamespace: "aw-runtime-fixture", pluginsNamespace: "plugins.aw-runtime-fixture",
+      dockerConfig: client, contextName, socket: meta(lstatSync(socket, { bigint: true })), socketDirectory: meta(lstatSync(endpointDirectory, { bigint: true })) } };
+  return { root, input, fixture, client, contextMeta, socket };
+}
+const arg = (args, name) => args[args.indexOf(name) + 1]; const flags = (args, name) => args.flatMap((v, i) => v === name ? [args[i + 1]] : []);
+const absent = (kind, name) => ok("", 1, kind === "container" ? `Error: No such container: ${name}\n` : `Error response from daemon: get ${name}: no such volume\n`);
+function harness(s, hooks = {}) {
+  const h = { calls: [], grants: [], owners: [], containers: new Map(), volumes: new Map(), images: [], loadedBytes: null, sourcePresentAtRestore: null, sqlExecs: [], processCounts: new Map() };
+  const get = (id) => h.containers.get(id) ?? [...h.containers.values()].find((v) => v.Id === id);
+  h.authorize = async (phase) => { h.owners.push(phase); if (hooks.authorize) { const replacement = hooks.authorize(phase, h); if (replacement !== undefined) return replacement; }
+    return { state: "VERIFIED", purpose: "POSTGRES_RUNTIME_SQL_RESTORE", phase, daemonId: s.input.identity.daemonId, endpoint: s.input.identity.endpoint }; };
+  h.beforeExecution = async (phase) => { h.grants.push(phase); if (phase === "RESTORE_START" && h.sourcePresentAtRestore === null) h.sourcePresentAtRestore = { containers: h.containers.size, volumes: h.volumes.size };
+    const ack = { state: "VERIFIED_CURRENT", purpose: "POSTGRES_RUNTIME_SQL_RESTORE", phase, daemonId: s.input.identity.daemonId, endpoint: s.input.identity.endpoint,
+      auditReceiptSha256: s.input.auditReceiptSha256, checkedAt: new Date().toISOString(), validUntil: new Date(Date.now() + 600_000).toISOString() };
+    return hooks.grant ? hooks.grant(ack, h) ?? ack : ack; };
+  h.transport = async (command, rawArgs, options) => {
+    assert.equal(command, "/usr/bin/docker"); assert.deepEqual(rawArgs.slice(0, 2), ["--host", s.input.identity.endpoint]); assert.equal(options.env.DOCKER_CONFIG, s.client);
+    assert.equal(options.env.DOCKER_HOST, undefined); assert.equal(options.env.GITHUB_TOKEN, undefined); assert.equal(options.env.POSTGRES_PASSWORD, undefined);
+    const args = rawArgs.slice(2); options.beforeSpawn(); h.calls.push({ args, phase: h.owners.at(-1) });
+    if (hooks.transport) { const replacement = await hooks.transport(args, options, h); if (replacement !== undefined) return replacement; }
+    if (args[0] === "version") return ok("28.0.4|28.0.4\n");
+    if (args[0] === "info") return ok(bytes({ ID: s.input.identity.daemonId, DockerRootDir: s.input.identity.dataRoot, ServerVersion: "28.0.4", Driver: "overlay2", OSType: "linux", Architecture: "x86_64",
+      Containerd: { Address: s.input.identity.containerdAddress, Namespaces: { Containers: s.input.identity.containersNamespace, Plugins: s.input.identity.pluginsNamespace } } }));
+    if (args[1] === "ls") return ok((args[0] === "image" ? h.images : args[0] === "container" ? [...h.containers.values()].map((v) => v.Id) : [...h.volumes.keys()]).map((v) => v + "\n").join(""));
+    if (args[0] === "image" && args[1] === "load") {
+      const child = spawnSync(process.execPath, ["-e", "const b=require('node:fs').readFileSync(0);process.stdout.write(JSON.stringify({size:b.length,sha256:require('node:crypto').createHash('sha256').update(b).digest('hex')}))"], { stdio: [options.inputFd, "pipe", "pipe"], timeout: 5000, env: { PATH: "/usr/bin:/bin" } });
+      assert.equal(child.status, 0); h.loadedBytes = JSON.parse(child.stdout); h.images.push(s.input.policy.candidate.imageId); return ok("Loaded image: " + s.input.archiveProof.tag + "\n");
+    }
+    if (args[0] === "image" && args[1] === "inspect") return ok(bytes({ Id: s.input.policy.candidate.imageId, Os: "linux", Architecture: "amd64", Size: s.fixture.archive.length, RepoTags: [s.input.archiveProof.tag], RepoDigests: [], RootFS: { Type: "layers", Layers: s.input.policy.candidate.diffIds }, Config: configuration }));
+    if (args[0] === "image" && args[1] === "rm") { h.images = []; return ok("Deleted\n"); }
+    if (args[0] === "volume" && args[1] === "create") { const name = args.at(-1); h.volumes.set(name, { Name: name, Driver: "local", Scope: "local", Options: null,
+      Labels: Object.fromEntries(flags(args, "--label").map((v) => v.split("="))), CreatedAt: new Date().toISOString(), Mountpoint: `${s.input.identity.dataRoot}/volumes/${name}/_data` }); return ok(name + "\n"); }
+    if (args[0] === "volume" && args[1] === "inspect") return h.volumes.has(args.at(-1)) ? ok(bytes(h.volumes.get(args.at(-1)))) : absent("volume", args.at(-1));
+    if (args[0] === "volume" && args[1] === "rm") { assert.equal(h.containers.size, 0); h.volumes.delete(args.at(-1)); return ok(args.at(-1) + "\n"); }
+    if (args[0] === "create") {
+      const name = arg(args, "--name"); const probe = name.endsWith("-probe"); const id = String(h.calls.filter((c) => c.args[0] === "create").length).repeat(64); const imageIndex = args.indexOf(s.input.policy.candidate.imageId);
+      assert.ok(args.includes("--pull=never")); assert.equal(arg(args, "--ipc"), "private"); assert.equal(arg(args, "--cgroupns"), "private"); assert.equal(arg(args, "--runtime"), "runc");
+      const variables = new Map(configuration.Env.map((v) => v.split("=")));
+      if (!probe) for (const v of readFileSync(arg(args, "--env-file"), "utf8").trimEnd().split("\n")) variables.set(...v.split("="));
+      const tmpfs = Object.fromEntries(flags(args, "--tmpfs").map((v) => { const i = v.indexOf(":"); return [v.slice(0, i), v.slice(i + 1)]; }));
+      const volume = probe ? undefined : h.volumes.get(arg(args, "--mount").split(",")[1].slice(4));
+      const value = { Id: id, Name: "/" + name, Image: s.input.policy.candidate.imageId, State: { Status: "created", Running: false, Paused: false, Restarting: false, Dead: false, Pid: 0, ExitCode: 0 },
+        Config: { ...clone(configuration), Image: s.input.policy.candidate.imageId, Env: [...variables].map(([k, v]) => k + "=" + v), Labels: { ...configuration.Labels, ...Object.fromEntries(flags(args, "--label").map((v) => v.split("="))) }, Entrypoint: probe ? ["/bin/sh"] : configuration.Entrypoint, Cmd: probe ? args.slice(imageIndex + 1) : configuration.Cmd },
+        HostConfig: { Privileged: false, NetworkMode: "none", ReadonlyRootfs: true, RestartPolicy: { Name: "no", MaximumRetryCount: 0 }, CapDrop: flags(args, "--cap-drop"), CapAdd: flags(args, "--cap-add").map((v) => "CAP_" + v), SecurityOpt: flags(args, "--security-opt"),
+          Memory: Number(arg(args, "--memory")), MemorySwap: Number(arg(args, "--memory-swap")), NanoCpus: Number(arg(args, "--cpus")) * 1e9, PidsLimit: Number(arg(args, "--pids-limit")), ShmSize: Number(arg(args, "--shm-size")), Tmpfs: tmpfs,
+          Binds: null, Devices: [], DeviceRequests: null, DeviceCgroupRules: null, VolumesFrom: null, Links: null, ExtraHosts: null, PortBindings: {}, PublishAllPorts: false, PidMode: "", IpcMode: "private", UTSMode: "", UsernsMode: "", CgroupnsMode: "private", ContainerIDFile: "", Runtime: "runc",
+          Mounts: probe ? [] : [{ Type: "volume", Source: volume.Name, Target: "/var/lib/postgresql/data", VolumeOptions: { NoCopy: true } }] },
+        Mounts: [...Object.keys(tmpfs).map((Destination) => ({ Type: "tmpfs", Destination, Source: "", RW: true })), ...(probe ? [] : [{ Type: "volume", Name: volume.Name, Destination: "/var/lib/postgresql/data", Source: volume.Mountpoint, Driver: "local", RW: true }])] };
+      h.containers.set(name, value); return ok(id + "\n");
+    }
+    if (args[0] === "container" && args[1] === "inspect") return get(args.at(-1)) ? ok(bytes(get(args.at(-1)))) : absent("container", args.at(-1));
+    if (args[0] === "start") { const value = get(args.at(-1)); value.State = { ...value.State, Status: "running", Running: true, Pid: 100 };
+      if (args.includes("--attach")) { value.State.Status = "exited"; value.State.Running = false; value.State.Pid = 0; return ok("1.19 (go1.26.8 on linux/amd64; gc)\nuid=70\ngid=70\nnnp=1\n"); } return ok(value.Id + "\n"); }
+    if (args[0] === "stop") { const value = get(args.at(-1)); assert.ok(value); value.State = { ...value.State, Status: "exited", Running: false, Pid: 0 }; return ok(value.Id + "\n"); }
+    if (args[0] === "container" && args[1] === "rm") { const value = get(args.at(-1)); assert.equal(value.State.Running, false); h.containers.delete(value.Name.slice(1)); return ok(value.Id + "\n"); }
+    if (args[0] === "exec") {
+      const value = args.map((v) => get(v)).find(Boolean); assert.equal(value.State.Running, true); assert.ok(args.includes("70:70"));
+      if (args.includes("/bin/sh")) { h.processCounts.set(value.Id, (h.processCounts.get(value.Id) ?? 0) + 1); return ok("uid=70 70 70 70\ngid=70 70 70 70\nnnp=1\ncapinh=0000000000000000\ncapprm=0000000000000000\ncapeff=0000000000000000\ncapamb=0000000000000000\nexe=/usr/local/bin/postgres\n"); }
+      if (args.includes("pg_isready")) return ok(); h.sqlExecs.push(args);
+      assert.ok(h.processCounts.get(value.Id) > 0); assert.ok(args.includes("PGPASSFILE=/dev/null")); assert.ok(args.includes("PGOPTIONS="));
+      if (args.includes("--version")) { const tool = args[args.length - 2]; return ok(tool + " (PostgreSQL) 17.11\n"); }
+      if (args.includes("pg_dump")) { const binary = Buffer.concat([Buffer.from("PGDMP"), Buffer.from([0, 255]), Buffer.alloc(10000, 0xff)]); options.outputSink(binary); h.dump = binary; return { ...ok(), outputBytes: binary.length }; }
+      if (args.includes("pg_restore")) { assert.ok(Number.isSafeInteger(options.inputFd)); const child = spawnSync(process.execPath, ["-e", "const b=require('node:fs').readFileSync(0);process.stdout.write(require('node:crypto').createHash('sha256').update(b).digest('hex'))"], { stdio: [options.inputFd, "pipe", "pipe"], timeout: 5000 });
+        assert.equal(child.status, 0); assert.equal(child.stdout.toString(), hash(h.dump)); return { ...ok(args.includes("--list") ? "; Archive created by PostgreSQL 17.11\n1; 0 0 SCHEMA - aw_probe awdiag\n2; 0 0 TABLE aw_probe items awdiag\n" : ""), inputBytes: h.dump.length }; }
+      if (args.includes("createdb")) return ok(); const sql = args.at(-1);
+      if (sql === "SHOW server_version;") return ok("17.11\n"); if (sql === "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = 'aw_probe';") return ok("0\n"); if (sql.startsWith("SELECT json_object_agg")) return ok(bytes(postgresLocalSqlExpectedSchema));
+      if (sql.startsWith("SELECT json_build_object")) return ok(bytes(postgresLocalSqlExpectedData)); return ok();
+    }
+    assert.fail("Unexpected fixed command: " + args[0]);
+  };
+  h.deps = { transport: h.transport, sqlTransport: h.transport }; h.controls = { authorize: h.authorize, beforeExecution: h.beforeExecution }; return h;
+}
+test("SQL fixture and exact tool arguments cover binary, Unicode, nulls and rollback independently", () => {
+  assert.deepEqual(postgresLocalSqlExpectedData.items.map((v) => [v.id, v.label, v.payload, v.note]), [[1, "ASCII", "00ff", null], [2, "é", "000102", "retained"], [3, "車", "ff00", ""]]);
+  assert.deepEqual(postgresLocalSqlExpectedData.raw_refs, [{ id: 1, item_id: 1, sha256: hash(Buffer.from([0, 255])) }]); assert.equal(postgresLocalSqlExpectedData.rolled_back_count, 0);
+  assert.ok(postgresLocalSqlFixture.includes("BEGIN; INSERT INTO aw_probe.items VALUES(99")); assert.ok(postgresLocalSqlFixture.includes("ROLLBACK;"));
+  assert.deepEqual(postgresLocalSqlCommands.dump, ["pg_dump", "--host=/var/run/postgresql", "--port=5432", "--username=awdiag", "--no-password", "--dbname=awdiag", "--format=custom"]);
+  assert.deepEqual(postgresLocalSqlCommands.restore.slice(-4), ["--dbname=awdiag", "--single-transaction", "--no-owner", "--no-privileges"]); assert.equal(postgresLocalSqlExpectedSchema.raw_refs.columns[2].length, 64);
+  const legacy = retainedFixture(); assert.deepEqual(legacy.retention.archiveProof, retainedFixture({}).retention.archiveProof); assert.equal(legacy.policy.manifest.config.size, 1076);
+});
+test("runtime diagnostics are closed and capture untrusted error message only once", () => {
+  let reads = 0; const error = new Error(); Object.defineProperty(error, "message", { get() { return ++reads === 1 ? "postgres_local_runtime_restore_sql_invalid" : "private password"; } });
+  error.phase = "SOURCE_SQL"; error.cleanup = "CONFIRMED"; const proof = postgresLocalRuntimeRestoreFailureDiagnostic(error); assert.equal(reads, 1);
+  assert.deepEqual(proof, { code: "postgres_local_runtime_restore_sql_invalid", phase: "SOURCE_SQL", cleanup: "CONFIRMED" }); assert.deepEqual(validatePostgresLocalRuntimeRestoreFailureDiagnostic(proof), proof);
+  assert.throws(() => validatePostgresLocalRuntimeRestoreFailureDiagnostic({ ...proof, raw: "private" }), /proof_invalid/u);
+  assert.equal(postgresLocalRuntimeRestoreFailureDiagnostic(new Error("private")).code, "postgres_local_runtime_restore_operation_failed");
+});
+test("native engine completes five distinct profiles, exact SQL, fresh volume restore, cleanup and seals", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s); const proof = await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps);
+  assert.deepEqual(proof, validatePostgresLocalRuntimeRestoreProof(proof, s.input)); assert.deepEqual(h.loadedBytes, { size: s.fixture.archive.length, sha256: hash(s.fixture.archive) });
+  assert.equal(h.owners.length, h.calls.length * 2 + 2); assert.deepEqual(h.owners.slice(-2), ["FINAL_SEAL", "FINAL_SEAL"]); assert.equal(proof.audit.count, h.grants.length); assert.deepEqual(h.sourcePresentAtRestore, { containers: 0, volumes: 0 });
+  assert.deepEqual(proof.phases.map((v) => v.name), postgresLocalRuntimeRestorePhases); assert.equal(new Set([proof.gosu.containerId, ...proof.services.map((v) => v.containerId)]).size, 5);
+  assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0); assert.deepEqual(h.images, []); assert.deepEqual(readdirSync(s.input.workDirectory), ["backup"]);
+  assert.deepEqual(readFileSync(path.join(s.input.directory, "candidate.tar")), s.fixture.archive); assert.ok(!JSON.stringify(proof).includes("POSTGRES_PASSWORD"));
+  for (const change of [(v) => { v.extra = true; }, (v) => { v.audit.count = 0; }, (v) => { v.services[0].capabilities.effective = "0000000000000001"; },
+    (v) => { v.sourceDisposed = "UNKNOWN"; }, (v) => { v.backup.file.interpretation = "FULL"; }, (v) => { v.services[1].containerId = v.services[0].containerId; }, (v) => { v.phases.pop(); }]) {
+    const changed = clone(proof); change(changed); assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
+  }
+});
+test("native audit stale/future/expired/extra grants refuse create at the actual spawn", { skip: !linux }, async (t) => {
+  for (const variant of ["stale", "future", "expired", "extra"]) await t.test(variant, async (sub) => {
+    const s = await scope(sub); const h = harness(s, { grant: (ack) => { if (variant === "stale") ack.checkedAt = new Date(Date.now() - 6000).toISOString();
+      if (variant === "future") ack.checkedAt = new Date(Date.now() + 1000).toISOString(); if (variant === "expired") ack.validUntil = new Date(Date.now() - 1).toISOString(); if (variant === "extra") ack.raw = "private"; return ack; } });
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)); assert.equal(h.calls.filter((v) => v.args[0] === "create").length, 0);
+    assert.equal(h.sqlExecs.length, 0); assert.ok(h.images.length === 0 || h.images.length === 1);
+  });
+});
+test("native incomplete load performs neither image removal nor candidate execution", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s, { transport: (args) => args[1] === "load" ? { ...ok(), error: true } : undefined });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => { assert.equal(error.cleanup, "UNVERIFIED"); return true; });
+  assert.equal(h.calls.filter((v) => ["create", "exec", "start"].includes(v.args[0]) || v.args[0] === "image" && v.args[1] === "rm").length, 0);
+});
+test("native failed SQL stops the held service before cleanup and never executes another candidate", { skip: !linux }, async (t) => {
+  const s = await scope(t); let failed = false; const h = harness(s, { transport: (args) => { if (!failed && args[0] === "exec" && args.includes("createdb")) { failed = true; return { ...ok("private stdout", 1), error: true }; } } });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => { assert.equal(error.cleanup, "CONFIRMED"); assert.equal(error.phase, "SOURCE_SQL"); assert.ok(!error.message.includes("private")); return true; });
+  const index = h.calls.findIndex((v) => v.args[0] === "exec" && v.args.includes("createdb")); assert.ok(h.calls.slice(index + 1).some((v) => v.args[0] === "stop"));
+  assert.equal(h.calls.slice(index + 1).filter((v) => ["exec", "create", "start"].includes(v.args[0])).length, 0);
+});
+test("native profile, UID, capabilities, tools, SQL, cleanup and source mutations fail closed", { skip: !linux }, async (t) => {
+  for (const variant of ["profile", "uid", "nnp", "caps", "exe", "tools", "sql", "cleanup", "source"]) await t.test(variant, async (sub) => {
+    const s = await scope(sub); const h = harness(s, { transport: (args, _options, state) => {
+      if (variant === "source" && args[0] === "image" && args[1] === "load") chmodSync(path.join(s.input.directory, "candidate.tar"), 0o644);
+      if (variant === "profile" && args[0] === "container" && args[1] === "inspect" && state.containers.size) { const item = [...state.containers.values()][0]; item.HostConfig.Privileged = true; }
+      if (["uid", "nnp", "caps", "exe"].includes(variant) && args[0] === "exec" && args.includes("/bin/sh")) return ok(`uid=${variant === "uid" ? "70 0 70 70" : "70 70 70 70"}\ngid=70 70 70 70\nnnp=${variant === "nnp" ? 0 : 1}\ncapinh=0000000000000000\ncapprm=0000000000000000\ncapeff=${variant === "caps" ? "0000000000000001" : "0000000000000000"}\ncapamb=0000000000000000\nexe=${variant === "exe" ? "/bin/sh" : "/usr/local/bin/postgres"}\n`);
+      if (variant === "tools" && args.includes("--version")) return ok("pg_dump (PostgreSQL) 17.10\n");
+      if (variant === "sql" && args.at(-1).startsWith("SELECT json_build_object")) return ok(bytes({ ...postgresLocalSqlExpectedData, rolled_back_count: 1 }));
+      if (variant === "cleanup" && args[0] === "container" && args[1] === "rm") return ok("", 1, "private raw error");
+    } });
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => { assert.ok(!error.message.includes("private")); assert.equal(Object.keys(error).sort().join(","), "cleanup,phase"); return true; });
+  });
+});
+test("native root/bash initialization waits for final PostgreSQL before all SQL", { skip: !linux }, async (t) => {
+  const s = await scope(t); const counts = new Map(); const h = harness(s, { transport: (args) => {
+    if (args[0] !== "exec" || !args.includes("/bin/sh")) return; const id = args.find((v) => /^[0-9]{64}$/u.test(v)); const count = (counts.get(id) ?? 0) + 1; counts.set(id, count);
+    if (count < 3) return ok(`uid=${count === 1 ? "0 0 0 0" : "70 70 70 70"}\ngid=${count === 1 ? "0 0 0 0" : "70 70 70 70"}\nnnp=1\ncapinh=0000000000000000\ncapprm=0000000000000000\ncapeff=0000000000000000\ncapamb=0000000000000000\n${count === 1 ? "" : "exe=/bin/bash\n"}`);
+  } });
+  assert.equal((await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)).state, "VERIFIED");
+  for (const count of counts.values()) assert.equal(count, 3);
+});
+test("native audit grant is checked again after transport delay immediately at spawn", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s, { grant: (ack) => ({ ...ack, checkedAt: new Date(Date.now() - 4900).toISOString() }) });
+  const guarded = h.transport;
+  h.deps.transport = async (command, args, options) => { if (args[2] === "create") await new Promise((resolve) => setTimeout(resolve, 150)); return guarded(command, args, options); };
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps));
+  assert.equal(h.calls.filter((v) => v.args[0] === "create").length, 0); assert.equal(h.sqlExecs.length, 0);
+});
+test("native owner acknowledgements remain closed before and after every operation", { skip: !linux }, async (t) => {
+  for (const variant of ["before", "after"]) await t.test(variant, async (sub) => {
+    const s = await scope(sub); const h = harness(s, { authorize: (_phase, state) => state.owners.length === (variant === "before" ? 1 : 2)
+      ? { state: "VERIFIED", purpose: "COLD_LOAD_ONLY", raw: "private" } : undefined });
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps));
+    assert.equal(h.calls.filter((v) => v.args[0] === "create").length, 0); assert.equal(h.sqlExecs.length, 0);
+  });
+});
+test("native durable bash initialization aborts with two execs and three commands per poll", { skip: !linux }, async (t) => {
+  const s = await scope(t); const controller = new globalThis.AbortController(); s.input.signal = controller.signal;
+  const h = harness(s, { transport: (args) => { if (args[0] === "exec" && args.includes("/bin/sh")) { setTimeout(() => controller.abort(), 30);
+    return ok("uid=70 70 70 70\ngid=70 70 70 70\nnnp=1\ncapinh=0000000000000000\ncapprm=0000000000000000\ncapeff=0000000000000000\ncapamb=0000000000000000\nexe=/bin/bash\n"); } } });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)); assert.equal(h.sqlExecs.length, 0);
+  const process = h.calls.findIndex((v) => v.args[0] === "exec" && v.args.includes("/bin/sh"));
+  assert.deepEqual(h.calls.slice(process - 1, process + 2).map((v) => v.args[0]), ["container", "exec", "exec"]);
+  assert.equal(h.calls.filter((v) => v.args[0] === "exec").length, 2); assert.equal(h.containers.size, 0);
+});
+test("native interrupted restore is stopped before any subsequent candidate command", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s, { transport: (args) => args[0] === "exec" && args.includes("--single-transaction") ? { ...ok("", 0), error: true } : undefined });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => { assert.equal(error.phase, "RESTORE_SQL"); assert.equal(error.cleanup, "CONFIRMED"); return true; });
+  const failed = h.calls.findIndex((v) => v.args.includes("--single-transaction")); assert.equal(h.calls.slice(failed + 1).some((v) => ["exec", "start", "create"].includes(v.args[0])), false);
+  assert.ok(h.calls.slice(failed + 1).some((v) => v.args[0] === "stop")); assert.deepEqual(readdirSync(s.input.workDirectory), ["backup"]);
+});
+
+test("native restore refuses a nonempty target schema before importing SQL", { skip: !linux }, async (t) => {
+  const s = await scope(t); const h = harness(s, { transport: (args) => args.at(-1) === "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = 'aw_probe';" ? ok("1\n") : undefined });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => { assert.equal(error.phase, "RESTORE_SQL"); assert.equal(error.cleanup, "CONFIRMED"); return true; });
+  assert.equal(h.calls.some((v) => v.args.includes("--single-transaction")), false);
+});
