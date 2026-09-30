@@ -37,11 +37,11 @@ function fixture(t, writeInput = true) {
     GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision, GITHUB_RUN_ID: runId,
     RUNNER_TEMP: runnerTemp, GITHUB_WORKSPACE: workspace, GITHUB_TOKEN: "secret", GH_TOKEN: "secret", PATH: "/bin" };
   const context = requirePostgresRemoteRuntimeDiagnosticContext(env, overrideHost);
-  const policy = structuredClone(actualPolicy); const files = new Map();
+  const policy = globalThis.structuredClone(actualPolicy); const files = new Map();
   const receipt = { kind: "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1", state: "COMPLETE", authority: "DIAGNOSTIC_ONLY",
     admission: "NOT_AUTHORIZED", phase: "COMPLETE", runId: policy.audit.runId, recipeRevision: policy.audit.recipeRevision,
     registrySubject: policy.subject, findingCount: 0, blockerCount: 0, blockers: [], blockersTruncated: false,
-    scanner: structuredClone(policy.audit.scanner), supportStartedAt: null, supportEndsAt: null, archiveUntil: null };
+    scanner: globalThis.structuredClone(policy.audit.scanner), supportStartedAt: null, supportEndsAt: null, archiveUntil: null };
   const database = { observed: { vulnerability: { value: { Version: 2, UpdatedAt: "2026-09-30T01:00:00Z", DownloadedAt: "2026-09-30T05:00:00Z" } },
     java: { value: { Version: 1, UpdatedAt: "2025-01-01T00:00:00Z", DownloadedAt: "2026-09-30T05:00:00Z" } } } };
   for (const entry of policy.audit.files) {
@@ -101,7 +101,7 @@ test("committed policy closes support/admission, source lock and exact sixteen r
     (value) => { value.audit.receipt.sha256 = "a".repeat(64); }, (value) => { value.audit.attempt = 2; },
     (value) => { value.audit.artifact.name = "another"; }, (value) => { value.sourceLock.path = "../lock.json"; },
     (value) => { value.subject += "wrong"; }]) {
-    const value = structuredClone(actualPolicy); mutate(value);
+    const value = globalThis.structuredClone(actualPolicy); mutate(value);
     assert.throws(() => validatePostgresRemoteRuntimePolicy(value, candidatePolicy), /policy_invalid/u);
   }
 });
