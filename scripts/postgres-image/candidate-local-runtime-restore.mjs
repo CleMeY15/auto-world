@@ -22,7 +22,8 @@ const ROLES = ["probe", "source1", "source2", "restore1", "restore2"];
 export const postgresLocalRuntimeRestorePhases = Object.freeze(["PREFLIGHT", "LOAD", "PROBE", "SOURCE_START", "SOURCE_SQL",
   "SOURCE_RESTART", "DUMP", "SOURCE_DISPOSE", "RESTORE_START", "RESTORE_SQL", "RESTORE_RESTART", "CLEANUP", "FINAL_SEAL"]);
 const REASONS = new Set(["arguments_invalid", "requires_nonroot_linux", "storage_invalid", "files_changed", "archive_invalid",
-  "configuration_invalid", "authorization_invalid", "audit_invalid", "command_failed", "deadline_exceeded", "aborted", "inventory_invalid",
+  "configuration_invalid", "authorization_invalid", "audit_invalid", "command_failed", "command_volume_create_failed", "command_container_create_failed",
+  "command_start_failed", "command_process_failed", "command_readiness_failed", "deadline_exceeded", "aborted", "inventory_invalid",
   "image_invalid", "name_occupied", "container_invalid", "volume_invalid", "distinct_container_invalid", "gosu_invalid", "process_invalid",
   "readiness_timeout", "sql_invalid", "tools_invalid", "backup_invalid", "stop_invalid", "cleanup_uncertain", "proof_invalid", "operation_failed"]);
 const plain = (v) => v !== null && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype;
@@ -131,6 +132,14 @@ function processProof(bytes) {
 function output(v, allowed = [0]) {
   if (!plain(v) || v.error || v.signal || !allowed.includes(v.status) || !Buffer.isBuffer(v.stdout) || !Buffer.isBuffer(v.stderr)
     || v.stdout.length + v.stderr.length > CAP) fail("command_failed"); return v;
+}
+function commandFailureReason(args) {
+  if (args[0] === "volume" && args[1] === "create") return "command_volume_create_failed";
+  if (args[0] === "create") return "command_container_create_failed";
+  if (args[0] === "start") return "command_start_failed";
+  if (args[0] === "exec" && args.at(-1) === PROCESS_SCRIPT) return "command_process_failed";
+  if (args[0] === "exec" && args.includes("pg_isready")) return "command_readiness_failed";
+  return "command_failed";
 }
 async function bounded(action, milliseconds, signal) {
   let timer; let abort; try { return await Promise.race([Promise.resolve().then(action), new Promise((_yes, no) => {
@@ -275,7 +284,7 @@ export async function verifyLocalPostgresRuntimeAndSqlRestore(inputRaw, controls
             audit.count += 1; if (audit.count > 4096 || Date.parse(grant.checkedAt) < Date.parse(audit.lastCheckedAt)) fail("audit_invalid"); audit.lastCheckedAt = grant.checkedAt;
             if (Date.parse(grant.validUntil) < Date.parse(audit.validUntil)) audit.validUntil = grant.validUntil; }
         };
-        try {
+        try { try {
           observed = await bounded(() => (opts.sql ? sqlTransport : transport)("/usr/bin/docker", Object.freeze(["--host", input.identity.endpoint, ...args]), Object.freeze({
             cwd, env, signal: cleanup ? globalThis.AbortSignal.timeout(Math.max(1, cleanupDeadline - Date.now())) : signal,
             timeoutMs: Math.max(1, Math.min(opts.timeoutMs ?? 90_000, cleanup ? cleanupDeadline - Date.now() : ENGINE_MS - (Date.now() - started))), maxBuffer: CAP,
@@ -283,6 +292,7 @@ export async function verifyLocalPostgresRuntimeAndSqlRestore(inputRaw, controls
             ...(opts.outputSink ? { outputSink: opts.outputSink } : {}) })), cleanup ? cleanupDeadline - Date.now() : ENGINE_MS - (Date.now() - started), cleanup ? undefined : signal);
         } finally { await authorize(); }
         if (!spawned) fail("command_failed"); localCheck(cleanup); return output(observed, opts.allowed ?? [0]);
+        } catch (error) { if (errorReason(error) === "command_failed") fail(commandFailureReason(args)); throw error; }
       };
       const inspect = async (kind, name, cleanup = false) => call([kind, "inspect", "--format", "{{json .}}", name], { allowed: [0, 1], cleanup });
       const inspectImage = async (cleanup = false) => { const value = parse((await call(["image", "inspect", "--format", "{{json .}}", input.policy.candidate.imageId], { cleanup })).stdout);
@@ -339,9 +349,11 @@ export async function verifyLocalPostgresRuntimeAndSqlRestore(inputRaw, controls
         while (polls++ < 60 && Date.now() < deadline) {
           const state = (await containerInspection(entry, false, false)).State; // One inspect and two exec commands per poll.
           if (!plain(state) || state.Running !== true || state.Paused !== false || state.Restarting !== false || state.Dead !== false) fail("container_invalid");
-          const observed = processProof((await exec(entry, ["/bin/sh", "-ec", PROCESS_SCRIPT], { timeoutMs: deadline - Date.now() })).stdout);
           const readiness = await exec(entry, ["pg_isready", ...SQL_CONNECTION.filter((v) => v !== "--no-password"), "--dbname=postgres", "--quiet"], { allowed: [0, 1, 2], timeoutMs: deadline - Date.now() });
-          if (observed && readiness.status === 0 && Date.now() < deadline) return observed;
+          if (readiness.status === 0) {
+            const observed = processProof((await exec(entry, ["/bin/sh", "-ec", PROCESS_SCRIPT], { timeoutMs: deadline - Date.now() })).stdout);
+            if (observed && Date.now() < deadline) return observed;
+          }
           await bounded(() => new Promise((resolve) => setTimeout(resolve, 1000)), Math.max(1, deadline - Date.now()), signal);
         } fail("readiness_timeout");
       };

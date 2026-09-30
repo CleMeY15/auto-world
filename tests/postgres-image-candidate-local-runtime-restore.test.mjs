@@ -201,6 +201,56 @@ test("native audit descriptor loss closes the work descriptor and reports cleanu
   assert.equal(h.calls.length, 1); assert.throws(() => fstatSync(workFd), { code: "EBADF" }); assert.ok(lstatSync(evidence));
 });
 
+test("native readiness status one and two skip process and executable observation until ready", { skip: !linux }, async (t) => {
+  const s = await scope(t); let readinessCalls = 0; const h = harness(s, { transport: (args, _options, state) => {
+    if (state.owners.at(-1) !== "SOURCE_START" || args[0] !== "exec" || !args.includes("pg_isready")) return;
+    readinessCalls += 1;
+    if (readinessCalls <= 2) { assert.equal(state.processCounts.size, 0); return ok("", readinessCalls); }
+  } });
+  assert.equal((await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)).state, "VERIFIED");
+  const commands = h.calls.filter((v) => v.phase === "SOURCE_START" && v.args[0] === "exec").map((v) => v.args.includes("pg_isready") ? "readiness" : "process");
+  assert.deepEqual(commands, ["readiness", "readiness", "readiness", "process"]); assert.equal(readinessCalls, 3);
+});
+
+test("native command failures identify only fixed source-start families without private output", { skip: !linux }, async (t) => {
+  const families = [
+    ["volume_create", (args) => args[0] === "volume" && args[1] === "create"],
+    ["container_create", (args) => args[0] === "create"], ["start", (args) => args[0] === "start"],
+    ["process", (args) => args[0] === "exec" && args.includes("/bin/sh")],
+    ["readiness", (args) => args[0] === "exec" && args.includes("pg_isready")],
+  ];
+  for (const [family, matches] of families) await t.test(family, async (sub) => {
+    const s = await scope(sub); const h = harness(s); const base = h.transport; let failed = false;
+    h.deps.transport = async (command, args, options) => { const result = await base(command, args, options);
+      if (!failed && h.owners.at(-1) === "SOURCE_START" && matches(args.slice(2))) { failed = true;
+        return { ...result, status: family === "readiness" ? 3 : 1, stderr: Buffer.from("private password SQL and environment") }; } return result; };
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => {
+      const diagnostic = postgresLocalRuntimeRestoreFailureDiagnostic(error);
+      assert.deepEqual(diagnostic, { code: `postgres_local_runtime_restore_command_${family}_failed`, phase: "SOURCE_START", cleanup: "CONFIRMED" });
+      assert.deepEqual(validatePostgresLocalRuntimeRestoreFailureDiagnostic(diagnostic), diagnostic); assert.equal(JSON.stringify(diagnostic).includes("private"), false);
+      assert.deepEqual(Object.keys(error).sort(), ["cleanup", "phase"]); return true; });
+    assert.equal(failed, true); assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0); assert.deepEqual(h.images, []);
+  });
+});
+
+test("native family diagnostics preserve audit, ownership, timeout, abort and cleanup priorities", { skip: !linux }, async (t) => {
+  for (const reason of ["audit_invalid", "authorization_invalid", "deadline_exceeded", "aborted", "cleanup_uncertain"]) await t.test(reason, async (sub) => {
+    const s = await scope(sub); const h = harness(s); const base = h.transport; let failed = false;
+    h.deps.transport = async (command, args, options) => {
+      const fixed = args.slice(2);
+      if (reason === "cleanup_uncertain" && failed && fixed[0] === "container" && fixed[1] === "rm") return { ...ok("", 1, "private cleanup output") };
+      const result = await base(command, args, options);
+      if (!failed && h.owners.at(-1) === "SOURCE_START" && fixed[0] === "start") { failed = true;
+        if (reason === "cleanup_uncertain") return { ...result, status: 1 };
+        throw new Error("postgres_local_runtime_restore_" + reason); } return result;
+    };
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => {
+      assert.deepEqual(postgresLocalRuntimeRestoreFailureDiagnostic(error), { code: "postgres_local_runtime_restore_" + reason,
+        phase: reason === "cleanup_uncertain" ? "CLEANUP" : "SOURCE_START", cleanup: reason === "cleanup_uncertain" ? "UNVERIFIED" : "CONFIRMED" }); return true; });
+    assert.equal(failed, true);
+  });
+});
+
 test("native audit stale/future/expired/extra grants refuse create at the actual spawn", { skip: !linux }, async (t) => {
   for (const variant of ["stale", "future", "expired", "extra"]) await t.test(variant, async (sub) => {
     const s = await scope(sub); const h = harness(s, { grant: (ack) => { if (variant === "stale") ack.checkedAt = new Date(Date.now() - 6000).toISOString();
@@ -262,7 +312,8 @@ test("native durable bash initialization aborts with two execs and three command
     return ok("uid=70 70 70 70\ngid=70 70 70 70\nnnp=1\ncapinh=0000000000000000\ncapprm=0000000000000000\ncapeff=0000000000000000\ncapamb=0000000000000000\nexe=/bin/bash\n"); } } });
   await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps)); assert.equal(h.sqlExecs.length, 0);
   const process = h.calls.findIndex((v) => v.args[0] === "exec" && v.args.includes("/bin/sh"));
-  assert.deepEqual(h.calls.slice(process - 1, process + 2).map((v) => v.args[0]), ["container", "exec", "exec"]);
+  assert.deepEqual(h.calls.slice(process - 2, process + 1).map((v) => v.args[0]), ["container", "exec", "exec"]);
+  assert.ok(h.calls[process - 1].args.includes("pg_isready"));
   assert.equal(h.calls.filter((v) => v.args[0] === "exec").length, 2); assert.equal(h.containers.size, 0);
 });
 test("native interrupted restore is stopped before any subsequent candidate command", { skip: !linux }, async (t) => {
