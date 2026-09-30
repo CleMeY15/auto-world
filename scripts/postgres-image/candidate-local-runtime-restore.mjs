@@ -55,8 +55,9 @@ export function validatePostgresLocalRuntimeRestoreFailureDiagnostic(value) {
 }
 function inputValue(value) {
   const list = ["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId", "recipeRevision", "executionId", "identity", "workDirectory", "auditReceiptSha256"];
-  if (!keys(value, Object.hasOwn(value ?? {}, "signal") ? [...list, "signal"] : list) || !/^[0-9a-f]{40}$/u.test(value.recipeRevision)
-    || !/^local-pg-restore-[0-9a-f]{24}$/u.test(value.executionId) || !HEX.test(value.auditReceiptSha256) || !canonical(value.workDirectory)
+  if (!keys(value, Object.hasOwn(value ?? {}, "signal") ? [...list, "signal"] : list) || typeof value.recipeRevision !== "string" || !/^[0-9a-f]{40}$/u.test(value.recipeRevision)
+    || typeof value.executionId !== "string" || !/^local-pg-restore-[0-9a-f]{24}$/u.test(value.executionId)
+    || typeof value.auditReceiptSha256 !== "string" || !HEX.test(value.auditReceiptSha256) || !canonical(value.workDirectory)
     || value.signal !== undefined && !(value.signal instanceof globalThis.AbortSignal)) fail("arguments_invalid");
   const material = validatePostgresPrivateCandidateMaterial(Object.fromEntries(["directory", "files", "archiveProof", "policy", "originalRecipeRevision", "originalExecutionId"].map((k) => [k, value[k]])));
   const identity = validatePostgresLocalClientIdentity(value.identity);
@@ -188,19 +189,19 @@ export function validatePostgresLocalRuntimeRestoreProof(value, inputRaw) {
       || ["recipeRevision", "executionId", "originalRecipeRevision", "originalExecutionId", "directory", "workDirectory", "auditReceiptSha256"].some((k) => value[k] !== input[k])
       || ["files", "archiveProof", "identity"].some((k) => !isDeepStrictEqual(value[k], input[k]))) fail("proof_invalid");
     const gosu = value.gosu;
-    if (!keys(gosu, ["containerId", "version", "package", "uid", "gid", "noNewPrivs", "path", "removedPath", "executableSha256"]) || !ID.test(gosu.containerId)
+    if (!keys(gosu, ["containerId", "version", "package", "uid", "gid", "noNewPrivs", "path", "removedPath", "executableSha256"]) || typeof gosu.containerId !== "string" || !ID.test(gosu.containerId)
       || gosu.version !== lock.apk.versionOutput || gosu.package !== lock.apk.version || gosu.uid !== 70 || gosu.gid !== 70 || gosu.noNewPrivs !== 1
       || gosu.path !== lock.runtime.gosuPath || gosu.removedPath !== lock.runtime.removedPath || gosu.executableSha256 !== lock.apk.executable.sha256
       || !isDeepStrictEqual(value.tools, { server: "17.11", pgDump: "17.11", pgRestore: "17.11", createdb: "17.11" })) fail("proof_invalid");
     if (!Array.isArray(value.services) || value.services.length !== 4 || value.services.some((s, index) => !keys(s, ["role", "containerId", "uid", "gid", "noNewPrivs", "capabilities", "executable", "readiness", "sql", "stop"])
-      || s.role !== ROLES[index + 1] || !ID.test(s.containerId) || !isDeepStrictEqual(s.uid, [70, 70, 70, 70]) || !isDeepStrictEqual(s.gid, [70, 70, 70, 70]) || s.noNewPrivs !== 1
+      || s.role !== ROLES[index + 1] || typeof s.containerId !== "string" || !ID.test(s.containerId) || !isDeepStrictEqual(s.uid, [70, 70, 70, 70]) || !isDeepStrictEqual(s.gid, [70, 70, 70, 70]) || s.noNewPrivs !== 1
       || !isDeepStrictEqual(s.capabilities, { inheritable: "0000000000000000", permitted: "0000000000000000", effective: "0000000000000000", ambient: "0000000000000000" })
       || !/^\/[^\s]{1,255}\/postgres$/u.test(s.executable) || s.readiness !== "PASSED" || s.stop !== "GRACEFUL"
       || !isDeepStrictEqual(s.sql, { schemaSha256: sha(postgresLocalSqlExpectedSchema), dataSha256: sha(postgresLocalSqlExpectedData) }))
       || new Set([gosu.containerId, ...value.services.map((s) => s.containerId)]).size !== 5) fail("proof_invalid");
     if (!keys(value.volumes, ["source", "restore"]) || ["source", "restore"].some((k) => !keys(value.volumes[k], ["name", "createdAt"])
       || value.volumes[k].name !== `aw-pg-restore-${nonce}-${k}-data` || !iso(value.volumes[k].createdAt))
-      || !keys(value.backup, ["file", "tocSha256", "tocEntries"]) || !HEX.test(value.backup.tocSha256) || !Number.isSafeInteger(value.backup.tocEntries)
+      || !keys(value.backup, ["file", "tocSha256", "tocEntries"]) || typeof value.backup.tocSha256 !== "string" || !HEX.test(value.backup.tocSha256) || !Number.isSafeInteger(value.backup.tocEntries)
       || value.backup.tocEntries < 1 || value.backup.tocEntries > 4096 || value.sourceDisposed !== "CONFIRMED_BEFORE_RESTORE") fail("proof_invalid");
     const backup = validatePostgresSqlBackupProof(value.backup.file, path.posix.join(input.workDirectory, "backup"));
     if (backup.identity.uid !== input.files[0].identity.uid || backup.identity.gid !== input.files[0].identity.gid) fail("proof_invalid");

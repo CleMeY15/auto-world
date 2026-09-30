@@ -58,7 +58,7 @@ export function validatePostgresSqlBackupProof(value, expectedDirectory) {
   if (!keys(value, ["kind", "state", "directory", "name", "size", "sha256", "identity", "format", "interpretation"])
     || value.kind !== "POSTGRES_SQL_PRIVATE_DUMP_V1" || value.state !== "SEALED" || !canonical(value.directory)
     || expectedDirectory !== undefined && value.directory !== expectedDirectory || value.name !== FILE
-    || !Number.isSafeInteger(value.size) || value.size < 5 || value.size > postgresSqlBackupLimits.bytes || !HEX.test(value.sha256)
+    || !Number.isSafeInteger(value.size) || value.size < 5 || value.size > postgresSqlBackupLimits.bytes || typeof value.sha256 !== "string" || !HEX.test(value.sha256)
     || !keys(value.identity, ["dev", "ino", "uid", "gid", "mode", "nlink", "mtimeNs", "ctimeNs"])
     || !["dev", "ino", "mtimeNs", "ctimeNs"].every((k) => typeof value.identity[k] === "string" && /^[0-9]{1,20}$/u.test(value.identity[k]))
     || value.identity.ino === "0" || !Number.isSafeInteger(value.identity.uid) || value.identity.uid < 1

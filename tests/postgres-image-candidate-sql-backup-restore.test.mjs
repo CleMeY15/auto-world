@@ -21,7 +21,8 @@ test("SQL backup proof is closed and does not claim full interpretation from a h
     format: "POSTGRESQL_CUSTOM", interpretation: "NOT_FULLY_ESTABLISHED_BY_TRANSPORT" };
   assert.deepEqual(validatePostgresSqlBackupProof(value), value);
   for (const change of [(v) => { v.raw = "private"; }, (v) => { v.identity.nlink = 2; }, (v) => { v.directory = "/x/../owned"; },
-    (v) => { v.identity.mode = 0o644; }, (v) => { v.size = postgresSqlBackupLimits.bytes + 1; }, (v) => { v.interpretation = "COMPLETE"; }]) {
+    (v) => { v.identity.mode = 0o644; }, (v) => { v.size = postgresSqlBackupLimits.bytes + 1; }, (v) => { v.interpretation = "COMPLETE"; },
+    (v) => { v.sha256 = [v.sha256]; }]) {
     const changed = globalThis.structuredClone(value); change(changed); assert.throws(() => validatePostgresSqlBackupProof(changed), /postgres_sql_backup_proof_invalid/u);
   }
 });

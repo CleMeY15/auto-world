@@ -9,6 +9,7 @@ import { postgresLocalRuntimeRestoreFailureDiagnostic, postgresLocalRuntimeResto
   postgresLocalSqlExpectedSchema, postgresLocalSqlFixture, validatePostgresLocalRuntimeRestoreFailureDiagnostic, validatePostgresLocalRuntimeRestoreProof,
   verifyLocalPostgresRuntimeAndSqlRestore } from "../scripts/postgres-image/candidate-local-runtime-restore.mjs";
 import { retainedFixture } from "./fixtures/postgres-private-retention.mjs";
+import { postgresLocalRuntimeLabels } from "../scripts/postgres-image/candidate-runtime.mjs";
 
 const linux = process.platform === "linux" && process.getuid() > 0 && process.getgid() > 0;
 const hash = (v) => createHash("sha256").update(v).digest("hex"); const bytes = (v) => Buffer.from(JSON.stringify(v, null, 2) + "\n");
@@ -102,6 +103,17 @@ function harness(s, hooks = {}) {
   };
   h.deps = { transport: h.transport, sqlTransport: h.transport }; h.controls = { authorize: h.authorize, beforeExecution: h.beforeExecution }; return h;
 }
+test("new engine metadata and resource labels reject coercive array scalars before native access", async () => {
+  const input = { directory: "/home/not-accessed", files: [], archiveProof: {}, policy: {}, originalRecipeRevision: "a".repeat(40),
+    originalExecutionId: "local-1", recipeRevision: "b".repeat(40), executionId: "local-pg-restore-" + "c".repeat(24),
+    identity: {}, workDirectory: "/home/not-accessed-work", auditReceiptSha256: "d".repeat(64) };
+  for (const key of ["recipeRevision", "executionId", "auditReceiptSha256"]) {
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore({ ...input, [key]: [input[key]] }, {}),
+      { message: "postgres_local_runtime_restore_arguments_invalid" });
+  }
+  assert.throws(() => postgresLocalRuntimeLabels(["c".repeat(24)], "probe"), { message: "postgres_runtime_arguments_invalid" });
+  assert.throws(() => postgresLocalRuntimeLabels("c".repeat(24), ["probe"]), { message: "postgres_runtime_arguments_invalid" });
+});
 test("SQL fixture and exact tool arguments cover binary, Unicode, nulls and rollback independently", () => {
   assert.deepEqual(postgresLocalSqlExpectedData.items.map((v) => [v.id, v.label, v.payload, v.note]), [[1, "ASCII", "00ff", null], [2, "é", "000102", "retained"], [3, "車", "ff00", ""]]);
   assert.deepEqual(postgresLocalSqlExpectedData.raw_refs, [{ id: 1, item_id: 1, sha256: hash(Buffer.from([0, 255])) }]); assert.equal(postgresLocalSqlExpectedData.rolled_back_count, 0);
@@ -125,7 +137,10 @@ test("native engine completes five distinct profiles, exact SQL, fresh volume re
   assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0); assert.deepEqual(h.images, []); assert.deepEqual(readdirSync(s.input.workDirectory), ["backup"]);
   assert.deepEqual(readFileSync(path.join(s.input.directory, "candidate.tar")), s.fixture.archive); assert.ok(!JSON.stringify(proof).includes("POSTGRES_PASSWORD"));
   for (const change of [(v) => { v.extra = true; }, (v) => { v.audit.count = 0; }, (v) => { v.services[0].capabilities.effective = "0000000000000001"; },
-    (v) => { v.sourceDisposed = "UNKNOWN"; }, (v) => { v.backup.file.interpretation = "FULL"; }, (v) => { v.services[1].containerId = v.services[0].containerId; }, (v) => { v.phases.pop(); }]) {
+    (v) => { v.sourceDisposed = "UNKNOWN"; }, (v) => { v.backup.file.interpretation = "FULL"; }, (v) => { v.services[1].containerId = v.services[0].containerId; }, (v) => { v.phases.pop(); },
+    (v) => { v.gosu.containerId = [v.gosu.containerId]; v.cleanup.containers[0].id = v.gosu.containerId; },
+    (v) => { v.services[0].containerId = [v.services[0].containerId]; v.cleanup.containers[1].id = v.services[0].containerId; },
+    (v) => { v.backup.tocSha256 = [v.backup.tocSha256]; }]) {
     const changed = clone(proof); change(changed); assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
   }
 });

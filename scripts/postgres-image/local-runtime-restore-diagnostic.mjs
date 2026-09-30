@@ -105,6 +105,9 @@ export function postgresRuntimeRestoreClientIdentity(value, nonce) {
   return validatePostgresRuntimeRestoreEngineIdentity(result, value.contextName.slice(14));
 }
 export function validatePostgresRuntimeRestoreRootAcknowledgement(value, identity, state, principalSha) {
+  if (!plain(identity) || typeof identity.daemonId !== "string" || !/^[A-Za-z0-9:_-]{1,128}$/u.test(identity.daemonId)
+    || typeof identity.endpoint !== "string" || !/^unix:\/\/\/var\/tmp\/aw-pr-[A-Za-z0-9]{6}\/endpoint\/docker\.sock$/u.test(identity.endpoint)
+    || !Number.isSafeInteger(identity.pid) || identity.pid < 2) fail("postgres_runtime_restore_daemon_failed");
   if (!["VERIFIED", "VERIFIED_EMPTY", "VERIFIED_IMAGE_ONLY"].includes(state)) fail("postgres_runtime_restore_daemon_failed");
   const counts = state === "VERIFIED_EMPTY" ? { images: 0, containers: 0, volumes: 0 }
     : state === "VERIFIED_IMAGE_ONLY" ? { images: 1, containers: 0, volumes: 0 } : {};
@@ -131,7 +134,9 @@ function childProcessProof(pid) {
     executable: readlinkSync(path.join(root, "exe")), argv: readFileSync(path.join(root, "cmdline")).toString("utf8").split("\0") };
 }
 export function validatePostgresRuntimeRestoreWorkerProcess(value, pid, expectedStartTicks, parentPid) {
-  if (!Number.isSafeInteger(parentPid) || parentPid < 2 || !plain(value) || !/^[1-9][0-9]{0,19}$/u.test(value.startTicks ?? "") || value.startTicks !== expectedStartTicks
+  if (!Number.isSafeInteger(parentPid) || parentPid < 2 || !exact(value, ["startTicks", "status", "executable", "argv"])
+    || typeof value.startTicks !== "string" || typeof expectedStartTicks !== "string" || typeof value.status !== "string"
+    || !/^[1-9][0-9]{0,19}$/u.test(value.startTicks) || value.startTicks !== expectedStartTicks
     || value.executable !== PIN.node || !isDeepStrictEqual(value.argv, [PIN.node, WORKER, ""])
     || !new RegExp(`^PPid:\\s+${parentPid}\\s*$`, "mu").test(value.status ?? "")) fail("postgres_runtime_restore_control_invalid");
   return validatePostgresRuntimeRestoreWorkerStatus(value.status, pid);

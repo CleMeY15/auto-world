@@ -481,11 +481,11 @@ export async function executePostgresCandidateRuntime(snapshotInput, controls, d
 
 const LOCAL_ROLES = ["probe", "source1", "source2", "restore1", "restore2"];
 function localBinding(nonce, role, volume = false) {
-  if (!/^[0-9a-f]{24}$/u.test(nonce) || !(volume ? ["source-data", "restore-data"] : LOCAL_ROLES).includes(role)) fail("postgres_runtime_arguments_invalid");
+  if (typeof nonce !== "string" || !/^[0-9a-f]{24}$/u.test(nonce) || typeof role !== "string" || !(volume ? ["source-data", "restore-data"] : LOCAL_ROLES).includes(role)) fail("postgres_runtime_arguments_invalid");
   return { purpose: LOCAL_ROLE, role };
 }
 export const postgresRuntimeProfileContract = frozen({ pgdata: PGDATA, serviceCaps: CAPS, probeCaps: ["SETGID", "SETUID"], tmpfs: TMPFS, probeTmpfs: PROBE_TMPFS, ownerLabel: OWNER, purposeLabel: PURPOSE, roleLabel: RESOURCE_ROLE, purpose: LOCAL_ROLE });
-export function postgresLocalRuntimeLabels(nonce, role) { return frozen({ [OWNER]: nonce, [PURPOSE]: LOCAL_ROLE, [RESOURCE_ROLE]: localBinding(nonce, role, role.endsWith("-data")).role }); }
+export function postgresLocalRuntimeLabels(nonce, role) { return frozen({ [OWNER]: nonce, [PURPOSE]: LOCAL_ROLE, [RESOURCE_ROLE]: localBinding(nonce, role, typeof role === "string" && role.endsWith("-data")).role }); }
 export function postgresLocalRuntimeCreateArguments(record, image, nonce, lock) {
   return baseArguments(record, image, nonce, lock, localBinding(nonce, record.role));
 }

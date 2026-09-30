@@ -29,9 +29,13 @@ test("worker process proof rejects reused PID start ticks, changed executable/ar
   const proof = { startTicks: "1234", status: status(), executable: POSTGRES_RUNTIME_RESTORE_PIN.node, argv: [POSTGRES_RUNTIME_RESTORE_PIN.node, workerFile, ""] };
   assert.equal(validatePostgresRuntimeRestoreWorkerProcess(proof, 4321, "1234", 42).uid, 1000);
   for (const changed of [{ ...proof, startTicks: "1235" }, { ...proof, executable: "/usr/bin/sh" },
-    { ...proof, argv: [...proof.argv, "override"] }, { ...proof, status: status().replace("PPid:\t42", "PPid:\t43") }]) {
+    { ...proof, argv: [...proof.argv, "override"] }, { ...proof, status: status().replace("PPid:\t42", "PPid:\t43") },
+    { ...proof, extra: true }, { ...proof, status: { toString: status } }]) {
     assert.throws(() => validatePostgresRuntimeRestoreWorkerProcess(changed, 4321, "1234", 42));
   }
+  let coerced = 0; const hostileTicks = { toString() { coerced++; return "1234"; } };
+  assert.throws(() => validatePostgresRuntimeRestoreWorkerProcess({ ...proof, startTicks: hostileTicks }, 4321, hostileTicks, 42));
+  assert.equal(coerced, 0);
 });
 
 test("root acknowledgement binds exact daemon/endpoint/PID, unchanged principal and closed fields", () => {

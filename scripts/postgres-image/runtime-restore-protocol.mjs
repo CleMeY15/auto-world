@@ -115,7 +115,7 @@ function nextPhase(phase, previous, sequence) {
   return index;
 }
 export function validatePostgresRuntimeAuditGrant(value, phase, identity, receiptSha256, now = Date.now()) {
-  if (!plain(identity) || typeof identity.daemonId !== "string" || typeof identity.endpoint !== "string"
+  if (!plain(identity) || typeof identity.daemonId !== "string" || !/^[A-Za-z0-9:_-]{1,128}$/u.test(identity.daemonId) || typeof identity.endpoint !== "string"
     || !/^unix:\/\/\/var\/tmp\/aw-pr-[A-Za-z0-9]{6}\/endpoint\/docker\.sock$/u.test(identity.endpoint)
     || typeof receiptSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(receiptSha256)) fail();
   if (!exact(value, ["state", "purpose", "phase", "daemonId", "endpoint", "auditReceiptSha256", "checkedAt", "validUntil"])
