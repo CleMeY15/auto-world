@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createLocalDaemonHelper, validateLocalDaemonProcessProof } from "../scripts/docker-isolated/daemon-helper.mjs";
+import { createLocalDaemonHelper, validateLocalDaemonConfigurationResult, validateLocalDaemonProcessProof }
+  from "../scripts/docker-isolated/daemon-helper.mjs";
 
 const expected = { pid: 98765, startTicks: "123456789", configFile: "/var/tmp/aw-dp-AbCd12/daemon-" + "a".repeat(24) + "/daemon.json" };
 const proof = { pid: expected.pid, startTicks: expected.startTicks, state: "S",
@@ -27,3 +28,13 @@ test("default privileged helper refuses the non-root test caller before any priv
   { skip: process.platform === "linux" && process.getuid?.() === 0 }, () => {
     assert.throws(() => createLocalDaemonHelper(), /daemon_local_helper_invalid/u);
   });
+test("pinned daemon dry-run accepts only its successful exact stderr acknowledgement", () => {
+  const observed = { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.from("configuration OK\n") };
+  assert.deepEqual(validateLocalDaemonConfigurationResult(observed), { state: "VALIDATED" });
+  for (const changed of [
+    { status: 1 }, { status: null }, { error: new Error("private output") }, { signal: "SIGTERM" },
+    { stdout: Buffer.from("configuration OK\n"), stderr: Buffer.alloc(0) },
+    { stderr: Buffer.from("configuration OK\nprivate diagnostic\n") },
+    { stderr: Buffer.from("configuration invalid\n") }, { stderr: "configuration OK\n" },
+  ]) assert.throws(() => validateLocalDaemonConfigurationResult({ ...observed, ...changed }), /daemon_local_helper_invalid/u);
+});

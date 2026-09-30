@@ -90,6 +90,13 @@ function result(command, args, options) {
     || !Buffer.isBuffer(observed.stderr) || observed.stderr.length !== 0) fail();
   return observed.stdout;
 }
+export function validateLocalDaemonConfigurationResult(observed) {
+  // Pinned dockerd 28.0.4 writes this dry-run acknowledgement to stderr.
+  if (!plain(observed) || observed.error || observed.signal || observed.status !== 0
+    || !Buffer.isBuffer(observed.stdout) || observed.stdout.length !== 0
+    || !Buffer.isBuffer(observed.stderr) || !observed.stderr.equals(Buffer.from("configuration OK\n"))) fail();
+  return Object.freeze({ state: "VALIDATED" });
+}
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 // This local infrastructure probe starts no image and offers no arbitrary privileged command API.
@@ -143,7 +150,8 @@ export function createLocalDaemonHelper() {
       const namespaces = result("/usr/bin/ctr", ["--address", CONTAINERD, "namespaces", "list", "--quiet"],
         { env: environment }).toString("utf8").trim().split(/\r?\n/u);
       if (namespaces.includes(spec.containersNamespace) || namespaces.includes(spec.pluginsNamespace)) fail();
-      result(DOCKERD, ["--validate", "--config-file", spec.configFile], { env: environment });
+      validateLocalDaemonConfigurationResult(spawnSync(DOCKERD, ["--validate", "--config-file", spec.configFile],
+        { env: environment, encoding: null, timeout: 10_000, maxBuffer: CAP }));
       const fd = openSync(spec.logFile, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW);
       let child;
       try {
