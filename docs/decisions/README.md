@@ -10,3 +10,5 @@ Create an ADR before introducing a cross-service contract or changing a previous
 - [ADR-0007 — Private image admission with managed GitHub tooling](ADR-0007-private-image-admission.md): contract and scanner preparation accepted; activation BLOCKED
 
 - [ADR-0008 — Bounded SeaweedFS S3 derivative profile](ADR-0008-seaweed-s3-derivative-profile.md): profile contract accepted; concrete recipe and all construction/admission gates remain pending
+
+- [ADR-0009 — Fixed private runtime evidence descriptor handoff](ADR-0009-private-runtime-evidence-fd-handoff.md): archive transport contract accepted; implementation/native proof and full archive closure remain pending
