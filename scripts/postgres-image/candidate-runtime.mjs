@@ -86,7 +86,7 @@ function snapshotValue(value) {
     || !value.dockerConfig.startsWith(`${value.parent}${path.sep}`)
     || !plain(value.config) || !isDeepStrictEqual(value.config.Entrypoint, ["docker-entrypoint.sh"])
     || !isDeepStrictEqual(value.config.Cmd, ["postgres"]) || !["", "0", "0:0"].includes(value.config.User)
-    || environment(value.config.Env).PGDATA !== PGDATA || value.config.WorkingDir !== ""
+    || environment(value.config.Env).PGDATA !== PGDATA || value.config.WorkingDir !== "/"
     || !plain(value.config.Volumes) || !isDeepStrictEqual(Object.keys(value.config.Volumes), [PGDATA])) {
     fail("postgres_runtime_context_invalid");
   }
