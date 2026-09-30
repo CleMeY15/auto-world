@@ -43,6 +43,8 @@ const SCANNER_PHASE_NAMES = Object.freeze([
   "private_docker_save", "full_archive_validation", "private_archive_callback", "owned_docker_cleanup",
   "owned_temporary_cleanup",
 ]);
+const RUNTIME_PHASE_NAMES = Object.freeze(SCANNER_PHASE_NAMES.map((name) =>
+  name === "private_archive_callback" ? "runtime_diagnostics" : name));
 const PUBLICATION_PHASE_NAMES = Object.freeze([
   "checkout_and_source_closure", "protected_main_before_credentials", "managed_tool_identity",
   "local_collision_and_inventory", "exact_public_base_manifest", "exact_public_base_pull",
@@ -82,6 +84,16 @@ function isInspectionFailure(error) {
     && error.code === "postgres_candidate_inspection_failed" && error.state === "INCOMPLETE"
     && error.authority === "PREPARATION_ONLY" && error.candidateAuthorization === "NOT_AUTHORIZED"
     && Object.keys(error).sort().join("|") === "authority|candidateAuthorization|code|state";
+}
+function runtimeMaterialFailure({ inspectionFailed, primaryFailure, runtimeCleanupFailure,
+  imageCleanupFailure, temporaryCleanupFailure }) {
+  const code = runtimeCleanupFailure || imageCleanupFailure || temporaryCleanupFailure
+    ? "postgres_remote_runtime_cleanup_uncertain" : "postgres_remote_runtime_material_failed";
+  return Object.assign(new Error(code), { code, inspectionFailed, primaryFailure,
+    runtimeCleanupFailure, imageCleanupFailure, temporaryCleanupFailure });
+}
+function runtimeDiagnosticsFailure(cleanupFailure) {
+  return new Error(cleanupFailure ?? "postgres_remote_runtime_diagnostics_failed");
 }
 function cloneFrozen(value) {
   if (Array.isArray(value)) return Object.freeze(value.map(cloneFrozen));
@@ -368,7 +380,7 @@ export function validatePostgresRemotePublicationReceipt(receipt, policyInput) {
   return cloneFrozen(receipt);
 }
 
-function validateRemoteReceipt(receipt, policyInput) {
+function validateRemoteReceipt(receipt, policyInput, contract) {
   const policy = validatePostgresRemotePolicy(policyInput);
   if (!exactKeys(receipt, ["kind", "state", "authority", "publication", "registryWrite", "vulnerabilityAudit",
     "imageExecution", "admission", "supportStartedAt", "supportEndsAt", "archiveUntil", "runId",
@@ -380,10 +392,10 @@ function validateRemoteReceipt(receipt, policyInput) {
     || !exactKeys(receipt.image, ["imageId", "diffIds", "platform"])
     || !exactKeys(receipt.archive, ["state", "imageId", "diffIds", "archiveSha256", "archiveBytes", "saveResponse"])
     || !exactKeys(receipt.publisher, ["result", "runId", "recipeRevision", "receiptSha256", "receiptBytes"])
-    || receipt.kind !== "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1"
-    || receipt.state !== "VERIFIED" || receipt.authority !== "REMOTE_READ_ONLY"
+    || receipt.kind !== contract.kind
+    || receipt.state !== "VERIFIED" || receipt.authority !== contract.authority
     || receipt.publication !== "PUBLISHED_UNADMITTED" || receipt.registryWrite !== "NOT_ATTEMPTED"
-    || receipt.vulnerabilityAudit !== "NOT_ATTEMPTED" || receipt.imageExecution !== "NOT_ATTEMPTED"
+    || receipt.vulnerabilityAudit !== "NOT_ATTEMPTED" || receipt.imageExecution !== contract.imageExecution
     || receipt.admission !== "NOT_AUTHORIZED" || receipt.supportStartedAt !== null
     || receipt.supportEndsAt !== null || receipt.archiveUntil !== null
     || !RUN_ID.test(receipt.runId) || !REVISION.test(receipt.recipeRevision)
@@ -411,21 +423,33 @@ function validateRemoteReceipt(receipt, policyInput) {
     || receipt.publisher?.recipeRevision !== policy.publisher.recipeRevision
     || receipt.publisher?.receiptSha256 !== policy.publisher.receiptSha256
     || receipt.publisher?.receiptBytes !== policy.publisher.receiptBytes
-    || !Array.isArray(receipt.phases) || receipt.phases.length !== SCANNER_PHASE_NAMES.length
-    || !sameArray(receipt.phases.map((phase) => phase?.name), SCANNER_PHASE_NAMES)
+    || !Array.isArray(receipt.phases) || receipt.phases.length !== contract.phases.length
+    || !sameArray(receipt.phases.map((phase) => phase?.name), contract.phases)
     || receipt.phases.some((phase) => !exactKeys(phase, ["name", "result", "durationMs"])
       || typeof phase.name !== "string" || phase.name.length < 1 || phase.name.length > 128
       || phase.result !== "PASSED" || !Number.isSafeInteger(phase.durationMs) || phase.durationMs < 0)) {
-    fail("postgres_remote_candidate_receipt_invalid");
+    fail(contract.invalidCode);
   }
   return cloneFrozen(receipt);
 }
 
 export function validatePostgresRemoteCandidateReceipt(receipt, policyInput) {
-  return validateRemoteReceipt(receipt, policyInput);
+  return validateRemoteReceipt(receipt, policyInput, {
+    kind: "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1", authority: "REMOTE_READ_ONLY",
+    imageExecution: "NOT_ATTEMPTED", phases: SCANNER_PHASE_NAMES,
+    invalidCode: "postgres_remote_candidate_receipt_invalid",
+  });
 }
 
-async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependencies) {
+export function validatePostgresRemoteRuntimeMaterialReceipt(receipt, policyInput) {
+  return validateRemoteReceipt(receipt, policyInput, {
+    kind: "POSTGRES_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1", authority: "DIAGNOSTIC_ONLY",
+    imageExecution: "VERIFIED_DIAGNOSTIC", phases: RUNTIME_PHASE_NAMES,
+    invalidCode: "postgres_remote_runtime_material_receipt_invalid",
+  });
+}
+
+async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependencies, lane) {
   const input = validateInput(inputValue);
   if (typeof inspectMaterial !== "function" || !plain(dependencies)
     || Object.keys(dependencies).some((key) => !["commandRunner", "saveRunner", "validateArchive", "now", "platform", "env"].includes(key))) {
@@ -461,7 +485,8 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
     try { const result = await operation(); phases.push({ name, result: "PASSED", durationMs: now() - phaseStarted }); return result; }
     catch (error) { phases.push({ name, result: "FAILED", reason: fixedReason(error), durationMs: now() - phaseStarted }); throw error; }
   };
-  let primaryFailure; let result;
+  let primaryFailure; let result; let inspectedResult; let inspectionFailed = false;
+  let runtimeCleanupFailure = null; let runtimeConfig;
   let priorIds = []; let pullAttempted = false; let owned = false; let tagged = false;
   try {
     const version = bounded((await phase("managed_engine", () => run(commandRunner, "docker",
@@ -504,17 +529,24 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
     if (sameArray(idsAfterPull, expectedInventory(priorIds, policy.candidate.imageId))) {
       const inspected = observe(commandRunner, "docker", ["image", "inspect", "--format", "{{json .}}", policy.subject], options(authBase));
       if (inspected.status === 0) {
-        validatePostgresRemoteImage(inspected.stdout, policy);
+        const image = validatePostgresRemoteImage(inspected.stdout, policy);
         owned = true;
+        if (lane === "runtime") {
+          if (!plain(image.config)) fail("postgres_remote_candidate_image_invalid");
+          runtimeConfig = cloneFrozen(image.config);
+        }
       }
     }
     if (!owned) fail("postgres_remote_candidate_pull_ownership_unverified");
     const pullResponse = pullResult.error || pullResult.status !== 0 ? "FAILED_BUT_EXACT_STATE_CONFIRMED" : "SUCCESS";
     await phase("simple_local_alias", () => {
       const response = observe(commandRunner, "docker", ["image", "tag", policy.subject, alias], options(authBase));
-      validatePostgresRemoteImage(run(commandRunner, "docker",
+      const image = validatePostgresRemoteImage(run(commandRunner, "docker",
         ["image", "inspect", "--format", "{{json .}}", policy.subject], options(authBase)).stdout, policy, alias);
       tagged = true;
+      if (lane === "runtime" && JSON.stringify(image.config) !== JSON.stringify(runtimeConfig)) {
+        fail("postgres_remote_candidate_image_invalid");
+      }
       if (response.error || response.status !== 0) fail("postgres_remote_candidate_alias_failed");
       return true;
     });
@@ -538,15 +570,31 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
         expectedDiffIds: policy.candidate.diffIds, expectedLayers: 12 },
     )), policy, alias);
     const saveResponse = saveResult.error || saveResult.status !== 0 ? "FAILED_BUT_EXACT_ARCHIVE_CONFIRMED" : "SUCCESS";
-    const snapshot = Object.freeze({ file: archiveFile, archiveProof, policy, subject: policy.subject,
-      imageId: policy.candidate.imageId, diffIds: policy.candidate.diffIds, runId: input.runId,
-      recipeRevision: input.recipeRevision, signal: operationController.signal });
-    await phase("private_archive_callback", async () => {
-      try { await inspectMaterial(snapshot); } catch { throw inspectionFailure(); }
+    const snapshot = lane === "runtime"
+      ? Object.freeze({ parent: work, dockerConfig: auth, config: runtimeConfig,
+        imageId: policy.candidate.imageId, diffIds: cloneFrozen(policy.candidate.diffIds), subject: policy.subject,
+        archiveProof, runId: input.runId, recipeRevision: input.recipeRevision, signal: operationController.signal })
+      : Object.freeze({ file: archiveFile, archiveProof, policy, subject: policy.subject,
+        imageId: policy.candidate.imageId, diffIds: policy.candidate.diffIds, runId: input.runId,
+        recipeRevision: input.recipeRevision, signal: operationController.signal });
+    await phase(lane === "runtime" ? "runtime_diagnostics" : "private_archive_callback", async () => {
+      try { inspectedResult = await inspectMaterial(snapshot); } catch (error) {
+        inspectionFailed = true;
+        if (lane === "runtime") {
+          if (error?.message === "postgres_runtime_cleanup_uncertain") {
+            runtimeCleanupFailure = "postgres_remote_runtime_cleanup_uncertain";
+          }
+          throw runtimeDiagnosticsFailure(runtimeCleanupFailure);
+        }
+        throw inspectionFailure();
+      }
     });
-    result = { kind: "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
-      authority: "REMOTE_READ_ONLY", publication: "PUBLISHED_UNADMITTED", registryWrite: "NOT_ATTEMPTED",
-      vulnerabilityAudit: "NOT_ATTEMPTED", imageExecution: "NOT_ATTEMPTED", admission: "NOT_AUTHORIZED",
+    result = { kind: lane === "runtime" ? "POSTGRES_REMOTE_RUNTIME_MATERIAL_RECEIPT_V1"
+      : "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+      authority: lane === "runtime" ? "DIAGNOSTIC_ONLY" : "REMOTE_READ_ONLY",
+      publication: "PUBLISHED_UNADMITTED", registryWrite: "NOT_ATTEMPTED",
+      vulnerabilityAudit: "NOT_ATTEMPTED", imageExecution: lane === "runtime" ? "VERIFIED_DIAGNOSTIC" : "NOT_ATTEMPTED",
+      admission: "NOT_AUTHORIZED",
       supportStartedAt: null, supportEndsAt: null, archiveUntil: null,
       runId: input.runId, recipeRevision: input.recipeRevision,
       subject: policy.subject, alias, remoteManifest: manifest,
@@ -600,6 +648,7 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
     ...(cleanupFailures.length ? { reasons: cleanupFailures } : {}), durationMs: now() - cleanupStarted });
   let temporaryFailure; const temporaryStarted = now();
   try {
+    if (runtimeCleanupFailure) fail("postgres_remote_candidate_temporary_cleanup_failed");
     if (!existsSync(work) || lstatSync(work).isSymbolicLink() || realpathSync(work) !== work
       || path.dirname(work) !== input.parent) fail("postgres_remote_candidate_temporary_cleanup_failed");
     rmSync(work, { recursive: true, force: false });
@@ -607,15 +656,30 @@ async function withRemotePostgresMaterial(inputValue, inspectMaterial, dependenc
   } catch (error) { temporaryFailure = error; }
   phases.push({ name: "owned_temporary_cleanup", result: temporaryFailure ? "FAILED" : "PASSED",
     ...(temporaryFailure ? { reason: fixedReason(temporaryFailure) } : {}), durationMs: now() - temporaryStarted });
+  if (lane === "runtime" && (primaryFailure || cleanupFailures.length || temporaryFailure)) {
+    throw runtimeMaterialFailure({ inspectionFailed, runtimeCleanupFailure,
+      primaryFailure: primaryFailure
+        ? inspectionFailed ? runtimeCleanupFailure ?? "postgres_remote_runtime_diagnostics_failed"
+          : fixedReason(primaryFailure) : null,
+      imageCleanupFailure: cleanupFailures[0] ?? null,
+      temporaryCleanupFailure: temporaryFailure ? fixedReason(temporaryFailure) : null });
+  }
   if (cleanupFailures.length) throw new Error(cleanupFailures[0]);
   if (temporaryFailure) throw new Error(fixedReason(temporaryFailure));
   if (primaryFailure) {
     if (isInspectionFailure(primaryFailure)) throw primaryFailure;
     throw new Error(fixedReason(primaryFailure));
   }
+  if (lane === "runtime") return Object.freeze({
+    material: validatePostgresRemoteRuntimeMaterialReceipt(result, policy), runtime: inspectedResult,
+  });
   return validatePostgresRemoteCandidateReceipt(result, policy);
 }
 
 export function withVerifiedRemotePostgresCandidate(input, inspectArchive, dependencies = {}) {
-  return withRemotePostgresMaterial(input, inspectArchive, dependencies);
+  return withRemotePostgresMaterial(input, inspectArchive, dependencies, "scanner");
+}
+
+export function withVerifiedRemotePostgresRuntimeMaterial(input, runDiagnostics, dependencies = {}) {
+  return withRemotePostgresMaterial(input, runDiagnostics, dependencies, "runtime");
 }
