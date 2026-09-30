@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workflow = JSON.parse(await readFile(new URL(
-  "../.github/workflows/postgres-candidate-remote-runtime-diagnostic.yml", import.meta.url), "utf8"));
+  "../.github/workflows/postgres-candidate-remote-runtime-diagnostic-v2.yml", import.meta.url), "utf8"));
 const policy = JSON.parse(await readFile(new URL(
   "../infra/postgres-image/candidate-runtime.json", import.meta.url), "utf8"));
 const runtime = workflow.jobs.runtime;
@@ -13,7 +13,7 @@ test("remote PostgreSQL runtime has one input-free first-main diagnostic with re
   assert.deepEqual(workflow.on, { workflow_dispatch: {} });
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(workflow.concurrency,
-    { group: "postgres-candidate-remote-runtime-diagnostic", "cancel-in-progress": false });
+    { group: "postgres-candidate-remote-runtime-diagnostic-v2", "cancel-in-progress": false });
   assert.deepEqual(Object.keys(workflow.jobs), ["runtime"]);
   assert.equal(runtime.if, "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}");
   assert.equal(runtime["runs-on"], "ubuntu-24.04");
@@ -30,7 +30,7 @@ test("runtime requires hosted first dispatch, exact clean source and pinned mana
     ["GITHUB_REPOSITORY", "CleMeY15/auto-world"], ["RUNNER_ENVIRONMENT", "github-hosted"],
     ["GITHUB_EVENT_NAME", "workflow_dispatch"], ["GITHUB_REF", "refs/heads/main"],
     ["GITHUB_RUN_NUMBER", "1"], ["GITHUB_RUN_ATTEMPT", "1"],
-    ["GITHUB_WORKFLOW_REF", "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic.yml@refs/heads/main"],
+    ["GITHUB_WORKFLOW_REF", "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic-v2.yml@refs/heads/main"],
   ]) assert.ok(guard.includes(`test "$${variable}" = '${value}'`));
   assert.match(guard, /^set -euo pipefail$/mu);
   assert.match(steps[1].run, /test "\$available_kib" -ge 6291456/u);

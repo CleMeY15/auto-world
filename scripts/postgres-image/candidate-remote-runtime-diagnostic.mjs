@@ -8,6 +8,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import * as remoteCandidate from "./candidate-remote.mjs";
 import { validatePostgresRemoteAuditArtifact, verifyPostgresRemoteAuditMain } from "./candidate-remote-audit.mjs";
+import { postgresRuntimeFailureDiagnostic, validatePostgresRuntimeFailureDiagnostic } from "./candidate-runtime.mjs";
 import { validateDatabaseMetadata } from "../scanner/audit-policy.mjs";
 import { validateDiagnosticLock } from "./diagnostic.mjs";
 
@@ -15,7 +16,7 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const POLICY_PATH = "infra/postgres-image/candidate-runtime.json";
 const REMOTE_POLICY_PATH = "infra/postgres-image/candidate-remote.json";
 const PUBLICATION_PATH = "infra/postgres-image/candidate-publication-receipt.json";
-const WORKFLOW_REF = "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic.yml@refs/heads/main";
+const WORKFLOW_REF = "CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic-v2.yml@refs/heads/main";
 const AUDIT_WORKFLOW = ".github/workflows/postgres-candidate-remote-audit.yml";
 const MiB = 1024 ** 2;
 const MAX_RECEIPT_BYTES = 256 * 1024;
@@ -59,8 +60,14 @@ function identityValid(value, cap = 64 * MiB) {
 }
 function fixedReason(error) { return FAILURE_CODES.has(error?.message) ? error.message : "postgres_remote_runtime_failed"; }
 function unsafeCleanup(error) {
-  return /(?:cleanup|ownership|resource_identity|container_identity)/u.test(error?.message ?? "")
-    || /(?:cleanup|ownership|resource_identity|container_identity)/u.test(error?.code ?? "");
+  return [error?.message, error?.code, error?.runtimeDiagnostic?.code].some((value) =>
+    typeof value === "string" && /(?:cleanup|ownership|resource_identity|container_identity)/u.test(value));
+}
+function failureRecord(error) {
+  const detail = error?.runtimeDiagnostic;
+  const runtimeDiagnostic = detail == null ? null : validatePostgresRuntimeFailureDiagnostic(
+    postgresRuntimeFailureDiagnostic({ message: detail.code, phase: detail.phase }));
+  return { code: unsafeCleanup(error) ? "postgres_remote_runtime_cleanup_uncertain" : fixedReason(error), runtimeDiagnostic };
 }
 function pathPresent(file) {
   try { lstatSync(file); return true; }
@@ -334,8 +341,16 @@ export async function validatePostgresRemoteRuntimeDiagnosticArtifact(context, d
       || !bytes.equals(Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`)) || SENSITIVE.test(bytes.toString("utf8"))) {
       fail("postgres_remote_runtime_receipt_invalid");
     }
-    if (receipt.failure !== null && (!exactKeys(receipt.failure, ["code"]) || fixedReason({ message: receipt.failure.code }) !== receipt.failure.code
-      || unsafeCleanup({ message: receipt.failure.code }))) fail("postgres_remote_runtime_cleanup_uncertain");
+    if (receipt.failure !== null) {
+      if (unsafeCleanup({ message: receipt.failure.code, runtimeDiagnostic: receipt.failure.runtimeDiagnostic })) {
+        fail("postgres_remote_runtime_cleanup_uncertain");
+      }
+      if ((!exactKeys(receipt.failure, ["code"]) && !exactKeys(receipt.failure, ["code", "runtimeDiagnostic"]))
+        || fixedReason({ message: receipt.failure.code }) !== receipt.failure.code) fail("postgres_remote_runtime_receipt_invalid");
+      if (Object.hasOwn(receipt.failure, "runtimeDiagnostic") && receipt.failure.runtimeDiagnostic !== null) {
+        validatePostgresRuntimeFailureDiagnostic(receipt.failure.runtimeDiagnostic);
+      }
+    }
     const source = authenticatePostgresRemoteRuntimeSource(context, dependencies);
     if (receipt.subject !== source.runtimePolicy.subject || receipt.audit !== null
       && !isDeepStrictEqual(receipt.audit, auditSummary(source.runtimePolicy))) fail("postgres_remote_runtime_receipt_invalid");
@@ -415,14 +430,13 @@ export async function runPostgresRemoteRuntimeDiagnostic(argv = process.argv.sli
   }
   const receipt = error ? { ...newReceipt(context, source?.runtimePolicy.subject ?? remoteCandidate.validatePostgresRemotePolicy(
     parseJson((dependencies.readCommitted ?? committedBytes)(REMOTE_POLICY_PATH, 128 * 1024, context, dependencies.commandRunner ?? defaultCommandRunner))).subject,
-  source ? auditSummary(source.runtimePolicy) : null), failure: { code: unsafeCleanup(error)
-    ? "postgres_remote_runtime_cleanup_uncertain" : fixedReason(error) } } : result;
+  source ? auditSummary(source.runtimePolicy) : null), failure: failureRecord(error) } : result;
   writeReceipt(context, receipt);
   if (error) throw error;
   return receipt;
 }
 function publicFailure(error) {
-  return JSON.stringify({ state: "INCOMPLETE", code: unsafeCleanup(error) ? "postgres_remote_runtime_cleanup_uncertain" : fixedReason(error),
+  return JSON.stringify({ state: "INCOMPLETE", ...failureRecord(error),
     authority: "DIAGNOSTIC_ONLY", admission: "NOT_AUTHORIZED" });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

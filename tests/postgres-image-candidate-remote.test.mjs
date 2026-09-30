@@ -508,11 +508,12 @@ test("runtime callback errors are masked after confirmed image and temporary cle
     }, value.dependencies), (error) => {
       assert.equal(error.message, "postgres_remote_runtime_material_failed");
       assert.deepEqual(Object.keys(error).sort(), ["code", "imageCleanupFailure", "inspectionFailed",
-        "primaryFailure", "runtimeCleanupFailure", "temporaryCleanupFailure"]);
+        "primaryFailure", "runtimeCleanupFailure", "runtimeDiagnostic", "temporaryCleanupFailure"]);
       assert.equal(error.code, "postgres_remote_runtime_material_failed");
       assert.equal(error.inspectionFailed, true);
       assert.equal(error.primaryFailure, "postgres_remote_runtime_diagnostics_failed");
       assert.equal(error.runtimeCleanupFailure, null);
+      assert.deepEqual(error.runtimeDiagnostic, { code: "postgres_runtime_failed", phase: "CONTEXT" });
       assert.equal(error.imageCleanupFailure, null);
       assert.equal(error.temporaryCleanupFailure, null);
       assert.equal(JSON.stringify(error).includes("private-test-token"), false);
@@ -522,6 +523,43 @@ test("runtime callback errors are masked after confirmed image and temporary cle
     assert.equal(value.calls.filter(({ args }) => args[0] === "image" && args[1] === "rm").length, 2);
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
+
+test("runtime provider retains only exact runtime codes and bounded phases without subprocess details",
+  { skip: !linux }, async () => {
+    const cases = [
+      ...["CONTEXT", "GOSU_PROBE", "VOLUME_CREATE", "SERVICE_ONE", "SERVICE_TWO", "CLEANUP"].map((phase) =>
+        ["postgres_runtime_command_failed", phase, { code: "postgres_runtime_command_failed", phase }]),
+      ["postgres_runtime_readiness_timeout", "SERVICE_ONE", { code: "postgres_runtime_readiness_timeout", phase: "SERVICE_ONE" }],
+      ["postgres_runtime_readback_invalid", "SERVICE_TWO", { code: "postgres_runtime_readback_invalid", phase: "SERVICE_TWO" }],
+      ["postgres_runtime_readback_invalid", "private-test-token", { code: "postgres_runtime_readback_invalid", phase: "CONTEXT" }],
+      ["postgres_runtime_forged_private_test_token", undefined, { code: "postgres_runtime_failed", phase: "CONTEXT" }],
+      ["postgres_runtime_forged_private_test_token", "SERVICE_TWO", { code: "postgres_runtime_failed", phase: "SERVICE_TWO" }],
+      ["postgres_runtime_readiness_timeout private-test-token", undefined, { code: "postgres_runtime_failed", phase: "CONTEXT" }],
+      ["private-test-token and private output", undefined, { code: "postgres_runtime_failed", phase: "CONTEXT" }],
+    ];
+    for (const [message, phase, expected] of cases) {
+      const value = harness();
+      try {
+        await assert.rejects(withVerifiedRemotePostgresRuntimeMaterial(value.input, async () => {
+          throw Object.assign(new Error(message), { phase, code: "postgres_runtime_readiness_timeout",
+            stdout: "private-test-token", stderr: "private subprocess output", cause: new Error("private-test-token"),
+            runtimeDiagnostic: { code: "private-test-token", phase: "private-test-token" } });
+        }, value.dependencies), (error) => {
+          assert.equal(error.code, "postgres_remote_runtime_material_failed");
+          assert.equal(error.primaryFailure, "postgres_remote_runtime_diagnostics_failed");
+          assert.equal(error.runtimeCleanupFailure, null);
+          assert.deepEqual(error.runtimeDiagnostic, expected);
+          assert.deepEqual(Object.keys(error.runtimeDiagnostic).sort(), ["code", "phase"]);
+          assert.equal(Object.isFrozen(error.runtimeDiagnostic), true);
+          assert.equal(JSON.stringify(error).includes("private-test-token"), false);
+          assert.equal(JSON.stringify(error).includes("private subprocess output"), false);
+          assert.equal(Object.hasOwn(error, "cause"), false);
+          return true;
+        });
+        assert.deepEqual(readdirSync(value.parent), []);
+      } finally { rmSync(value.parent, { recursive: true, force: true }); }
+    }
+  });
 
 test("runtime cleanup uncertainty preserves the private residual regardless of image cleanup", { skip: !linux }, async () => {
   for (const cleanupFailure of [false, true]) {
@@ -533,12 +571,13 @@ test("runtime cleanup uncertainty preserves the private residual regardless of i
         mkdirSync(runtimeDirectory, { mode: 0o700 });
         residual = path.join(runtimeDirectory, "private-residual");
         writeFileSync(residual, "private runtime residual", { mode: 0o600 });
-        throw new Error("postgres_runtime_cleanup_uncertain");
+        throw Object.assign(new Error("postgres_runtime_cleanup_uncertain"), { phase: "CLEANUP", stdout: "private runtime residual" });
       }, value.dependencies), (error) => {
         assert.equal(error.code, "postgres_remote_runtime_cleanup_uncertain");
         assert.equal(error.inspectionFailed, true);
         assert.equal(error.primaryFailure, "postgres_remote_runtime_cleanup_uncertain");
         assert.equal(error.runtimeCleanupFailure, "postgres_remote_runtime_cleanup_uncertain");
+        assert.deepEqual(error.runtimeDiagnostic, { code: "postgres_runtime_cleanup_uncertain", phase: "CLEANUP" });
         assert.equal(error.imageCleanupFailure, cleanupFailure ? "postgres_remote_candidate_image_cleanup_failed" : null);
         assert.equal(error.temporaryCleanupFailure, "postgres_remote_candidate_temporary_cleanup_failed");
         assert.equal(JSON.stringify(error).includes("private runtime residual"), false);
@@ -583,6 +622,7 @@ test("temporary cleanup failure forbids a runtime material result after successf
         assert.equal(error.inspectionFailed, false);
         assert.equal(error.primaryFailure, null);
         assert.equal(error.runtimeCleanupFailure, null);
+        assert.equal(error.runtimeDiagnostic, null);
         assert.equal(error.imageCleanupFailure, null);
         assert.equal(error.temporaryCleanupFailure, "postgres_remote_candidate_temporary_cleanup_failed");
         return true;
@@ -599,6 +639,7 @@ test("failed exact pull without material never reaches runtime or removes a fore
       assert.equal(error.inspectionFailed, false);
       assert.equal(error.primaryFailure, "postgres_remote_candidate_pull_ownership_unverified");
       assert.equal(error.runtimeCleanupFailure, null);
+      assert.equal(error.runtimeDiagnostic, null);
       assert.equal(error.imageCleanupFailure, null);
       assert.equal(error.temporaryCleanupFailure, null);
       return true;

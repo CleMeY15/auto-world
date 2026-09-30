@@ -1,11 +1,11 @@
 {
-  "name": "PostgreSQL exact private candidate remote runtime diagnostic",
+  "name": "PostgreSQL exact private candidate remote runtime diagnostic V2",
   "on": {
     "workflow_dispatch": {}
   },
   "permissions": {},
   "concurrency": {
-    "group": "postgres-candidate-remote-runtime-diagnostic",
+    "group": "postgres-candidate-remote-runtime-diagnostic-v2",
     "cancel-in-progress": false
   },
   "jobs": {
@@ -23,7 +23,7 @@
           "name": "Require the first reviewed protected main dispatch",
           "timeout-minutes": 2,
           "shell": "bash",
-          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic.yml@refs/heads/main'"
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-runtime-diagnostic-v2.yml@refs/heads/main'"
         },
         {
           "name": "Require reviewed managed Docker identity and capacity",
