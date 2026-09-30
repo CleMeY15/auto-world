@@ -1,6 +1,6 @@
 # TASK-0005A — Exact remote PostgreSQL candidate read
 
-Status: REMOTE_READ_VERIFIED, NOT_AUDITED, NOT_ADMITTED. The [V4 publication](TASK-0005A-POSTGRES-CANDIDATE-PUBLICATION.md) established one Private staging subject, not an admitted or supported image.
+Status: REMOTE_READ_VERIFIED. This read receipt does not establish an audit or admission. The subsequent [independent native audit](TASK-0005A-POSTGRES-REMOTE-AUDIT.md) is recorded separately. The [V4 publication](TASK-0005A-POSTGRES-CANDIDATE-PUBLICATION.md) established one Private staging subject, not an admitted or supported image.
 
 ## Retained V1 failure
 

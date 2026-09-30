@@ -1,6 +1,6 @@
 # TASK-0005A — Exact remote PostgreSQL vulnerability audit
 
-Status: IMPLEMENTATION_PREPARED, NATIVE_AUDIT_PENDING, NOT_ADMITTED.
+Status: NATIVE_AUDIT_VERIFIED, DIAGNOSTIC_ONLY, NOT_ADMITTED.
 
 ## Subject and authority
 
@@ -30,10 +30,22 @@ Rollback removes or disables this diagnostic definition and restores the shared 
 
 ## Native evidence
 
-No native audit outcome is recorded yet. Ordinary quality tests and prior local/archive scans do not establish a fresh audit of this remote digest. TASK-0005A and TASK-0005 remain in progress; TASK-0006 remains dependent on their completion.
+The first and only [native run `36673766454`](https://github.com/CleMeY15/auto-world/actions/runs/36673766454), number 1/attempt 1, **PASSED** on protected main `5186a241f9ab28add4098648aa4bc56d36b5e6dc`. [PR111](https://github.com/CleMeY15/auto-world/pull/111) added the audit path, [PR112](https://github.com/CleMeY15/auto-world/pull/112) repaired four transitive tooling advisories, and [PR113](https://github.com/CleMeY15/auto-world/pull/113) corrected the real scanner report-field boundary. Fresh non-root Linux checks passed 921 root tests with no failures/skips, package checks/builds, secrets and dependency audit; independent exact-head implementation/privacy review and exact-head/main quality CI passed before dispatch.
+
+Both independent source builds passed all twelve build phases and produced the same 168,288,382-byte scanner binary, SHA-256 `1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d`, against lock SHA-256 `7d8b09739a3d1b79e11cb12e4fbf7433aded0a5dc1bbb9104f8dd973620c1251`. Artifacts `11079407591` and `11079685750` retain their separate receipts, closure and build metadata. The new pair has 473 closure modules and matching 375-dependency compiled inventories. These are fresh same-run build proofs, independent of the historical failed workflow whose individually passing builds supported the local simulation.
+
+The audit job passed rematerialization, scanner controls, candidate JSON/CycloneDX scans, policy evaluation and the separate cleanup/artifact validator. Its receipt is `COMPLETE` with zero findings/blockers, two results, 50 packages and 52 SBOM components. The subject remains the exact V4 remote digest, config ID and twelve ordered DiffIDs. The private saved archive was 305,474,048 bytes, SHA-256 `837c5df7e15981aaea515c5ce943a37307c138fff68c41e6c0b4c040e563bc18`; this runner-specific archive identity does not replace the remote manifest digest. All fourteen provider phases passed, including private archive/image/authentication cleanup. All twelve scanner-owned container records are `OWNED_CONTAINER_ABSENT`.
+
+The frozen vulnerability database was updated at `2026-09-30T01:15:45.849462612Z` and downloaded at `2026-09-30T05:45:22.61134751Z`, within the 48-hour gate. Java metadata records update `2026-09-30T00:59:00.480851969Z` and download `2026-09-30T05:46:00.457194665Z`, with no maximum-age rejection. Before/after registry manifests and complete frozen-file identities are retained. Self/inventory/version, vulnerable Go/Java and clean Java controls all passed against those same databases.
+
+The public technical artifact `11079393568` contains exactly the sixteen approved files. Its independently downloaded 1,729,322-byte ZIP has SHA-256 `4af33dc1223aa8264379ec201ded916cdcc39a2288859e505ecca878498c1b42`, matching the API digest. The 16,477-byte receipt has SHA-256 `93c7a582105c7e56aaa5091a4d589cb701ecebc64a9527d8eff40d684252cfbb`. Extracted reports were replayed through the production artifact validator with the authenticated native context, including report/metadata hashes and vulnerability policy. Originals, ZIP and extracted reports are retained privately in the ignored `postgres-candidate-remote-audit-36673766454` cache; no image archive or layers were uploaded.
+
+The workflow was disabled immediately after its only dispatch, preventing further launches while the accepted run finished. Package `15408021` remains Private with exactly bootstrap plus candidate. The audit receipt says `imageExecution=NOT_ATTEMPTED`, `registryWrite=NOT_ATTEMPTED`, `admission=NOT_AUTHORIZED` and null support/archive dates. The old carrier remains diagnostic and unadmitted. TASK-0005A and TASK-0005 stay in progress; TASK-0006 waits. The next gate is an explicit runtime diagnostic of this same digest, followed by private copy/restore, official signing and reviewed admission. Freshness must be rechecked before execution.
 
 ## Local artifact-boundary reproduction
 
 The non-root Docker 28.0.4 simulation on merged implementation `10fb69f5d181c8281a20822eecf1a3006e589e4b` independently rematerialized the exact private digest and completed the scanner controls and candidate scans with zero findings/blockers (2 results, 50 packages, 52 SBOM components). It used the current-lock retained scanner builds from run `36343617867` and injected only the protected-main response for the local context. Those two builds passed individually; their historical workflow result was a failure and is not reclassified.
 
 The subsequent cleanup CLI rejected the public artifact boundary, so this simulation did not establish a successful complete CLI run or a native audit. The real Trivy JSON includes `ReportID` (UUIDv7) and the candidate's internal `ArtifactID` (SHA-256); both CycloneDX reports include `$schema` for version 1.7. The original top-level allowlist omitted these fields. The correction validates their formats and binds the schema URI to its supported `specVersion`, retaining the closed file/field boundary and all report hashes. Trivy's internal artifact identity is distinct from the authoritative image config ID. Regression cases rehash malformed identity and schema values into the receipt and still require rejection. No private archive, candidate execution, registry write or support activation is authorized by this correction.
+
+After the correction, the real cleanup CLI and an independent read-only replay accepted the same sixteen retained reports without changing them or rerunning the scans. The original failure log remains preserved beside the separate `CLEANED` result. The native outcome above came from its own fresh same-run builds, databases and exact-digest retrieval.
