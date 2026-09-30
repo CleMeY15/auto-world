@@ -142,19 +142,31 @@ function workSession(input) {
   const uid = process.getuid(); const gid = process.getgid(); const folder = input.workDirectory;
   validatePostgresPrivateExt4Storage(folder); const stat = lstatSync(folder, { bigint: true });
   if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync(folder) !== folder || stat.uid !== BigInt(uid) || stat.gid !== BigInt(gid)
-    || (stat.mode & 0o7777n) !== 0o700n || statfsSync(folder, { bigint: true }).type !== 0xef53n || readdirSync(folder).length !== 0) fail("storage_invalid");
+    || (stat.mode & 0o7777n) !== 0o700n || statfsSync(folder, { bigint: true }).type !== 0xef53n) fail("storage_invalid");
+  const initialEntries = readdirSync(folder);
+  if (initialEntries.length > 1 || initialEntries.some((name) => name !== "audit-evidence")) fail("storage_invalid");
   const fileProof = (v) => ({ dev: v.dev, ino: v.ino, uid: v.uid, gid: v.gid, mode: v.mode, nlink: v.nlink, size: v.size, mtimeNs: v.mtimeNs, ctimeNs: v.ctimeNs });
   const directoryProof = (v) => ({ dev: v.dev, ino: v.ino, uid: v.uid, gid: v.gid, mode: v.mode });
+  let audit;
+  if (initialEntries.length === 1) { const file = path.join(folder, "audit-evidence"); const current = lstatSync(file, { bigint: true });
+    if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(file) !== file || current.uid !== BigInt(uid) || current.gid !== BigInt(gid)
+      || (current.mode & 0o7777n) !== 0o700n) fail("storage_invalid");
+    audit = { file, proof: directoryProof(current) }; }
   const anchors = new Map(); let ancestor = folder;
+  if (audit) anchors.set(audit.file, audit.proof);
   while (true) { const current = lstatSync(ancestor, { bigint: true });
     if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(ancestor) !== ancestor) fail("storage_invalid");
     anchors.set(ancestor, directoryProof(current)); const parent = path.dirname(ancestor); if (parent === ancestor) break; ancestor = parent; }
   const fd = openSync(folder, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW); const envs = []; let backup;
+  let auditFd;
+  try { if (audit) auditFd = openSync(audit.file, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW); }
+  catch (error) { try { closeSync(fd); } catch { fail("cleanup_uncertain"); } throw error; }
   const check = () => {
     if (!isDeepStrictEqual(directoryProof(fstatSync(fd, { bigint: true })), directoryProof(stat))) fail("files_changed");
+    if (audit && !isDeepStrictEqual(directoryProof(fstatSync(auditFd, { bigint: true })), audit.proof)) fail("files_changed");
     for (const [file, proof] of anchors) { const current = lstatSync(file, { bigint: true }); if (!current.isDirectory() || current.isSymbolicLink()
       || realpathSync(file) !== file || !isDeepStrictEqual(directoryProof(current), proof)) fail("files_changed"); }
-    if (!isDeepStrictEqual(readdirSync(folder).sort(), [...envs.map((v) => path.basename(v.file)), ...(backup ? ["backup"] : [])].sort())) fail("files_changed");
+    if (!isDeepStrictEqual(readdirSync(folder).sort(), [...(audit ? ["audit-evidence"] : []), ...envs.map((v) => path.basename(v.file)), ...(backup ? ["backup"] : [])].sort())) fail("files_changed");
     for (const entry of envs) { const opened = fstatSync(entry.fd, { bigint: true }); const named = lstatSync(entry.file, { bigint: true });
       if (!opened.isFile() || named.isSymbolicLink() || opened.nlink !== 1n || !isDeepStrictEqual(fileProof(opened), fileProof(entry.stat)) || !isDeepStrictEqual(fileProof(opened), fileProof(named))
         || opened.uid !== BigInt(uid) || opened.gid !== BigInt(gid) || (opened.mode & 0o7777n) !== 0o600n) fail("files_changed");
@@ -169,8 +181,9 @@ function workSession(input) {
     fsyncSync(handle); entry.stat = fstatSync(handle, { bigint: true }); check(); return { file, variables: Object.fromEntries(bytes.toString().trimEnd().split("\n").map((v) => v.split("="))) }; };
   const makeBackup = () => { check(); const file = path.join(folder, "backup"); mkdirSync(file, { mode: 0o700 }); backup = { file, proof: directoryProof(lstatSync(file, { bigint: true })) }; check(); return file; };
   const cleanup = () => { check(); for (const entry of envs) { unlinkSync(entry.file); closeSync(entry.fd); } envs.length = 0; check(); };
-  const close = () => { let failed = false; for (const entry of envs) try { closeSync(entry.fd); } catch { failed = true; } try { closeSync(fd); } catch { failed = true; } if (failed) fail("cleanup_uncertain"); };
-  return { check, createEnv, makeBackup, cleanup, close };
+  const close = () => { let failed = false; for (const entry of envs) try { closeSync(entry.fd); } catch { failed = true; }
+    if (auditFd !== undefined) try { closeSync(auditFd); } catch { failed = true; } try { closeSync(fd); } catch { failed = true; } if (failed) fail("cleanup_uncertain"); };
+  try { check(); } catch (error) { close(); throw error; } return { check, createEnv, makeBackup, cleanup, close };
 }
 function serviceConfig(configuration) {
   const config = configuration.config;

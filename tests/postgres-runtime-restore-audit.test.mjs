@@ -18,6 +18,57 @@ const encode = (v) => Buffer.from(`${JSON.stringify(v, null, 2)}\n`);
 const write = (file, bytes) => { fs.writeFileSync(file, bytes, { mode: 0o600 }); fs.chmodSync(file, 0o600); };
 const deadline = () => Date.now() + 120000;
 const clone = (v) => globalThis.structuredClone(v);
+const suiteInputs = ["candidate-remote.json", "candidate-runtime.json", "lock.json", "Dockerfile", "candidate-publication-receipt.json", "filesystem-policy.json"];
+function privateSuiteCopy(source, owner) {
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "aw-pg-audit-bootstrap-")));
+  const created = new Map();
+  const remember = (file, mode) => {
+    fs.chmodSync(file, mode); fs.chownSync(file, owner, owner);
+    const s = fs.lstatSync(file, { bigint: true });
+    created.set(file, { dev: s.dev, ino: s.ino, uid: s.uid, gid: s.gid, mode: s.mode, directory: s.isDirectory() });
+  };
+  const makeDirectory = (file) => { if (file !== directory) fs.mkdirSync(file, { mode: 0o700 }); remember(file, 0o700); };
+  const copyFile = (from, to) => {
+    const s = fs.lstatSync(from); assert.ok(s.isFile() && !s.isSymbolicLink());
+    const bytes = fs.readFileSync(from); write(to, bytes); remember(to, 0o600);
+    assert.deepEqual(fs.readFileSync(to), bytes);
+  };
+  makeDirectory(directory);
+  const copyModules = (from, to) => {
+    makeDirectory(to);
+    for (const name of fs.readdirSync(from).sort()) {
+      const entry = path.join(from, name); const s = fs.lstatSync(entry);
+      assert.equal(s.isSymbolicLink(), false);
+      if (s.isDirectory()) copyModules(entry, path.join(to, name));
+      else if (name.endsWith(".mjs")) copyFile(entry, path.join(to, name));
+    }
+  };
+  copyModules(path.join(source, "scripts"), path.join(directory, "scripts"));
+  makeDirectory(path.join(directory, "tests"));
+  copyFile(path.join(source, "tests/postgres-runtime-restore-audit.test.mjs"), path.join(directory, "tests/postgres-runtime-restore-audit.test.mjs"));
+  makeDirectory(path.join(directory, "infra")); makeDirectory(path.join(directory, "infra/postgres-image"));
+  for (const name of suiteInputs) copyFile(path.join(source, "infra/postgres-image", name), path.join(directory, "infra/postgres-image", name));
+  makeDirectory(path.join(directory, "infra/seaweed"));
+  for (const name of ["seaweed-lock.json", "required-tests.json"]) copyFile(path.join(source, "infra/seaweed", name), path.join(directory, "infra/seaweed", name));
+  makeDirectory(path.join(directory, "infra/seaweed-image"));
+  copyFile(path.join(source, "infra/seaweed-image/base-config.json"), path.join(directory, "infra/seaweed-image/base-config.json"));
+  for (const name of ["tests/fixtures", "tests/fixtures/seaweed-source", "tests/fixtures/seaweed-source/upstream"]) makeDirectory(path.join(directory, name));
+  copyFile(path.join(source, "tests/fixtures/seaweed-source/upstream/go.sum"), path.join(directory, "tests/fixtures/seaweed-source/upstream/go.sum"));
+  const cleanup = () => {
+    // Only this helper's exact creations can be removed; a substituted leaf is retained.
+    for (const [file, expected] of created) {
+      const s = fs.lstatSync(file, { bigint: true });
+      assert.ok(!s.isSymbolicLink() && s.dev === expected.dev && s.ino === expected.ino && s.uid === expected.uid
+        && s.gid === expected.gid && s.mode === expected.mode && s.isDirectory() === expected.directory);
+      if (s.isDirectory()) assert.deepEqual(fs.readdirSync(file).sort(), [...created.keys()].filter((p) => path.dirname(p) === file).map((p) => path.basename(p)).sort());
+      else assert.equal(s.nlink, 1n);
+    }
+    for (const [file, expected] of [...created].reverse()) {
+      if (expected.directory) fs.rmdirSync(file); else fs.unlinkSync(file);
+    }
+  };
+  return { directory, cleanup };
+}
 const phaseNames = ["managed_engine", "registry_login", "raw_tag_manifest", "anonymous_digest_denied", "raw_digest_manifest",
   "local_inventory_before", "local_collision_check", "exact_digest_pull", "simple_local_alias", "private_docker_save",
   "full_archive_validation", "private_archive_callback", "owned_docker_cleanup", "owned_temporary_cleanup"];
@@ -249,6 +300,21 @@ if (native) {
   });
 } else {
   test("native audit fixtures run under actual Linux UID/GID1000", { skip: process.platform !== "linux" }, () => {
+    if (process.getuid() === 0) {
+      const protectedSource = privateSuiteCopy(sourceRoot, 0); let bootstrap;
+      try {
+        const args = ["--reuid=1000", "--regid=1000", "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--"];
+        const refused = spawnSync("/usr/bin/setpriv", [...args, process.execPath, "--test", path.join(protectedSource.directory, "tests/postgres-runtime-restore-audit.test.mjs")],
+          { cwd: "/", env: { PATH: "/usr/bin:/bin", HOME: "/home/autoworld" }, encoding: "utf8", timeout: 10000, maxBuffer: 65536 });
+        assert.equal(refused.error, undefined); assert.notEqual(refused.status, 0);
+        bootstrap = privateSuiteCopy(protectedSource.directory, 1000);
+        const result = spawnSync("/usr/bin/setpriv", [...args, process.execPath, "--test", path.join(bootstrap.directory, "tests/postgres-runtime-restore-audit.test.mjs")],
+          { cwd: bootstrap.directory, env: { PATH: "/usr/bin:/bin", HOME: "/home/autoworld", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" }, encoding: "utf8", timeout: 90000, maxBuffer: 1048576 });
+        assert.equal(result.status, 0, `${result.error?.code ?? ""}\n${result.stdout}\n${result.stderr}`);
+        assert.match(result.stdout, /# fail 0/u); assert.match(result.stdout, /# skipped 0/u);
+      } finally { bootstrap?.cleanup(); protectedSource.cleanup(); }
+      return;
+    }
     const args = ["--reuid=1000", "--regid=1000", "--clear-groups", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--",
       process.execPath, "--test", fileURLToPath(import.meta.url)];
     const result = spawnSync(process.getuid() === 0 ? "/usr/bin/setpriv" : "/usr/bin/sudo",

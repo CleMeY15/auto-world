@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import test from "node:test";
@@ -18,6 +18,9 @@ const configuration = { User: "", Entrypoint: ["docker-entrypoint.sh"], Cmd: ["p
   Labels: { "com.auto-world.postgres-diagnostic": "94c2d4878c445bef8d51ff7c", "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime" }, Volumes: { "/var/lib/postgresql/data": {} } };
 function meta(s) { return { dev: String(s.dev), ino: String(s.ino), uid: Number(s.uid), gid: Number(s.gid), mode: Number(s.mode & 0o7777n) }; }
 function descriptor(file, name) { const s = lstatSync(file, { bigint: true }); return { name, size: Number(s.size), sha256: hash(readFileSync(file)), identity: { ...meta(s), nlink: Number(s.nlink), mtimeNs: String(s.mtimeNs), ctimeNs: String(s.ctimeNs) } }; }
+function directoryFd(file) { const name = readdirSync("/proc/self/fd").find((entry) => {
+  try { return readlinkSync(path.join("/proc/self/fd", entry)) === file; } catch { return false; } });
+  assert.ok(name, "private directory descriptor is held"); return Number(name); }
 async function scope(t) {
   const root = mkdtempSync("/tmp/aw-pgr-"); chmodSync(root, 0o700); const directory = path.join(root, "imported"); const client = path.join(root, "client"); const endpointDirectory = path.join(root, "endpoint");
   const workDirectory = path.join(root, "work"); const contextName = "aw-runtime-fixture"; const contextMeta = path.join(client, "contexts", "meta", hash(Buffer.from(contextName)));
@@ -144,6 +147,60 @@ test("native engine completes five distinct profiles, exact SQL, fresh volume re
     const changed = clone(proof); change(changed); assert.throws(() => validatePostgresLocalRuntimeRestoreProof(changed, s.input), /proof_invalid/u);
   }
 });
+test("native engine preserves the preexisting private audit-evidence directory through the complete route", { skip: !linux }, async (t) => {
+  const s = await scope(t); const evidence = path.join(s.input.workDirectory, "audit-evidence"); mkdirSync(evidence, { mode: 0o700 });
+  const report = path.join(evidence, "supervisor-owned-report.json"); const reportBytes = Buffer.from("supervisor validates these bytes\n"); writeFileSync(report, reportBytes, { mode: 0o600 });
+  const identity = meta(lstatSync(evidence, { bigint: true })); let auditFd;
+  const h = harness(s, { transport: (args) => { if (args[0] !== "version") return; auditFd = directoryFd(evidence);
+    assert.deepEqual(meta(fstatSync(auditFd, { bigint: true })), identity);
+    const flags = Number.parseInt(/^flags:\s+([0-7]+)$/mu.exec(readFileSync(`/proc/self/fdinfo/${auditFd}`, "utf8"))[1], 8);
+    assert.equal(flags & constants.O_DIRECTORY, constants.O_DIRECTORY); assert.equal(flags & constants.O_NOFOLLOW, constants.O_NOFOLLOW); } });
+  const proof = await verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps);
+  assert.deepEqual(proof, validatePostgresLocalRuntimeRestoreProof(proof, s.input));
+  assert.deepEqual(meta(lstatSync(evidence, { bigint: true })), identity); assert.deepEqual(readFileSync(report), reportBytes);
+  assert.throws(() => fstatSync(auditFd), { code: "EBADF" });
+  assert.deepEqual(readdirSync(s.input.workDirectory).sort(), ["audit-evidence", "backup"]);
+  assert.equal(h.containers.size, 0); assert.equal(h.volumes.size, 0); assert.deepEqual(h.images, []);
+});
+
+test("native engine refuses unowned audit-evidence shapes and unexpected initial work entries before transport", { skip: !linux }, async (t) => {
+  for (const variant of ["file", "symlink", "mode", "extra"]) await t.test(variant, async (sub) => {
+    const s = await scope(sub); const evidence = path.join(s.input.workDirectory, "audit-evidence");
+    if (variant === "file") writeFileSync(evidence, "not a directory", { mode: 0o600 });
+    else if (variant === "symlink") { const target = path.join(s.root, "other-audit"); mkdirSync(target, { mode: 0o700 }); symlinkSync(target, evidence); }
+    else { mkdirSync(evidence, { mode: variant === "mode" ? 0o750 : 0o700 });
+      if (variant === "extra") writeFileSync(path.join(s.input.workDirectory, "unexpected"), "preserve", { mode: 0o600 }); }
+    const h = harness(s);
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), { message: "postgres_local_runtime_restore_storage_invalid" });
+    assert.equal(h.calls.length, 0); assert.ok(lstatSync(evidence));
+  });
+});
+
+test("native engine seals audit-evidence identity and work entries across transport without reading reports", { skip: !linux }, async (t) => {
+  for (const variant of ["mode", "replacement", "extra"]) await t.test(variant, async (sub) => {
+    const s = await scope(sub); const evidence = path.join(s.input.workDirectory, "audit-evidence"); mkdirSync(evidence, { mode: 0o700 });
+    const original = meta(lstatSync(evidence, { bigint: true })); let changed = false;
+    const h = harness(s, { transport: (args) => {
+      if (changed || args[0] !== "version") return; changed = true;
+      if (variant === "mode") chmodSync(evidence, 0o750);
+      if (variant === "replacement") { renameSync(evidence, path.join(s.root, "retained-audit-evidence")); mkdirSync(evidence, { mode: 0o700 });
+        assert.notEqual(meta(lstatSync(evidence, { bigint: true })).ino, original.ino); }
+      if (variant === "extra") writeFileSync(path.join(s.input.workDirectory, "unexpected"), "preserve", { mode: 0o600 });
+    } });
+    await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), { message: "postgres_local_runtime_restore_cleanup_uncertain" });
+    assert.equal(changed, true); assert.equal(h.calls.length, 1); assert.equal(h.calls.some((v) => ["create", "start", "exec"].includes(v.args[0])), false);
+    assert.ok(lstatSync(evidence)); assert.deepEqual(readFileSync(path.join(s.input.directory, "candidate.tar")), s.fixture.archive);
+  });
+});
+
+test("native audit descriptor loss closes the work descriptor and reports cleanup uncertainty", { skip: !linux }, async (t) => {
+  const s = await scope(t); const evidence = path.join(s.input.workDirectory, "audit-evidence"); mkdirSync(evidence, { mode: 0o700 }); let workFd;
+  const h = harness(s, { transport: (args) => { if (args[0] !== "version") return; workFd = directoryFd(s.input.workDirectory); closeSync(directoryFd(evidence)); } });
+  await assert.rejects(verifyLocalPostgresRuntimeAndSqlRestore(s.input, h.controls, h.deps), (error) => {
+    assert.deepEqual(postgresLocalRuntimeRestoreFailureDiagnostic(error), { code: "postgres_local_runtime_restore_cleanup_uncertain", phase: "CLEANUP", cleanup: "UNVERIFIED" }); return true; });
+  assert.equal(h.calls.length, 1); assert.throws(() => fstatSync(workFd), { code: "EBADF" }); assert.ok(lstatSync(evidence));
+});
+
 test("native audit stale/future/expired/extra grants refuse create at the actual spawn", { skip: !linux }, async (t) => {
   for (const variant of ["stale", "future", "expired", "extra"]) await t.test(variant, async (sub) => {
     const s = await scope(sub); const h = harness(s, { grant: (ack) => { if (variant === "stale") ack.checkedAt = new Date(Date.now() - 6000).toISOString();
