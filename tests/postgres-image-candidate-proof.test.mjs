@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { validatePostgresCandidateArchive, validatePostgresCandidateRemoteManifest }
+import { validatePostgresCandidateArchive, validatePostgresCandidateArchiveMaterial, validatePostgresCandidateRemoteManifest }
   from "../scripts/postgres-image/candidate-proof.mjs";
 import { validateBaseInspect, validateCandidateInspect } from "../scripts/postgres-image/diagnostic.mjs";
 
@@ -94,6 +94,20 @@ function archiveOptions(value) {
   return { imageId: value.imageId, tag: value.tag, expectedDiffIds: value.diffIds, expectedLayers: 12,
     maximumBytes: 1024 ** 2 };
 }
+
+test("archive material exposes the same proof and the complete authenticated frozen configuration", () => {
+  const value = fixture(); const options = archiveOptions(value);
+  const material = validatePostgresCandidateArchiveMaterial(value.archive, options);
+  assert.deepEqual(Object.keys(material).sort(), ["archiveProof", "configuration"]);
+  assert.deepEqual(material.archiveProof, validatePostgresCandidateArchive(value.archive, options));
+  assert.deepEqual(material.configuration, JSON.parse(value.config.toString("utf8")));
+  assert.ok(Object.isFrozen(material.configuration.config.Entrypoint));
+  assert.ok(Object.isFrozen(material.configuration.rootfs.diff_ids));
+  const config = Buffer.from(value.archive); config[config.indexOf(value.config) + 20] ^= 1;
+  const layer = Buffer.from(value.archive); layer[layer.indexOf(Buffer.from("raw-layer-0"))] ^= 1;
+  for (const substituted of [config, layer]) assert.throws(() =>
+    validatePostgresCandidateArchiveMaterial(substituted, options), /postgres_candidate_proof_/u);
+});
 
 test("candidate archive proof binds the exact config, 12 DiffIDs and closed OCI/Docker inventory", () => {
   const value = fixture(); const proof = validatePostgresCandidateArchive(value.archive, archiveOptions(value));

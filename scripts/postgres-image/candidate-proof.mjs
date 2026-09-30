@@ -193,7 +193,7 @@ function validateCompatibilityBlobs(entries, referenced, expectedLayers, config)
   return freezeArray(ordered);
 }
 
-export function validatePostgresCandidateArchive(buffer, options) {
+function archiveMaterial(buffer, options) {
   const expected = archiveOptions(options); const entries = parseTar(buffer, expected.maximumBytes);
   const manifest = parseJson(entries.get("manifest.json"), "archive_manifest_invalid");
   if (!Array.isArray(manifest) || manifest.length !== 1
@@ -260,13 +260,28 @@ export function validatePostgresCandidateArchive(buffer, options) {
   const allowed = new Set(["blobs/", "blobs/sha256/", "manifest.json", "index.json", "oci-layout", "repositories",
     ...referenced, ...compatibilityRecords.map(({ blobDigest }) => `blobs/sha256/${blobDigest.slice(7)}`)]);
   if (entries.size !== allowed.size || [...entries.keys()].some((name) => !allowed.has(name))) fail("archive_member_invalid");
-  return Object.freeze({
+  const archiveProof = Object.freeze({
     archiveSha256: sha256(buffer), archiveBytes: buffer.length, archiveMembers: entries.size,
     imageId: expected.imageId, tag: expected.tag, configDigest: expected.imageId, configBytes: configEntry.size,
     diffIds: Object.freeze([...expected.expectedDiffIds]), rawLayers: freezeArray(rawLayers),
     manifestDigest: indexDescriptor.digest, manifestBytes: indexDescriptor.size,
     compatibilityRecords, remoteLayerVerification: "NOT_ESTABLISHED_BY_DOCKER_SAVE",
   });
+  return { archiveProof, configuration: config };
+}
+
+export function validatePostgresCandidateArchive(buffer, options) {
+  return archiveMaterial(buffer, options).archiveProof;
+}
+
+// Configuration and proof come from one complete authenticated parse, never from Docker output.
+export function validatePostgresCandidateArchiveMaterial(buffer, options) {
+  const material = archiveMaterial(buffer, options);
+  if (!plain(material.configuration.config) || material.configuration.os !== "linux"
+    || material.configuration.architecture !== "amd64") fail("archive_config_invalid");
+  const freeze = (value) => Array.isArray(value) ? Object.freeze(value.map(freeze)) : plain(value)
+    ? Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, freeze(item)]))) : value;
+  return Object.freeze({ archiveProof: material.archiveProof, configuration: freeze(material.configuration) });
 }
 
 function remoteOptions(options) {
