@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { COLD_LOAD_PIN } from "../scripts/postgres-image/cold-load-policy.mjs";
@@ -98,4 +99,25 @@ test("acknowledgement accessors, prototypes, hidden fields and scalar coercion c
   const context = clone(expected); context.recipeRevision = { toString() { calls += 1; return revision; } };
   assert.throws(() => validatePostgresPrivateEvidenceDiagnosticResult(acknowledgement(), context), /result_invalid/u);
   assert.equal(calls, 0);
+});
+
+test("fixed host accepts real cleared groups while refusing a kernel supplementary primary group", {
+  skip: process.platform !== "linux" || process.getuid() !== 0 || !existsSync(COLD_LOAD_PIN.node) || !existsSync(PIN.workspace)
+    ? "Requires the real root test bootstrap and fixed Linux Node22 host; covered separately on that host" : false,
+}, () => {
+  const module = new URL("../scripts/postgres-image/local-private-evidence-diagnostic.mjs", import.meta.url).href;
+  const code = `import { requirePostgresPrivateEvidenceDiagnosticContext as context } from ${JSON.stringify(module)};
+    try { console.log(JSON.stringify(context([], process.env))); }
+    catch (error) { if (error.message !== "postgres_private_evidence_diagnostic_context_invalid") throw error; process.exitCode = 9; }`;
+  for (const cleared of [true, false]) {
+    const result = spawnSync("/usr/bin/setpriv", ["--reuid=1000", "--regid=1000", cleared ? "--clear-groups" : "--groups=1000",
+      "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--", "/usr/bin/env", "-i",
+      ...Object.entries(environment).map(([name, value]) => `${name}=${value}`), COLD_LOAD_PIN.node, "--input-type=module", "--eval", code],
+    { cwd: PIN.workspace, env: { PATH: "/usr/bin:/bin" }, encoding: "utf8", timeout: 10000, maxBuffer: 8192 });
+    assert.equal(result.error, undefined); assert.equal(result.signal, null); assert.equal(result.stderr, "");
+    assert.equal(result.status, cleared ? 0 : 9);
+    if (cleared) assert.deepEqual(JSON.parse(result.stdout), { workspace: PIN.workspace, node: COLD_LOAD_PIN.node, uid: 1000, gid: 1000,
+      supplementalGroups: "CLEARED", capabilities: "NONE", noNewPrivileges: true });
+    else assert.equal(result.stdout, "");
+  }
 });

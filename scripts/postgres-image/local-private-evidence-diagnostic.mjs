@@ -36,7 +36,7 @@ export function requirePostgresPrivateEvidenceDiagnosticContext(argv, env) {
     if (Object.entries(expectedEnvironment).some(([name, value]) => env[name] !== value)
       || process.platform !== "linux" || process.version !== "v22.23.2" || process.execPath !== COLD_LOAD_PIN.node
       || [process.getuid(), process.geteuid(), process.getgid(), process.getegid()].some((id) => id !== 1000)
-      || process.getgroups().length !== 0 || realpathSync(process.cwd()) !== PIN.workspace
+      || !isDeepStrictEqual(process.getgroups(), [1000]) || realpathSync(process.cwd()) !== PIN.workspace
       || Number(statfsSync(PIN.workspace).type) !== 0xef53) fail();
     const binary = lstatSync(COLD_LOAD_PIN.node);
     if (!binary.isFile() || binary.isSymbolicLink() || binary.uid !== 0 || binary.gid !== 0

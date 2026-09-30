@@ -1,6 +1,6 @@
 # PostgreSQL private evidence intake and Linux archive health
 
-Status: IMPLEMENTATION_REVIEWED_PENDING_FULL_CHECKS, 2026-09-30. This is a focused follow-up to accepted PR122, not full image admission or complete archive closure. The fixed default intake of the existing private artifacts has not run.
+Status: FIRST_DEFAULT_REJECTED_CORRECTED_CLI_REVIEWED, 2026-09-30. This is a focused follow-up to accepted PR122, not full image admission or complete archive closure. The first fixed default invocation failed before intake; no accepted private evidence folder exists from it.
 
 ## Dependency and outcome
 
@@ -66,3 +66,13 @@ Fresh harmless Linux fixtures use actual UID/GID1000, Node22.23.2 and installed 
 Independent intake review APPROVE covers engine SHA7bb559457ef8719724b4f03616e6e6ac7570371ba7f25992658fc94f23351cf1 and test SHA37f42c06444682570018ba4b705df704a4c2aa5ca9d4e27bb036fe299abc9871. Its five concrete findings were repaired and covered by regressions before freezing. Separate bundle review APPROVE covers helper SHA2d847d1afb1b54e680acebf8cf9a2bb34903f0e2257767aec7417cf60e676a91 and test SHA01aab85c3e4be8e8a7e648bf8e73de4b453d5c7d4a5c43bf1a714b99a09331d2, including the filter guard and truthful unsupported-Git CI branch. Neither author approves their own implementation.
 
 These are fixture/code results, not acceptance of the existing private evidence folder. Fresh complete gates, exact implementation CI, one fixed default native intake, independent original-byte/native inventory and separate privacy/preservation reviews remain required before this increment can be accepted. All six missing archive roles, admission and support activation remain open.
+
+## First default context rejection and bounded repair
+
+Fresh full checks on clean implementation1dcd5f6e0a2a6bf808d5f259459d0830eb7ef368 passed1,674 root tests/zero failures/eight unchanged actor-specific skips, all9 lint/11 type/18 test/9 build package tasks with zero cached tasks, Secretlint575 and the dependency audit. Separate real root contracts/bootstrap tests passed76/76 without skips. Exact implementation CI36759035631 passed on actual Git2.55, exercising the truthful unsupported-version test bootstrap.
+
+The one input-free default invocation on that source returned INCOMPLETE in CONTEXT with postgres_private_evidence_diagnostic_context_invalid and cleanup UNVERIFIED. Its original closed log remains private at `/home/autoworld/pr123-real-private-evidence-1dcd5f6.log`:198 bytes, SHAbd07f69ab5f2a599ef6ee4ff6ec4ad5b964d8a097834748637db4b444cf18550, root0:0/0600/single link. The rejection preceded source inspection, nonce generation and the intake call; no evidence directory or candidate execution is claimed. This failed invocation remains failed.
+
+A separate read-only context discriminant observed actual UID/EUID/GID/EGID1000, all four kernel UID/GID fields1000, empty kernel supplementary Groups, NNP1, zero Inh/Prm/Eff/Amb capabilities, exact five environment fields, fixed root-owned Node22.23.2 and ext4/canonical workspace. Node's `process.getgroups()` nevertheless returned `[1000]`: the [official Node22.23.2 contract](https://nodejs.org/download/release/v22.23.2/docs/api/process.html#processgetgroups) always includes the effective GID. The CLI incorrectly required an empty Node array.
+
+The bounded repair requires exactly `[1000]` from Node while keeping the independent empty kernel Groups check mandatory. No supplementary-group waiver follows. The new real fixed-host regression launches actual UID1000 with cleared groups and the closed environment, accepts that context without starting intake, then launches the same actor with a kernel supplementary primary group1000 and requires rejection even though Node still reports `[1000]`. Native root tests pass7/7 without skips; scoped Linux lint passes. Windows and CI explicitly skip only this fixed-host/root case, which is required separately on this PC. Independent delta review APPROVE covers CLI SHA d322fc933ceab753000c6b3ed1f4b96bd3f1b9963441ed00e63972d1372cba6f and test SHA a0f85368e6bf8339449c58c0d6ced8c7444c6308e9d6ba4043bf31f67fc6f8e7. Fresh complete gates and exact corrected-head CI remain required before a separate default invocation.
