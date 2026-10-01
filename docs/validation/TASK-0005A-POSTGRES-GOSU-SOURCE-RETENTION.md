@@ -1,6 +1,6 @@
 # PostgreSQL gosu source and selected-notice retention
 
-Status: VERIFIED_FOUR_ARCHIVE_CORPUS_DELIVERY_PENDING, 2026-10-01. The fixed native collection passed once, with independent original/default and distinct privacy/preservation APPROVE. Final-head/main CI and the matching reviewed merge tree remain delivery gates. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 remains blocked.
+Status: VERIFIED_FOUR_ARCHIVE_CORPUS_DELIVERED, 2026-10-01. The fixed native collection passed once, with independent original/default and distinct privacy/preservation APPROVE. PR127 merged atc6c55a3ee1c3196e9dad60ca4130d52d79a4f40d with unchanged reviewed tree4374d57d3dae66a3b0dcc3a2aa82658288e2f75d; final-head/main CI36802863699/36803250190 pass. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 remains blocked.
 
 ## Problem and implementation plan
 

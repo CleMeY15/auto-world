@@ -22,10 +22,15 @@ class Reader:
  def read_at(self,p,n):return self.data[p:p+n]
 try:
  r=Reader(base64.b64decode(v['bytes'],validate=True))
- if v['kind']=='tar':x=m['_inspect_tar'](r,v['root'],v['selected'],v.get('pax'),tuple(v['link']) if v.get('link') else None)
+ if v['kind']=='tar':
+  reader=m['_GzipReader'](r) if v.get('privateReader') else None
+  args=(r,v['root'],v['selected'],v.get('pax'),tuple(v['link']) if v.get('link') else None)
+  x=m['_inspect_tar'](*args,_reader=reader) if reader is not None else m['_inspect_tar'](*args)
  else:x=m['_inspect_zip'](r,v['module'],v['selected'])
  x['files']={k:base64.b64encode(b).decode('ascii') for k,b in x['files'].items()}
- print(json.dumps({'state':'PURE_PARSER_VERIFIED','value':x},sort_keys=True))
+ result={'state':'PURE_PARSER_VERIFIED','value':x}
+ if v.get('privateReader'):result['readerTotal']=reader.total
+ print(json.dumps(result,sort_keys=True))
 except BaseException:
  print(json.dumps({'state':'PURE_PARSER_REFUSED'}))
 `;
@@ -89,6 +94,16 @@ test("pure tar preserves notice bytes and hashes all selected identities without
   const result = pure(tarInput(tar(tarEntries(), Buffer.alloc(21 * 512)))); assert.equal(result.state, "PURE_PARSER_VERIFIED");
   assert.equal(result.value.entries, 3); assert.equal(result.value.uncompressedBytes, 33); assert.deepEqual(result.value.symlinks, []);
   assert.equal(Buffer.from(result.value.files.LICENSE, "base64").toString(), "harmless license\n"); assert.equal(result.value.files.NOTICE, undefined);
+});
+test("private reader seam preserves the default gzip result schema and bytes", pureOptions, () => {
+  const entries = tarEntries(); const bytes = tar(entries); const original = pure(tarInput(bytes));
+  const shared = pure(tarInput(bytes, { privateReader: true }));
+  assert.equal(shared.state, "PURE_PARSER_VERIFIED"); assert.deepEqual(shared.value, original.value);
+  assert.deepEqual(Object.keys(shared.value).sort(), ["entries", "files", "paxCommit", "symlinks", "uncompressedBytes"]);
+  assert.equal(shared.readerTotal, tarRaw(entries).length);
+  const broken = Buffer.concat([bytes, Buffer.from("trailer")]);
+  assert.equal(pure(tarInput(broken)).state, "PURE_PARSER_REFUSED");
+  assert.equal(pure(tarInput(broken, { privateReader: true })).state, "PURE_PARSER_REFUSED");
 });
 test("pure tar accepts only declared passive global PAX and the exact un-followed symlink", pureOptions, () => {
   const commit = "a".repeat(40); const entries = [{ name: "pax_global_header", type: "g", bytes: pax("comment", commit) },

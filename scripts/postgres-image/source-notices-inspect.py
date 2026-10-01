@@ -272,8 +272,8 @@ def _pax(raw):
     return result
 
 
-def _inspect_tar(source, root, selected, expected_pax=None, allowed_symlink=None):
-    stream = _GzipReader(source)
+def _inspect_tar(source, root, selected, expected_pax=None, allowed_symlink=None, _reader=None):
+    stream = _GzipReader(source) if _reader is None else _reader
     found, seen, folded, symlinks = {}, set(), set(), []
     entries, raw_total, extensions = 0, 0, 0
     comment, pending = None, None
