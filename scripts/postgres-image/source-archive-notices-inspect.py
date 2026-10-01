@@ -12,6 +12,10 @@ import json
 import lzma
 import os
 import re
+try:
+    import resource
+except ImportError:
+    resource = None
 import stat
 import struct
 import sys
@@ -31,6 +35,15 @@ LIMITS = {"archiveBytes": 1024 ** 3, "decodedBytes": 8 * 1024 ** 3,
           "outputBytes": 32 * 1024 ** 2, "candidates": 10000,
           "extensionBytes": 64 * 1024, "zipDirectoryBytes": 64 * 1024 ** 2,
           "indexBytes": 64 * 1024 ** 2}
+GCC_15_2_0_PROFILE = {
+    "name": "GCC_15_2_0_EXACT_SOURCE_V1",
+    "source": {
+        "size": 101056276,
+        "sha256": "438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e",
+    },
+    "bounds": {**LIMITS, "members": 500000},
+    "memoryLimit": {"resource": "RLIMIT_AS", "bytes": 512 * 1024 ** 2},
+}
 ENVIRONMENT = {"PATH": "/usr/bin:/bin", "HOME": "/home/autoworld", "LANG": "C.UTF-8",
                "LC_ALL": "C.UTF-8", "TZ": "UTC"}
 NOTICE = re.compile(r"^(?:licen[cs]e|copying[23]?|copyright|notice|patents|legal)s?(?:[._-].*)?$", re.I)
@@ -49,6 +62,28 @@ class InspectionError(Exception):
 def require(condition, reason):
     if not condition:
         raise InspectionError(reason)
+
+
+def source_profile(expected, _anchor):
+    pinned = GCC_15_2_0_PROFILE["source"]
+    if expected["size"] != pinned["size"] or expected["sha256"] != pinned["sha256"]:
+        return None
+    return GCC_15_2_0_PROFILE
+
+
+def activate_profile(profile):
+    require(profile is GCC_15_2_0_PROFILE and resource is not None, "context_invalid")
+    memory = profile["memoryLimit"]["bytes"]
+    try:
+        _, hard = resource.getrlimit(resource.RLIMIT_AS)
+        require(hard == resource.RLIM_INFINITY or hard >= memory, "context_invalid")
+        resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
+        require(resource.getrlimit(resource.RLIMIT_AS) == (memory, memory), "context_invalid")
+    except (OSError, ValueError):
+        raise InspectionError("context_invalid") from None
+    LIMITS["members"] = profile["bounds"]["members"]
+    return {"name": profile["name"], "bounds": dict(profile["bounds"]),
+            "memoryLimit": dict(profile["memoryLimit"])}
 
 
 def native(value):
@@ -380,7 +415,7 @@ def proc(path, maximum):
 
 
 def context():
-    require(sys.platform == "linux" and sys.version_info[:2] == (3, 12) and fcntl is not None
+    require(sys.platform == "linux" and sys.version_info[:2] == (3, 12) and fcntl is not None and resource is not None
             and sys.executable == "/usr/bin/python3.12" and len(sys.argv) == 1
             and sys.flags.isolated and sys.flags.no_site and sys.flags.dont_write_bytecode
             and dict(os.environ) == ENVIRONMENT, "context_invalid")
@@ -449,8 +484,12 @@ def main():
         owned = True
         require(anchor["size"] == expected["size"], "source_changed")
         seal(3, expected, anchor, named)
+        profile = source_profile(expected, anchor)
+        profile_observation = activate_profile(profile) if profile is not None else None
         with PositionedReader(3, expected["size"]) as opened:
             parsed = inspect_archive(opened)
+        if profile_observation is not None:
+            parsed["inspectionProfile"] = profile_observation
         seal(3, expected, anchor, named)
         result = {"kind": "POSTGRES_SOURCE_ARCHIVE_NOTICE_INSPECTION_V1", "state": "NOTICE_CANDIDATES_OBSERVED",
                   "scope": "PASSIVE_SOURCE_ARCHIVE_NOTICE_CANDIDATES", "source": {"size": expected["size"],

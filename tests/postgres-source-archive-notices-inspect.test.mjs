@@ -24,6 +24,17 @@ if v.get('truncate'):b=b[:-v['truncate']]
 for k,n in v.get('lowerLimits',{}).items():
  assert type(n) is int and 0<n<m['LIMITS'][k]
  m['LIMITS'][k]=n
+if v.get('profileProbe'):
+ try:
+  p=m['source_profile'](v['profileProbe']['expected'],v['profileProbe']['identity'])
+  observed=m['activate_profile'](p) if p is not None and v['profileProbe'].get('activate') else None
+  print(json.dumps({'state':'PROFILE_PROBE','selected':p is not None,'profile':observed or p,
+                    'memberLimit':m['LIMITS']['members'],
+                    'addressSpace':list(m['resource'].getrlimit(m['resource'].RLIMIT_AS)) if observed else None},sort_keys=True))
+ except BaseException as e:
+  reason=e.reason if isinstance(e,m['InspectionError']) else 'archive_invalid'
+  print(json.dumps({'state':'REFUSED','reason':reason},sort_keys=True))
+ raise SystemExit
 r=io.BytesIO(b);r.size=len(b)
 try:
  x=m['inspect_archive'](r)
@@ -81,6 +92,33 @@ function zip(entries) {
 function refused(bytes, reason, extra = {}) {
   const result = pure(bytes, extra); assert.equal(result.state, "REFUSED"); if (reason) assert.equal(result.reason, reason);
 }
+const gccExpected = { size: 101056276, sha256: "438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e" };
+const gccIdentity = { dev: "2096", ino: "113148", uid: 1000, gid: 1000, mode: 0o600, nlink: 1, size: 101056276,
+  mtimeNs: "1790834830319171099", ctimeNs: "1790834830342994254" };
+function profileProbe(expected, identity = gccIdentity, activate = false) {
+  return pure(Buffer.from("profile probe"), { profileProbe: { expected, identity, activate } });
+}
+
+test("the GCC profile is closed to authenticated size and SHA while allowing a sealed restored inode", pureOptions, () => {
+  const selected = profileProbe(gccExpected); assert.equal(selected.state, "PROFILE_PROBE"); assert.equal(selected.selected, true);
+  assert.equal(selected.profile.name, "GCC_15_2_0_EXACT_SOURCE_V1"); assert.equal(selected.profile.bounds.members, 500000);
+  assert.equal(selected.profile.bounds.indexBytes, 64 * 1024 ** 2); assert.equal(selected.profile.bounds.extensionBytes, 64 * 1024);
+  assert.equal(selected.profile.memoryLimit.bytes, 512 * 1024 ** 2); assert.equal(selected.memberLimit, 250000);
+  for (const expected of [{ ...gccExpected, size: gccExpected.size - 1 }, { ...gccExpected, sha256: "0".repeat(64) }]) {
+    const value = profileProbe(expected); assert.equal(value.state, "PROFILE_PROBE"); assert.equal(value.selected, false);
+    assert.equal(value.profile, null); assert.equal(value.memberLimit, 250000);
+  }
+  const restoredNative = profileProbe(gccExpected, { ...gccIdentity, ino: "900001", mtimeNs: "1800000000000000000", ctimeNs: "1800000000000000001" });
+  assert.equal(restoredNative.state, "PROFILE_PROBE"); assert.equal(restoredNative.selected, true);
+  assert.equal(restoredNative.profile.name, "GCC_15_2_0_EXACT_SOURCE_V1");
+});
+
+const memoryProfileOptions = { skip: process.platform === "linux" && fs.existsSync(python) ? false : "Linux RLIMIT_AS required" };
+test("the exact GCC profile applies a real 512 MiB address-space cap before parsing", memoryProfileOptions, () => {
+  const value = profileProbe(gccExpected, gccIdentity, true); assert.equal(value.state, "PROFILE_PROBE"); assert.equal(value.selected, true);
+  assert.deepEqual(value.addressSpace, [512 * 1024 ** 2, 512 * 1024 ** 2]); assert.equal(value.memberLimit, 500000);
+  assert.deepEqual(value.profile.memoryLimit, { resource: "RLIMIT_AS", bytes: 512 * 1024 ** 2 });
+});
 
 test("passive TAR candidates retain path/hash metadata, execute nothing and declare stdlib coverage gaps", pureOptions, () => {
   const result = pure(tar(sample())); assert.equal(result.state, "PARTIAL_PARSER_PROOF"); const value = result.value;
@@ -115,6 +153,7 @@ test("TAR path traversal, absolute/backslash/control paths and casefold collisio
     refused(tar([{ name, bytes: Buffer.from("x") }]), "path_invalid");
   }
   refused(tar([{ name: "LICENSE", bytes: Buffer.from("x") }, { name: "license", bytes: Buffer.from("x") }]), "duplicate_path");
+  refused(tar([{ name: "LICENSE", bytes: Buffer.from("x") }, { name: "LICENSE", bytes: Buffer.from("y") }]), "duplicate_path");
 });
 test("TAR notices include unfollowed symlink/hardlink/device pointers and filename variants", pureOptions, () => {
   const bytes = tar([{ name: "a/LICENCE.txt", bytes: Buffer.from("L") }, { name: "COPYING.LESSER", type: "2", link: "../../outside" },
@@ -152,6 +191,8 @@ test("global PAX accumulation and extension header chains are independently boun
   const chain = tar([{ name: "Pax1", type: "x", bytes: pax("path", "first") },
     { name: "Pax2", type: "x", bytes: pax("path", "second") }, { name: "LICENSE", bytes: Buffer.from("x") }]);
   refused(chain, "member_limit", { lowerLimits: { members: 2 } });
+  refused(tar([{ name: "Pax", type: "x", bytes: pax("path", "LICENSE") }, { name: "short", bytes: Buffer.from("x") },
+    { name: "NOTICE", bytes: Buffer.from("y") }]), "member_limit", { lowerLimits: { members: 2 } });
   refused(tar(sample()), "index_limit", { lowerLimits: { indexBytes: 8 } });
 });
 test("lowered pure-only bounds exercise member/candidate/decoded/output refusal without native acceptance", pureOptions, () => {
@@ -195,6 +236,7 @@ test("ZIP paths/casefold duplicates/unsupported codec and notice caps are refuse
   // Windows ZipInfo normalizes backslashes before our orig_filename check.
   refused(zip([{ name: "a\\LICENSE", bytes: Buffer.from("x") }]));
   refused(zip([{ name: "LICENSE", bytes: Buffer.from("x") }, { name: "License", bytes: Buffer.from("x") }]), "duplicate_path");
+  refused(zip([{ name: "LICENSE", bytes: Buffer.from("x") }, { name: "LICENSE", bytes: Buffer.from("y") }]), "duplicate_path");
   refused(zip([{ name: "LICENSE", bytes: Buffer.from("x"), method: 99 }]), "format_unsupported");
   refused(zip([{ name: "LICENSE", bytes: Buffer.alloc(256 * 1024 + 1) }]), "notice_limit");
 });
