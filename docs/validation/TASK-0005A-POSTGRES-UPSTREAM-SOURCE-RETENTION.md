@@ -1,6 +1,6 @@
 # PostgreSQL upstream source retention
 
-Status: REVIEWED_NATIVE_RETENTION_DELIVERY_PENDING, 2026-10-01. This is a focused continuation of TASK-0005A/0005; neither task is Done and TASK-0006 remains blocked. The initial failed preflight is preserved. After the reviewed fixed-PAX correction, fresh full gates and exact implementation CI pass; the new-head real preflight and one default retention have independent original acceptance. Distinct privacy/preservation review APPROVES; final-head/main delivery remains pending.
+Status: REVIEWED_NATIVE_RETENTION_DELIVERED, 2026-10-01. This is a focused continuation of TASK-0005A/0005; neither task is Done and TASK-0006 remains blocked. The initial failed preflight is preserved. After the reviewed fixed-PAX correction, fresh full gates and exact implementation CI pass; the new-head real preflight and one default retention have independent original acceptance. Distinct privacy/preservation review APPROVES; final-head/main delivery PASS is recorded below.
 
 ## Problem and implementation plan
 
@@ -104,3 +104,7 @@ Preservation is verified only for the stated scope: PR123 receipt plus complete 
 This leaf grants no image admission or current runtime permission. Complete APK sources/patches/auxiliary files and notices, older-layer Go sources, recipe/evidence closure, binary equivalence, legal assessment, official attestation, complete second evidence copy and four-service acceptance remain open. Currentness remains NOT_EVALUATED; runtimePermission NOT_GRANTED; admission NOT_AUTHORIZED; signing NOT_ATTEMPTED. Diagnostic support dates remain null. One-year support starts at actual reviewed activation, with continuous security gates and archives kept at least365days beyond support end.
 
 The incremental bzip2 reader follows the [Python3.12 BZ2Decompressor contract](https://docs.python.org/3.12/library/bz2.html#bz2.BZ2Decompressor): per-call max_length, empty-input draining while needs_input is false, required eof and rejection of unused/later bytes. The reviewed core is loaded only through its held FD with the [explicit SourceFileLoader](https://docs.python.org/3.12/library/importlib.html#importlib.machinery.SourceFileLoader). Dockerfile binding uses the fixed [official source](https://raw.githubusercontent.com/docker-library/postgres/2603e26e245e558218728ee14e0a42dcb020dc7f/17/alpine3.24/Dockerfile).
+
+## Delivery
+
+PR128 final-head5347a5772a9e50e5176d26aa4b8775977d071deb and CI36814239236 pass. It mergedfc7946d965a416e815d6ffc85aa747d8b0c3f963 on2026-10-01T04:18:27Z with identical reviewed tree0f2f5ed5e5147b245365ccd7b6ec4f2ccc3692b9; mainCI36814495989 passes. Earlier delivery-pending statements describe the frozen native proof checkpoint. No collector, parser or preflight was repeated on the documentation or merge commits. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 blocked.
