@@ -1,0 +1,76 @@
+{
+  "kind": "POSTGRES_CORE_EVIDENCE_ACCEPTANCE_V1",
+  "state": "CORE_COMPLETE",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "recipeRevision": "4a28d5e3cef525a8cf54ba5a1336d7af8573df1d",
+  "retrievedAt": "2026-10-01T10:06:32.985Z",
+  "policy": {
+    "bytes": 731542,
+    "sha256": "f4857beebba7df2f474e3385c38a69f7cfa0bec330d3d3f65ed7795255de871c",
+    "authority": "HASH_LOADED_PRODUCTION"
+  },
+  "inventory": {
+    "bytes": 399783,
+    "sha256": "2986e7d0bbbed5a25dedd21ef5841aed64317a77172d487c101bd2baad7452fd",
+    "references": 496,
+    "objects": 474,
+    "groups": 22,
+    "historicalReferences": 23,
+    "historyRecords": 3,
+    "referenceBytes": 1205734424,
+    "uniqueBytes": 900089203,
+    "referenceDigest": "7f7b8a730723f148b04317e38cbdfc7e1e5145cf04a916bbaaf7b9cea0d191ed"
+  },
+  "receipt": {
+    "bytes": 370425,
+    "sha256": "681a7c560f9e7c077e18ce20ddf34e86ecfbe01495ea2b2be556f2dd70709348"
+  },
+  "closedAcknowledgement": {
+    "bytes": 2030,
+    "sha256": "5a497398de8f4f675ee8ea0b6978c8692b3044fa79374cf6521d8185d4065667",
+    "sourceUnchanged": true,
+    "descriptorsClosed": true
+  },
+  "sourceBundle": {
+    "bytes": 10039559,
+    "sha256": "9c6c115e4f9adf367b028d836299bb6a47b8aefc206c8c6c013b83209df7e3ca",
+    "references": 8,
+    "blobs": 37,
+    "zeroPrerequisites": true,
+    "verification": "OFFLINE_FULL_FSCK",
+    "helperProof": {
+      "bytes": 22899,
+      "sha256": "ff24895f8ceae561eab2038787258b908667beca122eb1727c9fea37b5d61da8"
+    }
+  },
+  "executionRecipe": {
+    "snapshotPlan": {
+      "bytes": 2611,
+      "sha256": "07d25db5aeadff8ca7c786e1fddc48fae055851fd89d9bdd1b3e5b6271113510"
+    },
+    "caller": {
+      "bytes": 3610,
+      "sha256": "66b73d148fb422ac4b171da651b9116adbeac19a28a50356e420d6e49fe2997f"
+    },
+    "outerInvoker": {
+      "bytes": 7489,
+      "sha256": "b29e0c21d2b23c30c5336bc21f490f6579eecdaa913d165e8e07bc42b61300c2"
+    }
+  },
+  "claims": {
+    "authority": "LOCAL_DIAGNOSTIC_ROOT_RETRIEVAL",
+    "trustBoundary": "TRUSTED_ADMIN_ROOT_KERNEL",
+    "hostileSameUidIsolation": "NOT_CLAIMED",
+    "offHostImmutability": "NOT_CLAIMED",
+    "legalCompliance": "NOT_EVALUATED",
+    "binaryReproduction": "NOT_ESTABLISHED",
+    "currentness": "NOT_EVALUATED",
+    "runtimePermission": "NOT_GRANTED",
+    "signing": "NOT_ATTEMPTED",
+    "secondCompleteCopy": "NOT_ESTABLISHED",
+    "admission": "NOT_AUTHORIZED",
+    "supportStartedAt": null,
+    "supportEndsAt": null,
+    "archiveUntil": null
+  }
+}
