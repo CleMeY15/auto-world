@@ -1,6 +1,6 @@
 # PostgreSQL declared component and source inventory
 
-Status: ACCEPTED_LOCAL_DECLARED_INVENTORY, 2026-10-01. The sole fixed native collection succeeds and distinct original/default plus scoped privacy/preservation reviews APPROVE. Final-head/main CI and merge remain delivery gates. TASK-0005A/0005 stay IN_PROGRESS and TASK-0006 stays blocked.
+Status: ACCEPTED_LOCAL_DECLARED_INVENTORY, 2026-10-01. The sole fixed native collection succeeds and distinct original/default plus scoped privacy/preservation reviews APPROVE. Final-head/main CI and matching reviewed merge tree pass. TASK-0005A/0005 stay IN_PROGRESS and TASK-0006 stays blocked.
 
 ## Problem and implementation plan
 
@@ -57,4 +57,8 @@ On exact776e69d, actual nonroot `TURBO_FORCE=true pnpm run check` passes: lint9/
 
 The earlier PR124 parallel supplemental failure remains unestablished and preserved; these serial gates do not relabel its cause. Unsupported actual Git remains a strict refusal and CI's incompatible native helper is not represented as a positive replay.
 
-This acceptance establishes declared inventory and availability of five retained materials only. Seven missing markers, unverified lower-layer coverage, uncollected complete sources/notices, unattempted signing and null support/retention dates remain explicit. Historical integrity grants no runtime, legal-compliance or admission permission. Final delivery requires independent documentation review, exact final-head/main CI and matching reviewed merge tree.
+This acceptance establishes declared inventory and availability of five retained materials only. Seven missing markers, unverified lower-layer coverage, uncollected complete sources/notices, unattempted signing and null support/retention dates remain explicit. Historical integrity grants no runtime, legal-compliance or admission permission.
+
+## Delivery checkpoint
+
+Independent review of the final validation/task documents and PR body APPROVE; scoped secret checks pass. Final head ece8d68ddb8b8c6cc6ad5f413df24b77aa461a97 passes CI36796381344. PR126 merged4275c4f22fd95fc7390e6a3a130485c242d147e5 with unchanged reviewed tree5f77a8faa6b05f68aec0a1fd215305164f62dad2; merged-main CI36796608692 passes. The next bounded source-retention leaf does not rewrite or rerun this accepted private inventory.
