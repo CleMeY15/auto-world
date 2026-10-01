@@ -28,6 +28,26 @@ That UI observation is distinct from the current manifest-access receipt. GITHUB
 
 The access job uses owned private temporary credential directories; cleanup checks their native identities and exact allowed contents before removal. Foreign replacement, links or uncertain cleanup fail and preserve the object. Only the closed non-sensitive access receipt is uploaded.
 
+### Complete package-read workflow inventory
+
+The reviewed tree contains these eleven package-read jobs. All have an input-free workflow_dispatch trigger, this-repository/main guard and checkout with persist-credentials:false. None has package-write, OIDC or attestation capability; the separate signer has no package-read capability. No package-read job accepts PR/fork-controlled checkout, reusable-workflow inputs or fork artifacts. This is a reviewed workflow boundary, not the waived server-side fork-isolation proof. Existing exhausted or retired workflows are never redispatched by this increment.
+
+| Workflow under `.github/workflows/` | Job | Run/attempt guard | Artifact authority | Candidate behavior |
+| --- | --- | --- | --- | --- |
+| `postgres-candidate-attest.yml` | access | 1/1 | None | Two authenticated manifest reads around anonymous denial; no pull/save/start. |
+| `postgres-candidate-attest.yml` | verifier | 1/1 | Same-run signer artifact ID, API digest and head SHA | Official OCI subject resolution only; no layers/start. |
+| `postgres-candidate-remote-audit.yml` | audit | 1/1 | Same-run/main scanner-build artifacts, needs:build | Pull/save/scan archive; candidate never started. Diagnostic scanner carriers only. |
+| `postgres-candidate-remote-read-v2.yml` | read | 1/1 | None | Exact pull/save/archive validation, no start; exhausted/disabled. |
+| `postgres-candidate-remote-read.yml` | read | 1/1 | None | Same read-only materialization; original failed V1 preserved, exhausted/disabled. |
+| `postgres-candidate-remote-runtime-diagnostic-v2.yml` | runtime | 1/1 | Fixed audit ID11079393568/run36673766454/main5186a2… | Isolated audited diagnostic candidate execution and cleanup; exhausted/disabled. |
+| `postgres-package-bootstrap.yml` | verify | 2/1 | None | Fixed harmless bootstrap pulled into a stopped container; no candidate; exhausted. |
+| `private-package-proof.yml` | verify | Repo/main only | None | Fixed harmless bootstrap/canary and stopped container; no candidate; retired. |
+| `seaweed-candidate-remote-audit.yml` | audit | 1/1 | Same-run/main scanner-build artifacts, needs:build | Pull/save/scan archive; candidate never started; exhausted. |
+| `seaweed-candidate-remote-runtime.yml` | runtime | 3/1 | Fixed audit run36325906357 | Isolated audited diagnostic candidate execution and cleanup; exhausted. |
+| `seaweed-package-bootstrap.yml` | verify | 2/1 | None | Fixed harmless bootstrap in a stopped container; no candidate; exhausted. |
+
+The [workflow contract tests](../../tests/postgres-image-candidate-attestation-workflow.test.mjs) enumerate every workflow granting package read and compare its exact path/job, trigger, checkout and main/run guards to this inventory. Quality CI and the generic package-bootstrap workflow's PR trigger have no package-read permission. Only the two historical runtime jobs above can execute candidate images, within their existing isolated diagnostic contracts.
+
 ## Authenticated artifact intake and P2 currentness
 
 [Intake](../../scripts/postgres-image/attestation-artifact-input.mjs) checks the exact GitHub artifact ID, name, current run and head SHA, non-expiration, size and API digest. It downloads the ZIP through the existing bounded stream, checks complete size/SHA/EOF, validates its closed flat ZIP profile, writes only allowlisted private files and authenticates each readback with native path/FD seals. All handles close before return. The fixed historical audit additionally requires the successful reviewed audit run and exact API artifact identity from [candidate-runtime.json](../../infra/postgres-image/candidate-runtime.json).
@@ -46,7 +66,7 @@ The official action is `actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6`
 
 [Verification](../../scripts/postgres-image/verify-candidate-attestation.mjs) uses the exact official gh2.98.0 binary:41,377,954bytes/SHA256 `62885b97de6a0cd85e616cdd94bcda908bf5cf1018094385892b05cea3537163`. Certificate identity and signer-workflow policies are mutually exclusive CLI flags, so they run separately on the same preserved bundle. Certificate source-digest and signer-digest both bind the signing workflow SHA; the older image build revision remains in the predicate. The whole verified statement/predicate and exact run invocation URI are checked.
 
-Actual controls require a valid positive before and after the negatives, wrong subject/workflow/ref/source/signer expectations, a modified signed payload, and missing/truncated/malformed input or output. VERIFIED, REJECTED and ERROR remain distinct; operational failures cannot prove a policy rejection. No additional branch attestation or canary execution is introduced.
+Actual controls require a valid positive before and after the negatives, wrong subject/workflow/ref/source/signer expectations, a modified signed payload, and missing/truncated/malformed input or output. The wrong-subject control uses the known existing PostgreSQL bootstrap manifest, so it exercises official attestation-policy rejection against a resolvable object instead of treating a registry 404 as a negative proof. VERIFIED, REJECTED and ERROR remain distinct; operational failures cannot prove a policy rejection. No additional branch attestation or canary execution is introduced.
 
 Technical P1 does not establish blanket legal compliance or full upstream binary reproduction. Official attestation is ATTESTED_UNADMITTED until P5–P7 pass. The second COMPLETE private copy including its signed bundle remains required before activation. Support starts only at actual reviewed activation, lasts one calendar year, requires continuous security controls, and retains all archives for at least365 further days without automatic deletion.
 

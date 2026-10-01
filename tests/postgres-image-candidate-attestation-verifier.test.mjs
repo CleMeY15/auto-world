@@ -9,6 +9,8 @@ import { test } from "node:test";
 import { ATTESTATION } from "../scripts/postgres-image/candidate-attestation.mjs";
 import { loadPostgresCoreEvidenceAcceptance,
   CORE_EVIDENCE } from "../scripts/postgres-image/core-evidence-acceptance.mjs";
+import { validatePostgresRemotePolicy,
+  validatePostgresRemotePublicationReceipt } from "../scripts/postgres-image/candidate-remote.mjs";
 import { BOOTSTRAP_DIGEST, MAIN_REF, classifyVerification, negativeProved,
   exerciseCandidateAttestationBundleControls, runCandidateAttestationVerification,
   validatePreSignReceipt, verificationArgs,
@@ -116,6 +118,17 @@ test("official calls bind the immutable OCI subject and every GitHub identity di
   }
   assert.throws(() => verificationArgs({ bundle: "relative", sourceSha, signerSha, mode: "identity" }),
     /verification_invalid/u);
+});
+
+test("wrong-subject control uses the authenticated existing PostgreSQL bootstrap manifest", () => {
+  const policy = validatePostgresRemotePolicy(JSON.parse(readFileSync(
+    new URL("../infra/postgres-image/candidate-remote.json", import.meta.url))));
+  const publication = validatePostgresRemotePublicationReceipt(JSON.parse(readFileSync(
+    new URL("../infra/postgres-image/candidate-publication-receipt.json", import.meta.url))), policy);
+  assert.equal(BOOTSTRAP_DIGEST, publication.bootstrap.digest);
+  assert.equal(publication.bootstrap.size, 524);
+  assert.equal(publication.bootstrap.anonymousRead, "AUTHORIZATION_DENIED");
+  assert.notEqual(BOOTSTRAP_DIGEST, ATTESTATION.subjectDigest);
 });
 
 test("pre-sign receipt is closed and binds exact predicate bytes", () => {

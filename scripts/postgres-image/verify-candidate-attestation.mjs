@@ -10,7 +10,7 @@ import { ATTESTATION, validateCandidateAttestationPredicate } from "./candidate-
 
 export const MAIN_REF = "refs/heads/main";
 export const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
-export const BOOTSTRAP_DIGEST = "sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a";
+export const BOOTSTRAP_DIGEST = "sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408";
 export const GH_BINARY = Object.freeze({ version: "2.98.0", releasedAt: "2026-08-20",
   bytes: 41_377_954, sha256: "62885b97de6a0cd85e616cdd94bcda908bf5cf1018094385892b05cea3537163" });
 
@@ -615,4 +615,3 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exitCode = 1;
   });
 }
-

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { ATTESTATION, SIGNER_JOB_BUDGET_MS } from "../scripts/postgres-image/candidate-attestation.mjs";
 
@@ -86,4 +86,45 @@ test("finite public evidence contains only approved files and preserves private 
       assert.doesNotMatch(step.with.path, /\*|private-archive|candidate\.tar|config\.json|audit-input/u);
     }
   }
+});
+
+test("the complete package-read inventory contains only reviewed manual main jobs", () => {
+  const expected = [
+    ["postgres-candidate-attest.yml", "access", 1], ["postgres-candidate-attest.yml", "verifier", 1],
+    ["postgres-candidate-remote-audit.yml", "audit", 1], ["postgres-candidate-remote-read-v2.yml", "read", 1],
+    ["postgres-candidate-remote-read.yml", "read", 1], ["postgres-candidate-remote-runtime-diagnostic-v2.yml", "runtime", 1],
+    ["postgres-package-bootstrap.yml", "verify", 2], ["private-package-proof.yml", "verify", null],
+    ["seaweed-candidate-remote-audit.yml", "audit", 1], ["seaweed-candidate-remote-runtime.yml", "runtime", 3],
+    ["seaweed-package-bootstrap.yml", "verify", 2],
+  ];
+  const found = [];
+  const documentation = readFileSync(new URL("../docs/validation/TASK-0005A-POSTGRES-ATTESTATION.md", import.meta.url), "utf8");
+  const directory = new URL("../.github/workflows/", import.meta.url);
+  for (const file of readdirSync(directory).filter(name => /\.ya?ml$/u.test(name))) {
+    const source = readFileSync(new URL(file, directory), "utf8");
+    if (!/\bpackages["']?\s*:\s*["']?read/u.test(source)) continue;
+    const definition = JSON.parse(source);
+    assert.notEqual(definition.permissions?.packages, "read", "package read must be granted per job");
+    assert.deepEqual(definition.on, { workflow_dispatch: {} });
+    for (const [jobName, job] of Object.entries(definition.jobs)) {
+      if (job.permissions?.packages !== "read") continue;
+      found.push(`${file}#${jobName}`);
+      const record = expected.find(([path, name]) => path === file && name === jobName);
+      assert.ok(record, `unreviewed package-read job ${file}#${jobName}`);
+      assert.ok(documentation.includes(`| \`${file}\` | ${jobName} |`));
+      assert.ok(job.if.includes("github.repository == 'CleMeY15/auto-world'"));
+      assert.ok(job.if.includes("github.event_name == 'workflow_dispatch'"));
+      assert.ok(job.if.includes("github.ref == 'refs/heads/main'"));
+      if (record[2] !== null) {
+        assert.ok(job.if.includes(`github.run_number == ${record[2]}`));
+        assert.ok(job.if.includes("github.run_attempt == 1"));
+      }
+      const checkout = action(job, "checkout");
+      assert.ok(checkout); assert.equal(checkout.with["persist-credentials"], false);
+      assert.equal(checkout.with.ref, undefined);
+      assert.equal(job.permissions["id-token"], undefined);
+      assert.equal(job.permissions.attestations, undefined);
+    }
+  }
+  assert.deepEqual(found.sort(), expected.map(([file, name]) => `${file}#${name}`).sort());
 });
