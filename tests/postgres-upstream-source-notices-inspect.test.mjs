@@ -19,8 +19,10 @@ const env = { PATH: "/usr/bin:/bin", HOME: "/home/autoworld", LANG: "C.UTF-8", L
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const root = "public-fixture";
 const pgSha = "dd27f2b3c59e73ed14aa3324901242bf69a032a6347805f274e6260322d42979";
+const pgPaxDeclaredCommit = "083ac033419f690758508e08c1736089384bbee8";
+const dockerDeclaredCommit = "2603e26e245e558218728ee14e0a42dcb020dc7f";
 const dockerfile = Buffer.from(`FROM harmless\nENV PG_VERSION 17.11\nENV PG_SHA256 ${pgSha}\n`);
-const pureCode = `import base64,bz2,hashlib,json,runpy,sys
+const pureCode = `import base64,bz2,gzip,hashlib,json,runpy,sys,types
 m=runpy.run_path(sys.argv[1]);old=runpy.run_path(sys.argv[2]);v=json.load(sys.stdin)
 class Source:
  def __init__(self,b):self.data=b;self.size=len(b)
@@ -28,7 +30,29 @@ class Source:
 try:
  raw=base64.b64decode(v.get('bytes',''),validate=True)
  if v['op']=='binding':value=m['_docker_binding'](raw)
- elif v['op']=='pins':value={'pins':m['PINS'],'selected':m['SELECTED_PINS'],'runtime':m['RUNTIME_PINS'],'coreSize':m['OLD_HELPER_SIZE'],'coreSha':m['OLD_HELPER_SHA256']}
+ elif v['op']=='pins':value={'pins':m['PINS'],'selected':m['SELECTED_PINS'],'runtime':m['RUNTIME_PINS'],'coreSize':m['OLD_HELPER_SIZE'],'coreSha':m['OLD_HELPER_SHA256'],'pgPaxDeclaredCommit':m.get('PG_PAX_DECLARED_COMMIT')}
+ elif v['op']=='profiles':
+  # Only this disposable pure process overrides archive expectations. No actor,
+  # entrypoint, descriptor, production pin or default validator is replaced.
+  globals_=m['_inspect_sources'].__globals__;pins=[];selected=[];sources=[]
+  class ToySource(Source):
+   def __init__(self,b,expected):
+    super().__init__(b);self.expected=expected;self.before={'scope':'IN_MEMORY_TOY_FIXTURE'}
+   def fingerprint(self):
+    value=hashlib.sha256(self.data).hexdigest()
+    m['_require'](value==self.expected,'fingerprint_invalid');return value
+  for i,item in enumerate(v['profiles']):
+   raw=base64.b64decode(item['bytes'],validate=True)
+   packed=bz2.compress(raw) if i==0 else gzip.compress(raw)
+   if item.get('truncate'):packed=packed[:-item['truncate']]
+   if item.get('concat'):packed+=(bz2.compress(b'other stream') if i==0 else gzip.compress(b'other stream'))
+   if item.get('trailer'):packed+=base64.b64decode(item['trailer'],validate=True)
+   pin=dict(m['PINS'][i]);pin.update(size=len(packed),sha256=hashlib.sha256(packed).hexdigest(),entries=item['entries'],raw=item['raw'],decoded=len(raw))
+   pins.append(pin);selected.append({key:tuple(value) for key,value in item['selected'].items()});sources.append(ToySource(packed,pin['sha256']))
+  globals_['PINS']=tuple(pins);globals_['SELECTED_PINS']=tuple(selected)
+  inspected=m['_inspect_sources'](sources,types.SimpleNamespace(**old))
+  for archive in inspected['archives']:del archive['identity']
+  value={'archives':inspected['archives'],'nativeEntry':'NOT_CALLED','retention':'NOT_ATTEMPTED'}
  else:
   packed=bz2.compress(raw) if v.get('compress') else raw
   if v.get('truncate'):packed=packed[:-v['truncate']]
@@ -73,6 +97,86 @@ function tarRaw(entries, tail = Buffer.alloc(1024)) {
 const entries = () => [{ name: root + "/", kind: "5" }, { name: root + "/COPYRIGHT", bytes: Buffer.from("public copyright\n") }];
 const tarInput = (bytes, extra = {}) => ({ op: "tar", bytes: bytes.toString("base64"), compress: true, root, selected: ["COPYRIGHT", "LICENSE", "NOTICE"], ...extra });
 function pax(key, value) { const body = `${key}=${value}\n`; let n = Buffer.byteLength(body) + 3; for (;;) { const next = Buffer.byteLength(`${n} ${body}`); if (n === next) return Buffer.from(`${n} ${body}`); n = next; } }
+
+function profileFixture() {
+  const roots = ["postgresql-17.11", "postgres-" + dockerDeclaredCommit];
+  const files = [{ COPYRIGHT: Buffer.from("public copyright\n") }, { LICENSE: Buffer.from("public license\n"),
+    "17/alpine3.24/Dockerfile": dockerfile, "17/alpine3.24/docker-ensure-initdb.sh": Buffer.from("harmless ensure script; never executed\n"),
+    "17/alpine3.24/docker-entrypoint.sh": Buffer.from("harmless entry script; never executed\n") }];
+  const rows = files.map((selected, index) => [{ name: "pax_global_header", kind: "g", bytes: pax("comment", index === 0 ? pgPaxDeclaredCommit : dockerDeclaredCommit) },
+    { name: roots[index] + "/", kind: "5" }, ...Object.entries(selected).map(([member, bytes]) => ({ name: roots[index] + "/" + member, bytes }))]);
+  const input = rows.map((list, index) => ({ bytes: tarRaw(list).toString("base64"), entries: Object.keys(files[index]).length + 1,
+    raw: Object.values(files[index]).reduce((total, bytes) => total + bytes.length, 0),
+    selected: Object.fromEntries(Object.entries(files[index]).map(([member, bytes]) => [member, [bytes.length, sha(bytes)]])) }));
+  return { roots, files, rows, input };
+}
+function profiles(fixture, changed = fixture.rows, extras = []) {
+  return pure({ op: "profiles", profiles: fixture.input.map((input, index) => ({ ...input, bytes: tarRaw(changed[index]).toString("base64"), ...extras[index] })) });
+}
+
+test("combined two-profile inspection consumes the exact declared global PAX comments with real bzip2 gzip TAR and selected hashes", pureOptions, () => {
+  const fixture = profileFixture(); const result = profiles(fixture);
+  assert.equal(result.state, "TOY_PASSIVE_VERIFIED"); assert.equal(result.value.nativeEntry, "NOT_CALLED"); assert.equal(result.value.retention, "NOT_ATTEMPTED");
+  for (const [index, archive] of result.value.archives.entries()) {
+    assert.equal(archive.role, PIN.archives[index].role); assert.equal(archive.entries, fixture.input[index].entries);
+    assert.equal(archive.uncompressedBytes, fixture.input[index].raw); assert.equal(archive.decodedTarBytes, tarRaw(fixture.rows[index]).length);
+    assert.equal(Object.hasOwn(archive, "identity"), false); assert.deepEqual(archive.missingSelectedFiles, PIN.archives[index].missingSelectedFiles);
+    assert.deepEqual(archive.bindings, PIN.archives[index].bindings);
+    assert.deepEqual(archive.selectedFiles.map(({ path, size, sha256 }) => ({ path, size, sha256 })),
+      Object.entries(fixture.files[index]).map(([path, bytes]) => ({ path, size: bytes.length, sha256: sha(bytes) })).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    for (const selected of archive.selectedFiles) assert.deepEqual(Buffer.from(selected.base64, "base64"), fixture.files[index][selected.path]);
+  }
+});
+test("combined profiles refuse wrong missing extra duplicate global comments and local path extensions", pureOptions, () => {
+  for (const index of [0, 1]) {
+    const fixture = profileFixture(); const list = fixture.rows[index];
+    const mutations = [
+      [{ ...list[0], bytes: pax("comment", "f".repeat(40)) }, ...list.slice(1)], list.slice(1),
+      [{ ...list[0], bytes: Buffer.concat([list[0].bytes, pax("vendor.metadata", "unsupported")]) }, ...list.slice(1)],
+      [{ ...list[0], bytes: Buffer.concat([list[0].bytes, list[0].bytes]) }, ...list.slice(1)],
+      [list[0], list[0], ...list.slice(1)], [{ ...list[0], name: "different_global_header" }, ...list.slice(1)],
+      [list[0], list[1], { name: fixture.roots[index] + "/PaxHeaders/file", kind: "x", bytes: pax("path", fixture.roots[index] + "/local") }, ...list.slice(2)],
+    ];
+    for (const changed of mutations) {
+      const rows = [...fixture.rows]; rows[index] = changed; assert.equal(profiles(fixture, rows).state, "TOY_PASSIVE_REFUSED");
+    }
+  }
+});
+test("combined profiles retain strict compression completion TAR padding and end markers", pureOptions, () => {
+  for (const index of [0, 1]) {
+    const fixture = profileFixture();
+    for (const change of [{ truncate: 1 }, { concat: true }, { trailer: Buffer.from("trailing compressed bytes").toString("base64") }]) {
+      const extras = []; extras[index] = change; assert.equal(profiles(fixture, fixture.rows, extras).state, "TOY_PASSIVE_REFUSED");
+    }
+    for (const tail of [Buffer.alloc(512), Buffer.alloc(1024, 1), Buffer.from("not aligned")]) {
+      const inputs = fixture.input.map(item => ({ ...item })); inputs[index].bytes = tarRaw(fixture.rows[index], tail).toString("base64");
+      assert.equal(pure({ op: "profiles", profiles: inputs }).state, "TOY_PASSIVE_REFUSED");
+    }
+    const raw = tarRaw(fixture.rows[index]); raw[512 + fixture.rows[index][0].bytes.length] = 1;
+    const inputs = fixture.input.map(item => ({ ...item })); inputs[index].bytes = raw.toString("base64");
+    assert.equal(pure({ op: "profiles", profiles: inputs }).state, "TOY_PASSIVE_REFUSED");
+  }
+});
+test("combined profiles refuse selected content and declared count substitutions after real parsing", pureOptions, () => {
+  for (const index of [0, 1]) {
+    const fixture = profileFixture(); const rows = fixture.rows.map(list => [...list]);
+    rows[index][2] = { ...rows[index][2], bytes: Buffer.alloc(rows[index][2].bytes.length, 88) };
+    assert.equal(profiles(fixture, rows).state, "TOY_PASSIVE_REFUSED");
+    for (const field of ["entries", "raw"]) {
+      const inputs = fixture.input.map(item => ({ ...item })); inputs[index][field] += 1;
+      assert.equal(pure({ op: "profiles", profiles: inputs }).state, "TOY_PASSIVE_REFUSED");
+    }
+  }
+});
+test("shared parser default remains unable to accept a global PAX declaration without explicit expectation", pureOptions, () => {
+  for (const commit of [pgPaxDeclaredCommit, dockerDeclaredCommit]) {
+    const raw = tarRaw([{ name: "pax_global_header", kind: "g", bytes: pax("comment", commit) }, ...entries()]);
+    assert.equal(pure(tarInput(raw)).state, "TOY_PASSIVE_REFUSED");
+    assert.equal(pure(tarInput(raw, { pax: commit })).state, "TOY_PASSIVE_VERIFIED");
+  }
+  const result = pure(tarInput(tarRaw(entries()))); assert.equal(result.state, "TOY_PASSIVE_VERIFIED");
+  assert.equal(result.value.paxCommit, null);
+});
 
 test("single bzip2 stream drains buffered decoder data without requesting another input", pureOptions, () => {
   const bytes = Buffer.alloc(3 * 65536 + 17, 65); const result = pure(bzipInput(bytes, { pull: 65536 }));
@@ -132,6 +236,7 @@ test("fixed pins preserve two exact archives five texts code8 and root bz2 ident
   assert.equal(value.coreSize, fs.statSync(core).size); assert.equal(value.coreSha, sha(fs.readFileSync(core)));
   assert.equal(value.selected[0].COPYRIGHT[0], 1198); assert.equal(Object.keys(value.selected[0]).length + Object.keys(value.selected[1]).length, 5);
   assert.deepEqual(value.runtime.map(v => v.size), [11847, 32112]);
+  assert.equal(value.pgPaxDeclaredCommit, pgPaxDeclaredCommit);
   assert.equal(value.coreSize, PIN.inspector.core.size); assert.equal(value.coreSha, PIN.inspector.core.sha256);
   for (const [i, row] of value.pins.entries()) {
     const fixed = PIN.archives[i]; assert.equal(row.role, fixed.role); assert.equal(row.name, fixed.name); assert.equal(row.size, fixed.size); assert.equal(row.sha256, fixed.sha256);

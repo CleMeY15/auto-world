@@ -32,6 +32,8 @@ MAX_OUTPUT_BYTES = 128 * 1024
 OLD_HELPER_SIZE = 24671
 OLD_HELPER_SHA256 = "f7b37bc47729c65653cf03fd6b93e8bd6dec7b48027b544469c559dde0c4724c"
 COMMIT = "2603e26e245e558218728ee14e0a42dcb020dc7f"
+# Observed archive PAX declaration; this is not Git object authentication.
+PG_PAX_DECLARED_COMMIT = "083ac033419f690758508e08c1736089384bbee8"
 PG_SHA256 = "dd27f2b3c59e73ed14aa3324901242bf69a032a6347805f274e6260322d42979"
 ENV = {"PATH": "/usr/bin:/bin", "HOME": "/home/autoworld", "LANG": "C.UTF-8",
        "LC_ALL": "C.UTF-8", "TZ": "UTC"}
@@ -263,7 +265,7 @@ def _inspect_sources(sources, old):
         source.fingerprint()
         reader = _BZ2Reader(source) if index == 0 else old._GzipReader(source)
         value = old._inspect_tar(source, pin["root"], pin["selected"],
-                                 None if index == 0 else COMMIT, _reader=reader)
+                                 PG_PAX_DECLARED_COMMIT if index == 0 else COMMIT, _reader=reader)
         _require(value["entries"] == pin["entries"] and value["uncompressedBytes"] == pin["raw"]
                  and reader.total == pin["decoded"] and reader.done and not reader.buffer
                  and not value["symlinks"], "binding_invalid")
