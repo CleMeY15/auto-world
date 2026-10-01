@@ -1,7 +1,15 @@
 # TASK-0005A — PostgreSQL exact-subject attestation
 
-Status: IMPLEMENTATION_IN_REVIEW. No PostgreSQL attestation has been created or accepted by this increment yet. The subject remains NOT_ADMITTED; support and archive dates remain null.
+Status: V1_IMPLEMENTATION_DELIVERED_NATIVE_ACCESS_FAILED; V2_IMPLEMENTATION_IN_REVIEW. No PostgreSQL attestation has been created or accepted. The subject remains NOT_ADMITTED; support and archive dates remain null.
 
+
+## Preserved first execution and focused V2 correction
+
+[PR131](https://github.com/CleMeY15/auto-world/pull/131) delivered independently reviewed head `3dfc6aa59f879774bf0f87025c149b76e0685531` / tree `0791e99422fb4c40ad4cdf5e8b985468cea3e6b9`; Architect then distinct Critic both APPROVE/CLEAR. [Exact-head CI36852498144](https://github.com/CleMeY15/auto-world/actions/runs/36852498144) and [merged-main CI36853563138](https://github.com/CleMeY15/auto-world/actions/runs/36853563138) passed. Merge `362ae304204e7692e99cb5e3126ffc91b9efa896` preserved the reviewed tree. Authenticated package Settings were reloaded unchanged immediately before dispatch; no settings or credential changed.
+
+The single V1 [run36854000922](https://github.com/CleMeY15/auto-world/actions/runs/36854000922) FAILED at access-job credential cleanup with `postgres_attestation_access_cleanup_uncertain`. Signer and verifier were SKIPPED, zero artifacts exist, no official signature was attempted. Its public log did not record a possible preceding primary failure: successful authenticated/anonymous manifest reads are NOT_ESTABLISHED by this attempt. The [closed failure projection](../../infra/postgres-image/candidate-attestation-failure-v1.json) binds the preserved API/job/collection/failure-log byte identities. Original V1 workflow `.github/workflows/postgres-candidate-attest.yml` (ID372074757) was disabled after the run started and its run1/attempt1 budget is consumed. Never rerun it; preserve its executed recipe in Git history.
+
+A native local UID1000 metadata-only anonymous inspection, without image pull/save/start, reproduced normal Buildx-created `defaults/`, `instances/`, `activity/`, `current` and `.lock`. V1 incorrectly required the two Buildx roots to remain empty; the simulated command runner also failed to reproduce those writes. V2 corrects that owned-layout handling with explicit identity, mode, link, contents and schema checks before deletion, while refusing and preserving foreign or uncertain objects. Fixed public failure diagnostics preserve phase and both primary/cleanup causes without command output or credentials. V2 is a new, separately reviewed one-run envelope, with the same three capabilities, fixed subject and accepted gates. Its actual result is pending; no new audit is justified unless the unchanged execution-currentness contract expires or loses the full signing budget.
 ## Accepted prerequisite
 
 [PR129](https://github.com/CleMeY15/auto-world/pull/129) delivered the complete technical P1 closure. Final six-file head `de0972a5f0c09153dc8eae0ab74e6ed4ff7c5524` passed [CI36848835648](https://github.com/CleMeY15/auto-world/actions/runs/36848835648); merged main `2dcad7fe92431af1ece96f6f200655226713d77f` has the identical independently approved tree `5f8d2f2318f0b9a2cd04529eafc23c3ce173e604` and passed [CI36849170358](https://github.com/CleMeY15/auto-world/actions/runs/36849170358). The actual retrieval recipe remains `4a28d5e3cef525a8cf54ba5a1336d7af8573df1d`, separately from delivery and future signing revisions. Its 496-reference root ACK, receipt, inventory, all 22 group digests and public projection received independent APPROVE.
@@ -10,7 +18,7 @@ The [acceptance loader](../../scripts/postgres-image/core-evidence-acceptance.mj
 
 ## One bounded workflow, three capabilities
 
-The [workflow](../../.github/workflows/postgres-candidate-attest.yml) has no inputs and accepts only workflow_dispatch, this repository, protected main, GitHub-hosted Ubuntu24.04, run number1 and attempt1. Every checkout uses a fixed action revision with persist-credentials:false. Node22.23.2 and all actions are fixed. There is no automatic trigger or reuse of the retired SeaweedFS/canary producers.
+The [workflow](../../.github/workflows/postgres-candidate-attest-v2.yml) has no inputs and accepts only workflow_dispatch, this repository, protected main, GitHub-hosted Ubuntu24.04, run number1 and attempt1. Every checkout uses a fixed action revision with persist-credentials:false. Node22.23.2 and all actions are fixed. There is no automatic trigger or reuse of the retired SeaweedFS/canary producers.
 
 | Job | Permissions | Result and exclusion |
 | --- | --- | --- |
@@ -34,8 +42,8 @@ The reviewed tree contains these eleven package-read jobs. All have an input-fre
 
 | Workflow under `.github/workflows/` | Job | Run/attempt guard | Artifact authority | Candidate behavior |
 | --- | --- | --- | --- | --- |
-| `postgres-candidate-attest.yml` | access | 1/1 | None | Two authenticated manifest reads around anonymous denial; no pull/save/start. |
-| `postgres-candidate-attest.yml` | verifier | 1/1 | Same-run signer artifact ID, API digest and head SHA | Official OCI subject resolution only; no layers/start. |
+| `postgres-candidate-attest-v2.yml` | access | 1/1 | None | Two authenticated manifest reads around anonymous denial; no pull/save/start. |
+| `postgres-candidate-attest-v2.yml` | verifier | 1/1 | Same-run signer artifact ID, API digest and head SHA | Official OCI subject resolution only; no layers/start. |
 | `postgres-candidate-remote-audit.yml` | audit | 1/1 | Same-run/main scanner-build artifacts, needs:build | Pull/save/scan archive; candidate never started. Diagnostic scanner carriers only. |
 | `postgres-candidate-remote-read-v2.yml` | read | 1/1 | None | Exact pull/save/archive validation, no start; exhausted/disabled. |
 | `postgres-candidate-remote-read.yml` | read | 1/1 | None | Same read-only materialization; original failed V1 preserved, exhausted/disabled. |

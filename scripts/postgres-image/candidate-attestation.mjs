@@ -19,7 +19,7 @@ export const ATTESTATION = Object.freeze({
   subjectName: "ghcr.io/clemey15/auto-world-postgres-gosu",
   subjectDigest: "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
   predicateType: "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
-  workflowPath: ".github/workflows/postgres-candidate-attest.yml",
+  workflowPath: ".github/workflows/postgres-candidate-attest-v2.yml",
 });
 export const SIGNER_JOB_BUDGET_MS = 20 * 60 * 1000;
 export const CURRENT_AUDIT_VALID_UNTIL = "2026-10-02T01:15:45.849Z";

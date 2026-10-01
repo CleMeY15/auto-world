@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { ATTESTATION, SIGNER_JOB_BUDGET_MS } from "../scripts/postgres-image/candidate-attestation.mjs";
 
-const workflow = JSON.parse(readFileSync(new URL("../.github/workflows/postgres-candidate-attest.yml", import.meta.url)));
+const workflow = JSON.parse(readFileSync(new URL("../.github/workflows/postgres-candidate-attest-v2.yml", import.meta.url)));
 const { access, signer, verifier } = workflow.jobs;
 const action = (job, name) => job.steps.find(step => step.uses?.startsWith(`actions/${name}@`));
 const named = (job, name) => job.steps.find(step => step.name === name);
@@ -90,7 +90,7 @@ test("finite public evidence contains only approved files and preserves private 
 
 test("the complete package-read inventory contains only reviewed manual main jobs", () => {
   const expected = [
-    ["postgres-candidate-attest.yml", "access", 1], ["postgres-candidate-attest.yml", "verifier", 1],
+    ["postgres-candidate-attest-v2.yml", "access", 1], ["postgres-candidate-attest-v2.yml", "verifier", 1],
     ["postgres-candidate-remote-audit.yml", "audit", 1], ["postgres-candidate-remote-read-v2.yml", "read", 1],
     ["postgres-candidate-remote-read.yml", "read", 1], ["postgres-candidate-remote-runtime-diagnostic-v2.yml", "runtime", 1],
     ["postgres-package-bootstrap.yml", "verify", 2], ["private-package-proof.yml", "verify", null],

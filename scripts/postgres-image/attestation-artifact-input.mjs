@@ -13,7 +13,7 @@ import { authenticatePostgresRemoteRuntimeSource,
   verifyPostgresRuntimeAuditApi } from "./candidate-remote-runtime-diagnostic.mjs";
 
 const REPOSITORY = "CleMeY15/auto-world";
-const WORKFLOW = ".github/workflows/postgres-candidate-attest.yml";
+const WORKFLOW = ".github/workflows/postgres-candidate-attest-v2.yml";
 const WORKFLOW_REF = `${REPOSITORY}/${WORKFLOW}@refs/heads/main`;
 const MAX_ARTIFACT_BYTES = 8 * 1024 ** 2;
 const MAX_API_BYTES = 512 * 1024;

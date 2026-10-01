@@ -89,7 +89,7 @@ test("PostgreSQL attestation ZIP profiles accept only fixed flat files with revi
 function apiFixture(mode = "access") {
   const id = 987654; const runId = "123456"; const headSha = "a".repeat(40);
   const run = { id: Number(runId), run_number: 1, run_attempt: 1,
-    path: ".github/workflows/postgres-candidate-attest.yml", event: "workflow_dispatch",
+    path: ".github/workflows/postgres-candidate-attest-v2.yml", event: "workflow_dispatch",
     status: "in_progress", conclusion: null, head_branch: "main", head_sha: headSha,
     repository: { full_name: "CleMeY15/auto-world" } };
   const artifact = { id, name: POSTGRES_ATTESTATION_ARTIFACTS[mode].name, expired: false,

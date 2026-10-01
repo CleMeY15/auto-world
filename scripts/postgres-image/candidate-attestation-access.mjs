@@ -13,7 +13,7 @@ import { classifyAnonymousRemoteRead } from "../package-bootstrap/registry-proof
 
 export const POSTGRES_ATTESTATION_ACCESS = Object.freeze({
   repository: "CleMeY15/auto-world",
-  workflowPath: ".github/workflows/postgres-candidate-attest.yml",
+  workflowPath: ".github/workflows/postgres-candidate-attest-v2.yml",
   job: "access",
   policyPath: "infra/postgres-image/candidate-remote.json",
   controlsPath: "infra/postgres-image/package-controls.json",
@@ -36,6 +36,8 @@ const PHASE_NAMES = Object.freeze([
   "authorized_registry_login", "authorized_manifest_before", "anonymous_manifest_denied",
   "authorized_manifest_after", "credential_and_temporary_cleanup",
 ]);
+const PUBLIC_FAILURE_PHASES = Object.freeze(["UNKNOWN", ...PHASE_NAMES]);
+const BUILDX_DIRECTORIES = Object.freeze(["activity", "defaults", "instances"]);
 
 function fail(code) { throw new Error(code); }
 function plain(value) {
@@ -47,6 +49,11 @@ function exactKeys(value, keys) {
 }
 function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function identity(bytes) { return Object.freeze({ sha256: sha256(bytes), bytes: bytes.length }); }
+function visibleAscii(value) {
+  return typeof value === "string" && Array.from(value).every((character) => {
+    const code = character.charCodeAt(0); return code >= 0x21 && code <= 0x7e;
+  });
+}
 function cloneFrozen(value) {
   if (Array.isArray(value)) return Object.freeze(value.map(cloneFrozen));
   if (plain(value)) return Object.freeze(Object.fromEntries(Object.entries(value)
@@ -81,6 +88,12 @@ function fixedReason(error) {
   const message = error instanceof Error ? error.message : "postgres_attestation_access_failed";
   return /^(?:postgres_attestation_access|postgres_remote_candidate|package_registry)_[a-z0-9_]+$/u.test(message)
     ? message : "postgres_attestation_access_failed";
+}
+function fixedPublicReason(value) {
+  const candidate = typeof value === "string" ? value
+    : typeof value?.code === "string" ? value.code : value instanceof Error ? value.message : "";
+  return /^(?:postgres_attestation_access|postgres_remote_candidate|package_registry)_[a-z0-9_]+$/u.test(candidate)
+    ? candidate : "postgres_attestation_access_failed";
 }
 function instant(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/u.test(value)
@@ -172,50 +185,167 @@ function commandEnvironment(env, dockerConfig, temporaryDirectory) {
   return clean;
 }
 
-function makePrivateDirectory(directory, parent, uid) {
+function makePrivateDirectory(directory, parent, uid, gid) {
   if (path.dirname(directory) !== parent || existsSync(directory)) fail("postgres_attestation_access_path_invalid");
   mkdirSync(directory, { mode: 0o700 });
   const info = lstatSync(directory);
-  if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== uid || (info.mode & 0o777) !== 0o700
+  if (!info.isDirectory() || info.isSymbolicLink() || info.uid !== uid || info.gid !== gid
+    || (info.mode & 0o777) !== 0o700
     || realpathSync(directory) !== directory) fail("postgres_attestation_access_path_invalid");
-  return Object.freeze({ dev: info.dev, ino: info.ino, uid: info.uid, mode: info.mode & 0o777 });
+  return Object.freeze({ dev: info.dev, ino: info.ino, uid: info.uid, gid: info.gid, mode: info.mode & 0o777 });
+}
+
+function makePrivateEmptyFile(file, parent, uid, gid) {
+  if (path.dirname(file) !== parent || existsSync(file)) fail("postgres_attestation_access_path_invalid");
+  let handle;
+  try {
+    handle = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    fchmodSync(handle, 0o600);
+    const info = fstatSync(handle); const pathname = lstatSync(file);
+    if (!info.isFile() || info.nlink !== 1 || info.uid !== uid || info.gid !== gid
+      || (info.mode & 0o777) !== 0o600
+      || info.size !== 0 || pathname.isSymbolicLink() || info.dev !== pathname.dev || info.ino !== pathname.ino
+      || realpathSync(file) !== file) fail("postgres_attestation_access_path_invalid");
+    return Object.freeze({ dev: info.dev, ino: info.ino, uid: info.uid, gid: info.gid,
+      mode: info.mode & 0o777, nlink: info.nlink, size: info.size, mtimeMs: info.mtimeMs, ctimeMs: info.ctimeMs });
+  } catch (error) {
+    if (/^postgres_attestation_access_/u.test(error?.message ?? "")) throw error;
+    fail("postgres_attestation_access_path_invalid");
+  } finally { if (handle !== undefined) closeSync(handle); }
 }
 
 function sameOwnedDirectory(directory, expected) {
   if (!existsSync(directory)) return false;
   const info = lstatSync(directory);
   return info.isDirectory() && !info.isSymbolicLink() && info.dev === expected.dev
-    && info.ino === expected.ino && info.uid === expected.uid && (info.mode & 0o777) === expected.mode
+    && info.ino === expected.ino && info.uid === expected.uid && info.gid === expected.gid
+    && (info.mode & 0o777) === expected.mode
     && realpathSync(directory) === directory;
 }
 
-function removeOwnedAccessWork(context, owned) {
+function buildxLayout(directory, uid, gid) {
+  const directories = Object.fromEntries(BUILDX_DIRECTORIES.map((name) => {
+    const child = path.join(directory, name);
+    return [name, Object.freeze({ path: child, identity: makePrivateDirectory(child, directory, uid, gid) })];
+  }));
+  const lock = path.join(directory, ".lock");
+  return Object.freeze({ directories: Object.freeze(directories),
+    lock: Object.freeze({ path: lock, identity: makePrivateEmptyFile(lock, directory, uid, gid) }) });
+}
+
+function pinnedRegular(file, expected, uid, gid, { minimum = 0, maximum, exactMode = 0o600 } = {}) {
+  let handle;
+  try {
+    handle = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const before = fstatSync(handle); const pathname = lstatSync(file);
+    const current = { dev: before.dev, ino: before.ino, uid: before.uid, gid: before.gid,
+      mode: before.mode & 0o777, nlink: before.nlink, size: before.size,
+      mtimeMs: before.mtimeMs, ctimeMs: before.ctimeMs };
+    if (!before.isFile() || before.nlink !== 1 || pathname.isSymbolicLink() || before.uid !== uid || before.gid !== gid
+      || (before.mode & 0o777) !== exactMode || before.size < minimum || before.size > maximum
+      || before.dev !== pathname.dev || before.ino !== pathname.ino || realpathSync(file) !== file
+      || (expected && ["dev", "ino", "uid", "gid", "mode", "nlink", "size", "mtimeMs", "ctimeMs"]
+        .some((key) => Object.hasOwn(expected, key) && current[key] !== expected[key]))) {
+      fail("postgres_attestation_access_cleanup_uncertain");
+    }
+    const bytes = readFileSync(handle); const after = fstatSync(handle);
+    if (bytes.length !== before.size || before.dev !== after.dev || before.ino !== after.ino
+      || before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      fail("postgres_attestation_access_cleanup_uncertain");
+    }
+    return Object.freeze({ bytes, identity: Object.freeze(current) });
+  } catch (error) {
+    if (error?.message === "postgres_attestation_access_cleanup_uncertain") throw error;
+    fail("postgres_attestation_access_cleanup_uncertain");
+  } finally { if (handle !== undefined) closeSync(handle); }
+}
+
+function inspectDockerConfig(file, context) {
+  if (!existsSync(file)) return null;
+  const observed = pinnedRegular(file, null, context.uid, context.gid, { minimum: 2, maximum: 64 * 1024 });
+  let value;
+  try { value = data(JSON.parse(observed.bytes.toString("utf8")), "postgres_attestation_access_cleanup_uncertain"); }
+  catch { fail("postgres_attestation_access_cleanup_uncertain"); }
+  const entry = value?.auths?.["ghcr.io"];
+  if (!exactKeys(value, ["auths"]) || !exactKeys(value.auths, ["ghcr.io"]) || !exactKeys(entry, ["auth"])
+    || typeof entry.auth !== "string" || entry.auth.length < 1 || entry.auth.length > 16 * 1024
+    || !visibleAscii(entry.auth)) fail("postgres_attestation_access_cleanup_uncertain");
+  return observed.identity;
+}
+
+function inspectBuildxCurrent(file, context) {
+  if (!existsSync(file)) return null;
+  const observed = pinnedRegular(file, null, context.uid, context.gid, { minimum: 2, maximum: 1024 });
+  let value;
+  try { value = data(JSON.parse(observed.bytes.toString("utf8")), "postgres_attestation_access_cleanup_uncertain"); }
+  catch { fail("postgres_attestation_access_cleanup_uncertain"); }
+  if (!exactKeys(value, ["Key", "Name", "Global"]) || typeof value.Key !== "string"
+    || value.Key.length < 1 || value.Key.length > 256 || !visibleAscii(value.Key)
+    || value.Name !== "" || value.Global !== false) fail("postgres_attestation_access_cleanup_uncertain");
+  return observed.identity;
+}
+
+function inspectBuildx(directory, identity, layout, context) {
+  if (!sameOwnedDirectory(directory, identity)) fail("postgres_attestation_access_cleanup_uncertain");
+  const current = path.join(directory, "current");
+  const expected = [".lock", ...BUILDX_DIRECTORIES, ...(existsSync(current) ? ["current"] : [])].sort();
+  if (!isDeepStrictEqual(readdirSync(directory).sort(), expected)) fail("postgres_attestation_access_cleanup_uncertain");
+  for (const name of BUILDX_DIRECTORIES) {
+    const child = layout.directories[name];
+    if (!sameOwnedDirectory(child.path, child.identity) || readdirSync(child.path).length !== 0) {
+      fail("postgres_attestation_access_cleanup_uncertain");
+    }
+  }
+  pinnedRegular(layout.lock.path, layout.lock.identity, context.uid, context.gid, { minimum: 0, maximum: 0 });
+  return inspectBuildxCurrent(current, context);
+}
+
+function inspectAccessWork(context, owned) {
   if (!sameOwnedDirectory(context.work, owned.work)
     || !sameOwnedDirectory(owned.auth.path, owned.auth.identity)
-    || !sameOwnedDirectory(owned.anonymous.path, owned.anonymous.identity)
-    || !sameOwnedDirectory(owned.authBuildx.path, owned.authBuildx.identity)
-    || !sameOwnedDirectory(owned.anonymousBuildx.path, owned.anonymousBuildx.identity)) {
+    || !sameOwnedDirectory(owned.anonymous.path, owned.anonymous.identity)) {
     fail("postgres_attestation_access_cleanup_uncertain");
   }
   const expectedRoot = [path.basename(owned.anonymous.path), path.basename(owned.auth.path)].sort();
-  const expectedAuth = ["buildx"];
-  const config = path.join(owned.auth.path, "config.json");
-  if (existsSync(config)) expectedAuth.push("config.json");
   if (!isDeepStrictEqual(readdirSync(context.work).sort(), expectedRoot)
-    || !isDeepStrictEqual(readdirSync(owned.auth.path).sort(), expectedAuth.sort())
-    || !isDeepStrictEqual(readdirSync(owned.anonymous.path).sort(), ["buildx"])
-    || readdirSync(owned.authBuildx.path).length !== 0
-    || readdirSync(owned.anonymousBuildx.path).length !== 0) {
+    || !isDeepStrictEqual(readdirSync(owned.auth.path).sort(), ["buildx", ...(existsSync(owned.config) ? ["config.json"] : [])].sort())
+    || !isDeepStrictEqual(readdirSync(owned.anonymous.path).sort(), ["buildx"])) {
     fail("postgres_attestation_access_cleanup_uncertain");
   }
-  if (existsSync(config)) {
-    const info = lstatSync(config);
-    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.uid !== context.uid
-      || (info.mode & 0o022) !== 0 || info.size < 2 || info.size > 64 * 1024
-      || realpathSync(config) !== config) fail("postgres_attestation_access_cleanup_uncertain");
-    unlinkSync(config);
+  return Object.freeze({ config: inspectDockerConfig(owned.config, context),
+    authCurrent: inspectBuildx(owned.authBuildx.path, owned.authBuildx.identity, owned.authBuildx.layout, context),
+    anonymousCurrent: inspectBuildx(owned.anonymousBuildx.path, owned.anonymousBuildx.identity,
+      owned.anonymousBuildx.layout, context) });
+}
+
+function unlinkPinned(file, identity, parent, parentIdentity, context) {
+  if (!identity || !sameOwnedDirectory(parent, parentIdentity)) fail("postgres_attestation_access_cleanup_uncertain");
+  pinnedRegular(file, identity, context.uid, context.gid, { minimum: identity.size, maximum: identity.size });
+  unlinkSync(file);
+  if (existsSync(file)) fail("postgres_attestation_access_cleanup_uncertain");
+}
+
+function removeOwnedAccessWork(context, owned) {
+  const observed = inspectAccessWork(context, owned);
+  if (observed.authCurrent) unlinkPinned(path.join(owned.authBuildx.path, "current"), observed.authCurrent,
+    owned.authBuildx.path, owned.authBuildx.identity, context);
+  if (observed.anonymousCurrent) unlinkPinned(path.join(owned.anonymousBuildx.path, "current"),
+    observed.anonymousCurrent, owned.anonymousBuildx.path, owned.anonymousBuildx.identity, context);
+  if (observed.config) unlinkPinned(owned.config, observed.config, owned.auth.path, owned.auth.identity, context);
+  for (const buildx of [owned.authBuildx, owned.anonymousBuildx]) {
+    unlinkPinned(buildx.layout.lock.path, buildx.layout.lock.identity, buildx.path, buildx.identity, context);
+    for (const name of BUILDX_DIRECTORIES) {
+      const child = buildx.layout.directories[name];
+      if (!sameOwnedDirectory(child.path, child.identity) || readdirSync(child.path).length !== 0) {
+        fail("postgres_attestation_access_cleanup_uncertain");
+      }
+      rmdirSync(child.path);
+    }
+    if (!sameOwnedDirectory(buildx.path, buildx.identity) || readdirSync(buildx.path).length !== 0) {
+      fail("postgres_attestation_access_cleanup_uncertain");
+    }
+    rmdirSync(buildx.path);
   }
-  rmdirSync(owned.authBuildx.path); rmdirSync(owned.anonymousBuildx.path);
   rmdirSync(owned.auth.path); rmdirSync(owned.anonymous.path); rmdirSync(context.work);
   if (existsSync(context.work)) fail("postgres_attestation_access_cleanup_uncertain");
 }
@@ -223,9 +353,23 @@ function removeOwnedAccessWork(context, owned) {
 function accessCleanupFailure(primaryFailure, cleanupError) {
   return Object.assign(new Error("postgres_attestation_access_cleanup_uncertain", { cause: cleanupError }), {
     code: "postgres_attestation_access_cleanup_uncertain",
+    phase: "credential_and_temporary_cleanup",
     primaryFailure: primaryFailure ? fixedReason(primaryFailure) : null,
     cleanupFailure: fixedReason(cleanupError),
   });
+}
+
+function phaseFailure(phase, error) {
+  return Object.assign(new Error(fixedReason(error), { cause: error }), { code: fixedReason(error), phase });
+}
+
+export function publicPostgresAttestationAccessFailure(error) {
+  const code = fixedPublicReason(error); const phase = PUBLIC_FAILURE_PHASES.includes(error?.phase) ? error.phase : "UNKNOWN";
+  return Object.freeze({ code, phase,
+    primaryFailure: error?.code === "postgres_attestation_access_cleanup_uncertain"
+      ? (error.primaryFailure ? fixedPublicReason(error.primaryFailure) : "UNKNOWN") : code,
+    cleanupFailure: error?.code === "postgres_attestation_access_cleanup_uncertain"
+      ? fixedPublicReason(error.cleanupFailure) : "NOT_APPLICABLE" });
 }
 
 function boundedRegular(file, cap, uid) {
@@ -400,7 +544,7 @@ export function validatePostgresAttestationAccessReceipt(value, policyInput, bin
 }
 
 function writeReceipt(context, value) {
-  makePrivateDirectory(context.output, context.runnerTemp, context.uid);
+  makePrivateDirectory(context.output, context.runnerTemp, context.uid, context.gid);
   const bytes = Buffer.from(`${encode(data(value, "postgres_attestation_access_receipt_write_invalid"))}\n`, "utf8");
   let handle;
   try {
@@ -432,17 +576,20 @@ export async function collectPostgresAttestationAccess(input, env = process.env,
   const manifestValidator = dependencies.manifestValidator ?? validatePostgresRemoteRawManifest;
   const anonymousClassifier = dependencies.anonymousClassifier ?? classifyAnonymousRemoteRead;
   if (existsSync(context.work) || existsSync(context.output)) fail("postgres_attestation_access_path_invalid");
-  const workIdentity = makePrivateDirectory(context.work, context.runnerTemp, context.uid);
+  const workIdentity = makePrivateDirectory(context.work, context.runnerTemp, context.uid, context.gid);
   const auth = path.join(context.work, "docker-auth"); const anonymous = path.join(context.work, "docker-anonymous");
-  const authIdentity = makePrivateDirectory(auth, context.work, context.uid);
-  const anonymousIdentity = makePrivateDirectory(anonymous, context.work, context.uid);
+  const authIdentity = makePrivateDirectory(auth, context.work, context.uid, context.gid);
+  const anonymousIdentity = makePrivateDirectory(anonymous, context.work, context.uid, context.gid);
   const authBuildx = path.join(auth, "buildx"); const anonymousBuildx = path.join(anonymous, "buildx");
-  const authBuildxIdentity = makePrivateDirectory(authBuildx, auth, context.uid);
-  const anonymousBuildxIdentity = makePrivateDirectory(anonymousBuildx, anonymous, context.uid);
+  const authBuildxIdentity = makePrivateDirectory(authBuildx, auth, context.uid, context.gid);
+  const anonymousBuildxIdentity = makePrivateDirectory(anonymousBuildx, anonymous, context.uid, context.gid);
+  const authBuildxLayout = buildxLayout(authBuildx, context.uid, context.gid);
+  const anonymousBuildxLayout = buildxLayout(anonymousBuildx, context.uid, context.gid);
   const owned = { work: workIdentity, auth: { path: auth, identity: authIdentity },
     anonymous: { path: anonymous, identity: anonymousIdentity },
-    authBuildx: { path: authBuildx, identity: authBuildxIdentity },
-    anonymousBuildx: { path: anonymousBuildx, identity: anonymousBuildxIdentity } };
+    config: path.join(auth, "config.json"),
+    authBuildx: { path: authBuildx, identity: authBuildxIdentity, layout: authBuildxLayout },
+    anonymousBuildx: { path: anonymousBuildx, identity: anonymousBuildxIdentity, layout: anonymousBuildxLayout } };
   const authOptions = { cwd: context.work, env: commandEnvironment(env, auth, context.work),
     maxBuffer: MAX_OUTPUT_BYTES, timeoutMs: COMMAND_TIMEOUT_MS };
   const anonymousOptions = { ...authOptions, env: commandEnvironment(env, anonymous, context.work) };
@@ -450,7 +597,10 @@ export async function collectPostgresAttestationAccess(input, env = process.env,
   const phase = async (name, operation) => {
     const phaseStarted = Date.now();
     try { const result = await operation(); phases.push({ name, result: "PASSED", durationMs: Date.now() - phaseStarted }); return result; }
-    catch (error) { throw new Error(fixedReason(error), { cause: error }); }
+    catch (error) {
+      phases.push({ name, result: "FAILED", durationMs: Date.now() - phaseStarted });
+      throw phaseFailure(name, error);
+    }
   };
   try {
     await phase("protected_main_and_checkout", () => verifyPostgresAttestationAccessMain(context, env,
@@ -520,7 +670,7 @@ export async function collectPostgresAttestationAccess(input, env = process.env,
   phases.push({ name: "credential_and_temporary_cleanup", result: cleanupError ? "FAILED" : "PASSED",
     durationMs: Date.now() - cleanupStarted });
   if (cleanupError) throw accessCleanupFailure(primaryFailure, cleanupError);
-  if (primaryFailure) throw new Error(fixedReason(primaryFailure), { cause: primaryFailure });
+  if (primaryFailure) throw primaryFailure;
   receipt.observations.completedAt = nowIso(now);
   const validated = validatePostgresAttestationAccessReceipt(receipt, committed.policy,
     { runId: context.runId, recipeRevision: context.recipeRevision,
@@ -536,5 +686,5 @@ export async function runPostgresAttestationAccess(argv = process.argv.slice(2),
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.meta.filename)) {
   try { await runPostgresAttestationAccess(); }
-  catch (error) { console.error(`postgres_attestation_access_failed:${fixedReason(error)}`); process.exitCode = 1; }
+  catch (error) { console.error(encode(publicPostgresAttestationAccessFailure(error))); process.exitCode = 1; }
 }
