@@ -20,6 +20,7 @@ const MAX_CENTRAL_BYTES = 20 * 1024 ** 2;
 const CHUNK_BYTES = 1024 ** 2;
 const MAX_JSON_ZIP_BYTES = 2 * 1024 ** 2;
 const MAX_JSON_RAW_BYTES = 1024 ** 2;
+const MAX_POSTGRES_ATTESTATION_BYTES = 8 * 1024 ** 2;
 const ZIP32_LIMIT = 0xffff_ffff;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const ZIP_ERROR_CODES = new WeakMap();
@@ -29,6 +30,25 @@ export const githubArtifactZipProfiles = Object.freeze({
   gate1: "gate-1",
   gate2: "gate-2",
   comparison: "comparison",
+  postgresAttestationAccess: "postgres-attestation-access",
+  postgresAttestationSigned: "postgres-attestation-signed",
+  postgresAttestationAudit: "postgres-attestation-audit",
+});
+
+const POSTGRES_ATTESTATION_PATHS = Object.freeze({
+  [githubArtifactZipProfiles.postgresAttestationAccess]: Object.freeze(["access-receipt.json"]),
+  [githubArtifactZipProfiles.postgresAttestationSigned]: Object.freeze([
+    "bundle.json", "pre-sign-receipt.json", "predicate.json",
+  ]),
+  [githubArtifactZipProfiles.postgresAttestationAudit]: Object.freeze([
+    "audit-receipt.json", "candidate-sbom.cdx.json", "candidate-vulnerabilities.json",
+    "database-evidence.json", "database-java-after-manifest.json", "database-java-before-manifest.json",
+    "database-vulnerability-after-manifest.json", "database-vulnerability-before-manifest.json",
+    "fixture-gomod-vulnerable-baseline.json", "fixture-gomod-vulnerable-candidate.json",
+    "fixture-java-jar-clean-candidate-candidate.json", "fixture-java-war-vulnerable-baseline.json",
+    "fixture-java-war-vulnerable-candidate.json", "scanner-self.cdx.json", "scanner-self.json",
+    "scanner-version-probe.json",
+  ]),
 });
 
 function zipError(code, cause) {
@@ -73,6 +93,15 @@ function profilePaths(profile, paths) {
       validateArtifactAllowlist(paths);
     } catch (error) {
       throw zipError("seaweed_artifact_zip_profile_invalid", error);
+    }
+    return;
+  }
+  const postgresExpected = POSTGRES_ATTESTATION_PATHS[profile];
+  if (postgresExpected !== undefined) {
+    const actual = [...paths].sort();
+    if (actual.length !== postgresExpected.length
+      || actual.some((value, index) => value !== postgresExpected[index])) {
+      throw zipError("seaweed_artifact_zip_profile_invalid");
     }
     return;
   }
@@ -313,8 +342,14 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
     if (source.size !== descriptor.size || source.size < EOCD_BYTES) throw zipError("seaweed_artifact_zip_size_invalid");
     const jsonProfile = profile === githubArtifactZipProfiles.gate1 || profile === githubArtifactZipProfiles.gate2
       || profile === githubArtifactZipProfiles.comparison;
-    if (profile !== githubArtifactZipProfiles.build && !jsonProfile) throw zipError("seaweed_artifact_zip_profile_invalid");
+    const postgresAttestationProfile = POSTGRES_ATTESTATION_PATHS[profile] !== undefined;
+    if (profile !== githubArtifactZipProfiles.build && !jsonProfile && !postgresAttestationProfile) {
+      throw zipError("seaweed_artifact_zip_profile_invalid");
+    }
     if (jsonProfile && source.size > MAX_JSON_ZIP_BYTES) throw zipError("seaweed_artifact_zip_profile_limit");
+    if (postgresAttestationProfile && source.size > MAX_POSTGRES_ATTESTATION_BYTES) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
     if (typeof openEntrySink !== "function") throw zipError("seaweed_artifact_zip_sink_opener_invalid");
     if (await hashSource(source, signal) !== descriptor.digest) throw zipError("seaweed_artifact_zip_digest_invalid");
     const eocd = await readExact(source, source.size - EOCD_BYTES, EOCD_BYTES);
@@ -324,13 +359,18 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
     const central = await readBounded(source, centralOffset, centralSize, signal);
     const metadata = parseMetadata(central, eocd, source.size);
     if (jsonProfile && metadata.rawTotal > MAX_JSON_RAW_BYTES) throw zipError("seaweed_artifact_zip_profile_limit");
+    if (postgresAttestationProfile && metadata.rawTotal > MAX_POSTGRES_ATTESTATION_BYTES) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
     const entries = await validateLocalLayout(source, metadata, signal);
     profilePaths(profile, entries.map((entry) => entry.path));
-    const expectedMethod = profile === githubArtifactZipProfiles.build ? 0 : 8;
+    const expectedMethod = profile === githubArtifactZipProfiles.build
+      || profile === githubArtifactZipProfiles.postgresAttestationAudit ? 0 : 8;
     if (entries.some((entry) => entry.method !== expectedMethod
       || (profile === githubArtifactZipProfiles.build
         ? entry.mode !== (entry.path === "weed" ? 0o100755 : /\/source\.zip$/u.test(entry.path) ? 0o100600 : 0o100644)
-        : entry.mode !== 0o100644))) throw zipError("seaweed_artifact_zip_profile_invalid");
+        : postgresAttestationProfile ? entry.mode !== 0o100600
+          : entry.mode !== 0o100644))) throw zipError("seaweed_artifact_zip_profile_invalid");
     const delivered = [];
     for (const entry of entries) {
       assertAbort(signal);

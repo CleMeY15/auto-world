@@ -1,0 +1,281 @@
+{
+  "name": "PostgreSQL exact candidate attestation",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {},
+  "concurrency": {
+    "group": "postgres-candidate-attest",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "access": {
+      "name": "Verify exact private manifest access",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "read",
+        "packages": "read"
+      },
+      "outputs": {
+        "artifact-id": "${{ steps.access-evidence.outputs.artifact-id }}"
+      },
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-attest.yml@refs/heads/main'"
+        },
+        {
+          "name": "Check out reviewed source without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "timeout-minutes": 10,
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify the checked-out workflow revision",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest -z \"$(git status --porcelain --untracked-files=all)\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "timeout-minutes": 10,
+          "with": {
+            "node-version": "22.23.2",
+            "cache": ""
+          }
+        },
+        {
+          "name": "Verify authenticated and anonymous manifest reads",
+          "timeout-minutes": 5,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}"
+          },
+          "run": "node scripts/postgres-image/candidate-attestation-access.mjs execute"
+        },
+        {
+          "name": "Retain only the closed public access receipt",
+          "id": "access-evidence",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "timeout-minutes": 3,
+          "with": {
+            "name": "postgres-candidate-attestation-access",
+            "path": "${{ runner.temp }}/postgres-candidate-attestation-access/access-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        }
+      ]
+    },
+    "signer": {
+      "name": "Sign the reviewed technical evidence",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 20,
+      "permissions": {
+        "contents": "read",
+        "actions": "read",
+        "id-token": "write",
+        "attestations": "write"
+      },
+      "outputs": {
+        "artifact-id": "${{ steps.evidence.outputs.artifact-id }}"
+      },
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-attest.yml@refs/heads/main'"
+        },
+        {
+          "name": "Check out reviewed source without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "timeout-minutes": 10,
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify the checked-out workflow revision",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest -z \"$(git status --porcelain --untracked-files=all)\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "timeout-minutes": 10,
+          "with": {
+            "node-version": "22.23.2",
+            "cache": ""
+          }
+        },
+        {
+          "name": "Authenticate and download this run access evidence",
+          "timeout-minutes": 3,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}",
+            "POSTGRES_ATTESTATION_ACCESS_ARTIFACT_ID": "${{ needs.access.outputs.artifact-id }}"
+          },
+          "run": "node scripts/postgres-image/attestation-artifact-input.mjs access"
+        },
+        {
+          "name": "Authenticate and download the reviewed audit evidence",
+          "timeout-minutes": 3,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}"
+          },
+          "run": "node scripts/postgres-image/attestation-artifact-input.mjs audit"
+        },
+        {
+          "name": "Validate current evidence and prepare the closed predicate",
+          "timeout-minutes": 3,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}",
+            "POSTGRES_ATTESTATION_ACCESS_ARTIFACT_ID": "${{ needs.access.outputs.artifact-id }}"
+          },
+          "run": "node scripts/postgres-image/candidate-attestation.mjs prepare"
+        },
+        {
+          "name": "Create the official exact-subject attestation",
+          "id": "attest",
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "timeout-minutes": 5,
+          "with": {
+            "subject-name": "ghcr.io/clemey15/auto-world-postgres-gosu",
+            "subject-digest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+            "predicate-type": "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+            "predicate-path": "${{ runner.temp }}/postgres-candidate-attestation/predicate.json",
+            "push-to-registry": false,
+            "create-storage-record": false
+          }
+        },
+        {
+          "name": "Preserve the bounded official bundle",
+          "timeout-minutes": 2,
+          "env": {
+            "ATTESTATION_BUNDLE_PATH": "${{ steps.attest.outputs.bundle-path }}"
+          },
+          "run": "node --input-type=module <<'NODE'\nimport { readFileSync, lstatSync, writeFileSync } from 'node:fs';\nimport path from 'node:path';\nconst file = process.env.ATTESTATION_BUNDLE_PATH;\nconst info = lstatSync(file);\nif (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size < 2 || info.size > 2097152) throw Error('attestation_bundle_invalid');\nconst bytes = readFileSync(file);\nif (bytes.length !== info.size) throw Error('attestation_bundle_changed');\nwriteFileSync(path.join(process.env.RUNNER_TEMP, 'postgres-candidate-attestation', 'bundle.json'), bytes, {flag:'wx',mode:0o600});\nNODE",
+          "if": "${{ always() && steps.attest.outputs.bundle-path != '' }}"
+        },
+        {
+          "name": "Retain only the public attestation and predicate",
+          "id": "evidence",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "timeout-minutes": 5,
+          "with": {
+            "name": "postgres-candidate-attestation-signed",
+            "path": "${{ runner.temp }}/postgres-candidate-attestation/predicate.json\n${{ runner.temp }}/postgres-candidate-attestation/pre-sign-receipt.json\n${{ runner.temp }}/postgres-candidate-attestation/bundle.json",
+            "if-no-files-found": "warn",
+            "retention-days": 14,
+            "compression-level": 6
+          },
+          "if": "${{ always() }}"
+        }
+      ],
+      "needs": "access"
+    },
+    "verifier": {
+      "name": "Verify the exact subject and rejection controls",
+      "needs": "signer",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 20,
+      "permissions": {
+        "contents": "read",
+        "actions": "read",
+        "packages": "read"
+      },
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-attest.yml@refs/heads/main'"
+        },
+        {
+          "name": "Check out reviewed source without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "timeout-minutes": 10,
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Verify the checked-out workflow revision",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest -z \"$(git status --porcelain --untracked-files=all)\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "timeout-minutes": 10,
+          "with": {
+            "node-version": "22.23.2",
+            "cache": ""
+          }
+        },
+        {
+          "name": "Install the official pinned verification CLI",
+          "timeout-minutes": 5,
+          "run": "set -euo pipefail\ntool_root=\"$RUNNER_TEMP/postgres-attestation-gh\"\nmkdir -m 700 \"$tool_root\"\ncurl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --max-time 120 'https://github.com/cli/cli/releases/download/v2.98.0/gh_2.98.0_linux_amd64.tar.gz' -o \"$tool_root/gh.tar.gz\"\ntest \"$(stat -c '%s' \"$tool_root/gh.tar.gz\")\" = '14863663'\nprintf '%s  %s\\n' '3b8ac6b30336802fc1a858d7c084e11cdf24ac1a761ca90b68022d7d729208de' \"$tool_root/gh.tar.gz\" | sha256sum --check --status\ntar -xzf \"$tool_root/gh.tar.gz\" -C \"$tool_root\"\nprintf '%s\\n' \"$tool_root/gh_2.98.0_linux_amd64/bin\" >> \"$GITHUB_PATH\""
+        },
+        {
+          "name": "Authenticate and download this run signed evidence",
+          "timeout-minutes": 3,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}",
+            "POSTGRES_ATTESTATION_SIGNED_ARTIFACT_ID": "${{ needs.signer.outputs.artifact-id }}"
+          },
+          "run": "node scripts/postgres-image/attestation-artifact-input.mjs signed"
+        },
+        {
+          "name": "Prepare isolated read-only registry authentication",
+          "timeout-minutes": 2,
+          "env": {
+            "GITHUB_TOKEN": "${{ github.token }}"
+          },
+          "run": "node --input-type=module <<'NODE'\nimport { mkdirSync, writeFileSync } from 'node:fs';\nimport path from 'node:path';\nconst root = path.join(process.env.RUNNER_TEMP, 'postgres-ghcr-auth');\nmkdirSync(root, { mode: 0o700 });\nconst auth = Buffer.from(process.env.GITHUB_ACTOR + ':' + process.env.GITHUB_TOKEN).toString('base64');\nwriteFileSync(path.join(root, 'config.json'), JSON.stringify({auths:{'ghcr.io':{auth}}}), {flag:'wx', mode:0o600});\nNODE"
+        },
+        {
+          "name": "Verify official policies and actual rejection controls",
+          "timeout-minutes": 10,
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}",
+            "DOCKER_CONFIG": "${{ runner.temp }}/postgres-ghcr-auth"
+          },
+          "run": "node scripts/postgres-image/verify-candidate-attestation.mjs verify"
+        },
+        {
+          "name": "Remove isolated registry credentials",
+          "if": "${{ always() }}",
+          "timeout-minutes": 2,
+          "run": "node --input-type=module <<'NODE'\nimport { existsSync, lstatSync, realpathSync, readdirSync, unlinkSync, rmdirSync } from 'node:fs';\nimport path from 'node:path';\nconst parent = realpathSync(process.env.RUNNER_TEMP);\nconst root = path.join(parent, 'postgres-ghcr-auth');\nif (existsSync(root)) {\n  const st = lstatSync(root);\n  if (!st.isDirectory() || st.isSymbolicLink() || realpathSync(root) !== root || st.uid !== process.getuid()) throw Error('auth_cleanup_uncertain');\n  const names = readdirSync(root);\n  if (names.some(name => name !== 'config.json')) throw Error('auth_cleanup_uncertain');\n  if (names.length) {\n    const file = path.join(root, 'config.json');\n    const item = lstatSync(file);\n    if (!item.isFile() || item.isSymbolicLink() || item.nlink !== 1 || item.uid !== process.getuid()) throw Error('auth_cleanup_uncertain');\n    unlinkSync(file);\n  }\n  rmdirSync(root);\n}\nNODE"
+        },
+        {
+          "name": "Retain only the bounded verification receipt",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "timeout-minutes": 5,
+          "with": {
+            "name": "postgres-candidate-attestation-verification",
+            "path": "${{ runner.temp }}/postgres-candidate-attestation-verification/verification-receipt.json",
+            "if-no-files-found": "warn",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        }
+      ]
+    }
+  }
+}
