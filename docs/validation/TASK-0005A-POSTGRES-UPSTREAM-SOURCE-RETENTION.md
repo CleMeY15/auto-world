@@ -1,6 +1,6 @@
 # PostgreSQL upstream source retention
 
-Status: IMPLEMENTATION_IN_PROGRESS, 2026-10-01. This is a focused continuation of TASK-0005A/0005; neither task is Done and TASK-0006 remains blocked. No retained-source receipt or native parser acceptance has been produced for these two archives.
+Status: IMPLEMENTED_PENDING_FRESH_GATES, 2026-10-01. This is a focused continuation of TASK-0005A/0005; neither task is Done and TASK-0006 remains blocked. No retained-source receipt or native parser acceptance has been produced for these two archives.
 
 ## Problem and implementation plan
 
@@ -28,11 +28,19 @@ The two additional active public runtime files were independently authenticated 
 
 Existing17 Python and25 native publisher regressions passed before edits. Add reader/session compatibility tests and hostile bzip2/TAR, exact metadata/binding, readonly inheritance, copy/publication and failure-retirement tests under native umasks077/022. Fixture success is partial evidence only. Run fresh lint, typecheck, tests, build, secret checks and dependency audit on clean committed source, with both independent implementation/trust reviews and exact implementation CI before native inspection.
 
-Run a separate actual1000 readonly preflight on the two newly reviewed native public inputs. It performs the final parser/runtime/code/descriptor checks with the unchanged90second timeout, returns closed metadata only, and creates no source-retention directory, output copy or receipt. Independently review its original root journal before the sole default collection. A real strict-dialect or timing refusal is preserved and investigated without relaxing bounds. Do not rerun the original PR127 collector.
+Run a separate actual1000 readonly preflight on the two newly reviewed native public inputs. It performs the final parser/runtime/code/descriptor checks with the unchanged90second timeout, returns closed metadata only, and creates no source-retention directory, output copy or receipt. Its distinct closed claims say inspection VERIFIED, retention NOT_ATTEMPTED, historicalIntegrity NOT_ESTABLISHED and retainedScope NONE; full retention claims are rejected. Independently review its original root journal before the sole default collection. A real strict-dialect or timing refusal is preserved and investigated without relaxing bounds. Do not rerun the original PR127 collector.
 
 After the sole collection, require independent original-byte/native/default validation and a distinct scoped privacy/preservation review. Record exact source, private receipt, matching supervisor ACK, full hashes and scope; then require final-head/main CI and unchanged reviewed merge tree. A receipt or pure metadata validator alone cannot establish acceptance.
 
 Rollback disables/reverts the additive helper/publisher and the narrow shared extraction, while preserving retained archives and all failed/successful proofs. No migration, user-facing surface, registry write, Docker/SQL/service execution, source activation or credential change is involved. Diagnostic output contains fixed phases/reasons, hashes, sizes and native metadata; raw source text is not emitted.
+
+## Frozen implementation review
+
+Independent architecture/trust review is APPROVE on the exact policy SHAe8aa9bed691dca9d11d174d329ffc7056a1a6419dd6b2ba606cb4cb084ee6e00; publisher34,565bytes/SHAec0f64e4fb84c80639a7fcb51aedcc9520c072a48659268a8823b3356bec12df; new Python helper15,660bytes/SHAf34680322b74cf3da2243dad7d3b1107eab3be1c93d1127e50eeab92472e02e8. The shared native session7,959bytes/SHA82845358563110340f06789b6b5582f501941260ef555624f37287cee153fe88 has the exact old session body; the old publisher32,749bytes/SHAab70fd6902a7ce631defacc94ba6b8086af119461c894560d2231accf93aff4b keeps its public schemas and policy. Both Python helpers and their tests are separately included in that hash-bound review; the old core pin remains unchanged atf7b37bc47729c65653cf03fd6b93e8bd6dec7b48027b544469c559dde0c4724c. The input-free CLIs and four targeted CLI tests have independent approval. No reviewer invoked the actual two-archive preflight or collector during code review.
+
+Actual Linux1000/Python3.12.3/Node22 helper tests pass32/32 with zero skips:18 old/default/shared-reader regressions and14 new tests. Old/new native publisher fixtures under077 and022 each pass24 old and26 new child cases, with only the respective root-only test skipped. Their root parents pass16/18 with two direct-actor skips. Windows helper tests pass24 with eight honest Linux-only skips; targeted CLIs pass4/4. Existing Linux ESLint via stdin and seventeen exact implementation/doc/body secret checks pass. These are unit/partial native proofs; complete fresh committed-source checks, exact implementation CI and real parser/default acceptance are still required.
+
+Two test-adaptation failures under077/022 are preserved: expectations still used the old error prefix and four-file inventory while the new publisher correctly emitted its own prefix and two files. Only those expectations were corrected before successful fixture replays. Independent review also found that readonly preflight reused full retention claims; a discriminating test failed before the repair. The preflight now uses its distinct exact no-retention claim object, and tests reject full claims, missing fields, promoted authority and preflight claims in a retained receipt. The corrected targeted Windows tests pass8 with two native-actor skips and scoped lint passes. The shared session and old publisher were unchanged by this claim repair. No real collection was attempted or repeated for either correction.
 
 ## Prior delivery and remaining scope
 
