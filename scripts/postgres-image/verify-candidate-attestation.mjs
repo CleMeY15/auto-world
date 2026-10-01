@@ -522,7 +522,7 @@ async function executeCandidateAttestationVerification(argv = process.argv.slice
   progress("positive-before", { output: context.output, status: "COMPLETED" });
   const changes = {
     "wrong-subject": { subjectDigest: BOOTSTRAP_DIGEST },
-    "wrong-workflow": { workflowPath: ".github/workflows/not-postgres-candidate-attest.yml" },
+    "wrong-workflow": { workflowPath: ".github/workflows/not-postgres-candidate-attest-v2.yml" },
     "wrong-ref": { ref: "refs/heads/not-main" },
     "wrong-source": { sourceSha: alternateSha(env.GITHUB_SHA) },
     "wrong-signer": { signerSha: alternateSha(env.GITHUB_SHA) },
