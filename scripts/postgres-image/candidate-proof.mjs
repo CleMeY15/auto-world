@@ -267,11 +267,19 @@ function archiveMaterial(buffer, options) {
     manifestDigest: indexDescriptor.digest, manifestBytes: indexDescriptor.size,
     compatibilityRecords, remoteLayerVerification: "NOT_ESTABLISHED_BY_DOCKER_SAVE",
   });
-  return { archiveProof, configuration: config };
+  const layers = freezeArray(rawLayers.map(({ digest, size }, index) => ({ index, diffId: digest,
+    offset: entries.get(layerPaths[index]).content.byteOffset - buffer.byteOffset, size })));
+  return { archiveProof, configuration: config, layers };
 }
 
 export function validatePostgresCandidateArchive(buffer, options) {
   return archiveMaterial(buffer, options).archiveProof;
+}
+
+// Ranges refer only to blobs authenticated by the same complete outer-archive parse.
+export function validatePostgresCandidateArchiveLayerRanges(buffer, options) {
+  const material = archiveMaterial(buffer, options);
+  return Object.freeze({ archiveProof: material.archiveProof, layers: material.layers });
 }
 
 // Configuration and proof come from one complete authenticated parse, never from Docker output.
