@@ -18,6 +18,37 @@ const identity = (s) => ({ dev: String(s.dev), ino: String(s.ino), uid: Number(s
 const directoryIdentity = (s) => { const { dev, ino, uid, gid, mode } = identity(s); return { dev, ino, uid, gid, mode }; };
 const plain = (v) => v !== null && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype;
 const redirectHosts = Object.freeze(["codeload.github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
+// abuild's DISTFILES_MIRROR convention preserves the APKBUILD checksum. These
+// seven endpoints are recovery routes, never additional caller URL authority.
+const MIRROR_ELIGIBILITY = Symbol("closed mirror eligibility");
+const alpineMirrors = Object.freeze({
+  "material-apk-tools-apk-tools-v3.0.8.tar.gz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/apk-tools-v3.0.8.tar.gz", trigger: "HTTP_406", reason: PREFIX + "response_406_invalid" }),
+  "material-ca-certificates-ca-certificates-20260909.tar.bz2": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/ca-certificates-20260909.tar.bz2", trigger: "HTTP_406", reason: PREFIX + "response_406_invalid" }),
+  "material-krb5-krb5-1.22.2.tar.gz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/krb5-1.22.2.tar.gz", trigger: "CONTENT_ENCODING", reason: PREFIX + "response_200_invalid" }),
+  "material-ncurses-ncurses-6.6-20260516.tgz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/ncurses-6.6-20260516.tgz", trigger: "HTTP_404", reason: PREFIX + "response_404_invalid" }),
+  "material-readline-readline-8.3.tar.gz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/v3.24/readline-8.3.tar.gz", trigger: "TRANSPORT", reason: PREFIX + "download_failed" }),
+  "material-tzdata-tzcode2026d.tar.gz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/tzcode2026d.tar.gz", trigger: "IANA_REDIRECT", reason: PREFIX + "url_invalid",
+    redirectUrl: "https://data.iana.org/time-zones/releases/tzcode2026d.tar.gz" }),
+  "material-tzdata-tzdata2026d.tar.gz": Object.freeze({
+    url: "https://distfiles.alpinelinux.org/distfiles/edge/tzdata2026d.tar.gz", trigger: "IANA_REDIRECT", reason: PREFIX + "url_invalid",
+    redirectUrl: "https://data.iana.org/time-zones/releases/tzdata2026d.tar.gz" }),
+});
+function mirrorFor(material) {
+  const mirror = alpineMirrors[material.id];
+  if (!mirror || !isDeepStrictEqual(material, loadPostgresSourceClosureManifest().materials.find(v => v.id === material.id))) return null;
+  return mirror;
+}
+function responseFailure(reason, eligibility) {
+  const error = new Error(PREFIX + reason);
+  Object.defineProperty(error, MIRROR_ELIGIBILITY, { value: eligibility });
+  return error;
+}
 function snapshotRecord(value, keys, reason) {
   if (!plain(value)) fail(reason);
   const descriptors = Object.getOwnPropertyDescriptors(value);
@@ -205,20 +236,34 @@ async function verifyExisting(file, material, signal) {
   } finally { closeAll([() => closeSync(fd)]); }
 }
 
-async function responseFor(material, signal, fetchImplementation) {
-  let url = sourceUrl(material.url).href;
+async function requestResponse(material, signal, fetchImplementation, startUrl, mirror, fromMirror = false) {
+  let url = fromMirror ? mirror.url : sourceUrl(startUrl).href;
   for (let redirects = 0; redirects <= postgresSourceClosureLimits.redirects; redirects++) {
     signal.throwIfAborted();
-    const response = await fetchImplementation(url, { method: "GET", redirect: "manual", signal,
-      headers: { Accept: "application/octet-stream", "Accept-Encoding": "identity" } });
+    let response;
+    try {
+      response = await fetchImplementation(url, { method: "GET", redirect: "manual", signal,
+        headers: { Accept: "application/octet-stream", "Accept-Encoding": "identity" } });
+    } catch (error) {
+      signal.throwIfAborted();
+      if (failureReason(error) === PREFIX + "cleanup_uncertain") fail("cleanup_uncertain");
+      throw responseFailure("download_failed", url === material.url ? "TRANSPORT" : null);
+    }
+    if (signal.aborted) { await response.body?.cancel(); signal.throwIfAborted(); }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location"); await response.body?.cancel();
-      if (!location || redirects === postgresSourceClosureLimits.redirects) fail("redirect_invalid");
-      url = sourceUrl(new URL(location, url).href, true).href; continue;
+      if (fromMirror || !location || redirects === postgresSourceClosureLimits.redirects) fail("redirect_invalid");
+      const redirected = new URL(location, url).href;
+      // IANA's observed exact redirect remains outside the general redirect policy.
+      if (url === material.url && mirror?.redirectUrl === redirected) throw responseFailure("url_invalid", "IANA_REDIRECT");
+      url = sourceUrl(redirected, true).href; continue;
     }
     const encoding = response.headers.get("content-encoding");
     if (response.status !== 200 || !response.body || encoding && encoding !== "identity") {
-      await response.body?.cancel(); fail(`response_${response.status}_invalid`);
+      await response.body?.cancel();
+      const eligibility = url !== material.url ? null : response.status === 200 && response.body && encoding && encoding !== "identity"
+        ? "CONTENT_ENCODING" : [404, 406].includes(response.status) ? `HTTP_${response.status}` : null;
+      throw responseFailure(`response_${response.status}_invalid`, eligibility);
     }
     const length = response.headers.get("content-length");
     if (length !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(length) || !Number.isSafeInteger(Number(length)) ||
@@ -230,6 +275,21 @@ async function responseFor(material, signal, fetchImplementation) {
     return { response, finalUrl: descriptiveUrl.href, declaredLength: length === null ? null : Number(length) };
   }
   fail("redirect_invalid");
+}
+
+async function responseFor(material, signal, fetchImplementation) {
+  const mirror = mirrorFor(material);
+  try {
+    return { ...await requestResponse(material, signal, fetchImplementation, material.url, mirror), acquisition: "HTTPS_BYTES_VERIFIED" };
+  } catch (error) {
+    signal.throwIfAborted();
+    if (!mirror || Object.getOwnPropertyDescriptor(error, MIRROR_ELIGIBILITY)?.value !== mirror.trigger
+      || failureReason(error) !== mirror.reason) throw error;
+    // Only header/transport refusal reaches here: no response reader was created,
+    // and streamed failures and digest failures cannot invoke this single fallback.
+    return { ...await requestResponse(material, signal, fetchImplementation, mirror.url, mirror, true),
+      acquisition: "HTTPS_MIRROR_BYTES_VERIFIED", primaryFailure: mirror.reason };
+  }
 }
 
 function readRecord(fd, file, expectedBytes) {
@@ -286,14 +346,6 @@ function writeRecord(directory, root, name, bytes) {
   }
 }
 
-function existingRecord(directory, root, name, expectedBytes) {
-  const file = path.join(directory, name); let fd;
-  try { fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW); }
-  catch (error) { if (error.code === "ENOENT") return writeRecord(directory, root, name, expectedBytes); throw error; }
-  try { return holdRecord(fd, file, name, expectedBytes); }
-  catch (error) { closeAll([() => closeSync(fd)]); throw error; }
-}
-
 function collectionLock(directory, root) {
   root.check(); const file = path.join(directory, ".collection-lock"); let fd;
   try { fd = openSync(file, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NONBLOCK | constants.O_NOFOLLOW, 0o600); }
@@ -331,7 +383,7 @@ async function retainMaterial(material, { directory, signal, fetchImplementation
     const pending = path.join(directory, "attempts", `${material.id}-${randomBytes(12).toString("hex")}.part`);
     fd = openSync(pending, constants.O_RDWR | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
     fileIdentity(fd, pending);
-    const { response, finalUrl, declaredLength } = await responseFor(material, signal, fetchImplementation);
+    const { response, finalUrl, declaredLength, acquisition, primaryFailure } = await responseFor(material, signal, fetchImplementation);
     const state = digestState(material.expected); let written = 0; let eof = false;
     const reader = response.body.getReader();
     try {
@@ -356,7 +408,7 @@ async function retainMaterial(material, { directory, signal, fetchImplementation
       ["size", "sha256", "sha512", "gitBlobSha1"].some((key) => reread[key] !== result[key])) fail("storage_changed");
     lease.check(); root.check(); blobs.check(); attempts.check();
     return { id: material.id, name: blobName(material), ...result, identity: published, eof: true,
-      acquisition: "HTTPS_BYTES_VERIFIED", finalUrl };
+      acquisition, finalUrl, ...(primaryFailure ? { primaryFailure } : {}) };
   } finally { closeAll([fd === undefined ? null : () => closeSync(fd),
     () => attempts?.close(), () => blobs?.close(), () => root.close()]); }
 }
@@ -467,6 +519,7 @@ export function finalizePostgresSourceClosureMaterials(value) {
     const materials = dataArray(value.materials, 323).map(entry => {
       const keys = ["id", "name", "size", "sha256", "sha512", "gitBlobSha1", "identity", "eof", "acquisition"];
       if (entry && Object.getOwnPropertyDescriptor(entry, "acquisition")?.value === "HTTPS_BYTES_VERIFIED") keys.push("finalUrl");
+      if (entry && Object.getOwnPropertyDescriptor(entry, "acquisition")?.value === "HTTPS_MIRROR_BYTES_VERIFIED") keys.push("finalUrl", "primaryFailure");
       entry = snapshotRecord(entry, keys, "proof_invalid");
       if (typeof entry.id !== "string" || !byId.has(entry.id) || seen.has(entry.id)) fail("proof_invalid");
       const pin = byId.get(entry.id); seen.add(entry.id);
@@ -475,8 +528,12 @@ export function finalizePostgresSourceClosureMaterials(value) {
         || typeof entry.sha512 !== "string" || !/^[0-9a-f]{128}$/u.test(entry.sha512)
         || pin.expected.gitBlobSha1 === null && entry.gitBlobSha1 !== null
         || ["size", "sha256", "sha512", "gitBlobSha1"].some(key => pin.expected[key] !== null && pin.expected[key] !== entry[key])
-        || !["EXISTING_BYTES_REVERIFIED", "HTTPS_BYTES_VERIFIED"].includes(entry.acquisition)) fail("proof_invalid");
+        || !["EXISTING_BYTES_REVERIFIED", "HTTPS_BYTES_VERIFIED", "HTTPS_MIRROR_BYTES_VERIFIED"].includes(entry.acquisition)) fail("proof_invalid");
       if (entry.acquisition === "HTTPS_BYTES_VERIFIED" && sourceUrl(entry.finalUrl, true).search) fail("proof_invalid");
+      if (entry.acquisition === "HTTPS_MIRROR_BYTES_VERIFIED") {
+        const mirror = mirrorFor(pin);
+        if (!mirror || entry.finalUrl !== mirror.url || entry.primaryFailure !== mirror.reason) fail("proof_invalid");
+      }
       const native = snapshotRecord(entry.identity, ["dev", "ino", "uid", "gid", "mode", "nlink", "size", "mtimeNs", "ctimeNs"], "proof_invalid");
       if (["dev", "ino", "mtimeNs", "ctimeNs"].some(key => typeof native[key] !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(native[key]))
         || native.uid !== 1000 || native.gid !== 1000 || native.mode !== 0o600 || native.nlink !== 1 || native.size !== entry.size) fail("proof_invalid");
@@ -516,7 +573,8 @@ export async function collectPostgresSourceClosure({ directory, signal, onProgre
       executedCodeAuthentication: "REQUIRES_EXTERNAL_READONLY_SNAPSHOT", authority: "NONE" };
     checkCapacity(directory, postgresSourceClosureLimits.totalBytes - storedBytes(directory), root);
     const contextBytes = Buffer.from(JSON.stringify(context) + "\n");
-    contextRecord = existingRecord(directory, root, "context.json", contextBytes);
+    // A code change can resume immutable blobs without rewriting prior run context.
+    contextRecord = writeRecord(directory, root, `context-${run}.json`, contextBytes);
     for (const material of manifest.materials) {
       operationSignal.throwIfAborted(); lease.check(); sources.check(); contextRecord.check();
       const objectSignal = globalThis.AbortSignal.any([operationSignal, globalThis.AbortSignal.timeout(postgresSourceClosureLimits.objectMs)]);

@@ -126,6 +126,13 @@ test("APK history retains removed/replaced records, raw identities, missing decl
   assert.deepEqual(validatePostgresRetainedLayerSourceInventory(proof, value.archive, value.options), proof);
 });
 
+test("numbered GNU COPYING notices remain visible in retained layers", () => {
+  const names = ["COPYING2", "COPYING3", "COPYING3.LIB"];
+  const proof = inspect(fixture([names.map(name => ({ name: `usr/share/licenses/tool/${name}`, content: name }))]));
+  assert.deepEqual(proof.notices.map(notice => notice.path), names.map(name => `usr/share/licenses/tool/${name}`));
+  for (const notice of proof.notices) assert.equal(notice.sha256, hash(Buffer.from(notice.path.split("/").at(-1))));
+});
+
 test("whiteouts only erase lower resources, regardless of TAR order, and later layers can reintroduce them", () => {
   for (const reversed of [false, true]) {
     const changes = [{ name: "a/.wh.b" }, { name: "a/b", content: "same layer" }];

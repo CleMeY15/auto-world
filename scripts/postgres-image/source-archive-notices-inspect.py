@@ -33,7 +33,7 @@ LIMITS = {"archiveBytes": 1024 ** 3, "decodedBytes": 8 * 1024 ** 3,
           "indexBytes": 64 * 1024 ** 2}
 ENVIRONMENT = {"PATH": "/usr/bin:/bin", "HOME": "/home/autoworld", "LANG": "C.UTF-8",
                "LC_ALL": "C.UTF-8", "TZ": "UTC"}
-NOTICE = re.compile(r"^(?:licen[cs]e|copying|copyright|notice|patents|legal)s?(?:[._-].*)?$", re.I)
+NOTICE = re.compile(r"^(?:licen[cs]e|copying[23]?|copyright|notice|patents|legal)s?(?:[._-].*)?$", re.I)
 REASONS = {"context_invalid", "input_invalid", "descriptor_invalid", "source_changed", "checksum_mismatch",
            "format_unsupported", "archive_invalid", "decoder_invalid", "decoder_trailing_data", "decoded_limit",
            "member_limit", "path_invalid", "duplicate_path", "notice_limit", "candidate_limit",
@@ -315,6 +315,7 @@ def zip_members(source):
             require(declared <= LIMITS["decodedBytes"], "decoded_limit")
             mode = (info.external_attr >> 16) & 0xffff
             require(not stat.S_IFMT(mode) or stat.S_ISREG(mode) or stat.S_ISDIR(mode) or stat.S_ISLNK(mode), "format_unsupported")
+            require(not stat.S_IFMT(mode) or info.is_dir() == stat.S_ISDIR(mode), "format_unsupported")
             if candidate(path) and not info.is_dir():
                 require(info.file_size <= (LIMITS["pathBytes"] if stat.S_ISLNK(mode) else LIMITS["noticeBytes"]), "notice_limit")
         for info in infos:

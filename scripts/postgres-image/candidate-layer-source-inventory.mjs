@@ -12,7 +12,7 @@ const LIMITS = Object.freeze({ membersPerLayer: 100_000, membersTotal: 250_000, 
   apkLineBytes: 16 * 1024, noticeBytes: 4 * 1024 ** 2, inventoryBytes: 64 * 1024 ** 2 });
 const TYPES = Object.freeze({ "0": "file", "1": "hardlink", "2": "symlink", "3": "character-device",
   "4": "block-device", "5": "directory", "6": "fifo" });
-const NOTICE = /^(?:licen[cs]e|copying|notice|copyright|patents)(?:[._-].*)?$/iu;
+const NOTICE = /^(?:licen[cs]e|copying[23]?|notice|copyright|patents)(?:[._-].*)?$/iu;
 const APK_FIELDS = new Set("PVTULADCSIpiomtc kFMRZrqasf".replaceAll(" ", ""));
 const freeze = (v) => Array.isArray(v) ? Object.freeze(v.map(freeze)) : v !== null && typeof v === "object"
   ? Object.freeze(Object.fromEntries(Object.entries(v).map(([key, value]) => [key, freeze(value)]))) : v;

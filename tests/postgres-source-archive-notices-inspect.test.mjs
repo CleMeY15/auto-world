@@ -125,6 +125,13 @@ test("TAR notices include unfollowed symlink/hardlink/device pointers and filena
     [["COPYING.LESSER", null, "../../outside", "UNRESOLVED_NO_FOLLOW"], ["NOTICE", null, "a/LICENCE.txt", "UNRESOLVED_NO_FOLLOW"]]);
   assert.equal(result.value.candidates.find((candidate) => candidate.path === "LEGAL").type, "DIRECTORY");
 });
+
+test("GNU numbered COPYING notices are discovered with their complete byte hashes", pureOptions, () => {
+  const names = ["COPYING2", "COPYING3", "COPYING3.LIB"];
+  const result = pure(tar(names.map(name => ({ name, bytes: Buffer.from(name) }))));
+  assert.deepEqual(result.value.candidates.map(candidate => candidate.path), names);
+  for (const candidate of result.value.candidates) assert.equal(candidate.sha256, hash(Buffer.from(candidate.path)));
+});
 test("PAX paths are validated after stdlib resolution and sparse formats are refused before data access", pureOptions, () => {
   const result = pure(tar([{ name: "PaxHeader", type: "x", bytes: pax("path", "src/LICENSE.long") }, { name: "short", bytes: Buffer.from("pax") }]));
   assert.equal(result.state, "PARTIAL_PARSER_PROOF"); assert.equal(result.value.candidates[0].path, "src/LICENSE.long");
@@ -165,6 +172,18 @@ test("ZIP symlink notice body is a bounded unfollowed pointer rather than a regu
   assert.equal(result.state, "PARTIAL_PARSER_PROOF"); assert.deepEqual(result.value.candidates[0], {
     path: "NOTICE", type: "SYMLINK", size: 13, sha256: null, linkTarget: "../../outside", resolution: "UNRESOLVED_NO_FOLLOW",
   });
+});
+for (const [label, name, mode] of [["regular with directory slash", "NOTICE/", 0o100644],
+  ["symlink with directory slash", "NOTICE/", 0o120777], ["directory without slash", "NOTICE", 0o040755]]) {
+  test(`ZIP contradictory Unix type ${label} is refused`, pureOptions, () => {
+    refused(zip([{ name, mode }]), "format_unsupported");
+  });
+}
+test("ZIP absent Unix type continues to follow the filename directory convention", pureOptions, () => {
+  const directory = pure(zip([{ name: "NOTICE/", mode: 0 }]));
+  assert.equal(directory.state, "PARTIAL_PARSER_PROOF"); assert.equal(directory.value.candidates[0].type, "DIRECTORY");
+  const file = pure(zip([{ name: "NOTICE", mode: 0, bytes: Buffer.from("notice") }]));
+  assert.equal(file.state, "PARTIAL_PARSER_PROOF"); assert.equal(file.value.candidates[0].type, "REGULAR_FILE");
 });
 test("ZIP CRC corruption in an unselected file, trailers and damaged compressed streams are refused", pureOptions, () => {
   refused(zip([{ name: "source.py", bytes: Buffer.from("code"), crc: 0 }]));

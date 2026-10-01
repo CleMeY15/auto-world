@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { finalizePostgresSourceClosureMaterials, retainPostgresSourceMaterial } from "../scripts/postgres-image/source-closure.mjs";
+import { loadPostgresSourceClosureManifest } from "../scripts/postgres-image/source-closure-manifest.mjs";
 
 const sha = (algorithm, bytes) => createHash(algorithm).update(bytes).digest("hex");
 const payload = Buffer.from("source bytes kept as data\n");
@@ -28,6 +29,140 @@ function storage(t) {
   const directory = mkdtempSync(path.join(os.tmpdir(), "pg-source-closure-test-")); chmodSync(directory, 0o700);
   t.after(() => rmSync(directory, { recursive: true, force: true })); return directory;
 }
+
+const recoveryCases = [
+  ["material-apk-tools-apk-tools-v3.0.8.tar.gz", "edge/apk-tools-v3.0.8.tar.gz", "response_406_invalid", () => new globalThis.Response(null, { status: 406 })],
+  ["material-ca-certificates-ca-certificates-20260909.tar.bz2", "edge/ca-certificates-20260909.tar.bz2", "response_406_invalid", () => new globalThis.Response(null, { status: 406 })],
+  ["material-krb5-krb5-1.22.2.tar.gz", "edge/krb5-1.22.2.tar.gz", "response_200_invalid", () => response(payload, { "content-encoding": "gzip" })],
+  ["material-ncurses-ncurses-6.6-20260516.tgz", "edge/ncurses-6.6-20260516.tgz", "response_404_invalid", () => new globalThis.Response(null, { status: 404 })],
+  ["material-readline-readline-8.3.tar.gz", "v3.24/readline-8.3.tar.gz", "download_failed", () => { throw new Error("TRANSPORT_FIXTURE_PRIVATE_TEXT"); }],
+  ["material-tzdata-tzcode2026d.tar.gz", "edge/tzcode2026d.tar.gz", "url_invalid", () => new globalThis.Response(null,
+    { status: 302, headers: { location: "https://data.iana.org/time-zones/releases/tzcode2026d.tar.gz" } })],
+  ["material-tzdata-tzdata2026d.tar.gz", "edge/tzdata2026d.tar.gz", "url_invalid", () => new globalThis.Response(null,
+    { status: 302, headers: { location: "https://data.iana.org/time-zones/releases/tzdata2026d.tar.gz" } })],
+].map(([id, leaf, reason, primary]) => ({ material: loadPostgresSourceClosureManifest().materials.find(v => v.id === id),
+  mirror: `https://distfiles.alpinelinux.org/distfiles/${leaf}`, reason: `postgres_source_closure_${reason}`, primary }));
+
+test("only the seven compiled materials request their exact mirror after the known primary refusal", { skip: !native }, async t => {
+  for (const value of recoveryCases) {
+    const urls = []; const directory = storage(t);
+    // Harmless transport fixtures cannot match these real compiled SHA512s.
+    // A mirror request is exercised; no source or native acceptance is fabricated.
+    await assert.rejects(retainPostgresSourceMaterial(value.material, { directory, signal: signal(), fetchImplementation: async (url, options) => {
+      urls.push(url); assert.equal(options.redirect, "manual"); assert.equal(options.headers["Accept-Encoding"], "identity");
+      return urls.length === 1 ? value.primary() : response();
+    } }), { message: "postgres_source_closure_digest_invalid" });
+    assert.deepEqual(urls, [value.material.url, value.mirror]);
+    assert.deepEqual(readdirSync(path.join(directory, "blobs")), []);
+    assert.deepEqual(readFileSync(path.join(directory, "attempts", readdirSync(path.join(directory, "attempts"))[0])), payload);
+  }
+});
+
+test("mirror authority requires the whole compiled material and cannot replace a digest or declared URL", { skip: !native }, async t => {
+  const value = recoveryCases[0];
+  for (const mutate of [
+    v => { v.id += "-other"; }, v => { v.origin = "other"; }, v => { v.commit = "0".repeat(40); },
+    v => { v.path += ".other"; }, v => { v.role = "SOURCE_AUX"; },
+    v => { v.url = "https://gitlab.alpinelinux.org/alpine/apk-tools/-/archive/other/apk-tools-v3.0.8.tar.gz"; },
+    v => { v.expected.sha512 = sha("sha512", payload); }, v => { v.expected.sha256 = sha("sha256", payload); },
+    v => { v.expected.size = payload.length; },
+  ]) {
+    const pin = globalThis.structuredClone(value.material); mutate(pin); let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(pin, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; return value.primary();
+    } }), { message: value.reason });
+    assert.equal(calls, 1);
+  }
+  let calls = 0;
+  await assert.rejects(retainPostgresSourceMaterial({ ...value.material, url: value.mirror }, {
+    directory: "/unused", signal: signal(), fetchImplementation: async () => { calls++; return response(); },
+  }), { message: "postgres_source_closure_url_invalid" });
+  assert.equal(calls, 0);
+});
+
+test("different HTTP, encoding, transport and IANA redirect failures do not enable a mirror", { skip: !native }, async t => {
+  const refusedPrimaries = [
+    () => new globalThis.Response(null, { status: 404 }), () => new globalThis.Response(null, { status: 404 }),
+    () => new globalThis.Response(null, { status: 406 }), () => response(payload, { "content-encoding": "gzip" }),
+    () => new globalThis.Response(null, { status: 503 }),
+    () => new globalThis.Response(null, { status: 302, headers: { location: "https://data.iana.org/time-zones/releases/tzcode2026d.tar.gz?changed=1" } }),
+    () => new globalThis.Response(null, { status: 302, headers: { location: "https://example.org/tzdata2026d.tar.gz" } }),
+  ];
+  for (let i = 0; i < recoveryCases.length; i++) {
+    let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(recoveryCases[i].material, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; return refusedPrimaries[i]();
+    } }));
+    assert.equal(calls, 1);
+  }
+  for (const location of [credentialUrl(), "http://data.iana.org/time-zones/releases/tzcode2026d.tar.gz"]) {
+    let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(recoveryCases[5].material, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; return new globalThis.Response(null, { status: 302, headers: { location } });
+    } }));
+    assert.equal(calls, 1);
+  }
+  for (const value of recoveryCases.filter(v => v.material.origin !== "readline")) {
+    let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(value.material, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; throw new Error("UNRELATED_TRANSPORT_FAILURE");
+    } }), { message: "postgres_source_closure_download_failed" });
+    assert.equal(calls, 1);
+  }
+  let calls = 0;
+  await assert.rejects(retainPostgresSourceMaterial(recoveryCases[0].material, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+    calls++; return calls === 1 ? new globalThis.Response(null, { status: 302, headers: { location: "https://raw.githubusercontent.com/source" } })
+      : recoveryCases[0].primary();
+  } }), { message: recoveryCases[0].reason });
+  assert.equal(calls, 2); // A new downstream refusal does not become the known original failure.
+});
+
+test("digest, truncation, streamed error, length, cap and cancellation failures never fall back", { skip: !native }, async t => {
+  const pin = recoveryCases[4].material;
+  for (const makeResponse of [
+    () => response(), () => response(payload, { "content-length": String(payload.length + 1) }),
+    () => response(payload, { "content-length": "01" }),
+    () => new globalThis.Response(new globalThis.ReadableStream({ start(c) {
+      c.enqueue(payload); }, pull(c) { c.error(new Error("STREAM_FIXTURE_PRIVATE_TEXT")); } })),
+  ]) {
+    let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(pin, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; return makeResponse();
+    } }));
+    assert.equal(calls, 1);
+  }
+  let calls = 0;
+  await assert.rejects(retainPostgresSourceMaterial(pin, { directory: storage(t), maxBytes: payload.length - 1,
+    signal: signal(), fetchImplementation: async () => { calls++; return response(); } }), { message: "postgres_source_closure_size_invalid" });
+  assert.equal(calls, 1);
+  const controller = new globalThis.AbortController(); calls = 0;
+  await assert.rejects(retainPostgresSourceMaterial(pin, { directory: storage(t), signal: controller.signal, fetchImplementation: async () => {
+    calls++; controller.abort(); throw new Error("TRANSPORT_AFTER_ABORT");
+  } }));
+  assert.equal(calls, 1);
+  calls = 0;
+  await assert.rejects(retainPostgresSourceMaterial(pin, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+    calls++; throw new Error("postgres_source_closure_cleanup_uncertain");
+  } }), { message: "postgres_source_closure_cleanup_uncertain" });
+  assert.equal(calls, 1);
+});
+
+test("a mirror has one attempt, no redirect authority and unchanged identity encoding", { skip: !native }, async t => {
+  const value = recoveryCases[0];
+  for (const mirrorResponse of [
+    () => new globalThis.Response(null, { status: 404 }),
+    () => response(payload, { "content-encoding": "gzip" }),
+    () => new globalThis.Response(null, { status: 302, headers: { location: value.mirror } }),
+    () => new globalThis.Response(null, { status: 302, headers: { location: "https://raw.githubusercontent.com/source" } }),
+    () => { throw new Error("MIRROR_FIXTURE_PRIVATE_TEXT"); },
+  ]) {
+    let calls = 0;
+    await assert.rejects(retainPostgresSourceMaterial(value.material, { directory: storage(t), signal: signal(), fetchImplementation: async () => {
+      calls++; return calls === 1 ? value.primary() : mirrorResponse();
+    } }));
+    assert.equal(calls, 2);
+  }
+});
 
 test("opaque source retention seals complete bytes and reuses only fully rehashed bytes", { skip: !native }, async (t) => {
   const directory = storage(t); let calls = 0;
@@ -225,6 +360,47 @@ function finalizerFixture() {
   return { expectedMaterials, materials, failures: [], observedNames: materials.map(v => v.name) };
 }
 
+function mirrorFacts(value) {
+  const size = payload.length; const name = `sha512-${value.material.expected.sha512}.blob`;
+  return { expectedMaterials: [value.material], observedNames: [name], failures: [], materials: [{
+    id: value.material.id, name, size, sha256: "1".repeat(64), sha512: value.material.expected.sha512, gitBlobSha1: null,
+    identity: { dev: "1", ino: "1", uid: 1000, gid: 1000, mode: 0o600, nlink: 1, size, mtimeNs: "1", ctimeNs: "1" },
+    eof: true, acquisition: "HTTPS_MIRROR_BYTES_VERIFIED", finalUrl: value.mirror, primaryFailure: value.reason,
+  }] };
+}
+
+test("pure mirror provenance keeps the compiled checksum, exact descriptive URL and closed primary reason", () => {
+  for (const value of recoveryCases) {
+    const facts = mirrorFacts(value); const result = finalizePostgresSourceClosureMaterials(facts);
+    assert.equal(result.state, "BYTES_VERIFIED_UNADMITTED");
+    assert.equal(result.materials[0].primaryFailure, value.reason); assert.equal(result.materials[0].finalUrl, value.mirror);
+    assert.equal(result.materials[0].sha512, value.material.expected.sha512);
+    assert.equal(result.claims.authority, "NONE"); assert.equal(result.claims.sourceClosure, "NOT_ESTABLISHED");
+    assert.equal(result.claims.admission, "NOT_AUTHORIZED");
+  }
+});
+
+test("pure mirror provenance refuses counterfeit material, routes, reason text, decorated shape and getters", () => {
+  let reads = 0;
+  for (const mutate of [
+    v => { v.expectedMaterials[0] = globalThis.structuredClone(v.expectedMaterials[0]); v.expectedMaterials[0].expected.sha512 = "0".repeat(128);
+      v.materials[0].sha512 = "0".repeat(128); v.materials[0].name = `sha512-${"0".repeat(128)}.blob`; v.observedNames[0] = v.materials[0].name; },
+    v => { v.expectedMaterials[0] = { ...v.expectedMaterials[0], role: "SOURCE_AUX" }; },
+    v => { v.materials[0].finalUrl += "?temporary=private"; },
+    v => { v.materials[0].finalUrl = v.materials[0].finalUrl.replace("/edge/", "/v3.24/"); },
+    v => { v.materials[0].finalUrl = "https://example.org/source"; },
+    v => { v.materials[0].primaryFailure = "postgres_source_closure_response_404_invalid"; },
+    v => { v.materials[0].primaryFailure = "PRIVATE_ERROR_TEXT"; },
+    v => { v.materials[0].extra = true; },
+    v => { Object.defineProperty(v.materials[0], "primaryFailure", { enumerable: true, get() { reads++; return recoveryCases[0].reason; } }); },
+    v => { Object.defineProperty(v.materials[0], "acquisition", { enumerable: true, get() { reads++; return "HTTPS_MIRROR_BYTES_VERIFIED"; } }); },
+  ]) {
+    const value = mirrorFacts(recoveryCases[0]); mutate(value);
+    assert.throws(() => finalizePostgresSourceClosureMaterials(value), { message: "postgres_source_closure_proof_invalid" });
+  }
+  assert.equal(reads, 0);
+});
+
 test("pure finalization compares complete facts but never establishes source closure or authority", () => {
   const fixture = finalizerFixture(); const result = finalizePostgresSourceClosureMaterials(fixture);
   assert.equal(result.state, "BYTES_VERIFIED_UNADMITTED"); assert.deepEqual(result.counts, { expected: 2, verified: 2, failed: 0, totalBytes: 41 });
@@ -301,12 +477,15 @@ test("real root handoff runs the fixed 323 batch as genuine 1000 with networking
   const output = path.join(root, "output"); mkdirSync(output); chownSync(output, 1000, 1000); chmodSync(output, 0o700);
   const driver = path.join(root, "driver.mjs");
   writeFileSync(driver, `import assert from 'node:assert/strict'; import {createHash} from 'node:crypto';
-    import {readFileSync,readdirSync,lstatSync} from 'node:fs';
+    import {readFileSync,readdirSync,lstatSync,writeFileSync} from 'node:fs';
     import {collectPostgresSourceClosure} from './scripts/postgres-image/source-closure.mjs';
     const before=readdirSync('/proc/self/fd').sort(); let calls=0;
     globalThis.fetch=async()=>{calls++;throw new Error('NO_NETWORK_FIXTURE');};
+    const legacyContext=${JSON.stringify(output)}+'/context.json';
+    writeFileSync(legacyContext,'prior context fixture\\n',{flag:'wx',mode:0o600});
+    const legacyBytes=readFileSync(legacyContext);
     const ack=await collectPostgresSourceClosure({directory:${JSON.stringify(output)}});
-    assert.equal(calls,323);assert.equal(ack.state,'INCOMPLETE');assert.equal(ack.counts.expected,323);assert.equal(ack.counts.failed,323);
+    assert.equal(calls,324);assert.equal(ack.state,'INCOMPLETE');assert.equal(ack.counts.expected,323);assert.equal(ack.counts.failed,323);
     assert.equal(ack.counts.verified,0);assert.equal(ack.receipt.eof,true);assert.equal(ack.context.eof,true);
     const bytes=readFileSync(${JSON.stringify(output)}+'/'+ack.receipt.name);
     assert.equal(bytes.length,ack.receipt.size);assert.equal(createHash('sha256').update(bytes).digest('hex'),ack.receipt.sha256);
@@ -316,6 +495,15 @@ test("real root handoff runs the fixed 323 batch as genuine 1000 with networking
     assert.deepEqual(receipt.actor.kernelSupplementaryGroups,[]);assert.equal(receipt.actor.uid,1000);assert.equal(receipt.actor.gid,1000);assert.equal(receipt.actor.noNewPrivs,1);
     assert.ok(receipt.sourceFiles.every(v=>v.identity.uid===0&&v.identity.gid===1000&&v.identity.mode===0o440&&v.eof===true));
     assert.equal(receipt.claims.admission,'NOT_AUTHORIZED');assert.equal(receipt.claims.supportStartedAt,null);
+    assert.equal(ack.context.name,'context-'+ack.run+'.json');
+    const firstContextBytes=readFileSync(${JSON.stringify(output)}+'/'+ack.context.name);
+    const second=await collectPostgresSourceClosure({directory:${JSON.stringify(output)}});
+    assert.equal(calls,648);assert.equal(second.state,'INCOMPLETE');assert.equal(second.counts.failed,323);
+    assert.notEqual(second.run,ack.run);assert.notEqual(second.context.name,ack.context.name);assert.notEqual(second.receipt.name,ack.receipt.name);
+    assert.deepEqual(readFileSync(legacyContext),legacyBytes);
+    assert.deepEqual(readFileSync(${JSON.stringify(output)}+'/'+ack.context.name),firstContextBytes);
+    assert.deepEqual(readFileSync(${JSON.stringify(output)}+'/'+ack.receipt.name),bytes);
+    assert.equal(second.context.name,'context-'+second.run+'.json');
     assert.equal(readdirSync(${JSON.stringify(output)}).includes('.collection-lock'),false);
     assert.equal(readdirSync(${JSON.stringify(output)}).some(v=>v.startsWith('.record-')),false);
     assert.equal(lstatSync(${JSON.stringify(output)}+'/'+ack.receipt.name).mode&0o7777,0o600);
