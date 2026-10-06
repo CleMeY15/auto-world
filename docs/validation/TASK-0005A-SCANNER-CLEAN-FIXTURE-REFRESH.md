@@ -1,6 +1,6 @@
 # TASK-0005A — Refresh the scanner clean Java control
 
-Status: PLAN, 2026-10-06. Scope: diagnostic scanner test data only. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
+Status: IMPLEMENTED; full checks and independent review pending, 2026-10-06. Scope: diagnostic scanner test data only. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked.
 
 The first [current PostgreSQL audit](https://github.com/CleMeY15/auto-world/actions/runs/37533250411), on reviewed protected-main recipe `e0a9495df7dd8d46ef5b3c737705036619ffb950`, passed both scanner builds and failed at SCANNER_CONTROLS with `scanner_clean_fixture_has_findings`. Its Jackson-core2.18.8 control report contains HIGH CVE-2026-89407 and CVE-2026-89425, both reporting2.18.11 as a fixed version. Neither PostgreSQL report ran. Cleanup and raw evidence upload passed; no current-audit projection was published.
 
@@ -17,3 +17,11 @@ The retained fourteen-file raw ZIP is1547219bytes, SHA256 `25d80270596c499e0c40c
 ## Operational boundary and rollback
 
 This changes neither publication rights nor image admission, support dates, archives or scheduled production tasks. Restoring the prior fixture is a source rollback and restores its known scanner-control failure; it cannot authorize an image. Any new finding blocks the new audit. Package Settings and the other admission prerequisites remain independent.
+
+## Verified material and regression evidence
+
+Both [FasterXML advisory GHSA-p6pp-m3f8-5c89](https://github.com/FasterXML/jackson-core/security/advisories/GHSA-p6pp-m3f8-5c89) and [GHSA-7hhh-6rmp-j9qf](https://github.com/FasterXML/jackson-core/security/advisories/GHSA-7hhh-6rmp-j9qf) identify2.18.11 as fixed. The same-branch [release](https://github.com/FasterXML/jackson-core/releases/tag/jackson-core-2.18.11) maps to commit bdda1b30e48cd70cba77205a67520f3d944a4407. Release/tag preparation is unsigned; the upstream fix commits e7acd64cc99bd346704423dc2bfea1ab0a08ddff and211cf2c5d91abbec38067f37efc1363cd4e88ee3 are GitHub-verified. No local PGP-chain verification is claimed.
+
+The [Maven Central JAR](https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.11/jackson-core-2.18.11.jar) is588755bytes, SHA256 `825fa72dfb9e2f8a642322f1390dbac22c30d15ebd6dc6b3772158821ee124eb`, matching its [publisher SHA256](https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.11/jackson-core-2.18.11.jar.sha256). Its embedded coordinates are exactly `com.fasterxml.jackson.core:jackson-core:2.18.11`. The retained LICENSE is11358bytes/SHA256 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`; NOTICE is1616bytes/SHA256 `e6aef1c0f4cf5b0f802c16b31fce309b3c3737450b93c40d6291bf6540aae3d1`. Both remain inside the committed JAR. The fixture manifest is7632bytes/SHA256 `bf9f3296c0753b19f2b0c5631538338cd5457ea5d07ac72357428b71e8ae7591`.
+
+Fresh affected Windows Node22.23.2 tests pass27/27. The updated control test binds actual JAR bytes to both manifest and scanner lock, rejects the old2.18.8 inventory and rejects either new CVE or any other finding. The service-trust aggregate includes the two changed fixture pins; all scanner source/compiler/patches, vulnerable controls and eight image pins remain identical. All71 generation2 execution files still match their original length/SHA256; its inventory is unchanged. The first affected run exposed the expected obsolete trust-aggregate assertion, which was updated for the two reviewed fixture identities; the subsequent run passes. These are regressions, not a new native clean-image result.

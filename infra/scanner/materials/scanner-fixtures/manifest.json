@@ -140,26 +140,28 @@
       "id": "java-jar-clean-candidate",
       "kind": "jar-analyzer-jar",
       "source": {
-        "artifactUrl": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar",
-        "sha1Url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.8/jackson-core-2.18.8.jar.sha1",
-        "provenance": "Maven Central release artifact fetched 2026-09-14; publisher SHA-1 and embedded Maven coordinates checked, LICENSE and NOTICE retained; external test data only, never a runtime dependency"
+        "artifactUrl": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.11/jackson-core-2.18.11.jar",
+        "sha256Url": "https://repo.maven.apache.org/maven2/com/fasterxml/jackson/core/jackson-core/2.18.11/jackson-core-2.18.11.jar.sha256",
+        "provenance": "Maven Central release artifact fetched 2026-10-06; publisher SHA-256 and embedded Maven coordinates checked; LICENSE and NOTICE retained inside the JAR; external test data only, never a runtime dependency; upstream release tag and commit are unsigned, artifact PGP signature not verified"
       },
       "material": [
         {
-          "path": "java/jackson-core-2.18.8.jar",
-          "sha256": "ab865e39f01403598748b090a3bf528616e701913a71afc37a227daa0fabb4ae",
-          "sha1": "459eb2c4bb30bd6898eb9bbe9d7a4c4140529b8b",
-          "size": 588007
+          "path": "java/jackson-core-2.18.11.jar",
+          "sha256": "825fa72dfb9e2f8a642322f1390dbac22c30d15ebd6dc6b3772158821ee124eb",
+          "sha1": "b5c602a7ffc5124c3d6b1f9a291e5014d5695025",
+          "size": 588755
         }
       ],
       "expected": {
-        "source": "FasterXML advisories https://github.com/advisories/GHSA-r7wm-3cxj-wff9 and https://github.com/advisories/GHSA-72hv-8253-57qq plus Trivy JAR analyzer semantics",
+        "source": "FasterXML advisories https://github.com/advisories/GHSA-r7wm-3cxj-wff9 and https://github.com/advisories/GHSA-72hv-8253-57qq plus Trivy JAR analyzer semantics; FasterXML fixes https://github.com/FasterXML/jackson-core/security/advisories/GHSA-p6pp-m3f8-5c89 and https://github.com/FasterXML/jackson-core/security/advisories/GHSA-7hhh-6rmp-j9qf",
         "package": "com.fasterxml.jackson.core:jackson-core",
-        "version": "2.18.8",
+        "version": "2.18.11",
         "fixedFor": [
           "CVE-2025-52999",
           "CVE-2026-18401",
-          "GHSA-r7wm-3cxj-wff9"
+          "GHSA-r7wm-3cxj-wff9",
+          "CVE-2026-89407",
+          "CVE-2026-89425"
         ],
         "findingExpectation": "must be zero only after first Linux scan with a freshly downloaded then frozen DB; any finding blocks without waiver"
       },

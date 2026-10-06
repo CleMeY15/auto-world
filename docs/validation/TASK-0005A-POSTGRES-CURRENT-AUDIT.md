@@ -1,6 +1,8 @@
 # TASK-0005A — PostgreSQL current admission audit
 
-Status: IMPLEMENTATION_IN_REVIEW, 2026-10-06. Owner: platform/security. [PR137](https://github.com/CleMeY15/auto-world/pull/137) follows [P6 runtime delivery](TASK-0005A-POSTGRES-ADMISSION-RUNTIME.md), merged on independently reviewed main a4022c9e2b8f5892e9e90dabc251f4fff01badc6 with passing exact-head/main CI37527758408/37528187178. The inventory remains PENDING and support dates null. This diagnostic neither activates support nor authorizes a PostgreSQL process.
+Status: DELIVERED; first native run FAILED at SCANNER_CONTROLS, 2026-10-06. Owner: platform/security. [PR137](https://github.com/CleMeY15/auto-world/pull/137) follows [P6 runtime delivery](TASK-0005A-POSTGRES-ADMISSION-RUNTIME.md), merged on independently reviewed main a4022c9e2b8f5892e9e90dabc251f4fff01badc6 with passing exact-head/main CI37527758408/37528187178. The inventory remains PENDING and support dates null. This diagnostic neither activates support nor authorizes a PostgreSQL process.
+
+PR137 exact head8b217c59b1b3be6c003b28590be8f92a2f7d7262 passed CI37532256674 and merged as e0a9495df7dd8d46ef5b3c737705036619ffb950 with the identical reviewed tree0db8d2441b242919722a0f3dc75299a98fbcda25; main CI37532681371 passed. [Native run37533250411](https://github.com/CleMeY15/auto-world/actions/runs/37533250411), number1/attempt1, passed both scanner builds, then failed on two HIGH findings in the old Jackson-core2.18.8 clean control. The raw receipt is INCOMPLETE/SCANNER_CONTROLS, reason `scanner_clean_fixture_has_findings`. PostgreSQL JSON/SBOM scans did not run. Cleanup and fourteen-file raw artifact upload passed; no projection exists. The [focused fixture correction](TASK-0005A-SCANNER-CLEAN-FIXTURE-REFRESH.md) retains this original failure and requires a new audit after reviewed delivery.
 
 ## Goal and scope
 
