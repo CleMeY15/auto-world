@@ -63,6 +63,35 @@ test("the generation-one history summary cannot be rewritten while advancing adm
   assert.throws(() => assertGenerationOneHistory(changed));
 });
 
+test("generation two activation retains the initial revision and binds the actual current audit and package observation", () => {
+  assert.equal(sha(canonical(inventory.generationRoot)),
+    "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220");
+  assert.equal(inventory.revisionHashes[0],
+    "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da");
+  const active = inventory.authorityRevisions[1];
+  assert.equal(active.state, "ACTIVE");
+  assert.equal(active.previousRevisionSha256, inventory.revisionHashes[0]);
+  assert.deepEqual([active.supportStartedAt, active.supportEndsAt, active.archiveUntil],
+    ["2026-10-06", "2027-10-06", "2028-10-05"]);
+  assert.equal(Date.parse(active.archiveUntil) - Date.parse(active.supportEndsAt), 365 * 86_400_000);
+  const audit = active.currentEvidence.audit;
+  assert.equal(sha(Buffer.from(`${JSON.stringify(audit, null, 2)}\n`)),
+    "e910c271d14a480ae625902e02f9132a47833ec5434660e3ac4c90167ea35e6c");
+  assert.equal(audit.checkedAt, "2026-10-06T22:21:49.375163974Z");
+  assert.deepEqual(audit.source, {
+    recipeRevision: "fe397f1fc3f49ce4ef850338cec319366cb22c55",
+    workflowPath: ".github/workflows/postgres-admission-current-audit.yml",
+    runId: "37538340223", attempt: "1",
+  });
+  assert.equal(audit.files.length, 16);
+  const controls = fs.readFileSync("infra/postgres-image/package-controls.json");
+  assert.deepEqual(active.currentEvidence.packageControls, {
+    size: controls.length, sha256: sha(controls), observedAt: JSON.parse(controls).observedAt,
+  });
+  assert.equal(active.currentEvidence.packageControls.sha256,
+    "29ca213f523b623d18d17b95195342f39002e138304a70ba93ce50444421021b");
+});
+
 test("frozen execution pins cover the complete supported and offline relative-import closure without mutable evidence or self-reference", () => {
   const files = inventory.generationRoot.executionFiles;
   assert.deepEqual(files.map(item => item.path), files.map(item => item.path).sort());
