@@ -1,0 +1,150 @@
+{
+  "kind": "POSTGRES_COMPLETE_PRIVATE_COPY_ACCEPTANCE_V1",
+  "state": "VERIFIED_UNADMITTED",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "recipeRevision": "d60027d8db650f920c967c718882a77704c16bba",
+  "completePolicy": {
+    "bytes": 431215,
+    "sha256": "d1735fc58f75a722c3062cf4087bb920921ef58b6571fcac03753660fbe054d9"
+  },
+  "launchPlan": {
+    "bytes": 23998,
+    "sha256": "55c1a18a5a82d35a0d85b33018ae730aa31d6390071f53e769556c814f878ac3"
+  },
+  "counts": {
+    "references": 1094,
+    "referenceBytes": 1355342948,
+    "evidenceObjects": 840,
+    "evidenceObjectBytes": 1023937063,
+    "controlObjects": 43,
+    "controlObjectBytes": 139006319,
+    "evidenceCopies": 2,
+    "controlCopies": 2
+  },
+  "proofs": {
+    "rootAcknowledgement": {
+      "bytes": 10702,
+      "sha256": "834d6e6715c56de83da0259d0fcb9a33b3f8ec5ba7c8a5e3a40862c2b13c3b97"
+    },
+    "rootCandidate": {
+      "bytes": 7745,
+      "sha256": "d3282ff2995969861afcc03225019c92bceeff39d3238d05e7056c48bd1595cc"
+    },
+    "controlManifest": {
+      "bytes": 28230,
+      "sha256": "0a48fe71fef66664b4c92408ee599f60ef029f9b14182650f7f3e3c439691935"
+    },
+    "terminalManifest": {
+      "bytes": 117281,
+      "sha256": "0077e6287e755042bd740ee6c235fa2c794d48ef74dba18b0e80ea87335c2cdc"
+    },
+    "inventory": {
+      "bytes": 1106282,
+      "sha256": "3067a6c9ffdaffd0ff5776a73d2f461dbeeb02fb0c0705bc344ef557b07bf89f"
+    },
+    "provisionalReceipt": {
+      "bytes": 2698276,
+      "sha256": "0098326c2dc3157893d7d24d957af1bdd0dde0c18c64577c63b4141d8d720f0a"
+    },
+    "capacity": {
+      "bytes": 1424,
+      "sha256": "001e705eea913ba0475002a12e748d482055d77764de031de8348af481f8ce89"
+    },
+    "outerInvocation": {
+      "bytes": 2019,
+      "sha256": "76834f4c89e17f9569cc6896865c482caa04d96cb6e283a417860c60ab53561d"
+    },
+    "sourceBundle": {
+      "bytes": 10307271,
+      "sha256": "4cc6423c1d1fd9f3b70f6b964139c3f25a43725f85f483b256b7ff8475c39eed"
+    },
+    "actualReview": {
+      "bytes": 7002,
+      "sha256": "ded3940fef225f711d09fc30ba3f029f507e39833e2400035ff945ce707884b7"
+    },
+    "postAckJournal": {
+      "bytes": 177085,
+      "sha256": "d468ab09e66341c868ee9f2a6f642313b65139d562b98fd9a616faacba945fea"
+    },
+    "postAckPublisher": {
+      "bytes": 32695,
+      "sha256": "9504a99cc6672a3743b8bb61a7e919b9ee88ff6efa6c35d2580d8070dd569e61"
+    },
+    "rootChainFreeze": {
+      "bytes": 1728,
+      "sha256": "120c4ba7f350dfc13e8b155070f23d3b2047a01f1b98cd0b5b02216eb4368ddd"
+    }
+  },
+  "implementation": {
+    "invoker": {
+      "bytes": 41410,
+      "sha256": "668f45017f70125b1ae22060552013ab455e3c3c1e76b5c68523a330b13f5e73"
+    },
+    "supervisor": {
+      "bytes": 55683,
+      "sha256": "78d97761c66b72c2ced3872aacc63ac79acddcc41e842f30c24b61ed1197be0a"
+    },
+    "node": {
+      "bytes": 124836408,
+      "sha256": "3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327"
+    },
+    "python": {
+      "bytes": 8020928,
+      "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+    }
+  },
+  "process": {
+    "outerToolExitCode": 0,
+    "outerToolResponses": 3,
+    "outerSignal": "NOT_EXPOSED_BY_EXEC_TOOL",
+    "outerPhysicalEOF": "NOT_EXPOSED_BY_EXEC_TOOL",
+    "outerSeparateStderr": "NOT_EXPOSED_BY_EXEC_TOOL",
+    "supervisor": {
+      "status": 0,
+      "signal": null,
+      "closed": true,
+      "stdoutEOF": true,
+      "stderrEOF": true
+    }
+  },
+  "preservation": {
+    "failedExecutions": [
+      {
+        "state": "FAILED_BEFORE_CONTROL_MANIFEST",
+        "journal": {
+          "bytes": 607877,
+          "sha256": "5b54064b7c0f34a3caa4fc32b64773f26bcf2aef1f8d7589330d828f997a357e"
+        }
+      },
+      {
+        "state": "FAILED_AFTER_CONTROL_RETRIEVE_BEFORE_TERMINAL",
+        "journal": {
+          "bytes": 722417,
+          "sha256": "c51660132275e3e907aad86faecd9af10b8b289a2f89c095c2dda348e26e1ccb"
+        }
+      }
+    ],
+    "generationPayloadsPublished": false,
+    "historicalProofs": "UNCHANGED"
+  },
+  "claims": {
+    "verificationScope": "COMPLETE_PRIVATE_COPY_RETRIEVAL_ONLY",
+    "secondCompleteCopy": "VERIFIED",
+    "currentness": "NOT_EVALUATED",
+    "runtimePermission": "NOT_GRANTED",
+    "admission": "NOT_AUTHORIZED",
+    "supportStartedAt": null,
+    "supportEndsAt": null,
+    "archiveUntil": null
+  },
+  "waivers": [
+    {
+      "id": "EXTERNAL_AUTHENTICATED_FORK_PROBE",
+      "state": "SKIPPED_BY_USER"
+    },
+    {
+      "id": "JAVA_DATABASE_MAXIMUM_AGE_REJECTION",
+      "state": "WAIVED_BY_USER"
+    }
+  ]
+}

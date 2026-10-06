@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL exact-subject attestation
 
-Status: P4_REAL_BUNDLE_ACCEPTED; ACTUAL_VERIFIER_OUTPUT_CONTROLS_ACCEPTED. The subject remains ATTESTED_UNADMITTED; support and archive dates remain null. PR134 final delivery and P5/P6/P7 remain pending.
+Status: P4_REAL_BUNDLE_ACCEPTED; ACTUAL_VERIFIER_OUTPUT_CONTROLS_ACCEPTED. The subject remains ATTESTED_UNADMITTED; support and archive dates remain null. PR134 is delivered with independently approved exact-head and identical merged-main quality CI; P5/P6/P7 remain pending.
 
 
 ## Preserved first execution and focused V2 correction
@@ -90,7 +90,7 @@ Technical P1 does not establish blanket legal compliance or full upstream binary
 
 ## Review, validation and rollback
 
-The original dispatch passed targeted/native and full quality gates, exact-head CI, Architect then distinct Critic review, identical reviewed merge tree and main CI. Tests cover artifact/source/currentness substitution, context guards, closed schemas, cleanup failure, inherited serialization hooks and verifier outcome distinctions. Actual V2 signature and the recorded controls succeeded; supplemental missing/truncated output controls remain pending.
+The original dispatch passed targeted/native and full quality gates, exact-head CI, Architect then distinct Critic review, identical reviewed merge tree and main CI. Tests cover artifact/source/currentness substitution, context guards, closed schemas, cleanup failure, inherited serialization hooks and verifier outcome distinctions. Actual V2 signature and the recorded controls succeeded; supplemental missing/truncated output controls are independently accepted and delivered by PR134; P5/P6/P7 remain pending.
 
 The retention increment passed fresh native lint/typecheck/tests/build, Secretlint659files and dependency audit0 on2026-10-06. Targeted Windows tests passed14 with one expected native skip; the default native ZIP intake already passed4/4 and verified the three real archives. The frozen reviewed5file payloads and V1 failure remain unchanged. Independent retention review APPROVE found zero issues on exact head f842a71013ee804d4155e7c8b5e52f1fe0888042; CI37456425448 passed. [PR133](https://github.com/CleMeY15/auto-world/pull/133) merged at005f0c8cc3cf4c521589f578387578031d5818e1 with the identical reviewed tree89fc805e73de71bd408846be0444501d6433c52b; [main CI37457585072](https://github.com/CleMeY15/auto-world/actions/runs/37457585072) passed. The old P2 audit expired on2026-10-02; it is preserved as the valid signing-time proof and must be renewed before activation, without resigning this historical bundle.
 
