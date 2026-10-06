@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, chownSync, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync,
   readlinkSync, readSync, realpathSync } from "node:fs";
@@ -96,12 +96,35 @@ function processProof(pid) {
   const argv = readFileSync(path.join(root, "cmdline")).toString("utf8").split("\0"); if (argv.pop() !== "") fail();
   return { pid, startTicks: fields[19], state: fields[0], uid: ids("Uid"), gid: ids("Gid"), executable: readlinkSync(path.join(root, "exe")), argv };
 }
-function command(binary, args, env) {
-  const r = spawnSync(binary, args, { env, timeout: 10_000, maxBuffer: CAP, encoding: null });
-  if (r.error || r.signal || r.status !== 0 || !Buffer.isBuffer(r.stdout) || !Buffer.isBuffer(r.stderr) || r.stderr.length || r.stdout.length > CAP) fail();
-  return r.stdout;
+function cancelled(signal, deadline) {
+  if (signal?.aborted || Date.now() >= deadline) fail();
 }
-function binaryProof(file) {
+async function command(binary, args, env, signal, deadline, allowStderr = false) {
+  cancelled(signal, deadline);
+  return new Promise((resolve, reject) => {
+    let child; let settled = false; let forcedFailure = false; let size = 0; const stdout = []; const stderr = [];
+    const finish = (error, value) => {
+      if (settled) return; settled = true; globalThis.clearTimeout(timer); signal?.removeEventListener("abort", abort);
+      if (error) reject(error); else resolve(value);
+    };
+    const abort = () => { forcedFailure = true; try { child?.kill("SIGKILL"); } catch { /* Close decides. */ } };
+    const timer = globalThis.setTimeout(abort, Math.max(1, Math.min(10_000, deadline - Date.now())));
+    try { child = spawn(binary, args, { env, stdio: ["ignore", "pipe", "pipe"], detached: false }); }
+    catch (error) { finish(error); return; }
+    signal?.addEventListener("abort", abort, { once: true });
+    child.stdout.on("data", chunk => { size += chunk.length; if (size > CAP) abort(); else stdout.push(Buffer.from(chunk)); });
+    child.stderr.on("data", chunk => { size += chunk.length; if (size > CAP) abort(); else stderr.push(Buffer.from(chunk)); });
+    child.once("error", finish);
+    child.once("close", (code, childSignal) => {
+      const out = Buffer.concat(stdout); const err = Buffer.concat(stderr);
+      if (forcedFailure || signal?.aborted || Date.now() >= deadline || code !== 0 || childSignal !== null
+        || !allowStderr && err.length || size > CAP) finish(new Error());
+      else finish(undefined, { stdout: out, stderr: err });
+    });
+  }).catch(() => fail());
+}
+async function binaryProof(file, signal, deadline) {
+  cancelled(signal, deadline);
   const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const s = fstatSync(fd, { bigint: true }); const entry = lstatSync(file, { bigint: true });
@@ -111,7 +134,8 @@ function binaryProof(file) {
       if (s.size !== BigInt(DOCKERD_BYTES)) fail();
       const hash = createHash("sha256"); const buffer = Buffer.allocUnsafe(1024 ** 2); let offset = 0;
       while (offset < DOCKERD_BYTES) { const n = readSync(fd, buffer, 0, Math.min(buffer.length, DOCKERD_BYTES - offset), offset);
-        if (n < 1) fail(); hash.update(buffer.subarray(0, n)); offset += n; }
+        if (n < 1) fail(); hash.update(buffer.subarray(0, n)); offset += n;
+        await setTimeout(0); cancelled(signal, deadline); }
       if (readSync(fd, buffer, 0, 1, offset) !== 0 || hash.digest("hex") !== DOCKERD_SHA) fail();
     }
     const after = fstatSync(fd, { bigint: true }); const final = lstatSync(file, { bigint: true });
@@ -126,12 +150,24 @@ const exists = (name) => { try { lstatSync(name); return true; } catch (error) {
 export function createPostgresRuntimeDaemonHelper() {
   if (process.platform !== "linux" || process.getuid?.() !== 0 || process.getgid?.() !== 0) fail();
   const env = Object.freeze({ PATH: "/usr/sbin:/usr/bin:/sbin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" });
-  const binaries = new Map();
-  for (const binary of [DOCKERD, DOCKER, CTR]) binaries.set(binary, binaryProof(binary));
-  if (command(DOCKERD, ["--version"], env).toString().trim() !== "Docker version 28.0.4, build 6430e49") fail();
-  const binaryGuard = () => { for (const [name, before] of binaries) {
-    if (!isDeepStrictEqual(before, binaryProof(name))) fail();
-  } };
+  let binaries;
+  const initialize = async (signal, deadline) => {
+    if (binaries) return;
+    const observed = new Map();
+    for (const binary of [DOCKERD, DOCKER, CTR]) {
+      observed.set(binary, await binaryProof(binary, signal, deadline)); cancelled(signal, deadline);
+    }
+    if ((await command(DOCKERD, ["--version"], env, signal, deadline)).stdout.toString().trim()
+      !== "Docker version 28.0.4, build 6430e49") fail();
+    binaries = observed;
+  };
+  const binaryGuard = async (signal, deadline) => {
+    await initialize(signal, deadline);
+    for (const [name, before] of binaries) {
+      if (!isDeepStrictEqual(before, await binaryProof(name, signal, deadline))) fail();
+      cancelled(signal, deadline);
+    }
+  };
   let owned; let activeSpec;
   const originalExists = () => {
     try { const stat = readFileSync(`/proc/${owned.pid}/stat`, "utf8");
@@ -140,28 +176,38 @@ export function createPostgresRuntimeDaemonHelper() {
   };
   const terminate = async () => {
     if (!owned || !activeSpec) fail("daemon_postgres_runtime_cleanup_uncertain");
-    binaryGuard(); nativeSpec(activeSpec);
+    const guardDeadline = Date.now() + 25_000;
+    await binaryGuard(undefined, guardDeadline); nativeSpec(activeSpec);
     if (originalExists()) {
       validatePostgresRuntimeDaemonProcessProof(processProof(owned.pid), owned); process.kill(owned.pid, "SIGTERM");
     }
     const deadline = Date.now() + 20_000;
     while (originalExists() && Date.now() < deadline) await setTimeout(50);
     if (originalExists()) {
-      binaryGuard(); nativeSpec(activeSpec); validatePostgresRuntimeDaemonProcessProof(processProof(owned.pid), owned);
+      await binaryGuard(undefined, guardDeadline); nativeSpec(activeSpec); validatePostgresRuntimeDaemonProcessProof(processProof(owned.pid), owned);
       process.kill(owned.pid, "SIGKILL"); const final = Date.now() + 5_000;
       while (originalExists() && Date.now() < final) await setTimeout(50);
     }
     if (originalExists() || exists(activeSpec.pidFile) || exists(activeSpec.socket)) fail("daemon_postgres_runtime_cleanup_uncertain");
   };
   return Object.freeze({
-    start: async (input) => {
-      const spec = nativeSpec(input); binaryGuard(); if (owned || activeSpec) fail();
+    start: async (input, signal) => {
+      if (signal !== undefined && (signal === null || typeof signal !== "object" || typeof signal.aborted !== "boolean")) fail();
+      if (signal?.aborted) fail();
+      const deadline = Date.now() + 60_000;
+      const spec = nativeSpec(input); await binaryGuard(signal, deadline); cancelled(signal, deadline); if (owned || activeSpec) fail();
       directory(spec.dataRoot, 0, 0o700); directory(spec.endpointDirectory, 0, 0o700);
       if (exists(spec.pidFile) || exists(spec.socket)) fail();
-      const namespaces = command(CTR, ["--address", CONTAINERD, "namespaces", "list", "--quiet"], env).toString().trim().split(/\r?\n/u);
+      const namespaces = (await command(CTR, ["--address", CONTAINERD, "namespaces", "list", "--quiet"], env, signal, deadline))
+        .stdout.toString().trim().split(/\r?\n/u);
+      cancelled(signal, deadline);
       if (namespaces.includes(spec.containersNamespace) || namespaces.includes(spec.pluginsNamespace)) fail();
-      try { validateLocalDaemonConfigurationResult(spawnSync(DOCKERD, ["--validate", ...spec.args], { env, timeout: 10_000, maxBuffer: CAP, encoding: null })); }
+      try {
+        const checked = await command(DOCKERD, ["--validate", ...spec.args], env, signal, deadline, true);
+        validateLocalDaemonConfigurationResult({ error: undefined, signal: null, status: 0, ...checked });
+      }
       catch { fail(); }
+      cancelled(signal, deadline);
       const fd = openSync(spec.logFile, constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW); let child;
       try {
         const log = fstatSync(fd); const entry = lstatSync(spec.logFile);
@@ -170,14 +216,27 @@ export function createPostgresRuntimeDaemonHelper() {
         child = spawn(DOCKERD, spec.args, { cwd: spec.infrastructure, env, detached: true, stdio: ["ignore", fd, fd] });
       } finally { closeSync(fd); }
       child.on("error", () => {}); child.unref(); activeSpec = spec;
+      const terminateSpawned = async () => {
+        if (child.exitCode === null) child.kill("SIGTERM");
+        let deadline = Date.now() + 5_000;
+        while (child.exitCode === null && Date.now() < deadline) await setTimeout(50);
+        if (child.exitCode === null) {
+          child.kill("SIGKILL"); deadline = Date.now() + 5_000;
+          while (child.exitCode === null && Date.now() < deadline) await setTimeout(50);
+        }
+        if (child.exitCode === null || exists(spec.pidFile) || exists(spec.socket)) {
+          fail("daemon_postgres_runtime_cleanup_uncertain");
+        }
+      };
       try {
-        const deadline = Date.now() + 60_000;
         while (Date.now() < deadline) {
+          cancelled(signal, deadline);
           if (child.exitCode !== null) fail(); let proof;
           try { proof = processProof(child.pid); } catch (error) { if (!["ENOENT", "ESRCH"].includes(error.code)) throw error; }
           if (proof?.executable === DOCKERD) {
             owned ??= { pid: child.pid, startTicks: proof.startTicks, configFile: spec.configFile, nonce: spec.nonce };
-            validatePostgresRuntimeDaemonProcessProof(proof, owned); binaryGuard(); nativeSpec(spec);
+            validatePostgresRuntimeDaemonProcessProof(proof, owned); await binaryGuard(signal, deadline); cancelled(signal, deadline); nativeSpec(spec);
+            if (signal?.aborted) fail();
             if (exists(spec.socket) && exists(spec.pidFile)) {
               const sock = lstatSync(spec.socket); const pid = lstatSync(spec.pidFile);
               if (!sock.isSocket() || sock.isSymbolicLink() || sock.uid !== 0 || sock.nlink !== 1 || !pid.isFile() || pid.isSymbolicLink()
@@ -185,9 +244,11 @@ export function createPostgresRuntimeDaemonHelper() {
               chmodSync(spec.pidFile, 0o600); chownSync(spec.pidFile, 0, 0);
               chmodSync(spec.socket, 0o660); chownSync(spec.socket, 0, 1000);
               if (!privateFile(spec.pidFile).equals(Buffer.from(String(owned.pid)))) fail();
-              const observed = spawnSync(DOCKER, ["--host", `unix://${spec.socket}`, "info", "--format", "{{json .}}"],
-                { env: { ...env, DOCKER_CONFIG: spec.rootClient }, timeout: 10_000, maxBuffer: CAP, encoding: null });
-              if (!observed.error && !observed.signal && observed.status === 0 && observed.stderr?.length === 0) {
+              let observed;
+              try { observed = await command(DOCKER, ["--host", `unix://${spec.socket}`, "info", "--format", "{{json .}}"],
+                { ...env, DOCKER_CONFIG: spec.rootClient }, signal, deadline); } catch { observed = undefined; }
+              cancelled(signal, deadline);
+              if (observed) {
                 const info = JSON.parse(observed.stdout);
                 if (typeof info.ID !== "string" || info.DockerRootDir !== spec.dataRoot || info.ServerVersion !== "28.0.4") fail();
                 directory(spec.dataRoot, 0, 0o710);
@@ -196,23 +257,28 @@ export function createPostgresRuntimeDaemonHelper() {
             }
           }
           await setTimeout(50);
+          cancelled(signal, deadline);
         }
         fail();
       } catch {
-        if (!owned) fail("daemon_postgres_runtime_cleanup_uncertain");
+        if (!owned) {
+          try { await terminateSpawned(); } catch { fail("daemon_postgres_runtime_cleanup_uncertain"); }
+          fail();
+        }
         try { await terminate(); } catch { fail("daemon_postgres_runtime_cleanup_uncertain"); }
         fail();
       }
     },
-    verify: async (input, child) => {
-      const spec = nativeSpec(input); binaryGuard();
+    verify: async (input, child, signal) => {
+      const deadline = Date.now() + 10_000;
+      const spec = nativeSpec(input); await binaryGuard(signal, deadline); cancelled(signal, deadline);
       if (!owned || child?.pid !== owned.pid || child?.startTicks !== owned.startTicks || spec.configFile !== owned.configFile) fail();
       directory(spec.dataRoot, 0, 0o710); validatePostgresRuntimeDaemonProcessProof(processProof(owned.pid), owned);
       return Object.freeze({ state: "RUNNING", pid: owned.pid, startTicks: owned.startTicks, uid: 0, gid: 0,
         executable: DOCKERD, version: "28.0.4", argvSha256: spec.argvSha256, configSha256: spec.configSha256 });
     },
     stop: async (input, child) => {
-      const spec = nativeSpec(input); binaryGuard();
+      const spec = nativeSpec(input); await binaryGuard(undefined, Date.now() + 25_000);
       if (!owned || child?.pid !== owned.pid || child?.startTicks !== owned.startTicks || spec.configFile !== owned.configFile) fail("daemon_postgres_runtime_cleanup_uncertain");
       await terminate(); return Object.freeze({ state: "STOPPED", pid: owned.pid, startTicks: owned.startTicks, processGone: true });
     },

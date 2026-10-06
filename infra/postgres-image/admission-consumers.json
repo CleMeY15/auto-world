@@ -1,0 +1,51 @@
+{
+  "kind": "POSTGRES_ADMISSION_CONSUMER_CLASSIFICATION_V1",
+  "supportedEntryPoint": "scripts/postgres-image/admitted-postgres.mjs",
+  "privateSupportedBroker": "scripts/postgres-image/admission-broker.mjs",
+  "offlineObservation": "scripts/postgres-image/admission-archive-observation.mjs",
+  "diagnosticOnly": [
+    "candidate-attestation-access.mjs",
+    "candidate-attestation.mjs",
+    "candidate-local-cold-load.mjs",
+    "candidate-local-retention.mjs",
+    "candidate-publish.mjs",
+    "candidate-remote-audit.mjs",
+    "candidate-remote-read.mjs",
+    "candidate-remote-runtime-diagnostic.mjs",
+    "candidate-remote.mjs",
+    "candidate-runtime.mjs",
+    "candidate-sql-backup-restore.mjs",
+    "cold-load-worker.mjs",
+    "complete-private-copy-launch.mjs",
+    "diagnostic.mjs",
+    "gosu-source-retention.mjs",
+    "local-cold-load-diagnostic.mjs",
+    "local-private-copy-diagnostic.mjs",
+    "local-private-runtime-evidence-diagnostic.mjs",
+    "local-retention-diagnostic.mjs",
+    "local-runtime-restore-diagnostic.mjs",
+    "package-private-read.mjs",
+    "postgres-upstream-source-retention.mjs",
+    "private-copy-linux.mjs",
+    "private-evidence-source-bundle.mjs",
+    "private-evidence.mjs",
+    "private-runtime-evidence.mjs",
+    "runtime-restore-audit.mjs",
+    "runtime-restore-worker.mjs",
+    "scan.mjs",
+    "source-inventory.mjs",
+    "source-retention-native-session.mjs",
+    "verify-candidate-attestation.mjs"
+  ],
+  "referenceTopology": {
+    "state": "UNACCEPTED_REFERENCE",
+    "services": ["PostgreSQL", "OpenSearch", "Redis", "SeaweedFS"],
+    "helpers": ["AWS_CLI_S3", "POSTGRES_BACKUP", "POSTGRES_CHOWN", "POSTGRES_TAR"],
+    "isolatedDiagnostics": ["TRIVY_SCANNER", "SCANNER_DATABASES", "BASELINE_CARRIER", "BUILD_TEST_REDIS"]
+  },
+  "claims": {
+    "classificationGrantsAuthority": false,
+    "diagnosticAdmission": "NOT_AUTHORIZED",
+    "fourServiceAcceptance": "NOT_ESTABLISHED"
+  }
+}

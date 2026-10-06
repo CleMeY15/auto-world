@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "kind": "POSTGRES_ADMISSION_POLICY_V1",
+  "repository": "CleMeY15/auto-world",
+  "ref": "refs/heads/main",
+  "authorityPaths": [
+    "infra/postgres-image/admission-policy.json",
+    "infra/postgres-image/admission-inventory.json",
+    "infra/postgres-image/package-controls.json"
+  ],
+  "apiVersion": "2026-03-10",
+  "hosts": ["api.github.com", "ghcr.io"],
+  "limits": {
+    "fileBytes": 1048576,
+    "totalBytes": 8388608,
+    "requestMs": 5000,
+    "bootstrapMs": 30000,
+    "renewalMs": 20000,
+    "revisions": 1024,
+    "executionFiles": 128
+  },
+  "cadence": {
+    "leaseMs": 60000,
+    "renewByMs": 35000,
+    "watcherMs": 1000,
+    "operationMs": 5000,
+    "drainMs": 30000,
+    "vulnerabilityDatabaseMs": 172800000,
+    "packageControlsMs": 86400000,
+    "manifestAccessMs": 900000,
+    "archiveFullMs": 86400000
+  },
+  "states": ["PENDING", "ACTIVE", "REVOKED"],
+  "entrypoint": "scripts/postgres-image/admitted-postgres.mjs",
+  "intents": ["SERVICE", "SQL_CHECK", "MIGRATION", "BACKUP", "RESTORE_VERIFY"],
+  "phases": ["AUTHORITY", "IMAGE_ACQUIRE", "DAEMON_START", "IMAGE_LOAD", "VOLUME_CREATE", "CONTAINER_CREATE", "CONTAINER_START", "READINESS", "SERVICE", "SQL_CHECK", "MIGRATION", "BACKUP", "RESTORE_VERIFY", "STOP", "CLEANUP"],
+  "waivers": ["JAVA_DATABASE_MAX_AGE_NOT_ENFORCED", "EXTERNAL_AUTHENTICATED_FORK_PROBE_SKIPPED_BY_USER"]
+}
