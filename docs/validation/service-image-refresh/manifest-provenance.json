@@ -66,29 +66,30 @@
     {
       "role": "opensearch",
       "repository": "opensearchproject/opensearch",
-      "tag": "3.8.0",
-      "version": "3.8.0",
+      "tag": "3.9.0",
+      "version": "3.9.0",
+      "fetchedAt": "2026-10-06T21:56:37.8669999Z",
       "requestedPlatform": {
         "os": "linux",
         "architecture": "amd64",
         "variant": null
       },
       "index": {
-        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/3.8.0",
-        "immutableSourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
-        "digest": "sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
+        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/3.9.0",
+        "immutableSourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
+        "digest": "sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
         "mediaType": "application/vnd.oci.image.index.v1+json",
-        "rawFile": "docs/validation/service-image-refresh/opensearch-index.json",
-        "rawSha256": "sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40",
+        "rawFile": "docs/validation/service-image-refresh/opensearch-3.9.0-index.json",
+        "rawSha256": "sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
         "rawSize": 647
       },
       "platform": {
-        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
-        "digest": "sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
+        "sourceUrl": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84",
+        "digest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84",
         "mediaType": "application/vnd.oci.image.manifest.v1+json",
         "descriptorSize": 1622,
-        "rawFile": "docs/validation/service-image-refresh/opensearch-platform.json",
-        "rawSha256": "sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0",
+        "rawFile": "docs/validation/service-image-refresh/opensearch-3.9.0-platform.json",
+        "rawSha256": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84",
         "rawSize": 1622
       }
     },
