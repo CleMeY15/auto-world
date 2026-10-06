@@ -102,7 +102,13 @@ function processFixture(item, scenario = {}) {
       ...proof(`${item.stage}/actor.stderr.txt`, stderrBytes, 9340) }]]);
   return { process: async () => ({ status: scenario.status ?? 0, signal: scenario.signal ?? null, closed: scenario.closed ?? true,
     stdoutEnded: scenario.stdoutEnded ?? true, stderrEnded: scenario.stderrEnded ?? true }),
-  read(file) { const value = files.get(file); if (!value) throw new Error("missing fixture"); return value; } };
+  read(file) {
+    const value = files.get(file); if (!value) throw new Error("missing fixture");
+    const result = { ...value };
+    if (scenario.readPath === "missing") delete result.path;
+    if (scenario.readPath === "wrong") result.path = "/untrusted/substitution";
+    return result;
+  } };
 }
 
 test("closed TEST_ONLY launch chain creates non-cloneable capabilities and exact five-field control specification", async () => {
@@ -117,6 +123,20 @@ test("closed TEST_ONLY launch chain creates non-cloneable capabilities and exact
   assert.throws(() => validateLoadedPostgresLaunchControlPolicy(control), /capability_invalid/u);
   for (const value of [clone(item.plan), clone(child), clone(control), specification]) {
     assert.throws(() => getPostgresLaunchControlSpecification(value, child), /capability_invalid/u);
+  }
+});
+
+test("raw actor references bind fixed authenticated-plan paths when held reads omit or forge path", async () => {
+  for (const readPath of ["missing", "wrong"]) {
+    const item = planFixture();
+    const child = await TEST_ONLY_runPostgresCompletePrivateCopyChild(item.plan, {}, processFixture(item, { readPath }));
+    const specification = getPostgresLaunchControlSpecification(item.plan, child);
+    assert.equal(specification.references.find(value => value.role === "RAW_ACTOR_STDOUT").path,
+      `${item.stage}/actor.stdout.jsonl`);
+    assert.equal(specification.references.find(value => value.role === "RAW_ACTOR_STDERR").path,
+      `${item.stage}/actor.stderr.txt`);
+    const bytes = encode(specification);
+    assert.doesNotThrow(() => TEST_ONLY_loadPostgresLaunchControlPolicy(bytes, sha(bytes), item.plan, child));
   }
 });
 

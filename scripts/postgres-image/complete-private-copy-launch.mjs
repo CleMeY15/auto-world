@@ -317,7 +317,8 @@ async function supervise(plan, signal, hooks, testOnly) {
   const stderr = hooks.read(errorPath, FIXED_LIMITS.stderrBytes, "ROOT_PRIVATE");
   if (stderr.size !== 0 || stderr.bytes.length !== 0) fail("process_invalid");
   const observed = descriptor(stdout.bytes, plan, testOnly, hooks.read);
-  const dynamic = [referenceFromProof("actor-stderr", "RAW_ACTOR_STDERR", stderr), referenceFromProof("actor-stdout", "RAW_ACTOR_STDOUT", stdout),
+  const dynamic = [referenceFromProof("actor-stderr", "RAW_ACTOR_STDERR", { ...stderr, path: errorPath }),
+    referenceFromProof("actor-stdout", "RAW_ACTOR_STDOUT", { ...stdout, path: outputPath }),
     referenceFromProof("capacity", "CAPACITY", observed.capacity), referenceFromProof("inventory", "INVENTORY", observed.inventory),
     referenceFromProof("provisional-receipt", "PROVISIONAL_RECEIPT", observed.receipt)].sort((a, b) => a.referenceId.localeCompare(b.referenceId));
   const cap = freeze({ kind: "CLOSED_POSTGRES_COMPLETE_PRIVATE_COPY_CHILD_V1", authority: testOnly ? "TEST_ONLY_CLOSED_PROCESS" : "NATIVE_CLOSED_PROCESS",
