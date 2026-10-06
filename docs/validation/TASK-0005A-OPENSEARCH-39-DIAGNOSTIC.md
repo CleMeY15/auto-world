@@ -1,6 +1,6 @@
 # TASK-0005A — OpenSearch3.9 diagnostic candidate
 
-Status: PLAN, 2026-10-06 UTC. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked. This increment changes a diagnostic pin only.
+Status: IMPLEMENTED, validation and delivery pending, 2026-10-06 UTC. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked. This increment changes a diagnostic pin only. [PR139](https://github.com/CleMeY15/auto-world/pull/139) records the plan before implementation.
 
 The retained3.8.0 audit contains42 historical findings. Its public tag still identifies the same blocked subject. The official [3.9.0 release](https://github.com/opensearch-project/OpenSearch/releases/tag/3.9.0), published2026-09-29, is the next same-major candidate for a real scan. Registry/source provenance does not establish clean inventory, complete licences, admission or runtime compatibility.
 
@@ -21,5 +21,9 @@ The earlier research identified updated core Netty/HttpCore/JLine versions, but 
 ## Rollback and operational boundary
 
 Revert the diagnostic pin and current provenance record while preserving both versions' raw material and reports. The older result remains blocked. This adds no application dependency, service process, package grant, paid resource, source access right, support activation or production schedule.
+
+## Implementation evidence
+
+The OpenSearch lock entry and corresponding provenance record now bind the retained3.9.0 index and platform bytes. Only this record carries the actual retrieval timestamp2026-10-06T21:56:37.8669999Z; the original collection timestamp and four other provenance records stay unchanged. The older3.8.0 raw index/platform files retain their exact hashes. Seven other image pins, eleven scanner fixtures and all scanner build inputs are unchanged. Focused Windows scanner checks pass41 tests with one explicit Linux-root skip, ESLint and diff checks pass. Fresh full Linux quality checks, independent reviews, exact-head/main CI and a real native scanner result remain separate delivery requirements.
 
 Predecessor [PR138](https://github.com/CleMeY15/auto-world/pull/138) is delivered on exact reviewed head f6ae9d6e87501676079285651d86b4d00709e8ca/CI37537513182 and identical merge fe397f1fc3f49ce4ef850338cec319366cb22c55/tree6cbf7a4bb85bb2caa1de03052dbf02462ffab0ec/main CI37537944436. Its new [PostgreSQL current audit37538340223](https://github.com/CleMeY15/auto-world/actions/runs/37538340223), number2/attempt1, is running on that reviewed merge. The first failed audit and historical scanner controls remain preserved.

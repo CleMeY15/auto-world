@@ -50,10 +50,38 @@ test("the refresh record is bounded technical provenance without credentials or 
   assert.deepEqual(Object.keys(provenance).sort(), ["fetchedAt", "maximumResponseBytes", "records", "registry", "schemaVersion", "state"]);
   assert.doesNotMatch(JSON.stringify(provenance), /authorization|bearer|credential|token|\\\\|[A-Z]:\\/iu);
   for (const record of provenance.records) {
+    if (record.fetchedAt !== undefined) {
+      assert.ok(Number.isFinite(Date.parse(record.fetchedAt)));
+    }
     assert.equal(new URL(record.index.sourceUrl).hostname, "registry-1.docker.io");
     assert.equal(new URL(record.index.immutableSourceUrl).hostname, "registry-1.docker.io");
     assert.equal(new URL(record.platform.sourceUrl).hostname, "registry-1.docker.io");
   }
+});
+
+test("OpenSearch 3.9.0 is the sole updated diagnostic pin while retained 3.8.0 bytes remain immutable", () => {
+  const image = lockedByRole.get("opensearch");
+  const record = provenance.records.find(({ role }) => role === "opensearch");
+  assert.deepEqual(image, {
+    role: "opensearch",
+    repository: "opensearchproject/opensearch",
+    version: "3.9.0",
+    manifestDigest: "sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
+    platform: {
+      os: "linux",
+      architecture: "amd64",
+      variant: null,
+      digest: "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84",
+    },
+  });
+  assert.equal(record?.fetchedAt, "2026-10-06T21:56:37.8669999Z");
+  assert.equal(record?.index.rawFile, "docs/validation/service-image-refresh/opensearch-3.9.0-index.json");
+  assert.equal(record?.platform.rawFile, "docs/validation/service-image-refresh/opensearch-3.9.0-platform.json");
+
+  const priorIndex = readFileSync(new URL("docs/validation/service-image-refresh/opensearch-index.json", root));
+  const priorPlatform = readFileSync(new URL("docs/validation/service-image-refresh/opensearch-platform.json", root));
+  assert.equal(sha256(priorIndex), "sha256:fafe3fc3587088674669235575aa166228c48bdb940294a8cdbbc1da75236a40");
+  assert.equal(sha256(priorPlatform), "sha256:68a688de28fb9bb66601552650b91a52a9fd5e7eac5481dd2b225ecb66fd09b0");
 });
 
 test("reviewed scanner fixture and service trust inputs remain pinned", () => {
