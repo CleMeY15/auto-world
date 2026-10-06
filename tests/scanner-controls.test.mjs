@@ -152,7 +152,7 @@ test("fixture mode routing keeps Go in fs and gives candidate and baseline Java 
   for (const [id, expectedMode, target] of [
     ["gomod-vulnerable", "fs", "gomod"],
     ["java-war-vulnerable", "rootfs", "java/test.war"],
-    ["java-jar-clean-candidate", "rootfs", "java/jackson-core-2.18.8.jar"],
+    ["java-jar-clean-candidate", "rootfs", "java/jackson-core-2.18.11.jar"],
   ]) {
     const mode = fixtureScanMode({ id });
     assert.equal(mode, expectedMode);
@@ -247,23 +247,36 @@ test("known vulnerable fixture must retain its expected detection", () => {
   assert.throws(() => validateFixtureReport(fixture, report), /scanner_fixture_detection_missing/u);
 });
 
-test("clean Java fixture requires its locked package and version as well as zero findings", () => {
-  const fixture = { id: "java-jar-clean-candidate", expected: { package: "com.fasterxml.jackson.core:jackson-core", version: "2.18.8" } };
+test("clean Java fixture requires its locked package and version as well as zero findings", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../infra/scanner/materials/scanner-fixtures/manifest.json", import.meta.url)));
+  const fixture = manifest.fixtures.find((entry) => entry.id === "java-jar-clean-candidate");
+  const material = fixture.material[0];
+  const [actual] = await captureFiles([{ path: path.resolve(import.meta.dirname,
+    "../infra/scanner/materials/scanner-fixtures", material.path), cap: 1024 ** 2 }]);
+  assert.equal(actual.sha256, material.sha256);
+  assert.equal(actual.size, material.size);
+  const lock = JSON.parse(await readFile(new URL("../infra/scanner/scanner-lock.json", import.meta.url)));
+  assert.deepEqual(lock.fixtures.find((entry) => entry.path === `infra/scanner/materials/scanner-fixtures/${material.path}`), {
+    path: `infra/scanner/materials/scanner-fixtures/${material.path}`, sha256: actual.sha256, size: actual.size,
+  });
   const report = { SchemaVersion: 2, Trivy: { Version: "0.74.0-autoworld.2" }, ArtifactType: "filesystem", Results: [{
     Target: "Java", Type: "jar", Class: "lang-pkgs", Packages: [{ Name: fixture.expected.package, Version: fixture.expected.version }],
   }] };
   assert.equal(validateFixtureReport(fixture, report).packages.length, 1);
   for (const replacement of [
-    { Name: "com.example:unrelated", Version: "2.18.8" },
-    { Name: fixture.expected.package, Version: "2.15.0" },
+    { Name: "com.example:unrelated", Version: fixture.expected.version },
+    { Name: fixture.expected.package, Version: "2.18.8" },
   ]) {
     const substituted = globalThis.structuredClone(report); substituted.Results[0].Packages = [replacement];
     assert.throws(() => validateFixtureReport(fixture, substituted), /scanner_clean_fixture_inventory_missing/u);
   }
   const wrongType = globalThis.structuredClone(report); wrongType.Results[0].Type = "gomod";
   assert.throws(() => validateFixtureReport(fixture, wrongType), /scanner_clean_fixture_inventory_missing/u);
-  report.Results[0].Vulnerabilities = [{ VulnerabilityID: "CVE-X", PkgName: fixture.expected.package, InstalledVersion: fixture.expected.version }];
-  assert.throws(() => validateFixtureReport(fixture, report), /scanner_clean_fixture_has_findings/u);
+  for (const id of ["CVE-2026-89407", "CVE-2026-89425", "CVE-X"]) {
+    report.Results[0].Vulnerabilities = [{ VulnerabilityID: id, Severity: "HIGH", PkgName: fixture.expected.package,
+      InstalledVersion: fixture.expected.version }];
+    assert.throws(() => validateFixtureReport(fixture, report), /scanner_clean_fixture_has_findings/u);
+  }
 });
 
 test("same-database comparison rejects baseline detection loss", () => {
