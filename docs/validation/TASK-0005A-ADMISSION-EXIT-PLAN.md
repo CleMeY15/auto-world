@@ -2,6 +2,8 @@
 
 Status: P5_COMPLETE_PRIVATE_COPY_VERIFIED, 2026-10-06. Accepted P1 and delivered P4 are retained unchanged. The actual complete 1094-reference P5 copy and both COPY/RETRIEVE pairs pass independent full native/default-loader review; its final root ACK and post-ACK journal are retained. [P5 evidence and PR135 delivery gates](TASK-0005A-POSTGRES-COMPLETE-PRIVATE-COPY.md) implement the four gates in [DELIVERY](../../roadmap/DELIVERY.md), without changing ADR-0007 or TASK-0005A. Next: P6 supported-consumer admission, then P7 and all four services. No image is admitted; TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
 
+P6 implementation is verified in [PR136](TASK-0005A-POSTGRES-ADMISSION-RUNTIME.md) under [ADR-0011](../decisions/ADR-0011-postgres-admission-runtime.md): distinct architecture/security/privacy review, actual four-root FULL plus FAST and fresh full quality checks pass. Its initial reviewed-main inventory remains PENDING with null dates. Exact-head/identical-tree/main delivery, fresh currentness/real activation and the unchanged all-four-service P7 exit condition remain required.
+
 PR128 is delivered: corrective native source proof stays on b80e18b8ca53b6a9474d67d4ccdebcb2cc366263, final-head5347a5772a9e50e5176d26aa4b8775977d071deb/CI36814239236 PASS, mergefc7946d965a416e815d6ffc85aa747d8b0c3f963/CI36814495989 PASS, matching reviewed tree0f2f5ed5e5147b245365ccd7b6ec4f2ccc3692b9. Its two complete archives, matching receipt/ACK, original/default/native review and distinct privacy/preservation are accepted historical evidence. They are referenced without replay.
 
 ## Closed acceptance checklist

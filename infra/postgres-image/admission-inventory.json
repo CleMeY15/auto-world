@@ -1,0 +1,593 @@
+{
+  "schemaVersion": 1,
+  "kind": "POSTGRES_ADMISSION_INVENTORY_V1",
+  "repository": "CleMeY15/auto-world",
+  "admissionGeneration": 1,
+  "generationRoot": {
+    "schemaVersion": 1,
+    "kind": "POSTGRES_ADMISSION_GENERATION_ROOT_V1",
+    "admissionGeneration": 1,
+    "image": {
+      "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+      "manifestDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+      "configDigest": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+      "diffIdsSha256": "7b0c544e4cc28b868515f15533a4d294f840ee31890c5cf8eb2d0135b76a99da",
+      "diffIds": [
+        "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+        "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+        "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+        "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+        "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+        "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+        "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+        "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+        "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+        "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72",
+        "sha256:d438b225a8977c23dd26527e196bdff21f4565ec24f22b931aa69aaf38a2df24",
+        "sha256:90b3a336de1c13f00f45fbf3e985e3366ad191aa9919864ac946f735d965e092"
+      ]
+    },
+    "build": {
+      "recipeRevision": "b93b0c76ec76abe283d66a17fa62eab7e580e679",
+      "workflowPath": ".github/workflows/postgres-candidate-publish-v4.yml",
+      "runId": "36361670116",
+      "attempt": "1",
+      "publication": {
+        "path": "infra/postgres-image/candidate-publication-receipt.json",
+        "size": 22970,
+        "sha256": "d0cad244921e91229027c625440aa654624f1e754a975901b5b9a763135d3287"
+      },
+      "remotePolicy": {
+        "path": "infra/postgres-image/candidate-remote.json",
+        "size": 4848,
+        "sha256": "4dab1fdb15d6a522c8aa64ccd14c81a1c504e188609f395f62dc4a49ab56ce51"
+      },
+      "sourceClosure": {
+        "path": "infra/postgres-image/source-closure-materials.json",
+        "size": 180448,
+        "sha256": "2bae01738e73e1851794d28ba52ce9161bd85b38df6f33d9e7d67c225cc8cc5f"
+      }
+    },
+    "evidence": {
+      "p1": {
+        "policy": {
+          "bytes": 731542,
+          "sha256": "f4857beebba7df2f474e3385c38a69f7cfa0bec330d3d3f65ed7795255de871c"
+        },
+        "acceptance": {
+          "path": "infra/postgres-image/core-evidence-acceptance.json",
+          "size": 2553,
+          "sha256": "63ba6e33b16e5bbb7e9327e466349c1bf044f44b9bcf11506b6e44fada0e23dd"
+        },
+        "inventory": {
+          "path": "infra/postgres-image/core-evidence-inventory.json",
+          "size": 399783,
+          "sha256": "2986e7d0bbbed5a25dedd21ef5841aed64317a77172d487c101bd2baad7452fd"
+        },
+        "referenceDigest": "7f7b8a730723f148b04317e38cbdfc7e1e5145cf04a916bbaaf7b9cea0d191ed",
+        "counts": {
+          "references": 496,
+          "objects": 474
+        }
+      },
+      "runtime": {
+        "groups": [
+          {
+            "role": "ACCEPTED_RUNTIME_ORIGINALS",
+            "sha256": "0e5f584640e11512ed01d537d03c32d0dd8ff09dff943f06b98d981e457338d0",
+            "references": 9,
+            "objects": 4,
+            "bytes": 145933
+          },
+          {
+            "role": "PR124_RUNTIME_PAYLOADS",
+            "sha256": "76a9ec20d051861c7dfc4da85745a0e6933f6a0b6554da5e331b85898a14b9b4",
+            "references": 3,
+            "objects": 3,
+            "bytes": 145933
+          }
+        ],
+        "coldReceipt": {
+          "bytes": 59779,
+          "sha256": "a686e2bece45448dd81778eea03083519795bcc49d72c58228fed048ea1f9411"
+        },
+        "sqlReceipt": {
+          "bytes": 81500,
+          "sha256": "ff8c49950216a2de33f1e3a6566d1be662a4436f7d136ac2a7d252e21ab1c617"
+        },
+        "dump": {
+          "bytes": 4654,
+          "sha256": "1f904d53426a380146b592eea6a9ab84eeb9c6d0b7793cd63367ab6faf08bd64"
+        },
+        "closedAcknowledgement": {
+          "bytes": 3985,
+          "sha256": "dcb8306366d56ca2953e0fca91358ba55779cf07b43050336c3fcb68930aaa72"
+        },
+        "privateAddendum": {
+          "bytes": 9215,
+          "sha256": "6880ffcc84fb0cc835d7f2735c0c327649ffcf87b28d735468a56aa9d9aee7d1"
+        }
+      },
+      "p4": {
+        "originalAcceptance": {
+          "path": "infra/postgres-image/candidate-attestation-acceptance.json",
+          "size": 4744,
+          "sha256": "d110b09c23fd70e95e6514a02b1124805265ae37a9a3363a12ec7418c40a114b"
+        },
+        "outputAcceptance": {
+          "path": "infra/postgres-image/candidate-attestation-output-acceptance.json",
+          "size": 11086,
+          "sha256": "9ccd9de349b1796bd3c5b31f3a1e1c1152a2a9e0c9dc905bc5ccaae38608ce9b"
+        }
+      },
+      "p5": {
+        "acceptance": {
+          "bytes": 4604,
+          "sha256": "9079ccb664f39d54296fcb4a4ae1287c6bfe116db7518d18ee0a4db4cb8e438b"
+        },
+        "recipeRevision": "d60027d8db650f920c967c718882a77704c16bba",
+        "completePolicy": {
+          "bytes": 431215,
+          "sha256": "d1735fc58f75a722c3062cf4087bb920921ef58b6571fcac03753660fbe054d9"
+        },
+        "launchPlan": {
+          "bytes": 23998,
+          "sha256": "55c1a18a5a82d35a0d85b33018ae730aa31d6390071f53e769556c814f878ac3"
+        },
+        "counts": {
+          "references": 1094,
+          "referenceBytes": 1355342948,
+          "evidenceObjects": 840,
+          "evidenceObjectBytes": 1023937063,
+          "controlObjects": 43,
+          "controlObjectBytes": 139006319,
+          "evidenceCopies": 2,
+          "controlCopies": 2,
+          "controlReferences": 44
+        },
+        "proofs": {
+          "rootAcknowledgement": {
+            "bytes": 10702,
+            "sha256": "834d6e6715c56de83da0259d0fcb9a33b3f8ec5ba7c8a5e3a40862c2b13c3b97"
+          },
+          "rootCandidate": {
+            "bytes": 7745,
+            "sha256": "d3282ff2995969861afcc03225019c92bceeff39d3238d05e7056c48bd1595cc"
+          },
+          "controlManifest": {
+            "bytes": 28230,
+            "sha256": "0a48fe71fef66664b4c92408ee599f60ef029f9b14182650f7f3e3c439691935"
+          },
+          "terminalManifest": {
+            "bytes": 117281,
+            "sha256": "0077e6287e755042bd740ee6c235fa2c794d48ef74dba18b0e80ea87335c2cdc"
+          },
+          "inventory": {
+            "bytes": 1106282,
+            "sha256": "3067a6c9ffdaffd0ff5776a73d2f461dbeeb02fb0c0705bc344ef557b07bf89f"
+          },
+          "provisionalReceipt": {
+            "bytes": 2698276,
+            "sha256": "0098326c2dc3157893d7d24d957af1bdd0dde0c18c64577c63b4141d8d720f0a"
+          },
+          "capacity": {
+            "bytes": 1424,
+            "sha256": "001e705eea913ba0475002a12e748d482055d77764de031de8348af481f8ce89"
+          },
+          "outerInvocation": {
+            "bytes": 2019,
+            "sha256": "76834f4c89e17f9569cc6896865c482caa04d96cb6e283a417860c60ab53561d"
+          },
+          "sourceBundle": {
+            "bytes": 10307271,
+            "sha256": "4cc6423c1d1fd9f3b70f6b964139c3f25a43725f85f483b256b7ff8475c39eed"
+          },
+          "actualReview": {
+            "bytes": 7002,
+            "sha256": "ded3940fef225f711d09fc30ba3f029f507e39833e2400035ff945ce707884b7"
+          },
+          "postAckJournal": {
+            "bytes": 177085,
+            "sha256": "d468ab09e66341c868ee9f2a6f642313b65139d562b98fd9a616faacba945fea"
+          },
+          "postAckPublisher": {
+            "bytes": 32695,
+            "sha256": "9504a99cc6672a3743b8bb61a7e919b9ee88ff6efa6c35d2580d8070dd569e61"
+          },
+          "rootChainFreeze": {
+            "bytes": 1728,
+            "sha256": "120c4ba7f350dfc13e8b155070f23d3b2047a01f1b98cd0b5b02216eb4368ddd"
+          }
+        }
+      }
+    },
+    "archiveLocator": {
+      "schemaVersion": 1,
+      "size": 448048,
+      "sha256": "f416536e38a68f86e50de48cac2efd84b2c39376af799eed19941d4fff3bca0c"
+    },
+    "executionFiles": [
+      {
+        "path": "infra/postgres-image/admission-policy.json",
+        "size": 1377,
+        "sha256": "6b04c022ac0babc9acbb97fd071823a4f9a57c35ce0c9d04ef04275868c940c7"
+      },
+      {
+        "path": "infra/postgres-image/candidate-attestation-acceptance.json",
+        "size": 4744,
+        "sha256": "d110b09c23fd70e95e6514a02b1124805265ae37a9a3363a12ec7418c40a114b"
+      },
+      {
+        "path": "infra/postgres-image/candidate-attestation-output-acceptance.json",
+        "size": 11086,
+        "sha256": "9ccd9de349b1796bd3c5b31f3a1e1c1152a2a9e0c9dc905bc5ccaae38608ce9b"
+      },
+      {
+        "path": "infra/postgres-image/candidate-publication-receipt.json",
+        "size": 22970,
+        "sha256": "d0cad244921e91229027c625440aa654624f1e754a975901b5b9a763135d3287"
+      },
+      {
+        "path": "infra/postgres-image/candidate-remote.json",
+        "size": 4848,
+        "sha256": "4dab1fdb15d6a522c8aa64ccd14c81a1c504e188609f395f62dc4a49ab56ce51"
+      },
+      {
+        "path": "infra/postgres-image/complete-private-copy-acceptance.json",
+        "size": 4604,
+        "sha256": "9079ccb664f39d54296fcb4a4ae1287c6bfe116db7518d18ee0a4db4cb8e438b"
+      },
+      {
+        "path": "infra/postgres-image/core-evidence-acceptance.json",
+        "size": 2553,
+        "sha256": "63ba6e33b16e5bbb7e9327e466349c1bf044f44b9bcf11506b6e44fada0e23dd"
+      },
+      {
+        "path": "infra/postgres-image/core-evidence-inventory.json",
+        "size": 399783,
+        "sha256": "2986e7d0bbbed5a25dedd21ef5841aed64317a77172d487c101bd2baad7452fd"
+      },
+      {
+        "path": "infra/postgres-image/filesystem-policy.json",
+        "size": 6580,
+        "sha256": "ce9eaad0f33f36fa9d16e84cca743c531fba6c9e0d718f4fe0add7baa7e8fc2c"
+      },
+      {
+        "path": "infra/postgres-image/lock.json",
+        "size": 3273,
+        "sha256": "31c293b64423aa6eb241b840b6f2187b9632f9334fb60ec8e1c02be806f583c3"
+      },
+      {
+        "path": "infra/postgres-image/source-closure-materials.json",
+        "size": 180448,
+        "sha256": "2bae01738e73e1851794d28ba52ce9161bd85b38df6f33d9e7d67c225cc8cc5f"
+      },
+      {
+        "path": "infra/seaweed/seaweed-lock.json",
+        "size": 11462,
+        "sha256": "09f935c2c45491ab72a1e23075da32119c57555afc972e6942b9e7c0ef73e289"
+      },
+      {
+        "path": "scripts/docker-isolated/daemon-helper.mjs",
+        "size": 12909,
+        "sha256": "398c6f315c4e68df4a3aacc108fc3ca5fedd83bfb1c3c59726e86c3412f71650"
+      },
+      {
+        "path": "scripts/docker-isolated/daemon-postgres-runtime-helper.mjs",
+        "size": 18933,
+        "sha256": "54e8e4537748ba5b169841db117e4d20f261d4698fc582ce983494781ebaea9d"
+      },
+      {
+        "path": "scripts/docker-isolated/daemon-postgres-runtime.mjs",
+        "size": 27947,
+        "sha256": "184b14028f6fc0054321f8a779d68784166a15a81c1298b80895184a714fe99a"
+      },
+      {
+        "path": "scripts/package-bootstrap/prepare.mjs",
+        "size": 14138,
+        "sha256": "1eb0bb0e41c3f541e919b2a2696c2cc8b0f8f8139eea2552b9bea35643573337"
+      },
+      {
+        "path": "scripts/package-bootstrap/registry-proof.mjs",
+        "size": 21285,
+        "sha256": "d517ac8d2fa6cb400a82ba403a1ee5e3ae5effd3ccf1969fe4e7a196624ac863"
+      },
+      {
+        "path": "scripts/postgres-image/admission-archive-maintenance.mjs",
+        "size": 30326,
+        "sha256": "7143ae4e150b1782a2c28885516ee7e68d9af36fb35b60232041be9d96bf2e5a"
+      },
+      {
+        "path": "scripts/postgres-image/admission-archive-observation.mjs",
+        "size": 16264,
+        "sha256": "e134e82aa0611fec76480083552c668fd1e076a30a2da392afc0720ed744228c"
+      },
+      {
+        "path": "scripts/postgres-image/admission-authority.mjs",
+        "size": 59665,
+        "sha256": "5800560b2aa4719aab870bc8b185cfcc1a5b6978e7aa5e87365613df2e2e5592"
+      },
+      {
+        "path": "scripts/postgres-image/admission-broker.mjs",
+        "size": 64757,
+        "sha256": "480e66ffb21e37cd2646e814d8b548cf116cb4a613ee1e40f9e591a88f4b8e82"
+      },
+      {
+        "path": "scripts/postgres-image/admission-observability.mjs",
+        "size": 8789,
+        "sha256": "5b63e1097179c1a2b001f83c85829231605f1733da14891e7e1eac3fc1ede863"
+      },
+      {
+        "path": "scripts/postgres-image/admitted-postgres.mjs",
+        "size": 1612,
+        "sha256": "01a320be708cf76ebd8983ffe9fce770756e7949402cce829fe54e9a83884882"
+      },
+      {
+        "path": "scripts/postgres-image/audit-policy.mjs",
+        "size": 23224,
+        "sha256": "15436e557263da90b2ee866633615351309f49c379f3a80fa87cc9624b457ab1"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-attestation-access.mjs",
+        "size": 42488,
+        "sha256": "ed88022b822bbf7547eae8cdfacd2d287ba8395fd9d7ac926823aeb82cc09f8d"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-proof.mjs",
+        "size": 21097,
+        "sha256": "ad1f8aa9714dee89341b6427bdaf7fef1fbf9d4abd7ca7eeeec83a70ec1ef6d9"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-remote-audit.mjs",
+        "size": 33829,
+        "sha256": "1166a5f50b3e513f2b09bdf15b2987009a0af32a6eb0aaf7c5e792907521694b"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-remote-runtime-diagnostic.mjs",
+        "size": 31582,
+        "sha256": "d4e20b4724c738856d3ee42a883d55ff4b491dfd5b54e89a1d6b27b220494c2f"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-remote.mjs",
+        "size": 42713,
+        "sha256": "8806286ec2fd71149930fb85a64e0d3262cb92bc87e6cc89953a7bad6f64dae5"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-runtime.mjs",
+        "size": 35196,
+        "sha256": "dfd3c1866b036c6d8675a8308afad768ae8d2b15c6e06a74b0729ac02f89559c"
+      },
+      {
+        "path": "scripts/postgres-image/diagnostic.mjs",
+        "size": 41893,
+        "sha256": "cd92c4604be47a102140c1fcee1b8c3209234f6dd0615929a0c48ef283fde716"
+      },
+      {
+        "path": "scripts/postgres-image/evidence.mjs",
+        "size": 9066,
+        "sha256": "96d53b518281ca464cb9cd13fb89b2d84e45aca9af7998816842db9ce9ec3c2f"
+      },
+      {
+        "path": "scripts/postgres-image/filesystem.mjs",
+        "size": 4456,
+        "sha256": "f01e16ea80a322eadb282822132aeea650ede3673854c544208f755dc134df26"
+      },
+      {
+        "path": "scripts/postgres-image/runtime-restore-audit.mjs",
+        "size": 19250,
+        "sha256": "8a30aefd68347d47c0390ce4485a699d889c43eda1147bced8ee16669259bfdd"
+      },
+      {
+        "path": "scripts/postgres-image/scan.mjs",
+        "size": 40882,
+        "sha256": "d6d0c81e24860f500b443e88e34f0c18c9eeecbe65e50b6eb60c6fca66aba7cb"
+      },
+      {
+        "path": "scripts/scanner/audit-policy.mjs",
+        "size": 9301,
+        "sha256": "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f"
+      },
+      {
+        "path": "scripts/scanner/audit.mjs",
+        "size": 30463,
+        "sha256": "15dd55ac6799b21c91c7414074901dc286d51f0d4e8cb2f2e5aefc6a57a0a281"
+      },
+      {
+        "path": "scripts/scanner/build.mjs",
+        "size": 14122,
+        "sha256": "e2882534cbd373ed0844b757ddce164d40af78295e2a219643bfbc86153b96a8"
+      },
+      {
+        "path": "scripts/scanner/controls.mjs",
+        "size": 14506,
+        "sha256": "27a10403f2ee154e55bdbca2e3d65a3e313160044e7ad53f289e130f064ca817"
+      },
+      {
+        "path": "scripts/seaweed-image/archive.mjs",
+        "size": 15650,
+        "sha256": "26bfc47246469723ff496a3a527cb7c5f27020f1956b3d2ac42060cc8f65a466"
+      },
+      {
+        "path": "scripts/seaweed-image/backup-restore.mjs",
+        "size": 40724,
+        "sha256": "768bb8b8e0c211227ae99cb7cf695e9de89e1001831e912612d68578b2b9f027"
+      },
+      {
+        "path": "scripts/seaweed-image/base-scan.mjs",
+        "size": 5113,
+        "sha256": "e00f93a07797749f816be3290b65e832538a545e71724e426da581e1485de466"
+      },
+      {
+        "path": "scripts/seaweed-image/candidate-archive.mjs",
+        "size": 20422,
+        "sha256": "90ad8ead1c2fc75d098a58e32485688f039af15171cc8df7cb3c2657c5e89bfe"
+      },
+      {
+        "path": "scripts/seaweed-image/candidate-audit-policy.mjs",
+        "size": 8412,
+        "sha256": "62fd6f9d4068374a4e96f5ccc57850ba07570cd90c988555876b073f737d079c"
+      },
+      {
+        "path": "scripts/seaweed-image/candidate-audit.mjs",
+        "size": 25874,
+        "sha256": "1f4271669c33cadd58325f7b0df812b9cb10256d6e746259708eb36ac0775302"
+      },
+      {
+        "path": "scripts/seaweed-image/candidate-runtime.mjs",
+        "size": 55477,
+        "sha256": "240cc0a682e022a18de719ad8ae305b6e24ecb037ced303ef7d42261e7e4503b"
+      },
+      {
+        "path": "scripts/seaweed-image/download-artifact-zip.mjs",
+        "size": 6663,
+        "sha256": "ebc304cb415565ecf226aa6c01bc29d47b333d6caed8d9a8f5f4753ce8b054aa"
+      },
+      {
+        "path": "scripts/seaweed-image/download-source-zips.mjs",
+        "size": 13341,
+        "sha256": "9c211a7c99cd199ecefee9bfccef0c6a2614d89a31e7605bff60954dbd96aaf7"
+      },
+      {
+        "path": "scripts/seaweed-image/github-api-read.mjs",
+        "size": 9035,
+        "sha256": "9c9caf6cac786d2c52f7a86b091b2a1f2f208c669b1bf5c252569a7e261a5bdc"
+      },
+      {
+        "path": "scripts/seaweed-image/host-loopback.mjs",
+        "size": 27576,
+        "sha256": "fc602be4b4eb70144ab99f8d9c5889a096979a5b22ab44771aa25f2e5e74ed48"
+      },
+      {
+        "path": "scripts/seaweed-image/materialize-base.mjs",
+        "size": 32771,
+        "sha256": "87b2a7c916263c7c1a589818d360790cbc67e9652eda0d914321eb8a126a1f82"
+      },
+      {
+        "path": "scripts/seaweed-image/materialize-candidate.mjs",
+        "size": 37461,
+        "sha256": "bcd934366ad2579e43704ead52e94f787e921480f72d7ef7febf876e8e30ece5"
+      },
+      {
+        "path": "scripts/seaweed-image/materialize-rootfs.mjs",
+        "size": 39531,
+        "sha256": "a4d162aefcbbb3740d34460635c496da120067fa931561cb7ed5887420a2e570"
+      },
+      {
+        "path": "scripts/seaweed-image/materialize-source-zips.mjs",
+        "size": 33840,
+        "sha256": "f5c5b4cae8cb387d6bee592094d8fe63b6991d0c562ca7a35564b9a5c367714d"
+      },
+      {
+        "path": "scripts/seaweed-image/notices.mjs",
+        "size": 13287,
+        "sha256": "b412c8c0666509eafdee371bbe4609a627641de9d815015c1967ad1148571710"
+      },
+      {
+        "path": "scripts/seaweed-image/persisted-data-readiness.mjs",
+        "size": 15685,
+        "sha256": "a4774d58aa9e5fc897f73f6b5d1fb5c9fcfe3a7495e015d7179ce3fd223b411c"
+      },
+      {
+        "path": "scripts/seaweed-image/plan.mjs",
+        "size": 10677,
+        "sha256": "dc4086530c400fa7a9d8877e74be49c2c63c288f3088939dd6b8ed79fe2a70cd"
+      },
+      {
+        "path": "scripts/seaweed-image/read-artifact-zip.mjs",
+        "size": 24471,
+        "sha256": "d06d703079d5c8344f8ba18add5b3691b81d5718fa013b138de87a9bb04180fe"
+      },
+      {
+        "path": "scripts/seaweed-image/registry-base.mjs",
+        "size": 14898,
+        "sha256": "1d87483226b423e74a62fabd81ac5111a93e7e76958768b1bb28d8869c9b1d0a"
+      },
+      {
+        "path": "scripts/seaweed-image/source-origin.mjs",
+        "size": 3643,
+        "sha256": "967ca2f3008d07d51cc2db6bbc733fbc84f79bb08137762eac6058f955c2b591"
+      },
+      {
+        "path": "scripts/seaweed-image/source-records.mjs",
+        "size": 12596,
+        "sha256": "220dd4646deb951097a55ffd981c9df6e31b0645a450b8375569d8cf52b2f3cc"
+      },
+      {
+        "path": "scripts/seaweed-image/strict-contention.mjs",
+        "size": 8847,
+        "sha256": "6173b2309b55d5054b6e89da45675a4820b314509690733db4e2183bef02d99a"
+      },
+      {
+        "path": "scripts/seaweed-image/write-archive.mjs",
+        "size": 12709,
+        "sha256": "d8de1735de510949856542703099a76966a761c38af06e7d492b2a4a3ec4163e"
+      },
+      {
+        "path": "scripts/seaweed/build.mjs",
+        "size": 69527,
+        "sha256": "ec0bc205fd76be3696151be493a3c69cf76aba2f362b0efac8b2e17f58bc42d9"
+      },
+      {
+        "path": "scripts/seaweed/command-monitor.mjs",
+        "size": 20066,
+        "sha256": "dd4033661023b0138dd9cc69cfa09ab5115e5fe054f5446229ba8bb57dc3b351"
+      },
+      {
+        "path": "scripts/seaweed/compare.mjs",
+        "size": 22213,
+        "sha256": "fd1fd3e911aa61240869540fda7d8a1b7b1ca783bb3880af6164a5b74d5cba69"
+      },
+      {
+        "path": "scripts/seaweed/copylocks.mjs",
+        "size": 6549,
+        "sha256": "0bd3ff01cf65af1a5992853b5c44ea383251c010278f93ad176a6d9ee81feb22"
+      },
+      {
+        "path": "scripts/seaweed/ec-preflight.mjs",
+        "size": 2320,
+        "sha256": "69dd8f5f885023ac4380a3596bbbe10672a8a7a0d224356e4246fe724f61043b"
+      },
+      {
+        "path": "scripts/seaweed/module-archives.mjs",
+        "size": 11795,
+        "sha256": "3fb6f7b448f93047eaab34a66601e16819c6351536b7d5fc3d698fd22b4990d8"
+      },
+      {
+        "path": "scripts/seaweed/server-logs.mjs",
+        "size": 6422,
+        "sha256": "b815efe4b3752b393ac8f1410a6f6ff4489b3652294266f3edc2ab7b7164f2c4"
+      },
+      {
+        "path": "scripts/seaweed/work-tree.mjs",
+        "size": 3226,
+        "sha256": "26ec25c04570165cb618722d3ac49d8d0021b2d77a400ed2a4726d447d0e7825"
+      }
+    ],
+    "waivers": [
+      "JAVA_DATABASE_MAX_AGE_NOT_ENFORCED",
+      "EXTERNAL_AUTHENTICATED_FORK_PROBE_SKIPPED_BY_USER"
+    ]
+  },
+  "previousGenerations": [],
+  "authorityRevisions": [
+    {
+      "authorityRevision": 1,
+      "previousRevisionSha256": null,
+      "generationRootSha256": "9c2aa7b61440da334c81ca3a6ac8abced389f238136471fcd5da00adfdaf607c",
+      "state": "PENDING",
+      "supportStartedAt": null,
+      "supportEndsAt": null,
+      "archiveUntil": null,
+      "currentEvidence": {
+        "audit": null,
+        "packageControls": null
+      },
+      "revocationReason": null
+    }
+  ],
+  "revisionHashes": [
+    "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
+  ],
+  "authorityRevision": 1,
+  "currentRevisionSha256": "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
+}
