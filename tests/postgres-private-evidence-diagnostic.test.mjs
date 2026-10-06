@@ -22,11 +22,16 @@ function acknowledgement() {
       mtimeNs: "1790786471778509866", ctimeNs: "1790786471778509866" } } };
 }
 
-test("independent public byte expectations still match the eleven committed materials", () => {
+test("historical public byte expectations match all eleven retained materials", () => {
   assert.equal(PIN.publicFiles.length, 11);
   assert.equal(new Set(PIN.publicFiles.map((file) => file.name)).size, 11);
+  // The original intake binds its historical scanner recipe, independently of later controls.
+  const historicalMaterials = new Map([["infra/scanner/scanner-lock.json",
+    "infra/postgres-image/materials/private-evidence-scanner-lock.json"]]);
+  assert.equal(historicalMaterials.size, 1);
+  assert.equal(PIN.publicFiles.filter((item) => historicalMaterials.has(item.source)).length, 1);
   for (const item of PIN.publicFiles) {
-    const bytes = readFileSync(new URL(`../${item.source}`, import.meta.url));
+    const bytes = readFileSync(new URL(`../${historicalMaterials.get(item.source) ?? item.source}`, import.meta.url));
     assert.equal(bytes.length, item.size, item.source);
     assert.equal(createHash("sha256").update(bytes).digest("hex"), item.sha256, item.source);
     assert.equal(Object.isFrozen(item), true);
