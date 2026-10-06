@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, readSync, realpathSync, statfsSync, unlinkSync, writeSync } from "node:fs";
 import { posix as path } from "node:path";
+import { performance } from "node:perf_hooks";
 import { isDeepStrictEqual } from "node:util";
 const DIRECTORY = ["dev", "ino", "uid", "gid", "mode"];
 const STABLE = ["dev", "ino", "uid", "gid", "mode", "nlink"];
@@ -21,9 +22,13 @@ function metadata(value, size, uid = 1000, gid = 1000, mode = 0o600) {
 }
 
 // Internal filesystem mechanism only. Each fixed publisher retains its own closed errors and authority.
-export function createSourceRetentionNativeSession(deadline, signal, fail) {
+export function createSourceRetentionNativeSession(deadline, signal, fail, options = undefined) {
+  const clock = options === undefined ? Date.now : (() => {
+    if (!exact(options, ["clock"]) || options.clock !== "MONOTONIC") fail("arguments_invalid");
+    return performance.now.bind(performance);
+  })();
   const handles = []; const anchors = new Map(); let closed = false;
-  const check = () => { if (signal.aborted) fail("aborted"); if (Date.now() >= deadline) fail("deadline_exceeded"); };
+  const check = () => { if (signal.aborted) fail("aborted"); if (clock() >= deadline) fail("deadline_exceeded"); };
   const anchor = (file, rootOnly = false) => {
     let at = "/";
     for (const part of ["", ...file.split("/").filter(Boolean)]) {
@@ -44,7 +49,7 @@ export function createSourceRetentionNativeSession(deadline, signal, fail) {
   };
   const directory = (file, expected) => {
     anchor(file); if (!isDeepStrictEqual(directoryNative(lstatSync(file, { bigint: true })), expected) || statfsSync(file, { bigint: true }).type !== 0xef53n) fail("storage_invalid");
-    const result = spawnSync("/usr/bin/findmnt", ["--noheadings", "--output", "FSTYPE", "--target", file], { timeout: Math.min(10000, Math.max(1, deadline - Date.now())), maxBuffer: 1024,
+    const result = spawnSync("/usr/bin/findmnt", ["--noheadings", "--output", "FSTYPE", "--target", file], { timeout: Math.min(10000, Math.max(1, deadline - clock())), maxBuffer: 1024,
       env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" } });
     if (result.error || result.status !== 0 || result.signal || result.stderr.length || !result.stdout.equals(Buffer.from("ext4\n"))) fail("storage_invalid"); guards();
   };
