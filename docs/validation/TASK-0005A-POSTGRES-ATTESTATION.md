@@ -50,10 +50,11 @@ The access job uses owned private temporary credential directories; cleanup chec
 
 ### Complete package-read workflow inventory
 
-The current tree contains these nine package-read jobs after V2's two package-read jobs were retired. All have an input-free workflow_dispatch trigger, this-repository/main guard and checkout with persist-credentials:false. None has package-write, OIDC or attestation capability. No package-read job accepts PR/fork-controlled checkout, reusable-workflow inputs or fork artifacts. This is a reviewed workflow boundary, not the waived server-side fork-isolation proof. The V2 access and verifier capabilities remain documented only in the preserved historical recipe above. Existing exhausted or retired workflows are never redispatched by this increment.
+The current tree contains these ten package-read jobs, including the new manual [current admission audit](TASK-0005A-POSTGRES-CURRENT-AUDIT.md); V2's two package-read jobs remain retired. All have an input-free workflow_dispatch trigger, this-repository/main guard and checkout with persist-credentials:false. None has package-write, OIDC or attestation capability. No package-read job accepts PR/fork-controlled checkout, reusable-workflow inputs or fork artifacts. This is a reviewed workflow boundary, not the waived server-side fork-isolation proof. The V2 access and verifier capabilities remain documented only in the preserved historical recipe above. Existing exhausted or retired workflows are never redispatched by this increment.
 
 | Workflow under `.github/workflows/` | Job | Run/attempt guard | Artifact authority | Candidate behavior |
 | --- | --- | --- | --- | --- |
+| `postgres-admission-current-audit.yml` | audit | Positive run/attempt1 | Same-run/main independent scanner builds, needs:build | Read-only current exact digest pull/save/scan; separate raw16 and bounded current projection; candidate never started; no support activation. |
 | `postgres-candidate-remote-audit.yml` | audit | 1/1 | Same-run/main scanner-build artifacts, needs:build | Pull/save/scan archive; candidate never started. Diagnostic scanner carriers only. |
 | `postgres-candidate-remote-read-v2.yml` | read | 1/1 | None | Exact pull/save/archive validation, no start; exhausted/disabled. |
 | `postgres-candidate-remote-read.yml` | read | 1/1 | None | Same read-only materialization; original failed V1 preserved, exhausted/disabled. |

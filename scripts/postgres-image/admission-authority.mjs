@@ -10,6 +10,7 @@ import { validatePostgresRemoteCandidateReceipt, validatePostgresRemotePolicy } 
 import { evaluateLocalPostgresGosuAudit, validatePostgresGosuReportInventory } from "./audit-policy.mjs";
 import { postgresRuntimeAuditValidUntil } from "./runtime-restore-audit.mjs";
 import { validateDatabaseRegistryManifest } from "../scanner/audit.mjs";
+import { validateDatabaseMetadata } from "../scanner/audit-policy.mjs";
 import {
   loadPostgresAdmissionArchiveContext,
   verifyPostgresAdmissionArchiveFast,
@@ -45,6 +46,7 @@ const SHA1 = /^[0-9a-f]{40}$/u;
 const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+const REPORT_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/u;
 const FILE_BYTES = 1024 ** 2;
 const TOTAL_BYTES = 8 * 1024 ** 2;
 const REQUEST_MS = 5_000;
@@ -98,6 +100,14 @@ function parse(bytes) {
 }
 function instant(value) { need(typeof value === "string" && INSTANT.test(value)
   && new Date(value).toISOString() === value); return value; }
+function reportInstant(value) {
+  need(typeof value === "string" && REPORT_INSTANT.test(value));
+  try {
+    validateDatabaseMetadata({ Version: 2, UpdatedAt: value, DownloadedAt: value },
+      { now: new Date(value), database: "vulnerability" });
+  } catch { deny(); }
+  return value;
+}
 function calendarDate(value) {
   need(typeof value === "string" && DATE.test(value) && new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value);
   return value;
@@ -229,7 +239,8 @@ function validateGenerationRoot(value, generation) {
 function normalizeAuditEvidence(value, generationRoot) {
   const audit = exact(value, ["kind", "subject", "checkedAt", "validUntil", "source", "files"]);
   need(audit.kind === "POSTGRES_ADMISSION_CURRENT_AUDIT_V1" && audit.subject === generationRoot.image.subject);
-  instant(audit.checkedAt); instant(audit.validUntil); need(Date.parse(audit.checkedAt) <= Date.parse(audit.validUntil));
+  reportInstant(audit.checkedAt); instant(audit.validUntil);
+  need(Date.parse(audit.checkedAt) <= Date.parse(audit.validUntil));
   audit.source = exact(audit.source, ["recipeRevision", "workflowPath", "runId", "attempt"]);
   commit(audit.source.recipeRevision);
   need(audit.source.workflowPath === ".github/workflows/postgres-admission-current-audit.yml"

@@ -110,6 +110,7 @@ test("finite public evidence contains only approved files and preserves private 
 
 test("the complete package-read inventory contains only reviewed manual main jobs", () => {
   const expected = [
+    ["postgres-admission-current-audit.yml", "audit", null],
     ["postgres-candidate-remote-audit.yml", "audit", 1], ["postgres-candidate-remote-read-v2.yml", "read", 1],
     ["postgres-candidate-remote-read.yml", "read", 1], ["postgres-candidate-remote-runtime-diagnostic-v2.yml", "runtime", 1],
     ["postgres-package-bootstrap.yml", "verify", 2], ["private-package-proof.yml", "verify", null],
@@ -136,6 +137,10 @@ test("the complete package-read inventory contains only reviewed manual main job
       assert.ok(job.if.includes("github.ref == 'refs/heads/main'"));
       if (record[2] !== null) {
         assert.ok(job.if.includes(`github.run_number == ${record[2]}`));
+        assert.ok(job.if.includes("github.run_attempt == 1"));
+      }
+      if (file === "postgres-admission-current-audit.yml") {
+        assert.ok(job.if.includes("github.run_number > 0"));
         assert.ok(job.if.includes("github.run_attempt == 1"));
       }
       const checkout = action(job, "checkout");

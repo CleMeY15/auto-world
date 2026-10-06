@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "kind": "POSTGRES_ADMISSION_INVENTORY_V1",
   "repository": "CleMeY15/auto-world",
-  "admissionGeneration": 1,
+  "admissionGeneration": 2,
   "generationRoot": {
     "schemaVersion": 1,
     "kind": "POSTGRES_ADMISSION_GENERATION_ROOT_V1",
-    "admissionGeneration": 1,
+    "admissionGeneration": 2,
     "image": {
       "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
       "manifestDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
@@ -204,7 +204,7 @@
     "archiveLocator": {
       "schemaVersion": 1,
       "size": 448048,
-      "sha256": "f416536e38a68f86e50de48cac2efd84b2c39376af799eed19941d4fff3bca0c"
+      "sha256": "aaf9476b9356b710546e49bc42c4503b737fc29f555a99d5c9f29e3b2d17a23c"
     },
     "executionFiles": [
       {
@@ -304,8 +304,8 @@
       },
       {
         "path": "scripts/postgres-image/admission-authority.mjs",
-        "size": 59665,
-        "sha256": "5800560b2aa4719aab870bc8b185cfcc1a5b6978e7aa5e87365613df2e2e5592"
+        "size": 60114,
+        "sha256": "9d83c7a75b779a86956f4d2c7c255440781b00b3423ea9091e818679cdd6454f"
       },
       {
         "path": "scripts/postgres-image/admission-broker.mjs",
@@ -568,12 +568,20 @@
       "EXTERNAL_AUTHENTICATED_FORK_PROBE_SKIPPED_BY_USER"
     ]
   },
-  "previousGenerations": [],
+  "previousGenerations": [
+    {
+      "admissionGeneration": 1,
+      "generationRootSha256": "9c2aa7b61440da334c81ca3a6ac8abced389f238136471fcd5da00adfdaf607c",
+      "authorityRevision": 1,
+      "currentRevisionSha256": "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf",
+      "state": "PENDING"
+    }
+  ],
   "authorityRevisions": [
     {
       "authorityRevision": 1,
       "previousRevisionSha256": null,
-      "generationRootSha256": "9c2aa7b61440da334c81ca3a6ac8abced389f238136471fcd5da00adfdaf607c",
+      "generationRootSha256": "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220",
       "state": "PENDING",
       "supportStartedAt": null,
       "supportEndsAt": null,
@@ -586,8 +594,8 @@
     }
   ],
   "revisionHashes": [
-    "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
+    "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da"
   ],
   "authorityRevision": 1,
-  "currentRevisionSha256": "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
+  "currentRevisionSha256": "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da"
 }

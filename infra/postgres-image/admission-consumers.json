@@ -4,6 +4,7 @@
   "privateSupportedBroker": "scripts/postgres-image/admission-broker.mjs",
   "offlineObservation": "scripts/postgres-image/admission-archive-observation.mjs",
   "diagnosticOnly": [
+    "admission-current-audit.mjs",
     "candidate-attestation-access.mjs",
     "candidate-attestation.mjs",
     "candidate-local-cold-load.mjs",

@@ -14,6 +14,7 @@ import { validatePostgresPackageControls as realValidatePackageControls }
   from "../scripts/postgres-image/candidate-attestation-access.mjs";
 import { validatePostgresRemoteCandidateReceipt as realValidateRemoteReceipt,
   validatePostgresRemotePolicy as realValidateRemotePolicy } from "../scripts/postgres-image/candidate-remote.mjs";
+import { validateDatabaseMetadata as realValidateDatabaseMetadata } from "../scripts/scanner/audit-policy.mjs";
 
 const SOURCE = path.resolve("scripts/postgres-image/admission-authority.mjs");
 const SELF = fileURLToPath(import.meta.url);
@@ -150,7 +151,9 @@ if (typeof vm.SourceTextModule !== "function") {
   function activeFixture({ realReports = false, corruptInventory = false, databaseAfterReport = false,
     now = new Date(), p2RemainingMs = 60 * 60 * 1000, p3SettingsRemainingMs = 24 * 60 * 60 * 1000,
     archiveRemainingMs = 24 * 60 * 60 * 1000, supportNear = false } = {}) {
-    const checkedAt = now.toISOString(); const validUntil = new Date(now.getTime() + p2RemainingMs).toISOString();
+    const checkedAt = now.toISOString();
+    const reportCheckedAt = checkedAt.replace(/(\.\d{3})Z$/u, "$1000000Z");
+    const validUntil = new Date(now.getTime() + p2RemainingMs).toISOString();
     const completedAt = new Date(now.getTime() - (24 * 60 * 60 * 1000 - archiveRemainingMs)).toISOString();
     const archiveValidUntil = new Date(now.getTime() + archiveRemainingMs).toISOString();
     const controls = clone(JSON.parse(CONTROLS));
@@ -184,12 +187,12 @@ if (typeof vm.SourceTextModule !== "function") {
     const candidate = remoteCandidateReceipt(remotePolicy, auditRunId, auditRecipeRevision, archiveSha256, archiveBytes);
     const auditSubject = { artifactName: "/candidate/saved.tar", imageId: root.image.configDigest,
       archiveSha256, tag: candidate.alias, configDigest: root.image.configDigest, diffIds: root.image.diffIds };
-    const reportsFixture = inventoryReports(auditSubject, checkedAt);
+    const reportsFixture = inventoryReports(auditSubject, reportCheckedAt);
     if (corruptInventory) reportsFixture.vulnerabilityReport.Results[0].Packages.push(
       clone(reportsFixture.vulnerabilityReport.Results[0].Packages[0]));
     add("candidate-sbom.cdx.json", realReports ? reportsFixture.cyclonedxReport : { bomFormat: "CycloneDX" });
     add("candidate-vulnerabilities.json", realReports ? reportsFixture.vulnerabilityReport
-      : { CreatedAt: checkedAt, Metadata: { OS: { Family: "alpine", Name: "3.20" } } });
+      : { CreatedAt: reportCheckedAt, Metadata: { OS: { Family: "alpine", Name: "3.20" } } });
     const downloadedAt = new Date(now.getTime() + (databaseAfterReport ? 60 * 1000 : -60 * 60 * 1000)).toISOString();
     const observedValues = { vulnerability: { Version: 2, UpdatedAt: downloadedAt, DownloadedAt: downloadedAt },
       java: { Version: 1, UpdatedAt: downloadedAt, DownloadedAt: downloadedAt } };
@@ -221,7 +224,7 @@ if (typeof vm.SourceTextModule !== "function") {
         digest: `sha256:${"f".repeat(64)}`, size: 10, layerBytes: 9 }] }, inventory: { packageCount: 50 } });
     const files = AUDIT_ROLES.map((role) => ({ role, size: documents.get(role).length, sha256: sha256(documents.get(role)) }));
     const currentEvidence = { audit: { kind: "POSTGRES_ADMISSION_CURRENT_AUDIT_V1", subject: root.image.subject,
-      checkedAt, validUntil, source: { recipeRevision: auditRecipeRevision,
+      checkedAt: reportCheckedAt, validUntil, source: { recipeRevision: auditRecipeRevision,
         workflowPath: ".github/workflows/postgres-admission-current-audit.yml", runId: auditRunId, attempt: "1" }, files },
     packageControls: { size: controlsBytes.length, sha256: sha256(controlsBytes), observedAt: controls.observedAt } };
     let started = checkedAt.slice(0, 10); let startedDate = new Date(`${started}T00:00:00.000Z`);
@@ -267,6 +270,27 @@ if (typeof vm.SourceTextModule !== "function") {
     pin.size = bytes.length; pin.sha256 = sha256(bytes);
     active.inventoryValue.revisionHashes[1] = sha256(canonical(revisionValue));
     active.inventoryValue.currentRevisionSha256 = active.inventoryValue.revisionHashes[1]; return active;
+  }
+  function mutateAuditTimestamp(active, reportTimestamp, projectionTimestamp = reportTimestamp) {
+    const report = JSON.parse(active.documents.get("candidate-vulnerabilities.json"));
+    report.CreatedAt = reportTimestamp;
+    const bytes = canonical(report); active.documents.set("candidate-vulnerabilities.json", bytes);
+    const revisionValue = active.inventoryValue.authorityRevisions.at(-1);
+    revisionValue.currentEvidence.audit.checkedAt = projectionTimestamp;
+    const pin = revisionValue.currentEvidence.audit.files.find((item) => item.role === "candidate-vulnerabilities.json");
+    pin.size = bytes.length; pin.sha256 = sha256(bytes);
+    const receipt = JSON.parse(active.documents.get("audit-receipt.json"));
+    receipt.reports.vulnerability = { size: bytes.length, sha256: pin.sha256 };
+    const receiptBytes = canonical(receipt); active.documents.set("audit-receipt.json", receiptBytes);
+    const receiptPin = revisionValue.currentEvidence.audit.files.find((item) => item.role === "audit-receipt.json");
+    receiptPin.size = receiptBytes.length; receiptPin.sha256 = sha256(receiptBytes);
+    active.inventoryValue.revisionHashes[1] = sha256(canonical(revisionValue));
+    active.inventoryValue.currentRevisionSha256 = active.inventoryValue.revisionHashes[1]; return active;
+  }
+  function assertNoAuthorityMutation(value) {
+    for (const file of [HIGH_WATER, INITIALIZED, INTENT, TEMPORARY]) assert.equal(value.vfs.nodes.has(file), false);
+    assert.deepEqual(value.vfs.operations.filter(([operation]) =>
+      ["create", "rename", "unlink", "fsync"].includes(operation)), []);
   }
   function revokeActive(value) {
     const next = clone(value); const prior = next.authorityRevisions.at(-1);
@@ -445,6 +469,10 @@ if (typeof vm.SourceTextModule !== "function") {
         validatePostgresRemotePolicy: (value) => realValidateRemotePolicy(clone(value)),
         validatePostgresRemoteCandidateReceipt: (receipt, policy) => realValidateRemoteReceipt(clone(receipt), clone(policy)),
       });
+      if (specifier.endsWith("scanner/audit-policy.mjs")) return synthetic(context, specifier, {
+        validateDatabaseMetadata: (metadata, options) => realValidateDatabaseMetadata(clone(metadata),
+          { ...options, now: new Date(options.now) }),
+      });
       if (specifier.endsWith("audit-policy.mjs")) return synthetic(context, specifier, {
         evaluateLocalPostgresGosuAudit: (input) => { auditCalls += 1; if (!active) throw new Error("must not run");
           return realValidators ? realEvaluateAudit({ ...clone(input), now: new Date(input.now) })
@@ -531,6 +559,45 @@ if (typeof vm.SourceTextModule !== "function") {
     const authority = await value.open(); const lease = authority.acquire();
     assert.equal(authority.assertCurrent(lease, "AUTHORITY").authorityRevision, 2);
     assert.equal(value.packageValidations, 2); assert.ok(value.auditCalls >= 3); authority.close();
+  });
+
+  test("ACTIVE preserves native report timestamps with zero through nine fractional digits", async () => {
+    const now = new Date("2026-10-06T12:00:00.542Z");
+    for (const timestamp of ["2026-10-06T12:00:00Z", "2026-10-06T12:00:00.5Z",
+      "2026-10-06T12:00:00.541Z", "2026-10-06T12:00:00.54155393Z",
+      "2026-10-06T12:00:00.541553930Z"]) {
+      const active = mutateAuditTimestamp(activeFixture({ realReports: true, now }), timestamp);
+      const value = await load({ active, inventoryValue: active.inventoryValue, realValidators: true,
+        wallNow: now.toISOString() });
+      const authority = await value.open(); const lease = authority.acquire();
+      assert.equal(authority.assertCurrent(lease, "AUTHORITY").authorityRevision, 2);
+      assert.equal(value.vfs.nodes.has(HIGH_WATER), true); authority.close();
+    }
+  });
+
+  test("current report timestamps reject normalization, invalid native forms, future evidence, and expiry", async () => {
+    const now = new Date("2026-10-06T12:00:00.123Z");
+    const invalid = [
+      mutateAuditTimestamp(activeFixture({ realReports: true, now }),
+        "2026-10-06T12:00:00.123Z", "2026-10-06T12:00:00.123000000Z"),
+      ...["2026-02-30T12:00:00Z", "2026-10-06T12:00:00+00:00", "2026-10-06T12:00:00.1234567890Z"]
+        .map((timestamp) => mutateAuditTimestamp(activeFixture({ realReports: true, now }), timestamp)),
+      mutateAuditTimestamp(activeFixture({ realReports: true, now }), "2026-10-06T12:01:00Z"),
+    ];
+    for (const active of invalid) {
+      const value = await load({ active, inventoryValue: active.inventoryValue, realValidators: true,
+        wallNow: now.toISOString() });
+      await assert.rejects(value.open(), { message: "postgres_admission_authority_denied" });
+      assertNoAuthorityMutation(value);
+    }
+    const expired = activeFixture({ realReports: true, now });
+    expired.inventoryValue.authorityRevisions.at(-1).currentEvidence.audit.validUntil = now.toISOString();
+    expired.inventoryValue.revisionHashes[1] = sha256(canonical(expired.inventoryValue.authorityRevisions.at(-1)));
+    expired.inventoryValue.currentRevisionSha256 = expired.inventoryValue.revisionHashes[1];
+    const value = await load({ active: expired, inventoryValue: expired.inventoryValue, realValidators: true,
+      wallNow: new Date(now.getTime() + 1).toISOString() });
+    await assert.rejects(value.open(), { message: "postgres_admission_authority_denied" });
+    assertNoAuthorityMutation(value);
   });
 
   test("ACTIVE accepts a newly materialized docker-save archive distinct from the retained runtime archive", async () => {
