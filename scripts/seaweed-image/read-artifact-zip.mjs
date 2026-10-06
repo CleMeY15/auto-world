@@ -32,10 +32,12 @@ export const githubArtifactZipProfiles = Object.freeze({
   comparison: "comparison",
   postgresAttestationAccess: "postgres-attestation-access",
   postgresAttestationSigned: "postgres-attestation-signed",
+  postgresAttestationVerification: "postgres-attestation-verification",
   postgresAttestationAudit: "postgres-attestation-audit",
 });
 
 const POSTGRES_ATTESTATION_PATHS = Object.freeze({
+  [githubArtifactZipProfiles.postgresAttestationVerification]: Object.freeze(["verification-receipt.json"]),
   [githubArtifactZipProfiles.postgresAttestationAccess]: Object.freeze(["access-receipt.json"]),
   [githubArtifactZipProfiles.postgresAttestationSigned]: Object.freeze([
     "bundle.json", "pre-sign-receipt.json", "predicate.json",

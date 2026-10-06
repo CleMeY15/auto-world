@@ -64,6 +64,7 @@ async function scan(bytes, profile, sink = memorySink(new Map())) {
 test("PostgreSQL attestation ZIP profiles accept only fixed flat files with reviewed compression", async () => {
   const profiles = [
     [githubArtifactZipProfiles.postgresAttestationAccess, ["access-receipt.json"]],
+    [githubArtifactZipProfiles.postgresAttestationVerification, ["verification-receipt.json"]],
     [githubArtifactZipProfiles.postgresAttestationSigned, ["predicate.json", "bundle.json", "pre-sign-receipt.json"]],
     [githubArtifactZipProfiles.postgresAttestationAudit, [...auditPaths].reverse()],
   ];

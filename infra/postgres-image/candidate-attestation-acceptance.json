@@ -1,0 +1,144 @@
+{
+  "kind": "POSTGRES_CANDIDATE_ATTESTATION_ACCEPTANCE_V1",
+  "state": "ATTESTED_UNADMITTED",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "authority": "INDEPENDENTLY_ACCEPTED_REAL_MAIN_ATTESTATION",
+  "execution": {
+    "runId": "36858133579",
+    "workflowId": 372103738,
+    "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+    "recipeRevision": "64778982b86faf17cb4ede9fd8027869049f6602",
+    "reviewedTree": "27f42196b1e882d2dd70ef7d5d0e86731f28f138",
+    "runNumber": 1,
+    "runAttempt": 1,
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 110355439972,
+        "name": "Verify exact private manifest access",
+        "conclusion": "success"
+      },
+      {
+        "id": 110355591466,
+        "name": "Sign the reviewed technical evidence",
+        "conclusion": "success"
+      },
+      {
+        "id": 110355682486,
+        "name": "Verify the exact subject and rejection controls",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "source": {
+    "buildRecipeRevision": "b93b0c76ec76abe283d66a17fa62eab7e580e679",
+    "buildRunId": "36361670116",
+    "coreEvidenceRecipeRevision": "4a28d5e3cef525a8cf54ba5a1336d7af8573df1d"
+  },
+  "files": {
+    "access-receipt.json": {
+      "bytes": 5457,
+      "sha256": "84f81230c30b9cbca1a4a42ef27e91c3d77610318987b3f499affda43f0d1772"
+    },
+    "bundle.json": {
+      "bytes": 23607,
+      "sha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1"
+    },
+    "pre-sign-receipt.json": {
+      "bytes": 837,
+      "sha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e"
+    },
+    "predicate.json": {
+      "bytes": 9949,
+      "sha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c"
+    },
+    "verification-receipt.json": {
+      "bytes": 37813,
+      "sha256": "a647d3ddeeb77292db9e3a35efe7a6073306d41f686bedcb1c6a68c8285ec7ce"
+    }
+  },
+  "artifacts": [
+    {
+      "id": 11160086422,
+      "name": "postgres-candidate-attestation-verification",
+      "bytes": 3017,
+      "sha256": "9a67d053fc15a2b8e8b28c6f5ae5ff6afe090430f0bd0f3c5c1dd9718ae367c9",
+      "expiresAt": "2026-10-15T11:54:39Z"
+    },
+    {
+      "id": 11159471145,
+      "name": "postgres-candidate-attestation-signed",
+      "bytes": 18035,
+      "sha256": "42e3bc4189c925ff66243462a59ba28a7263dd0d0b540be77d3369693269e805",
+      "expiresAt": "2026-10-15T11:53:26Z"
+    },
+    {
+      "id": 11159371142,
+      "name": "postgres-candidate-attestation-access",
+      "bytes": 2306,
+      "sha256": "9a1bfb443a249202d0c616ea0688c65512d017be55a8484a5df8544386e5b452",
+      "expiresAt": "2026-10-15T11:53:10Z"
+    }
+  ],
+  "rawControls": {
+    "run-api.json": {
+      "bytes": 12149,
+      "sha256": "3f57c285f91b0306bc3f1d9027551c6feb4e0c5d111a40800171280a7f0033de"
+    },
+    "jobs-api.json": {
+      "bytes": 9687,
+      "sha256": "1a11c5c1a0f406df4eec48a364db2e1d72f67bb354e2092e09061e42748db784"
+    },
+    "artifacts-api.json": {
+      "bytes": 2144,
+      "sha256": "85dafdffbee663d13dfdd9ca5b073b7350c8818422c48731995cda97c5f7fff6"
+    },
+    "collection.json": {
+      "bytes": 1886,
+      "sha256": "5cfcec79060dd1e7d7966bb2c9ad11c8c20976b79284c246fd83cfe9641051d5"
+    },
+    "intake-receipt.json": {
+      "bytes": 4415,
+      "sha256": "78c7a8883f4b7580c6ab6f2453a475e441cb17a665adba0d67b499bfc3adc4ff"
+    }
+  },
+  "coreAcceptance": {
+    "bytes": 2553,
+    "sha256": "63ba6e33b16e5bbb7e9327e466349c1bf044f44b9bcf11506b6e44fada0e23dd"
+  },
+  "packageControls": {
+    "bytes": 708,
+    "sha256": "6556d6f6208a6608850fbb880558f9430d8c32205d08a0966ae7502852bb4e48"
+  },
+  "executedWorkflow": {
+    "bytes": 14411,
+    "sha256": "5ec363a5e925c963c8d498f7dc428b904b677ec0dee3a7c565a5dc2d909a2a2d"
+  },
+  "failedV1": {
+    "state": "FAILED",
+    "runId": "36854000922",
+    "recipeRevision": "362ae304204e7692e99cb5e3126ffc91b9efa896",
+    "projection": {
+      "bytes": 1761,
+      "sha256": "db57c94c1671b14b2b83a67362d716152106f234bc5c966c689bf80b52471c46"
+    }
+  },
+  "claims": {
+    "officialSignature": "VERIFIED",
+    "pairedPositiveControls": "VERIFIED",
+    "sixNegativeControls": "REJECTION_PROVED",
+    "secondCompleteCopy": "NOT_ESTABLISHED",
+    "currentness": "VALID_AT_SIGNING_ONLY",
+    "legalCompliance": "NOT_EVALUATED",
+    "binaryReproduction": "NOT_ESTABLISHED",
+    "forkAccessTest": "SKIPPED_BY_USER",
+    "forkIsolation": "NOT_VERIFIED",
+    "runtimePermission": "NOT_GRANTED",
+    "admission": "NOT_AUTHORIZED",
+    "supportStartedAt": null,
+    "supportEndsAt": null,
+    "archiveUntil": null,
+    "malformedBundleInputs": "ERROR_NOT_REJECTION",
+    "verifierOutputControls": "NOT_ESTABLISHED"
+  }
+}
