@@ -304,8 +304,8 @@
       },
       {
         "path": "scripts/postgres-image/admission-authority.mjs",
-        "size": 57337,
-        "sha256": "94ee88f0e9b9cdabfb7a9ad3f9c7fb0740380c20ff5003cc92b339f3efbf8d45"
+        "size": 59665,
+        "sha256": "5800560b2aa4719aab870bc8b185cfcc1a5b6978e7aa5e87365613df2e2e5592"
       },
       {
         "path": "scripts/postgres-image/admission-broker.mjs",
@@ -573,7 +573,7 @@
     {
       "authorityRevision": 1,
       "previousRevisionSha256": null,
-      "generationRootSha256": "2ba2796126011bd64380d92001ff21bf431f47d7b5cadb02999fee711c35ed05",
+      "generationRootSha256": "9c2aa7b61440da334c81ca3a6ac8abced389f238136471fcd5da00adfdaf607c",
       "state": "PENDING",
       "supportStartedAt": null,
       "supportEndsAt": null,
@@ -586,8 +586,8 @@
     }
   ],
   "revisionHashes": [
-    "2c277ec26e5ec4f12d55a83a3e8d457223d941211357bda981b71816a6cfdb66"
+    "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
   ],
   "authorityRevision": 1,
-  "currentRevisionSha256": "2c277ec26e5ec4f12d55a83a3e8d457223d941211357bda981b71816a6cfdb66"
+  "currentRevisionSha256": "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf"
 }

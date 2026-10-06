@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
 
 import { validatePostgresPackageControls } from "./candidate-attestation-access.mjs";
+import { validatePostgresRemoteCandidateReceipt, validatePostgresRemotePolicy } from "./candidate-remote.mjs";
 import { evaluateLocalPostgresGosuAudit, validatePostgresGosuReportInventory } from "./audit-policy.mjs";
 import { postgresRuntimeAuditValidUntil } from "./runtime-restore-audit.mjs";
 import { validateDatabaseRegistryManifest } from "../scanner/audit.mjs";
@@ -162,7 +163,8 @@ function validateBuild(value) {
     "sourceClosure"]);
   commit(build.recipeRevision); safeRelative(build.workflowPath); need(build.workflowPath.startsWith(".github/workflows/"));
   need(/^[1-9][0-9]{0,19}$/u.test(build.runId) && typeof build.attempt === "string"
-    && /^[1-9][0-9]{0,9}$/u.test(build.attempt));
+    && /^[1-9][0-9]{0,9}$/u.test(build.attempt)
+    && build.remotePolicy.path === "infra/postgres-image/candidate-remote.json");
   for (const key of ["publication", "remotePolicy", "sourceClosure"]) build[key] = validatePin(build[key]);
   return build;
 }
@@ -492,6 +494,16 @@ function auditCap(role) {
   if (role.startsWith("database-") && role.endsWith("-manifest.json")) return FILE_BYTES;
   return 64 * 1024 ** 2;
 }
+function readGenerationFile(pin, generationRoot, deadline) {
+  const executionPin = generationRoot.executionFiles.find((item) => item.path === pin.path);
+  need(executionPin && isDeepStrictEqual(executionPin, pin));
+  const file = path.join(REPOSITORY_ROOT, ...pin.path.split("/")); need(file.startsWith(`${REPOSITORY_ROOT}${path.sep}`));
+  const stat = fs.lstatSync(file, { bigint: true }); const mode = Number(stat.mode & 0o7777n);
+  need(stat.isFile() && !stat.isSymbolicLink() && Number(stat.uid) === 0 && Number(stat.gid) === 0
+    && (mode & 0o022) === 0);
+  const read = readOwned(file, FILE_BYTES, mode, deadline);
+  need(read.bytes.length === pin.size && hash(read.bytes) === pin.sha256); return read.bytes;
+}
 function verifyCurrentAudit(current, generationRoot, now, deadline) {
   const documents = {};
   for (const pin of current.files) {
@@ -506,15 +518,32 @@ function verifyCurrentAudit(current, generationRoot, now, deadline) {
     && receipt.registryWrite === "NOT_ATTEMPTED" && receipt.imageExecution === "NOT_ATTEMPTED"
     && receipt.runId === current.source.runId && receipt.recipeRevision === current.source.recipeRevision
     && receipt.phase === "COMPLETE" && receipt.registrySubject === generationRoot.image.subject
+    && receipt.scannerInput === "LOCAL_DOCKER_SAVE_ARCHIVE"
     && Number.isSafeInteger(receipt.findingCount) && receipt.findingCount >= 0
     && receipt.blockerCount === 0 && isDeepStrictEqual(receipt.blockers, [])
     && receipt.supportStartedAt === null && receipt.supportEndsAt === null && receipt.archiveUntil === null);
   const subject = receipt.subject;
   need(plain(subject) && isDeepStrictEqual(Object.keys(subject).sort(),
     ["artifactName", "imageId", "archiveSha256", "tag", "configDigest", "diffIds", "archiveBytes"].sort())
-    && subject.imageId === generationRoot.image.configDigest && subject.configDigest === generationRoot.image.configDigest
-    && isDeepStrictEqual(subject.diffIds, generationRoot.image.diffIds) && subject.archiveBytes === 305474048
-    && subject.archiveSha256 === "2c1b6b002076fa3772aa9fc899befb86fe525aee1ee1c8007d85bba200c73a05");
+    && subject.artifactName === "/candidate/saved.tar" && subject.imageId === generationRoot.image.configDigest
+    && subject.configDigest === generationRoot.image.configDigest && isDeepStrictEqual(subject.diffIds, generationRoot.image.diffIds));
+  const remotePolicyBytes = readGenerationFile(generationRoot.build.remotePolicy, generationRoot, deadline);
+  const remotePolicy = validatePostgresRemotePolicy(parse(remotePolicyBytes));
+  need(remotePolicy.subject === generationRoot.image.subject
+    && remotePolicy.manifest.digest === generationRoot.image.manifestDigest
+    && remotePolicy.candidate.imageId === generationRoot.image.configDigest
+    && remotePolicy.candidate.diffIds.length === generationRoot.image.diffIds.length
+    && remotePolicy.candidate.diffIds.every((value, index) => value === generationRoot.image.diffIds[index])
+    && remotePolicy.publisher.workflowPath === generationRoot.build.workflowPath
+    && remotePolicy.publisher.runId === generationRoot.build.runId
+    && remotePolicy.publisher.runAttempt === generationRoot.build.attempt
+    && remotePolicy.publisher.recipeRevision === generationRoot.build.recipeRevision
+    && remotePolicy.publisher.receiptSha256 === generationRoot.build.publication.sha256
+    && remotePolicy.publisher.receiptBytes === generationRoot.build.publication.size);
+  const candidate = validatePostgresRemoteCandidateReceipt(receipt.candidate, remotePolicy);
+  need(candidate.runId === current.source.runId && candidate.recipeRevision === current.source.recipeRevision
+    && subject.archiveSha256 === candidate.archive.archiveSha256
+    && subject.archiveBytes === candidate.archive.archiveBytes && subject.tag === candidate.alias);
   const auditSubject = { artifactName: subject.artifactName, imageId: subject.imageId,
     archiveSha256: subject.archiveSha256, tag: subject.tag, configDigest: subject.configDigest, diffIds: subject.diffIds };
   const vulnerabilityReport = documents["candidate-vulnerabilities.json"].value;

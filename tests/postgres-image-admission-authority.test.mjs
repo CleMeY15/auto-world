@@ -12,11 +12,14 @@ import { evaluateLocalPostgresGosuAudit as realEvaluateAudit,
   validatePostgresGosuReportInventory as realValidateInventory } from "../scripts/postgres-image/audit-policy.mjs";
 import { validatePostgresPackageControls as realValidatePackageControls }
   from "../scripts/postgres-image/candidate-attestation-access.mjs";
+import { validatePostgresRemoteCandidateReceipt as realValidateRemoteReceipt,
+  validatePostgresRemotePolicy as realValidateRemotePolicy } from "../scripts/postgres-image/candidate-remote.mjs";
 
 const SOURCE = path.resolve("scripts/postgres-image/admission-authority.mjs");
 const SELF = fileURLToPath(import.meta.url);
 const POLICY = readFileSync("infra/postgres-image/admission-policy.json");
 const CONTROLS = readFileSync("infra/postgres-image/package-controls.json");
+const REMOTE_POLICY = JSON.parse(readFileSync("infra/postgres-image/candidate-remote.json", "utf8"));
 const TRACKED_INVENTORY = JSON.parse(readFileSync("infra/postgres-image/admission-inventory.json", "utf8"));
 const ROOT = "/opt/auto-world/postgres-admission";
 const HIGH_WATER = `${ROOT}/high-water.json`;
@@ -57,7 +60,8 @@ if (typeof vm.SourceTextModule !== "function") {
         manifestDigest: `sha256:${"1".repeat(64)}`, configDigest: `sha256:${"2".repeat(64)}`,
         diffIdsSha256: sha256(canonical(diffIds)), diffIds },
       build: { recipeRevision: "3".repeat(40), workflowPath: ".github/workflows/postgres-candidate-publish-v4.yml",
-        runId: "1", attempt: "1", publication: filePin("publication", "a"), remotePolicy: filePin("remote", "b"),
+        runId: "1", attempt: "1", publication: filePin("publication", "a"),
+        remotePolicy: { path: "infra/postgres-image/candidate-remote.json", size: 10, sha256: "b".repeat(64) },
         sourceClosure: filePin("closure", "c") },
       evidence: { p1: { policy: { bytes: 731542,
         sha256: "f4857beebba7df2f474e3385c38a69f7cfa0bec330d3d3f65ed7795255de871c" },
@@ -120,6 +124,29 @@ if (typeof vm.SourceTextModule !== "function") {
           properties: [property("Type", "alpine"), property("Class", "os-pkgs")] }],
       dependencies: [{ ref: `pkg:golang/${gosu}`, dependsOn: dependencies.map((entry) => `pkg:golang/${entry}`) }] } };
   }
+  function remoteCandidateReceipt(policy, runId, recipeRevision, archiveSha256, archiveBytes) {
+    const alias = `aw-postgres-gosu:${sha256(Buffer.from(`${runId}:${recipeRevision}`)).slice(0, 24)}`;
+    return { kind: "POSTGRES_REMOTE_CANDIDATE_RECEIPT_V1", state: "VERIFIED", authority: "REMOTE_READ_ONLY",
+      publication: "PUBLISHED_UNADMITTED", registryWrite: "NOT_ATTEMPTED", vulnerabilityAudit: "NOT_ATTEMPTED",
+      imageExecution: "NOT_ATTEMPTED", admission: "NOT_AUTHORIZED", supportStartedAt: null, supportEndsAt: null,
+      archiveUntil: null, runId, recipeRevision, subject: policy.subject, alias,
+      remoteManifest: { digest: policy.manifest.digest, bytes: policy.manifest.bytes, state: "RAW_MANIFEST_VERIFIED",
+        mediaType: policy.manifest.mediaType, config: policy.manifest.config, layers: policy.manifest.layers,
+        baseLayerCount: 10, newLayerCount: 2 },
+      engine: { state: "ENGINE_VERIFIED", docker: "28.0.4|28.0.4", buildx: "buildx 0.37.1",
+        serverVersion: "28.0.4", pullResponse: "SUCCESS", compressedDigestVerification: "MANAGED_MOBY_PULL",
+        compressedSizeVerification: "RECORDED_ONLY" },
+      image: { imageId: policy.candidate.imageId, diffIds: policy.candidate.diffIds, platform: "linux/amd64" },
+      archive: { state: "ARCHIVE_VERIFIED", imageId: policy.candidate.imageId, diffIds: policy.candidate.diffIds,
+        archiveSha256, archiveBytes, saveResponse: "SUCCESS" },
+      publisher: { result: policy.publisher.result, runId: policy.publisher.runId,
+        recipeRevision: policy.publisher.recipeRevision, receiptSha256: policy.publisher.receiptSha256,
+        receiptBytes: policy.publisher.receiptBytes },
+      phases: ["managed_engine", "registry_login", "raw_tag_manifest", "anonymous_digest_denied", "raw_digest_manifest",
+        "local_inventory_before", "local_collision_check", "exact_digest_pull", "simple_local_alias", "private_docker_save",
+        "full_archive_validation", "private_archive_callback", "owned_docker_cleanup", "owned_temporary_cleanup"]
+        .map((name) => ({ name, result: "PASSED", durationMs: 0 })) };
+  }
   function activeFixture({ realReports = false, corruptInventory = false, databaseAfterReport = false,
     now = new Date(), p2RemainingMs = 60 * 60 * 1000, p3SettingsRemainingMs = 24 * 60 * 60 * 1000,
     archiveRemainingMs = 24 * 60 * 60 * 1000, supportNear = false } = {}) {
@@ -134,15 +161,29 @@ if (typeof vm.SourceTextModule !== "function") {
     const manifestBytes = canonical({ schemaVersion: 2, config: { digest: root.image.configDigest }, layers: [] });
     root.image.manifestDigest = `sha256:${sha256(manifestBytes)}`;
     root.image.subject = `ghcr.io/clemey15/auto-world-postgres-gosu@${root.image.manifestDigest}`;
+    const remotePolicy = clone(REMOTE_POLICY);
+    remotePolicy.subject = root.image.subject; remotePolicy.manifest.digest = root.image.manifestDigest;
+    remotePolicy.manifest.config.digest = root.image.configDigest;
+    remotePolicy.candidate = { imageId: root.image.configDigest, diffIds: clone(root.image.diffIds) };
+    root.build.recipeRevision = remotePolicy.publisher.recipeRevision;
+    root.build.workflowPath = remotePolicy.publisher.workflowPath; root.build.runId = remotePolicy.publisher.runId;
+    root.build.attempt = remotePolicy.publisher.runAttempt;
+    root.build.publication = { path: "infra/postgres-image/candidate-publication-receipt.json",
+      size: remotePolicy.publisher.receiptBytes, sha256: remotePolicy.publisher.receiptSha256 };
+    const remotePolicyBytes = canonical(remotePolicy);
+    root.build.remotePolicy = { path: "infra/postgres-image/candidate-remote.json", size: remotePolicyBytes.length,
+      sha256: sha256(remotePolicyBytes) };
     const executionBytes = Buffer.from("authority-source\n"); const maintenanceBytes = Buffer.from("maintenance\n");
-    root.executionFiles = [{ path: "scripts/postgres-image/admission-archive-maintenance.mjs",
+    root.executionFiles = [root.build.remotePolicy, { path: "scripts/postgres-image/admission-archive-maintenance.mjs",
       size: maintenanceBytes.length, sha256: sha256(maintenanceBytes) }, { path: "scripts/postgres-image/admission-authority.mjs",
       size: executionBytes.length, sha256: sha256(executionBytes) }];
     const documents = new Map();
     const add = (role, value) => documents.set(role, canonical(value));
-    const auditSubject = { artifactName: "/candidate/postgres-gosu.tar", imageId: root.image.configDigest,
-      archiveSha256: "2c1b6b002076fa3772aa9fc899befb86fe525aee1ee1c8007d85bba200c73a05",
-      tag: "auto-world/postgres-gosu:run-1", configDigest: root.image.configDigest, diffIds: root.image.diffIds };
+    const auditRunId = "40000000111", auditRecipeRevision = "a".repeat(40);
+    const archiveSha256 = "d".repeat(64), archiveBytes = 305475072;
+    const candidate = remoteCandidateReceipt(remotePolicy, auditRunId, auditRecipeRevision, archiveSha256, archiveBytes);
+    const auditSubject = { artifactName: "/candidate/saved.tar", imageId: root.image.configDigest,
+      archiveSha256, tag: candidate.alias, configDigest: root.image.configDigest, diffIds: root.image.diffIds };
     const reportsFixture = inventoryReports(auditSubject, checkedAt);
     if (corruptInventory) reportsFixture.vulnerabilityReport.Results[0].Packages.push(
       clone(reportsFixture.vulnerabilityReport.Results[0].Packages[0]));
@@ -166,11 +207,12 @@ if (typeof vm.SourceTextModule !== "function") {
     const controlReports = Object.fromEntries(AUDIT_ROLES.filter((role) => role.startsWith("fixture-")
       || role.startsWith("scanner-")).map((role) => [role,
       { sha256: sha256(documents.get(role)), size: documents.get(role).length }]));
-    const subject = { ...auditSubject, archiveBytes: 305474048 };
+    const subject = { ...auditSubject, archiveBytes };
     add("audit-receipt.json", { kind: "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1", state: "COMPLETE",
       authority: "DIAGNOSTIC_ONLY", candidateAuthorization: "NOT_AUTHORIZED", admission: "NOT_AUTHORIZED",
       publication: "NOT_ATTEMPTED", registryWrite: "NOT_ATTEMPTED", imageExecution: "NOT_ATTEMPTED",
-      runId: "1", recipeRevision: "a".repeat(40), phase: "COMPLETE", registrySubject: root.image.subject,
+      runId: auditRunId, recipeRevision: auditRecipeRevision, phase: "COMPLETE", registrySubject: root.image.subject,
+      scannerInput: "LOCAL_DOCKER_SAVE_ARCHIVE", candidate,
       findingCount: 0, blockerCount: 0, blockers: [], supportStartedAt: null, supportEndsAt: null, archiveUntil: null,
       subject, reports, scannerControls: { state: "COMPLETE", reports: controlReports },
       databases: { registry: [{ name: "vulnerability", repository: "ghcr.io/aquasecurity/trivy-db", tag: "2",
@@ -179,8 +221,8 @@ if (typeof vm.SourceTextModule !== "function") {
         digest: `sha256:${"f".repeat(64)}`, size: 10, layerBytes: 9 }] }, inventory: { packageCount: 50 } });
     const files = AUDIT_ROLES.map((role) => ({ role, size: documents.get(role).length, sha256: sha256(documents.get(role)) }));
     const currentEvidence = { audit: { kind: "POSTGRES_ADMISSION_CURRENT_AUDIT_V1", subject: root.image.subject,
-      checkedAt, validUntil, source: { recipeRevision: "a".repeat(40),
-        workflowPath: ".github/workflows/postgres-admission-current-audit.yml", runId: "1", attempt: "1" }, files },
+      checkedAt, validUntil, source: { recipeRevision: auditRecipeRevision,
+        workflowPath: ".github/workflows/postgres-admission-current-audit.yml", runId: auditRunId, attempt: "1" }, files },
     packageControls: { size: controlsBytes.length, sha256: sha256(controlsBytes), observedAt: controls.observedAt } };
     let started = checkedAt.slice(0, 10); let startedDate = new Date(`${started}T00:00:00.000Z`);
     let endDate = new Date(startedDate); endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
@@ -203,7 +245,8 @@ if (typeof vm.SourceTextModule !== "function") {
       archiveLocatorSha256: root.archiveLocator.sha256, executionFilesSha256: "b".repeat(64),
       roots: ["evidence-primary", "evidence-secondary", "control-primary", "control-secondary"].map((role, index) =>
         ({ role, references: 1, objects: 1, bytes: index + 1, membershipSha256: (index + 1).toString().repeat(64) })),
-      imageArchive: { size: 305474048, sha256: subject.archiveSha256 },
+      imageArchive: { size: 305474048,
+        sha256: "2c1b6b002076fa3772aa9fc899befb86fe525aee1ee1c8007d85bba200c73a05" },
       claims: { readOnly: true, objectPayloadParsed: false, runtimeAuthority: "NOT_GRANTED", admission: "NOT_AUTHORIZED" } };
     const envelope = { kind: "POSTGRES_ADMISSION_ARCHIVE_HEALTH_ENVELOPE_V1", state: "VERIFIED", observedAt: checkedAt,
       report: { kind: "POSTGRES_ADMISSION_ARCHIVE_FULL_V1", state: "VERIFIED", scope: "COMPLETE_ARCHIVE_HEALTH",
@@ -213,8 +256,17 @@ if (typeof vm.SourceTextModule !== "function") {
       process: { status: 0, signal: null, closed: true, stdoutEOF: true, stderrEOF: true },
       command: { size: maintenanceBytes.length, sha256: sha256(maintenanceBytes) },
       policy: { size: POLICY.length, sha256: sha256(POLICY) } };
-    return { inventoryValue, controlsBytes, documents, executionBytes, maintenanceBytes, manifestBytes, fast, envelope,
-      validUntil };
+    return { inventoryValue, controlsBytes, documents, executionBytes, maintenanceBytes, remotePolicyBytes,
+      manifestBytes, fast, envelope, validUntil };
+  }
+  function mutateAuditFixture(active, mutate) {
+    const receipt = JSON.parse(active.documents.get("audit-receipt.json")); mutate(receipt);
+    const bytes = canonical(receipt); active.documents.set("audit-receipt.json", bytes);
+    const revisionValue = active.inventoryValue.authorityRevisions.at(-1);
+    const pin = revisionValue.currentEvidence.audit.files.find((item) => item.role === "audit-receipt.json");
+    pin.size = bytes.length; pin.sha256 = sha256(bytes);
+    active.inventoryValue.revisionHashes[1] = sha256(canonical(revisionValue));
+    active.inventoryValue.currentRevisionSha256 = active.inventoryValue.revisionHashes[1]; return active;
   }
   function revokeActive(value) {
     const next = clone(value); const prior = next.authorityRevisions.at(-1);
@@ -345,6 +397,7 @@ if (typeof vm.SourceTextModule !== "function") {
       }
       vfs.putFile(SOURCE, active.executionBytes, 0o644);
       vfs.putFile(path.resolve("scripts/postgres-image/admission-archive-maintenance.mjs"), active.maintenanceBytes, 0o644);
+      vfs.putFile(path.resolve("infra/postgres-image/candidate-remote.json"), active.remotePolicyBytes, 0o644);
       vfs.putFile(`${ROOT}/archive-health/generation-1.json`, canonical(active.envelope), 0o600);
     }
     let branchCalls = 0; let packageValidations = 0; let auditCalls = 0;
@@ -388,6 +441,10 @@ if (typeof vm.SourceTextModule !== "function") {
       if (specifier.endsWith("candidate-attestation-access.mjs")) return synthetic(context, specifier,
         { validatePostgresPackageControls: (value) => { packageValidations += 1;
           return realValidators ? realValidatePackageControls(clone(value)) : Object.freeze(value); } });
+      if (specifier.endsWith("candidate-remote.mjs")) return synthetic(context, specifier, {
+        validatePostgresRemotePolicy: (value) => realValidateRemotePolicy(clone(value)),
+        validatePostgresRemoteCandidateReceipt: (receipt, policy) => realValidateRemoteReceipt(clone(receipt), clone(policy)),
+      });
       if (specifier.endsWith("audit-policy.mjs")) return synthetic(context, specifier, {
         evaluateLocalPostgresGosuAudit: (input) => { auditCalls += 1; if (!active) throw new Error("must not run");
           return realValidators ? realEvaluateAudit({ ...clone(input), now: new Date(input.now) })
@@ -474,6 +531,34 @@ if (typeof vm.SourceTextModule !== "function") {
     const authority = await value.open(); const lease = authority.acquire();
     assert.equal(authority.assertCurrent(lease, "AUTHORITY").authorityRevision, 2);
     assert.equal(value.packageValidations, 2); assert.ok(value.auditCalls >= 3); authority.close();
+  });
+
+  test("ACTIVE accepts a newly materialized docker-save archive distinct from the retained runtime archive", async () => {
+    const active = activeFixture({ realReports: true }); const receipt = JSON.parse(active.documents.get("audit-receipt.json"));
+    assert.notEqual(receipt.subject.archiveSha256, active.envelope.report.imageArchive.sha256);
+    assert.notEqual(receipt.subject.archiveBytes, active.envelope.report.imageArchive.size);
+    const value = await load({ active, inventoryValue: active.inventoryValue, realValidators: true });
+    const authority = await value.open(); authority.close();
+  });
+
+  test("current P2 materialization bindings reject coherent nested transplants and policy substitutions before high-water", async () => {
+    const cases = [
+      () => mutateAuditFixture(activeFixture(), (receipt) => {
+        receipt.candidate.runId = "40000000112"; receipt.candidate.recipeRevision = "b".repeat(40);
+        receipt.candidate.alias = `aw-postgres-gosu:${sha256(Buffer.from(`${receipt.candidate.runId}:${receipt.candidate.recipeRevision}`)).slice(0, 24)}`;
+        receipt.subject.tag = receipt.candidate.alias;
+      }),
+      () => mutateAuditFixture(activeFixture(), (receipt) => { receipt.subject.archiveSha256 = "e".repeat(64); }),
+      () => mutateAuditFixture(activeFixture(), (receipt) => { receipt.subject.archiveBytes += 1024; }),
+      () => mutateAuditFixture(activeFixture(), (receipt) => { receipt.subject.tag = "aw-postgres-gosu:ffffffffffffffffffffffff"; }),
+      () => mutateAuditFixture(activeFixture(), (receipt) => { receipt.registrySubject = `ghcr.io/other/image@sha256:${"f".repeat(64)}`; }),
+      () => { const active = activeFixture(); active.remotePolicyBytes = Buffer.concat([active.remotePolicyBytes, Buffer.from(" ")]); return active; },
+    ];
+    for (const fixture of cases) {
+      const active = fixture(); const value = await load({ active, inventoryValue: active.inventoryValue });
+      await assert.rejects(value.open(), { message: "postgres_admission_authority_denied" });
+      assert.equal(value.vfs.nodes.has(HIGH_WATER), false);
+    }
   });
 
   test("real P2 validators deny coherent but corrupted inventory and report/database ordering", async () => {
