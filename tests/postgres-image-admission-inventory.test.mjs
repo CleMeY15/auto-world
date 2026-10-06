@@ -9,6 +9,21 @@ import acceptance from "../infra/postgres-image/complete-private-copy-acceptance
 
 const canonical = value => Buffer.from(`${JSON.stringify(value)}\n`);
 const sha = value => createHash("sha256").update(value).digest("hex");
+const generationOne = Object.freeze({
+  admissionGeneration: 1,
+  generationRootSha256: "9c2aa7b61440da334c81ca3a6ac8abced389f238136471fcd5da00adfdaf607c",
+  authorityRevision: 1,
+  currentRevisionSha256: "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf",
+  state: "PENDING",
+});
+
+function assertGenerationOneHistory(value) {
+  assert.ok(value.admissionGeneration > generationOne.admissionGeneration);
+  assert.equal(value.previousGenerations.length, 1);
+  assert.equal(new Set(value.previousGenerations.map(item => item.admissionGeneration)).size,
+    value.previousGenerations.length);
+  assert.deepEqual(value.previousGenerations[0], generationOne);
+}
 
 test("the shipped admission inventory authenticates its immutable root and complete contiguous revision preimages", () => {
   const root = inventory.generationRoot, rootHash = sha(canonical(root));
@@ -18,6 +33,8 @@ test("the shipped admission inventory authenticates its immutable root and compl
   assert.equal(root.image.configDigest, remote.candidate.imageId);
   assert.deepEqual(root.image.diffIds, remote.candidate.diffIds);
   assert.equal(root.image.diffIdsSha256, sha(canonical(root.image.diffIds)));
+  assertGenerationOneHistory(inventory);
+  assert.notEqual(rootHash, generationOne.generationRootSha256);
   assert.deepEqual(root.evidence.p5, {
     acceptance: { bytes: 4604, sha256: "9079ccb664f39d54296fcb4a4ae1287c6bfe116db7518d18ee0a4db4cb8e438b" },
     recipeRevision: acceptance.recipeRevision, completePolicy: acceptance.completePolicy, launchPlan: acceptance.launchPlan,
@@ -38,6 +55,12 @@ test("the shipped admission inventory authenticates its immutable root and compl
   assert.equal(inventory.currentRevisionSha256, prior);
   const serialized = JSON.stringify(inventory);
   assert.doesNotMatch(serialized, /(?:\/opt\/|\/home\/|\/mnt\/|[A-Z]:\\|contentBase64|nativeIdentity|mtimeNs|ctimeNs|executionId)/u);
+});
+
+test("the generation-one history summary cannot be rewritten while advancing admission generation", () => {
+  const changed = globalThis.structuredClone(inventory);
+  changed.previousGenerations[0].currentRevisionSha256 = "0".repeat(64);
+  assert.throws(() => assertGenerationOneHistory(changed));
 });
 
 test("frozen execution pins cover the complete supported and offline relative-import closure without mutable evidence or self-reference", () => {
