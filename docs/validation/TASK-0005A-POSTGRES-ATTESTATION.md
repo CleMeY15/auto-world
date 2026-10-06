@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL exact-subject attestation
 
-Status: P4_REAL_BUNDLE_ACCEPTED; ACTUAL_VERIFIER_OUTPUT_CONTROLS_PENDING. The subject remains ATTESTED_UNADMITTED; support and archive dates remain null.
+Status: P4_REAL_BUNDLE_ACCEPTED; ACTUAL_VERIFIER_OUTPUT_CONTROLS_ACCEPTED. The subject remains ATTESTED_UNADMITTED; support and archive dates remain null. PR134 final delivery and P5/P6/P7 remain pending.
 
 
 ## Preserved first execution and focused V2 correction
