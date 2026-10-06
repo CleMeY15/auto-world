@@ -11,14 +11,20 @@ import { loadPostgresCoreEvidenceAcceptance,
   CORE_EVIDENCE } from "../scripts/postgres-image/core-evidence-acceptance.mjs";
 import { validatePostgresRemotePolicy,
   validatePostgresRemotePublicationReceipt } from "../scripts/postgres-image/candidate-remote.mjs";
-import { BOOTSTRAP_DIGEST, MAIN_REF, classifyVerification, negativeProved,
+import { BOOTSTRAP_DIGEST, CUSTOM_TRUSTED_ROOT, MAIN_REF, classifyVerification, negativeProved,
   exerciseCandidateAttestationBundleControls, runCandidateAttestationVerification,
-  validatePreSignReceipt, verificationArgs,
+  RECONSTRUCTED_SUBJECT_ARTIFACT, TEST_ONLY_publicInvocation, validatePreSignReceipt, verificationArgs,
   verifyCandidateAttestationPair } from "../scripts/postgres-image/verify-candidate-attestation.mjs";
 
 const sourceSha = "a".repeat(40);
 const signerSha = "b".repeat(40);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+test("custom public roots preserve the full independently retained SHA256 pin", () => {
+  assert.deepEqual(CUSTOM_TRUSTED_ROOT, { bytes: 34_634,
+    sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c" });
+  assert.match(CUSTOM_TRUSTED_ROOT.sha256, /^[a-f0-9]{64}$/u);
+});
+
 function predicate() {
   const policy = JSON.parse(readFileSync(new URL("../infra/postgres-image/candidate-remote.json", import.meta.url)));
   const runtime = JSON.parse(readFileSync(new URL("../infra/postgres-image/candidate-runtime.json", import.meta.url)));
@@ -113,11 +119,44 @@ test("official calls bind the immutable OCI subject and every GitHub identity di
     assert.equal(args[args.indexOf("--source-digest") + 1], sourceSha);
     assert.equal(args[args.indexOf("--signer-digest") + 1], signerSha);
     assert.equal(args[args.indexOf("--predicate-type") + 1], ATTESTATION.predicateType);
+    assert.equal(args.includes("--custom-trusted-root"), false);
     assert.ok(args.includes("--deny-self-hosted-runners"));
     assert.ok(args.includes(mode === "identity" ? "--cert-identity" : "--signer-workflow"));
   }
   assert.throws(() => verificationArgs({ bundle: "relative", sourceSha, signerSha, mode: "identity" }),
     /verification_invalid/u);
+});
+
+test("local subject and trusted root are an indivisible path-masked additive pair", async (t) => {
+  const item = await fixtures(t);
+  const remote = JSON.parse(readFileSync(new URL("../infra/postgres-image/candidate-remote.json", import.meta.url)));
+  const manifest = Buffer.from(JSON.stringify({ schemaVersion: 2, mediaType: remote.manifest.mediaType,
+    config: { mediaType: remote.manifest.config.mediaType, size: remote.manifest.config.size,
+      digest: remote.manifest.config.digest }, layers: remote.manifest.layers.map(({ mediaType, size, digest }) =>
+      ({ mediaType, size, digest })) }, null, 3));
+  const artifactPath = path.join(item.directory, "subject-manifest.json");
+  const trustedRootPath = path.join(item.directory, "trusted_root.jsonl");
+  await writeFile(artifactPath, manifest);
+  await writeFile(trustedRootPath, "fixture trusted root\n");
+  assert.equal(manifest.length, RECONSTRUCTED_SUBJECT_ARTIFACT.bytes);
+  assert.equal(hash(manifest), RECONSTRUCTED_SUBJECT_ARTIFACT.sha256);
+  const options = { ...item, expectedPredicate: item.value, sourceSha, signerSha,
+    artifactPath, artifactExpected: RECONSTRUCTED_SUBJECT_ARTIFACT,
+    trustedRootPath, trustedRootExpected: CUSTOM_TRUSTED_ROOT };
+  const args = verificationArgs({ ...options, mode: "identity" });
+  assert.equal(args[2], artifactPath);
+  assert.equal(args[args.indexOf("--custom-trusted-root") + 1], trustedRootPath);
+  assert.equal(args.includes(`oci://${ATTESTATION.subjectName}@${ATTESTATION.subjectDigest}`), false);
+  const processResult = success(item.value);
+  const invocation = TEST_ONLY_publicInvocation("identity", args, processResult,
+    classifyVerification(processResult));
+  assert.equal(invocation.args[2], "subject-manifest.json");
+  assert.equal(invocation.args[invocation.args.indexOf("--custom-trusted-root") + 1], "trusted_root.jsonl");
+  assert.equal(JSON.stringify(invocation).includes(item.directory), false);
+  assert.throws(() => verificationArgs({ ...options, mode: "identity", trustedRootPath: undefined,
+    trustedRootExpected: undefined }), /verification_invalid/u);
+  await assert.rejects(verifyCandidateAttestationPair(options, async () => success(item.value)),
+    /input_invalid/u);
 });
 
 test("wrong-subject control uses the authenticated existing PostgreSQL bootstrap manifest", () => {

@@ -13,6 +13,15 @@ export const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 export const BOOTSTRAP_DIGEST = "sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408";
 export const GH_BINARY = Object.freeze({ version: "2.98.0", releasedAt: "2026-08-20",
   bytes: 41_377_954, sha256: "62885b97de6a0cd85e616cdd94bcda908bf5cf1018094385892b05cea3537163" });
+export const RECONSTRUCTED_SUBJECT_ARTIFACT = Object.freeze({
+  origin: "RECONSTRUCTED_FROM_REVIEWED_DESCRIPTORS",
+  bytes: 2_824,
+  sha256: "0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+});
+export const CUSTOM_TRUSTED_ROOT = Object.freeze({
+  bytes: 34_634,
+  sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c",
+});
 
 const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
@@ -54,16 +63,25 @@ function workflowIdentity(workflowPath, ref) {
 
 export function verificationArgs({ bundle, sourceSha, signerSha, mode,
   subjectName = ATTESTATION.subjectName, subjectDigest = ATTESTATION.subjectDigest,
-  workflowPath = ATTESTATION.workflowPath, ref = MAIN_REF }) {
+  workflowPath = ATTESTATION.workflowPath, ref = MAIN_REF, artifactPath, artifactExpected,
+  trustedRootPath, trustedRootExpected }) {
+  const localArtifact = [artifactPath, artifactExpected, trustedRootPath, trustedRootExpected]
+    .some((value) => value !== undefined);
   if (typeof bundle !== "string" || !path.isAbsolute(bundle) || !SHA.test(sourceSha)
     || !SHA.test(signerSha) || !["identity", "workflow"].includes(mode)
     || typeof subjectName !== "string" || subjectName !== ATTESTATION.subjectName
     || !DIGEST.test(subjectDigest) || typeof workflowPath !== "string"
     || !workflowPath.startsWith(".github/workflows/") || !workflowPath.endsWith(".yml")
-    || typeof ref !== "string" || !ref.startsWith("refs/heads/")) fail();
+    || typeof ref !== "string" || !ref.startsWith("refs/heads/")
+    || (localArtifact && (typeof artifactPath !== "string" || !path.isAbsolute(artifactPath)
+      || !isDeepStrictEqual(artifactExpected, RECONSTRUCTED_SUBJECT_ARTIFACT)
+      || typeof trustedRootPath !== "string" || !path.isAbsolute(trustedRootPath)
+      || !isDeepStrictEqual(trustedRootExpected, CUSTOM_TRUSTED_ROOT)))) fail();
   const workflow = `${ATTESTATION.repository}/${workflowPath}`;
-  return ["attestation", "verify", `oci://${subjectName}@${subjectDigest}`,
+  return ["attestation", "verify", localArtifact ? path.resolve(artifactPath)
+    : `oci://${subjectName}@${subjectDigest}`,
     "--repo", ATTESTATION.repository, "--hostname", "github.com",
+    ...(localArtifact ? ["--custom-trusted-root", path.resolve(trustedRootPath)] : []),
     ...(mode === "identity"
       ? ["--cert-identity", workflowIdentity(workflowPath, ref)]
       : ["--signer-workflow", workflow]),
@@ -73,19 +91,30 @@ export function verificationArgs({ bundle, sourceSha, signerSha, mode,
     "--bundle", path.resolve(bundle), "--format", "json"];
 }
 
-export function runGh(args, executable = "gh") {
+export function runGh(args, executable = "gh", isolation) {
+  if (isolation !== undefined && (!exactKeys(isolation, ["home"])
+    || typeof isolation.home !== "string" || !path.isAbsolute(isolation.home))) fail();
   const started = Date.now();
+  const environment = isolation === undefined ? {
+    PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
+    GH_TOKEN: process.env.GH_TOKEN ?? "", DOCKER_CONFIG: process.env.DOCKER_CONFIG ?? "",
+    GH_DEBUG: "", DEBUG: "", GH_PROMPT_DISABLED: "1", NO_COLOR: "1",
+  } : {
+    PATH: path.dirname(executable), HOME: isolation.home, XDG_CONFIG_HOME: isolation.home,
+    XDG_CACHE_HOME: isolation.home, XDG_STATE_HOME: isolation.home, GH_CONFIG_DIR: isolation.home,
+    LANG: "C.UTF-8", LC_ALL: "C.UTF-8", DO_NOT_TRACK: "true",
+    GH_DEBUG: "", DEBUG: "", GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1",
+    GH_TELEMETRY: "false", NO_COLOR: "1",
+  };
   return new Promise((resolve) => {
     execFile(executable, args, {
       encoding: "utf8", timeout: 60_000, maxBuffer: MAX_PROCESS_BYTES, windowsHide: true,
-      env: {
-        PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LANG: "C.UTF-8", LC_ALL: "C.UTF-8",
-        GH_TOKEN: process.env.GH_TOKEN ?? "", DOCKER_CONFIG: process.env.DOCKER_CONFIG ?? "",
-        GH_DEBUG: "", DEBUG: "", GH_PROMPT_DISABLED: "1", NO_COLOR: "1",
-      },
+      env: environment,
     }, (error, stdout, stderr) => resolve({
       code: error ? (Number.isInteger(error.code) ? error.code : null) : 0,
       processError: Boolean(error && (error.killed || error.signal || !Number.isInteger(error.code))),
+      signal: error?.signal ?? null, killed: Boolean(error?.killed),
+      processClosed: true, stdoutClosed: true, stderrClosed: true,
       stdout, stderr, durationMs: Date.now() - started,
     }));
   });
@@ -101,7 +130,8 @@ async function snapshot(file, maximum) {
   let handle;
   try {
     const beforePath = await lstat(file, { bigint: true });
-    handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
+      | (constants.O_NONBLOCK ?? 0));
     const before = await handle.stat({ bigint: true });
     if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n
       || before.size < 2n || before.size > BigInt(maximum) || !sameIdentity(beforePath, before)) {
@@ -228,8 +258,11 @@ function comparableEntry(entry) {
 
 function publicInvocation(mode, args, processResult, classified) {
   const publicArgs = [...args];
+  if (path.isAbsolute(publicArgs[2])) publicArgs[2] = path.basename(publicArgs[2]);
   const bundle = publicArgs.indexOf("--bundle");
   if (bundle >= 0) publicArgs[bundle + 1] = path.basename(publicArgs[bundle + 1]);
+  const trustedRoot = publicArgs.indexOf("--custom-trusted-root");
+  if (trustedRoot >= 0) publicArgs[trustedRoot + 1] = path.basename(publicArgs[trustedRoot + 1]);
   return {
     mode, args: publicArgs, exitCode: processResult.code,
     stdoutBytes: Buffer.byteLength(processResult.stdout ?? ""),
@@ -243,12 +276,28 @@ function publicInvocation(mode, args, processResult, classified) {
   };
 }
 
+export function TEST_ONLY_publicInvocation(mode, args, processResult, classified) {
+  return publicInvocation(mode, args, processResult, classified);
+}
+
 export async function verifyCandidateAttestationPair(options, execute = runGh) {
   if (!options || typeof options !== "object" || typeof execute !== "function"
     || !SHA.test(options.sourceSha) || !SHA.test(options.signerSha)) fail();
   const paths = [[options.bundle, MAX_BUNDLE_BYTES], [options.predicate, MAX_JSON_BYTES],
-    [options.preSignReceipt, MAX_JSON_BYTES]];
+    [options.preSignReceipt, MAX_JSON_BYTES],
+    ...(options.artifactPath === undefined ? [] : [[options.artifactPath, MAX_JSON_BYTES],
+      [options.trustedRootPath, MAX_JSON_BYTES]])];
   const initial = await Promise.all(paths.map(([file, cap]) => snapshot(file, cap)));
+  if (options.artifactPath !== undefined && (!isDeepStrictEqual(options.artifactExpected,
+    RECONSTRUCTED_SUBJECT_ARTIFACT) || initial[3].bytes.length !== RECONSTRUCTED_SUBJECT_ARTIFACT.bytes
+    || initial[3].digest !== RECONSTRUCTED_SUBJECT_ARTIFACT.sha256)) {
+    fail("postgres_candidate_attestation_input_invalid");
+  }
+  if (options.artifactPath !== undefined && (!isDeepStrictEqual(options.trustedRootExpected,
+    CUSTOM_TRUSTED_ROOT) || initial[4].bytes.length !== CUSTOM_TRUSTED_ROOT.bytes
+    || initial[4].digest !== CUSTOM_TRUSTED_ROOT.sha256)) {
+    fail("postgres_candidate_attestation_input_invalid");
+  }
   validateBundle(initial[0].bytes);
   const predicate = json(initial[1].bytes);
   if (!isDeepStrictEqual(predicate, options.expectedPredicate)) fail("postgres_candidate_attestation_predicate_changed");
