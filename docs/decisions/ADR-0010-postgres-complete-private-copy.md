@@ -1,6 +1,6 @@
 # ADR-0010 — Complete PostgreSQL private copy and independent retrieval
 
-Status: ACCEPTED implementation contract from sequential Architect APPROVE and distinct Critic APPROVE/CLEAR on 2026-10-06. Actual supplemental P4 output controls are independently accepted and PR134 is delivered: head cad94f052832e0eb084057a585e045dd4aaa0296/tree e46c5edc2ae9614e1e8c23e4183fd99f180175c4, CI37470662145; identical merge e91d088a22af5ed73991a936079868ba1c2345fa/main CI37471167565. P5 implementation is READY; native complete-copy execution still requires exact code, policy, caller and supervisor review.
+Status: ACCEPTED implementation contract from sequential Architect APPROVE and distinct Critic APPROVE/CLEAR on 2026-10-06. Actual supplemental P4 output controls are independently accepted and PR134 is delivered: head cad94f052832e0eb084057a585e045dd4aaa0296/tree e46c5edc2ae9614e1e8c23e4183fd99f180175c4, CI37470662145; identical merge e91d088a22af5ed73991a936079868ba1c2345fa/main CI37471167565. Actual P5 complete-copy execution and independent full native review are VERIFIED on recipe d60027d8db650f920c967c718882a77704c16bba; [retained proof identities and delivery gates](../validation/TASK-0005A-POSTGRES-COMPLETE-PRIVATE-COPY.md) govern the claim. P6 admission remains a separate subsequent boundary; no support date has started.
 
 ## Problem and scope
 
