@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL supplemental verifier-output controls
 
-Status: IMPLEMENTED_REVIEW_PENDING; ACTUAL_EXECUTION_NOT_ATTEMPTED. This closes only the missing verifier-output requirement of [ADR-0007](../decisions/ADR-0007-private-image-admission.md). It grants no image admission, supported runtime or support dates.
+Status: IMPLEMENTED_REVIEW_PENDING; FIRST_FIXED_INVOCATION_FAILED_PRE_CALLER; ACTUAL_VERIFIER_EXECUTION_NOT_ATTEMPTED. This prepares only the missing verifier-output requirement of [ADR-0007](../decisions/ADR-0007-private-image-admission.md). It grants no image admission, supported runtime or support dates.
 
 ## Accepted input and narrow authority
 
