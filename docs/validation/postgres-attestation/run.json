@@ -1,0 +1,19 @@
+{
+  "id": 36858133579,
+  "workflow_id": 372103738,
+  "run_number": 1,
+  "run_attempt": 1,
+  "event": "workflow_dispatch",
+  "head_branch": "main",
+  "head_sha": "64778982b86faf17cb4ede9fd8027869049f6602",
+  "path": ".github/workflows/postgres-candidate-attest-v2.yml",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-10-01T11:52:46Z",
+  "updated_at": "2026-10-01T11:54:43Z",
+  "html_url": "https://github.com/CleMeY15/auto-world/actions/runs/36858133579",
+  "rawApi": {
+    "bytes": 12149,
+    "sha256": "3f57c285f91b0306bc3f1d9027551c6feb4e0c5d111a40800171280a7f0033de"
+  }
+}

@@ -1,13 +1,33 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { access as fsAccess, readFile } from "node:fs/promises";
 import test from "node:test";
 import { ATTESTATION, SIGNER_JOB_BUDGET_MS } from "../scripts/postgres-image/candidate-attestation.mjs";
 
-const workflow = JSON.parse(readFileSync(new URL("../.github/workflows/postgres-candidate-attest-v2.yml", import.meta.url)));
+const workflow = JSON.parse(readFileSync(new URL("../docs/validation/postgres-attestation/workflow.json", import.meta.url)));
 const { access, signer, verifier } = workflow.jobs;
 const action = (job, name) => job.steps.find(step => step.uses?.startsWith(`actions/${name}@`));
 const named = (job, name) => job.steps.find(step => step.name === name);
 const guard = "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}";
+
+test("successful one-shot producer is retired while its exact recipe and run remain inspectable", async () => {
+  await assert.rejects(fsAccess(new URL("../.github/workflows/postgres-candidate-attest-v2.yml", import.meta.url)),
+    { code: "ENOENT" });
+  const run = JSON.parse(await readFile(new URL("../docs/validation/postgres-attestation/run.json", import.meta.url)));
+  const disabled = JSON.parse(await readFile(
+    new URL("../docs/validation/postgres-attestation/workflow-disabled.json", import.meta.url)));
+  assert.deepEqual({ id: run.id, workflowId: run.workflow_id, number: run.run_number,
+    attempt: run.run_attempt, event: run.event, branch: run.head_branch, revision: run.head_sha,
+    path: run.path, status: run.status, conclusion: run.conclusion }, {
+    id: 36858133579, workflowId: 372103738, number: 1, attempt: 1,
+    event: "workflow_dispatch", branch: "main",
+    revision: "64778982b86faf17cb4ede9fd8027869049f6602",
+    path: ATTESTATION.workflowPath, status: "completed", conclusion: "success",
+  });
+  assert.equal(disabled.id, 372103738);
+  assert.equal(disabled.path, ATTESTATION.workflowPath);
+  assert.equal(disabled.state, "disabled_manually");
+});
 
 test("one input-free main dispatch separates registry access, signer and verifier capabilities", () => {
   assert.deepEqual(workflow.on, { workflow_dispatch: {} });
@@ -90,7 +110,6 @@ test("finite public evidence contains only approved files and preserves private 
 
 test("the complete package-read inventory contains only reviewed manual main jobs", () => {
   const expected = [
-    ["postgres-candidate-attest-v2.yml", "access", 1], ["postgres-candidate-attest-v2.yml", "verifier", 1],
     ["postgres-candidate-remote-audit.yml", "audit", 1], ["postgres-candidate-remote-read-v2.yml", "read", 1],
     ["postgres-candidate-remote-read.yml", "read", 1], ["postgres-candidate-remote-runtime-diagnostic-v2.yml", "runtime", 1],
     ["postgres-package-bootstrap.yml", "verify", 2], ["private-package-proof.yml", "verify", null],
