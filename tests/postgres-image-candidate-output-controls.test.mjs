@@ -35,7 +35,7 @@ test("fixed supplemental authority is closed over the accepted run, five files a
     "7469124f706944133d6a169691dd1c6c3511b12e85878d255e044e2948df4c9b"]);
   assert.equal(FIXED_OUTPUT_CONTROL_CONTEXT.outputDirectory.endsWith("/outputs"), true);
   assert.deepEqual(OUTPUT_CONTROL_POLICY.trustedRoot, { bytes: 34_634,
-    sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9" });
+    sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c" });
 });
 
 test("each captured successful stdout yields missing, structural truncation and malformed errors", () => {

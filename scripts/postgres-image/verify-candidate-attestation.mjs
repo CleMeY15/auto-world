@@ -20,7 +20,7 @@ export const RECONSTRUCTED_SUBJECT_ARTIFACT = Object.freeze({
 });
 export const CUSTOM_TRUSTED_ROOT = Object.freeze({
   bytes: 34_634,
-  sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9",
+  sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c",
 });
 
 const SHA = /^[a-f0-9]{40}$/u;

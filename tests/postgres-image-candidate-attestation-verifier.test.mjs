@@ -19,6 +19,12 @@ import { BOOTSTRAP_DIGEST, CUSTOM_TRUSTED_ROOT, MAIN_REF, classifyVerification, 
 const sourceSha = "a".repeat(40);
 const signerSha = "b".repeat(40);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+test("custom public roots preserve the full independently retained SHA256 pin", () => {
+  assert.deepEqual(CUSTOM_TRUSTED_ROOT, { bytes: 34_634,
+    sha256: "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c" });
+  assert.match(CUSTOM_TRUSTED_ROOT.sha256, /^[a-f0-9]{64}$/u);
+});
+
 function predicate() {
   const policy = JSON.parse(readFileSync(new URL("../infra/postgres-image/candidate-remote.json", import.meta.url)));
   const runtime = JSON.parse(readFileSync(new URL("../infra/postgres-image/candidate-runtime.json", import.meta.url)));
