@@ -42,9 +42,15 @@ const AUDIT_ROLES = ["audit-receipt.json", "candidate-sbom.cdx.json", "candidate
 
 if (typeof vm.SourceTextModule !== "function") {
   test("admission authority VM tests", () => {
+    const childEnv = { ...process.env, AUTO_WORLD_ADMISSION_VM: "1" };
+    delete childEnv.NODE_TEST_CONTEXT;
     const result = spawnSync(process.execPath, ["--experimental-vm-modules", "--test", SELF], {
-      env: { ...process.env, AUTO_WORLD_ADMISSION_VM: "1" }, encoding: "utf8", timeout: 60_000,
+      env: childEnv, encoding: "utf8", timeout: 60_000,
     });
+    const transcript = `${result.stdout}\n${result.stderr}`;
+    const count = /# tests (\d+)/u.exec(result.stdout);
+    assert.doesNotMatch(transcript, /recursively within a test file|skipping running files/u);
+    assert.ok(count && Number(count[1]) > 0, transcript);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   });
 } else {

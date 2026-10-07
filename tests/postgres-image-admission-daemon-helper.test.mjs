@@ -16,9 +16,15 @@ const DOCKERD_SHA = "b8644399e73e2c9b32ea3983daf3a9856a483a79196bea10c01977d2b02
 
 if (typeof vm.SourceTextModule !== "function") {
   test("actual daemon helper cancellation VM tests", () => {
+    const childEnv = { ...process.env, AUTO_WORLD_ADMISSION_VM: "1" };
+    delete childEnv.NODE_TEST_CONTEXT;
     const result = childProcess.spawnSync(process.execPath, ["--experimental-vm-modules", "--test", SELF], {
-      encoding: "utf8", timeout: 60_000,
+      env: childEnv, encoding: "utf8", timeout: 60_000,
     });
+    const transcript = `${result.stdout}\n${result.stderr}`;
+    const count = /# tests (\d+)/u.exec(result.stdout);
+    assert.doesNotMatch(transcript, /recursively within a test file|skipping running files/u);
+    assert.ok(count && Number(count[1]) > 0, transcript);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   });
 } else {
