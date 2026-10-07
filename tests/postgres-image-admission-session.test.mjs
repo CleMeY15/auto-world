@@ -16,9 +16,15 @@ const OBSERVABILITY = new URL("../scripts/postgres-image/admission-observability
 
 if (typeof vm.SourceTextModule !== "function") {
   test("supported admission session VM tests", () => {
+    const childEnv = { ...process.env, AUTO_WORLD_ADMISSION_VM: "1" };
+    delete childEnv.NODE_TEST_CONTEXT;
     const result = spawnSync(process.execPath, ["--experimental-vm-modules", "--test", SELF], {
-      env: { ...process.env, AUTO_WORLD_ADMISSION_VM: "1" }, encoding: "utf8", timeout: 60_000,
+      env: childEnv, encoding: "utf8", timeout: 60_000,
     });
+    const transcript = `${result.stdout}\n${result.stderr}`;
+    const count = /# tests (\d+)/u.exec(result.stdout);
+    assert.doesNotMatch(transcript, /recursively within a test file|skipping running files/u);
+    assert.ok(count && Number(count[1]) > 0, transcript);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   });
 } else {
@@ -34,7 +40,8 @@ if (typeof vm.SourceTextModule !== "function") {
       dev: BigInt(record.dev ?? 1), ino: BigInt(record.ino), uid: BigInt(record.uid ?? 0), gid: BigInt(record.gid ?? 0),
       mode: BigInt(record.mode), nlink: BigInt(record.nlink ?? 1), size: BigInt(record.data?.length ?? 0),
       mtimeNs: BigInt(record.mtimeNs ?? 10), ctimeNs: BigInt(record.ctimeNs ?? 10),
-      isFile: () => record.type === "file", isDirectory: () => record.type === "directory", isSymbolicLink: () => false,
+      isFile: () => record.type === "file", isDirectory: () => record.type === "directory",
+      isSymbolicLink: () => record.symlink === true,
       isSocket: () => record.type === "socket",
     };
   }
@@ -125,7 +132,13 @@ if (typeof vm.SourceTextModule !== "function") {
         return length;
       },
     };
-    return { api, entries, readHandle: (fd) => Buffer.from(handles.get(fd).record.data),
+    return { api, entries,
+      addDirectory: (name, mode = 0o700, uid = 0, gid = 0) => {
+        const record = { type: "directory", mode, uid, gid, ino: inode++ };
+        entries.set(name, record);
+        return record;
+      },
+      readHandle: (fd) => Buffer.from(handles.get(fd).record.data),
       sourceStat: stat(entries.get("/archive/image.tar")), parentStat: stat(entries.get("/archive")) };
   }
 
@@ -144,6 +157,31 @@ if (typeof vm.SourceTextModule !== "function") {
       child.stdout = options.stdio?.[1] === "pipe" || !options.stdio ? new PassThrough() : undefined;
       child.stderr = options.stdio?.[2] === "pipe" || !options.stdio ? new PassThrough() : undefined;
       child.kill = () => {
+        if (observed.imageLoadNoClose && args.includes("image") && args.includes("load")) {
+          observed.imageLoadKilled = true;
+          if (observed.imageLoadKillEmitsError) child.emit("error", new Error("fixture image-load kill error"));
+          if (observed.imageLoadLateCloseAfterGrace) globalThis.setTimeout(() => {
+            observed.imageLoadLateCloseEmitted = true;
+            child.emit("close", null, "SIGKILL");
+          }, 15);
+          return observed.imageLoadKillReturns;
+        }
+        if (observed.cleanupListNoClose && args.includes("container") && args.includes("ls")
+          && args.some((value) => value.includes("-service"))) {
+          observed.cleanupHangKilled = true;
+          if (observed.cleanupKillEmitsError) child.emit("error", new Error("fixture kill error"));
+          if (observed.cleanupLateCloseAfterGrace) globalThis.setTimeout(() => {
+            observed.cleanupLateCloseEmitted = true;
+            child.emit("close", null, "SIGKILL");
+          }, 15);
+          return observed.cleanupKillReturns;
+        }
+        if (observed.cleanupListHangs && args.includes("container") && args.includes("ls")
+          && args.some((value) => value.includes("-service"))) {
+          observed.cleanupHangKilled = true;
+          globalThis.setImmediate(() => child.emit("close", null, "SIGKILL"));
+          return true;
+        }
         if (args.includes("psql") && (observed.forceChildTimeout || observed.childOverflowOnPsql)) {
           globalThis.setImmediate(() => child.emit("close", 0, null));
           return false;
@@ -151,6 +189,18 @@ if (typeof vm.SourceTextModule !== "function") {
         return true;
       };
       const complete = () => {
+        const unmountVolume = () => {
+          if (observed.volumeSpec && observed.volumePlaceholder) {
+            fakeFs.entries.set(observed.volumeSpec.Mountpoint, observed.volumePlaceholder);
+          }
+        };
+        const mountVolume = () => {
+          if (observed.volumeSpec) {
+            if (observed.wrongMountedIdentity) fakeFs.addDirectory(observed.volumeSpec.Mountpoint, 0o700, 70, 70);
+            else fakeFs.entries.set(observed.volumeSpec.Mountpoint,
+              fakeFs.entries.get(observed.volumeSpec.Options.device));
+          }
+        };
         let output = Buffer.alloc(0);
         let errorOutput = Buffer.alloc(0);
         let exitCode = 0;
@@ -159,9 +209,85 @@ if (typeof vm.SourceTextModule !== "function") {
           Driver: "overlay2", OSType: "linux", Architecture: "x86_64",
           Containerd: { Address: "/run/containerd/containerd.sock", Namespaces: { Containers: args.__containers, Plugins: args.__plugins } },
         })}\n`);
+        else if (args.includes("container") && args.includes("run")) {
+          const labels = {};
+          for (let index = 0; index < args.length; index += 1) if (args[index] === "--label") {
+            const [key, value] = args[index + 1].split("="); labels[key] = value;
+          }
+          const name = args[args.indexOf("--name") + 1];
+          const option = args.at(-2);
+          const identity = (++observed.probeSequence).toString(16).padStart(64, "e");
+          const tmpfs = args[args.indexOf("--tmpfs") + 1];
+          const [tmpfsPath, ...tmpfsOptions] = tmpfs.split(":");
+          const spec = { Id: identity, Name: `/${name}`, Image: args.at(-3),
+            Config: { Image: args.at(-3), Labels: { "org.opencontainers.image.title": "postgres", ...labels },
+              Entrypoint: ["/usr/bin/id"], Cmd: [option, "postgres"], Volumes: { "/var/lib/postgresql/data": {} } },
+            HostConfig: { NetworkMode: "none", ReadonlyRootfs: true,
+              AutoRemove: true, SecurityOpt: ["no-new-privileges:true"], CapDrop: ["ALL"],
+              Tmpfs: { [tmpfsPath]: tmpfsOptions.join(":") }, Binds: null, VolumesFrom: null },
+            State: { Running: false, Dead: false }, Mounts: [] };
+          if (observed.probeProfileMutation === "labels") spec.Config.Labels["com.auto-world.postgres-admission-role"] = "foreign";
+          if (observed.probeProfileMutation === "network") spec.HostConfig.NetworkMode = "default";
+          if (observed.probeProfileMutation === "readonly") spec.HostConfig.ReadonlyRootfs = false;
+          if (observed.probeProfileMutation === "security") spec.HostConfig.SecurityOpt = [];
+          if (observed.probeProfileMutation === "caps") spec.HostConfig.CapDrop = [];
+          if (observed.probeProfileMutation === "entrypoint") spec.Config.Entrypoint = ["/bin/false"];
+          if (observed.probeProfileMutation === "mount") spec.Mounts.push({ Type: "bind", Source: "/foreign" });
+          if (observed.probeProfileMutation === "hostMountsNull") spec.HostConfig.Mounts = null;
+          if (observed.probeProfileMutation === "binds") spec.HostConfig.Binds = ["/foreign:/foreign:ro"];
+          if (observed.probeProfileMutation === "volumesFrom") spec.HostConfig.VolumesFrom = ["foreign:ro"];
+          if (observed.probeProfileMutation === "tmpfs") spec.HostConfig.Tmpfs[tmpfsPath] = "mode=0700,size=4096,nodev,nosuid,noexec,ro";
+          if (observed.probeProfileMutation === "tmpfsExtra") spec.HostConfig.Tmpfs["/foreign"] = "ro";
+          if (observed.probeProfileMutation === "tmpfsNull") spec.HostConfig.Tmpfs = null;
+          if (observed.probeProfileMutation === "volumeDriver") spec.HostConfig.VolumeDriver = "foreign";
+          if (observed.probeProfileMutation === "volumeDriverNull") spec.HostConfig.VolumeDriver = null;
+          if (observed.probeProfileMutation === "declaredVolumeValue") {
+            spec.Config.Volumes["/var/lib/postgresql/data"] = { foreign: true };
+          }
+          if (observed.probeExplicitHostMounts) {
+            spec.HostConfig.Mounts = []; spec.HostConfig.Binds = []; spec.HostConfig.VolumesFrom = [];
+            spec.HostConfig.VolumeDriver = "";
+          }
+          if (observed.probeRemainder) {
+            observed.probeSpecs.set(identity, spec);
+            if (observed.probeAmbiguous) {
+              const second = "f".repeat(64);
+              observed.probeSpecs.set(second, { ...spec, Id: second });
+            }
+            exitCode = 1;
+          } else output = Buffer.from("70\n");
+        }
         else if (args.includes("container") && args.includes("rm")) {
           if (observed.cleanupRmFailure) exitCode = 1;
-          else (observed.removedContainers ??= new Set()).add(args.at(-1));
+          else if (observed.probeSpecs.has(args.at(-1))) {
+            observed.probeSpecs.delete(args.at(-1));
+            (observed.removedContainers ??= new Set()).add(args.at(-1));
+          }
+          else {
+            (observed.removedContainers ??= new Set()).add(args.at(-1));
+            observed.containerSpec.State.Running = false;
+            unmountVolume();
+          }
+        }
+        else if (args.includes("container") && args.includes("stop")) {
+          observed.containerSpec.State.Running = false;
+          observed.containerStopped = true;
+          if (observed.replaceVolumeAncestorAfterStop) fakeFs.entries.get(observed.volumeDirectory).ino += 1;
+          if (observed.unmountOnStop !== false) unmountVolume();
+        }
+        else if (args.includes("container") && args.includes("start")) {
+          observed.containerSpec.State.Running = true;
+          if (!observed.placeholderWhileRunning) mountVolume();
+          output = Buffer.from(`${observed.containerSpec.Id}\n`);
+        }
+        else if (args.includes("container") && args.includes("ls")) {
+          const filter = args[args.indexOf("--filter") + 1];
+          const probeMatches = [...observed.probeSpecs.values()].filter((spec) =>
+            filter?.startsWith("name=") ? filter === `name=^${spec.Name}$` : filter === `id=${spec.Id}`);
+          const mainPresent = observed.containerSpec && !observed.removedContainers?.has(observed.containerSpec.Id)
+            && (filter?.startsWith("name=") ? filter === `name=^${observed.containerSpec.Name}$`
+              : filter === `id=${observed.containerSpec.Id}`);
+          output = Buffer.from(`${[...probeMatches.map(({ Id }) => Id), ...(mainPresent ? [observed.containerSpec.Id] : [])].join("\n")}${probeMatches.length || mainPresent ? "\n" : ""}`);
         }
         else if (args.includes("image") && args.includes("rm")) observed.imageRemoved = true;
         else if (args.includes("load")) { observed.imageRemoved = false; output = Buffer.from("Loaded image\n"); }
@@ -169,7 +295,7 @@ if (typeof vm.SourceTextModule !== "function") {
           Id: "sha256:" + "c".repeat(64), RootFS: { Layers: ["sha256:" + "d".repeat(64)] },
         })}\n`);
         else if (args.includes("inspect") && args.includes("container") && args.includes("{{json .State}}")) {
-          output = Buffer.from(`${JSON.stringify({ Running: true, Dead: false })}\n`);
+          output = Buffer.from(`${JSON.stringify(observed.containerSpec.State)}\n`);
         }
         else if (args.includes("volume") && args.includes("create")) {
           const labels = {};
@@ -177,13 +303,31 @@ if (typeof vm.SourceTextModule !== "function") {
             const [key, value] = args[index + 1].split("="); labels[key] = value;
           }
           const option = (name) => args.find((item) => item.startsWith(`${name}=`)).slice(name.length + 1);
-          observed.volumeSpec = { Name: args.at(-1), Driver: "local", Scope: "local", Labels: labels,
+          const name = args.at(-1);
+          const volumeRoot = path.join(args.__dataRoot, "volumes");
+          const volumeDirectory = path.join(volumeRoot, name);
+          const mountpoint = path.join(volumeDirectory, "_data");
+          if (!fakeFs.entries.has(volumeRoot)) fakeFs.addDirectory(volumeRoot, 0o700);
+          if (!fakeFs.entries.has(volumeDirectory)) fakeFs.addDirectory(volumeDirectory, 0o700);
+          observed.volumePlaceholder = fakeFs.addDirectory(mountpoint, 0o755);
+          observed.volumeDirectory = volumeDirectory;
+          if (observed.wrongPlaceholderMode) observed.volumePlaceholder.mode = 0o777;
+          if (observed.wrongPlaceholderOwner) observed.volumePlaceholder.uid = 1000;
+          if (observed.symlinkVolumeAncestor) fakeFs.entries.get(volumeDirectory).symlink = true;
+          observed.volumeSpec = { Name: name, Driver: "local", Scope: "local", Labels: labels,
+            Mountpoint: mountpoint,
             Options: { device: option("device"), o: option("o"), type: option("type") } };
           output = Buffer.from(`${args.at(-1)}\n`);
         }
         else if (args.includes("volume") && args.includes("inspect")) {
           const value = JSON.parse(JSON.stringify(observed.volumeSpec));
           if (observed.wrongVolumeLabels) value.Labels["com.auto-world.postgres-admission-generation"] = "999";
+          if (observed.wrongVolumeMountpoint) value.Mountpoint += "-foreign";
+          if (observed.containerStopped && observed.cleanupVolumeLabels) {
+            value.Labels["com.auto-world.postgres-admission-nonce"] = "foreign";
+          }
+          if (observed.containerStopped && observed.cleanupVolumeMountpoint) value.Mountpoint += "-foreign";
+          if (observed.containerStopped && observed.cleanupVolumeOptions) value.Options.device += "-foreign";
           output = Buffer.from(`${JSON.stringify(value)}\n`);
         }
         else if (args.includes("container") && args.includes("create")) {
@@ -196,24 +340,82 @@ if (typeof vm.SourceTextModule !== "function") {
           const data = Object.fromEntries(mounts[1].split(",").map((item) => item.includes("=") ? item.split("=") : [item, true]));
           const containerId = (++observed.containerSequence).toString(16).padStart(64, "a");
           observed.removedContainers?.delete(containerId);
-          observed.containerSpec = { Id: containerId, Image: args.at(-1), Labels: labels, Mounts: [
-            { Type: "bind", Source: secret.src, Destination: secret.dst, RW: false },
-            { Type: "volume", Name: data.src, Destination: data.dst, RW: true },
-          ] };
-          output = Buffer.from(`${containerId}\n`);
+          const name = args[args.indexOf("--name") + 1];
+          observed.containerSpec = { Id: containerId, Name: `/${name}`, Image: args.at(-1),
+            Config: { Image: args.at(-1), Labels: { "org.opencontainers.image.title": "postgres", ...labels } },
+            HostConfig: { NetworkMode: "none", Mounts: [
+              { Type: "bind", Source: secret.src, Target: secret.dst, ReadOnly: true },
+              { Type: "volume", Source: data.src, Target: data.dst, VolumeOptions: { NoCopy: true } },
+            ] },
+            State: { Running: false, Dead: false },
+            Mounts: [
+              { Type: "bind", Source: secret.src, Destination: secret.dst,
+                Mode: "", RW: false, Propagation: "rprivate" },
+              { Type: "volume", Name: data.src,
+                Source: path.join(args.__dataRoot, "volumes", data.src, "_data"), Destination: data.dst,
+                Driver: "local", Mode: "", RW: true, Propagation: "" },
+            ] };
+          output = Buffer.from(observed.malformedCreateOutput ? "not-a-container-id\n" : `${containerId}\n`);
+          if (observed.failCreateAfterCreation) exitCode = 1;
+          if (observed.failCreateBeforeCreation) {
+            observed.containerSpec = undefined;
+            output = Buffer.alloc(0);
+            exitCode = 1;
+          }
         }
         else if (args.includes("container") && args.includes("inspect")) {
-          if (observed.removedContainers?.has(args.at(-1))) exitCode = 1;
+          const identity = args.at(-1);
+          const probeSpec = observed.probeSpecs.get(identity);
+          if (probeSpec) output = Buffer.from(`${JSON.stringify(probeSpec)}\n`);
+          else if (observed.removedContainers?.has(identity) || !observed.containerSpec
+            || identity !== observed.containerSpec.Id && identity !== observed.containerSpec.Name.slice(1)) exitCode = 1;
           else {
             const value = JSON.parse(JSON.stringify(observed.containerSpec));
             if (observed.wrongContainerId) value.Id = "9".repeat(64);
             observed.containerInspects = (observed.containerInspects ?? 0) + 1;
             if (observed.mutateContainerInspectAfter !== undefined
               && observed.containerInspects >= observed.mutateContainerInspectAfter) value.Id = "8".repeat(64);
+            if (observed.wrongContainerLabels) value.Config.Labels["com.auto-world.postgres-admission-nonce"] = "foreign";
+            if (observed.extraReservedLabel) value.Config.Labels["com.auto-world.postgres-admission-extra"] = "foreign";
+            if (observed.reverseMounts) { value.Mounts.reverse(); value.HostConfig.Mounts.reverse(); }
+            if (observed.extraMount) value.Mounts.push({ Type: "bind", Name: "", Source: "/foreign",
+              Destination: "/foreign", Driver: "", Mode: "", RW: false, Propagation: "rprivate" });
+            if (observed.duplicateMount) value.Mounts[1].Destination = value.Mounts[0].Destination;
+            if (observed.missingMount) value.Mounts.pop();
+            if (observed.wrongVolumeSource) value.Mounts.find((mount) => mount.Type === "volume").Source += "-foreign";
+            if (observed.wrongVolumeDriver) value.Mounts.find((mount) => mount.Type === "volume").Driver = "foreign";
+            if (observed.wrongBindMode) value.Mounts.find((mount) => mount.Type === "bind").Mode = "ro";
+            if (observed.wrongBindPropagation) value.Mounts.find((mount) => mount.Type === "bind").Propagation = "shared";
+            if (observed.wrongNetwork) value.HostConfig.NetworkMode = "default";
+            if (observed.noCopyFalse) value.HostConfig.Mounts.find((mount) => mount.Type === "volume").VolumeOptions.NoCopy = false;
+            if (observed.explicitZeroFields) {
+              const bind = value.Mounts.find((mount) => mount.Type === "bind");
+              bind.Name = ""; bind.Driver = "";
+              value.HostConfig.Mounts.find((mount) => mount.Type === "volume").ReadOnly = false;
+            }
+            if (observed.volumeSubpath) {
+              value.HostConfig.Mounts.find((mount) => mount.Type === "volume").VolumeOptions.Subpath = "foreign";
+            }
+            if (observed.volumeDriverConfig) {
+              value.HostConfig.Mounts.find((mount) => mount.Type === "volume").VolumeOptions.DriverConfig = {};
+            }
+            if (observed.bindOptions) value.HostConfig.Mounts.find((mount) => mount.Type === "bind").BindOptions = {};
+            if (observed.volumeReadOnlyNull) value.HostConfig.Mounts.find((mount) => mount.Type === "volume").ReadOnly = null;
+            if (observed.bindZeroNull) {
+              const bind = value.Mounts.find((mount) => mount.Type === "bind");
+              bind.Name = null; bind.Driver = null;
+            }
+            if (observed.missingVolumeOptions) {
+              delete value.HostConfig.Mounts.find((mount) => mount.Type === "volume").VolumeOptions;
+            }
+            if (observed.benignProperties) {
+              value.NewDockerField = { ignored: true };
+              value.Mounts[0].NewDockerField = "ignored";
+              value.HostConfig.Mounts[1].NewDockerField = "ignored";
+            }
             output = Buffer.from(`${JSON.stringify(value)}\n`);
           }
         }
-        else if (args.includes("/usr/bin/id")) output = Buffer.from("70\n");
         else if (args.includes("pg_isready") && observed.readinessFailures > 0) {
           observed.readinessFailures -= 1;
           exitCode = 1;
@@ -245,7 +447,10 @@ if (typeof vm.SourceTextModule !== "function") {
         child.stderr?.end(errorOutput);
         child.emit("close", exitCode, null);
       };
-      if (args.includes("psql") && observed.forceChildTimeout) { /* Timeout path owns completion. */ }
+      if (observed.imageLoadNoClose && args.includes("image") && args.includes("load")) { /* Kill grace owns completion. */ }
+      else if ((observed.cleanupListHangs || observed.cleanupListNoClose) && args.includes("container") && args.includes("ls")
+        && args.some((value) => value.includes("-service"))) { /* Abort owns completion. */ }
+      else if (args.includes("psql") && observed.forceChildTimeout) { /* Timeout path owns completion. */ }
       else if (args.includes("psql")) globalThis.setTimeout(complete, 5);
       else globalThis.setImmediate(complete);
       return child;
@@ -257,14 +462,46 @@ if (typeof vm.SourceTextModule !== "function") {
     renewalRevisionChange = false, observabilitySinkFailure = undefined,
     delayedHelperStart = false, readinessFailures = 0, largeArchive = false, largeDump = false,
     substituteSocketOnDrain = false, helperStopFailure = false, wrongVolumeLabels = false,
-    wrongContainerId = false, mutateContainerInspectAfter = undefined, cleanupRmFailure = false,
+    wrongContainerId = false, wrongContainerLabels = false, extraReservedLabel = false,
+    reverseMounts = false, extraMount = false, duplicateMount = false, missingMount = false,
+    wrongVolumeSource = false, wrongVolumeDriver = false, wrongBindMode = false,
+    wrongBindPropagation = false, wrongNetwork = false,
+    noCopyFalse = false, explicitZeroFields = false, volumeSubpath = false, volumeDriverConfig = false,
+    bindOptions = false, volumeReadOnlyNull = false, bindZeroNull = false, missingVolumeOptions = false,
+    benignProperties = false, malformedCreateOutput = false,
+    failCreateAfterCreation = false, failCreateBeforeCreation = false,
+    wrongVolumeMountpoint = false, wrongPlaceholderMode = false, wrongPlaceholderOwner = false,
+    symlinkVolumeAncestor = false, wrongMountedIdentity = false,
+    placeholderWhileRunning = false, unmountOnStop = true,
+    cleanupVolumeLabels = false, cleanupVolumeMountpoint = false, cleanupVolumeOptions = false,
+    replaceVolumeAncestorAfterStop = false,
+    mutateContainerInspectAfter = undefined, cleanupRmFailure = false,
     forceChildTimeout = false, childOverflowOnPsql = false, swapRestoreAlias = false,
-    verifyRejectsAbortedSignal = false, cleanupListTransportFailure = false, sinkBackpressure = false,
+    probeRemainder = false, probeAmbiguous = false, probeProfileMutation = undefined,
+    probeExplicitHostMounts = false,
+    verifyRejectsAbortedSignal = false, cleanupListTransportFailure = false, cleanupListHangs = false,
+    cleanupListNoClose = false, cleanupKillReturns = true, cleanupKillEmitsError = false,
+    cleanupLateCloseAfterGrace = false,
+    imageLoadNoClose = false, imageLoadKillReturns = true, imageLoadKillEmitsError = false,
+    imageLoadLateCloseAfterGrace = false,
+    sinkBackpressure = false,
     sinkAsyncErrorType = undefined, leaseDuration = 60_000, currentnessSeconds = undefined } = {}) {
     const archiveRaw = largeArchive ? Buffer.alloc(2 * 1024 * 1024 + 17, 0x61) : Buffer.from("fixed admitted archive bytes");
     const observed = { acquire: 0, renew: 0, close: 0, archiveFast: 0, children: [], events: [], helperStarts: 0,
-      helperStops: 0, containerSequence: 0, readinessFailures, largeDump, wrongVolumeLabels, wrongContainerId, mutateContainerInspectAfter,
-      cleanupRmFailure, forceChildTimeout, childOverflowOnPsql, swapRestoreAlias, cleanupListTransportFailure };
+      helperStops: 0, containerSequence: 0, readinessFailures, largeDump, wrongVolumeLabels, wrongContainerId,
+      wrongContainerLabels, extraReservedLabel, reverseMounts, extraMount, duplicateMount, missingMount,
+      wrongVolumeSource, wrongVolumeDriver, wrongBindMode, wrongBindPropagation, wrongNetwork,
+      noCopyFalse, explicitZeroFields, volumeSubpath, volumeDriverConfig, bindOptions, volumeReadOnlyNull,
+      bindZeroNull, missingVolumeOptions,
+      benignProperties, malformedCreateOutput, failCreateAfterCreation, failCreateBeforeCreation,
+      wrongVolumeMountpoint, wrongPlaceholderMode, wrongPlaceholderOwner, symlinkVolumeAncestor, wrongMountedIdentity,
+      placeholderWhileRunning, unmountOnStop, cleanupVolumeLabels, cleanupVolumeMountpoint,
+      cleanupVolumeOptions, replaceVolumeAncestorAfterStop, mutateContainerInspectAfter, cleanupRmFailure,
+      forceChildTimeout, childOverflowOnPsql, swapRestoreAlias, cleanupListTransportFailure, cleanupListHangs,
+      cleanupListNoClose, cleanupKillReturns, cleanupKillEmitsError, cleanupLateCloseAfterGrace,
+      imageLoadNoClose, imageLoadKillReturns, imageLoadKillEmitsError, imageLoadLateCloseAfterGrace,
+      probeRemainder, probeAmbiguous, probeProfileMutation, probeExplicitHostMounts,
+      probeSequence: 0, probeSpecs: new Map() };
     const clock = { value: 0 };
     const signals = new EventEmitter();
     const sink = new EventEmitter();
@@ -287,8 +524,12 @@ if (typeof vm.SourceTextModule !== "function") {
     const context = vm.createContext({
       AbortController: globalThis.AbortController, Buffer, clearTimeout: globalThis.clearTimeout, console, process: processFacade,
       setImmediate: globalThis.setImmediate,
-      setTimeout: (callback, milliseconds, ...args) => forceChildTimeout && milliseconds >= 10_000
-        ? globalThis.setImmediate(callback, ...args) : globalThis.setTimeout(callback, milliseconds, ...args),
+      setTimeout: (callback, milliseconds, ...args) => forceChildTimeout && milliseconds >= 10_000 && milliseconds < 30_000
+        ? globalThis.setImmediate(callback, ...args)
+        : ((cleanupListHangs && milliseconds >= 30_000
+          || cleanupListNoClose && (milliseconds >= 30_000 || milliseconds === 1_000))
+          || imageLoadNoClose && (milliseconds === 20_000 || milliseconds === 1_000))
+          ? globalThis.setTimeout(callback, 5, ...args) : globalThis.setTimeout(callback, milliseconds, ...args),
       TextDecoder: globalThis.TextDecoder, TextEncoder: globalThis.TextEncoder, URL,
       performance: Object.freeze({ now: () => clock.value }),
     });
@@ -378,6 +619,7 @@ if (typeof vm.SourceTextModule !== "function") {
         start: async (spec, signal) => {
           observed.helperStarts += 1;
           (observed.daemonRoots ??= []).push(spec.root);
+          fakeFs.entries.get(spec.dataRoot).mode = 0o710;
           fakeFs.entries.set(spec.socket, { type: "socket", mode: 0o660, uid: 0, gid: 1000, nlink: 1, ino: 999 });
           if (delayedHelperStart) {
             for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -700,6 +942,76 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.equal(failed.observed.close, 1);
   });
 
+  test("cleanup abort kills a hanging owned Docker child within the single drain deadline", async () => {
+    const { context, observed } = await loadSession({ failCreateBeforeCreation: true, cleanupListHangs: true });
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context), /postgres_admission_cleanup_uncertain/u);
+    assert.equal(observed.cleanupHangKilled, true);
+    assert.equal(observed.helperStops, 1);
+    assert.equal(observed.close, 1);
+  });
+
+  test("cleanup kill without close stays uncertain, blocks later Docker children, and preserves temporary files", async () => {
+    for (const fixture of [
+      { cleanupKillReturns: true, cleanupKillEmitsError: false },
+      { cleanupKillReturns: true, cleanupKillEmitsError: true, cleanupLateCloseAfterGrace: true },
+      { cleanupKillReturns: false, cleanupKillEmitsError: true },
+    ]) {
+      const { context, observed, fakeFs } = await loadSession({
+        failCreateBeforeCreation: true, cleanupListNoClose: true, ...fixture,
+      });
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, context), /postgres_admission_cleanup_uncertain/u);
+      const hanging = observed.children.findIndex(({ args }) => args.includes("container")
+        && args.includes("ls") && args.some((value) => value.includes("-service")));
+      assert.notEqual(hanging, -1);
+      assert.equal(observed.cleanupHangKilled, true);
+      assert.equal(observed.children.length, hanging + 1);
+      assert.equal([...fakeFs.entries.keys()].some((name) => name.endsWith("postgres-password")), true);
+      assert.equal(observed.helperStops, 1);
+      assert.equal(observed.close, 1);
+      if (fixture.cleanupLateCloseAfterGrace) {
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 25));
+        assert.equal(observed.cleanupLateCloseEmitted, true);
+        assert.equal(observed.children.length, hanging + 1);
+      }
+    }
+  });
+
+  test("an IMAGE_LOAD child without close makes cleanup uncertain before any Docker resource is recorded", async () => {
+    const { context, observed, fakeFs } = await loadSession({
+      imageLoadNoClose: true, imageLoadKillReturns: true,
+      imageLoadKillEmitsError: true, imageLoadLateCloseAfterGrace: true,
+    });
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context), /postgres_admission_cleanup_uncertain/u);
+    const hanging = observed.children.findIndex(({ args }) => args.includes("image") && args.includes("load"));
+    assert.notEqual(hanging, -1);
+    assert.equal(observed.imageLoadKilled, true);
+    assert.equal(observed.children.length, hanging + 1);
+    assert.equal([...fakeFs.entries.keys()].some((name) => name.endsWith("admitted-image.tar")), true);
+    assert.ok(observed.events.some((event) => event.type === "PHASE" && event.phase === "CLEANUP"
+      && event.result === "FAILED" && event.reason === "CLEANUP_UNCERTAIN"));
+    assert.equal(observed.helperStops, 1);
+    assert.equal(observed.close, 1);
+    const authorityCalls = observed.acquire;
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context), /postgres_admission_operation_cancelled/u);
+    assert.equal(observed.acquire, authorityCalls);
+    assert.equal(observed.children.length, hanging + 1);
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 25));
+    assert.equal(observed.imageLoadLateCloseEmitted, true);
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context), /postgres_admission_operation_cancelled/u);
+    assert.equal(observed.acquire, authorityCalls);
+    assert.equal(observed.children.length, hanging + 1);
+  });
+
   test("timeout and output overflow stay failed when kill returns false and close reports zero", async () => {
     for (const fixture of [{ forceChildTimeout: true }, { childOverflowOnPsql: true }]) {
       const { context, observed } = await loadSession(fixture);
@@ -712,28 +1024,157 @@ if (typeof vm.SourceTextModule !== "function") {
   });
 
   test("wrong volume labels and a substituted container ID deny before start", async () => {
-    for (const fixture of [{ wrongVolumeLabels: true }, { wrongContainerId: true }]) {
+    for (const [fixture, expected] of [[{ wrongVolumeLabels: true }, /postgres_admission_cleanup_uncertain/u],
+      [{ wrongContainerId: true }, /postgres_admission_cleanup_uncertain/u]]) {
       const { context, observed } = await loadSession(fixture);
       await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
         kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
-      })`, context), /postgres_admission_(?:volume|container)_invalid/u);
+      })`, context), expected);
       assert.equal(observed.children.some(({ args }) => args.includes("container") && args.includes("start")), false);
       assert.equal(observed.helperStops, 1);
     }
   });
 
+  test("Docker 28 inspection accepts inherited labels, benign fields, mount reordering, and fixed network none", async () => {
+    const { context, observed } = await loadSession({ reverseMounts: true, benignProperties: true, unmountOnStop: false });
+    const result = await vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context);
+    assert.equal(result.state, "COMPLETED");
+    const create = observed.children.find(({ args }) => args.includes("container") && args.includes("create"));
+    assert.ok(create);
+    assert.deepEqual(create.args.slice(create.args.indexOf("--network"), create.args.indexOf("--network") + 2),
+      ["--network", "none"]);
+    assert.equal(observed.containerSpec.Config.Labels["org.opencontainers.image.title"], "postgres");
+    const probe = observed.children.find(({ args }) => args.includes("container") && args.includes("run"));
+    assert.deepEqual(probe.args.slice(probe.args.indexOf("--tmpfs"), probe.args.indexOf("--tmpfs") + 2),
+      ["--tmpfs", "/var/lib/postgresql/data:ro,noexec,nosuid,nodev,size=4096,mode=0700"]);
+    const explicit = await loadSession({ explicitZeroFields: true });
+    assert.equal((await vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, explicit.context)).state, "COMPLETED");
+  });
+
+  test("Docker 28 container profile mutations remain foreign and are never force-deleted", async () => {
+    for (const fixture of [
+      { wrongContainerLabels: true }, { extraReservedLabel: true }, { extraMount: true },
+      { duplicateMount: true }, { missingMount: true }, { wrongVolumeSource: true },
+      { wrongVolumeDriver: true }, { wrongBindMode: true }, { wrongBindPropagation: true },
+      { wrongNetwork: true }, { noCopyFalse: true }, { volumeSubpath: true },
+      { volumeDriverConfig: true }, { bindOptions: true }, { volumeReadOnlyNull: true },
+      { bindZeroNull: true }, { missingVolumeOptions: true },
+    ]) {
+      const { context, observed } = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, context), /postgres_admission_cleanup_uncertain/u);
+      assert.equal(observed.children.some(({ args }) => args.includes("container") && args.includes("rm")), false);
+      assert.equal(observed.helperStops, 1);
+    }
+  });
+
+  test("failed create and malformed create ID discover, authenticate, remove, and prove exact absence", async () => {
+    for (const fixture of [{ failCreateAfterCreation: true }, { malformedCreateOutput: true }]) {
+      const { context, observed } = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, context), /postgres_admission_container_invalid/u);
+      assert.ok(observed.children.some(({ args }) => args.includes("container") && args.includes("ls")
+        && args.some((item) => item.startsWith("name=^/aw-pg-admitted-"))));
+      assert.ok(observed.children.some(({ args }) => args.includes("container") && args.includes("rm")));
+      assert.equal(observed.helperStops, 1);
+    }
+    const absent = await loadSession({ failCreateBeforeCreation: true });
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, absent.context), /postgres_admission_container_invalid/u);
+    assert.equal(absent.observed.children.some(({ args }) => args.includes("container") && args.includes("rm")), false);
+    assert.ok(absent.observed.children.some(({ args }) => args.includes("container") && args.includes("ls")));
+  });
+
+  test("malformed create output cannot authorize deletion of a mismatched discovered container", async () => {
+    const { context, observed } = await loadSession({ malformedCreateOutput: true, wrongContainerLabels: true });
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, context), /postgres_admission_cleanup_uncertain/u);
+    assert.equal(observed.children.some(({ args }) => args.includes("container") && args.includes("rm")), false);
+    assert.equal(observed.helperStops, 1);
+  });
+
+  test("volume mountpoint and start lifecycle mutations fail closed", async () => {
+    for (const [fixture, expected] of [
+      [{ wrongVolumeMountpoint: true }, /postgres_admission_cleanup_uncertain/u],
+      [{ wrongPlaceholderMode: true }, /postgres_admission_volume_invalid/u],
+      [{ wrongPlaceholderOwner: true }, /postgres_admission_volume_invalid/u],
+      [{ symlinkVolumeAncestor: true }, /postgres_admission_volume_invalid/u],
+    ]) {
+      const rejected = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, rejected.context), expected);
+    }
+    for (const fixture of [{ placeholderWhileRunning: true }, { wrongMountedIdentity: true }]) {
+      const rejected = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, rejected.context), /postgres_admission_cleanup_uncertain/u);
+      assert.equal(rejected.observed.children.some(({ args }) => args.includes("pg_isready")), false);
+      assert.equal(rejected.observed.children.some(({ args }) => args.includes("container") && args.includes("rm")), false);
+    }
+  });
+
+  test("cleanup reauthenticates Docker volume fields and fixed ancestor identities before deletion", async () => {
+    for (const fixture of [
+      { cleanupVolumeLabels: true }, { cleanupVolumeMountpoint: true },
+      { cleanupVolumeOptions: true }, { replaceVolumeAncestorAfterStop: true },
+    ]) {
+      const rejected = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, rejected.context), /postgres_admission_cleanup_uncertain/u);
+      assert.ok(rejected.observed.children.some(({ args }) => args.includes("container") && args.includes("stop")));
+      assert.equal(rejected.observed.children.some(({ args }) => args.includes("container") && args.includes("rm")), false);
+    }
+  });
+
+  test("remaining identity probes are deleted only after exact-name discovery and full profile authentication", async () => {
+    const authentic = await loadSession({ probeRemainder: true, probeExplicitHostMounts: true });
+    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+    })`, authentic.context), /postgres_admission_volume_invalid/u);
+    assert.equal(authentic.observed.probeSpecs.size, 0);
+    assert.equal(authentic.observed.children.some(({ args }) => args.includes("container")
+      && args.includes("rm") && args.includes("--force")), true);
+
+    for (const fixture of [
+      { probeRemainder: true, probeAmbiguous: true },
+      ...["labels", "network", "readonly", "security", "caps", "entrypoint", "mount", "hostMountsNull",
+        "binds", "volumesFrom", "tmpfs", "tmpfsExtra", "tmpfsNull", "volumeDriver", "volumeDriverNull",
+        "declaredVolumeValue"]
+        .map((probeProfileMutation) => ({ probeRemainder: true, probeProfileMutation })),
+    ]) {
+      const rejected = await loadSession(fixture);
+      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+        kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+      })`, rejected.context), /postgres_admission_cleanup_uncertain/u);
+      assert.equal(rejected.observed.children.some(({ args }) => args.includes("container")
+        && args.includes("rm") && args.includes("--force")), false);
+      assert.equal(rejected.observed.probeSpecs.size > 0, true);
+    }
+  });
+
   test("container substitution is rechecked before start, readiness, SQL, backup, and restore effects", async () => {
     for (const [intent, seedBackup, threshold, effect] of [
-      ["SQL_CHECK", false, 4, "start"],
-      ["SQL_CHECK", false, 6, "pg_isready"],
-      ["SQL_CHECK", false, 8, "psql"],
-      ["BACKUP", false, 8, "pg_dump"],
-      ["RESTORE_VERIFY", true, 8, "pg_restore"],
+      ["SQL_CHECK", false, 2, "start"],
+      ["SQL_CHECK", false, 4, "pg_isready"],
+      ["SQL_CHECK", false, 6, "psql"],
+      ["BACKUP", false, 6, "pg_dump"],
+      ["RESTORE_VERIFY", true, 6, "pg_restore"],
     ]) {
       const { context, observed } = await loadSession({ seedBackup, mutateContainerInspectAfter: threshold });
       await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
         kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "${intent}"
-      })`, context), /postgres_admission_container_invalid/u, `${intent} threshold ${threshold}`);
+      })`, context), /postgres_admission_cleanup_uncertain/u, `${intent} threshold ${threshold}`);
       assert.equal(observed.children.some(({ args }) => args.includes(effect)), false);
       assert.equal(observed.helperStops, 1);
     }

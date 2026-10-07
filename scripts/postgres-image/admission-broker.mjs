@@ -65,11 +65,19 @@ const RENEWAL_BUDGET = 20_000;
 const RENEWAL_DRAIN_BUFFER = 5_000;
 const WATCH_INTERVAL = 1_000;
 const DRAIN_MS = 30_000;
+const POST_KILL_GRACE_MS = 1_000;
+const PROBE_TMPFS = "/var/lib/postgresql/data:ro,noexec,nosuid,nodev,size=4096,mode=0700";
 const OPERATION_MINIMUM = 5_000;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
+const RESERVED_LABEL_PREFIX = "com.auto-world.postgres-admission-";
+const CONTAINER_LIFECYCLE = Object.freeze({
+  PRESTART: "CREATED_PRESTART", STARTING: "START_IN_PROGRESS", RUNNING: "RUNNING_MOUNTED",
+  STOPPED: "STOPPED", REMOVED: "REMOVED",
+});
 const caps = new WeakMap();
 let sessionActive = false;
+let sessionClosureUncertain = false;
 
 const plain = (value) => value !== null && typeof value === "object" && !Array.isArray(value)
   && Object.getPrototypeOf(value) === Object.prototype;
@@ -289,6 +297,17 @@ function dataIdentity(stat) {
   });
 }
 
+function protectedRootDirectory(directory, phase, mode) {
+  const observed = lstatSync(directory, { bigint: true });
+  const actualMode = Number(observed.mode & 0o7777n);
+  if (!observed.isDirectory() || observed.isSymbolicLink() || observed.uid !== 0n || observed.gid !== 0n
+    || (actualMode & 0o022) !== 0 || mode !== undefined && actualMode !== mode
+    || realpathSync(directory) !== directory) {
+    fail("postgres_admission_volume_invalid", phase);
+  }
+  return observed;
+}
+
 function readDataBinding(file) {
   const before = lstatSync(file, { bigint: true });
   if (!before.isFile() || before.isSymbolicLink() || before.uid !== 0n || before.gid !== 0n || before.nlink !== 1n
@@ -416,7 +435,8 @@ function operationCap(state, phase) {
   caps.set(cap, { state, phase, consumed: false, deadline: now + OPERATION_MINIMUM,
     lease: state.lease, binding: state.binding, endpoint: state.endpoint, daemonChild: state.daemonChild,
     socketIdentity: state.socketIdentity, imageLoaded: state.imageLoaded,
-    volume: state.volume, container: state.container });
+    volume: state.volume, container: state.container, containerIntent: state.containerIntent,
+    containerLifecycle: state.containerLifecycle });
   return cap;
 }
 
@@ -426,7 +446,8 @@ function consumeOperation(cap, state, phase) {
     || record.deadline < performance.now() || state.draining || state.operationBusy
     || record.lease !== state.lease || record.binding !== state.binding || record.endpoint !== state.endpoint
     || record.daemonChild !== state.daemonChild || record.socketIdentity !== state.socketIdentity
-    || record.imageLoaded !== state.imageLoaded || record.volume !== state.volume || record.container !== state.container) {
+    || record.imageLoaded !== state.imageLoaded || record.volume !== state.volume || record.container !== state.container
+    || record.containerIntent !== state.containerIntent || record.containerLifecycle !== state.containerLifecycle) {
     fail("postgres_admission_operation_cancelled", phase);
   }
   record.consumed = true;
@@ -434,6 +455,9 @@ function consumeOperation(cap, state, phase) {
 }
 
 function spawnBounded(state, phase, command, args, options = {}) {
+  if (state.activeChild || state.childClosureUncertain) {
+    fail(options.cleanup ? "postgres_admission_cleanup_uncertain" : "postgres_admission_operation_cancelled", phase);
+  }
   if (!options.cleanup) consumeOperation(operationCap(state, phase), state, phase);
   return new Promise((resolve, reject) => {
     let child;
@@ -444,13 +468,30 @@ function spawnBounded(state, phase, command, args, options = {}) {
     let out = 0;
     let err = 0;
     let timer;
-    const finish = (error, result) => {
+    let killGraceTimer;
+    let abortListener;
+    let killIssued = false;
+    const finish = (error, result, release = true) => {
       if (settled) return;
       settled = true;
       if (timer) globalThis.clearTimeout(timer);
-      if (state.activeChild === child) state.activeChild = undefined;
+      if (killGraceTimer) globalThis.clearTimeout(killGraceTimer);
+      if (abortListener) options.signal?.removeEventListener("abort", abortListener);
+      if (release && state.activeChild === child) state.activeChild = undefined;
       if (!options.cleanup) state.operationBusy = false;
       if (error) reject(error); else resolve(result);
+    };
+    const stopForFailure = (cause) => {
+      forcedFailure ??= Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), {
+        phase, cause: cause instanceof Error ? cause : undefined,
+      });
+      if (killIssued) return;
+      killIssued = true;
+      killGraceTimer = globalThis.setTimeout(() => {
+        state.childClosureUncertain = true;
+        finish(forcedFailure, undefined, false);
+      }, POST_KILL_GRACE_MS);
+      try { child.kill("SIGKILL"); } catch { /* Closure remains unestablished until the grace bound. */ }
     };
     try {
       child = spawn(command, args, {
@@ -458,32 +499,29 @@ function spawnBounded(state, phase, command, args, options = {}) {
         stdio: options.stdio ?? ["ignore", "pipe", "pipe"], detached: false, windowsHide: true,
       });
       state.activeChild = child;
-      timer = globalThis.setTimeout(() => {
-        forcedFailure ??= Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase });
-        child.kill("SIGKILL");
-      }, options.timeoutMs ?? 10_000);
+      timer = globalThis.setTimeout(stopForFailure, options.timeoutMs ?? 10_000);
     } catch (error) {
       finish(Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase, cause: error }));
       return;
     }
-    child.once("error", (error) => finish(Object.assign(
-      new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase, cause: error },
-    )));
+    child.on("error", stopForFailure);
     child.stdout?.on("data", (chunk) => {
       out += chunk.length;
       if (out > (options.stdoutLimit ?? OUTPUT_CAP)) {
-        forcedFailure ??= Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase });
-        child.kill("SIGKILL");
+        stopForFailure();
       } else stdout.push(Buffer.from(chunk));
     });
     child.stderr?.on("data", (chunk) => {
       err += chunk.length;
       if (err > (options.stderrLimit ?? OUTPUT_CAP)) {
-        forcedFailure ??= Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase });
-        child.kill("SIGKILL");
+        stopForFailure();
       } else stderr.push(Buffer.from(chunk));
     });
     child.once("close", (code, signal) => {
+      if (settled) {
+        if (state.activeChild === child) state.activeChild = undefined;
+        return;
+      }
       const result = { code, signal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) };
       const allowed = options.allowed ?? [0];
       if (forcedFailure) finish(forcedFailure);
@@ -491,6 +529,11 @@ function spawnBounded(state, phase, command, args, options = {}) {
         finish(Object.assign(new Error(options.failureCode ?? "postgres_admission_operation_cancelled"), { phase }));
       } else finish(undefined, result);
     });
+    abortListener = () => {
+      stopForFailure();
+    };
+    if (options.signal?.aborted) abortListener();
+    else options.signal?.addEventListener("abort", abortListener, { once: true });
   });
 }
 
@@ -521,20 +564,129 @@ async function daemonGuard(state, phase, signal = state.abort.signal) {
 function validateVolumeInspection(state, inspected, phase) {
   if (inspected?.Name !== state.volume.name || inspected?.Driver !== "local" || inspected?.Scope !== "local"
     || !isDeepStrictEqual(inspected?.Labels, state.volume.labels)
+    || inspected?.Mountpoint !== state.volume.expectedMountpoint
     || !isDeepStrictEqual(inspected?.Options, { device: state.volume.dataDirectory, o: "bind", type: "none" })) {
+    fail("postgres_admission_volume_invalid", phase);
+  }
+  validateVolumeMountState(state, phase);
+}
+
+function captureVolumePlaceholder(state, name, phase) {
+  const expectedMountpoint = path.join(state.spec.dataRoot, "volumes", name, "_data");
+  const ancestors = [
+    protectedRootDirectory(state.spec.dataRoot, phase, 0o710),
+    protectedRootDirectory(path.join(state.spec.dataRoot, "volumes"), phase),
+    protectedRootDirectory(path.dirname(expectedMountpoint), phase),
+  ];
+  const observed = lstatSync(expectedMountpoint, { bigint: true });
+  if (!observed.isDirectory() || observed.isSymbolicLink() || observed.uid !== 0n || observed.gid !== 0n
+    || (observed.mode & 0o7777n) !== 0o755n || realpathSync(expectedMountpoint) !== expectedMountpoint) {
+    fail("postgres_admission_volume_invalid", phase);
+  }
+  return freeze({ expectedMountpoint, placeholderIdentity: dataIdentity(observed),
+    ancestorIdentities: ancestors.map(dataIdentity) });
+}
+
+function validateVolumeMountState(state, phase) {
+  const ancestors = [
+    protectedRootDirectory(state.spec.dataRoot, phase, 0o710),
+    protectedRootDirectory(path.join(state.spec.dataRoot, "volumes"), phase),
+    protectedRootDirectory(path.dirname(state.volume.expectedMountpoint), phase),
+  ];
+  if (!isDeepStrictEqual(ancestors.map(dataIdentity), state.volume.ancestorIdentities)) {
+    fail("postgres_admission_volume_invalid", phase);
+  }
+  const observed = lstatSync(state.volume.expectedMountpoint, { bigint: true });
+  if (!observed.isDirectory() || observed.isSymbolicLink()
+    || realpathSync(state.volume.expectedMountpoint) !== state.volume.expectedMountpoint) {
+    fail("postgres_admission_volume_invalid", phase);
+  }
+  const identity = dataIdentity(observed);
+  const placeholder = isDeepStrictEqual(identity, state.volume.placeholderIdentity);
+  const mounted = isDeepStrictEqual(identity, state.dataIdentity);
+  const lifecycle = state.containerLifecycle ?? CONTAINER_LIFECYCLE.PRESTART;
+  const accepted = lifecycle === CONTAINER_LIFECYCLE.PRESTART ? placeholder
+    : lifecycle === CONTAINER_LIFECYCLE.STARTING || lifecycle === CONTAINER_LIFECYCLE.RUNNING ? mounted
+      : lifecycle === CONTAINER_LIFECYCLE.STOPPED ? placeholder || mounted
+        : lifecycle === CONTAINER_LIFECYCLE.REMOVED ? placeholder : false;
+  if (!accepted) fail("postgres_admission_volume_invalid", phase);
+  if ((lifecycle === CONTAINER_LIFECYCLE.STOPPED || lifecycle === CONTAINER_LIFECYCLE.REMOVED)
+    && !isDeepStrictEqual(dataIdentity(ownedDirectory(state.dataDirectory,
+      state.postgresUid, state.postgresGid)), state.dataIdentity)) {
     fail("postgres_admission_volume_invalid", phase);
   }
 }
 
-function validateContainerInspection(state, inspected, phase) {
-  const expectedMounts = [
-    { Type: "bind", Source: state.secretPath, Destination: "/run/secrets/postgres-password", RW: false },
-    { Type: "volume", Name: state.volume.name, Destination: "/var/lib/postgresql/data", RW: true },
-  ];
-  if (inspected?.Id !== state.container.id || inspected?.Image !== state.binding.image.configDigest
-    || !isDeepStrictEqual(inspected?.Labels, state.container.labels) || !isDeepStrictEqual(inspected?.Mounts, expectedMounts)) {
+function labelsMatch(actual, expected) {
+  if (!plain(actual)) return false;
+  const reserved = Object.keys(actual).filter((name) => name.startsWith(RESERVED_LABEL_PREFIX));
+  return reserved.length === Object.keys(expected).length
+    && reserved.every((name) => Object.hasOwn(expected, name) && actual[name] === expected[name]);
+}
+
+function uniqueBy(items, field) {
+  if (!Array.isArray(items)) return undefined;
+  const result = new Map();
+  for (const item of items) {
+    if (!plain(item) || typeof item[field] !== "string" || result.has(item[field])) return undefined;
+    result.set(item[field], item);
+  }
+  return result;
+}
+
+function configuredBindMatches(value, intent) {
+  return plain(value) && value.Type === "bind" && value.Source === intent.secretSource
+    && value.Target === "/run/secrets/postgres-password" && value.ReadOnly === true
+    && (!Object.hasOwn(value, "Consistency") || value.Consistency === "")
+    && !Object.hasOwn(value, "BindOptions") && !Object.hasOwn(value, "VolumeOptions")
+    && !Object.hasOwn(value, "TmpfsOptions") && !Object.hasOwn(value, "ImageOptions")
+    && !Object.hasOwn(value, "ClusterOptions");
+}
+
+function configuredVolumeMatches(value, intent) {
+  return plain(value) && value.Type === "volume" && value.Source === intent.volumeName
+    && value.Target === "/var/lib/postgresql/data"
+    && (!Object.hasOwn(value, "ReadOnly") || value.ReadOnly === false)
+    && (!Object.hasOwn(value, "Consistency") || value.Consistency === "")
+    && !Object.hasOwn(value, "BindOptions") && !Object.hasOwn(value, "TmpfsOptions")
+    && !Object.hasOwn(value, "ImageOptions") && !Object.hasOwn(value, "ClusterOptions")
+    && plain(value.VolumeOptions) && value.VolumeOptions.NoCopy === true
+    && !Object.hasOwn(value.VolumeOptions, "Subpath") && !Object.hasOwn(value.VolumeOptions, "DriverConfig")
+    && !Object.hasOwn(value.VolumeOptions, "Labels");
+}
+
+const absentOrEmpty = (value, name) => !Object.hasOwn(value, name) || value[name] === "";
+
+function validateContainerInspection(state, inspected, phase, expectedId = state.container?.id) {
+  const intent = state.containerIntent;
+  const mounts = uniqueBy(inspected?.Mounts, "Destination");
+  const configured = uniqueBy(inspected?.HostConfig?.Mounts, "Target");
+  const secret = mounts?.get("/run/secrets/postgres-password");
+  const data = mounts?.get("/var/lib/postgresql/data");
+  const configuredSecret = configured?.get("/run/secrets/postgres-password");
+  const configuredData = configured?.get("/var/lib/postgresql/data");
+  const runningExpected = state.containerLifecycle === CONTAINER_LIFECYCLE.STARTING
+    || state.containerLifecycle === CONTAINER_LIFECYCLE.RUNNING;
+  const stoppedExpected = state.containerLifecycle === CONTAINER_LIFECYCLE.PRESTART
+    || state.containerLifecycle === CONTAINER_LIFECYCLE.STOPPED;
+  if (!intent || !SHA256.test(expectedId ?? "") || inspected?.Id !== expectedId || inspected?.Name !== `/${intent.name}`
+    || inspected?.Image !== intent.image || inspected?.Config?.Image !== intent.image
+    || !labelsMatch(inspected?.Config?.Labels, intent.labels) || inspected?.HostConfig?.NetworkMode !== "none"
+    || mounts?.size !== 2 || configured?.size !== 2
+    || secret?.Type !== "bind" || !absentOrEmpty(secret, "Name") || secret?.Source !== intent.secretSource
+    || !absentOrEmpty(secret, "Driver") || secret?.Mode !== "" || secret?.RW !== false
+    || secret?.Propagation !== "rprivate"
+    || data?.Type !== "volume" || data?.Name !== intent.volumeName
+    || data?.Source !== intent.volumeMountpoint || data?.Driver !== "local" || data?.Mode !== ""
+    || data?.RW !== true || data?.Propagation !== ""
+    || !configuredBindMatches(configuredSecret, intent) || !configuredVolumeMatches(configuredData, intent)
+    || inspected?.State?.Dead !== false
+    || runningExpected && inspected?.State?.Running !== true
+    || stoppedExpected && inspected?.State?.Running !== false) {
     fail("postgres_admission_container_invalid", phase);
   }
+  validateVolumeMountState(state, phase);
+  return inspected;
 }
 
 async function runtimeOwnershipGuard(state, phase) {
@@ -560,15 +712,74 @@ async function runtimeOwnershipGuard(state, phase) {
 }
 
 async function docker(state, phase, args, options = {}) {
-  if (!options.cleanup) await assertLease(state, phase, options.timeoutMs ?? 10_000);
-  const guardSignal = options.cleanup ? state.cleanupAbort?.signal : state.abort.signal;
+  let effective = options;
+  if (options.cleanup) {
+    const remaining = Math.floor((state.cleanupDeadline ?? Number.NEGATIVE_INFINITY) - performance.now());
+    if (remaining <= 0 || state.cleanupAbort?.signal.aborted) fail("postgres_admission_cleanup_uncertain", phase);
+    effective = { ...options, timeoutMs: Math.min(options.timeoutMs ?? 10_000, remaining) };
+  } else await assertLease(state, phase, options.timeoutMs ?? 10_000);
+  const guardSignal = effective.cleanup ? state.cleanupAbort?.signal : state.abort.signal;
   await daemonGuard(state, phase, guardSignal);
-  if (!options.cleanup && !options.skipOwnershipGuard) await runtimeOwnershipGuard(state, phase);
+  if (!effective.cleanup && !effective.skipOwnershipGuard) await runtimeOwnershipGuard(state, phase);
   const result = await spawnBounded(state, phase, DOCKER, ["--host", state.endpoint, ...args], {
-    cwd: state.infra, env: state.childEnv, failureCode: options.failureCode, ...options,
+    cwd: state.infra, env: state.childEnv, failureCode: effective.failureCode, ...effective, signal: guardSignal,
   });
   await daemonGuard(state, phase, guardSignal);
-  if (!options.cleanup && !options.skipOwnershipGuard) await runtimeOwnershipGuard(state, phase);
+  if (!effective.cleanup && !effective.skipOwnershipGuard) await runtimeOwnershipGuard(state, phase);
+  return result;
+}
+
+async function inspectContainer(state, phase, identity, cleanup = false) {
+  const result = await docker(state, phase, [
+    "container", "inspect", "--format", "{{json .}}", identity,
+  ], cleanup ? {
+    cleanup: true, allowed: [0], failureCode: "postgres_admission_cleanup_uncertain", timeoutMs: 10_000,
+  } : { failureCode: "postgres_admission_container_invalid", skipOwnershipGuard: true });
+  let inspected;
+  try { inspected = JSON.parse(result.stdout); }
+  catch (error) {
+    fail(cleanup ? "postgres_admission_cleanup_uncertain" : "postgres_admission_container_invalid", phase, error);
+  }
+  if (cleanup && state.containerLifecycle === CONTAINER_LIFECYCLE.STARTING
+    && inspected?.State?.Running === false) state.containerLifecycle = CONTAINER_LIFECYCLE.STOPPED;
+  try { return validateContainerInspection(state, inspected, phase, identity); }
+  catch (error) {
+    if (cleanup) fail("postgres_admission_cleanup_uncertain", phase, error);
+    throw error;
+  }
+}
+
+async function inspectVolume(state, phase, cleanup = false) {
+  const result = await docker(state, phase, [
+    "volume", "inspect", "--format", "{{json .}}", state.volume.name,
+  ], cleanup ? {
+    cleanup: true, allowed: [0], failureCode: "postgres_admission_cleanup_uncertain", timeoutMs: 10_000,
+  } : { failureCode: "postgres_admission_volume_invalid", skipOwnershipGuard: true });
+  let inspected;
+  try { inspected = JSON.parse(result.stdout); }
+  catch (error) {
+    fail(cleanup ? "postgres_admission_cleanup_uncertain" : "postgres_admission_volume_invalid", phase, error);
+  }
+  try { validateVolumeInspection(state, inspected, phase); }
+  catch (error) {
+    if (cleanup) fail("postgres_admission_cleanup_uncertain", phase, error);
+    throw error;
+  }
+  return inspected;
+}
+
+async function startOwnedContainer(state) {
+  const phase = "CONTAINER_START";
+  await assertLease(state, phase);
+  await daemonGuard(state, phase);
+  await runtimeOwnershipGuard(state, phase);
+  state.containerLifecycle = CONTAINER_LIFECYCLE.STARTING;
+  const result = await spawnBounded(state, phase, DOCKER, [
+    "--host", state.endpoint, "container", "start", state.container.id,
+  ], { cwd: state.infra, env: state.childEnv, failureCode: "postgres_admission_container_invalid" });
+  await daemonGuard(state, phase);
+  await runtimeOwnershipGuard(state, phase);
+  state.containerLifecycle = CONTAINER_LIFECYCLE.RUNNING;
   return result;
 }
 
@@ -684,15 +895,24 @@ async function probePostgresIdentity(state) {
     "--label", "com.auto-world.postgres-admission-role=identity-probe",
   ];
   const observed = {};
-  state.probes = new Set();
+  state.probes = new Map();
   for (const [field, option] of [["uid", "-u"], ["gid", "-g"]]) {
     const name = `aw-pg-admitted-${nonce}-${field}`;
-    state.probes.add(name);
+    const intent = freeze({ name, nonce, image: state.binding.image.configDigest, tmpfs: PROBE_TMPFS, labels: {
+      "com.auto-world.postgres-admission-generation": String(state.binding.admissionGeneration),
+      "com.auto-world.postgres-admission-revision": String(state.binding.authorityRevision),
+      "com.auto-world.postgres-admission-nonce": nonce,
+      "com.auto-world.postgres-admission-role": "identity-probe",
+    }, option });
+    state.probes.set(name, intent);
     const result = await docker(state, "VOLUME_CREATE", [
       "container", "run", "--rm", "--name", name, ...labels, "--network", "none", "--read-only",
+      "--tmpfs", PROBE_TMPFS,
       "--security-opt", "no-new-privileges", "--cap-drop", "ALL", "--entrypoint", "/usr/bin/id",
       state.binding.image.configDigest, option, "postgres",
     ], { failureCode: "postgres_admission_volume_invalid" });
+    const remaining = await containersByExactName(state, name, false);
+    if (remaining.length !== 0) fail("postgres_admission_volume_invalid", "VOLUME_CREATE");
     state.probes.delete(name);
     const value = result.stdout.toString("utf8");
     if (!/^[1-9][0-9]{0,4}\n$/u.test(value)) fail("postgres_admission_volume_invalid", "VOLUME_CREATE");
@@ -813,8 +1033,11 @@ async function createOwnedRuntime(state) {
       failureCode: "postgres_admission_volume_invalid",
     });
     if (volumeResult.stdout.toString("utf8").trim() !== volume) fail("postgres_admission_volume_invalid", "VOLUME_CREATE");
+    const nativeVolume = captureVolumePlaceholder(state, volume, "VOLUME_CREATE");
     state.volume = freeze({ name: volume, dataDirectory: state.dataDirectory, nativeIdentity: state.dataIdentity,
-      labels: expectedLabels });
+      labels: expectedLabels, expectedMountpoint: nativeVolume.expectedMountpoint,
+      placeholderIdentity: nativeVolume.placeholderIdentity,
+      ancestorIdentities: nativeVolume.ancestorIdentities });
     const inspectedResult = await docker(state, "VOLUME_CREATE", ["volume", "inspect", "--format", "{{json .}}", volume], {
       failureCode: "postgres_admission_volume_invalid",
     });
@@ -827,8 +1050,13 @@ async function createOwnedRuntime(state) {
     state.secretPath = secret;
     writeExclusive(secret, Buffer.from(`${randomBytes(32).toString("base64url")}\n`));
     state.secret = secret;
+    state.containerLifecycle = CONTAINER_LIFECYCLE.PRESTART;
+    state.containerIntent = freeze({ name: container, nonce, labels: expectedLabels,
+      image: state.binding.image.configDigest, secretSource: secret, volumeName: volume,
+      volumeMountpoint: state.volume.expectedMountpoint });
     const created = await docker(state, "CONTAINER_CREATE", [
       "container", "create", "--name", container, ...labels,
+      "--network", "none",
       "--env", "POSTGRES_USER=awapp", "--env", "POSTGRES_DB=awapp",
       "--env", "POSTGRES_PASSWORD_FILE=/run/secrets/postgres-password",
       "--mount", `type=bind,src=${secret},dst=/run/secrets/postgres-password,readonly`,
@@ -837,17 +1065,10 @@ async function createOwnedRuntime(state) {
     ], { failureCode: "postgres_admission_container_invalid" });
     const id = created.stdout.toString("utf8").trim();
     if (!SHA256.test(id)) fail("postgres_admission_container_invalid", "CONTAINER_CREATE");
+    await inspectContainer(state, "CONTAINER_CREATE", id);
     state.container = freeze({ id, name: container, nonce, labels: expectedLabels });
-    const inspectedResult = await docker(state, "CONTAINER_CREATE", [
-      "container", "inspect", "--format", "{{json .}}", id,
-    ], { failureCode: "postgres_admission_container_invalid" });
-    let inspected;
-    try { inspected = JSON.parse(inspectedResult.stdout); } catch (error) { fail("postgres_admission_container_invalid", "CONTAINER_CREATE", error); }
-    validateContainerInspection(state, inspected, "CONTAINER_CREATE");
   });
-  await observedPhase(state, "CONTAINER_START", () => docker(state, "CONTAINER_START", [
-    "container", "start", state.container.id,
-  ], { failureCode: "postgres_admission_container_invalid" }));
+  await observedPhase(state, "CONTAINER_START", () => startOwnedContainer(state));
   await observedPhase(state, "READINESS", async () => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       await assertLease(state, "READINESS");
@@ -1065,9 +1286,88 @@ async function serviceForeground(state) {
 }
 
 async function cleanupDocker(state, phase, args) {
+  const remaining = Math.floor((state.cleanupDeadline ?? Number.NEGATIVE_INFINITY) - performance.now());
+  if (remaining <= 0 || state.cleanupAbort?.signal.aborted) fail("postgres_admission_cleanup_uncertain", phase);
   return docker(state, phase, args, {
-    cleanup: true, allowed: [0], failureCode: "postgres_admission_cleanup_uncertain", timeoutMs: 35_000,
+    cleanup: true, allowed: [0], failureCode: "postgres_admission_cleanup_uncertain",
+    timeoutMs: Math.min(35_000, remaining),
   });
+}
+
+function validateProbeInspection(intent, identity, inspected, phase) {
+  const configuredMounts = inspected?.HostConfig?.Mounts;
+  const declaredVolumes = inspected?.Config?.Volumes;
+  const zeroList = (value, name) => !Object.hasOwn(value, name) || value[name] === null
+    || Array.isArray(value[name]) && value[name].length === 0;
+  if (inspected?.Id !== identity || inspected?.Name !== `/${intent.name}` || inspected?.Image !== intent.image
+    || inspected?.Config?.Image !== intent.image || !labelsMatch(inspected?.Config?.Labels, intent.labels)
+    || !isDeepStrictEqual(inspected?.Config?.Entrypoint, ["/usr/bin/id"])
+    || !isDeepStrictEqual(inspected?.Config?.Cmd, [intent.option, "postgres"])
+    || !plain(declaredVolumes) || !exact(declaredVolumes, ["/var/lib/postgresql/data"])
+    || !exact(declaredVolumes["/var/lib/postgresql/data"], [])
+    || !plain(inspected?.HostConfig) || inspected.HostConfig.NetworkMode !== "none" || inspected.HostConfig.ReadonlyRootfs !== true
+    || inspected?.HostConfig?.AutoRemove !== true
+    || !isDeepStrictEqual(inspected?.HostConfig?.SecurityOpt, ["no-new-privileges:true"])
+    || !isDeepStrictEqual(inspected?.HostConfig?.CapDrop, ["ALL"])
+    || !plain(inspected?.HostConfig?.Tmpfs)
+    || !isDeepStrictEqual(inspected.HostConfig.Tmpfs, { "/var/lib/postgresql/data": intent.tmpfs.split(":").slice(1).join(":") })
+    || !zeroList(inspected.HostConfig, "Binds") || !zeroList(inspected.HostConfig, "VolumesFrom")
+    || (Object.hasOwn(inspected.HostConfig, "VolumeDriver") && inspected.HostConfig.VolumeDriver !== "")
+    || configuredMounts !== undefined && (!Array.isArray(configuredMounts) || configuredMounts.length !== 0)
+    || !Array.isArray(inspected?.Mounts) || inspected.Mounts.length !== 0
+    || inspected?.State?.Dead !== false || typeof inspected?.State?.Running !== "boolean") {
+    fail("postgres_admission_cleanup_uncertain", phase);
+  }
+}
+
+function containerIds(result, phase, failureCode = "postgres_admission_cleanup_uncertain") {
+  const value = result.stdout.toString("utf8");
+  const lines = value.trim().split(/\r?\n/u).filter(Boolean);
+  if (lines.some((line) => !SHA256.test(line)) || new Set(lines).size !== lines.length) {
+    fail(failureCode, phase);
+  }
+  return lines;
+}
+
+async function containersByExactName(state, name, cleanup = true) {
+  const args = ["container", "ls", "--all", "--no-trunc", "--quiet", "--filter", `name=^/${name}$`];
+  const result = cleanup ? await cleanupDocker(state, "CLEANUP", args) : await docker(state, "VOLUME_CREATE", args, {
+    failureCode: "postgres_admission_volume_invalid", timeoutMs: 10_000,
+  });
+  return containerIds(result, cleanup ? "CLEANUP" : "VOLUME_CREATE",
+    cleanup ? "postgres_admission_cleanup_uncertain" : "postgres_admission_volume_invalid");
+}
+
+async function discoverOwnedContainerForCleanup(state) {
+  const identities = await containersByExactName(state, state.containerIntent.name);
+  if (identities.length === 0) {
+    state.containerLifecycle = CONTAINER_LIFECYCLE.REMOVED;
+    validateVolumeMountState(state, "CLEANUP");
+    state.containerIntent = undefined;
+    return false;
+  }
+  if (identities.length !== 1) fail("postgres_admission_cleanup_uncertain", "CLEANUP");
+  const inspected = await inspectContainer(state, "CLEANUP", identities[0], true);
+  state.container = freeze({ id: identities[0], name: state.containerIntent.name,
+    nonce: state.containerIntent.nonce, labels: state.containerIntent.labels });
+  if (inspected.State.Running === true) state.containerLifecycle = CONTAINER_LIFECYCLE.RUNNING;
+  return true;
+}
+
+async function cleanupProbe(state, intent) {
+  const identities = await containersByExactName(state, intent.name);
+  if (identities.length === 0) return;
+  if (identities.length !== 1) fail("postgres_admission_cleanup_uncertain", "CLEANUP");
+  const identity = identities[0];
+  const result = await cleanupDocker(state, "CLEANUP", [
+    "container", "inspect", "--format", "{{json .}}", identity,
+  ]);
+  let inspected;
+  try { inspected = JSON.parse(result.stdout); }
+  catch (error) { fail("postgres_admission_cleanup_uncertain", "CLEANUP", error); }
+  validateProbeInspection(intent, identity, inspected, "CLEANUP");
+  await cleanupDocker(state, "CLEANUP", ["container", "rm", "--force", identity]);
+  await assertOwnedContainerAbsent(state, identity, intent.name);
 }
 
 async function assertDockerAbsent(state, kind, identity) {
@@ -1080,6 +1380,14 @@ async function assertDockerAbsent(state, kind, identity) {
   if (kind === "container" ? lines.length !== 0 : lines.includes(identity)) fail("postgres_admission_cleanup_uncertain", "CLEANUP");
 }
 
+async function assertOwnedContainerAbsent(state, identity, name) {
+  await assertDockerAbsent(state, "container", identity);
+  const result = await cleanupDocker(state, "CLEANUP", [
+    "container", "ls", "--all", "--no-trunc", "--quiet", "--filter", `name=^/${name}$`,
+  ]);
+  if (containerIds(result, "CLEANUP").length !== 0) fail("postgres_admission_cleanup_uncertain", "CLEANUP");
+}
+
 async function drain(state) {
   if (state.drained) return;
   const started = performance.now();
@@ -1087,6 +1395,7 @@ async function drain(state) {
   state.draining = true;
   state.abort.abort();
   state.cleanupAbort = new globalThis.AbortController();
+  state.cleanupDeadline = performance.now() + DRAIN_MS;
   const cleanupTimer = globalThis.setTimeout(() => state.cleanupAbort.abort(), DRAIN_MS);
   try { observe(state, "leaseState", { state: "DRAINING" }, "CLEANUP"); }
   catch (error) { observationFailure = error; }
@@ -1097,23 +1406,50 @@ async function drain(state) {
     try { state.activeChild.kill("SIGKILL"); } catch { /* Final ownership checks decide. */ }
     await delay(25);
   }
-  let cleanupFailure;
+  let cleanupFailure = state.childClosureUncertain
+    ? Object.assign(new Error("postgres_admission_cleanup_uncertain"), { phase: "CLEANUP" }) : undefined;
   const attempt = async (action) => {
     try { await action(); return true; } catch (error) { cleanupFailure ??= error; return false; }
   };
-  for (const probe of state.probes ?? []) {
+  for (const [name, probe] of state.probes ?? []) {
     if (await attempt(async () => {
-      await cleanupDocker(state, "CLEANUP", ["container", "rm", "--force", probe]);
-      await assertDockerAbsent(state, "container", probe);
-    })) state.probes.delete(probe);
+      await cleanupProbe(state, probe);
+    })) state.probes.delete(name);
   }
-  if (state.container) {
-    await attempt(() => cleanupDocker(state, "STOP", ["container", "stop", "--time", "30", state.container.id]));
-    const removed = await attempt(async () => {
-      await cleanupDocker(state, "CLEANUP", ["container", "rm", "--force", state.container.id]);
-      await assertDockerAbsent(state, "container", state.container.id);
-    });
-    if (removed) state.container = undefined;
+  const volumeAuthenticated = !state.volume || await attempt(() => inspectVolume(state, "CLEANUP", true));
+  if (volumeAuthenticated && !state.container && state.containerIntent) {
+    await attempt(() => discoverOwnedContainerForCleanup(state));
+  }
+  if (volumeAuthenticated && state.container) {
+    let inspected;
+    const authenticated = await attempt(async () => { inspected = await inspectContainer(state, "CLEANUP", state.container.id, true); });
+    let stopped = authenticated;
+    if (authenticated && inspected.State.Running === true) {
+      stopped = await attempt(async () => {
+        await cleanupDocker(state, "STOP", ["container", "stop", "--time", "30", state.container.id]);
+        state.containerLifecycle = CONTAINER_LIFECYCLE.STOPPED;
+        const after = await inspectContainer(state, "CLEANUP", state.container.id, true);
+        if (after.State.Running !== false) fail("postgres_admission_cleanup_uncertain", "CLEANUP");
+      });
+    } else if (authenticated) {
+      state.containerLifecycle = CONTAINER_LIFECYCLE.STOPPED;
+      validateVolumeMountState(state, "CLEANUP");
+    }
+    if (stopped) stopped = await attempt(() => inspectVolume(state, "CLEANUP", true));
+    if (stopped) {
+      const id = state.container.id;
+      const name = state.container.name;
+      const removed = await attempt(async () => {
+        await cleanupDocker(state, "CLEANUP", ["container", "rm", "--force", id]);
+        await assertOwnedContainerAbsent(state, id, name);
+        state.containerLifecycle = CONTAINER_LIFECYCLE.REMOVED;
+        await inspectVolume(state, "CLEANUP", true);
+      });
+      if (removed) {
+        state.container = undefined;
+        state.containerIntent = undefined;
+      }
+    }
   }
   if (state.imageLoaded) {
     const removed = await attempt(async () => {
@@ -1129,12 +1465,14 @@ async function drain(state) {
       state.daemonChild = undefined;
     });
   }
-  for (const name of [state.secret, state.archiveFile, state.temporaryBackup].filter(Boolean)) {
-    await attempt(() => unlinkSync(name));
+  if (!state.childClosureUncertain) {
+    for (const name of [state.secret, state.archiveFile, state.temporaryBackup].filter(Boolean)) {
+      await attempt(() => unlinkSync(name));
+    }
+    state.secret = undefined;
+    state.archiveFile = undefined;
+    state.temporaryBackup = undefined;
   }
-  state.secret = undefined;
-  state.archiveFile = undefined;
-  state.temporaryBackup = undefined;
   await attempt(() => state.authority?.close());
   globalThis.clearTimeout(cleanupTimer);
   state.drained = true;
@@ -1164,7 +1502,7 @@ function normalizeFailure(error) {
 
 export async function runPostgresSupportedSession(input) {
   const value = validatePostgresSupportedSessionInput(input);
-  if (sessionActive) fail("postgres_admission_operation_cancelled", "AUTHORITY");
+  if (sessionClosureUncertain || sessionActive) fail("postgres_admission_operation_cancelled", "AUTHORITY");
   sessionActive = true;
   const state = {
     abort: new globalThis.AbortController(), draining: false, drained: false, operationBusy: false, phases: [], intent: value.intent,
@@ -1273,6 +1611,7 @@ export async function runPostgresSupportedSession(input) {
     process.off("SIGINT", signal);
     process.off("SIGTERM", signal);
     process.stderr.off("error", sinkError);
+    if (state.childClosureUncertain) sessionClosureUncertain = true;
     sessionActive = false;
   }
   if (primary) throw primary;

@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
+import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
 
 const ORIGINAL_FILES_SHA256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const GENERATION_THREE_ADDITIONS = Object.freeze([
@@ -65,8 +66,10 @@ function importEntry(root, entry) {
     });
 }
 
-test("the authenticated generation-three execution closure loads each entry from only its 74 pinned files", t => {
+test("the authenticated generation-four execution closure loads each entry from only its 74 pinned files", t => {
   assert.equal(process.versions.node, "22.23.2");
+  assert.equal(inventory.admissionGeneration, 4);
+  assert.equal(inventory.authorityRevisions.at(-1).state, "PENDING");
   const pins = inventory.generationRoot.executionFiles;
   assert.equal(pins.length, 74);
   assert.deepEqual(pins.map(item => item.path), pins.map(item => item.path).sort());
@@ -77,9 +80,13 @@ test("the authenticated generation-three execution closure loads each entry from
   }
 
   const additions = new Set(GENERATION_THREE_ADDITIONS.map(item => item.path));
-  const original = pins.filter(pin => !additions.has(pin.path));
-  assert.equal(original.length, 71);
-  assert.equal(sha256(canonical(original)), ORIGINAL_FILES_SHA256);
+  const incompletePins = pins.filter(pin => !additions.has(pin.path));
+  assert.equal(incompletePins.length, 71);
+  assert.equal(sha256(canonical(generationThree.generationRoot.executionFiles.filter(pin => !additions.has(pin.path)))),
+    ORIGINAL_FILES_SHA256);
+  const broker = "scripts/postgres-image/admission-broker.mjs";
+  assert.deepEqual(pins.filter(pin => pin.path !== broker),
+    generationThree.generationRoot.executionFiles.filter(pin => pin.path !== broker));
 
   const parent = mkdtempSync(path.join(os.tmpdir(), "postgres-admission-execution-closure-"));
   const resolvedParent = realpathSync(parent); const resolvedTemporaryRoot = realpathSync(os.tmpdir());
@@ -89,9 +96,9 @@ test("the authenticated generation-three execution closure loads each entry from
     assert.equal(path.dirname(resolvedParent), resolvedTemporaryRoot);
     rmSync(resolvedParent, { recursive: true, force: true });
   });
-  const incomplete = path.join(parent, "original-71"); const complete = path.join(parent, "complete-74");
+  const incomplete = path.join(parent, "missing-three-resources"); const complete = path.join(parent, "complete-74");
   mkdirSync(incomplete, { mode: 0o700 }); mkdirSync(complete, { mode: 0o700 });
-  materialize(incomplete, original); materialize(complete, pins);
+  materialize(incomplete, incompletePins); materialize(complete, pins);
 
   const beforeIncomplete = listFiles(incomplete); const failed = importEntry(incomplete, ENTRYPOINTS[0]);
   assert.notEqual(failed.status, 0);
@@ -115,6 +122,12 @@ test("the authenticated generation-three execution closure loads each entry from
     { ...GENERATION_THREE_ADDITIONS[0], sha256: "0".repeat(64) },
   ]));
   assert.deepEqual(listFiles(alteredDirectory), []);
+
+  const alteredBroker = path.join(parent, "altered-broker-pin"); mkdirSync(alteredBroker, { mode: 0o700 });
+  assert.throws(() => materialize(alteredBroker, [
+    { ...pins.find(pin => pin.path === broker), sha256: "0".repeat(64) },
+  ]));
+  assert.deepEqual(listFiles(alteredBroker), []);
 
   for (const entry of ENTRYPOINTS) {
     const beforeComplete = listFiles(complete);

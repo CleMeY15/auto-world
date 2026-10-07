@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
+import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
 import remote from "../infra/postgres-image/candidate-remote.json" with { type: "json" };
 import acceptance from "../infra/postgres-image/complete-private-copy-acceptance.json" with { type: "json" };
 
@@ -23,6 +24,14 @@ const generationTwo = Object.freeze({
   currentRevisionSha256: "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da",
   state: "PENDING",
 });
+const generationThreeSummary = Object.freeze({
+  admissionGeneration: 3,
+  generationRootSha256: "c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce",
+  authorityRevision: 2,
+  currentRevisionSha256: "134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9",
+  state: "ACTIVE",
+});
+const brokerPath = "scripts/postgres-image/admission-broker.mjs";
 const generationTwoExecutionFilesSha256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const generationThreeAdditions = Object.freeze([
   { path: "infra/seaweed-image/base-config.json", size: 13_676,
@@ -35,11 +44,13 @@ const generationThreeAdditions = Object.freeze([
 
 function assertGenerationOneHistory(value) {
   assert.ok(value.admissionGeneration > generationOne.admissionGeneration);
-  assert.equal(value.previousGenerations.length, 2);
+  assert.ok([3, 4].includes(value.admissionGeneration));
+  assert.equal(value.previousGenerations.length, value.admissionGeneration - 1);
   assert.equal(new Set(value.previousGenerations.map(item => item.admissionGeneration)).size,
     value.previousGenerations.length);
   assert.deepEqual(value.previousGenerations[0], generationOne);
   assert.deepEqual(value.previousGenerations[1], generationTwo);
+  if (value.admissionGeneration === 4) assert.deepEqual(value.previousGenerations[2], generationThreeSummary);
 }
 
 test("the shipped admission inventory authenticates its immutable root and complete contiguous revision preimages", () => {
@@ -80,7 +91,11 @@ test("the generation-one history summary cannot be rewritten while advancing adm
   assert.throws(() => assertGenerationOneHistory(changed));
 });
 
-test("generation three appends its exact ACTIVE revision while retaining the PENDING revision prefix and prior summaries", () => {
+test("the frozen generation-three history retains its exact ACTIVE bytes, revision prefix and support dates", () => {
+  const bytes = fs.readFileSync("tests/fixtures/postgres-admission/generation-3-active.json");
+  assert.equal(bytes.length, 28_241);
+  assert.equal(sha(bytes), "f670627e0f20d3f5d8d4fb25522486831aa0582993d0c80fd350947c669baf05");
+  const inventory = generationThree;
   assert.equal(inventory.admissionGeneration, 3);
   assert.equal(inventory.generationRoot.admissionGeneration, 3);
   assert.equal(sha(canonical(inventory.generationRoot)),
@@ -138,6 +153,43 @@ test("generation three appends its exact ACTIVE revision while retaining the PEN
   });
 });
 
+test("generation four changes only its generation, locator and repaired broker pin and remains PENDING", () => {
+  assert.equal(inventory.admissionGeneration, 4);
+  assert.equal(inventory.generationRoot.admissionGeneration, 4);
+  assertGenerationOneHistory(inventory);
+  assert.equal(inventory.authorityRevision, 1);
+  assert.equal(inventory.authorityRevisions.length, 1);
+  const revision = inventory.authorityRevisions[0];
+  assert.equal(revision.state, "PENDING");
+  assert.equal(revision.previousRevisionSha256, null);
+  assert.equal(revision.generationRootSha256, sha(canonical(inventory.generationRoot)));
+  assert.notEqual(revision.generationRootSha256, generationThreeSummary.generationRootSha256);
+  assert.deepEqual([revision.supportStartedAt, revision.supportEndsAt, revision.archiveUntil], [null, null, null]);
+  assert.deepEqual(revision.currentEvidence, { audit: null, packageControls: null });
+  assert.equal(revision.revocationReason, null);
+  assert.deepEqual(inventory.revisionHashes, [sha(canonical(revision))]);
+  assert.equal(inventory.currentRevisionSha256, inventory.revisionHashes[0]);
+
+  const root = globalThis.structuredClone(inventory.generationRoot);
+  root.admissionGeneration = generationThree.generationRoot.admissionGeneration;
+  root.archiveLocator = generationThree.generationRoot.archiveLocator;
+  root.executionFiles = generationThree.generationRoot.executionFiles;
+  assert.deepEqual(root, generationThree.generationRoot);
+  assert.equal(inventory.generationRoot.archiveLocator.size, generationThree.generationRoot.archiveLocator.size);
+  assert.notEqual(inventory.generationRoot.archiveLocator.sha256, generationThree.generationRoot.archiveLocator.sha256);
+  const unchanged = files => files.filter(pin => pin.path !== brokerPath);
+  assert.equal(unchanged(inventory.generationRoot.executionFiles).length, 73);
+  assert.deepEqual(unchanged(inventory.generationRoot.executionFiles), unchanged(generationThree.generationRoot.executionFiles));
+  assert.notDeepEqual(inventory.generationRoot.executionFiles.find(pin => pin.path === brokerPath),
+    generationThree.generationRoot.executionFiles.find(pin => pin.path === brokerPath));
+});
+
+test("generation-four history cannot replace the generation-three ACTIVE summary", () => {
+  const changed = globalThis.structuredClone(inventory);
+  changed.previousGenerations[2].state = "PENDING";
+  assert.throws(() => assertGenerationOneHistory(changed));
+});
+
 test("frozen execution pins cover the complete supported and offline execution closure without mutable evidence or self-reference", () => {
   const files = inventory.generationRoot.executionFiles;
   assert.equal(files.length, 74);
@@ -146,7 +198,7 @@ test("frozen execution pins cover the complete supported and offline execution c
   const pins = new Map(files.map(item => [item.path, item]));
   for (const pin of generationThreeAdditions) assert.deepEqual(pins.get(pin.path), pin);
   const additions = new Set(generationThreeAdditions.map(item => item.path));
-  assert.equal(sha(canonical(files.filter(item => !additions.has(item.path)))),
+  assert.equal(sha(canonical(generationThree.generationRoot.executionFiles.filter(item => !additions.has(item.path)))),
     generationTwoExecutionFilesSha256);
   assert.equal(pins.has("infra/postgres-image/admission-inventory.json"), false);
   assert.equal(pins.has("infra/postgres-image/package-controls.json"), false);
