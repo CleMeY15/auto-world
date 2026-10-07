@@ -2,7 +2,7 @@
   "kind": "POSTGRES_PACKAGE_CONTROLS_V1",
   "state": "OBSERVED",
   "authority": "AUTHENTICATED_SETTINGS_UI_OBSERVATION",
-  "observedAt": "2026-10-01T10:06:00.000Z",
+  "observedAt": "2026-10-06T22:11:00.000Z",
   "observationSource": "AUTHENTICATED_GITHUB_SETTINGS_UI",
   "observationPrecision": "MINUTE",
   "liveApiAuthority": "NOT_ESTABLISHED",

@@ -1,6 +1,6 @@
 # TASK-0005A — OpenSearch3.9 diagnostic candidate
 
-Status: IMPLEMENTED, validation and delivery pending, 2026-10-06 UTC. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked. This increment changes a diagnostic pin only. [PR139](https://github.com/CleMeY15/auto-world/pull/139) records the plan before implementation.
+Status: DELIVERED_DIAGNOSTIC_BLOCKED, 2026-10-06 UTC. TASK-0005A/0005 remain IN_PROGRESS; TASK-0006 remains blocked. This increment changes a diagnostic pin only. [PR139](https://github.com/CleMeY15/auto-world/pull/139) records the plan before implementation.
 
 The retained3.8.0 audit contains42 historical findings. Its public tag still identifies the same blocked subject. The official [3.9.0 release](https://github.com/opensearch-project/OpenSearch/releases/tag/3.9.0), published2026-09-29, is the next same-major candidate for a real scan. Registry/source provenance does not establish clean inventory, complete licences, admission or runtime compatibility.
 
@@ -28,4 +28,23 @@ The OpenSearch lock entry and corresponding provenance record now bind the retai
 
 Fresh actual Linux UID/GID1000 full quality checks on implementation6c7a15bd9fbd9f68f989da53cfb8ff80f796a0e2/treefa837c1bf9a7458562f31db0f867fd1b8bd5f0a1 pass: root2058 tests/2008 passes/50 explicit actor-specific skips/0 failures, lint9/9, typecheck11/11, workspace tests18/18 and build9/9, with zero cached Turbo jobs. Secretlint704 files and dependency audit0 known vulnerabilities pass. The593200-byte completed log SHA256 is `9e1bf1cb05e55ea7b461646f3551113f54d594c33a3be5192fed800144dd15cd`. Independent code/security review APPROVES this exact implementation with no findings and fresh targeted33/33 passes. Architecture review, final-head/main CI and the real native scanner result remain separate delivery requirements.
 
-Predecessor [PR138](https://github.com/CleMeY15/auto-world/pull/138) is delivered on exact reviewed head f6ae9d6e87501676079285651d86b4d00709e8ca/CI37537513182 and identical merge fe397f1fc3f49ce4ef850338cec319366cb22c55/tree6cbf7a4bb85bb2caa1de03052dbf02462ffab0ec/main CI37537944436. Its new [PostgreSQL current audit37538340223](https://github.com/CleMeY15/auto-world/actions/runs/37538340223), number2/attempt1, is running on that reviewed merge. The first failed audit and historical scanner controls remain preserved.
+Predecessor [PR138](https://github.com/CleMeY15/auto-world/pull/138) is delivered on exact reviewed head f6ae9d6e87501676079285651d86b4d00709e8ca/CI37537513182 and identical merge fe397f1fc3f49ce4ef850338cec319366cb22c55/tree6cbf7a4bb85bb2caa1de03052dbf02462ffab0ec/main CI37537944436. Its [PostgreSQL current audit37538340223](https://github.com/CleMeY15/auto-world/actions/runs/37538340223), number2/attempt1, succeeded and completed its final-main check before PR139 merged. The first failed audit and historical scanner controls remain preserved.
+
+## Delivered native result
+
+Final reviewed head `58acc38233a94f8abd2fe2554496892f6409918f` passed CI37539426054. Merge `31d7925134efc9d1eeb3eb5b299aa7e3bb7480ad` has identical tree `f13a865bd21ea28a93e9c4ca95d0a6da59992127`; protected-main CI37540335395 passed. Independent code/security and architecture reviews accepted the source change.
+
+The actual [manual audit37540890344](https://github.com/CleMeY15/auto-world/actions/runs/37540890344), run29/attempt1, started at2026-10-06T22:29:21Z on that exact merge. Both independent builds, reproducibility, scanner self-audit and all fixture controls passed. Whole-image policy failed after collecting all eight roles. The original26-member audit ZIP is retained separately, API artifact11449422216, 6779394bytes/SHA256 `504f36effbce13e6ed4519d7da1c6bca66a879d19f985cf2f6fb16609ca48773`; download readback matched the API digest. Read-only inspection of these original bytes establishes the following diagnostic receipt counts; no native archive authority or image admission is inferred.
+
+| Role | Findings | Blockers | Diagnostic result |
+| --- | ---: | ---: | --- |
+| PostgreSQL upstream | 91 | 91 | Rejected |
+| OpenSearch3.9 | 84 | 84 | Rejected |
+| Redis | 48 | 48 | Rejected |
+| SeaweedFS upstream | 1 | 3 | Rejected |
+| AWS CLI | 14 | 14 | Rejected |
+| Trivy baseline | 13 | 13 | Rejected |
+| PostgreSQL Alpine | 22 | 22 | Rejected |
+| Redis Alpine | 0 | 0 | Passed this diagnostic |
+
+The historical3.8 count42 and current3.9 count84 use different audit observations and databases; the difference does not isolate the effect of upgrading. Current3.9 findings include operating-system packages and repeated Java/plugin dependencies with fixed versions. Preserve the original reports and continue with a separately reviewed remediation or candidate-selection increment. Redis Alpine's zero count requires its own source/licence/runtime/admission acceptance. The upstream PostgreSQL role above is distinct from the managed exact subject whose separate current audit37538340223 has zero findings/blockers. [Generation2 activation](TASK-0005A-POSTGRES-GENERATION2-ACTIVATION.md) remains gated independently.

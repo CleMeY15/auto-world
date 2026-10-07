@@ -518,8 +518,13 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.equal(value.vfs.nodes.has(HIGH_WATER), false);
   });
 
-  test("tracked PENDING inventory authenticates as the closed public schema", async () => {
-    const value = await load({ inventoryValue: clone(TRACKED_INVENTORY) });
+  test("the tracked first PENDING revision authenticates as the closed public schema", async () => {
+    const pending = clone(TRACKED_INVENTORY);
+    pending.authorityRevisions = [pending.authorityRevisions[0]];
+    pending.revisionHashes = [pending.revisionHashes[0]];
+    pending.authorityRevision = 1;
+    pending.currentRevisionSha256 = pending.revisionHashes[0];
+    const value = await load({ inventoryValue: pending });
     await assert.rejects(value.open(), { message: "postgres_admission_authority_denied" });
     assert.equal(value.calls.length, 5);
     assert.equal(value.packageValidations, 1);

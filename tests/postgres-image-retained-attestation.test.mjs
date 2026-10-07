@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
-import { ATTESTATION, validateCandidateAttestationPredicate }
-  from "../scripts/postgres-image/candidate-attestation.mjs";
+import { ATTESTATION } from "../scripts/postgres-image/candidate-attestation.mjs";
 import { validatePostgresAttestationAccessReceipt }
   from "../scripts/postgres-image/candidate-attestation-access.mjs";
 import { GH_BINARY, MAIN_REF, negativeProved, validatePreSignReceipt }
@@ -31,6 +32,19 @@ const expectedFiles = Object.freeze({
 function retained(name) {
   const bytes = readFileSync(path.join(evidenceDirectory, name));
   return { bytes, value: JSON.parse(bytes.toString("utf8")) };
+}
+
+async function loadHistoricalPredicateValidator(t, controlsBytes) {
+  const temporary = mkdtempSync(path.join(tmpdir(), "auto-world-postgres-retained-attestation-"));
+  t.after(() => rmSync(temporary, { recursive: true, force: true }));
+  cpSync(path.resolve("scripts"), path.join(temporary, "scripts"), { recursive: true });
+  cpSync(path.resolve("infra"), path.join(temporary, "infra"), { recursive: true });
+  cpSync(path.resolve("tests/fixtures"), path.join(temporary, "tests/fixtures"), { recursive: true });
+  const controlsPath = path.join(temporary, "infra/postgres-image/package-controls.json");
+  writeFileSync(controlsPath, controlsBytes);
+  const modulePath = path.join(temporary, "scripts/postgres-image/candidate-attestation.mjs");
+  const historicalModule = await import(pathToFileURL(modulePath).href);
+  return { controlsPath, validate: historicalModule.validateCandidateAttestationPredicate };
 }
 
 test("retained PostgreSQL attestation files preserve the exact successful-run bytes", () => {
@@ -80,13 +94,25 @@ test("accepted projection is path-free and binds the actual run without granting
   });
 });
 
-test("retained access and DSSE evidence bind the reviewed manifest, controls and predicate", () => {
+test("retained access and DSSE evidence bind the reviewed manifest, controls and predicate", async (t) => {
   const access = retained("access-receipt.json");
   const predicate = retained("predicate.json");
   const preSign = retained("pre-sign-receipt.json");
   const bundle = retained("bundle.json").value;
   const policy = JSON.parse(readFileSync("infra/postgres-image/candidate-remote.json", "utf8"));
   const statement = JSON.parse(Buffer.from(bundle.dsseEnvelope.payload, "base64").toString("utf8"));
+  const historicalControls = Buffer.from(`${JSON.stringify(predicate.value.settingsObservation, null, 2)}\n`);
+  const currentControls = readFileSync("infra/postgres-image/package-controls.json");
+
+  assert.deepEqual({ bytes: historicalControls.length, sha256: sha256(historicalControls) },
+    predicate.value.access.controls);
+  assert.deepEqual({ bytes: historicalControls.length, sha256: sha256(historicalControls) }, {
+    bytes: access.value.packageControls.bytes, sha256: access.value.packageControls.sha256,
+  });
+  assert.notDeepEqual({ bytes: currentControls.length, sha256: sha256(currentControls) },
+    predicate.value.access.controls);
+  assert.deepEqual(JSON.parse(historicalControls.toString("utf8")), access.value.packageControls.observation);
+  const historicalValidator = await loadHistoricalPredicateValidator(t, historicalControls);
 
   validatePostgresAttestationAccessReceipt(access.value, policy, {
     runId, recipeRevision: signingRevision,
@@ -107,7 +133,12 @@ test("retained access and DSSE evidence bind the reviewed manifest, controls and
     digest: { sha256: ATTESTATION.subjectDigest.slice("sha256:".length) } }]);
   assert.equal(statement.predicateType, ATTESTATION.predicateType);
   assert.deepEqual(statement.predicate, predicate.value);
-  assert.deepEqual(validateCandidateAttestationPredicate(predicate.value, predicate.value), predicate.value);
+  assert.deepEqual(historicalValidator.validate(predicate.value, predicate.value), predicate.value);
+  writeFileSync(historicalValidator.controlsPath, currentControls);
+  assert.throws(() => historicalValidator.validate(predicate.value, predicate.value),
+    /postgres_candidate_attestation_predicate_invalid/u);
+  writeFileSync(historicalValidator.controlsPath, historicalControls);
+  assert.deepEqual(historicalValidator.validate(predicate.value, predicate.value), predicate.value);
   validatePreSignReceipt(preSign.value, predicate.bytes, { runId, recipeRevision: signingRevision });
 
   assert.equal(predicate.value.source.buildRecipeRevision, buildRevision);

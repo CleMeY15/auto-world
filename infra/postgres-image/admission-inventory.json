@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "kind": "POSTGRES_ADMISSION_INVENTORY_V1",
   "repository": "CleMeY15/auto-world",
-  "admissionGeneration": 2,
+  "admissionGeneration": 3,
   "generationRoot": {
     "schemaVersion": 1,
     "kind": "POSTGRES_ADMISSION_GENERATION_ROOT_V1",
-    "admissionGeneration": 2,
+    "admissionGeneration": 3,
     "image": {
       "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
       "manifestDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
@@ -204,7 +204,7 @@
     "archiveLocator": {
       "schemaVersion": 1,
       "size": 448048,
-      "sha256": "aaf9476b9356b710546e49bc42c4503b737fc29f555a99d5c9f29e3b2d17a23c"
+      "sha256": "816506e8a888e6b380465d3439aa70a4cfee7569f71ecd4e107f6a741325b0d8"
     },
     "executionFiles": [
       {
@@ -261,6 +261,16 @@
         "path": "infra/postgres-image/source-closure-materials.json",
         "size": 180448,
         "sha256": "2bae01738e73e1851794d28ba52ce9161bd85b38df6f33d9e7d67c225cc8cc5f"
+      },
+      {
+        "path": "infra/seaweed-image/base-config.json",
+        "size": 13676,
+        "sha256": "31d61f5e8771cbd5993912cd051be0c7bcdc207faaa12c50e1a3b8371631c927"
+      },
+      {
+        "path": "infra/seaweed/required-tests.json",
+        "size": 7120,
+        "sha256": "eb50caadd818336196a8e4d4f29ea82971c154140656b83569e6cf6b8808aa09"
       },
       {
         "path": "infra/seaweed/seaweed-lock.json",
@@ -561,6 +571,11 @@
         "path": "scripts/seaweed/work-tree.mjs",
         "size": 3226,
         "sha256": "26ec25c04570165cb618722d3ac49d8d0021b2d77a400ed2a4726d447d0e7825"
+      },
+      {
+        "path": "tests/fixtures/seaweed-source/upstream/go.sum",
+        "size": 289547,
+        "sha256": "d0da511e41d4013cbcc31d959d7533edb8312cfefa8722919085d5cbc6eb8fe2"
       }
     ],
     "waivers": [
@@ -575,13 +590,20 @@
       "authorityRevision": 1,
       "currentRevisionSha256": "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf",
       "state": "PENDING"
+    },
+    {
+      "admissionGeneration": 2,
+      "generationRootSha256": "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220",
+      "authorityRevision": 1,
+      "currentRevisionSha256": "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da",
+      "state": "PENDING"
     }
   ],
   "authorityRevisions": [
     {
       "authorityRevision": 1,
       "previousRevisionSha256": null,
-      "generationRootSha256": "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220",
+      "generationRootSha256": "c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce",
       "state": "PENDING",
       "supportStartedAt": null,
       "supportEndsAt": null,
@@ -594,8 +616,8 @@
     }
   ],
   "revisionHashes": [
-    "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da"
+    "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc"
   ],
   "authorityRevision": 1,
-  "currentRevisionSha256": "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da"
+  "currentRevisionSha256": "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc"
 }
