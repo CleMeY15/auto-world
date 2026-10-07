@@ -16,13 +16,30 @@ const generationOne = Object.freeze({
   currentRevisionSha256: "4fb2e30c0540173a814cc7b1957719a61f67f97ecd618f2b071224fd88709daf",
   state: "PENDING",
 });
+const generationTwo = Object.freeze({
+  admissionGeneration: 2,
+  generationRootSha256: "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220",
+  authorityRevision: 1,
+  currentRevisionSha256: "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da",
+  state: "PENDING",
+});
+const generationTwoExecutionFilesSha256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
+const generationThreeAdditions = Object.freeze([
+  { path: "infra/seaweed-image/base-config.json", size: 13_676,
+    sha256: "31d61f5e8771cbd5993912cd051be0c7bcdc207faaa12c50e1a3b8371631c927" },
+  { path: "infra/seaweed/required-tests.json", size: 7_120,
+    sha256: "eb50caadd818336196a8e4d4f29ea82971c154140656b83569e6cf6b8808aa09" },
+  { path: "tests/fixtures/seaweed-source/upstream/go.sum", size: 289_547,
+    sha256: "d0da511e41d4013cbcc31d959d7533edb8312cfefa8722919085d5cbc6eb8fe2" },
+]);
 
 function assertGenerationOneHistory(value) {
   assert.ok(value.admissionGeneration > generationOne.admissionGeneration);
-  assert.equal(value.previousGenerations.length, 1);
+  assert.equal(value.previousGenerations.length, 2);
   assert.equal(new Set(value.previousGenerations.map(item => item.admissionGeneration)).size,
     value.previousGenerations.length);
   assert.deepEqual(value.previousGenerations[0], generationOne);
+  assert.deepEqual(value.previousGenerations[1], generationTwo);
 }
 
 test("the shipped admission inventory authenticates its immutable root and complete contiguous revision preimages", () => {
@@ -63,40 +80,34 @@ test("the generation-one history summary cannot be rewritten while advancing adm
   assert.throws(() => assertGenerationOneHistory(changed));
 });
 
-test("generation two activation retains the initial revision and binds the actual current audit and package observation", () => {
-  assert.equal(sha(canonical(inventory.generationRoot)),
-    "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220");
-  assert.equal(inventory.revisionHashes[0],
-    "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da");
-  const active = inventory.authorityRevisions[1];
-  assert.equal(active.state, "ACTIVE");
-  assert.equal(active.previousRevisionSha256, inventory.revisionHashes[0]);
-  assert.deepEqual([active.supportStartedAt, active.supportEndsAt, active.archiveUntil],
-    ["2026-10-07", "2027-10-07", "2028-10-06"]);
-  assert.equal(Date.parse(active.archiveUntil) - Date.parse(active.supportEndsAt), 365 * 86_400_000);
-  const audit = active.currentEvidence.audit;
-  assert.equal(sha(Buffer.from(`${JSON.stringify(audit, null, 2)}\n`)),
-    "e910c271d14a480ae625902e02f9132a47833ec5434660e3ac4c90167ea35e6c");
-  assert.equal(audit.checkedAt, "2026-10-06T22:21:49.375163974Z");
-  assert.deepEqual(audit.source, {
-    recipeRevision: "fe397f1fc3f49ce4ef850338cec319366cb22c55",
-    workflowPath: ".github/workflows/postgres-admission-current-audit.yml",
-    runId: "37538340223", attempt: "1",
-  });
-  assert.equal(audit.files.length, 16);
-  const controls = fs.readFileSync("infra/postgres-image/package-controls.json");
-  assert.deepEqual(active.currentEvidence.packageControls, {
-    size: controls.length, sha256: sha(controls), observedAt: JSON.parse(controls).observedAt,
-  });
-  assert.equal(active.currentEvidence.packageControls.sha256,
-    "29ca213f523b623d18d17b95195342f39002e138304a70ba93ce50444421021b");
+test("generation three starts PENDING and retains the exact generation one and two summaries", () => {
+  assert.equal(inventory.admissionGeneration, 3);
+  assert.equal(inventory.generationRoot.admissionGeneration, 3);
+  assertGenerationOneHistory(inventory);
+  assert.equal(inventory.authorityRevision, 1);
+  assert.equal(inventory.authorityRevisions.length, 1);
+  assert.equal(inventory.revisionHashes.length, 1);
+  const pending = inventory.authorityRevisions[0];
+  assert.equal(pending.state, "PENDING");
+  assert.equal(pending.previousRevisionSha256, null);
+  assert.equal(pending.generationRootSha256, sha(canonical(inventory.generationRoot)));
+  assert.deepEqual([pending.supportStartedAt, pending.supportEndsAt, pending.archiveUntil], [null, null, null]);
+  assert.deepEqual(pending.currentEvidence, { audit: null, packageControls: null });
+  assert.equal(pending.revocationReason, null);
+  assert.equal(inventory.currentRevisionSha256, sha(canonical(pending)));
+  assert.deepEqual(inventory.revisionHashes, [inventory.currentRevisionSha256]);
 });
 
-test("frozen execution pins cover the complete supported and offline relative-import closure without mutable evidence or self-reference", () => {
+test("frozen execution pins cover the complete supported and offline execution closure without mutable evidence or self-reference", () => {
   const files = inventory.generationRoot.executionFiles;
+  assert.equal(files.length, 74);
   assert.deepEqual(files.map(item => item.path), files.map(item => item.path).sort());
   assert.equal(new Set(files.map(item => item.path)).size, files.length);
   const pins = new Map(files.map(item => [item.path, item]));
+  for (const pin of generationThreeAdditions) assert.deepEqual(pins.get(pin.path), pin);
+  const additions = new Set(generationThreeAdditions.map(item => item.path));
+  assert.equal(sha(canonical(files.filter(item => !additions.has(item.path)))),
+    generationTwoExecutionFilesSha256);
   assert.equal(pins.has("infra/postgres-image/admission-inventory.json"), false);
   assert.equal(pins.has("infra/postgres-image/package-controls.json"), false);
   assert.equal(pins.has("infra/postgres-image/admission-consumers.json"), false);

@@ -1,0 +1,21 @@
+# TASK-0005A — PostgreSQL generation3 execution closure
+
+Status: SOURCE_PREPARED, generation3 PENDING with null support dates, 2026-10-07 UTC. [PR140](https://github.com/CleMeY15/auto-world/pull/140) recovers the incomplete execution set found by the final generation2 activation barrier. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked. No supported session, health publication, scheduler installation or support activation is established for generation3.
+
+## Implementation and acceptance
+
+The final generation2 barrier exposed an eager resource read in the authority's transitive SeaweedFS helper: the installed71-file recipe omitted `infra/seaweed-image/base-config.json`. Repository tests had loaded that resource from the checkout. The [failed activation and preserved evidence](TASK-0005A-POSTGRES-GENERATION2-ACTIVATION.md) remain separate from this repair.
+
+The actual isolated loader found two further resources read at module evaluation by the transitive SeaweedFS comparison module. The complete correction adds three original files: the13676-byte base configuration, SHA256 `31d61f5e8771cbd5993912cd051be0c7bcdc207faaa12c50e1a3b8371631c927`; the289547-byte upstream go.sum fixture, SHA256 `d0da511e41d4013cbcc31d959d7533edb8312cfefa8722919085d5cbc6eb8fe2`; and the7120-byte required-tests configuration, SHA256 `eb50caadd818336196a8e4d4f29ea82971c154140656b83569e6cf6b8808aa09`. All original71 pins stay byte-identical. There is no production-code or application-dependency change. Frozen-root changes require a greater generation under [ADR-0011](../decisions/ADR-0011-postgres-admission-runtime.md); the installed generation2 recipe and maintenance input cannot be overwritten.
+
+Generation3 Root SHA256 is `c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce`. Its initial PENDING revision SHA256 is `36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc`. It preserves generation1 and the protected-main generation2 PENDING summaries exactly, including Root2 `f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220` and revision1 `28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da`. The never-delivered ACTIVE draft stays in its original commit and private artifact; it is not admitted history. The earlier72-file draft and its failed native-loader result remain preserved separately.
+
+The new448048-byte locator SHA256 is `816506e8a888e6b380465d3439aa70a4cfee7569f71ecd4e107f6a741325b0d8`. Only admissionGeneration changes from the original generation2 locator. The same accepted P1/P5 controls and four archive roots are referenced, with no recopy, deletion or mode changes. Construction alone does not prove native installation or FULL health.
+
+The execution regression materializes only hash-authenticated pins into a private temporary tree and imports each supported/offline entrypoint in a fresh actual Node22 process. No checkout fallback, VM metadata shim, copied node_modules or authority call is permitted. The complete74-file set loads; the original71-file subset reproduces the missing-resource failure. Missing or altered added resources are rejected. Fresh Windows inventory/closure tests pass5/5. This proves module-loading closure, while runtime operations and complete native authority validation remain separate activation gates.
+
+## Required delivery evidence
+
+Before this increment is delivered: independently accept the authenticated pre-ACTIVE task rollback and unchanged generation2 Root/health/evidence; review the exclusive generation3 locator installer; run the unchanged production FULL/FAST verifier against all1766 objects/2325886764bytes; complete lint/typecheck/tests/build/secrets/dependency checks, independent source/native/privacy reviews, exact-head CI, identical merge tree and main CI. Record each actual result below when it exists.
+
+No generation3 recipe, maintenance dates, observation task or retained health is installed by this PENDING increment. Later activation requires a separate focused PR, current P2/P3, a complete installed-loader gate, actual retainer/action evidence and the same-date final freshness barrier. All original generation2 inputs, health and failed/successful receipts remain preserved. No support dates are established by this repair.
