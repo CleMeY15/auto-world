@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL generation3 activation
 
-Status: DRAFT_ACTIVE_NOT_ACTIVATED, 2026-10-07 UTC. Protected main still contains generation3 PENDING with null support dates. PR141 stages the independently accepted private revision2 candidate; no generation3 maintenance, installed recipe, retained health, observation task or supported runtime session exists yet. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
+Status: INSTALLED_NOT_ACTIVATED, 2026-10-07 UTC. Protected main still contains generation3 PENDING with null support dates. PR141 stages the independently accepted private revision2 candidate. The exclusive recipe and maintenance are installed and independently accepted; retained health, the observation task and supported runtime remain unproved. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
 
 [PR140 closure recovery](TASK-0005A-POSTGRES-GENERATION3-CLOSURE.md) is delivered on reviewed head `27a218e2081bc210a93356c755a3734714c0c2a8`, [exact-head CI37590776527](https://github.com/CleMeY15/auto-world/actions/runs/37590776527), identical tree `499b1117ce835170417c3b4111b1adbb9ed78592` and protected-main merge `794d42ef4d60aaf0eb24eeeee94aaffaf0547aaa`, [main CI37591156502](https://github.com/CleMeY15/auto-world/actions/runs/37591156502). Independent architecture/security/native/privacy acceptance confirms the owned pre-ACTIVE task is absent, the new locator is installed, default FULL/FAST passes all 1766 objects/2325886764 bytes, and prior archives, recipe, maintenance, health and failed proofs remain preserved. This repair establishes no support or runtime authority.
 
@@ -10,7 +10,15 @@ The unique actual constructor completed with status0, closed stdin, both output 
 
 The draft dates are supportStartedAt `2026-10-07`, supportEndsAt `2027-10-07` and archiveUntil `2028-10-06`. They establish no support until the reviewed same-UTC-date ACTIVE change is delivered after installation, actual loader, retainer/health, final currentness and CI gates. The candidate binds the original accepted current P2 projection and P3 observation without extending either timestamp. Construction grants no runtime, manifest access, high-water write or admission.
 
-The constructor's 11 pure tests pass, including durable removal, cleanup failure and strict lstat absence. The corrected inert installation template passes16 Linux pure tests, including descriptor closure, exact evidence deadlines, UTC rollover, exclusive recipe creation and terminal failure handling. Those tests and source reviews are preparation evidence; actual installation and the four-entrypoint loader are still required.
+The constructor's 11 pure tests pass, including durable removal, cleanup failure and strict lstat absence. The finalized installer passes18 Linux pure tests, including the separate protected audit-clone boundary, descriptor closure, exact evidence deadlines, UTC rollover, exclusive recipe creation and terminal failure handling. Five isolated operator regressions reject failed Git lookups or a dirty source and accept a clean source. Withdrawn helpers remain preserved and were never invoked.
+
+## Accepted actual installation
+
+The unique installation completed at `2026-10-07T09:33:49.5353761Z` after [source-head CI37598889000](https://github.com/CleMeY15/auto-world/actions/runs/37598889000) passed exact commit `2a4590e99dbe0358a8e6dea24fd001c85bf416ad`, tree `c85179dee7d9d79d7f719a2266d916b4b389bcd6`. Its 52423 authenticated source bytes travelled on stdin with no suffix. The process exited0 after4508ms, with closed stdin, both output EOFs and empty stdout/stderr. Its private observation is886 bytes/SHA256 `dba7e729f42ee5aab852a75d249fb2b7c9a840b4af83df3561796f78ed42a4b5`.
+
+Two independent actual native/privacy reviews accept the canonical 29508-byte installation receipt, SHA256 `2530c71b7080eb50c037f4ebbb3cdc9fa210efa9f9095d683a1e92afa436bb0b`: all74 files are protected Root0400/single-link in16 closed directories, and all four actual installed entrypoints load through fresh Node22 file URLs with exit0, closed stdin, exact bounded stdout, empty stderr and both EOFs. The maintenance input is17167 bytes/SHA256 `e86603e6b9aa13eb452fff96aba16743374a2ed67779fe4b6b327b85e3a6bdff`, with its exact protected sidecar.
+
+Fresh native verification confirms the old71-file recipe, maintenance, locator, health and receipt remain unchanged, together with all14 unique current-audit objects and all1766 archive-object identities. Installation checks archive metadata without reading payloads. Failure/uncertainty receipts, generation3 health/update files, authority initialization and high-water state are absent; the observation task is absent. This is `INSTALLED_NOT_ACTIVATED`: retainer execution, scheduling, support, registry access, runtime and admission are not established.
 
 ## Scope and frozen contract
 
