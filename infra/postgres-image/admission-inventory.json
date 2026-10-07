@@ -597,9 +597,9 @@
       "previousRevisionSha256": "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da",
       "generationRootSha256": "f1894e6bb5b09b51033707d4cf8943c91d726a61dbb6a07e9aef942fa80e1220",
       "state": "ACTIVE",
-      "supportStartedAt": "2026-10-06",
-      "supportEndsAt": "2027-10-06",
-      "archiveUntil": "2028-10-05",
+      "supportStartedAt": "2026-10-07",
+      "supportEndsAt": "2027-10-07",
+      "archiveUntil": "2028-10-06",
       "currentEvidence": {
         "audit": {
           "kind": "POSTGRES_ADMISSION_CURRENT_AUDIT_V1",
@@ -706,8 +706,8 @@
   ],
   "revisionHashes": [
     "28a46b871c4d92770789abe905c77bfd7066e847f7138ad438f517e29c4eb1da",
-    "b2f96ca3ca24f7dc2c63bb8f1af46460cc060b0450a8d5788a1947bd52fb397d"
+    "bfb1e688f632c73cd1ce635ef38b4fd10fd0b45e683699eea02dda10ca215dfb"
   ],
   "authorityRevision": 2,
-  "currentRevisionSha256": "b2f96ca3ca24f7dc2c63bb8f1af46460cc060b0450a8d5788a1947bd52fb397d"
+  "currentRevisionSha256": "bfb1e688f632c73cd1ce635ef38b4fd10fd0b45e683699eea02dda10ca215dfb"
 }

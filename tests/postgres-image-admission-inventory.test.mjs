@@ -72,7 +72,7 @@ test("generation two activation retains the initial revision and binds the actua
   assert.equal(active.state, "ACTIVE");
   assert.equal(active.previousRevisionSha256, inventory.revisionHashes[0]);
   assert.deepEqual([active.supportStartedAt, active.supportEndsAt, active.archiveUntil],
-    ["2026-10-06", "2027-10-06", "2028-10-05"]);
+    ["2026-10-07", "2027-10-07", "2028-10-06"]);
   assert.equal(Date.parse(active.archiveUntil) - Date.parse(active.supportEndsAt), 365 * 86_400_000);
   const audit = active.currentEvidence.audit;
   assert.equal(sha(Buffer.from(`${JSON.stringify(audit, null, 2)}\n`)),
