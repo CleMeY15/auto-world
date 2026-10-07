@@ -1,8 +1,16 @@
 # TASK-0005A — PostgreSQL generation3 activation
 
-Status: PLAN_ONLY, 2026-10-07 UTC. Generation3 is delivered PENDING with null support dates. No generation3 maintenance, installed recipe, retained health, observation task or supported runtime session exists yet. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
+Status: DRAFT_ACTIVE_NOT_ACTIVATED, 2026-10-07 UTC. Protected main still contains generation3 PENDING with null support dates. PR141 stages the independently accepted private revision2 candidate; no generation3 maintenance, installed recipe, retained health, observation task or supported runtime session exists yet. TASK-0005A/0005 remain IN_PROGRESS and TASK-0006 blocked.
 
 [PR140 closure recovery](TASK-0005A-POSTGRES-GENERATION3-CLOSURE.md) is delivered on reviewed head `27a218e2081bc210a93356c755a3734714c0c2a8`, [exact-head CI37590776527](https://github.com/CleMeY15/auto-world/actions/runs/37590776527), identical tree `499b1117ce835170417c3b4111b1adbb9ed78592` and protected-main merge `794d42ef4d60aaf0eb24eeeee94aaffaf0547aaa`, [main CI37591156502](https://github.com/CleMeY15/auto-world/actions/runs/37591156502). Independent architecture/security/native/privacy acceptance confirms the owned pre-ACTIVE task is absent, the new locator is installed, default FULL/FAST passes all 1766 objects/2325886764 bytes, and prior archives, recipe, maintenance, health and failed proofs remain preserved. This repair establishes no support or runtime authority.
+
+## Accepted construction, activation still pending
+
+The unique actual constructor completed with status0, closed stdin, both output EOFs and empty stderr. Two independent native/canonical/privacy reviews accept the private 21030-byte canonical candidate, SHA256 `8cd22262ca0829821fbc87666894a8cdc0a8d9fb34033222068d9ea3efaec138`, and 1600-byte construction receipt, SHA256 `b2550c6a16eba5e434bf40f7ac998ba2bd3f703373ac1c77bfb730c541846ff8`. The source remains exact delivered main794d42ef/tree499b1117; Root3, all74 pins, revision1 and both prior generations are preserved. Only authority revision2 is appended, with canonical revision SHA256 `134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9`.
+
+The draft dates are supportStartedAt `2026-10-07`, supportEndsAt `2027-10-07` and archiveUntil `2028-10-06`. They establish no support until the reviewed same-UTC-date ACTIVE change is delivered after installation, actual loader, retainer/health, final currentness and CI gates. The candidate binds the original accepted current P2 projection and P3 observation without extending either timestamp. Construction grants no runtime, manifest access, high-water write or admission.
+
+The constructor's 11 pure tests pass, including durable removal, cleanup failure and strict lstat absence. The corrected inert installation template passes16 Linux pure tests, including descriptor closure, exact evidence deadlines, UTC rollover, exclusive recipe creation and terminal failure handling. Those tests and source reviews are preparation evidence; actual installation and the four-entrypoint loader are still required.
 
 ## Scope and frozen contract
 

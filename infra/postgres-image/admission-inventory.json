@@ -613,11 +613,123 @@
         "packageControls": null
       },
       "revocationReason": null
+    },
+    {
+      "authorityRevision": 2,
+      "previousRevisionSha256": "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc",
+      "generationRootSha256": "c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce",
+      "state": "ACTIVE",
+      "supportStartedAt": "2026-10-07",
+      "supportEndsAt": "2027-10-07",
+      "archiveUntil": "2028-10-06",
+      "currentEvidence": {
+        "audit": {
+          "kind": "POSTGRES_ADMISSION_CURRENT_AUDIT_V1",
+          "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "checkedAt": "2026-10-06T22:21:49.375163974Z",
+          "validUntil": "2026-10-08T19:11:49.518Z",
+          "source": {
+            "recipeRevision": "fe397f1fc3f49ce4ef850338cec319366cb22c55",
+            "workflowPath": ".github/workflows/postgres-admission-current-audit.yml",
+            "runId": "37538340223",
+            "attempt": "1"
+          },
+          "files": [
+            {
+              "role": "audit-receipt.json",
+              "size": 16482,
+              "sha256": "5654b50062ae2f2b7af524334c24f3e1a88df41d76737328672229fc14f82312"
+            },
+            {
+              "role": "candidate-sbom.cdx.json",
+              "size": 76609,
+              "sha256": "83f815b9ade8931e768e00a2a904893bbc97d19f8cc0d632577aeceb5c7b7dd3"
+            },
+            {
+              "role": "candidate-vulnerabilities.json",
+              "size": 103338,
+              "sha256": "e8ab7aebbe31ed12f18d1a72556648a34db2b18403cc8b2e24d75118b4e8c506"
+            },
+            {
+              "role": "database-evidence.json",
+              "size": 2261,
+              "sha256": "ef0f19e1ae3541dd8b8abee1b69b664a1f04b7e09f30adef37ed832ae0a478ea"
+            },
+            {
+              "role": "database-java-after-manifest.json",
+              "size": 624,
+              "sha256": "bd72ee799f96c2fa3c4a3f7b528573639b6180a20bd117ca7ce6d66c86c35976"
+            },
+            {
+              "role": "database-java-before-manifest.json",
+              "size": 624,
+              "sha256": "bd72ee799f96c2fa3c4a3f7b528573639b6180a20bd117ca7ce6d66c86c35976"
+            },
+            {
+              "role": "database-vulnerability-after-manifest.json",
+              "size": 616,
+              "sha256": "cc67f95f8963dcb3732c6780677abc736edb68c821b2303f696b26c71016ce39"
+            },
+            {
+              "role": "database-vulnerability-before-manifest.json",
+              "size": 616,
+              "sha256": "cc67f95f8963dcb3732c6780677abc736edb68c821b2303f696b26c71016ce39"
+            },
+            {
+              "role": "fixture-gomod-vulnerable-baseline.json",
+              "size": 418966,
+              "sha256": "6a054bc1a1452f2926e868b921ebb5da382bef4d9a78a99f396423b9684ec912"
+            },
+            {
+              "role": "fixture-gomod-vulnerable-candidate.json",
+              "size": 418968,
+              "sha256": "0067d5a3586da8f2923a6cc83a39b785c156b693f702e031d36b4a9cc798236b"
+            },
+            {
+              "role": "fixture-java-jar-clean-candidate-candidate.json",
+              "size": 807,
+              "sha256": "8741e3d95b97044f676e88fef1f31ca288b9aede729bd2b25cd137865a110533"
+            },
+            {
+              "role": "fixture-java-war-vulnerable-baseline.json",
+              "size": 133453,
+              "sha256": "3e1da4b4d1c6a6fa85d0fbac3459e3e8e9dc2366efcea7bbe04ddef5866311b1"
+            },
+            {
+              "role": "fixture-java-war-vulnerable-candidate.json",
+              "size": 133451,
+              "sha256": "c5797c17133b8caa1a1836b2631589fbe9b81d5469d76f4f1483403e4c40edc3"
+            },
+            {
+              "role": "scanner-self.cdx.json",
+              "size": 262807,
+              "sha256": "89b2a57dc5a20f517c704fec8f14718e9bff7e34b950b6df9a8cb8c78051c2d0"
+            },
+            {
+              "role": "scanner-self.json",
+              "size": 158280,
+              "sha256": "82c4342013b4be1b16358c75c601d6610c739971114862ab208f15aa6666b32e"
+            },
+            {
+              "role": "scanner-version-probe.json",
+              "size": 1199,
+              "sha256": "7ced405a595f98d9594c9002eedad7002913583d63e7da6818612e72089f7fff"
+            }
+          ]
+        },
+        "packageControls": {
+          "size": 708,
+          "sha256": "29ca213f523b623d18d17b95195342f39002e138304a70ba93ce50444421021b",
+          "observedAt": "2026-10-06T22:11:00.000Z"
+        }
+      },
+      "revocationReason": null
     }
   ],
   "revisionHashes": [
-    "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc"
+    "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc",
+    "134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9"
   ],
-  "authorityRevision": 1,
-  "currentRevisionSha256": "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc"
+  "authorityRevision": 2,
+  "currentRevisionSha256": "134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9"
 }

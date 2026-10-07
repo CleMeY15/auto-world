@@ -80,22 +80,62 @@ test("the generation-one history summary cannot be rewritten while advancing adm
   assert.throws(() => assertGenerationOneHistory(changed));
 });
 
-test("generation three starts PENDING and retains the exact generation one and two summaries", () => {
+test("generation three appends its exact ACTIVE revision while retaining the PENDING revision prefix and prior summaries", () => {
   assert.equal(inventory.admissionGeneration, 3);
   assert.equal(inventory.generationRoot.admissionGeneration, 3);
+  assert.equal(sha(canonical(inventory.generationRoot)),
+    "c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce");
+  assert.equal(inventory.generationRoot.executionFiles.length, 74);
   assertGenerationOneHistory(inventory);
-  assert.equal(inventory.authorityRevision, 1);
-  assert.equal(inventory.authorityRevisions.length, 1);
-  assert.equal(inventory.revisionHashes.length, 1);
+  assert.equal(inventory.authorityRevision, 2);
+  assert.equal(inventory.authorityRevisions.length, 2);
+  assert.deepEqual(inventory.revisionHashes, [
+    "36885a3329bb1b940dbfdfcb1a12d851bfc1aed4feebb751ba708ec73c2278fc",
+    "134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9",
+  ]);
   const pending = inventory.authorityRevisions[0];
+  assert.equal(sha(canonical(pending)), inventory.revisionHashes[0]);
+  assert.equal(pending.authorityRevision, 1);
   assert.equal(pending.state, "PENDING");
   assert.equal(pending.previousRevisionSha256, null);
-  assert.equal(pending.generationRootSha256, sha(canonical(inventory.generationRoot)));
+  assert.equal(pending.generationRootSha256,
+    "c667c4307c4efa8c4c5b0ba85991b7e66cf9d7d6b6df53d5c8707682c59b60ce");
   assert.deepEqual([pending.supportStartedAt, pending.supportEndsAt, pending.archiveUntil], [null, null, null]);
   assert.deepEqual(pending.currentEvidence, { audit: null, packageControls: null });
   assert.equal(pending.revocationReason, null);
-  assert.equal(inventory.currentRevisionSha256, sha(canonical(pending)));
-  assert.deepEqual(inventory.revisionHashes, [inventory.currentRevisionSha256]);
+
+  const active = inventory.authorityRevisions[1];
+  assert.equal(active.authorityRevision, 2);
+  assert.equal(active.previousRevisionSha256, inventory.revisionHashes[0]);
+  assert.equal(active.generationRootSha256, pending.generationRootSha256);
+  assert.equal(active.state, "ACTIVE");
+  assert.equal(active.supportStartedAt, "2026-10-07");
+  assert.equal(active.supportEndsAt, "2027-10-07");
+  const archiveUntil = new Date(`${active.supportEndsAt}T00:00:00.000Z`);
+  archiveUntil.setUTCDate(archiveUntil.getUTCDate() + 365);
+  assert.equal(active.archiveUntil, archiveUntil.toISOString().slice(0, 10));
+  assert.equal(active.revocationReason, null);
+  assert.equal(sha(canonical(active)), inventory.revisionHashes[1]);
+  assert.equal(inventory.currentRevisionSha256, inventory.revisionHashes[1]);
+
+  const audit = active.currentEvidence.audit;
+  assert.equal(sha(canonical(audit)), "26e81d9d4826905b2104efb11d0482b0c2b1a9b429788eab9635c91c5cb31c8f");
+  assert.equal(audit.kind, "POSTGRES_ADMISSION_CURRENT_AUDIT_V1");
+  assert.equal(audit.subject, inventory.generationRoot.image.subject);
+  assert.equal(audit.checkedAt, "2026-10-06T22:21:49.375163974Z");
+  assert.equal(audit.validUntil, "2026-10-08T19:11:49.518Z");
+  assert.deepEqual(audit.source, {
+    recipeRevision: "fe397f1fc3f49ce4ef850338cec319366cb22c55",
+    workflowPath: ".github/workflows/postgres-admission-current-audit.yml",
+    runId: "37538340223",
+    attempt: "1",
+  });
+  assert.equal(audit.files.length, 16);
+  assert.deepEqual(active.currentEvidence.packageControls, {
+    size: 708,
+    sha256: "29ca213f523b623d18d17b95195342f39002e138304a70ba93ce50444421021b",
+    observedAt: "2026-10-06T22:11:00.000Z",
+  });
 });
 
 test("frozen execution pins cover the complete supported and offline execution closure without mutable evidence or self-reference", () => {
