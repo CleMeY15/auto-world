@@ -1,6 +1,6 @@
 # TASK-0005A — PostgreSQL generation 4 PENDING preparation
 
-Status: **SOURCE AND PENDING INVENTORY VERIFIED — DELIVERY GATES PENDING**. [PR143](https://github.com/CleMeY15/auto-world/pull/143) repairs the supported broker's Docker inspection, lifecycle and cleanup predicates and prepares a new generation 4 `PENDING` candidate. It does not install or activate generation 4, mutate Root state or Task Scheduler, execute Docker, retry SQL, reuse runtime data or establish any P7 result.
+Status: **DELIVERED — GENERATION 4 REMAINS PENDING**. [PR143](https://github.com/CleMeY15/auto-world/pull/143) repairs the supported broker's Docker inspection, lifecycle and cleanup predicates and prepares a new generation 4 `PENDING` candidate. It does not install or activate generation 4, mutate Root state or Task Scheduler, execute Docker, retry SQL, reuse runtime data or establish any P7 result.
 
 ## Historical boundary
 
@@ -44,11 +44,11 @@ All six repository gates pass in a fresh native Linux checkout as UID/GID 1000, 
 
 The enclosing quality scaffold returned one after the successful gates because its own private evidence directory appeared as untracked. Separate closed read-only verification proves the exact source tree unchanged while excluding only that directory; the original result remains preserved. The adjudication receipt is 1,008 bytes with SHA-256 `3f12a8033da717df4841b1121a1569409cffe4ae9bc3f5ece848aa4de2159758`. The earlier Windows diagnostic's three failures require a nonroot POSIX identity and do not establish Linux acceptance. Neither result was overwritten or hidden.
 
-Independent architecture and security reviews accept the exact broker, corrected wrappers and generation 4 inventory/closure. Final documentation review, exact-head CI, identical reviewed merge tree and protected-main CI remain delivery gates. TASK-0005A and TASK-0005 stay `IN_PROGRESS`; TASK-0006 stays blocked.
+Independent architecture and security reviews accept the exact broker, corrected wrappers and generation 4 inventory/closure. Final documentation and exact-head/tree reviews are accepted. PR143 merged at 2026-10-07T13:41:12Z from final head `a2cd4b72182464be0e4cfcfec74e18e17cb60ea0` to protected main `9aa82327c54ed4cb14887b0254445f27c96f9f4e`, with identical reviewed tree `21c70f9967274d6bbfb8e29a03dc825bbe2f5f6d`. [Final-head CI](https://github.com/CleMeY15/auto-world/actions/runs/37629988520) and [protected-main CI](https://github.com/CleMeY15/auto-world/actions/runs/37630490376) both pass all six quality gates. The closed delivery receipt is 1,284 bytes with SHA-256 `278bac300a55a83081042d68e8db5e94ff833b2f52aaa221d4553b85e3cdb6ba`. This establishes delivery of the PENDING preparation. TASK-0005A and TASK-0005 stay `IN_PROGRESS`; TASK-0006 stays blocked.
 
 ## Operational handoff
 
-Native installation and activation remain later operations. They require a distinct locator and immutable recipe, fresh current P2/P3, generation-bound FULL then FAST archive health, protected-main delivery, and explicit review of coexistence with generation 3 preservation and its current scheduler duty. No new supported session, migration, backup, restore, service runtime, admission or four-service acceptance is claimed by PR143.
+The separate [generation 4 activation increment](TASK-0005A-POSTGRES-GENERATION4-ACTIVATION.md) requires a distinct locator and immutable recipe, fresh current P2/P3, generation-bound FULL then FAST archive health, protected-main delivery, and explicit review of coexistence with generation 3 preservation and its current scheduler duty. No new supported session, migration, backup, restore, service runtime, admission or four-service acceptance is claimed by PR143.
 
 ## Rollback
 
