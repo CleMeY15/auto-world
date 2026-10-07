@@ -6,6 +6,8 @@ Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and app
 ## Outcome
 Operate as a continuous development team that selects the single first READY task, completes it through review and CI, merges it, refreshes the roadmap state, then selects again until the roadmap outcome is delivered.
 
+PR141 delivered PostgreSQL generation 3 activation on protected main `a4fbd14900c8eba4d7287610e4ca66d7aeeeab1a`, identical reviewed tree `fbfd9f305ac7025abe0f1050b9f81763d79afd2a`, passing exact-head CI `37604663035` and main CI `37614473270`. The final read-only proof is 1,280 bytes with SHA-256 `2d0862367cb4819df8f2f4b895933a93e0879f0918aeb55c77f43c6a62ebe7e5`; support runs from 2026-10-07 through 2027-10-07 and archive retention through 2028-10-06. The next focused step is [one prepared supported PostgreSQL `SQL_CHECK`](../docs/validation/TASK-0005A-POSTGRES-SUPPORTED-SQL-CHECK.md). Its actual authority, network, runtime and SQL proof has not run; migrations, application data fidelity, backups, service runtime and all-four-service acceptance remain separate P7 gates.
+
 ## TASK-0005 exit path — 2026-10-01
 
 This is a bounded execution map, not a waiver of [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md), [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) or [TASK-0005](tasks/TASK-0005-local-data-infra.md). No image is admitted and TASK-0006 is not READY. A passing diagnostic, source archive or PR quality check cannot independently advance either task.
