@@ -1,13 +1,13 @@
 # TASK-0006 — First labeled-synthetic vertical-slice plan
 
-Status: IN_PROGRESS — synthetic plan under review; TASK-0004 accepted on `main`; implementation remains NOT READY
+Status: DONE on PR #146 plan branch after reviewed green CI; final-head and merged-main verification still required. TASK-0007 and later implementation remain BLOCKED until this plan is accepted on `main`.
 Priority: P0
 Owner role: Product/architecture planner, with data-rights, UX and operations review
 
 ## Goal
 Produce an implementation-ready P1 plan for one labeled-synthetic, network-free source from acquisition through a premium mobile-first web result, without inventing rights or capabilities. This task delivers a plan, not the slice or a supported data stack.
 
-Plan and task graph under review: [synthetic first slice](../plans/TASK-0006-synthetic-first-slice.md), with [design contract](../../DESIGN.md). No downstream task is READY until this plan is accepted on `main` and its own dependencies pass.
+Reviewed plan and task graph: [synthetic first slice](../plans/TASK-0006-synthetic-first-slice.md), with [design contract](../../DESIGN.md) and [validation evidence](../../docs/validation/TASK-0006.md). No downstream task is READY until this plan is accepted on `main` and its own dependencies pass.
 
 ## Dependencies
 - TASK-0004 merged on `main`; TASK-0001 through TASK-0003 are its accepted prerequisites.

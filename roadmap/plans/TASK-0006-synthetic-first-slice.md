@@ -1,6 +1,6 @@
 # TASK-0006 delivery plan — honest synthetic search slice
 
-Status: proposed for TASK-0006 review; a plan, not a running product or image admission.
+Status: reviewed TASK-0006 plan on PR #146; final-head and merged-main delivery checks pending. This is not a running product or image admission.
 Owner: Product/architecture. Decision sources: [ADR-0012](../../docs/decisions/ADR-0012-synthetic-development-lane.md), [DESIGN.md](../../DESIGN.md), [UX contract](../../docs/PRODUCT_UX.md), [vehicle schema](../../docs/decisions/ADR-0001-canonical-vehicle-contract.md), [Source Registry](../../docs/decisions/ADR-0002-source-registry-contract.md), [Connector SDK](../../docs/decisions/ADR-0003-connector-sdk-contract.md) and [API appendix](../../docs/decisions/ADR-0003-connector-sdk-api.md).
 
 ## Outcome and honest limitation

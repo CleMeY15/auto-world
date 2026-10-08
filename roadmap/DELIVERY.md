@@ -1,6 +1,6 @@
 # Auto World delivery ledger
 
-Status: ACTIVE — synthetic TASK-0006 planning is IN_PROGRESS alongside TASK-0005A image admission / TASK-0005 four-service acceptance; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
+Status: ACTIVE — synthetic TASK-0006 plan is reviewed on PR #146, awaiting final-head/merged-main delivery; TASK-0005A image admission / TASK-0005 four-service acceptance remain IN_PROGRESS; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome
@@ -8,7 +8,7 @@ Operate as a continuous development team with at most one first READY task in ea
 
 ## Synthetic development lane — decision of 2026-10-08
 
-[ADR-0012](../docs/decisions/ADR-0012-synthetic-development-lane.md) removes TASK-0005 only from the dependency of TASK-0006's **plan**. TASK-0004 is accepted, so TASK-0006 is IN_PROGRESS on its [labeled-synthetic P1 plan](plans/TASK-0006-synthetic-first-slice.md) using deterministic offline fixtures and injected in-memory ports. This does not make the P1 implementation READY. The plan separates synthetic contract/API/UI implementation tasks from supported PostgreSQL/OpenSearch/Redis/S3 integration tasks, each with its own DoR and evidence. The synthetic UI must label demo data and preserve raw-to-field provenance; no external source, image, real service, production credential or unsupported VIN/history/pricing/trust claim is allowed.
+[ADR-0012](../docs/decisions/ADR-0012-synthetic-development-lane.md) removes TASK-0005 only from the dependency of TASK-0006's **plan**. TASK-0004 is accepted; TASK-0006's [labeled-synthetic P1 plan](plans/TASK-0006-synthetic-first-slice.md) is reviewed and green on [PR #146](https://github.com/CleMeY15/auto-world/pull/146), awaiting final-head and merged-main verification. It uses deterministic offline fixtures and injected in-memory ports. This does not make the P1 implementation READY. The plan separates synthetic contract/API/UI implementation tasks from supported PostgreSQL/OpenSearch/Redis/S3 integration tasks, each with its own DoR and evidence. The synthetic UI must label demo data and preserve raw-to-field provenance; no external source, image, real service, production credential or unsupported VIN/history/pricing/trust claim is allowed.
 
 TASK-0005A and TASK-0005 continue unchanged in the infrastructure lane. No Docker/Compose image may be executed by the synthetic lane under this decision; a later container-backed dev lane needs a separate reviewed contract. Supported service use, migrations, durable ingestion, restart/restore and any real-source activation remain blocked by TASK-0005 acceptance and source-rights gates. Historical checkpoints below that say TASK-0006 was blocked remain true at their dates; the current override applies only to synthetic planning after this decision is merged. The next product milestone is the reviewed TASK-0006 plan, **not** a claim of a working search UI. Its downstream TASK-0007/0101–0106 contracts remain blocked until named dependencies are accepted on `main`.
 
@@ -16,7 +16,7 @@ PR141 delivered PostgreSQL generation 3 activation on protected main `a4fbd14900
 
 ## TASK-0005 exit path — 2026-10-01
 
-This is a bounded infrastructure execution map, not a waiver of [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md), [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) or [TASK-0005](tasks/TASK-0005-local-data-infra.md). It does not make supported four-service integration READY. TASK-0006 is IN_PROGRESS only for the separate synthetic plan described above. A passing diagnostic, source archive or PR quality check cannot independently advance image admission or TASK-0005.
+This is a bounded infrastructure execution map, not a waiver of [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md), [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) or [TASK-0005](tasks/TASK-0005-local-data-infra.md). It does not make supported four-service integration READY. TASK-0006's separate synthetic plan is reviewed on PR #146, but downstream work waits for accepted `main`. A passing diagnostic, source archive or PR quality check cannot independently advance image admission or TASK-0005.
 
 | Exact-image lane | Verified evidence | Next acceptance boundary |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ The entries below are chronological; the first is the current frontier and older
 - TASK-0002 PR #4 merged at `fe82aaf`; final-head CI `34018762556` and main CI `34018855938` passed.
 - TASK-0003 implementation is validated at `cdb1187`: 77 registry tests, 91 vehicle tests, all forced root gates, fresh corrected remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0003.md`. PR #5 final-head CI `34024559566` passed; merge `79e6ab0`, main CI `34024650605` and postmerge forced root gates passed. Its declared-policy contract does not authorize a real source.
 - TASK-0004 was merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency. Evidence: `docs/validation/TASK-0004.md`. No real source or production store is enabled; authenticated rights, retention and takedown, dashboard and alerts remain real-source activation requirements.
-- TASK-0005 remains IN_PROGRESS in the infrastructure lane; TASK-0006 is IN_PROGRESS only for synthetic planning in the separate product lane under ADR-0012.
+- TASK-0005 remains IN_PROGRESS in the infrastructure lane; TASK-0006's synthetic plan is reviewed on PR #146 under ADR-0012 and downstream tasks remain blocked pending accepted `main`.
 
 ## P0 sequence
 1. Publish the five DoR-complete task contracts and reconcile EPIC-000 statuses.
