@@ -1,6 +1,6 @@
 # TASK-0007 — Minimal shared design and web foundation
 
-Status: IN_PROGRESS on `codex/task-0007-web-foundation`; TASK-0006 is accepted on `main` through PR #146. Priority: P0. Owner: Frontend/UX executor; independent accessibility and architecture review.
+Status: DONE after independent code/UX acceptance and full exact-head CI `37791726134` on PR #147. Final delivery is effective only after the final-head/identical-tree/merged-main gates recorded in that PR; no downstream task may infer accepted `main` from this branch status alone. Priority: P0. Owner: Frontend/UX executor; independent accessibility and architecture review.
 
 ## Goal and dependencies
 
