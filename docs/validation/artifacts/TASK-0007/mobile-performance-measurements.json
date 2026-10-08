@@ -1,0 +1,109 @@
+{
+  "browserVersion": "156.0.8078.4",
+  "collectedAt": "2026-10-08T13:53:02.928Z",
+  "platform": "win32",
+  "budgets": {
+    "clsP75": 0.1,
+    "interactionDurationP75Ms": 200,
+    "lcpP75Ms": 2500
+  },
+  "caveat": "The interaction value is bounded lab Event Timing evidence from real keyboard/click input; it is not a production INP claim.",
+  "profile": {
+    "cpuSlowdownMultiplier": 4,
+    "downloadBitsPerSecond": 1600000,
+    "latencyMs": 150,
+    "uploadBitsPerSecond": 750000,
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "p75": {
+    "cls": 0,
+    "interactionDurationMs": 24,
+    "lcpMs": 468
+  },
+  "sampleCount": 10,
+  "samples": [
+    {
+      "cls": 0,
+      "interactionDurationMs": 24,
+      "interactionEntryCount": 44,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 572,
+      "sample": 1
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 24,
+      "interactionEntryCount": 40,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 456,
+      "sample": 2
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 28,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 456,
+      "sample": 3
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 38,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 460,
+      "sample": 4
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 40,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 460,
+      "sample": 5
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 35,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 480,
+      "sample": 6
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 36,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 448,
+      "sample": 7
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 24,
+      "interactionEntryCount": 40,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 464,
+      "sample": 8
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 36,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 468,
+      "sample": 9
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 40,
+      "interactionEntryCount": 53,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 468,
+      "sample": 10
+    }
+  ]
+}
