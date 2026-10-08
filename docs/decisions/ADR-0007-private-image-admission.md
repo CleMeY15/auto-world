@@ -85,7 +85,7 @@ Rollback reverts admission to another fully valid supported digest or stops affe
 
 The supporting [TASK-0005A](../../roadmap/tasks/TASK-0005A-managed-image-tooling.md) first delivers the corrected scanner and real current audit evidence without publication rights. A later focused private-image workflow/activation increment requires the additional concrete review above. Only then integrate the admitted images and verifier into PR7's data lifecycle, incorporating PR10's report correction.
 
-TASK-0005 remains incomplete until real readiness, migrations, transactions/outbox/raw integrity, restart persistence, isolated reset and backup/restore pass for all four services on exact admitted images. Required root checks, fresh clone, independent implementation review, final-head CI and exact merged-main CI remain mandatory. TASK-0006 waits for TASK-0005; no source rights or production topology is introduced here.
+TASK-0005 remains incomplete until real readiness, migrations, transactions/outbox/raw integrity, restart persistence, isolated reset and backup/restore pass for all four services on exact admitted images. Required root checks, fresh clone, independent implementation review, final-head CI and exact merged-main CI remain mandatory. Under [ADR-0012](ADR-0012-synthetic-development-lane.md), only TASK-0006's network-free synthetic planning may proceed before TASK-0005; all supported four-service integration and real-source activation still wait. No source rights or production topology is introduced here.
 
 ## Official references
 

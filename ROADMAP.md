@@ -102,7 +102,7 @@ Le produit doit paraître simple même lorsqu'il orchestre des millions d'annonc
 ### P0 — Fondation
 Architecture, repo/CI, contrats, VehicleEntity/Listing/Observation, provenance, taxonomie v1, Source Registry, event vocabulary, threat model, UX/design foundation, règles de versioning fiscal.
 ### P1 — Vertical Slice
-1-3 sources autorisées : ingestion -> raw -> normalisation -> VehicleEntity -> provenance -> index -> API -> UI premium -> favoris. Historique d'observation dès ce stade.
+D'abord une tranche de développement/CI sur données synthétiques explicitement étiquetées, sans images ni source réseau, puis 1-3 sources autorisées après leurs gates de droits et d'infrastructure : ingestion -> raw -> normalisation -> VehicleEntity -> provenance -> index -> API -> UI premium -> favoris. La preuve synthétique ne vaut ni admission des quatre services ni autorisation d'une source réelle. Historique d'observation dès ce stade.
 ### P2 — MVP France/Allemagne/Corée
 10-20 sources, web+app, comptes, alertes, dedup v1, historique prix, recherche IA v1, VIN/specs v1, emissions v1, registration France v1 et routing historique externe.
 ### P3 — Product Market Fit
@@ -138,4 +138,4 @@ A Product/UX & Design System; B Data Acquisition/Connectors; C Vehicle Knowledge
 Stopper une intégration si droits incertains, usage interdit, instabilité chronique, coût injustifié ou qualité dangereuse. Ne jamais livrer : filtres LLM non validés, scraper monolithique, UI couplée aux sources, règle fiscale non versionnée, donnée VIN/spec/pollution inventée, rapport historique présenté comme vérifié sans source, ranking sponsorisé invisible, Deal/Trust Score non explicable ou UI brute considérée temporaire.
 
 ## Exécution
-La source de vérité opérationnelle est `roadmap/`. Codex lit `AGENTS.md`, puis cette roadmap, puis l'epic actif, et exécute uniquement la première tâche READY dont les dépendances sont satisfaites. Les Strategic Moats doivent influencer les décisions d'architecture même lorsqu'une fonctionnalité correspondante n'est livrée que dans une phase ultérieure.
+La source de vérité opérationnelle est `roadmap/`. Codex lit `AGENTS.md`, puis cette roadmap, puis l'epic actif. Une tâche READY au plus peut avancer dans chaque voie indépendante définie par [ADR-0012](docs/decisions/ADR-0012-synthetic-development-lane.md) : planification/produit synthétique sans conteneur et infrastructure supportée. Dans chaque voie, respecter l'ordre des dépendances et la priorité P0 ; un travail partagé exige coordination avant modification. TASK-0006 n'autorise qu'un plan synthétique tant que TASK-0005 est inachevée. Les Strategic Moats doivent influencer les décisions d'architecture même lorsqu'une fonctionnalité correspondante n'est livrée que dans une phase ultérieure.

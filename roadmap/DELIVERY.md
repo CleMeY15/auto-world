@@ -1,16 +1,22 @@
 # Auto World delivery ledger
 
-Status: ACTIVE — TASK-0005A image admission, then TASK-0005 four-service acceptance; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
+Status: ACTIVE — synthetic TASK-0006 planning is READY alongside TASK-0005A image admission / TASK-0005 four-service acceptance; heartbeat PAUSED; full roadmap P0 through P5 remains NOT DONE
 Authority: `AGENTS.md`, `ROADMAP.md`, executable files under `roadmap/`, and applicable `docs/` contracts
 
 ## Outcome
-Operate as a continuous development team that selects the single first READY task, completes it through review and CI, merges it, refreshes the roadmap state, then selects again until the roadmap outcome is delivered.
+Operate as a continuous development team with at most one first READY task in each independent lane: network-free synthetic planning/product work and supported infrastructure. Complete each through review and CI, merge it, refresh the roadmap state, then select again. Dependencies remain sequential within each lane; shared contracts require coordination.
 
-PR141 delivered PostgreSQL generation 3 activation on protected main `a4fbd14900c8eba4d7287610e4ca66d7aeeeab1a`, identical reviewed tree `fbfd9f305ac7025abe0f1050b9f81763d79afd2a`, passing exact-head CI `37604663035` and main CI `37614473270`. The final read-only proof is 1,280 bytes with SHA-256 `2d0862367cb4819df8f2f4b895933a93e0879f0918aeb55c77f43c6a62ebe7e5`; support runs from 2026-10-07 through 2027-10-07 and archive retention through 2028-10-06. The sole actual [supported PostgreSQL `SQL_CHECK`](../docs/validation/TASK-0005A-POSTGRES-SUPPORTED-SQL-CHECK.md) is `NOT_ACCEPTED_NO_RETRY`: its closed exit-1 proof records `CONTAINER_CREATE / postgres_admission_container_invalid`, with no accepted SQL result. Generation 3 remains `ACTIVE`. PR143 now prepares the [Docker inspection repair and generation 4 `PENDING` boundary](../docs/validation/TASK-0005A-POSTGRES-GENERATION4-PENDING.md), preserving all 73 unchanged execution pins. Source, genuine Node loader, history and all six Linux quality gates pass independent reviews; final delivery CI remains pending. Installation, activation, scheduler changes and a new supported session require the next separate increment. Migrations, application data fidelity, backups, service runtime and all-four-service acceptance remain separate P7 gates.
+## Synthetic development lane — decision of 2026-10-08
+
+[ADR-0012](../docs/decisions/ADR-0012-synthetic-development-lane.md) removes TASK-0005 only from the dependency of TASK-0006's **plan**. TASK-0004 is accepted, so TASK-0006 is READY to produce a labeled-synthetic P1 plan using deterministic offline fixtures and injected in-memory ports. This does not make the P1 implementation READY. Its plan must split synthetic contract/API/UI implementation tasks from supported PostgreSQL/OpenSearch/Redis/S3 integration tasks, each with its own DoR and evidence. The synthetic UI must label demo data and preserve raw-to-field provenance; no external source, image, real service, production credential or unsupported VIN/history/pricing/trust claim is allowed.
+
+TASK-0005A and TASK-0005 continue unchanged in the infrastructure lane. No Docker/Compose image may be executed by the synthetic lane under this decision; a later container-backed dev lane needs a separate reviewed contract. Supported service use, migrations, durable ingestion, restart/restore and any real-source activation remain blocked by TASK-0005 acceptance and source-rights gates. Historical checkpoints below that say TASK-0006 was blocked remain true at their dates; the current override applies only to synthetic planning after this decision is merged. The next product milestone is the reviewed TASK-0006 plan, **not** a claim of a working search UI.
+
+PR141 delivered PostgreSQL generation 3 activation on protected main `a4fbd14900c8eba4d7287610e4ca66d7aeeeab1a`, identical reviewed tree `fbfd9f305ac7025abe0f1050b9f81763d79afd2a`, passing exact-head CI `37604663035` and main CI `37614473270`. The final read-only proof is 1,280 bytes with SHA-256 `2d0862367cb4819df8f2f4b895933a93e0879f0918aeb55c77f43c6a62ebe7e5`; support runs from 2026-10-07 through 2027-10-07 and archive retention through 2028-10-06. The sole actual [supported PostgreSQL `SQL_CHECK`](../docs/validation/TASK-0005A-POSTGRES-SUPPORTED-SQL-CHECK.md) is `NOT_ACCEPTED_NO_RETRY`: its closed exit-1 proof records `CONTAINER_CREATE / postgres_admission_container_invalid`, with no accepted SQL result. Generation 3 remains `ACTIVE`. [PR143](https://github.com/CleMeY15/auto-world/pull/143) delivered the [Docker inspection repair and generation 4 `PENDING` boundary](../docs/validation/TASK-0005A-POSTGRES-GENERATION4-PENDING.md) on main `9aa82327c54ed4cb14887b0254445f27c96f9f4e` with exact-head CI `37629988520` and main CI `37630490376` green. Installation, activation, scheduler changes and a new supported session require the next separate increment, currently drafted in PR144. Migrations, application data fidelity, backups, service runtime and all-four-service acceptance remain separate P7 gates.
 
 ## TASK-0005 exit path — 2026-10-01
 
-This is a bounded execution map, not a waiver of [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md), [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) or [TASK-0005](tasks/TASK-0005-local-data-infra.md). No image is admitted and TASK-0006 is not READY. A passing diagnostic, source archive or PR quality check cannot independently advance either task.
+This is a bounded infrastructure execution map, not a waiver of [ADR-0007](../docs/decisions/ADR-0007-private-image-admission.md), [TASK-0005A](tasks/TASK-0005A-managed-image-tooling.md) or [TASK-0005](tasks/TASK-0005-local-data-infra.md). It does not make supported four-service integration READY. TASK-0006 is READY only for the separate synthetic plan described above. A passing diagnostic, source archive or PR quality check cannot independently advance image admission or TASK-0005.
 
 | Exact-image lane | Verified evidence | Next acceptance boundary |
 | --- | --- | --- |
@@ -24,7 +30,7 @@ The remaining work has four ordered gates:
 1. **Exact candidates and current eligibility.** Inventory every service/helper image the final stack executes; for each immutable digest, require a complete, current, zero-blocker audit or resolve the finding before proceeding. Do not repeat a diagnostic merely because another PR merged, but refresh it whenever the admission/currentness contract requires it.
 2. **Complete evidence closure.** For each candidate, retain the exact source/patch/notice, recipe, SBOM, audit, runtime and private recovery evidence required by ADR-0007, with the independently verified second private copy/restore. Group bounded related missing materials into a reviewable closure increment; do not create an extra provenance-only PR unless it closes an identified gate or fixes a demonstrated failure.
 3. **Admission.** Use official exact-subject attestation/verification, independent review, a reviewed main inventory, support/retention dates and a fail-closed consumer/currentness check. Preserve separate `VERIFIED`, `REJECTED` and `ERROR` controls. Only this gate can authorize a supported image.
-4. **Four-service acceptance.** On the admitted digests, rerun real PostgreSQL/OpenSearch/Redis/S3-compatible startup, migrations/replay, raw/outbox integrity, restart and failure isolation, backup/isolated restore and scoped reset, then all TASK-0005 quality/operational gates. [PR #77](https://github.com/CleMeY15/auto-world/pull/77) proves these interactions only on its older diagnostic pins; it is not the final admitted-image run. Mark TASK-0005 Done and start TASK-0006 only after this gate and independent review pass.
+4. **Four-service acceptance.** On the admitted digests, rerun real PostgreSQL/OpenSearch/Redis/S3-compatible startup, migrations/replay, raw/outbox integrity, restart and failure isolation, backup/isolated restore and scoped reset, then all TASK-0005 quality/operational gates. [PR #77](https://github.com/CleMeY15/auto-world/pull/77) proves these interactions only on its older diagnostic pins; it is not the final admitted-image run. Mark TASK-0005 Done only after this gate and independent review pass; supported P1 integration then becomes eligible, separately from TASK-0006's synthetic plan.
 
 The main execution task owns the image/admission work. Keep the next branch tied to one of these four gates and record its exact blocker-to-proof transition; maintain a single current checkpoint here rather than treating PR volume or archive count as delivery progress.
 
@@ -118,15 +124,15 @@ The entries below are chronological; the first is the current frontier and older
 - TASK-0002 PR #4 merged at `fe82aaf`; final-head CI `34018762556` and main CI `34018855938` passed.
 - TASK-0003 implementation is validated at `cdb1187`: 77 registry tests, 91 vehicle tests, all forced root gates, fresh corrected remote clone, independent code/spec/security APPROVE and architecture CLEAR. Evidence: `docs/validation/TASK-0003.md`. PR #5 final-head CI `34024559566` passed; merge `79e6ab0`, main CI `34024650605` and postmerge forced root gates passed. Its declared-policy contract does not authorize a real source.
 - TASK-0004 was merged through PR #6 at `b9d22a2123ff53acded73eaf800a29dc8f2faf66`; verified current `main` `315396e63e4024bc716bcce3f4d7dab9d9f81261` contains that dependency. Evidence: `docs/validation/TASK-0004.md`. No real source or production store is enabled; authenticated rights, retention and takedown, dashboard and alerts remain real-source activation requirements.
-- TASK-0005 is the current dependency-ready frontier and remains IN_PROGRESS.
+- TASK-0005 remains IN_PROGRESS in the infrastructure lane; TASK-0006 is READY only for synthetic planning in the separate product lane under ADR-0012.
 
 ## P0 sequence
 1. Publish the five DoR-complete task contracts and reconcile EPIC-000 statuses.
 2. TASK-0002: freeze ADR-0001, implement and merge the canonical Vehicle/Listing/Observation/provenance contract.
 3. TASK-0003: implement and merge the fail-closed Source Registry contract.
 4. TASK-0004: implement and merge the safe, replayable Connector SDK contract.
-5. TASK-0005: implement and merge real local/CI data infrastructure; local Docker absence alone does not block CI proof.
-6. TASK-0006: approve and merge the first authorized or synthetic-only P1 vertical-slice plan.
+5. TASK-0006: approve and merge the first labeled-synthetic P1 plan after TASK-0004; no P1 implementation is implied.
+6. TASK-0005: continue and merge supported local/CI data infrastructure independently; local Docker absence alone does not block CI proof. It remains prerequisite to the plan's real four-service implementation tasks.
 7. Expand remaining P0 into DoR-complete tasks for taxonomy v1, event vocabulary, threat model, UX/design foundation and fiscal-rule versioning.
 8. Close EPIC-000 only when a connector can be built without invented schema, rights, retry/deletion or canonical-field semantics.
 
@@ -159,7 +165,7 @@ The entries below are chronological; the first is the current frontier and older
 ## Stop and resume rules
 - Stop a task on unmet dependencies, failed gates, unresolved high-severity review, unsafe migration/rollback or inaccurate evidence.
 - Stop source activation on uncertain rights, unavailable credentials, prohibited access, dangerous quality or missing takedown controls.
-- Continue synthetic, contract or documentation work only when it remains within the current READY task.
+- Continue synthetic, contract or documentation work only within the first READY task of its lane; one active task per lane and no shared-file conflict.
 - Resume from the last verified merge on `main`; unmerged branch status never satisfies a dependency.
 
 ## Completion condition
