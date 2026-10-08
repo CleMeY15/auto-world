@@ -33,10 +33,14 @@ function synthetic(context, identifier, values) {
 
 function makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBytes, sidecarBytes) {
   const entries = new Map(), descriptors = new Map(), mutations = [], reads = [], order = [];
+  const generation = configuration.generation ?? 1;
+  const healthDirectory = `${ROOT}/archive-health`;
+  const target = `${healthDirectory}/generation-${generation}.json`;
+  const marker = `${healthDirectory}/.generation-${generation}.update-intent`;
   let nextIno = 1000n, nextFd = 20, published = false, markerUnlinked = false;
   let postRenameFsyncFailed = false, readCloseFailed = false, commitCloseFailed = false, targetLstatsAfterPublish = 0;
   const add = (name, type, mode, content = null, size = content?.length ?? 0, digest = null) => {
-    entries.set(name, { name, type, mode, content, size, digest, ino: nextIno++ });
+    entries.set(name, { name, type, mode, content, size, digest, ino: nextIno++, mtimeNs: 1n, ctimeNs: 1n });
   };
   for (const name of [
     "/opt", "/opt/auto-world", ROOT, `${ROOT}/archive-health`, "/opt/auto-world/toolchains",
@@ -44,26 +48,26 @@ function makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBy
     REPOSITORY, `${REPOSITORY}/scripts`, `${REPOSITORY}/scripts/postgres-image`, `${REPOSITORY}/infra`,
     `${REPOSITORY}/infra/postgres-image`,
   ]) add(name, "directory", name === `${ROOT}/archive-health` ? 0o700 : 0o755);
-  add(`${ROOT}/maintenance-generation-1.json`, "file", 0o400, inputBytes);
-  add(`${ROOT}/maintenance-generation-1.sha256`, "file", 0o400, sidecarBytes);
+  add(`${ROOT}/maintenance-generation-${generation}.json`, "file", 0o400, inputBytes);
+  add(`${ROOT}/maintenance-generation-${generation}.sha256`, "file", 0o400, sidecarBytes);
   add(VERIFIER, "file", 0o400, commandBytes);
   add(POLICY, "file", 0o400, policyBytes);
   add(NODE, "file", 0o755, null, NODE_SIZE, configuration.nodeDigest ?? NODE_SHA256);
   if (configuration.preexistingMarker) {
-    add(`${ROOT}/archive-health/.generation-1.update-intent`, "file", 0o600, Buffer.from("foreign-marker\n"));
+    add(marker, "file", 0o600, Buffer.from("foreign-marker\n"));
   }
   if (configuration.foreignTarget) {
-    add(`${ROOT}/archive-health/generation-1.json`, "file", 0o644, Buffer.from("foreign-target\n"));
+    add(target, "file", 0o644, Buffer.from("foreign-target\n"));
   }
 
   if (configuration.tamper === "command") entries.get(VERIFIER).content = Buffer.from("tampered-command\n");
   if (configuration.tamper === "policy") entries.get(POLICY).content = Buffer.from("tampered-policy\n");
-  if (configuration.tamper === "sidecar") entries.get(`${ROOT}/maintenance-generation-1.sha256`).content = Buffer.from(`${"0".repeat(64)}\n`);
+  if (configuration.tamper === "sidecar") entries.get(`${ROOT}/maintenance-generation-${generation}.sha256`).content = Buffer.from(`${"0".repeat(64)}\n`);
   for (const entry of entries.values()) if (entry.content) entry.size = entry.content.length;
 
   const status = entry => ({
     dev: 2096n, ino: entry.ino, uid: 0n, gid: 0n, mode: BigInt(entry.mode), nlink: 1n,
-    size: BigInt(entry.size), mtimeNs: 1n, ctimeNs: 1n,
+    size: BigInt(entry.size), mtimeNs: entry.mtimeNs, ctimeNs: entry.ctimeNs,
     isFile: () => entry.type === "file", isDirectory: () => entry.type === "directory", isSymbolicLink: () => false,
   });
   const missing = () => { const error = new Error("ENOENT"); error.code = "ENOENT"; throw error; };
@@ -72,7 +76,7 @@ function makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBy
     constants,
     lstatSync(name) {
       const entry = entries.get(name); if (!entry) return missing();
-      if (configuration.readbackResealFail && published && name === `${ROOT}/archive-health/generation-1.json`
+      if (configuration.readbackResealFail && published && name === target
         && ++targetLstatsAfterPublish === 2) {
         const changed = { ...entry, ino: entry.ino + 1n }; return status(changed);
       }
@@ -83,8 +87,12 @@ function makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBy
       let entry = entries.get(name);
       if ((flags & constants.O_CREAT) !== 0) {
         if (entry && (flags & constants.O_EXCL) !== 0) throw new Error("EEXIST");
-        entry = { name, type: "file", mode, content: Buffer.alloc(0), size: 0, digest: null, ino: nextIno++ };
+        entry = { name, type: "file", mode, content: Buffer.alloc(0), size: 0, digest: null,
+          ino: nextIno++, mtimeNs: 1n, ctimeNs: 1n };
         entries.set(name, entry); mutations.push({ operation: "create", name }); order.push(`create:${name}`);
+        const parent = entries.get(path.posix.dirname(name));
+        if (parent) { parent.mtimeNs += 1n; parent.ctimeNs += 1n; }
+        configuration.onCreate?.(name);
       }
       if (!entry) return missing();
       const fd = nextFd++; descriptors.set(fd, entry); order.push(`open:${name}:${fd}`); return fd;
@@ -117,27 +125,30 @@ function makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBy
     closeSync(fd) {
       const entry = descriptors.get(fd); if (!entry) throw new Error("EBADF");
       descriptors.delete(fd); order.push(`close:${entry.name}:${fd}`);
-      if (configuration.readDescriptorCloseFail && published && !readCloseFailed
-        && entry.name === `${ROOT}/archive-health/generation-1.json`) {
+      if (configuration.readDescriptorCloseFail && published && !readCloseFailed && entry.name === target) {
         readCloseFailed = true; throw new Error("read descriptor close failed");
       }
       if (configuration.finalCommitCloseFail && markerUnlinked && !commitCloseFailed
-        && entry.name === `${ROOT}/archive-health`) {
+        && entry.name === healthDirectory) {
         commitCloseFailed = true; throw new Error("final commit close failed");
       }
     },
     renameSync(from, to) {
       const entry = entries.get(from); if (!entry) return missing();
       entries.delete(from); entry.name = to; entries.set(to, entry); mutations.push({ operation: "rename", from, to });
-      order.push(`rename:${from}->${to}`); if (to === `${ROOT}/archive-health/generation-1.json`) published = true;
+      const parent = entries.get(path.posix.dirname(to));
+      if (parent) { parent.mtimeNs += 1n; parent.ctimeNs += 1n; }
+      order.push(`rename:${from}->${to}`); if (to === target) published = true;
     },
     unlinkSync(name) {
       if (!entries.has(name)) return missing();
       entries.delete(name); mutations.push({ operation: "unlink", name }); order.push(`unlink:${name}`);
-      if (name === `${ROOT}/archive-health/.generation-1.update-intent`) markerUnlinked = true;
+      const parent = entries.get(path.posix.dirname(name));
+      if (parent) { parent.mtimeNs += 1n; parent.ctimeNs += 1n; }
+      if (name === marker) markerUnlinked = true;
     },
   };
-  const addPrior = envelope => add(`${ROOT}/archive-health/generation-1.json`, "file", 0o600, canonical(envelope));
+  const addPrior = envelope => add(target, "file", 0o600, canonical(envelope));
   return { fs, entries, mutations, reads, order, addPrior };
 }
 
@@ -154,10 +165,11 @@ function makeReport(bindings, outcome) {
 }
 
 async function loadObservation(configuration = {}) {
+  const generation = configuration.generation ?? 1;
   const commandBytes = Buffer.from("archive-maintenance-command\n"), policyBytes = Buffer.from("admission-policy\n");
   const command = { size: commandBytes.length, sha256: sha256(commandBytes) };
   const policy = { size: policyBytes.length, sha256: sha256(policyBytes) };
-  const generationRoot = { admissionGeneration: 1, executionFiles: [
+  const generationRoot = { admissionGeneration: generation, executionFiles: [
     { path: "scripts/postgres-image/admission-archive-maintenance.mjs", ...command },
   ] };
   const generationRootSha256 = sha256(canonical(generationRoot));
@@ -169,7 +181,7 @@ async function loadObservation(configuration = {}) {
   const inputBytes = canonical(input), sidecarBytes = Buffer.from(`${sha256(inputBytes)}\n`);
   const virtual = makeVirtualFileSystem(configuration, commandBytes, policyBytes, inputBytes, sidecarBytes);
   const bindings = {
-    admissionGeneration: 1, generationRootSha256, archiveLocatorSha256: "a".repeat(64),
+    admissionGeneration: generation, generationRootSha256, archiveLocatorSha256: "a".repeat(64),
     executionFilesSha256: "b".repeat(64),
     roots: ["evidenceCopy", "evidenceRetrieve", "controlCopy", "controlRetrieve"].map((role, index) => ({
       role, references: index < 2 ? 1094 : 44, objects: index < 2 ? 840 : 43,
@@ -230,7 +242,7 @@ async function loadObservation(configuration = {}) {
     static now() { return NOW; }
   }
   const processMock = { platform: "linux", getuid: () => 0, getgid: () => 0,
-    argv: [NODE, "/not-the-observation-main.mjs", "--generation", "1"], env: { SECRET_TOKEN: "must-not-propagate" } };
+    argv: [NODE, "/not-the-observation-main.mjs", "--generation", String(generation)], env: { SECRET_TOKEN: "must-not-propagate" } };
   const context = vm.createContext({ Buffer: BufferFacade, Date: FixedDate, process: processMock,
     setTimeout, clearTimeout, TextDecoder, console });
   const dependencies = new Map([
@@ -249,7 +261,9 @@ async function loadObservation(configuration = {}) {
         ? { ...fast, archiveLocatorSha256: "e".repeat(64) } : fast,
     })],
   ]);
-  const module = new vm.SourceTextModule(readFileSync(SOURCE, "utf8"), {
+  const source = `${readFileSync(SOURCE, "utf8")}${configuration.exposeRetain
+    ? "\nexport { retain as TEST_ONLY_retainPostgresAdmissionArchiveObservation };\n" : ""}`;
+  const module = new vm.SourceTextModule(source, {
     context, identifier: "file:///repo/scripts/postgres-image/admission-archive-observation.mjs",
     initializeImportMeta(meta) { meta.url = "file:///repo/scripts/postgres-image/admission-archive-observation.mjs"; },
   });
@@ -310,6 +324,57 @@ if (typeof vm.SourceTextModule !== "function") {
       const heldFd = heldOpen.split(":").at(-1);
       assert.ok(value.virtual.order.indexOf(`close:${directory}:${heldFd}`) < unlinkIndex, directory);
     }
+  });
+
+  test("generation 3 and 4 retainers may interleave only through distinct health namespaces", async () => {
+    const configuration = { generation: 3, exposeRetain: true };
+    const value = await loadObservation(configuration);
+    const directory = value.virtual.entries.get(`${ROOT}/archive-health`);
+    const parentIdentity = { dev: 2096n, ino: directory.ino, uid: 0, gid: 0, mode: directory.mode };
+    const parentTimes = { mtimeNs: directory.mtimeNs, ctimeNs: directory.ctimeNs };
+    const report4 = JSON.parse(JSON.stringify(value.report));
+    report4.admissionGeneration = 4;
+    report4.generationRootSha256 = "4".repeat(64);
+    const envelope4 = {
+      kind: "POSTGRES_ADMISSION_ARCHIVE_HEALTH_ENVELOPE_V1", state: "VERIFIED",
+      observedAt: new Date(NOW).toISOString(), report: report4, process: { status: 0, signal: null, closed: true,
+        stdoutEOF: true, stderrEOF: true }, command: value.command, policy: value.policy,
+    };
+    let interleaved = false;
+    configuration.onCreate = name => {
+      if (interleaved || name !== `${ROOT}/archive-health/.generation-3.update-intent`) return;
+      interleaved = true;
+      assert.throws(() => value.namespace.TEST_ONLY_retainPostgresAdmissionArchiveObservation(3, envelope4),
+        /postgres_admission_archive_observation_failed/u);
+      value.namespace.TEST_ONLY_retainPostgresAdmissionArchiveObservation(4, envelope4);
+    };
+
+    const result3 = await value.namespace.retainPostgresAdmissionArchiveObservation();
+    assert.equal(result3.state, "RETAINED");
+    assert.equal(interleaved, true);
+    const health3 = JSON.parse(value.virtual.entries.get(`${ROOT}/archive-health/generation-3.json`).content);
+    const health4 = JSON.parse(value.virtual.entries.get(`${ROOT}/archive-health/generation-4.json`).content);
+    assert.equal(health3.report.admissionGeneration, 3);
+    assert.equal(health4.report.admissionGeneration, 4);
+    assert.deepEqual(health3.report.roots, health4.report.roots);
+    assert.notEqual(health3.report.generationRootSha256, health4.report.generationRootSha256);
+    for (const generation of [3, 4]) {
+      assert.equal(value.virtual.entries.has(`${ROOT}/archive-health/.generation-${generation}.update-intent`), false);
+      assert.equal(value.virtual.entries.has(`${ROOT}/archive-health/.generation-${generation}.tmp`), false);
+    }
+    assert.ok(directory.mtimeNs > parentTimes.mtimeNs && directory.ctimeNs > parentTimes.ctimeNs);
+    assert.deepEqual({ dev: 2096n, ino: directory.ino, uid: 0, gid: 0, mode: directory.mode }, parentIdentity);
+    assert.equal(value.virtual.mutations.every(item => {
+      const names = [item.name, item.from, item.to].filter(Boolean);
+      return names.every(name => name === `${ROOT}/archive-health` || name.startsWith(`${ROOT}/archive-health/`));
+    }), true);
+    assert.deepEqual(value.virtual.mutations.filter(item => item.operation === "rename").map(item => [item.from, item.to]), [
+      [`${ROOT}/archive-health/.generation-4.tmp`, `${ROOT}/archive-health/generation-4.json`],
+      [`${ROOT}/archive-health/.generation-3.tmp`, `${ROOT}/archive-health/generation-3.json`],
+    ]);
+    assert.deepEqual(value.virtual.mutations.filter(item => item.operation === "unlink").map(item => item.name), [
+      `${ROOT}/archive-health/.generation-4.update-intent`, `${ROOT}/archive-health/.generation-3.update-intent`,
+    ]);
   });
 
   test("observation rejects every authenticated-input substitution before spawning or writing", async () => {
