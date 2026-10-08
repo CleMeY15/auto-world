@@ -12,7 +12,7 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 3. `TASK-0003-source-registry-contract.md` — DONE; PR #5 merged and main verified at `79e6ab0`
 4. `TASK-0004-connector-sdk-contract.md` — DONE; PR #6 merged into accepted main `b9d22a2`
 5. `TASK-0005-local-data-infra.md` — IN_PROGRESS in the supported-infrastructure lane; image admission and four-service acceptance remain required
-6. `TASK-0006-first-vertical-slice-plan.md` — READY in the synthetic-planning lane after accepted TASK-0004, under [ADR-0012](../../docs/decisions/ADR-0012-synthetic-development-lane.md); no P1 implementation or production-source activation is thereby authorized
+6. `TASK-0006-first-vertical-slice-plan.md` — DONE on [PR #146](https://github.com/CleMeY15/auto-world/pull/146) plan branch after reviewed green CI, pending final-head/merged-main verification; [plan and downstream contracts](../plans/TASK-0006-synthetic-first-slice.md) are not implemented
 
 ## Exit gate
 The first connector can be implemented without inventing schemas, source-rights semantics, retry behavior or canonical fields. The synthetic first-slice plan can be reviewed without waiting for image admission, but EPIC-000 remains IN_PROGRESS until this original readiness condition and all applicable task gates pass; no supported connector or four-service completion is inferred from synthetic planning.

@@ -1,11 +1,13 @@
 # TASK-0006 — First labeled-synthetic vertical-slice plan
 
-Status: READY — synthetic plan only; TASK-0004 accepted on `main`; implementation remains NOT READY
+Status: DONE on PR #146 plan branch after reviewed green CI; final-head and merged-main verification still required. TASK-0007 and later implementation remain BLOCKED until this plan is accepted on `main`.
 Priority: P0
 Owner role: Product/architecture planner, with data-rights, UX and operations review
 
 ## Goal
 Produce an implementation-ready P1 plan for one labeled-synthetic, network-free source from acquisition through a premium mobile-first web result, without inventing rights or capabilities. This task delivers a plan, not the slice or a supported data stack.
+
+Reviewed plan and task graph: [synthetic first slice](../plans/TASK-0006-synthetic-first-slice.md), with [design contract](../../DESIGN.md) and [validation evidence](../../docs/validation/TASK-0006.md). No downstream task is READY until this plan is accepted on `main` and its own dependencies pass.
 
 ## Dependencies
 - TASK-0004 merged on `main`; TASK-0001 through TASK-0003 are its accepted prerequisites.
@@ -26,10 +28,10 @@ Produce an implementation-ready P1 plan for one labeled-synthetic, network-free 
 ## Scope
 - Select a labeled, deterministic synthetic adapter with no external network, seller media, production/external credentials or real-source rights. Use the unchanged Connector SDK authority port with an authenticated, enabled test-only Source Registry fixture inside an isolated dev/test composition; that fixture is not an authorized production record.
 - Record real-source evaluation as a later, separately blocked planning/activation gate requiring documented rights and credentials.
-- Map the target source -> connector -> immutable raw -> validation -> normalization -> observations -> entity candidate -> PostgreSQL -> index -> API -> responsive web architecture, and separately map the synthetic offline execution path through its injected in-memory store/search ports.
+- Map the target source -> connector -> immutable raw -> validation -> normalization -> observations -> unresolved Listing -> PostgreSQL -> index -> API -> responsive web architecture. A later identity-resolver task may associate a VehicleEntity; the synthetic path stops at listing evidence and uses injected in-memory store/search ports.
 - Distinguish the synthetic in-memory store/search-port proof from the target PostgreSQL/index architecture; do not claim that a port fixture proves real persistence, indexing, migrations, performance or recovery.
 - Define exact contracts, service ownership, migrations, events/outbox, idempotency, reconciliation and rollback checkpoints.
-- Define a thin user flow from search intent to results and vehicle detail with progressive disclosure.
+- Define a thin user flow from search intent to results and synthetic listing detail with progressive disclosure; a resolved vehicle detail page requires a later identity contract.
 - Include accountless/local favorites and visible observation history in the P1 flow; account synchronization remains P2.
 - Specify mobile and desktop layouts plus skeleton, empty, error, offline, slow, partial and success states.
 - Set accessibility checks, analytics events, privacy handling and measurable performance budgets, including search p95 below 500 ms outside generation.
