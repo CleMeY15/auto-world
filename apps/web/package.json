@@ -4,9 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint src --max-warnings=0",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node ../../scripts/verify-package-build.mjs"
+    "build": "next build",
+    "dev": "next dev --hostname 127.0.0.1",
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "eslint src test next.config.mjs playwright.config.ts --max-warnings=0",
+    "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "test:ui": "playwright test"
+  },
+  "dependencies": {
+    "@auto-world/design-system": "workspace:*",
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.0",
+    "@types/node": "22.20.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
   }
 }

@@ -1,10 +1,10 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Draft for the TASK-0006 synthetic P1 plan; not an implemented design system.
+- Status: TASK-0007 implementation visually approved on its dedicated branch; final delivery gates remain in [validation](docs/validation/TASK-0007.md). The later synthetic search/detail/Saved flow is not implemented.
 - Last refreshed: 2026-10-08.
 - Primary product surfaces: responsive web search, results, synthetic listing detail and local saved listings. Native mobile comes later.
-- Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), and placeholder `apps/web/src/index.ts`. No current UI components, brand assets, screenshots or visual baselines were found.
+- Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
 ## Brand
 - Personality: calm, precise, premium and helpful; clarity over decoration.
@@ -41,7 +41,7 @@
 - Imagery/iconography: no external seller media; use a clearly labeled local illustration/placeholder, never a photo implying an actual vehicle. Use one small, consistent line-icon family implemented from reviewed local vectors.
 
 ## Components
-- Existing components to reuse: none; `apps/web` is currently a placeholder.
+- Existing components to reuse: `@auto-world/design-system` Button, Field, Chip, Card, Skeleton and Banner; shared tokens and local Search/Bookmark/Filter/Back/Close vectors. `apps/web` demonstrates these primitives without vehicle data.
 - New/changed components: shared tokens/primitives first, then search field/filter controls, result card, evidence row, favorite control, navigation, skeleton and recovery states.
 - Variants and states: default, focus, hover, pressed, disabled, loading, empty, error, offline, partial and success where applicable.
 - Token/component ownership: one shared design-system boundary before web duplication; native consumers may later reuse semantic tokens without forcing identical platform widgets.
@@ -72,13 +72,14 @@
 - Microcopy rules: no “bonne affaire”, “historique vérifié”, “VIN certifié” or real-source endorsement in the synthetic slice.
 
 ## Implementation constraints
-- Framework/styling system: TASK-0007 uses the ROADMAP Next.js/React/TypeScript reference stack with exact reviewed dependency versions; the current web package is still a TypeScript placeholder. Use a minimal shared token/CSS layer, not a second UI framework.
+- Framework/styling system: TASK-0007 implements Next.js 16.3.8 / React 19.3.0 / TypeScript 5.9.2 on the pinned workspace toolchain. Server-rendered document/page plus one ephemeral client island; CSS handles initial system appearance without storage reads or hydration effects. The only layout effect restores focus after a user-triggered state replacement. No second UI framework.
 - Design-token constraints: establish semantic tokens in a shared boundary; do not create an additional UI framework or add dependencies without a reviewed need.
 - Performance constraints: search p95 under 500 ms outside generation, stable layout, responsive input and no LLM in the deterministic path; measure rather than infer.
 - Compatibility constraints: public DTOs are separate from internal VIN/policy/raw contracts; synthetic composition is dev/test only.
 - Test/screenshot expectations: E2E keyboard/touch/offline/reopen flows; viewport screenshots and independent UX/accessibility/performance review before a user-facing task is Done.
 
 ## Open questions and sign-off
-- [ ] Product/UX owner: approve the working warm-ivory/graphite/petrol demo direction and exact light/dark tokens, typography hierarchy, icon vectors and representative phone/desktop screenshots before TASK-0007 is Done. Final production branding may be refreshed separately; an accessible but generic scaffold is not sufficient.
-- [ ] Frontend/architecture owner: record exact Next.js/React versions, hydration boundary and versioned `localStorage` favorite schema with denied/quota/corrupt recovery in their implementation contracts before shipping.
+- [x] Independent Product/UX reviewer: APPROVE for TASK-0007's exact palette, platform-native hierarchy, wordmark, local icons and 14 phone/tablet/desktop/state screenshots plus two wider-font regressions. Original 320px clipping and the later real Linux system-font wrapping defect are repaired; final regenerated screenshots/copy are independently re-reviewed with primary action and focus outline fully contained. Final production branding remains separate; this sign-off covers the implemented component preview, not later screens.
+- [x] Frontend/architecture boundary: exact framework versions and server/client hydration contract recorded in TASK-0007 validation and architecture docs; no persistent storage in this task.
+- [ ] TASK-0103 owner: implement the separately versioned `localStorage` favorite schema with denied/quota/corrupt recovery before the Saved flow ships.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.

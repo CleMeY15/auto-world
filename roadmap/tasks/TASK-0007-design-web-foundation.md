@@ -1,6 +1,6 @@
 # TASK-0007 — Minimal shared design and web foundation
 
-Status: BLOCKED until TASK-0006 is Done on `main`. Priority: P0. Owner: Frontend/UX executor; independent accessibility and architecture review.
+Status: DONE after independent code/UX acceptance and full exact-head CI `37791726134` on PR #147. Final delivery is effective only after the final-head/identical-tree/merged-main gates recorded in that PR; no downstream task may infer accepted `main` from this branch status alone. Priority: P0. Owner: Frontend/UX executor; independent accessibility and architecture review.
 
 ## Goal and dependencies
 
@@ -22,3 +22,5 @@ The scaffold demonstrates focus/keyboard/touch interactions and light/dark/reduc
 - Product/UX independently signs off the concrete warm-ivory/graphite/petrol light/dark palette, intentional named platform-face hierarchy from DESIGN.md, local line icons and phone/desktop screenshots before Done; an accessible but generic token scaffold fails the premium gate. If the platform-face choice looks generic in context, this task must resolve it with a separately reviewed self-hosted/licensed face before completion.
 - Unit/component accessibility checks, responsive screenshot matrix, production-build import exclusion, lint/typecheck/tests/build, secrets/dependency audit and independent visual/a11y review pass.
 - Document framework/dependency choice, operational footprint, rollback by focused revert and evidence in `docs/validation/TASK-0007.md`. No claim of a completed product screen.
+
+Implementation and validation: [TASK-0007 evidence](../../docs/validation/TASK-0007.md), [QA inventory](../../docs/validation/TASK-0007-QA-INVENTORY.md). Downstream TASK-0101 remains blocked until this task is accepted on `main`.

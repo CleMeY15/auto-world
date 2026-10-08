@@ -1,6 +1,6 @@
 # TASK-0006 — First labeled-synthetic vertical-slice plan
 
-Status: DONE on PR #146 plan branch after reviewed green CI; final-head and merged-main verification still required. TASK-0007 and later implementation remain BLOCKED until this plan is accepted on `main`.
+Status: DONE on accepted `main` through PR #146, merge `198503cbccd94cdda90c4f4e431a05bc905851a1`; final-head CI `37757981081` and main CI `37758308509` pass. Downstream tasks still require their own dependencies and DoR.
 Priority: P0
 Owner role: Product/architecture planner, with data-rights, UX and operations review
 

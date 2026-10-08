@@ -16,6 +16,8 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -45,6 +47,23 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Install browser test runtimes
+        run: pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit
+
+      - name: Web interactions, accessibility and visual evidence
+        run: pnpm test:ui
+
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-foundation-evidence
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Scan tracked files for secrets
         run: pnpm secrets:check
