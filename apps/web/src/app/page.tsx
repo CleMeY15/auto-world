@@ -12,8 +12,8 @@ export default function HomePage() {
       <main className="site-container" id="main" tabIndex={-1}>
         <div className="site-intro">
           <h1>Aperçu de l’interface</h1>
-          <p>Les premiers contours d’Auto World : des critères lisibles, des actions simples et des réponses claires.</p>
-          <p className="site-disclosure">Présentation des composants. Aucune annonce ni recherche réelle sur cette page.</p>
+          <p>Des critères lisibles, des actions simples et des réponses claires.</p>
+          <p className="site-disclosure">Aucune annonce ni recherche réelle.</p>
         </div>
         <FoundationPreview />
       </main>

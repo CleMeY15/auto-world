@@ -114,6 +114,23 @@ test("selected chips retain readable contrast on hover and active press", async 
   }
 });
 
+test("narrow startup remains usable with wider platform font metrics", async ({ page, browserName }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 780 });
+  for (const font of ["Arial", "Verdana"]) for (const theme of ["light", "dark"]) {
+    await page.goto("/");
+    // Different system faces wrap differently; keep the production stack intact.
+    await page.addStyleTag({ content: `:root { --aw-font-family: ${font}, sans-serif; }` });
+    await page.getByLabel("Apparence").selectOption(theme);
+    const primary = await page.getByRole("button", { name: "Valider l’exemple" }).boundingBox();
+    expect(primary!.y + primary!.height + 5, `${font} primary action and outline fit`).toBeLessThanOrEqual(780);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (font === "Verdana" && browserName === "chromium") {
+      const name = `320-${theme}-wide-font.png`;
+      await page.screenshot({ path: process.env.AW_SCREENSHOT_DIR ? path.join(process.env.AW_SCREENSHOT_DIR, name) : testInfo.outputPath(name), scale: "css" });
+    }
+  }
+});
+
 test("system dark preference, reduced motion and 200% text remain usable", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto("/");

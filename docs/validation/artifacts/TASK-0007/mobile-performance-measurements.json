@@ -1,6 +1,6 @@
 {
   "browserVersion": "156.0.8078.4",
-  "collectedAt": "2026-10-08T13:53:02.928Z",
+  "collectedAt": "2026-10-08T14:16:20.222Z",
   "platform": "win32",
   "budgets": {
     "clsP75": 0.1,
@@ -21,7 +21,7 @@
   "p75": {
     "cls": 0,
     "interactionDurationMs": 24,
-    "lcpMs": 468
+    "lcpMs": 472
   },
   "sampleCount": 10,
   "samples": [
@@ -30,55 +30,55 @@
       "interactionDurationMs": 24,
       "interactionEntryCount": 44,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 572,
+      "lcpMs": 580,
       "sample": 1
-    },
-    {
-      "cls": 0,
-      "interactionDurationMs": 24,
-      "interactionEntryCount": 40,
-      "interactionMeasurement": "event-timing",
-      "lcpMs": 456,
-      "sample": 2
-    },
-    {
-      "cls": 0,
-      "interactionDurationMs": 16,
-      "interactionEntryCount": 28,
-      "interactionMeasurement": "event-timing",
-      "lcpMs": 456,
-      "sample": 3
-    },
-    {
-      "cls": 0,
-      "interactionDurationMs": 16,
-      "interactionEntryCount": 38,
-      "interactionMeasurement": "event-timing",
-      "lcpMs": 460,
-      "sample": 4
-    },
-    {
-      "cls": 0,
-      "interactionDurationMs": 16,
-      "interactionEntryCount": 40,
-      "interactionMeasurement": "event-timing",
-      "lcpMs": 460,
-      "sample": 5
     },
     {
       "cls": 0,
       "interactionDurationMs": 16,
       "interactionEntryCount": 35,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 480,
-      "sample": 6
+      "lcpMs": 464,
+      "sample": 2
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 35,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 468,
+      "sample": 3
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 24,
+      "interactionEntryCount": 41,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 472,
+      "sample": 4
     },
     {
       "cls": 0,
       "interactionDurationMs": 16,
       "interactionEntryCount": 36,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 448,
+      "lcpMs": 472,
+      "sample": 5
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 36,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 456,
+      "sample": 6
+    },
+    {
+      "cls": 0,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 40,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 456,
       "sample": 7
     },
     {
@@ -86,7 +86,7 @@
       "interactionDurationMs": 24,
       "interactionEntryCount": 40,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 464,
+      "lcpMs": 452,
       "sample": 8
     },
     {
@@ -94,15 +94,15 @@
       "interactionDurationMs": 16,
       "interactionEntryCount": 36,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 468,
+      "lcpMs": 452,
       "sample": 9
     },
     {
       "cls": 0,
-      "interactionDurationMs": 40,
-      "interactionEntryCount": 53,
+      "interactionDurationMs": 16,
+      "interactionEntryCount": 40,
       "interactionMeasurement": "event-timing",
-      "lcpMs": 468,
+      "lcpMs": 456,
       "sample": 10
     }
   ]

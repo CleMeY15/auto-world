@@ -7,7 +7,7 @@ This inventory maps the bounded design-system and web-foundation claims to execu
 | Claim | Controls or states | Viewports / profile | Evidence |
 | --- | --- | --- | --- |
 | Keyboard operation, focus order and validation recovery work | Skip link, budget field, submit, chip, reset, theme, state selector, retry | 390 × 844; Chromium and WebKit | `apps/web/test/ui/foundation.spec.ts` |
-| Stateful interaction regressions stay repaired | Selected-chip hover/active contrast, Enter recovery focus, initial primary action plus focus outline fitting at 320px | Both browsers for interaction; all screenshot viewports for initial fit | `apps/web/test/ui/foundation.spec.ts` |
+| Stateful interaction regressions stay repaired | Selected-chip hover/active contrast, Enter recovery focus, initial primary action plus focus outline fitting at 320px under default/Arial/Verdana metrics | Both browsers for interaction and wider fonts; all screenshot viewports for initial fit | `apps/web/test/ui/foundation.spec.ts` |
 | Required component states remain usable and accessible | Empty, loading, error, success, disabled, light, dark, reduced motion, 200% text | 320 × 780, 390 × 844, 768 × 1024, 1440 × 900 | `apps/web/test/ui/foundation.spec.ts` screenshots, overflow checks and axe WCAG 2.2 AA checks |
 | The built page stays inside bounded mobile lab budgets | Initial rendering plus real keyboard entry and submit click | Chromium, 390 × 844, 150 ms latency, 1.6 Mbps download, 4× CPU slowdown, 10 cold-cache samples | `apps/web/test/ui/performance.spec.ts` JSON attachment: LCP p75 ≤ 2.5 s, CLS p75 ≤ 0.1, Event Timing p75 ≤ 200 ms |
 

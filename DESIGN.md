@@ -79,7 +79,7 @@
 - Test/screenshot expectations: E2E keyboard/touch/offline/reopen flows; viewport screenshots and independent UX/accessibility/performance review before a user-facing task is Done.
 
 ## Open questions and sign-off
-- [x] Independent Product/UX reviewer: APPROVE for TASK-0007's exact palette, platform-native hierarchy, wordmark, local icons and 14 phone/tablet/desktop/state screenshots. The original 320px primary-action clipping was repaired and independently rechecked with its focus outline fully contained. Final production branding remains separate; this sign-off covers the implemented component preview, not later screens.
+- [x] Independent Product/UX reviewer: APPROVE for TASK-0007's exact palette, platform-native hierarchy, wordmark, local icons and 14 phone/tablet/desktop/state screenshots plus two wider-font regressions. Original 320px clipping and the later real Linux system-font wrapping defect are repaired; final regenerated screenshots/copy are independently re-reviewed with primary action and focus outline fully contained. Final production branding remains separate; this sign-off covers the implemented component preview, not later screens.
 - [x] Frontend/architecture boundary: exact framework versions and server/client hydration contract recorded in TASK-0007 validation and architecture docs; no persistent storage in this task.
 - [ ] TASK-0103 owner: implement the separately versioned `localStorage` favorite schema with denied/quota/corrupt recovery before the Saved flow ships.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.
