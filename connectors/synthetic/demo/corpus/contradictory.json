@@ -1,0 +1,1 @@
+{"items":[{"sourceListingId":"publication-contradictory","outcome":"active","observations":[{"field":"price","value":{"amountMinor":2000000,"currency":"EUR"},"confidenceBps":9000},{"field":"price","value":{"amountMinor":2100000,"currency":"EUR"},"confidenceBps":8000},{"field":"mileage","value":{"amount":60000,"unit":"km"},"confidenceBps":9500}]}]}

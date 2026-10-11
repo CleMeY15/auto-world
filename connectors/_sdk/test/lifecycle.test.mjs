@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { appendSourceRevision } from "@auto-world/source-registry";
 import * as sdk from "@auto-world/connector-sdk";
-import { activeItem, adapter, copy, fakeLease, fakeTime, NOW, registry, request, utf8 } from "./fixtures.mjs";
-import { syntheticStore } from "./store.mjs";
+import { activeItem, adapter, copy, fakeLease, fakeTime, NOW, registry, request, utf8 } from "../test-support/fixtures.mjs";
+import { syntheticStore } from "../test-support/store.mjs";
 
 function harness(options = {}) {
   const time = fakeTime();

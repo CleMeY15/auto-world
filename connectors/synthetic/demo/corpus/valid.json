@@ -1,0 +1,1 @@
+{"items":[{"sourceListingId":"publication-valid","outcome":"active","observations":[{"field":"price","value":{"amountMinor":1234000,"currency":"EUR"},"confidenceBps":10000},{"field":"mileage","value":{"amount":42000,"unit":"km"},"confidenceBps":9000}]}]}

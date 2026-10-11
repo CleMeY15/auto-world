@@ -15,6 +15,10 @@ const diffIds = Object.freeze(Array.from({ length: 12 }, (_value, index) =>
   `sha256:${index.toString(16).padStart(64, "0")}`));
 const policy = Object.freeze({ subject, manifest: { config: { digest: imageId } },
   candidate: { diffIds } });
+// These three execution/artifact tests require actual Linux uid/gid and POSIX
+// ownership/mode enforcement. Pure injected-context rejection tests remain portable.
+// Linux always executes them: an unexpected root CI identity must fail closed.
+const linuxExecution = { skip: process.platform !== "linux" };
 
 function fixture(runId = "40000000001") {
   const runnerTemp = realpathSync(mkdtempSync(path.join(os.tmpdir(), "aw-postgres-remote-read-")));
@@ -98,7 +102,7 @@ test("protected main verification rejects dirty checkout, changed main and token
     { commandRunner: dirty, fetchImpl: async () => response() }), /checkout_invalid/u);
 });
 
-test("execute binds committed policy and publication receipt and writes only a bounded receipt", async (context) => {
+test("execute binds committed policy and publication receipt and writes only a bounded receipt", linuxExecution, async (context) => {
   const item = fixture(); context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
   const selectedDependencies = dependencies();
   const result = await runPostgresRemoteRead(["execute"], item.env, selectedDependencies);
@@ -116,7 +120,7 @@ test("execute binds committed policy and publication receipt and writes only a b
     { state: "CLEANED", authority: "REMOTE_READ_ONLY", admission: "NOT_AUTHORIZED" });
 });
 
-test("changed policy, publication or returned subject fails closed with a redacted receipt", async (context) => {
+test("changed policy, publication or returned subject fails closed with a redacted receipt", linuxExecution, async (context) => {
   for (const [index, selectedDependencies] of [
     dependencies({ rejectPublication: true }),
     dependencies({ remoteProvider: async (input) => receipt({ runId: input.runId,
@@ -133,7 +137,7 @@ test("changed policy, publication or returned subject fails closed with a redact
   }
 });
 
-test("provider failure is retained without secrets and cleanup rejects extra artifacts", async (context) => {
+test("provider failure is retained without secrets and cleanup rejects extra artifacts", linuxExecution, async (context) => {
   const item = fixture(); context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
   const selectedDependencies = dependencies({ remoteProvider: async () => {
     throw new Error("provider leaked secret-token-value");

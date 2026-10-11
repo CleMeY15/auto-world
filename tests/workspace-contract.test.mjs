@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 import path from "node:path";
 
@@ -18,6 +18,7 @@ const expectedBoundaries = [
   ["services/ai", "@auto-world/ai", "service"],
   ["packages/vehicle-schema", "@auto-world/vehicle-schema", "package"],
   ["packages/source-registry", "@auto-world/source-registry", "package"],
+  ["packages/demo-search-contract", "@auto-world/demo-search-contract", "package"],
   ["packages/design-system", "@auto-world/design-system", "package"],
   ["connectors/_sdk", "@auto-world/connector-sdk", "connector-sdk"],
 ];
@@ -49,12 +50,13 @@ test("declares every architecture boundary as a private workspace package", () =
     const tsconfig = readJson(`${directory}/tsconfig.json`);
     const registry = expectedName === "@auto-world/source-registry";
     const connector = expectedName === "@auto-world/connector-sdk";
+    const demo = expectedName === "@auto-world/demo-search-contract";
     const design = expectedName === "@auto-world/design-system";
     const web = expectedName === "@auto-world/web";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design;
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo;
     const dependencyBuild = connector
       ? "pnpm --filter @auto-world/source-registry build && "
-      : registry ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
+      : registry || demo ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
@@ -74,7 +76,7 @@ test("declares every architecture boundary as a private workspace package", () =
       assert.equal(manifest.exports["./styles.css"], "./dist/styles.css");
     } else assert.deepEqual(manifest.scripts, activeContract ? {
       build: `${dependencyBuild}tsc -p tsconfig.json`,
-      lint: "eslint src test --max-warnings=0",
+      lint: connector ? "eslint src test test-support --max-warnings=0" : "eslint src test --max-warnings=0",
       typecheck: `${dependencyBuild}tsc -p tsconfig.test.json --noEmit`,
       test: "pnpm run build && node --test test/*.test.mjs",
     } : {
@@ -147,7 +149,11 @@ test("keeps connector and governance dependencies pointed toward public vehicle 
     "@auto-world/vehicle-schema": "workspace:*",
   });
   assert.equal(vehicle.dependencies, undefined);
-  assert.equal(expectedBoundaries.length, 10);
+  assert.deepEqual(readJson("packages/demo-search-contract/package.json").dependencies, {
+    "@auto-world/vehicle-schema": "workspace:*",
+  });
+  assert.deepEqual(connector.files, ["dist"]);
+  assert.equal(expectedBoundaries.length, 11);
 });
 
 test("keeps web primitives isolated from source and data-service authority", () => {
@@ -156,6 +162,49 @@ test("keeps web primitives isolated from source and data-service authority", () 
   assert.equal(design.dependencies, undefined);
   assert.deepEqual(Object.keys(design.peerDependencies), ["react"]);
   assert.deepEqual(Object.keys(web.dependencies).sort(), ["@auto-world/design-system", "next", "react", "react-dom"]);
+});
+
+test("isolates the synthetic connector from ordinary production imports and builds", () => {
+  const manifest = readJson("connectors/synthetic/package.json");
+  assert.equal(manifest.name, "@auto-world/synthetic-connector");
+  assert.equal(manifest.version, "0.0.0");
+  assert.equal(manifest.private, true);
+  assert.equal(manifest.type, "module");
+  assert.deepEqual(manifest.files, []);
+  assert.deepEqual(Object.keys(manifest.exports), ["./demo"]);
+  assert.deepEqual(Object.keys(manifest.exports["./demo"]), ["auto-world-demo"]);
+  assert.deepEqual(manifest.exports["./demo"]["auto-world-demo"], {
+    types: "./demo/index.d.mts", import: "./demo/index.mjs",
+  });
+  assert.equal(manifest.dependencies, undefined);
+  assert.match(read(".gitattributes"), /^connectors\/synthetic\/demo\/corpus\/\*\.json -text$/mu);
+  assert.deepEqual(readJson("connectors/synthetic/turbo.json"), {
+    extends: ["//"], tasks: { build: { outputs: [], cache: false } },
+  });
+  assert.deepEqual(manifest.devDependencies, {
+    "@auto-world/connector-sdk": "workspace:*",
+    "@auto-world/source-registry": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
+  });
+  for (const gate of ["lint", "typecheck", "test", "build"]) {
+    assert.equal(typeof manifest.scripts[gate], "string");
+    assert.ok(!/\b(?:echo|exit 0|true)\b/u.test(manifest.scripts[gate]));
+  }
+  assert.match(manifest.scripts.test, /--conditions=auto-world-demo.*--test/u);
+  assert.ok(!existsSync(path.join(root, "connectors/synthetic/dist")));
+});
+
+test("keeps public demo source free of SDK, fixtures and internal vehicle helpers", () => {
+  const directory = "packages/demo-search-contract/src";
+  const files = readdirSync(path.join(root, directory)).filter((file) => file.endsWith(".ts"));
+  assert.ok(files.length > 0);
+  for (const file of files) {
+    assert.doesNotMatch(read(`${directory}/${file}`),
+      /(?:@auto-world\/(?:connector-sdk|source-registry|synthetic-connector)|(?:connectors|_sdk|source-registry|corpus|fixtures)\/|test-support|vehicle-schema\/(?:src|dist))/u);
+  }
+  for (const file of readdirSync(path.join(root, "connectors/_sdk/src")).filter((name) => name.endsWith(".ts"))) {
+    assert.doesNotMatch(read(`connectors/_sdk/src/${file}`), /(?:test-support|synthetic-connector|synthetic\/demo)/u);
+  }
 });
 
 test("uses a frozen, separately observable CI gate sequence", () => {
