@@ -1,6 +1,6 @@
 # ADR-0014 â€” Loopback synthetic search API V1
 
-Status: ACCEPTED TASK-0102 implementation contract after independent architecture and API/security/operations CLEAR for the24-file source index v5 (4167bytes/SHA256eb3235de35751adc0c5b4dc21a94c77b3a7c55231b7ee18807dc32bdf26f2292). Affected local gates pass; root Linux CI and final-head/main delivery remain pending in the validation record. Depends on accepted TASK-0101/ADR-0013 through PR148 and matching main CI38179981070. No supported infrastructure or real-source authority follows.
+Status: ACCEPTED TASK-0102 implementation contract after independent architecture and API/security/operations CLEAR for the24-file source index v5 (4167bytes/SHA256eb3235de35751adc0c5b4dc21a94c77b3a7c55231b7ee18807dc32bdf26f2292). Affected local gates and implementation Linux CI pass; exact final-head/main delivery is governed by the validation record and PR150. These states establish no infrastructure admission or downstream dependency before matching main acceptance. Depends on accepted TASK-0101/ADR-0013 through PR148 and matching main CI38179981070. No supported infrastructure or real-source authority follows.
 
 ## Decision and implementation plan
 

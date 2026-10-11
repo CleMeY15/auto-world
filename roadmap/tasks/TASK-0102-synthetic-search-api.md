@@ -1,6 +1,6 @@
 # TASK-0102 — Deterministic synthetic search API
 
-Status: IN_PROGRESS — TASK-0101 accepted through PR148 and matching main CI38179981070; plan ADR-0014 architecture CLEAR, implementation/delivery gates pending. Priority: P1. Owner: API/search executor; independent API/security and operations review.
+Status: SOURCE_VALIDATED / DELIVERY_PENDING — TASK-0101 accepted through PR148 and matching main CI38179981070; independent implementation architecture/API-security-operations CLEAR and Linux CI38185255447 PASS. Exact final-head/identical-tree/main acceptance is governed by PR150; this task is Done on main only after that record passes, and TASK-0103 remains blocked until then. Priority: P1. Owner: API/search executor; independent API/security and operations review.
 
 ## Goal and dependencies
 
