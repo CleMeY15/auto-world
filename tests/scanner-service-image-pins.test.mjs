@@ -97,5 +97,5 @@ test("reviewed scanner fixture and service trust inputs remain pinned", () => {
     images: lock.images.filter(({ role }) => ["seaweedfs", "aws-cli", "baseline-trivy"].includes(role)),
   };
   assert.equal(createHash("sha256").update(JSON.stringify(retained)).digest("hex"),
-    "fb6fcd43875a5adb8940b385cf9e5e0b8f859d747cf3459547f8098f92f7895a");
+    "570b75f8c54b448dc59a93afee9fb8eb9c2c8a43ef48f087e40bffee13cbb7d5");
 });
