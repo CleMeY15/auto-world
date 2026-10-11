@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "kind": "POSTGRES_ADMISSION_INVENTORY_V1",
   "repository": "CleMeY15/auto-world",
-  "admissionGeneration": 4,
+  "admissionGeneration": 5,
   "generationRoot": {
     "schemaVersion": 1,
     "kind": "POSTGRES_ADMISSION_GENERATION_ROOT_V1",
-    "admissionGeneration": 4,
+    "admissionGeneration": 5,
     "image": {
       "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
       "manifestDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
@@ -204,7 +204,7 @@
     "archiveLocator": {
       "schemaVersion": 1,
       "size": 448048,
-      "sha256": "1b390c716c705d7c15fd01a888bb97bb21a4cea84d7af866eca32eb679956ed7"
+      "sha256": "7ea3950a9de95e46bd0e7b613e293e8abb5788fe03a258034e27b6e6b71b9b07"
     },
     "executionFiles": [
       {
@@ -404,13 +404,13 @@
       },
       {
         "path": "scripts/scanner/build.mjs",
-        "size": 14122,
-        "sha256": "e2882534cbd373ed0844b757ddce164d40af78295e2a219643bfbc86153b96a8"
+        "size": 14357,
+        "sha256": "8f7f6f38af74d1288e4e3979c37ecfeceb3898344629768e3d03dc57906f5b3d"
       },
       {
         "path": "scripts/scanner/controls.mjs",
-        "size": 14506,
-        "sha256": "27a10403f2ee154e55bdbca2e3d65a3e313160044e7ad53f289e130f064ca817"
+        "size": 15332,
+        "sha256": "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499"
       },
       {
         "path": "scripts/seaweed-image/archive.mjs",
@@ -604,13 +604,20 @@
       "authorityRevision": 2,
       "currentRevisionSha256": "134a91be41460763c05056296ae687e209c80cd886b0f3ff0fea07e2196cebc9",
       "state": "ACTIVE"
+    },
+    {
+      "admissionGeneration": 4,
+      "generationRootSha256": "e3ee73f6da32a258794a0dc21b6e4ef773b1294979b0450ba2f668d3d08c91e7",
+      "authorityRevision": 1,
+      "currentRevisionSha256": "5cda8a56b4df41c8bdc615753f436ff8025ab857678cc104f2a6579e3f841ca9",
+      "state": "PENDING"
     }
   ],
   "authorityRevisions": [
     {
       "authorityRevision": 1,
       "previousRevisionSha256": null,
-      "generationRootSha256": "e3ee73f6da32a258794a0dc21b6e4ef773b1294979b0450ba2f668d3d08c91e7",
+      "generationRootSha256": "3d89d49e344d58b03a7f82740fb58ea8bc437c7c08452ca83b39e5330784c282",
       "state": "PENDING",
       "supportStartedAt": null,
       "supportEndsAt": null,
@@ -623,8 +630,8 @@
     }
   ],
   "revisionHashes": [
-    "5cda8a56b4df41c8bdc615753f436ff8025ab857678cc104f2a6579e3f841ca9"
+    "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a"
   ],
   "authorityRevision": 1,
-  "currentRevisionSha256": "5cda8a56b4df41c8bdc615753f436ff8025ab857678cc104f2a6579e3f841ca9"
+  "currentRevisionSha256": "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a"
 }
