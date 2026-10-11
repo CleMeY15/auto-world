@@ -1,6 +1,6 @@
 # TASK-0101 — SDK-backed synthetic corpus and query contract
 
-Status: BLOCKED until TASK-0007 is Done on `main`. Priority: P1. Owner: Data/ingestion executor; independent architecture, data-rights and security review.
+Status: IN_PROGRESS on `codex/task-0101-synthetic-corpus`; TASK-0006/0007 are accepted on main through PRs #146/#147 and main CI `37794152223`. Priority: P1. Owner: Data/ingestion executor; independent architecture, data-rights and security review. [Validation](../../docs/validation/TASK-0101.md).
 
 ## Goal and dependencies
 
