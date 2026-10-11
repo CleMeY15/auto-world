@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as sdk from "@auto-world/connector-sdk";
-import { activeItem, copy, request, utf8 } from "./fixtures.mjs";
+import { activeItem, copy, request, utf8 } from "../test-support/fixtures.mjs";
 
 test("request parsing canonicalizes fields and detaches immutable input", () => {
   const input = request({ fields: ["source_listing_id", "price"] });

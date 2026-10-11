@@ -2,6 +2,7 @@
   "name": "@auto-world/connector-sdk",
   "version": "0.0.0",
   "private": true,
+  "files": ["dist"],
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -9,7 +10,7 @@
   },
   "scripts": {
     "build": "pnpm --filter @auto-world/source-registry build && tsc -p tsconfig.json",
-    "lint": "eslint src test --max-warnings=0",
+    "lint": "eslint src test test-support --max-warnings=0",
     "typecheck": "pnpm --filter @auto-world/source-registry build && tsc -p tsconfig.test.json --noEmit",
     "test": "pnpm run build && node --test test/*.test.mjs"
   },

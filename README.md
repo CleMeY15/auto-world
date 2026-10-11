@@ -79,6 +79,19 @@ cp .env.example .env
 
 The services are placeholders in TASK-0001, so no local data infrastructure is started by this bootstrap.
 
+### Isolated synthetic corpus (TASK-0101)
+
+`connectors/synthetic` composes local versioned fixture bytes through the existing Connector SDK and the same in-memory test store used by SDK regressions. It is accessible only through the explicit `auto-world-demo` condition in non-production environments; there is no ordinary/root export, deployed service, runtime build output or authentic source-rights evidence. `packages/demo-search-contract` owns the public sanitized query/result/envelope validators and the read-port declaration, not its implementation. See [ADR-0013](docs/decisions/ADR-0013-demo-search-contract.md) and [TASK-0101 validation](docs/validation/TASK-0101.md).
+
+```sh
+pnpm --filter @auto-world/synthetic-connector test
+pnpm --filter @auto-world/demo-search-contract test
+```
+
+The corpus proves raw-first ingestion, observation provenance, contradiction/history, withdrawal and bounded failure behavior only. TASK-0102 owns actual demo reads/API; TASK-0103 owns the search user flow. The current web preview still has no listings or working search. Production-exclusion and blocked network-primitive tests do not create an OS sandbox or authorize a real data source.
+
+The public contract is compiled TypeScript. The isolated fixture composition follows the existing SDK test-support `.mjs` pattern: its typecheck checks its declarations and typed SDK consumer probes, not JavaScript function bodies. Lint, runtime regressions and the production-exclusion/corpus build verifier cover those bodies; none is represented as a TypeScript compilation proof.
+
 ## CI
 
 Pull requests and pushes to `main` run the frozen install and each quality gate as a separate GitHub Actions step, including production-build browser interactions, accessibility and bounded mobile performance. The CI runtime is read from `.nvmrc`; the pnpm action version must stay aligned with `packageManager` in `package.json`. Next.js telemetry is disabled in CI; no application analytics collector is configured by the preview.

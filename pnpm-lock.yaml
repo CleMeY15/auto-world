@@ -75,6 +75,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/vehicle-schema
 
+  connectors/synthetic:
+    devDependencies:
+      '@auto-world/connector-sdk':
+        specifier: workspace:*
+        version: link:../_sdk
+      '@auto-world/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-schema
+
+  packages/demo-search-contract:
+    dependencies:
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../vehicle-schema
+
   packages/design-system:
     devDependencies:
       '@types/react':

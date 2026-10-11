@@ -12,3 +12,7 @@ Create an ADR before introducing a cross-service contract or changing a previous
 - [ADR-0008 — Bounded SeaweedFS S3 derivative profile](ADR-0008-seaweed-s3-derivative-profile.md): profile contract accepted; concrete recipe and all construction/admission gates remain pending
 
 - [ADR-0009 — Fixed private runtime evidence descriptor handoff](ADR-0009-private-runtime-evidence-fd-handoff.md): archive transport contract accepted; implementation/native proof and full archive closure remain pending
+
+## Proposed implementation decisions
+
+- [ADR-0013 — Synthetic search contract V1](ADR-0013-demo-search-contract.md): architecture clauses reviewed CLEAR for TASK-0101; implementation and final acceptance pending. Read-port behavior remains TASK-0102.

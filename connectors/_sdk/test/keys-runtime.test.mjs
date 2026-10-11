@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as sdk from "@auto-world/connector-sdk";
 import * as keys from "../dist/keys.js";
-import { copy, NOW, SOURCE } from "./fixtures.mjs";
-import { referenceKey } from "./store.mjs";
+import { copy, NOW, SOURCE } from "../test-support/fixtures.mjs";
+import { referenceKey } from "../test-support/store.mjs";
 
 for (const [kind, parts, expected] of [
   ["sample", [], "2c2ac03a400514c1e00c61c563a5e20a59e0c54a2ca5608f0a20b1c82072335c"],

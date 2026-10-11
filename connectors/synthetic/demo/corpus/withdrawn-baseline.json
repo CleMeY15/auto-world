@@ -1,0 +1,1 @@
+{"items":[{"sourceListingId":"publication-withdrawn","outcome":"active","observations":[{"field":"price","value":{"amountMinor":1700000,"currency":"EUR"},"confidenceBps":8800},{"field":"mileage","value":{"amount":80000,"unit":"km"},"confidenceBps":8700}]}]}

@@ -1,3 +1,4 @@
+import "./guard.mjs";
 import assert from "node:assert/strict";
 import { setImmediate as nextTurn } from "node:timers";
 import { parseSourceRegistry } from "@auto-world/source-registry";
