@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
 import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
+import generationFour from "./fixtures/postgres-admission/generation-4-pending.json" with { type: "json" };
 import remote from "../infra/postgres-image/candidate-remote.json" with { type: "json" };
 import acceptance from "../infra/postgres-image/complete-private-copy-acceptance.json" with { type: "json" };
 
@@ -32,6 +33,14 @@ const generationThreeSummary = Object.freeze({
   state: "ACTIVE",
 });
 const brokerPath = "scripts/postgres-image/admission-broker.mjs";
+const generationFourSummary = Object.freeze({
+  admissionGeneration: 4,
+  generationRootSha256: "e3ee73f6da32a258794a0dc21b6e4ef773b1294979b0450ba2f668d3d08c91e7",
+  authorityRevision: 1,
+  currentRevisionSha256: "5cda8a56b4df41c8bdc615753f436ff8025ab857678cc104f2a6579e3f841ca9",
+  state: "PENDING",
+});
+const scannerChanges = new Set(["scripts/scanner/build.mjs", "scripts/scanner/controls.mjs"]);
 const generationTwoExecutionFilesSha256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const generationThreeAdditions = Object.freeze([
   { path: "infra/seaweed-image/base-config.json", size: 13_676,
@@ -44,13 +53,14 @@ const generationThreeAdditions = Object.freeze([
 
 function assertGenerationOneHistory(value) {
   assert.ok(value.admissionGeneration > generationOne.admissionGeneration);
-  assert.ok([3, 4].includes(value.admissionGeneration));
+  assert.ok([3, 4, 5].includes(value.admissionGeneration));
   assert.equal(value.previousGenerations.length, value.admissionGeneration - 1);
   assert.equal(new Set(value.previousGenerations.map(item => item.admissionGeneration)).size,
     value.previousGenerations.length);
   assert.deepEqual(value.previousGenerations[0], generationOne);
   assert.deepEqual(value.previousGenerations[1], generationTwo);
-  if (value.admissionGeneration === 4) assert.deepEqual(value.previousGenerations[2], generationThreeSummary);
+  if (value.admissionGeneration >= 4) assert.deepEqual(value.previousGenerations[2], generationThreeSummary);
+  if (value.admissionGeneration === 5) assert.deepEqual(value.previousGenerations[3], generationFourSummary);
 }
 
 test("the shipped admission inventory authenticates its immutable root and complete contiguous revision preimages", () => {
@@ -153,7 +163,8 @@ test("the frozen generation-three history retains its exact ACTIVE bytes, revisi
   });
 });
 
-test("generation four changes only its generation, locator and repaired broker pin and remains PENDING", () => {
+test("frozen generation four changed only its generation, locator and repaired broker pin and remains PENDING", () => {
+  const inventory = generationFour;
   assert.equal(inventory.admissionGeneration, 4);
   assert.equal(inventory.generationRoot.admissionGeneration, 4);
   assertGenerationOneHistory(inventory);
@@ -184,10 +195,44 @@ test("generation four changes only its generation, locator and repaired broker p
     generationThree.generationRoot.executionFiles.find(pin => pin.path === brokerPath));
 });
 
-test("generation-four history cannot replace the generation-three ACTIVE summary", () => {
+test("generation five preserves the unaccepted generation-four PENDING chain and changes only scanner execution pins", () => {
+  assert.equal(inventory.admissionGeneration, 5);
+  assert.equal(inventory.generationRoot.admissionGeneration, 5);
+  assertGenerationOneHistory(inventory);
+  assert.equal(inventory.authorityRevision, 1);
+  assert.equal(inventory.authorityRevisions.length, 1);
+  const revision = inventory.authorityRevisions[0];
+  assert.equal(revision.state, "PENDING");
+  assert.equal(revision.previousRevisionSha256, null);
+  assert.deepEqual([revision.supportStartedAt, revision.supportEndsAt, revision.archiveUntil], [null, null, null]);
+  assert.deepEqual(revision.currentEvidence, { audit: null, packageControls: null });
+  assert.equal(revision.revocationReason, null);
+  assert.notEqual(revision.generationRootSha256, generationFourSummary.generationRootSha256);
+  const root = globalThis.structuredClone(inventory.generationRoot);
+  root.admissionGeneration = 4;
+  root.archiveLocator = generationFour.generationRoot.archiveLocator;
+  root.executionFiles = generationFour.generationRoot.executionFiles;
+  assert.deepEqual(root, generationFour.generationRoot);
+  assert.equal(inventory.generationRoot.archiveLocator.size, generationFour.generationRoot.archiveLocator.size);
+  assert.notEqual(inventory.generationRoot.archiveLocator.sha256, generationFour.generationRoot.archiveLocator.sha256);
+  const unchanged = files => files.filter(pin => !scannerChanges.has(pin.path));
+  assert.equal(unchanged(inventory.generationRoot.executionFiles).length, 72);
+  assert.deepEqual(unchanged(inventory.generationRoot.executionFiles), unchanged(generationFour.generationRoot.executionFiles));
+  for (const name of scannerChanges) assert.notDeepEqual(
+    inventory.generationRoot.executionFiles.find(pin => pin.path === name),
+    generationFour.generationRoot.executionFiles.find(pin => pin.path === name));
+  const retained = fs.readFileSync(new URL("./fixtures/postgres-admission/generation-4-pending.json", import.meta.url));
+  assert.equal(retained.length, 23_883);
+  assert.equal(sha(retained), "9d9ff38a8ebfcfa20cf71d1d0d9f7f7a8730900793b49a6e12ee28eeddcc4024");
+});
+
+test("generation-five history cannot replace the generation-three ACTIVE or generation-four PENDING summaries", () => {
   const changed = globalThis.structuredClone(inventory);
   changed.previousGenerations[2].state = "PENDING";
   assert.throws(() => assertGenerationOneHistory(changed));
+  const rewritten = globalThis.structuredClone(inventory);
+  rewritten.previousGenerations[3].state = "ACTIVE";
+  assert.throws(() => assertGenerationOneHistory(rewritten));
 });
 
 test("frozen execution pins cover the complete supported and offline execution closure without mutable evidence or self-reference", () => {

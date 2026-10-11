@@ -69,12 +69,17 @@ function fileIdentity(file, cap = 1024 * 1024 * 1024) {
 
 export function validateBuildLock(lock) {
   if (lock?.schemaVersion !== 1 || lock.state !== "diagnostic_only" || lock.scanner?.version !== "0.74.0-autoworld.2" ||
-      !/^[a-f0-9]{40}$/u.test(lock.scanner.sourceCommit) || lock.compiler?.version !== "1.26.8" ||
-      !/^sha256:[a-f0-9]{64}$/u.test(lock.baseline?.platformDigest) || !Array.isArray(lock.patches) || lock.patches.length !== 3 ||
+      !/^[a-f0-9]{40}$/u.test(lock.scanner.sourceCommit) || lock.compiler?.version !== "1.26.9" ||
+      !/^sha256:[a-f0-9]{64}$/u.test(lock.baseline?.platformDigest) || !Array.isArray(lock.patches) || lock.patches.length !== 4 ||
       !Array.isArray(lock.fixtures) || lock.fixtures.length !== 11 || !Array.isArray(lock.images) || lock.images.length !== 6) {
     throw new Error("scanner_build_lock_invalid");
   }
   return lock;
+}
+
+export function validateCompilerIdentity(actual, lock) {
+  if (actual !== `go version go${lock?.compiler?.version} linux/amd64`) throw new Error("scanner_compiler_identity_invalid");
+  return actual;
 }
 
 function assertLockedFiles(entries) {
@@ -159,7 +164,7 @@ export function buildScanner({ repeat, output }) {
     if (receipt.compilerArchive.sha256 !== lock.compiler.sha256 || receipt.compilerArchive.size !== lock.compiler.size) throw new Error("scanner_compiler_changed");
     phase("compiler_extract", () => run("/usr/bin/tar", ["-xzf", goArchive, "-C", work], { cwd: work, log: path.join(logs, "compiler-extract.log") }));
     const go = path.join(work, "go/bin/go");
-    receipt.compilerVersion = phase("compiler_identity", () => run(go, ["version"], { cwd: work }).toString("utf8").trim());
+    receipt.compilerVersion = phase("compiler_identity", () => validateCompilerIdentity(run(go, ["version"], { cwd: work }).toString("utf8").trim(), lock));
 
     const source = path.join(work, "trivy");
     phase("source_checkout", () => {

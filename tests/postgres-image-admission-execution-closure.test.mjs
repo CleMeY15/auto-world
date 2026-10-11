@@ -8,6 +8,7 @@ import test from "node:test";
 
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
 import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
+import generationFour from "./fixtures/postgres-admission/generation-4-pending.json" with { type: "json" };
 
 const ORIGINAL_FILES_SHA256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const GENERATION_THREE_ADDITIONS = Object.freeze([
@@ -66,9 +67,9 @@ function importEntry(root, entry) {
     });
 }
 
-test("the authenticated generation-four execution closure loads each entry from only its 74 pinned files", t => {
+test("the authenticated generation-five execution closure loads each entry from only its 74 pinned files", t => {
   assert.equal(process.versions.node, "22.23.2");
-  assert.equal(inventory.admissionGeneration, 4);
+  assert.equal(inventory.admissionGeneration, 5);
   assert.equal(inventory.authorityRevisions.at(-1).state, "PENDING");
   const pins = inventory.generationRoot.executionFiles;
   assert.equal(pins.length, 74);
@@ -85,8 +86,9 @@ test("the authenticated generation-four execution closure loads each entry from 
   assert.equal(sha256(canonical(generationThree.generationRoot.executionFiles.filter(pin => !additions.has(pin.path)))),
     ORIGINAL_FILES_SHA256);
   const broker = "scripts/postgres-image/admission-broker.mjs";
-  assert.deepEqual(pins.filter(pin => pin.path !== broker),
-    generationThree.generationRoot.executionFiles.filter(pin => pin.path !== broker));
+  const scanner = new Set(["scripts/scanner/build.mjs", "scripts/scanner/controls.mjs"]);
+  assert.deepEqual(pins.filter(pin => !scanner.has(pin.path)),
+    generationFour.generationRoot.executionFiles.filter(pin => !scanner.has(pin.path)));
 
   const parent = mkdtempSync(path.join(os.tmpdir(), "postgres-admission-execution-closure-"));
   const resolvedParent = realpathSync(parent); const resolvedTemporaryRoot = realpathSync(os.tmpdir());
@@ -120,13 +122,13 @@ test("the authenticated generation-four execution closure loads each entry from 
   const alteredDirectory = path.join(parent, "altered-pin"); mkdirSync(alteredDirectory, { mode: 0o700 });
   assert.throws(() => materialize(alteredDirectory, [
     { ...GENERATION_THREE_ADDITIONS[0], sha256: "0".repeat(64) },
-  ]));
+  ]), { code: "ERR_ASSERTION" });
   assert.deepEqual(listFiles(alteredDirectory), []);
 
   const alteredBroker = path.join(parent, "altered-broker-pin"); mkdirSync(alteredBroker, { mode: 0o700 });
   assert.throws(() => materialize(alteredBroker, [
     { ...pins.find(pin => pin.path === broker), sha256: "0".repeat(64) },
-  ]));
+  ]), { code: "ERR_ASSERTION" });
   assert.deepEqual(listFiles(alteredBroker), []);
 
   for (const entry of ENTRYPOINTS) {

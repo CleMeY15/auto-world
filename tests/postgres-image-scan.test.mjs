@@ -330,7 +330,7 @@ test("scanner controls remain readable by the non-root container under a private
     const scanner = path.join(work, "scanner"); const bytes = Buffer.from("authenticated-scanner-test");
     writeFileSync(scanner, bytes, { mode: 0o600 });
     const pair = { scanner, scannerCopy: { sha256: sha256(bytes), size: bytes.length },
-      lock: { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.8" } } };
+      lock: { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.9" } } };
     const controls = preparePostgresScannerControls(work, pair);
     assert.equal(lstatSync(work).mode & 0o777, 0o700);
     for (const directory of [controls.scannerSubject, controls.versionProbe]) {

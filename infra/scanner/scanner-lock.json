@@ -10,10 +10,10 @@
   },
   "compiler": {
     "name": "go",
-    "version": "1.26.8",
-    "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
-    "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b",
-    "size": 66897291
+    "version": "1.26.9",
+    "url": "https://go.dev/dl/go1.26.9.linux-amd64.tar.gz",
+    "sha256": "42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d",
+    "size": 66935201
   },
   "patches": [
     {
@@ -37,6 +37,14 @@
       "sha256": "0aed009d8405d7d0c63d7e500122fc1272ef6b17d0791f42b376f9418125fdf0",
       "size": 2259,
       "upstreamCommit": "8c905373332df11a268a0cebc07627cc08485fee"
+    },
+    {
+      "order": 4,
+      "kind": "security-refresh-x-net-0.60.0-closure",
+      "path": "infra/scanner/patches/trivy-x-net-0.60.0.patch",
+      "sha256": "bac277b2afc815459d978af005ecd7d19a08793098c183953e7216975c1068dd",
+      "size": 7402,
+      "upstreamCommit": "18ece0ce30bc35fa81fe72028bf309bb3ff3f4a5"
     }
   ],
   "fixtures": [
