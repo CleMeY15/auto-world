@@ -14,3 +14,7 @@ Create an ADR before introducing a cross-service contract or changing a previous
 - [ADR-0009 — Fixed private runtime evidence descriptor handoff](ADR-0009-private-runtime-evidence-fd-handoff.md): archive transport contract accepted; implementation/native proof and full archive closure remain pending
 
 - [ADR-0013 — Synthetic search contract V1](ADR-0013-demo-search-contract.md): TASK-0101 implementation reviewed/validated; final-head/main delivery record in PR #148. Read-port behavior remains TASK-0102.
+
+## Plans under implementation
+
+- [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): architecture plan CLEAR; TASK-0102 implementation, API/security/operations acceptance and delivery gates remain pending in PR150.
