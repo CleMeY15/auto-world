@@ -18,6 +18,7 @@ const expectedBoundaries = [
   ["services/ai", "@auto-world/ai", "service"],
   ["packages/vehicle-schema", "@auto-world/vehicle-schema", "package"],
   ["packages/source-registry", "@auto-world/source-registry", "package"],
+  ["packages/design-system", "@auto-world/design-system", "package"],
   ["connectors/_sdk", "@auto-world/connector-sdk", "connector-sdk"],
 ];
 
@@ -44,11 +45,13 @@ test("declares every architecture boundary as a private workspace package", () =
 
   for (const [directory, expectedName, expectedKind] of expectedBoundaries) {
     const manifest = readJson(`${directory}/package.json`);
-    const source = read(`${directory}/src/index.ts`);
+    const source = read(`${directory}/src/${expectedName === "@auto-world/web" ? "app/page.tsx" : "index.ts"}`);
     const tsconfig = readJson(`${directory}/tsconfig.json`);
     const registry = expectedName === "@auto-world/source-registry";
     const connector = expectedName === "@auto-world/connector-sdk";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector;
+    const design = expectedName === "@auto-world/design-system";
+    const web = expectedName === "@auto-world/web";
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design;
     const dependencyBuild = connector
       ? "pnpm --filter @auto-world/source-registry build && "
       : registry ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
@@ -57,7 +60,19 @@ test("declares every architecture boundary as a private workspace package", () =
     assert.equal(manifest.version, "0.0.0");
     assert.equal(manifest.private, true);
     assert.equal(manifest.type, "module");
-    assert.deepEqual(manifest.scripts, activeContract ? {
+    if (web) {
+      assert.equal(manifest.scripts.build, "next build");
+      assert.match(manifest.scripts.typecheck, /next typegen.*tsc.*--noEmit/u);
+      assert.match(manifest.scripts.test, /node --test/u);
+      assert.equal(manifest.scripts["test:ui"], "playwright test");
+      assert.equal(tsconfig.compilerOptions.noEmit, true);
+      assert.ok(tsconfig.include.includes("src/**/*.tsx"));
+    } else if (design) {
+      assert.match(manifest.scripts.build, /^tsc .*generate-styles/u);
+      assert.match(manifest.scripts.lint, /^eslint src test scripts/u);
+      assert.match(manifest.scripts.test, /node --test/u);
+      assert.equal(manifest.exports["./styles.css"], "./dist/styles.css");
+    } else assert.deepEqual(manifest.scripts, activeContract ? {
       build: `${dependencyBuild}tsc -p tsconfig.json`,
       lint: "eslint src test --max-warnings=0",
       typecheck: `${dependencyBuild}tsc -p tsconfig.test.json --noEmit`,
@@ -69,18 +84,20 @@ test("declares every architecture boundary as a private workspace package", () =
       test: "node ../../scripts/verify-package-build.mjs",
     });
     assert.equal(tsconfig.extends, "../../tsconfig.base.json");
-    assert.equal(tsconfig.compilerOptions.rootDir, "src");
-    assert.equal(tsconfig.compilerOptions.outDir, "dist");
-    assert.deepEqual(tsconfig.include, ["src"]);
+    if (!web) {
+      assert.equal(tsconfig.compilerOptions.rootDir, "src");
+      assert.equal(tsconfig.compilerOptions.outDir, "dist");
+      assert.deepEqual(tsconfig.include, ["src"]);
+    }
     assert.ok(!names.has(manifest.name));
     names.add(manifest.name);
-    assert.ok(source.includes(`name: "${expectedName}"`));
-    assert.ok(source.includes(`kind: "${expectedKind}"`));
-    assert.ok(source.includes(`status: "${activeContract ? "active" : "placeholder"}"`));
+    if (!web && !design) {
+      assert.ok(source.includes(`name: "${expectedName}"`));
+      assert.ok(source.includes(`kind: "${expectedKind}"`));
+      assert.ok(source.includes(`status: "${activeContract ? "active" : "placeholder"}"`));
+    }
     if (activeContract) {
-      assert.deepEqual(manifest.exports, {
-        ".": { types: "./dist/index.d.ts", import: "./dist/index.js" },
-      });
+      assert.deepEqual(manifest.exports["."], { types: "./dist/index.d.ts", import: "./dist/index.js" });
       assert.equal(manifest.types, "./dist/index.d.ts");
       assert.ok(existsSync(path.join(root, directory, "test")));
       assert.ok(existsSync(path.join(root, directory, "tsconfig.test.json")));
@@ -101,7 +118,7 @@ test("keeps all root quality gates executable and non-trivial", () => {
 
   assert.equal(
     manifest.scripts.check,
-    "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run secrets:check && pnpm run audit:dependencies",
+    "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run test:ui && pnpm run secrets:check && pnpm run audit:dependencies",
   );
   assert.equal(
     manifest.scripts["audit:dependencies"],
@@ -130,7 +147,15 @@ test("keeps connector and governance dependencies pointed toward public vehicle 
     "@auto-world/vehicle-schema": "workspace:*",
   });
   assert.equal(vehicle.dependencies, undefined);
-  assert.equal(expectedBoundaries.length, 9);
+  assert.equal(expectedBoundaries.length, 10);
+});
+
+test("keeps web primitives isolated from source and data-service authority", () => {
+  const design = readJson("packages/design-system/package.json");
+  const web = readJson("apps/web/package.json");
+  assert.equal(design.dependencies, undefined);
+  assert.deepEqual(Object.keys(design.peerDependencies), ["react"]);
+  assert.deepEqual(Object.keys(web.dependencies).sort(), ["@auto-world/design-system", "next", "react", "react-dom"]);
 });
 
 test("uses a frozen, separately observable CI gate sequence", () => {
@@ -146,6 +171,8 @@ test("uses a frozen, separately observable CI gate sequence", () => {
   }
   assert.match(ci, /run: pnpm secrets:check$/mu);
   assert.match(ci, /run: pnpm run audit:dependencies$/mu);
+  assert.match(ci, /playwright install --with-deps chromium webkit/u);
+  assert.match(ci, /run: pnpm test:ui$/mu);
 });
 
 test("documents the exact clean-checkout bootstrap commands", () => {
