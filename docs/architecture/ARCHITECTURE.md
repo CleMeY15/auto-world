@@ -41,3 +41,9 @@ The presentation boundary is independent of acquisition and governance: [package
 ## Executable connector boundary
 
 `connectors/_sdk` depends on both public contract packages and implements [ADR-0003](../decisions/ADR-0003-connector-sdk-contract.md) over injected authoritative-registry, lease, transactional-store and adapter ports. The SDK owns bounded decoding, provenance construction and deterministic lifecycle rules; a production store owns authenticated fenced atomicity, durable source-wide rate/circuit state, checkpoints, inventory and ledger/outbox. Raw staging precedes decoding; page commits and full finalization are separate atomic boundaries. No persistence vendor or real adapter is selected by this SDK. The [integration guide](../../connectors/_sdk/README.md) separates synthetic proof from mandatory real activation gates.
+
+## Isolated synthetic contract boundary
+
+[ADR-0013](../decisions/ADR-0013-demo-search-contract.md) freezes the TASK-0101 public demo query/result/envelope validators and read-port declaration. `packages/demo-search-contract` depends only on the public vehicle-schema types/ListingId parser and never imports governance, SDK, raw data or fixtures. Results expose only neutral publication IDs and sanitized price/mileage evidence, explicitly synthetic. The parser verifies shape/freshness, not authentic rights, committed storage or cursor continuation.
+
+`connectors/synthetic` is a demo-condition-only local composition over the accepted SDK and its single production-excluded `test-support` store. It does not implement a read port, database, HTTP service or search engine. TASK-0102 owns that later demo read-port composition and its behavior. Production import/build exclusion and blocked network-primitive tests are bounded negative proofs, not an OS security sandbox. No synthetic fixture is production Source Registry authority.

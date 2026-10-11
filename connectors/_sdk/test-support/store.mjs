@@ -1,3 +1,4 @@
+import "./guard.mjs";
 import { createHash } from "node:crypto";
 import * as sdk from "@auto-world/connector-sdk";
 import { copy, fail, ok } from "./fixtures.mjs";

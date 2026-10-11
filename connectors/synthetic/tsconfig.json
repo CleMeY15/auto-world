@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "customConditions": ["auto-world-demo"],
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["demo/index.d.mts", "test/types.ts"]
+}
