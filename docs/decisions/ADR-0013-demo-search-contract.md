@@ -1,6 +1,6 @@
 # ADR-0013 — Synthetic search contract V1
 
-Status: Proposed for TASK-0101; independent architecture review and implementation validation required before acceptance. No API/read-port behavior is delivered by this task.
+Status: Accepted for TASK-0101 after independent architecture/code/security/data-rights review and implementation CI `38179111623` on `90dd8d52`; final-head/main delivery record is [PR #148](https://github.com/CleMeY15/auto-world/pull/148). No API/read-port behavior is delivered by this task.
 
 ## Context, decision and alternatives
 
