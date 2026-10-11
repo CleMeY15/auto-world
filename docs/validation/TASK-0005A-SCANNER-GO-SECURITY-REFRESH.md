@@ -1,6 +1,6 @@
 # TASK-0005A — Scanner Go security correction and generation 5 PENDING
 
-Status: **IMPLEMENTED; INDEPENDENT REVIEW AND DELIVERY GATES PENDING**, 2026-10-11. This focused increment repairs the diagnostic scanner and prepares PostgreSQL generation5 `PENDING`. TASK-0005A and TASK-0005 remain `IN_PROGRESS`.
+Status: **SOURCE REVIEWED; COMPLETE DELIVERY GATES PENDING**, 2026-10-11. This focused increment repairs the diagnostic scanner and prepares PostgreSQL generation5 `PENDING`. TASK-0005A and TASK-0005 remain `IN_PROGRESS`.
 
 ## Actual failure and bounded repair
 
@@ -34,6 +34,12 @@ The generation5 canonical Root is `3d89d49e344d58b03a7f82740fb58ea8bc437c7c08452
 The new scanner lock is7208bytes/SHA256 `a01bc85432f1a8c70ba3a0fe0642d1e5b4542df5e781c3786652c8ef8153b84a`; patch4 is7402bytes/SHA256 `bac277b2afc815459d978af005ecd7d19a08793098c183953e7216975c1068dd`. The actual MVS closure selects x/net0.60.0, crypto0.57.0, mod0.41.0, sync0.23.0, sys0.48.0, term0.46.0 and text0.42.0, preserving the selected tools0.49.0 and vuln1.6.0. Actual fresh-source four-patch application, empty `go mod tidy -diff`, read-only download, `go mod verify` and `go test ./cmd/trivy` pass. These module/source tests do not claim a reproduced full scanner binary or a new clean self-audit.
 
 Fresh pinned Windows Node22 targeted tests pass52cases:50passes, two explicit platform skips, zero failures. Four genuine file-URL loaders execute from a tree containing only the74 authenticated pins; omission of required resources and altered pins reject. The first targeted root run exposed an obsolete generation3 comparison in the loader test; the test now compares the unchanged72 pins against the frozen generation4 fixture. This repairs the test's history boundary without changing an execution pin or production validator. Fresh pinned local lint, typecheck, build, tracked-secret scan and dependency audit also pass. The first lint run caught an undefined test-only broker constant after the history comparison changed; the negative tests now require the expected assertion error, rejecting an unrelated exception as evidence. Complete Linux repository/UI CI and independent review remain pending.
+
+## Independent review and first CI failure
+
+Distinct architecture and security reviews approve source tree `13d4b01b080bf0548196acad5885247ebc92b644` at PR149 head `ca31e8d4e5cdde64693a2366a135c26a6e789d27`, with independent52-case Node22 reruns. The initial [Linux CI38179172952](https://github.com/CleMeY15/auto-world/actions/runs/38179172952) passed lint/typecheck and ran1961root tests:1904passes,56explicit platform/native-actor skips and one failure. The sole failure was the service-trust aggregate still expecting the old compiler/three-patch identity. Updating only its expected digest to the reviewed Go1.26.9/four-patch preimage preserves the strict equality assertion; no service image/fixture binding or execution pin changes. That failed run remains retained; complete final-head/main quality gates remain pending.
+
+The actual patched-source module-download record is320042bytes/SHA256 `0ac2c6b3b21ffb1e5c64f734224ea74594c5bc10d3e2e994c8bb3f5e4a9b2440`, patched go.mod25547bytes/SHA256 `9471b742a9b8fc80f94dbacc509c87f8b930f54fedc6abd7b1a4e91990e27afd`, and go.sum130182bytes/SHA256 `ff63fd0f91923b9b54dfdf8208ea73cd4365cf0bce0c4c9b8b34b1258982a074`. The tidy diff is empty. Apply/verify/Go-command outputs are retained in the original tool transcript rather than dedicated log files. `go test ./cmd/trivy` compiled the entrypoint and reported `[no test files]`; it is not upstream unit-test coverage. The distinct private provenance record is1155bytes/SHA256 `ff135d7d1fc3fee19e8ee4ccbc20918a2ee238d086e86d76679673e7948eeb81`. Paired binary builds and fresh actual self-audit remain required.
 
 ## Operational behavior and rollback
 
