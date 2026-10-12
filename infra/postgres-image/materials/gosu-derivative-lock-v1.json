@@ -46,7 +46,7 @@
       "proxyBase": "https://proxy.golang.org/github.com/moby/sys/user/@v/v0.1.0",
       "zip": { "file": "moby-user.zip", "bytes": 13793, "sha256": "85178932dc13b1c404c32e1b9f68fe88bf0b43e57dda39f24c45113e0bcf00ee", "h1": "h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg=", "observedArchive": { "entries": 7, "regularBytes": 42341, "largestRegularBytes": 14910 } },
       "mod": { "file": "moby-user.mod", "bytes": 74, "sha256": "91a578705d847c83a40f0e3149724863961cef2b2d7ca4262b40cefe487eff03", "h1": "h1:fKJhFOnsCN6xZ5gSfbM6zaHGgDJMrqt9/reuj4T7MmU=" },
-      "info": { "file": "moby-user.info", "bytes": 205, "sha256": "fbd7c2599ef36388330302f30dd4a7a40808acd6b492db42e4db23129ad42a77" },
+      "info": { "file": "moby-user.info", "bytes": 205, "sha256": "fbd7c2599ef36388330302f30dd4a7a40808acd6b492db42e4db23129ad42a77", "cache": { "bytes": 205, "sha256": "ff3925ca40df076cf8a142585adea7062106e3601a206caa84af3b0a57d0df72" } },
       "license": { "path": "LICENSE", "bytes": 11358, "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30" }
     },
     {
@@ -54,7 +54,7 @@
       "proxyBase": "https://proxy.golang.org/golang.org/x/sys/@v/v0.1.0",
       "zip": { "file": "x-sys.zip", "bytes": 1861264, "sha256": "e7cbe58ed3745ba63d482fe82603119bd635f9a5dd914ed95a4c1826fdcf54a7", "h1": "h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=", "observedArchive": { "entries": 506, "regularBytes": 8794105, "largestRegularBytes": 945502 } },
       "mod": { "file": "x-sys.mod", "bytes": 33, "sha256": "f033333096fe198f3151deed93f2deba74e50bbfe7739134045bc3b7ce4a5024", "h1": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=" },
-      "info": { "file": "x-sys.info", "bytes": 188, "sha256": "e93abfc8737fa1e3f7e88ab6c26cf9e8cea4c2cc5378b829664d9f7948616235" },
+      "info": { "file": "x-sys.info", "bytes": 188, "sha256": "e93abfc8737fa1e3f7e88ab6c26cf9e8cea4c2cc5378b829664d9f7948616235", "cache": { "bytes": 188, "sha256": "9e1b3869f6fd67d974f364d46713ecc2fd8ced9fbf260ed745a83b0f21b28e8d" } },
       "license": { "path": "LICENSE", "bytes": 1479, "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067" },
       "patents": { "path": "PATENTS", "bytes": 1303, "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc" }
     }
