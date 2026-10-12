@@ -16,6 +16,15 @@ const reviewed = await reviewedIdentities();
 const id = (digit = "a", bytes = 1) => ({ bytes, sha256: digit.repeat(64) });
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const DEFAULT_GODEBUG = "asynctimerchan=1,containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,gotestjsonbuildtext=1,gotypesalias=0,httpcookiemaxnum=0,httplaxcontentlength=1,httpmuxgo121=1,httpservecontentkeepheaders=1,httpservecontentmaxranges=1,multipathtcp=0,panicnil=1,randseednop=0,rsa1024min=0,tls10server=1,tls3des=1,tlsmlkem=0,tlsrsakex=1,tlssecpmlkem=0,tlssha1=1,tlsunsafeekm=1,updatemaxprocs=0,urlmaxqueryparams=0,urlstrictcolons=0,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509sha256skid=0,x509usepolicies=0";
+// Explicitly synthetic Gosu-shaped fixture; settings mirror the authenticated Go 1.26.9 diagnostic.
+const SYNTHETIC_GOSU_BUILD_INFO = [
+  "./gosu: go1.26.9", "\tpath\tgithub.com/tianon/gosu", "\tmod\tgithub.com/tianon/gosu\t(devel)\t",
+  ...lock.modules.map((item) => `\tdep\t${item.path}\t${item.version}\t${item.zip.h1}`),
+  "\tbuild\t-buildmode=exe", "\tbuild\t-compiler=gc", "\tbuild\t-trimpath=true",
+  `\tbuild\tDefaultGODEBUG=${DEFAULT_GODEBUG}`, "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64",
+  "\tbuild\tGOOS=linux", "\tbuild\tGOAMD64=v1", "",
+].join("\n");
 function receipt(repeat) {
   const files = Object.fromEntries(GOSU_PUBLIC_FILES_V1.filter((item) => !["build-receipt.json", "controls.json"].includes(item)).map((item) => [item, id()]));
   Object.assign(files, { "materials/gosu-commit.tar.gz": { bytes: lock.source.bytes, sha256: lock.source.sha256 }, "materials/go-compiler.tar.gz": { bytes: lock.compiler.bytes, sha256: lock.compiler.sha256 }, "materials/go-source.tar.gz": { bytes: lock.goSource.bytes, sha256: lock.goSource.sha256 }, "materials/gosu.go.mod": lock.source.goMod, "materials/gosu.go.sum": lock.source.goSum }); for (const item of lock.modules) for (const kind of ["zip", "mod", "info"]) files[`materials/${item[kind].file}`] = { bytes: item[kind].bytes, sha256: item[kind].sha256 };
@@ -87,14 +96,52 @@ test("test event parser distinguishes tests from package events and rejects miss
 });
 
 test("build-info parser requires truthful devel main, exact closure, platform and no VCS stamping", () => {
-  const text = ["./gosu: go1.26.9", "\tpath\tgithub.com/tianon/gosu", "\tmod\tgithub.com/tianon/gosu\t(devel)", ...lock.modules.map((item) => `\tdep\t${item.path}\t${item.version}\t${item.zip.h1}`), "\tbuild\t-buildmode=exe", "\tbuild\t-compiler=gc", "\tbuild\t-ldflags=\"-d -w -buildid=\"", "\tbuild\t-trimpath=true", "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", ""].join("\n");
-  assert.equal(parseGosuBuildInfo(text, lock).main.version, "(devel)"); assert.throws(() => parseGosuBuildInfo(text.replace("(devel)", "v1.19"), lock), /gosu_build_info_invalid/u); assert.throws(() => parseGosuBuildInfo(text.replace("\tbuild\tGOOS=linux", "\tbuild\tvcs=git\n\tbuild\tGOOS=linux"), lock), /gosu_build_info_vcs_invalid/u);
+  assert.equal(parseGosuBuildInfo(SYNTHETIC_GOSU_BUILD_INFO, lock).main.version, "(devel)");
+  const firstDependency = lock.modules[0]; const dependency = `\tdep\t${firstDependency.path}\t${firstDependency.version}\t${firstDependency.zip.h1}`;
+  const invalid = [
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux\n", "\tbuild\t-ldflags=-d\n\tbuild\tGOOS=linux\n"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace(`\tbuild\tDefaultGODEBUG=${DEFAULT_GODEBUG}\n`, ""),
+    SYNTHETIC_GOSU_BUILD_INFO.replace(DEFAULT_GODEBUG, `${DEFAULT_GODEBUG}x`),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOAMD64=v1\n", ""),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOAMD64=v1", "\tbuild\tGOAMD64=v2"),
+    ...["GOEXPERIMENT=arenas", "GOFIPS140=v1.0.0", "UNKNOWN=value"].map((setting) => SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux\n", `\tbuild\t${setting}\n\tbuild\tGOOS=linux\n`)),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tpath\tgithub.com/tianon/gosu\n", ""),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tpath\tgithub.com/tianon/gosu\n", "\tpath\tgithub.com/tianon/gosu\n\tpath\tgithub.com/tianon/gosu\n"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t\n", ""),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t\n", "\tmod\tgithub.com/tianon/gosu\t(devel)\t\n\tmod\tgithub.com/tianon/gosu\t(devel)\t\n"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux\n", ""),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux\n", "\tbuild\tGOOS=linux\n\tbuild\tGOOS=linux\n"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tpath\tgithub.com/tianon/gosu", "\tpath\tgithub.com/tianon/gosu\textra"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t", "\tmod\tgithub.com/tianon/gosu\t(devel)\t\textra"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace(dependency, `${dependency}\textra`),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux", "\tbuild\tGOOS=linux\textra"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t", "\tmod\tgithub.com/tianon/gosu\t(devel)"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t", "\tmod\tgithub.com/tianon/gosu\t(devel)\tnonempty"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace(dependency, `\tdep\t${firstDependency.path}\t${firstDependency.version}`),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("GOOS=linux", 'GOOS="linux"'),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("GOOS=linux", 'GOOS=linux"'),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("GOOS=linux", 'GOOS="linux'),
+    SYNTHETIC_GOSU_BUILD_INFO.slice(0, -1), `${SYNTHETIC_GOSU_BUILD_INFO}\n`,
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\n\tdep", "\n\n\tdep"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\n\tdep", "\r\n\tdep"), `${SYNTHETIC_GOSU_BUILD_INFO.slice(0, -1)}\0\n`,
+    SYNTHETIC_GOSU_BUILD_INFO.replace("go1.26.9", "go1.26.8"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tpath\tgithub.com/tianon/gosu", "\tpath\tgithub.com/example/gosu"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace("\tmod\tgithub.com/tianon/gosu\t(devel)\t", "\tmod\tgithub.com/tianon/gosu\tv1.19\t"),
+    SYNTHETIC_GOSU_BUILD_INFO.replace(firstDependency.zip.h1, "h1:forged"),
+  ];
+  for (const text of invalid) assert.throws(() => parseGosuBuildInfo(text, lock), /gosu_build_info_invalid/u);
+  for (const key of ["vcs", "vcs.revision"]) {
+    const vcs = SYNTHETIC_GOSU_BUILD_INFO.replace("\tbuild\tGOOS=linux", `\tbuild\tUNKNOWN=value\n\tbuild\t${key}=git`);
+    assert.throws(() => parseGosuBuildInfo(vcs, lock), /^Error: gosu_build_info_vcs_invalid$/u);
+  }
+  const alteredReceipt = receipt(1); alteredReceipt.build.flags = ["-trimpath"];
+  assert.throws(() => validateBuildReceipt(alteredReceipt, lock, reviewed), /gosu_receipt_build_invalid/u);
 });
 
 test("retained semantics reject a forged CycloneDX document even when its receipt identity is coordinated", async () => {
-  const value = receipt(1); const buildInfo = ["./gosu: go1.26.9", "\tpath\tgithub.com/tianon/gosu", "\tmod\tgithub.com/tianon/gosu\t(devel)", ...lock.modules.map((item) => `\tdep\t${item.path}\t${item.version}\t${item.zip.h1}`), "\tbuild\t-buildmode=exe", "\tbuild\t-compiler=gc", "\tbuild\t-ldflags=\"-d -w -buildid=\"", "\tbuild\t-trimpath=true", "\tbuild\tCGO_ENABLED=0", "\tbuild\tGOARCH=amd64", "\tbuild\tGOOS=linux", ""].join("\n");
+  const value = receipt(1);
   const forged = canonicalSbom(lock, value.binary); forged.metadata.forged = true; const sbomBody = Buffer.from(canonicalJson(forged)); value.files["sbom.cdx.json"] = { bytes: sbomBody.length, sha256: createHash("sha256").update(sbomBody).digest("hex") };
-  const bodies = new Map([["version.txt", { body: Buffer.from("1.19 (go1.26.9 on linux/amd64; gc)\n") }], ["build-info.txt", { body: Buffer.from(buildInfo) }], ["module-closure.json", { body: Buffer.from(canonicalJson(moduleClosure(lock))) }], ["sbom.cdx.json", { body: sbomBody }]]);
+  const bodies = new Map([["version.txt", { body: Buffer.from("1.19 (go1.26.9 on linux/amd64; gc)\n") }], ["build-info.txt", { body: Buffer.from(SYNTHETIC_GOSU_BUILD_INFO) }], ["module-closure.json", { body: Buffer.from(canonicalJson(moduleClosure(lock))) }], ["sbom.cdx.json", { body: sbomBody }]]);
   await assert.rejects(validateSemanticDocuments(bodies, value, lock), /gosu_sbom_invalid/u);
 });
 

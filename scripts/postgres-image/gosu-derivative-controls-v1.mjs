@@ -8,6 +8,7 @@ const HEX = /^[0-9a-f]{64}$/u;
 const SHA = /^[0-9a-f]{40}$/u;
 const DECIMAL = /^(?:0|[1-9][0-9]*)$/u;
 const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const GOSU_DEFAULT_GODEBUG_V1 = "asynctimerchan=1,containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,gotestjsonbuildtext=1,gotypesalias=0,httpcookiemaxnum=0,httplaxcontentlength=1,httpmuxgo121=1,httpservecontentkeepheaders=1,httpservecontentmaxranges=1,multipathtcp=0,panicnil=1,randseednop=0,rsa1024min=0,tls10server=1,tls3des=1,tlsmlkem=0,tlsrsakex=1,tlssecpmlkem=0,tlssha1=1,tlsunsafeekm=1,updatemaxprocs=0,urlmaxqueryparams=0,urlstrictcolons=0,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509sha256skid=0,x509usepolicies=0";
 const BUILD_KEYS = ["kind", "state", "authority", "supportStartsAt", "supportEndsAt", "archiveRetainUntil", "repeat", "component", "lock", "ci", "source", "compiler", "node", "helper", "environment", "networkCutoff", "build", "tests", "binary", "files", "claims"];
 const scriptFile = fileURLToPath(import.meta.url);
 const repo = path.resolve(path.dirname(scriptFile), "../..");
@@ -87,13 +88,20 @@ export function parseUpstreamTestJson(text) {
 }
 
 export function parseGosuBuildInfo(text, lock) {
-  if (typeof text !== "string" || text.includes("\r") || text.length > 64 * 1024) fail("gosu_build_info_invalid"); const lines = text.trimEnd().split("\n");
-  if (lines.shift() !== "./gosu: go1.26.9") fail("gosu_build_info_invalid"); const values = { path: null, main: null, dependencies: [], builds: new Map() };
-  for (const line of lines) { const fields = line.split("\t"); if (fields[0] !== "") fail("gosu_build_info_invalid"); if (fields[1] === "path") values.path = fields[2]; else if (fields[1] === "mod") values.main = { path: fields[2], version: fields[3] }; else if (fields[1] === "dep") values.dependencies.push({ path: fields[2], version: fields[3], sum: fields[4] }); else if (fields[1] === "build") { const match = /^(\S+)=(.*)$/u.exec(fields[2] ?? ""); if (!match || values.builds.has(match[1])) fail("gosu_build_info_invalid"); values.builds.set(match[1], match[2].replace(/^"|"$/gu, "")); } else fail("gosu_build_info_invalid"); }
+  if (typeof text !== "string" || text.length > 64 * 1024 || text.includes("\r") || text.includes("\0") || !text.endsWith("\n")) fail("gosu_build_info_invalid"); const lines = text.slice(0, -1).split("\n");
+  if (lines.some((line) => line.length === 0) || lines.shift() !== "./gosu: go1.26.9") fail("gosu_build_info_invalid"); const values = { path: null, main: null, dependencies: [], builds: new Map() };
+  for (const line of lines) {
+    const fields = line.split("\t"); if (fields[0] !== "") fail("gosu_build_info_invalid");
+    if (fields[1] === "path") { if (fields.length !== 3 || values.path !== null) fail("gosu_build_info_invalid"); values.path = fields[2]; }
+    else if (fields[1] === "mod") { if (fields.length !== 5 || fields[4] !== "" || values.main !== null) fail("gosu_build_info_invalid"); values.main = { path: fields[2], version: fields[3] }; }
+    else if (fields[1] === "dep") { if (fields.length !== 5 || !fields[4]) fail("gosu_build_info_invalid"); values.dependencies.push({ path: fields[2], version: fields[3], sum: fields[4] }); }
+    else if (fields[1] === "build") { if (fields.length !== 3) fail("gosu_build_info_invalid"); const match = /^([^=\s]+)=([^"\s]*)$/u.exec(fields[2]); if (!match || values.builds.has(match[1])) fail("gosu_build_info_invalid"); if (match[1] === "vcs" || match[1].startsWith("vcs.")) fail("gosu_build_info_vcs_invalid"); values.builds.set(match[1], match[2]); }
+    else fail("gosu_build_info_invalid");
+  }
   values.dependencies.sort((a, b) => a.path.localeCompare(b.path, "en")); const expected = lock.modules.map((item) => ({ path: item.path, version: item.version, sum: item.zip.h1 })).sort((a, b) => a.path.localeCompare(b.path, "en"));
   if (values.path !== lock.source.module || values.main?.path !== lock.source.module || values.main?.version !== "(devel)" || JSON.stringify(values.dependencies) !== JSON.stringify(expected)) fail("gosu_build_info_invalid");
-  const required = new Map([["-buildmode", "exe"], ["-compiler", "gc"], ["-ldflags", "-d -w -buildid="], ["-trimpath", "true"], ["CGO_ENABLED", "0"], ["GOARCH", "amd64"], ["GOOS", "linux"]]); for (const [key, wanted] of required) if (values.builds.get(key) !== wanted) fail("gosu_build_info_invalid");
-  if (values.builds.has("vcs") || [...values.builds.keys()].some((key) => key.startsWith("vcs."))) fail("gosu_build_info_vcs_invalid"); return Object.freeze({ stdlib: "v1.26.9", main: values.main, dependencies: values.dependencies });
+  const required = new Map([["-buildmode", "exe"], ["-compiler", "gc"], ["-trimpath", "true"], ["DefaultGODEBUG", GOSU_DEFAULT_GODEBUG_V1], ["CGO_ENABLED", "0"], ["GOARCH", "amd64"], ["GOOS", "linux"], ["GOAMD64", "v1"]]);
+  if (values.builds.size !== required.size || [...required].some(([key, wanted]) => values.builds.get(key) !== wanted)) fail("gosu_build_info_invalid"); return Object.freeze({ stdlib: "v1.26.9", main: values.main, dependencies: values.dependencies });
 }
 
 export async function fileIdentity(file, cap = 132 * 1024 ** 2) { const info = await lstat(file); if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.size < 0 || info.size > cap) fail("gosu_file_invalid"); return exactIdentity(await readFile(file)); }
