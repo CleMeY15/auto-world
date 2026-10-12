@@ -10,11 +10,11 @@
 .demo-toolbar select, .demo-advanced select { background: var(--aw-color-surface); border: 1px solid var(--aw-color-control-border); border-radius: var(--aw-radius-control); color: var(--aw-color-text); min-height: var(--aw-size-touch); padding: var(--aw-space-2) var(--aw-space-3); }
 .demo-announcement { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 .demo-screen-heading { padding-block: clamp(1.5rem, 5vw, 3.5rem) var(--aw-space-6); }
-.demo-screen-heading h1 { font-size: clamp(1.8rem, 5vw, 2.75rem); margin-bottom: var(--aw-space-3); }
+.demo-screen-heading h1 { font-size: clamp(1.8rem, 5vw, 2.75rem); margin-bottom: var(--aw-space-3); overflow-wrap: anywhere; }
 .demo-screen-heading p { color: var(--aw-color-text-muted); margin-bottom: 0; max-width: var(--aw-layout-reading-max); }
 .demo-back { gap: var(--aw-space-2); margin-bottom: var(--aw-space-6); }
 .demo-heading-row { align-items: flex-end; display: flex; flex-wrap: wrap; gap: var(--aw-space-4) var(--aw-space-8); justify-content: space-between; }
-.demo-heading-row > div { flex: 1 1 20rem; }
+.demo-heading-row > div { flex: 1 1 20rem; min-width: 0; }
 .demo-search-layout { align-items: start; display: grid; gap: clamp(1.5rem, 6vw, 4rem); }
 .demo-search-form { display: grid; gap: var(--aw-space-4); max-width: 38rem; }
 .demo-search-form > .aw-button { justify-self: start; min-width: 10rem; }
@@ -73,7 +73,7 @@
   .demo-header { align-items: flex-start; flex-direction: column; gap: var(--aw-space-1); justify-content: center; min-height: 4.5rem; padding-block: var(--aw-space-2); }
   .demo-header-label { overflow-wrap: anywhere; }
   .demo-toolbar nav, .demo-toolbar nav .aw-button, .demo-toolbar label, .demo-toolbar select { width: 100%; }
-  .demo-toolbar nav { display: grid; grid-template-columns: 1fr 1fr; }
+  .demo-toolbar nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); }
   .demo-toolbar nav .aw-button { justify-content: center; padding-inline: var(--aw-space-2); }
   .demo-facts { grid-template-columns: 1fr; }
   .demo-card-actions { flex-basis: 100%; }

@@ -1,6 +1,6 @@
 # ADR-0016 — Synthetic web flow, loopback proxy and local favorites
 
-Status: SOURCE_VALIDATED / DELIVERY_PENDING. The v2 contract has independent architecture CLEAR and UX APPROVE; its three-server rollback amendment is CLEAR. Repaired data/proxy, implemented UX, actual API flow and laboratory performance are accepted locally. TASK-0102 is accepted through PR153 at main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467 and main CI38190737513 SUCCESS. TASK-0103 still requires successful final-head Linux gates, an identical reviewed merge and protected-main CI. This contract covers only the labeled synthetic web increment.
+Status: SOURCE_VALIDATED / DELIVERY_PENDING. The v2 contract has independent architecture CLEAR and UX APPROVE; its three-server rollback amendment is CLEAR. Data/proxy remains CLEAR. Linux200% text overflow is repaired and revision3 UX is APPROVE with renewed actual API/mobile lab evidence. TASK-0102 is accepted through PR153/main52fdbefc, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final CI38190254467/main CI38190737513 SUCCESS. TASK-0103 requires successful exact final-head Linux gates, an identical reviewed merge and protected-main CI. This contract covers only the labeled synthetic web increment.
 
 ## Scope and entrypoint
 
