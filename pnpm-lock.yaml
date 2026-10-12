@@ -37,9 +37,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@auto-world/demo-search-contract':
+        specifier: workspace:*
+        version: link:../../packages/demo-search-contract
       '@auto-world/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-schema
       next:
         specifier: 16.3.8
         version: 16.3.8(@babel/core@7.29.7)(@playwright/test@1.64.0)(@types/node@22.20.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
