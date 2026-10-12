@@ -171,7 +171,36 @@ test("keeps web primitives isolated from source and data-service authority", () 
   const web = readJson("apps/web/package.json");
   assert.equal(design.dependencies, undefined);
   assert.deepEqual(Object.keys(design.peerDependencies), ["react"]);
-  assert.deepEqual(Object.keys(web.dependencies).sort(), ["@auto-world/design-system", "next", "react", "react-dom"]);
+  assert.deepEqual(Object.keys(web.dependencies).sort(), [
+    "@auto-world/demo-search-contract",
+    "@auto-world/design-system",
+    "@auto-world/vehicle-schema",
+    "next",
+    "react",
+    "react-dom",
+  ]);
+
+  const sourceRoot = path.join(root, "apps/web/src");
+  const sourceFiles = [];
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolute);
+      else if (/\.tsx?$/u.test(entry.name)) sourceFiles.push(absolute);
+    }
+  };
+  visit(sourceRoot);
+  assert.ok(sourceFiles.length > 0);
+  for (const absolute of sourceFiles) {
+    const relative = path.relative(sourceRoot, absolute).replaceAll("\\", "/");
+    const source = readFileSync(absolute, "utf8");
+    assert.doesNotMatch(source,
+      /(?:@auto-world\/(?:connector-sdk|source-registry|synthetic-connector)|@auto-world\/(?:demo-search-contract|vehicle-schema)\/|(?:connectors|services|source-registry|corpus|fixtures|test-support|packages\/(?:demo-search-contract|vehicle-schema))\/)/u,
+      `${relative} must use only accepted public package entrypoints`);
+    if (source.includes('"@auto-world/vehicle-schema"')) {
+      assert.match(relative, /^demo\//u, `${relative} must keep vehicle validation inside demo helpers`);
+    }
+  }
 });
 
 test("isolates the synthetic connector from ordinary production imports and builds", () => {

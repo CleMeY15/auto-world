@@ -1,6 +1,6 @@
 # TASK-0103 implementation plan
 
-Status: ACCEPTED FOR IMPLEMENTATION, scoped by ADR-0016 v2 (architecture CLEAR, UX APPROVE). TASK0007 and TASK0102 are accepted on main. Implementation acceptance remains pending. One focused branch/PR; no supported service or real source.
+Status: SOURCE_VALIDATED / DELIVERY_PENDING, scoped by ADR-0016 v2 (architecture CLEAR, UX APPROVE) and its accepted three-server rollback amendment. TASK0007 and TASK0102 are accepted on main. Repaired data/proxy and implemented UX, actual API flow and laboratory performance have independent acceptance; final-head Linux gates, identical reviewed merge and protected-main CI remain pending in PR152. One focused branch/PR; no supported service or real source.
 
 1. Freeze proxy/local favorite/navigation/privacy/disabled-flag contract in ADR0016; obtain architecture/security and UX plan review before coupling web/API DTOs.
 2. Data/proxy owner: typed pure query/response/favorite/analytics helpers, fixed-loopback Route Handlers, server flag, hostile unit tests and separate test compilation. No UI/fixture/SDK imports in proxy.

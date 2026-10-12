@@ -1,6 +1,6 @@
 # ADR-0016 — Synthetic web flow, loopback proxy and local favorites
 
-Status: ACCEPTED FOR IMPLEMENTATION; independent architecture plan review CLEAR and UX plan review APPROVE on the frozen v2 contract. Implementation acceptance remains pending. TASK-0103 is eligible because TASK-0102 is accepted at main03ac41ffbfe7ec157d4108f8da2741dc7b08079e through PR150: final-head CI38186090262, identical reviewed tree62f9053aa4689f97be022e765f4a0a78b371153b and main CI38186475270 all PASS. This contract covers only the labeled synthetic web increment.
+Status: SOURCE_VALIDATED / DELIVERY_PENDING. The v2 contract has independent architecture CLEAR and UX APPROVE; its three-server rollback amendment is CLEAR. Repaired data/proxy, implemented UX, actual API flow and laboratory performance are accepted locally. TASK-0102 is accepted through PR153 at main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467 and main CI38190737513 SUCCESS. TASK-0103 still requires successful final-head Linux gates, an identical reviewed merge and protected-main CI. This contract covers only the labeled synthetic web increment.
 
 ## Scope and entrypoint
 
