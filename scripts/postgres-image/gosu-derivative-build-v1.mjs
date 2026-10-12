@@ -5,6 +5,7 @@ import { appendFile, chmod, lstat, mkdir, opendir, readFile, readdir, readlink, 
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { types } from "node:util";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -80,7 +81,7 @@ function isolationFailure(reason) { fail(ISOLATION_FAILURES[reason].code); }
 function childMainFailure(reason) { fail(CHILD_MAIN_FAILURES[reason].code); }
 function ownErrorData(error, key) {
   try {
-    if (!(error instanceof Error)) return undefined;
+    if (!types.isNativeError(error)) return undefined;
     const descriptor = Object.getOwnPropertyDescriptor(error, key);
     return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
   } catch { return undefined; }

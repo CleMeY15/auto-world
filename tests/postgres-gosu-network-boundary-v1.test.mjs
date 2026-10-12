@@ -382,14 +382,36 @@ test("all seven exact read stages classify only own Error data codes and never i
     Object.defineProperty(new Error("PRIVATE_SENTINEL"), "code", { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } }),
     new Proxy(new Error("PRIVATE_SENTINEL"), { getOwnPropertyDescriptor() { throw new Error("PRIVATE_SENTINEL"); } }),
     new Proxy(new Error("PRIVATE_SENTINEL"), { getPrototypeOf() { throw new Error("PRIVATE_SENTINEL"); } }), revoked.proxy,
+    new Proxy(new Error("PRIVATE_SENTINEL"), {
+      getPrototypeOf() { getters += 1; throw new Error("PRIVATE_SENTINEL"); },
+      getOwnPropertyDescriptor() { getters += 1; return { configurable: true, get value() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } }; },
+      get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); },
+    }),
+    Object.create(Error.prototype, { code: { value: "EACCES" } }),
   ];
   for (const stage of readStages) for (const error of errors) await assert.rejects(TEST_ONLY.childRead(stage, () => { throw error; }, true), exactChild(`${stage}_unclassified`));
   const safe = Object.assign(new Error("PRIVATE_SENTINEL"), { code: "EPERM" });
   for (const name of ["message", "stack", "path", "cause", "childPacket", "isolationReason"]) Object.defineProperty(safe, name, { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } });
   await assert.rejects(TEST_ONLY.childRead("lock_read", () => { throw safe; }, true), exactChild("lock_read_permission_denied"));
   assert.equal(getters, 0);
+  for (const ErrorType of [Error, TypeError, RangeError, SyntaxError, EvalError, URIError, ReferenceError]) {
+    const native = Object.assign(new ErrorType("PRIVATE_SENTINEL"), { code: "EACCES" });
+    await assert.rejects(TEST_ONLY.childRead("lock_read", () => { throw native; }, true), exactChild("lock_read_permission_denied"));
+  }
   const original = new Error("PRIVATE_SENTINEL");
   await assert.rejects(TEST_ONLY.childRead("lock_read", () => { throw original; }, false), (error) => error === original);
+});
+
+test("descriptor-only child read proxy never invokes its descriptor trap or value getter", async () => {
+  let descriptorTrapCounter = 0; let getterCounter = 0;
+  const error = new Proxy(new Error("PRIVATE_SENTINEL"), {
+    getOwnPropertyDescriptor() {
+      descriptorTrapCounter += 1;
+      return { configurable: true, get value() { getterCounter += 1; throw new Error("PRIVATE_SENTINEL"); } };
+    },
+  });
+  await assert.rejects(TEST_ONLY.childRead("lock_read", () => { throw error; }, true), exactChild("lock_read_unclassified"));
+  assert.equal(descriptorTrapCounter, 0); assert.equal(getterCounter, 0);
 });
 
 test("boundary collector starts all six exact operations in original order with fixed per-read stages", async () => {

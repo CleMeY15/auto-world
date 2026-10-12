@@ -346,13 +346,32 @@ test("child-aware formatter reads only guarded own Error messages and never diag
     Object.defineProperty(new Error(), "message", { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } }), inherited,
     new Proxy(new Error(), { getOwnPropertyDescriptor() { throw new Error("PRIVATE_SENTINEL"); } }),
     new Proxy(new Error(), { getPrototypeOf() { throw new Error("PRIVATE_SENTINEL"); } }), revoked.proxy,
+    new Proxy(new Error(), {
+      getPrototypeOf() { getters += 1; throw new Error("PRIVATE_SENTINEL"); },
+      getOwnPropertyDescriptor() { getters += 1; return { configurable: true, get value() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } }; },
+      get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); },
+    }),
+    Object.create(Error.prototype, { message: { value: childMainMessages[0] } }),
     new AggregateError([new Error(childMainMessages[0]), new Error("PRIVATE_SENTINEL")], "PRIVATE_SENTINEL"),
   ]) assert.equal(TEST_ONLY.formatChildMainFailure(error, true), `${childMainMessage("main_unclassified")}\n`);
   const safe = new Error(childMainMessages[0]);
   for (const name of ["stack", "code", "cause", "path", "childPacket", "isolationReason"]) Object.defineProperty(safe, name, { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } });
   assert.equal(TEST_ONLY.formatChildMainFailure(safe, true), `${childMainMessages[0]}\n`); assert.equal(getters, 0);
+  for (const ErrorType of [Error, TypeError, RangeError, SyntaxError, EvalError, URIError, ReferenceError]) assert.equal(TEST_ONLY.formatChildMainFailure(new ErrorType(childMainMessages[0]), true), `${childMainMessages[0]}\n`);
   assert.equal(TEST_ONLY.formatChildMainFailure(new Error("gosu_node_runtime_invalid"), false), "gosu_node_runtime_invalid\n");
   assert.equal(formatGosuPreparationFailure(new Error("gosu_PRIVATE_SENTINEL")), "gosu_PRIVATE_SENTINEL\n");
+});
+
+test("descriptor-only child formatter proxy never invokes its descriptor trap or value getter", () => {
+  let descriptorTrapCounter = 0; let getterCounter = 0;
+  const error = new Proxy(new Error("PRIVATE_SENTINEL"), {
+    getOwnPropertyDescriptor() {
+      descriptorTrapCounter += 1;
+      return { configurable: true, get value() { getterCounter += 1; throw new Error("PRIVATE_SENTINEL"); } };
+    },
+  });
+  assert.equal(TEST_ONLY.formatChildMainFailure(error, true), `${childMainMessage("main_unclassified")}\n`);
+  assert.equal(descriptorTrapCounter, 0); assert.equal(getterCounter, 0);
 });
 
 test("all child-main packets remain primary and only real parent cleanup appends its marker", async () => {
