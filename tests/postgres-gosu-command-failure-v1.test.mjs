@@ -17,6 +17,21 @@ const fixedChildCodes = [
   "gosu_lock_identity_invalid",
 ];
 const childCodes = [...offlineStages.flatMap((stage) => reasons.map((reason) => `gosu_command_failed_${stage}_${reason}`)), ...fixedChildCodes];
+const isolationReasons = [
+  "setup_arguments_invalid", "setup_environment_invalid", "repeat_invalid",
+  "uid_invalid", "gid_invalid", "original_netns_invalid", "original_mntns_invalid",
+  "scratch_invalid", "output_invalid", "owned_paths_invalid", "ci_invalid",
+  "run_id_invalid", "run_attempt_invalid", "head_sha_invalid", "job_invalid",
+  "namespace_net_invalid", "namespace_mnt_invalid", "namespace_transition_invalid", "namespace_changed_invalid",
+  "setup_platform_invalid", "setup_root_invalid", "setup_read_failed", "setup_netns_reused", "setup_mntns_reused",
+  "setup_sysfs_not_directory", "setup_sysfs_symlink", "boundary_netns_reused", "boundary_mntns_reused",
+  "boundary_observation_invalid", "boundary_interfaces_invalid", "boundary_routes_present",
+  "boundary_flags_invalid", "boundary_flags_number_invalid", "boundary_loopback_missing", "boundary_loopback_up",
+  "setup_mount_spawn", "setup_mount_timeout", "setup_mount_output_limit", "setup_mount_signal", "setup_mount_exit", "setup_mount_result_invalid",
+  "setup_setpriv_spawn", "setup_setpriv_timeout", "setup_setpriv_output_limit", "setup_setpriv_signal", "setup_setpriv_exit", "setup_setpriv_result_invalid",
+];
+const isolationMessages = isolationReasons.map((reason) => `gosu_offline_network_invalid\ngosu_isolation_reason_${reason}`);
+const allChildMessages = [...childCodes, ...isolationMessages];
 const success = () => ({ error: undefined, signal: null, status: 0, stdout: Buffer.from("ok"), stderr: Buffer.alloc(0) });
 const failure = (reason) => {
   if (reason === "spawn") return { ...success(), error: Object.assign(new Error("secret-error"), { code: "EACCES" }), signal: "SIGKILL", status: 9 };
@@ -28,6 +43,44 @@ const failure = (reason) => {
 const invoke = (stage, runner) => TEST_ONLY.runCommand(stage, "secret-command", ["secret-argument"], {
   cwd: "secret-cwd", env: { SECRET_ENV: "secret-environment" }, cap: 123, timeout: 456,
 }, runner);
+async function invokeSetup(resultOrRunner) {
+  const environment = TEST_ONLY.setupEnvironment({
+    repeat: "1", scratch: "/runner/aw-gosu-preparation-1", output: "/runner/gosu-preparation-1",
+    uid: "1000", gid: "1001", originalNetns: "net:[100]", originalMntns: "mnt:[200]",
+    ci: { runId: "300", runAttempt: "1", headSha: "a".repeat(40), job: "build_1" },
+  });
+  const calls = [];
+  const promise = TEST_ONLY.runOfflineSetup(environment, {
+    platform: "linux", geteuid: () => 0,
+    readlink: async (name) => name.endsWith("/net") ? "net:[101]" : "mnt:[201]",
+    lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }),
+    runner: (command) => {
+      calls.push(command);
+      if (calls.length === 1) return success();
+      return typeof resultOrRunner === "function" ? resultOrRunner() : resultOrRunner;
+    },
+  });
+  return { promise, calls };
+}
+const exactMessage = (message) => (error) => {
+  assert.equal(error.message, message);
+  assert.equal(formatGosuPreparationFailure(error), `${message}\n`);
+  return true;
+};
+const hostilePackets = () => {
+  const message = isolationMessages[0];
+  const maximum = Math.max(...allChildMessages.map((code) => Buffer.byteLength(`${code}\n`, "ascii")));
+  return [
+    Buffer.from("gosu_offline_network_invalid\ngosu_isolation_reason_unknown\n"),
+    Buffer.from(`${message}\ngosu_cleanup_failed\n`), Buffer.from(`${message}\r\n`),
+    Buffer.from(message.replace("\n", "\r\n") + "\n"), Buffer.from(`\x1b[31m${message}\n`),
+    Buffer.from(`${message}\0\n`), Buffer.from(`${message}é\n`), Buffer.from(message),
+    Buffer.from(`${message}\n\n`), Buffer.from(`x${message}\n`), Buffer.from(`${message}x\n`),
+    Buffer.alloc(maximum + 1, 0x61), Buffer.from(`${childCodes[0]}\ngosu_cleanup_failed\n`),
+    Buffer.from(`${childCodes[0]}\r\n`), Buffer.from(`${childCodes[0]}\n\n`),
+    Buffer.from(`${message}\n`.replace("gosu_isolation_reason_", "gosu_isolation_reason_é")),
+  ];
+};
 
 test("all eight command stages expose five closed failure reasons without private data", () => {
   assert.equal(stages.length, 8);
@@ -88,6 +141,87 @@ test("offline isolation propagates every and only exact allowlisted child line o
   for (const stderr of hostile) assert.throws(() => invoke("offline_isolation", () => ({ ...failure("exit"), stderr })), /^Error: gosu_command_failed_offline_isolation_exit$/u);
   for (const reason of ["spawn", "timeout", "output_limit", "signal"]) {
     assert.throws(() => invoke("offline_isolation", () => ({ ...failure(reason), stderr: Buffer.from(`${childCodes[0]}\n`) })), new RegExp(`^Error: gosu_command_failed_offline_isolation_${reason}$`, "u"));
+  }
+});
+
+test("both relays propagate all 35 historical lines and 47 fixed two-line packets on ordinary exit", async () => {
+  assert.equal(childCodes.length, 35); assert.equal(isolationMessages.length, 47);
+  assert.equal(new Set(allChildMessages).size, 82);
+  for (const message of allChildMessages) {
+    const result = { ...failure("exit"), stdout: Buffer.from("secret-stdout"), stderr: Buffer.from(`${message}\n`, "ascii") };
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage(message));
+    const { promise, calls } = await invokeSetup(result);
+    await assert.rejects(promise, exactMessage(message));
+    assert.deepEqual(calls, ["/usr/bin/mount", "/usr/bin/setpriv"]);
+  }
+});
+
+test("both relays reject malformed, foreign and false-cleanup packets without private leakage", async () => {
+  for (const stderr of [...hostilePackets(), "secret-stderr", null, new Uint8Array([1, 2])]) {
+    const result = { ...failure("exit"), stdout: Buffer.from("secret-stdout"), stderr };
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_failed_offline_isolation_exit"));
+    const { promise, calls } = await invokeSetup(result);
+    await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_exit"));
+    assert.deepEqual(calls, ["/usr/bin/mount", "/usr/bin/setpriv"]);
+  }
+});
+
+test("exact packets cannot override thrown runners, Error codes, signals or malformed result types", async () => {
+  for (const message of allChildMessages) for (const reason of ["spawn", "timeout", "output_limit", "signal"]) {
+    const result = { ...failure(reason), stderr: Buffer.from(`${message}\n`, "ascii") };
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage(`gosu_command_failed_offline_isolation_${reason}`));
+    const { promise } = await invokeSetup(result);
+    await assert.rejects(promise, exactMessage(`gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_${reason}`));
+  }
+  const packet = Buffer.from(`${isolationMessages[0]}\n`, "ascii");
+  for (const result of [
+    undefined, null, [], {}, { ...success(), error: null, stderr: packet },
+    { ...success(), error: "secret-error", stderr: packet }, { ...success(), signal: "", stderr: packet },
+    { ...success(), signal: 9, stderr: packet }, { ...success(), status: null, stderr: packet },
+    { ...success(), status: 1.5, stderr: packet }, { ...success(), status: "1", stderr: packet },
+    { ...success(), status: undefined, stderr: packet }, { ...success(), stdout: "secret-output", stderr: packet },
+    { ...success(), stderr: new Uint8Array() },
+    Object.defineProperty({}, "error", { get() { throw new Error("secret-getter"); } }),
+  ]) {
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_result_invalid"));
+    const { promise } = await invokeSetup(result);
+    await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_result_invalid"));
+  }
+  const throwing = () => { throw new Error("secret-thrown-runner"); };
+  assert.throws(() => invoke("offline_isolation", throwing), exactMessage("gosu_command_failed_offline_isolation_spawn"));
+  const { promise } = await invokeSetup(throwing);
+  await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_spawn"));
+});
+
+test("Error classification precedes malformed signal and status and ignores foreign Error properties", async () => {
+  for (const [code, reason] of [["ETIMEDOUT", "timeout"], ["ENOBUFS", "output_limit"], ["EACCES", "spawn"]]) {
+    const error = Object.assign(new Error("secret-error"), { code, isolationReason: "secret-reason", childPacket: isolationMessages[0] });
+    for (const result of [
+      { error }, { error, signal: {}, status: "secret-status", stdout: null, stderr: Buffer.from(`${isolationMessages[0]}\n`) },
+    ]) {
+      assert.throws(() => invoke("offline_isolation", () => result), exactMessage(`gosu_command_failed_offline_isolation_${reason}`));
+      const { promise } = await invokeSetup(result);
+      await assert.rejects(promise, exactMessage(`gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_${reason}`));
+    }
+  }
+  const error = Object.defineProperty(new Error("secret-error"), "code", { get() { throw new Error("secret-code-getter"); } });
+  const result = { ...success(), error, stderr: Buffer.from(`${isolationMessages[0]}\n`) };
+  assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_failed_offline_isolation_spawn"));
+  const { promise } = await invokeSetup(result);
+  await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_spawn"));
+});
+
+test("two-line primary packets retain exactly one wire LF and only a real parent cleanup marker", async () => {
+  for (const message of isolationMessages) {
+    const primary = new Error(message);
+    assert.equal(primary.message.endsWith("\n"), false);
+    assert.equal(formatGosuPreparationFailure(primary), `${message}\n`);
+    await assert.rejects(completeOwnedGosuScratch(primary, "invalid", "invalid"), (error) => {
+      assert.equal(error instanceof AggregateError, true);
+      assert.equal(error.errors[0], primary);
+      assert.equal(formatGosuPreparationFailure(error), `${message}\ngosu_cleanup_failed\n`);
+      return true;
+    });
   }
 });
 

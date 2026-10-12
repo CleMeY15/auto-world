@@ -36,10 +36,27 @@ const CHILD_FIXED_CODES = Object.freeze([
   "gosu_version_invalid", "gosu_build_info_invalid", "gosu_build_info_vcs_invalid", "gosu_sumdb_invalid",
   "gosu_lock_identity_invalid",
 ]);
+const ISOLATION_REASONS = Object.freeze([
+  "setup_arguments_invalid", "setup_environment_invalid", "repeat_invalid",
+  "uid_invalid", "gid_invalid", "original_netns_invalid", "original_mntns_invalid",
+  "scratch_invalid", "output_invalid", "owned_paths_invalid", "ci_invalid",
+  "run_id_invalid", "run_attempt_invalid", "head_sha_invalid", "job_invalid",
+  "namespace_net_invalid", "namespace_mnt_invalid", "namespace_transition_invalid", "namespace_changed_invalid",
+  "setup_platform_invalid", "setup_root_invalid", "setup_read_failed", "setup_netns_reused", "setup_mntns_reused",
+  "setup_sysfs_not_directory", "setup_sysfs_symlink", "boundary_netns_reused", "boundary_mntns_reused",
+  "boundary_observation_invalid", "boundary_interfaces_invalid", "boundary_routes_present",
+  "boundary_flags_invalid", "boundary_flags_number_invalid", "boundary_loopback_missing", "boundary_loopback_up",
+  "setup_mount_spawn", "setup_mount_timeout", "setup_mount_output_limit", "setup_mount_signal", "setup_mount_exit", "setup_mount_result_invalid",
+  "setup_setpriv_spawn", "setup_setpriv_timeout", "setup_setpriv_output_limit", "setup_setpriv_signal", "setup_setpriv_exit", "setup_setpriv_result_invalid",
+]);
+const ISOLATION_FAILURES = Object.freeze(Object.fromEntries(ISOLATION_REASONS.map((reason) => {
+  const code = `gosu_offline_network_invalid\ngosu_isolation_reason_${reason}`;
+  return [reason, Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })];
+})));
 const CHILD_FAILURE_LINES = Object.freeze([
   ...CHILD_COMMAND_STAGES.flatMap((stage) => COMMAND_REASONS.map((reason) => `gosu_command_failed_${stage}_${reason}`)),
   ...CHILD_FIXED_CODES,
-].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })));
+].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })).concat(Object.values(ISOLATION_FAILURES)));
 const MAX_CHILD_FAILURE_LINE_BYTES = Math.max(...CHILD_FAILURE_LINES.map(({ line }) => line.length));
 const MAX_ORDINARY_ID = 4_294_967_294;
 const SETUP_ENV_KEYS = Object.freeze([
@@ -48,6 +65,7 @@ const SETUP_ENV_KEYS = Object.freeze([
   "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB",
 ]);
 function fail(code) { throw new Error(code); }
+function isolationFailure(reason) { fail(ISOLATION_FAILURES[reason].code); }
 function cleanupFailure(error) { return error?.message?.startsWith("gosu_cleanup_") ? error : new Error("gosu_cleanup_failed", { cause: error }); }
 
 async function checkedOwnedGosuScratch(scratch, runnerTemp) {
@@ -162,18 +180,18 @@ export const TEST_ONLY = Object.freeze({
   runOfflineSetup: (environment, adapters, commandArguments = ["offline-setup", environment?.AW_GOSU_REPEAT]) => dispatchOfflineSetup(commandArguments, environment, adapters),
   validateOfflineNetworkObservation,
 });
-function setupScalar(value, pattern) { if (typeof value !== "string" || !pattern.test(value)) fail("gosu_offline_network_invalid"); return value; }
-function ordinaryId(value) { setupScalar(value, /^(?:[1-9]|[1-9][0-9]{1,9})$/u); const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ORDINARY_ID || String(parsed) !== value) fail("gosu_offline_network_invalid"); return value; }
-function namespaceValue(value, kind) { return setupScalar(value, new RegExp(`^${kind}:\\[[1-9][0-9]*\\]$`, "u")); }
+function setupScalar(value, pattern, reason) { if (typeof value !== "string" || !pattern.test(value)) isolationFailure(reason); return value; }
+function ordinaryId(value, reason) { setupScalar(value, /^(?:[1-9]|[1-9][0-9]{1,9})$/u, reason); const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ORDINARY_ID || String(parsed) !== value) isolationFailure(reason); return value; }
+function namespaceValue(value, kind, reason = kind === "net" ? "namespace_net_invalid" : "namespace_mnt_invalid") { return setupScalar(value, new RegExp(`^${kind}:\\[[1-9][0-9]*\\]$`, "u"), reason); }
 function ownedSetupPaths(scratch, output, repeat) {
-  for (const value of [scratch, output]) if (typeof value !== "string" || !value.startsWith("/") || path.posix.normalize(value) !== value || value === "/") fail("gosu_offline_network_invalid");
-  const scratchParent = path.posix.dirname(scratch); if (scratchParent === "/" || path.posix.dirname(output) !== scratchParent || path.posix.basename(scratch) !== `aw-gosu-preparation-${repeat}` || path.posix.basename(output) !== `gosu-preparation-${repeat}`) fail("gosu_offline_network_invalid");
+  for (const [value, reason] of [[scratch, "scratch_invalid"], [output, "output_invalid"]]) if (typeof value !== "string" || !value.startsWith("/") || path.posix.normalize(value) !== value || value === "/") isolationFailure(reason);
+  const scratchParent = path.posix.dirname(scratch); if (scratchParent === "/" || path.posix.dirname(output) !== scratchParent || path.posix.basename(scratch) !== `aw-gosu-preparation-${repeat}` || path.posix.basename(output) !== `gosu-preparation-${repeat}`) isolationFailure("owned_paths_invalid");
 }
 function setupEnvironment(configuration) {
-  const repeat = setupScalar(configuration?.repeat, /^[12]$/u); const uid = ordinaryId(configuration?.uid); const gid = ordinaryId(configuration?.gid);
-  const originalNetns = namespaceValue(configuration?.originalNetns, "net"); const originalMntns = namespaceValue(configuration?.originalMntns, "mnt"); ownedSetupPaths(configuration?.scratch, configuration?.output, repeat);
-  const ci = configuration?.ci; if (!ci || typeof ci !== "object" || Array.isArray(ci)) fail("gosu_offline_network_invalid");
-  const runId = setupScalar(ci.runId, /^[1-9][0-9]*$/u); const runAttempt = setupScalar(ci.runAttempt, /^[1-9][0-9]*$/u); const headSha = setupScalar(ci.headSha, /^[0-9a-f]{40}$/u); const job = setupScalar(ci.job, /^build_[12]$/u);
+  const repeat = setupScalar(configuration?.repeat, /^[12]$/u, "repeat_invalid"); const uid = ordinaryId(configuration?.uid, "uid_invalid"); const gid = ordinaryId(configuration?.gid, "gid_invalid");
+  const originalNetns = namespaceValue(configuration?.originalNetns, "net", "original_netns_invalid"); const originalMntns = namespaceValue(configuration?.originalMntns, "mnt", "original_mntns_invalid"); ownedSetupPaths(configuration?.scratch, configuration?.output, repeat);
+  const ci = configuration?.ci; if (!ci || typeof ci !== "object" || Array.isArray(ci)) isolationFailure("ci_invalid");
+  const runId = setupScalar(ci.runId, /^[1-9][0-9]*$/u, "run_id_invalid"); const runAttempt = setupScalar(ci.runAttempt, /^[1-9][0-9]*$/u, "run_attempt_invalid"); const headSha = setupScalar(ci.headSha, /^[0-9a-f]{40}$/u, "head_sha_invalid"); const job = setupScalar(ci.job, /^build_[12]$/u, "job_invalid");
   return {
     AW_GOSU_ORIGINAL_NETNS: originalNetns, AW_GOSU_ORIGINAL_MNTNS: originalMntns, AW_GOSU_EXPECT_UID: uid,
     AW_GOSU_EXPECT_GID: gid, AW_GOSU_REPEAT: repeat, AW_GOSU_SCRATCH: configuration.scratch,
@@ -182,7 +200,7 @@ function setupEnvironment(configuration) {
   };
 }
 function validateSetupEnvironment(environment) {
-  if (!environment || typeof environment !== "object" || Array.isArray(environment) || Object.keys(environment).sort().join("\0") !== [...SETUP_ENV_KEYS].sort().join("\0")) fail("gosu_offline_network_invalid");
+  if (!environment || typeof environment !== "object" || Array.isArray(environment) || Object.keys(environment).sort().join("\0") !== [...SETUP_ENV_KEYS].sort().join("\0")) isolationFailure("setup_environment_invalid");
   return setupEnvironment({
     repeat: environment.AW_GOSU_REPEAT, scratch: environment.AW_GOSU_SCRATCH, output: environment.AW_GOSU_OUTPUT,
     uid: environment.AW_GOSU_EXPECT_UID, gid: environment.AW_GOSU_EXPECT_GID, originalNetns: environment.AW_GOSU_ORIGINAL_NETNS,
@@ -197,14 +215,25 @@ function buildOuterIsolationInvocation(configuration) {
     options: { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 },
   };
 }
-function setupProcess(command, args, options, runner, propagateChild) {
-  let result; try { result = runner(command, args, { ...options, encoding: null, windowsHide: true }); } catch { fail("gosu_offline_network_invalid"); }
-  if (!result || typeof result !== "object" || Array.isArray(result) || result.error !== undefined || result.signal !== null || !Number.isInteger(result.status)) fail("gosu_offline_network_invalid");
-  if (result.status !== 0) {
-    if (propagateChild && Buffer.isBuffer(result.stderr) && result.stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) { const child = CHILD_FAILURE_LINES.find(({ line }) => result.stderr.equals(line)); if (child) fail(child.code); }
-    fail("gosu_offline_network_invalid");
+function setupProcess(stage, command, args, options, runner, propagateChild) {
+  let result; try { result = runner(command, args, { ...options, encoding: null, windowsHide: true }); } catch { isolationFailure(`${stage}_spawn`); }
+  if (!result || typeof result !== "object" || Array.isArray(result)) isolationFailure(`${stage}_result_invalid`);
+  let error; let signal; let status; let stdout; let stderr;
+  try { ({ error, signal, status, stdout, stderr } = result); } catch { isolationFailure(`${stage}_result_invalid`); }
+  if (error !== undefined && !(error instanceof Error)) isolationFailure(`${stage}_result_invalid`);
+  if (error) {
+    let code; try { code = error.code; } catch { isolationFailure(`${stage}_spawn`); }
+    isolationFailure(`${stage}_${code === "ETIMEDOUT" ? "timeout" : code === "ENOBUFS" ? "output_limit" : "spawn"}`);
   }
-  if (!Buffer.isBuffer(result.stdout) || !Buffer.isBuffer(result.stderr)) fail("gosu_offline_network_invalid");
+  if (signal !== null && (typeof signal !== "string" || signal.length === 0)) isolationFailure(`${stage}_result_invalid`);
+  if (status !== null && !Number.isInteger(status)) isolationFailure(`${stage}_result_invalid`);
+  if (signal !== null) isolationFailure(`${stage}_signal`);
+  if (status !== 0) {
+    if (status === null) isolationFailure(`${stage}_result_invalid`);
+    if (propagateChild && Buffer.isBuffer(stderr) && stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) { const child = CHILD_FAILURE_LINES.find(({ line }) => stderr.equals(line)); if (child) fail(child.code); }
+    isolationFailure(`${stage}_exit`);
+  }
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) isolationFailure(`${stage}_result_invalid`);
 }
 async function copyLockedMaterials(lock, materials) {
   const descriptors = [
@@ -254,19 +283,25 @@ async function buildOnline(repeat, lock, scratch, output) {
 }
 export async function readNetworkNamespaceIdentity() { const value = await readlink("/proc/self/ns/net"); return namespaceValue(value, "net"); }
 export async function readMountNamespaceIdentity() { const value = await readlink("/proc/self/ns/mnt"); return namespaceValue(value, "mnt"); }
-export async function assertNetworkNamespaceChanged(original) { const current = await readNetworkNamespaceIdentity(); if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || current === original) fail("gosu_offline_network_invalid"); return current; }
-export function namespaceTransitionIdentity(original, current) { if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || !/^net:\[[1-9][0-9]*\]$/u.test(current ?? "") || original === current) fail("gosu_offline_network_invalid"); const originalBytes = Buffer.from(original); const currentBytes = Buffer.from(current); const transition = Buffer.alloc(8 + originalBytes.length + currentBytes.length); transition.writeUInt32BE(originalBytes.length, 0); originalBytes.copy(transition, 4); transition.writeUInt32BE(currentBytes.length, 4 + originalBytes.length); currentBytes.copy(transition, 8 + originalBytes.length); return exactIdentity(transition); }
+export async function assertNetworkNamespaceChanged(original) { const current = await readNetworkNamespaceIdentity(); if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || current === original) isolationFailure("namespace_changed_invalid"); return current; }
+export function namespaceTransitionIdentity(original, current) { if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || !/^net:\[[1-9][0-9]*\]$/u.test(current ?? "") || original === current) isolationFailure("namespace_transition_invalid"); const originalBytes = Buffer.from(original); const currentBytes = Buffer.from(current); const transition = Buffer.alloc(8 + originalBytes.length + currentBytes.length); transition.writeUInt32BE(originalBytes.length, 0); originalBytes.copy(transition, 4); transition.writeUInt32BE(currentBytes.length, 4 + originalBytes.length); currentBytes.copy(transition, 8 + originalBytes.length); return exactIdentity(transition); }
 function validateOfflineNetworkObservation(observation) {
   if (observation.platform !== "linux" || observation.euid === 0 || observation.nodeOptions || observation.nodePath || observation.goenv !== "off" || observation.gotoolchain !== "local" || observation.gowork !== "off" || observation.goproxy !== "off" || observation.gosumdb !== "off" || observation.goflags) fail("gosu_offline_environment_invalid");
-  const expectedUid = Number(ordinaryId(observation.expectedUid)); const expectedGid = Number(ordinaryId(observation.expectedGid));
+  const expectedUid = Number(ordinaryId(observation.expectedUid, "uid_invalid")); const expectedGid = Number(ordinaryId(observation.expectedGid, "gid_invalid"));
   if (observation.euid !== expectedUid || observation.egid !== expectedGid || !Array.isArray(observation.groups) || observation.groups.length < 1 || observation.groups.some((group) => group !== expectedGid)) fail("gosu_offline_identity_invalid");
   namespaceValue(observation.originalNetns, "net"); namespaceValue(observation.netns, "net"); namespaceValue(observation.originalMntns, "mnt"); namespaceValue(observation.mntns, "mnt");
-  if (observation.netns === observation.originalNetns || observation.mntns === observation.originalMntns) fail("gosu_offline_network_invalid");
-  if (typeof observation.status !== "string" || typeof observation.routes !== "string" || typeof observation.loopbackFlags !== "string") fail("gosu_offline_network_invalid");
+  if (observation.netns === observation.originalNetns) isolationFailure("boundary_netns_reused");
+  if (observation.mntns === observation.originalMntns) isolationFailure("boundary_mntns_reused");
+  if (typeof observation.status !== "string" || typeof observation.routes !== "string" || typeof observation.loopbackFlags !== "string") isolationFailure("boundary_observation_invalid");
   const caps = Object.fromEntries(observation.status.split("\n").map((line) => line.split(":")).filter((item) => item.length === 2).map(([key, value]) => [key, value.trim()]));
   if (caps.CapEff !== "0000000000000000" || caps.CapBnd !== "0000000000000000" || caps.CapAmb !== "0000000000000000" || caps.NoNewPrivs !== "1") fail("gosu_offline_privilege_invalid");
-  if (!Array.isArray(observation.interfaces) || observation.interfaces.length !== 1 || observation.interfaces[0] !== "lo" || observation.routes.trim().split("\n").length !== 1 || !/^0x(?:0|[1-9a-f][0-9a-f]{0,7})\n$/u.test(observation.loopbackFlags)) fail("gosu_offline_network_invalid");
-  const flags = Number.parseInt(observation.loopbackFlags.slice(2, -1), 16); if (!Number.isSafeInteger(flags) || (flags & 0x8) !== 0x8 || (flags & 0x1) !== 0) fail("gosu_offline_network_invalid");
+  if (!Array.isArray(observation.interfaces) || observation.interfaces.length !== 1 || observation.interfaces[0] !== "lo") isolationFailure("boundary_interfaces_invalid");
+  if (observation.routes.trim().split("\n").length !== 1) isolationFailure("boundary_routes_present");
+  if (!/^0x(?:0|[1-9a-f][0-9a-f]{0,7})\n$/u.test(observation.loopbackFlags)) isolationFailure("boundary_flags_invalid");
+  const flags = Number.parseInt(observation.loopbackFlags.slice(2, -1), 16);
+  if (!Number.isSafeInteger(flags)) isolationFailure("boundary_flags_number_invalid");
+  if ((flags & 0x8) !== 0x8) isolationFailure("boundary_loopback_missing");
+  if ((flags & 0x1) !== 0) isolationFailure("boundary_loopback_up");
   const raw = { status: Buffer.from(observation.status), routes: Buffer.from(observation.routes), loopbackFlags: Buffer.from(observation.loopbackFlags) }; const namespaceTransition = namespaceTransitionIdentity(observation.originalNetns, observation.netns);
   if (namespaceTransition.bytes < 22 || namespaceTransition.bytes > 136 || raw.status.length < 1 || raw.status.length > 64 * 1024 || raw.routes.length > 1024 * 1024 || raw.loopbackFlags.length < 1 || raw.loopbackFlags.length > 64) fail("gosu_offline_evidence_invalid");
   return { checks: { namespaceChanged: true, loopbackDown: true, routesEmpty: true, ordinaryIdentity: true, zeroCapabilities: true, noNewPrivileges: true }, evidence: { namespaceTransition, ...Object.fromEntries(Object.entries(raw).map(([key, bytes]) => [key, exactIdentity(bytes)])) } };
@@ -282,20 +317,24 @@ export async function assertOfflineBoundary() {
 }
 async function runOfflineSetupWith(environmentInput, adapters) {
   const environment = validateSetupEnvironment(environmentInput);
-  if (adapters?.platform !== "linux" || adapters.geteuid?.() !== 0) fail("gosu_offline_network_invalid");
+  if (adapters?.platform !== "linux") isolationFailure("setup_platform_invalid");
+  if (adapters.geteuid?.() !== 0) isolationFailure("setup_root_invalid");
   let netns; let mntns; let sys;
-  try { [netns, mntns, sys] = await Promise.all([adapters.readlink("/proc/self/ns/net"), adapters.readlink("/proc/self/ns/mnt"), adapters.lstat("/sys")]); } catch { fail("gosu_offline_network_invalid"); }
+  try { [netns, mntns, sys] = await Promise.all([adapters.readlink("/proc/self/ns/net"), adapters.readlink("/proc/self/ns/mnt"), adapters.lstat("/sys")]); } catch { isolationFailure("setup_read_failed"); }
   namespaceValue(netns, "net"); namespaceValue(mntns, "mnt");
-  if (netns === environment.AW_GOSU_ORIGINAL_NETNS || mntns === environment.AW_GOSU_ORIGINAL_MNTNS || !sys.isDirectory() || sys.isSymbolicLink()) fail("gosu_offline_network_invalid");
+  if (netns === environment.AW_GOSU_ORIGINAL_NETNS) isolationFailure("setup_netns_reused");
+  if (mntns === environment.AW_GOSU_ORIGINAL_MNTNS) isolationFailure("setup_mntns_reused");
+  if (!sys.isDirectory()) isolationFailure("setup_sysfs_not_directory");
+  if (sys.isSymbolicLink()) isolationFailure("setup_sysfs_symlink");
   const commandOptions = { cwd: "/", env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 60_000, maxBuffer: 1024 * 1024 };
-  setupProcess("/usr/bin/mount", ["--internal-only", "--no-canonicalize", "--types", "sysfs", "--options", "ro,nosuid,nodev,noexec", "--source", "sysfs", "--target", "/sys"], commandOptions, adapters.runner, false);
+  setupProcess("setup_mount", "/usr/bin/mount", ["--internal-only", "--no-canonicalize", "--types", "sysfs", "--options", "ro,nosuid,nodev,noexec", "--source", "sysfs", "--target", "/sys"], commandOptions, adapters.runner, false);
   const scratch = environment.AW_GOSU_SCRATCH; const compiler = path.posix.join(scratch, "compiler"); const offline = cleanEnv({ home: path.posix.join(scratch, "home"), tmp: path.posix.join(scratch, "tmp"), path: `${path.posix.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.posix.join(scratch, "gocache"), gomodcache: path.posix.join(scratch, "gomodcache"), gopath: path.posix.join(scratch, "gopath"), offline: true });
   for (const key of SETUP_ENV_KEYS) offline[key] = environment[key];
   const setpriv = [`--reuid=${environment.AW_GOSU_EXPECT_UID}`, `--regid=${environment.AW_GOSU_EXPECT_GID}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--", "/usr/bin/env", "-i", ...Object.entries(offline).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", environment.AW_GOSU_REPEAT];
-  setupProcess("/usr/bin/setpriv", setpriv, { ...commandOptions, timeout: 70 * 60_000 }, adapters.runner, true);
+  setupProcess("setup_setpriv", "/usr/bin/setpriv", setpriv, { ...commandOptions, timeout: 70 * 60_000 }, adapters.runner, true);
 }
 async function dispatchOfflineSetup(commandArguments, environment, adapters) {
-  if (!Array.isArray(commandArguments) || commandArguments.length !== 2 || commandArguments[0] !== "offline-setup" || !/^[12]$/u.test(commandArguments[1]) || commandArguments[1] !== environment?.AW_GOSU_REPEAT) fail("gosu_offline_network_invalid");
+  if (!Array.isArray(commandArguments) || commandArguments.length !== 2 || commandArguments[0] !== "offline-setup" || !/^[12]$/u.test(commandArguments[1]) || commandArguments[1] !== environment?.AW_GOSU_REPEAT) isolationFailure("setup_arguments_invalid");
   return runOfflineSetupWith(environment, adapters);
 }
 async function runOfflineSetup(commandArguments, environment) {
