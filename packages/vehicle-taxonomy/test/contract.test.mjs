@@ -22,6 +22,14 @@ const firstIssue = (result) => {
   return result.issues[0];
 };
 
+test("keeps every golden corpus label explicitly synthetic", () => {
+  for (const entry of [...syntheticTaxonomyRelease.makes, ...syntheticTaxonomyRelease.models]) {
+    for (const name of [entry.primaryName, ...entry.aliases]) {
+      assert.match(name.value, /^AW Fixture /u);
+    }
+  }
+});
+
 test("parses all five distinct ID domains and rejects cross-domain or malformed values", () => {
   const cases = [
     [parseTaxonomyCatalogId, "taxcat_fixture", "make_fixture"],
@@ -47,7 +55,7 @@ test("parses the synthetic golden release deterministically and deeply freezes i
   assert.equal(first.data.makes.length, 4);
   assert.equal(first.data.models.length, 8);
   assert.equal(first.data.attributions.length, 4);
-  assert.equal(first.data.models.filter((model) => model.primaryName.value === "Orbit").length, 2);
+  assert.equal(first.data.models.filter((model) => model.primaryName.value === "AW Fixture Shared Model").length, 2);
   assert.equal(Object.isFrozen(first), true);
   assert.equal(Object.isFrozen(first.data), true);
   assert.equal(Object.isFrozen(first.data.models), true);
@@ -98,10 +106,10 @@ test("rejects invalid names, aliases, and attribution records", () => {
     assert.equal(parseTaxonomyRelease(input).success, false, JSON.stringify(value));
   }
   const duplicateAlias = clone(syntheticTaxonomyRelease);
-  duplicateAlias.makes[0].aliases.push({ value: "Aster", attributionId: "taxattr_gamma" });
+  duplicateAlias.makes[0].aliases.push({ value: "AW Fixture Label A", attributionId: "taxattr_gamma" });
   assert.equal(parseTaxonomyRelease(duplicateAlias).success, false);
   const primaryAlias = clone(syntheticTaxonomyRelease);
-  primaryAlias.makes[0].aliases = [{ value: "Aster Works", attributionId: "taxattr_beta" }];
+  primaryAlias.makes[0].aliases = [{ value: "AW Fixture Make Alpha", attributionId: "taxattr_beta" }];
   assert.equal(parseTaxonomyRelease(primaryAlias).success, false);
   const unsupportedKind = clone(syntheticTaxonomyRelease);
   unsupportedKind.attributions[0].kind = "source";

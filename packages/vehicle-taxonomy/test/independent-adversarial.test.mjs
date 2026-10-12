@@ -24,15 +24,15 @@ const baseRelease = () => ({
   makes: [
     {
       makeId: "make_a",
-      primaryName: { value: "Aster", attributionId: "taxattr_a" },
-      aliases: [{ value: "Asteria", attributionId: "taxattr_b" }],
+      primaryName: { value: "AW Fixture Label A", attributionId: "taxattr_a" },
+      aliases: [{ value: "AW Fixture Label B", attributionId: "taxattr_b" }],
     },
   ],
   models: [
     {
       modelId: "model_a",
       makeId: "make_a",
-      primaryName: { value: "Arc", attributionId: "taxattr_a" },
+      primaryName: { value: "AW Fixture Model Alpha", attributionId: "taxattr_a" },
       aliases: [],
     },
   ],
@@ -120,7 +120,7 @@ test("rejects a dangling parent on the final model", () => {
   input.models.push({
     modelId: "model_z",
     makeId: "make_missing",
-    primaryName: { value: "Zenith", attributionId: "taxattr_a" },
+    primaryName: { value: "AW Fixture Model Zeta", attributionId: "taxattr_a" },
     aliases: [],
   });
 
@@ -134,7 +134,7 @@ test("rejects a dangling parent on the final model", () => {
 
 test("rejects a dangling attribution on the final alias", () => {
   const input = baseRelease();
-  input.makes[0].aliases.push({ value: "Zastra", attributionId: "taxattr_missing" });
+  input.makes[0].aliases.push({ value: "AW Fixture Label Z", attributionId: "taxattr_missing" });
 
   const result = parseTaxonomyRelease(input);
   assertRejected(result);
@@ -193,7 +193,7 @@ test("enforces the fixture reference length boundary", () => {
 
 test("rejects duplicate alias values with different attributions", () => {
   const input = baseRelease();
-  input.makes[0].aliases.push({ value: "Asteria", attributionId: "taxattr_a" });
+  input.makes[0].aliases.push({ value: "AW Fixture Label B", attributionId: "taxattr_a" });
 
   assertRejected(parseTaxonomyRelease(input));
 });
