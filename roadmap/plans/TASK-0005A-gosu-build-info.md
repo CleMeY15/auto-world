@@ -1,6 +1,6 @@
 # TASK-0005A - Gosu Go1.26.9 trimpath build-info contract
 
-Status: SOURCE_DONE_ON_MAIN in PR158/main7896e189 with exact reviewed tree, final CI38212274624/main CI38213353613 SUCCESS and independent60-source delivery PASS/CLEAR. Historical implementation checkpoints below remain retained. Distinct actual6 failed isolation before upload; preparation/admission/support unaccepted.
+Status: SOURCE_DONE_ON_MAIN in PR158/main7896e189 with exact reviewed tree, final CI38212274624/main CI38213353613 SUCCESS and independent60-source delivery PASS/CLEAR; protected-main browser49 first-pass successes/five existing exclusions. Historical implementation checkpoints below remain retained. Distinct actual6 failed isolation before upload; preparation/admission/support unaccepted. Its diagnostics follow-up has fresh integrated local gates and independent evidence audit PASS/CLEAR; final-source/CI/main acceptance remains pending.
 
 ## Goal and original evidence
 
