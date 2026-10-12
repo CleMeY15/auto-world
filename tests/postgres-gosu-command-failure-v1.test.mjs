@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { TEST_ONLY, completeOwnedGosuScratch, formatGosuPreparationFailure } from "../scripts/postgres-image/gosu-derivative-build-v1.mjs";
 
@@ -32,6 +35,10 @@ const isolationReasons = [
 ];
 const isolationMessages = isolationReasons.map((reason) => `gosu_offline_network_invalid\ngosu_isolation_reason_${reason}`);
 const allChildMessages = [...childCodes, ...isolationMessages];
+const childMainMessage = (reason) => `gosu_preparation_failed\ngosu_child_main_entered\ngosu_child_failure_reason_${reason}`;
+const childReadStages = ["lock_read", "boundary_netns_read", "boundary_mntns_read", "boundary_status_read", "boundary_routes_read", "boundary_interfaces_read", "boundary_loopback_flags_read"];
+const childMainReasons = [...childReadStages.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `${stage}_${reason}`)), "runtime_invalid", "arguments_invalid", "lock_json_invalid", "lock_contract_invalid", "main_unclassified"];
+const childMainMessages = childMainReasons.map(childMainMessage);
 const success = () => ({ error: undefined, signal: null, status: 0, stdout: Buffer.from("ok"), stderr: Buffer.alloc(0) });
 const failure = (reason) => {
   if (reason === "spawn") return { ...success(), error: Object.assign(new Error("secret-error"), { code: "EACCES" }), signal: "SIGKILL", status: 9 };
@@ -159,9 +166,10 @@ test("both relays propagate all 35 historical lines and 47 fixed two-line packet
 test("both relays reject malformed, foreign and false-cleanup packets without private leakage", async () => {
   for (const stderr of [...hostilePackets(), "secret-stderr", null, new Uint8Array([1, 2])]) {
     const result = { ...failure("exit"), stdout: Buffer.from("secret-stdout"), stderr };
-    assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_failed_offline_isolation_exit"));
+    const invalid = !Buffer.isBuffer(stderr);
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage(invalid ? "gosu_command_result_invalid" : "gosu_command_failed_offline_isolation_exit"));
     const { promise, calls } = await invokeSetup(result);
-    await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_exit"));
+    await assert.rejects(promise, exactMessage(`gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_${invalid ? "result_invalid" : "exit"}`));
     assert.deepEqual(calls, ["/usr/bin/mount", "/usr/bin/setpriv"]);
   }
 });
@@ -244,4 +252,144 @@ test("production sites have eight exact labels and receipt helper closure remain
   assert.equal(source.includes("allowFailure"), false);
   const controls = await readFile(new URL("../scripts/postgres-image/gosu-derivative-controls-v1.mjs", import.meta.url), "utf8");
   assert.match(controls, /helper: \{ build: await fileIdentity\(buildFile\), controls: await fileIdentity\(scriptFile\), archives: await fileIdentity\(archivesFile\) \}/u);
+});
+
+function offlineCli(script, repeat) {
+  const environment = { ...process.env, NODE_OPTIONS: "", NODE_PATH: "", AW_GOSU_SCRATCH: "PRIVATE_SENTINEL", AW_GOSU_OUTPUT: "PRIVATE_SENTINEL" };
+  const result = spawnSync(process.execPath, [script, "offline", repeat], { env: environment, timeout: 30_000, maxBuffer: 1024 * 1024, encoding: null, windowsHide: true });
+  assert.equal(result.error, undefined); assert.equal(result.signal, null); assert.equal(result.status, 1);
+  assert.deepEqual(result.stdout, Buffer.alloc(0));
+  return result.stderr;
+}
+
+test("ordinary pinned offline CLI with valid repository lock diagnoses invalid repeat before Go", () => {
+  assert.equal(process.version, "v22.23.2");
+  assert.deepEqual(offlineCli(TEST_ONLY.scriptFile, "3"), Buffer.from(`${childMainMessage("arguments_invalid")}\n`, "ascii"));
+});
+
+test("ordinary pinned offline CLI in private three-helper copy diagnoses its absent relative lock", async () => {
+  assert.equal(process.version, "v22.23.2");
+  const temporary = await mkdtemp(path.join(tmpdir(), "aw-gosu-child-failure-"));
+  try {
+    const scripts = path.join(temporary, "scripts", "postgres-image"); await mkdir(scripts, { recursive: true });
+    for (const name of ["gosu-derivative-build-v1.mjs", "gosu-derivative-controls-v1.mjs", "gosu-derivative-archives-v1.mjs"]) await copyFile(path.join(path.dirname(TEST_ONLY.scriptFile), name), path.join(scripts, name));
+    assert.deepEqual(offlineCli(path.join(scripts, "gosu-derivative-build-v1.mjs"), "1"), Buffer.from(`${childMainMessage("lock_read_path_unavailable")}\n`, "ascii"));
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("outer relay rejects malformed stdout before propagating an exact legacy stderr packet on nonzero exit", () => {
+  const result = { ...failure("exit"), stdout: "PRIVATE_SENTINEL", stderr: Buffer.from(`${childCodes[0]}\n`, "ascii") };
+  assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_result_invalid"));
+});
+
+test("setpriv relay rejects malformed stdout before propagating an exact legacy stderr packet on nonzero exit", async () => {
+  const result = { ...failure("exit"), stdout: "PRIVATE_SENTINEL", stderr: Buffer.from(`${childCodes[0]}\n`, "ascii") };
+  const { promise } = await invokeSetup(result);
+  await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_result_invalid"));
+});
+
+test("both relays propagate exactly all 26 fixed child-main packets and preserve all 82 legacy messages", async () => {
+  assert.equal(childMainMessages.length, 26); assert.equal(new Set(childMainMessages).size, 26);
+  assert.equal(new Set([...allChildMessages, ...childMainMessages]).size, 108);
+  for (const message of [...allChildMessages, ...childMainMessages]) {
+    assert.equal(message.endsWith("\n"), false); assert.match(message, /^[\x20-\x7e\n]+$/u);
+    assert.equal(TEST_ONLY.formatChildMainFailure(new Error(message), true), `${message}\n`);
+    const result = { ...failure("exit"), stderr: Buffer.from(`${message}\n`, "ascii") };
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage(message));
+    const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage(message));
+  }
+});
+
+test("three-line child packets reject every byte deviation, foreign reason and false cleanup marker", async () => {
+  for (const message of childMainMessages) {
+    const packets = [message, `${message}\n\n`, `${message}\r\n`, `${message}\0\n`, `${message}é\n`, `${message}\ngosu_cleanup_failed\n`, `${message.slice(1)}\n`, `PRIVATE_SENTINEL\n${message}\n`, `${message}\nPRIVATE_SENTINEL`, `${message.replace("gosu_child_main_entered", "gosu_child_main_enteredx")}\n`];
+    for (const packet of packets) {
+      const result = { ...failure("exit"), stderr: Buffer.from(packet) };
+      assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_failed_offline_isolation_exit"));
+      const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_exit"));
+    }
+  }
+  const maximum = Math.max(...[...allChildMessages, ...childMainMessages].map((message) => Buffer.byteLength(`${message}\n`, "ascii")));
+  for (const stderr of [Buffer.from(`${childMainMessage("PRIVATE_SENTINEL")}\n`), Buffer.alloc(maximum + 1, 0x61)]) {
+    const result = { ...failure("exit"), stderr };
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_failed_offline_isolation_exit"));
+    const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_exit"));
+  }
+});
+
+test("every child-main packet preserves Error, shape and signal priorities before both-Buffer rejection", async () => {
+  for (const message of childMainMessages) {
+    for (const reason of ["spawn", "timeout", "output_limit", "signal"]) {
+      const result = { ...failure(reason), stdout: "PRIVATE_SENTINEL", stderr: Buffer.from(`${message}\n`) };
+      assert.throws(() => invoke("offline_isolation", () => result), exactMessage(`gosu_command_failed_offline_isolation_${reason}`));
+      const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage(`gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_${reason}`));
+    }
+    for (const result of [
+      { ...failure("exit"), stdout: null, stderr: Buffer.from(`${message}\n`) },
+      { ...failure("exit"), stdout: new Uint8Array(), stderr: Buffer.from(`${message}\n`) },
+      { ...failure("exit"), stderr: "PRIVATE_SENTINEL" }, { ...failure("exit"), signal: {}, stderr: Buffer.from(`${message}\n`) },
+      { ...failure("exit"), status: 1.5, stderr: Buffer.from(`${message}\n`) },
+    ]) {
+      assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_result_invalid"));
+      const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_result_invalid"));
+    }
+  }
+});
+
+test("child-aware formatter reads only guarded own Error messages and never diagnostic getters", () => {
+  let getters = 0;
+  const revoked = Proxy.revocable(new Error("PRIVATE_SENTINEL"), {}); revoked.revoke();
+  const inherited = new Error(); delete inherited.message; Object.setPrototypeOf(inherited, Object.create(Error.prototype, { message: { get() { getters += 1; return childMainMessages[0]; } } }));
+  for (const error of [
+    null, "PRIVATE_SENTINEL", { message: childMainMessages[0] }, { message: "PRIVATE_SENTINEL" }, new Error("gosu_PRIVATE_SENTINEL"),
+    new Error(`${childMainMessages[0]}\n`), new Error(`${childMainMessages[0]}\ngosu_cleanup_failed`),
+    Object.defineProperty(new Error(), "message", { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } }), inherited,
+    new Proxy(new Error(), { getOwnPropertyDescriptor() { throw new Error("PRIVATE_SENTINEL"); } }),
+    new Proxy(new Error(), { getPrototypeOf() { throw new Error("PRIVATE_SENTINEL"); } }), revoked.proxy,
+    new AggregateError([new Error(childMainMessages[0]), new Error("PRIVATE_SENTINEL")], "PRIVATE_SENTINEL"),
+  ]) assert.equal(TEST_ONLY.formatChildMainFailure(error, true), `${childMainMessage("main_unclassified")}\n`);
+  const safe = new Error(childMainMessages[0]);
+  for (const name of ["stack", "code", "cause", "path", "childPacket", "isolationReason"]) Object.defineProperty(safe, name, { get() { getters += 1; throw new Error("PRIVATE_SENTINEL"); } });
+  assert.equal(TEST_ONLY.formatChildMainFailure(safe, true), `${childMainMessages[0]}\n`); assert.equal(getters, 0);
+  assert.equal(TEST_ONLY.formatChildMainFailure(new Error("gosu_node_runtime_invalid"), false), "gosu_node_runtime_invalid\n");
+  assert.equal(formatGosuPreparationFailure(new Error("gosu_PRIVATE_SENTINEL")), "gosu_PRIVATE_SENTINEL\n");
+});
+
+test("all child-main packets remain primary and only real parent cleanup appends its marker", async () => {
+  for (const message of childMainMessages) {
+    const primary = new Error(message);
+    assert.equal(formatGosuPreparationFailure(primary), `${message}\n`);
+    await assert.rejects(completeOwnedGosuScratch(primary, "invalid", "invalid"), (error) => {
+      assert.equal(error instanceof AggregateError, true); assert.equal(error.errors[0], primary);
+      assert.equal(formatGosuPreparationFailure(error), `${message}\ngosu_cleanup_failed\n`); return true;
+    });
+  }
+});
+
+test("successful relay results preserve packet-shaped stderr and thrown result proxies remain closed failures", async () => {
+  for (const message of childMainMessages) {
+    const result = { ...success(), stderr: Buffer.from(`${message}\n`, "ascii") };
+    assert.deepEqual(invoke("offline_isolation", () => result), { status: 0, stdout: result.stdout, stderr: result.stderr });
+    const { promise } = await invokeSetup(result); await promise;
+  }
+  for (const result of [
+    new Proxy({}, { get() { throw new Error("PRIVATE_SENTINEL"); } }),
+    Object.defineProperty({ ...failure("exit") }, "stderr", { get() { throw new Error("PRIVATE_SENTINEL"); } }),
+    Object.defineProperty({ ...failure("exit") }, "stdout", { get() { throw new Error("PRIVATE_SENTINEL"); } }),
+  ]) {
+    assert.throws(() => invoke("offline_isolation", () => result), exactMessage("gosu_command_result_invalid"));
+    const { promise } = await invokeSetup(result); await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_result_invalid"));
+  }
+});
+
+test("real owned parent cleanup preserves the exact child primary without inventing a cleanup marker", async () => {
+  const temporary = await mkdtemp(path.join(tmpdir(), "aw-gosu-child-parent-cleanup-"));
+  const scratch = path.join(temporary, "aw-gosu-preparation-1"); const preserved = path.join(temporary, "preserved.txt");
+  try {
+    await mkdir(scratch); await writeFile(path.join(scratch, "private.txt"), "PRIVATE_SENTINEL", { flag: "wx" });
+    await writeFile(preserved, "retained", { flag: "wx" }); const primary = new Error(childMainMessages[0]);
+    await assert.rejects(completeOwnedGosuScratch(primary, scratch, temporary), (error) => { assert.equal(error, primary); assert.equal(formatGosuPreparationFailure(error), `${childMainMessages[0]}\n`); return true; });
+    await assert.rejects(readFile(path.join(scratch, "private.txt")), { code: "ENOENT" });
+    assert.equal(await readFile(preserved, "utf8"), "retained");
+  } finally { await rm(temporary, { recursive: true, force: true }); }
 });
