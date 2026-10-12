@@ -26,15 +26,15 @@ declare const modelId: ModelId;
 declare const vehicleId: VehicleEntityId;
 declare const listingId: ListingId;
 
-type IsAssignable<From, To> = [From] extends [To] ? true : false;
+type IsAssignable<From, To> = From extends To ? true : false;
 type AssertFalse<Value extends false> = Value;
 type TaxonomyIds = TaxonomyCatalogId | TaxonomyReleaseId | TaxonomyAttributionId | MakeId | ModelId;
 type VehicleIds = VehicleEntityId | ListingId | ObservationId | SourceId;
-type CatalogIsolation = AssertFalse<IsAssignable<TaxonomyCatalogId, Exclude<TaxonomyIds, TaxonomyCatalogId>>>;
-type ReleaseIsolation = AssertFalse<IsAssignable<TaxonomyReleaseId, Exclude<TaxonomyIds, TaxonomyReleaseId>>>;
-type AttributionIsolation = AssertFalse<IsAssignable<TaxonomyAttributionId, Exclude<TaxonomyIds, TaxonomyAttributionId>>>;
-type MakeIsolation = AssertFalse<IsAssignable<MakeId, Exclude<TaxonomyIds, MakeId>>>;
-type ModelIsolation = AssertFalse<IsAssignable<ModelId, Exclude<TaxonomyIds, ModelId>>>;
+type CatalogIsolation = AssertFalse<IsAssignable<TaxonomyCatalogId, TaxonomyReleaseId | TaxonomyAttributionId | MakeId | ModelId>>;
+type ReleaseIsolation = AssertFalse<IsAssignable<TaxonomyReleaseId, TaxonomyCatalogId | TaxonomyAttributionId | MakeId | ModelId>>;
+type AttributionIsolation = AssertFalse<IsAssignable<TaxonomyAttributionId, TaxonomyCatalogId | TaxonomyReleaseId | MakeId | ModelId>>;
+type MakeIsolation = AssertFalse<IsAssignable<MakeId, TaxonomyCatalogId | TaxonomyReleaseId | TaxonomyAttributionId | ModelId>>;
+type ModelIsolation = AssertFalse<IsAssignable<ModelId, TaxonomyCatalogId | TaxonomyReleaseId | TaxonomyAttributionId | MakeId>>;
 type TaxonomyToVehicleIsolation = AssertFalse<IsAssignable<TaxonomyIds, VehicleIds>>;
 type VehicleToTaxonomyIsolation = AssertFalse<IsAssignable<VehicleIds, TaxonomyIds>>;
 

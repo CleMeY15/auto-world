@@ -74,4 +74,3 @@ export type TaxonomyEntryResolutionResult =
   | { readonly status: "found"; readonly kind: "model"; readonly data: TaxonomyModelV1 }
   | { readonly status: "not_found" }
   | { readonly status: "release_mismatch" };
-
