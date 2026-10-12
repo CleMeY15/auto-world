@@ -186,3 +186,10 @@ The delivery loop ends only when the ROADMAP North Star is implemented through P
 ## Synthetic web source checkpoint, 2026-10-12
 
 TASK-0103/PR152 has independent UX APPROVE, data/proxy CLEAR and lab-performance CLEAR after focused repairs. Real API flow passes on Chromium/WebKit after accepted PR153;68 new light/dark viewport captures preserve all major states. Laboratory APIp95=28.5953ms, mobile LCPp75=472ms/CLS0/EventTimingp75=32ms and favorite feedback max8.7ms are local synthetic measurements. Final-head CI, identical reviewed merge and main CI remain pending. See docs/validation/TASK-0103.md; supported tasks0104-0106 remain blocked by TASK-0005.
+
+## Gosu preparation source checkpoint, 2026-10-12
+
+[PR151](https://github.com/CleMeY15/auto-world/pull/151) delivers the unused compiler derivative source at main2790d79ca4488f505bf4bb4e786c08db1473f20d, identical reviewed tree40ad10c6d8eeb76a216ce15734964125a4ad4ce2; final-head CI38191623345 and protected-main CI38191983005 SUCCESS. Independent source closure v5/v6 is CLEAR; the eight preparer paths remain identical to reviewed revision4 and additive diagnosticOnly classification grants no authority. Actual manual run38192612138 on that exact main failed in both preparation steps with gosu_preparation_failed, before upload; comparison skipped and zero artifacts. Its original22432-byte log ZIP/SHA2568494573fe6083d1ed3a9198a4109ea4dc091f32a8aebffd9969596977ad9413d is retained. No retry or actual Go preparation acceptance follows. Rejected revisions and raw transcripts remain preserved in [the validation record](../docs/validation/TASK-0005A-gosu-compiler-preparation.md). Current PostgreSQL audit stays BLOCKED, generation5 PENDING, and support/currentEvidence unchanged.
+
+
+Current accepted API correction: PR153/main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467/main CI38190737513 SUCCESS. TASK-0102 real HTTP is DONE; synthetic TASK-0103 may verify its own real flow. This supersedes the reopened correctness checkpoint above and grants no supported-service admission.

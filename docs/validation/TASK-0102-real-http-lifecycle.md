@@ -1,6 +1,6 @@
 # TASK-0102 — Real HTTP lifecycle correction
 
-Status: SOURCE_VALIDATED / DELIVERY_PENDING in [PR153](https://github.com/CleMeY15/auto-world/pull/153). The original API delivery through PR150/main03ac41ffbfe7ec157d4108f8da2741dc7b08079e and CI38186090262/38186475270 is preserved. Actual whole-flow web validation revealed a socket correctness gap; TASK-0103 acceptance waits for this focused repair.
+Status: DONE / REAL_HTTP_DELIVERED in [PR153](https://github.com/CleMeY15/auto-world/pull/153). The original API delivery through PR150/main03ac41ffbfe7ec157d4108f8da2741dc7b08079e and CI38186090262/38186475270 is preserved. Actual whole-flow web validation revealed a socket correctness gap; TASK-0103 acceptance waits for this focused repair.
 
 ## Trigger, diagnosis and plan
 
@@ -23,3 +23,6 @@ An isolated delivered-base negative control reruns the newly frozen real search/
 Real positive POST and exact-detail JSON wrappers; default SDK-backed composition; closed typed/throw/malformed/missing errors; writable five-second socket deadline; true disconnect with aborted read/no write; ignored late read/once-only telemetry. Root quality/delivery evidence remains pending. Passing injected tests alone is insufficient.
 
 Rollback restores the prior synthetic API implementation or disables the explicit demo process; canonical SDK evidence and all original delivery/failure records remain intact.
+
+
+Accepted delivery: exact-head CI38190254467 passes on3a491c0/treef7c1e082. PR153 merges as main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e with that identical tree; main CI38190737513 passes all quality/browser/secrets/audit gates. The retained main1380202-byte transcript has SHA2563e238af494a336b57bcdaec6b731a1773c3ef0303c77e7c14b98c7af3ba0efcb. This closes the reopened network defect and releases synthetic web verification only. Earlier pending statements are historical checkpoints.

@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const workflow = JSON.parse(await readFile(new URL("../.github/workflows/gosu-derivative-preparation-v1.yml", import.meta.url)));
+function validate(value) {
+  assert.deepEqual(value.on, { workflow_dispatch: {} }); assert.deepEqual(value.permissions, { contents: "read" }); assert.deepEqual(Object.keys(value.jobs), ["build_1", "build_2", "compare"]);
+  const serialized = JSON.stringify(value); assert.doesNotMatch(serialized, /pull_request|push|schedule|secrets\.|github\.token|packages\W*write|id-token|docker|gh\s+workflow\s+run/u);
+  for (const job of Object.values(value.jobs)) { assert.equal(job["runs-on"], "ubuntu-24.04"); assert.match(job.if, /workflow_dispatch.*refs\/heads\/main/u); assert.equal(job.permissions, undefined); for (const step of job.steps) { if (step.uses) assert.match(step.uses, /^actions\/(?:checkout|setup-node|upload-artifact|download-artifact)@[0-9a-f]{40}$/u); if (step.uses?.startsWith("actions/checkout@")) assert.deepEqual(step.with, { "persist-credentials": false }); if (step.uses?.startsWith("actions/setup-node@")) assert.deepEqual(step.with, { "node-version": "22.23.2", cache: "" }); } }
+  for (const [jobName, repeat] of [["build_1", 1], ["build_2", 2]]) { const job = value.jobs[jobName]; assert.match(job.steps[1].run, /git rev-parse HEAD.*GITHUB_SHA/su); assert.equal(job.steps[3].run, `env -u NODE_OPTIONS -u NODE_PATH node scripts/postgres-image/gosu-derivative-build-v1.mjs prepare ${repeat}`); assert.deepEqual(Object.keys(job.steps[3].env), ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]); const upload = job.steps[4]; assert.deepEqual(upload.with, { name: `gosu-preparation-${repeat}`, path: `\${{ runner.temp }}/gosu-preparation-${repeat}.tar`, "if-no-files-found": "error", "retention-days": 14, "compression-level": 0 }); assert.match(job.outputs.artifact_digest, /artifact-digest/u); }
+  assert.deepEqual(value.jobs.compare.needs, ["build_1", "build_2"]); assert.match(value.jobs.compare.steps.find((step) => step.name === "Require absent owned comparison target").run, /test ! -e/u); const compareStep = value.jobs.compare.steps.find((step) => step.name === "Authenticate transport and compare retained bytes"); assert.equal(compareStep.run, "env -u NODE_OPTIONS -u NODE_PATH node scripts/postgres-image/gosu-derivative-controls-v1.mjs compare"); for (const key of ["AW_LEFT_TAR_SHA256", "AW_LEFT_TAR_BYTES", "AW_RIGHT_TAR_SHA256", "AW_RIGHT_TAR_BYTES", "AW_LEFT_ARTIFACT_DIGEST", "AW_RIGHT_ARTIFACT_DIGEST", "AW_CI_RUN_ID", "AW_CI_RUN_ATTEMPT", "AW_CI_HEAD_SHA"]) assert.equal(typeof compareStep.env[key], "string"); assert.doesNotMatch(compareStep.run, /\$\{\{/u);
+}
+
+test("workflow is manual main-only, read-only, exact-head, pinned and independently compares transport", () => validate(workflow));
+test("workflow mutations cannot add automatic triggers, permissions, weak pins or unbound transport", () => {
+  for (const mutate of [(x) => { x.on.push = {}; }, (x) => { x.permissions.packages = "write"; }, (x) => { x.jobs.build_1.steps[0].uses = "actions/checkout@v4"; }, (x) => { delete x.jobs.compare.steps.find((step) => step.name === "Authenticate transport and compare retained bytes").env.AW_LEFT_TAR_SHA256; }]) { const copy = JSON.parse(JSON.stringify(workflow)); mutate(copy); assert.throws(() => validate(copy)); }
+});
