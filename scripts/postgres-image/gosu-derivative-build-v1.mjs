@@ -22,6 +22,25 @@ const repo = path.resolve(path.dirname(scriptFile), "../..");
 const lockFile = path.join(repo, "infra/postgres-image/materials/gosu-derivative-lock-v1.json");
 const MAX_DOWNLOAD = 1024 * 1024 ** 2;
 const GOSU_CLEANUP_LIMITS_V1 = Object.freeze({ entries: 100_000, depth: 64, pathBytes: 4096 });
+const COMMAND_STAGES = Object.freeze([
+  "online_go_version", "online_mod_download", "online_mod_verify", "offline_go_test",
+  "offline_go_build", "offline_gosu_version", "offline_go_build_info", "offline_isolation",
+]);
+const COMMAND_STAGE_SET = new Set(COMMAND_STAGES);
+const COMMAND_REASONS = Object.freeze(["spawn", "timeout", "output_limit", "signal", "exit"]);
+const CHILD_COMMAND_STAGES = Object.freeze(["offline_go_test", "offline_go_build", "offline_gosu_version", "offline_go_build_info"]);
+const CHILD_FIXED_CODES = Object.freeze([
+  "gosu_command_stage_invalid", "gosu_command_result_invalid", "gosu_offline_environment_invalid",
+  "gosu_offline_identity_invalid", "gosu_offline_network_invalid", "gosu_offline_privilege_invalid",
+  "gosu_offline_evidence_invalid", "gosu_tests_invalid", "gosu_tests_failed", "gosu_source_mutated",
+  "gosu_version_invalid", "gosu_build_info_invalid", "gosu_build_info_vcs_invalid", "gosu_sumdb_invalid",
+  "gosu_lock_identity_invalid",
+]);
+const CHILD_FAILURE_LINES = Object.freeze([
+  ...CHILD_COMMAND_STAGES.flatMap((stage) => COMMAND_REASONS.map((reason) => `gosu_command_failed_${stage}_${reason}`)),
+  ...CHILD_FIXED_CODES,
+].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })));
+const MAX_CHILD_FAILURE_LINE_BYTES = Math.max(...CHILD_FAILURE_LINES.map(({ line }) => line.length));
 function fail(code) { throw new Error(code); }
 function cleanupFailure(error) { return error?.message?.startsWith("gosu_cleanup_") ? error : new Error("gosu_cleanup_failed", { cause: error }); }
 
@@ -100,11 +119,37 @@ async function download(url, target, expected) {
   if (total !== expected.bytes || hash.digest("hex") !== expected.sha256) { await rm(partial, { force: true }); fail("gosu_material_identity_invalid"); }
   await rename(partial, target);
 }
-function run(command, args, { cwd, env, cap = 8 * 1024 ** 2, timeout = 20 * 60_000, allowFailure = false } = {}) {
-  const result = spawnSync(command, args, { cwd, env, timeout, maxBuffer: cap, encoding: null, windowsHide: true });
-  if (result.error || !allowFailure && result.status !== 0) fail("gosu_command_failed");
-  return { status: result.status, stdout: Buffer.from(result.stdout ?? ""), stderr: Buffer.from(result.stderr ?? "") };
+function commandFailure(stage, reason) { fail(`gosu_command_failed_${stage}_${reason}`); }
+function runCommand(stage, command, args, { cwd, env, cap = 8 * 1024 ** 2, timeout = 20 * 60_000 } = {}, runner) {
+  if (!COMMAND_STAGE_SET.has(stage)) fail("gosu_command_stage_invalid");
+  let result;
+  try { result = runner(command, args, { cwd, env, timeout, maxBuffer: cap, encoding: null, windowsHide: true }); }
+  catch { commandFailure(stage, "spawn"); }
+  if (!result || typeof result !== "object" || Array.isArray(result)) fail("gosu_command_result_invalid");
+  let error; let signal; let status; let stdout; let stderr;
+  try { ({ error, signal, status, stdout, stderr } = result); } catch { fail("gosu_command_result_invalid"); }
+  if (error !== undefined && !(error instanceof Error)) fail("gosu_command_result_invalid");
+  if (error) {
+    let code;
+    try { code = error.code; } catch { commandFailure(stage, "spawn"); }
+    commandFailure(stage, code === "ETIMEDOUT" ? "timeout" : code === "ENOBUFS" ? "output_limit" : "spawn");
+  }
+  if (signal !== null && (typeof signal !== "string" || signal.length === 0)) fail("gosu_command_result_invalid");
+  if (status !== null && !Number.isInteger(status)) fail("gosu_command_result_invalid");
+  if (signal !== null) commandFailure(stage, "signal");
+  if (status !== 0) {
+    if (status === null) fail("gosu_command_result_invalid");
+    if (stage === "offline_isolation" && Buffer.isBuffer(stderr) && stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) {
+      const propagated = CHILD_FAILURE_LINES.find(({ line }) => stderr.equals(line));
+      if (propagated) fail(propagated.code);
+    }
+    commandFailure(stage, "exit");
+  }
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) fail("gosu_command_result_invalid");
+  return { status, stdout, stderr };
 }
+function run(stage, command, args, options) { return runCommand(stage, command, args, options, spawnSync); }
+export const TEST_ONLY = Object.freeze({ runCommand: (stage, command, args, options, runner) => runCommand(stage, command, args, options, runner) });
 async function copyLockedMaterials(lock, materials) {
   const descriptors = [
     [lock.source.url, lock.source.file, { bytes: lock.source.bytes, sha256: lock.source.sha256 }],
@@ -144,8 +189,8 @@ async function buildOnline(repeat, lock, scratch, output) {
     if (item.patents) { const patents = selected.get(`${prefix}${item.patents.path}`); assertIdentity(patents, item.patents, "gosu_module_patents_invalid"); await writeFile(path.join(licenses, `${item.id}-PATENTS`), patents, { flag: "wx" }); }
   }
   const go = path.join(compiler, "bin", "go"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb, offline: false };
-  const env = cleanEnv(base); const version = run(go, ["version"], { cwd: source, env }).stdout.toString().trim(); if (version !== lock.compiler.identity) fail("gosu_compiler_identity_invalid");
-  const before = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); const downloaded = run(go, ["mod", "download", "-json", "all"], { cwd: source, env }).stdout.toString(); run(go, ["mod", "verify"], { cwd: source, env }); const after = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(before) !== JSON.stringify(after)) fail("gosu_source_mutated");
+  const env = cleanEnv(base); const version = run("online_go_version", go, ["version"], { cwd: source, env }).stdout.toString().trim(); if (version !== lock.compiler.identity) fail("gosu_compiler_identity_invalid");
+  const before = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); const downloaded = run("online_mod_download", go, ["mod", "download", "-json", "all"], { cwd: source, env }).stdout.toString(); run("online_mod_verify", go, ["mod", "verify"], { cwd: source, env }); const after = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(before) !== JSON.stringify(after)) fail("gosu_source_mutated");
   const modules = downloaded.trim().split(/\n(?=\{)/u).filter(Boolean).map((item) => JSON.parse(item)); if (modules.length !== 2) fail("gosu_module_closure_invalid");
   for (const expected of lock.modules) { const actual = modules.find((item) => item.Path === expected.path); if (!actual || actual.Version !== expected.version || actual.Sum !== expected.zip.h1 || actual.GoModSum !== expected.mod.h1) fail("gosu_module_closure_invalid"); for (const [key, descriptor] of [["Zip", expected.zip], ["GoMod", expected.mod], ["Info", moduleInfoCacheIdentity(expected)]]) assertIdentity(await readFile(actual[key]), descriptor, "gosu_module_cache_invalid"); }
   await writeFile(path.join(scratch, "online.json"), canonicalJson({ repeat, sourceFiles: after, compilerEntries: compilerScan.entries.length, compilerRegularBytes: compilerScan.regularBytes, sourceEntries: sourceScan.entries.length, sourceRegularBytes: sourceScan.regularBytes }), { flag: "wx" });
@@ -165,11 +210,11 @@ export async function assertOfflineBoundary() {
 }
 async function offlinePhase(repeat, lock, lockIdentity, scratch, output, source, compiler, base) {
   const cutoff = await assertOfflineBoundary(); const go = path.join(compiler, "bin", "go"); const env = cleanEnv({ ...base, offline: true }); const binary = path.join(output, "gosu");
-  const testsRaw = run(go, ["test", ...lock.build.testFlags], { cwd: source, env, cap: 16 * 1024 ** 2, timeout: 30 * 60_000 }).stdout.toString(); const tests = parseUpstreamTestJson(testsRaw); await writeFile(path.join(output, "upstream-tests.json"), canonicalJson(tests), { flag: "wx" });
-  run(go, ["build", ...lock.build.flags, "-o", binary, lock.build.package], { cwd: source, env, timeout: 30 * 60_000 }); await chmod(binary, 0o755);
+  const testsRaw = run("offline_go_test", go, ["test", ...lock.build.testFlags], { cwd: source, env, cap: 16 * 1024 ** 2, timeout: 30 * 60_000 }).stdout.toString(); const tests = parseUpstreamTestJson(testsRaw); await writeFile(path.join(output, "upstream-tests.json"), canonicalJson(tests), { flag: "wx" });
+  run("offline_go_build", go, ["build", ...lock.build.flags, "-o", binary, lock.build.package], { cwd: source, env, timeout: 30 * 60_000 }); await chmod(binary, 0o755);
   const online = JSON.parse(await readFile(path.join(scratch, "online.json"), "utf8")); const sourceFiles = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(sourceFiles) !== JSON.stringify(online.sourceFiles)) fail("gosu_source_mutated");
-  const version = run(binary, ["--version"], { cwd: source, env }).stdout.toString().trim(); if (version !== "1.19 (go1.26.9 on linux/amd64; gc)") fail("gosu_version_invalid"); await writeFile(path.join(output, "version.txt"), `${version}\n`, { flag: "wx" });
-  const buildInfoText = run(go, ["version", "-m", "./gosu"], { cwd: output, env }).stdout.toString(); parseGosuBuildInfo(buildInfoText, lock); await writeFile(path.join(output, "build-info.txt"), buildInfoText, { flag: "wx" });
+  const version = run("offline_gosu_version", binary, ["--version"], { cwd: source, env }).stdout.toString().trim(); if (version !== "1.19 (go1.26.9 on linux/amd64; gc)") fail("gosu_version_invalid"); await writeFile(path.join(output, "version.txt"), `${version}\n`, { flag: "wx" });
+  const buildInfoText = run("offline_go_build_info", go, ["version", "-m", "./gosu"], { cwd: output, env }).stdout.toString(); parseGosuBuildInfo(buildInfoText, lock); await writeFile(path.join(output, "build-info.txt"), buildInfoText, { flag: "wx" });
   await writeFile(path.join(output, "module-closure.json"), canonicalJson(moduleClosure(lock)), { flag: "wx" });
   const binaryIdentity = await fileIdentity(binary); await writeFile(path.join(output, "sbom.cdx.json"), canonicalJson(canonicalSbom(lock, binaryIdentity)), { flag: "wx" });
   await writeFile(path.join(output, "network-cutoff.json"), canonicalJson({ kind: "GOSU_NETWORK_CUTOFF_V1", checks: cutoff.checks, evidence: cutoff.evidence }), { flag: "wx" });
@@ -187,7 +232,7 @@ async function main() {
   if (command === "offline") { const scratch = process.env.AW_GOSU_SCRATCH; const output = process.env.AW_GOSU_OUTPUT; if (![1, 2].includes(repeat) || !scratch || !output) fail("gosu_arguments_invalid"); const compiler = path.join(scratch, "compiler"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb }; await offlinePhase(repeat, lock, (await loadLock()).identity, scratch, output, path.join(scratch, "source"), compiler, base); return; }
   if (command !== "prepare" || ![1, 2].includes(repeat) || process.platform !== "linux" || !process.env.RUNNER_TEMP) fail("gosu_arguments_invalid");
   const scratch = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `aw-gosu-preparation-${repeat}`); const output = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}`); await mkdir(scratch, { mode: 0o700 }); let primaryError;
-  try { await mkdir(output, { mode: 0o700 }); const prepared = await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const originalNetns = await readNetworkNamespaceIdentity(); const offlineEnv = cleanEnv({ ...prepared.base, offline: true }); offlineEnv.AW_GOSU_SCRATCH = scratch; offlineEnv.AW_GOSU_OUTPUT = output; offlineEnv.AW_GOSU_EXPECT_UID = String(uid); offlineEnv.AW_GOSU_EXPECT_GID = String(gid); offlineEnv.AW_GOSU_ORIGINAL_NETNS = originalNetns; for (const key of ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]) offlineEnv[key] = process.env[key] ?? ""; const isolatedArguments = ["-n", "/usr/bin/unshare", "--net", "/usr/bin/setpriv", `--reuid=${uid}`, `--regid=${gid}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "/usr/bin/env", "-i", ...Object.entries(offlineEnv).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", String(repeat)]; run("/usr/bin/sudo", isolatedArguments, { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 }); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
+  try { await mkdir(output, { mode: 0o700 }); const prepared = await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const originalNetns = await readNetworkNamespaceIdentity(); const offlineEnv = cleanEnv({ ...prepared.base, offline: true }); offlineEnv.AW_GOSU_SCRATCH = scratch; offlineEnv.AW_GOSU_OUTPUT = output; offlineEnv.AW_GOSU_EXPECT_UID = String(uid); offlineEnv.AW_GOSU_EXPECT_GID = String(gid); offlineEnv.AW_GOSU_ORIGINAL_NETNS = originalNetns; for (const key of ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]) offlineEnv[key] = process.env[key] ?? ""; const isolatedArguments = ["-n", "/usr/bin/unshare", "--net", "/usr/bin/setpriv", `--reuid=${uid}`, `--regid=${gid}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "/usr/bin/env", "-i", ...Object.entries(offlineEnv).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", String(repeat)]; run("offline_isolation", "/usr/bin/sudo", isolatedArguments, { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 }); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
   catch (error) { primaryError = error; }
   await completeOwnedGosuScratch(primaryError, scratch, process.env.RUNNER_TEMP);
 }

@@ -1,0 +1,24 @@
+# TASK-0005A closed Gosu command diagnostics validation
+
+Status: SOURCE_IMPLEMENTED; local gates PASS and independent code/security CLEAR. Exact final-source CI, identical merge and protected-main CI remain pending. Actual preparation remains NOT_ESTABLISHED and admission NOT_AUTHORIZED.
+
+## Accepted prerequisite and retained rejection
+
+PR155 source correction is DONE_ON_MAIN: final head4731e9464fc828dd4b92f4345769a478d8eedb90 and merge/main59e5b157d93dd12f31d14924a9d8cf8571e83b18 share tree35c4dd782934865cf056cae4a3dfc5c227f8b2f3. Independent49-file source closure CLEAR and final CI38198975540/main CI38199524012 SUCCESS are independently verified. Main raw log1415659bytes/SHA256e1f004004a935f7de26f9b1a55ab5454acdc4ab449f1d3ab2ea8a95b4e043a4b and metadata3368bytes/SHAd957a7bc35c883edb669c58cac3f6e42dcc356a37bcc750ff4efc4b025b6b685 are retained CNEW.
+
+Distinct actual preparation38200213629 attempt1 on that accepted main failed both build jobs before upload; zero artifacts and comparison skipped. Both original logs report gosu_command_failed without a cleanup marker. The first retained original ZIP22434bytes/SHA256a1879ccc04ffb7bfe1c2c4703cbddc74c5e606830dba7343d251b3042ae35e33 and all zero-byte CLI refusals remain preserved. Failure index4624bytes/SHA256415c700c5968a127193e4a68601ed7352716d801a41295ce5ddeb1e15c420253 binds the exact run/API/log identities. The historical failing command/cause is NOT_ESTABLISHED because run() discarded its command result. A closed stage/reason diagnostics increment is in progress; no workflow retry, actual preparation acceptance, image, Native, admission, support or currentEvidence change follows.
+
+## Test and operational scope
+
+The focused plan fixes only closed stage/reason failure reporting within the existing receipt-bound builder. Pinned Node22.23.2 injected-runner tests must establish redaction, canonical child propagation, malformed-child rejection and cleanup marker preservation without Go/network/sudo/unshare. Compiler/source/module/material pins, commands, environment, limits, isolation, archives, receipts, workflow and authority stay unchanged. Fresh source validation and independent review precede final/main gates and a distinct actual run.
+
+
+## Reviewed source and fresh local gates
+
+The accepted builder is 31,926 bytes / SHA256 b8cde5625a5c2aee7a61382c5ca54dfb315b63373fcaa083f6899c4718552e45; the focused test is 8,038 bytes / SHA256 67cdc6c76d08460dfbe856b40d59aa4710505c1ad6d7de9a14d9fc2361c702d8. Immutable implementation freeze v2 is 6,884 bytes / SHA256 330168594103b147f33c9ae242f35bc9930168bad874b71021e49bd59af0602e. Independent security review CLEAR and evidence verification PASS checked all 31 bound proofs and exact before/after identities. The prior source was rejected because result-shape checks could obscure a genuine Error; both rejected source files and all earlier proofs remain immutable. A meaningful original-wrapper RED demonstrates generic failure collapse; a separate RED demonstrates error precedence. Windows and ordinary-UID Linux targeted regressions each pass 17/17 with pinned Node 22.23.2.
+
+Fresh full local gates use Node 22.23.2 / pnpm 10.15.0: lint 12 tasks, typecheck 18 tasks, tests 24 workspace tasks, and build 12 tasks PASS. Windows root tests record 1,791 tests, 1,351 passes, zero failures and 440 existing platform skips; workspace web 22, actual API 38 and SDK 159 tests pass. Secretlint passes for 882 tracked files and dependency audit finds zero known dependency vulnerabilities. The first local typecheck rejection and frozen-lockfile relinking log remain preserved; fresh v2 gates supersede them. These local dependency checks do not clear the separate candidate image vulnerability gate.
+
+Local gate index .omx/gosu-command-failure-local-gates-v2.json is 2841 bytes / SHA256 65cb1ad3edb4e0973d9ba4d4dfe832bf7833af56561644ff0e49fc7428957476, binding the six original local logs. Fresh Linux final-source CI, including browser gates, an identical reviewed merge and protected-main CI are still required. No UI code changed; the delivered synthetic web closure remains preserved.
+
+The ignored capture helper v5 separately received independent CLEAR: 28,532 bytes / SHA256 366eb1c4efbd1d7be2611eeb8c0b3aa503172bb474f555e8fca746dcf3e435d9; its 88-file validation index is 18,073 bytes / SHA256 17d93f1b294123e42e53b870e99a8a99baa2ac7778300ca814a26497d0d74ba3. It removes inherited forced-terminal variables and scopes the official gh api binary-output flag only to fixed log/ZIP endpoints with bounded exclusive file capture. This is evidence transport only; it does not accept preparation. No actual recapture was performed. All three failed run IDs are forbidden.

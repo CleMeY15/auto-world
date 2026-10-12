@@ -1,6 +1,6 @@
 # TASK-0005A — exact Go module-info cache identity
 
-Status: DONE_IMPLEMENTATION / DELIVERY_PENDING in [PR155](https://github.com/CleMeY15/auto-world/pull/155). Strict source revision2 has independent high-risk CLEAR and full implementation CI38196567303 SUCCESS. Exact final-head/main delivery and a distinct actual preparation remain pending; preparation/admission/support are NOT_ESTABLISHED/NOT_AUTHORIZED.
+Status: DONE_ON_MAIN for the source correction in [PR155](https://github.com/CleMeY15/auto-world/pull/155), identical reviewed merge and final/main CI SUCCESS. Actual preparations remain unaccepted; diagnostics for distinct run38200213629 are in progress.
 
 ## Defect
 
@@ -32,3 +32,9 @@ Rollback removes the cache descriptors and restores the prior `Info` comparison.
 ## Accepted main integration and final closure
 
 Accepted TASK0103/PR152 maincf71211d36e4ca49d6c6d88254eeca91d0517904 is integrated with source/merge tree10b9c94f91f9de681ea47cd7a1889f8ef7614a51; final CI38196985003/main CI38197621255 SUCCESS. The prior47-file integration review is CLEAR, index8811bytes/SHA2566e354635aa62a7d801e2f61fbd426f7d418c1dd6f8424053bd8eee102a4eb18a. Four Gosu implementation files remain byte-identical to accepted source5f136ce. The documentation closure records web delivery and the pending Gosu final/main gate. Historical source/CI/actual failures remain immutable. This exact integrated final head must pass independent review and full CI, merge with the same tree and pass main CI before a distinct actual preparation. No supported-service, image, registry, Native or support acceptance follows.
+
+## Source delivery and distinct actual rejection, 2026-10-12
+
+PR155 source correction is DONE_ON_MAIN: final head4731e9464fc828dd4b92f4345769a478d8eedb90 and merge/main59e5b157d93dd12f31d14924a9d8cf8571e83b18 share tree35c4dd782934865cf056cae4a3dfc5c227f8b2f3. Independent49-file source closure CLEAR and final CI38198975540/main CI38199524012 SUCCESS are independently verified. Main raw log1415659bytes/SHA256e1f004004a935f7de26f9b1a55ab5454acdc4ab449f1d3ab2ea8a95b4e043a4b and metadata3368bytes/SHAd957a7bc35c883edb669c58cac3f6e42dcc356a37bcc750ff4efc4b025b6b685 are retained CNEW.
+
+Distinct actual preparation38200213629 attempt1 on that accepted main failed both build jobs before upload; zero artifacts and comparison skipped. Both original logs report gosu_command_failed without a cleanup marker. The first retained original ZIP22434bytes/SHA256a1879ccc04ffb7bfe1c2c4703cbddc74c5e606830dba7343d251b3042ae35e33 and all zero-byte CLI refusals remain preserved. Failure index4624bytes/SHA256415c700c5968a127193e4a68601ed7352716d801a41295ce5ddeb1e15c420253 binds the exact run/API/log identities. The historical failing command/cause is NOT_ESTABLISHED because run() discarded its command result. A closed stage/reason diagnostics increment is in progress; no workflow retry, actual preparation acceptance, image, Native, admission, support or currentEvidence change follows.
