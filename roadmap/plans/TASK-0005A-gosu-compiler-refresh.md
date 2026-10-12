@@ -1,6 +1,6 @@
 # TASK-0005A — gosu compiler refresh preparation
 
-Status: plan revision4 independently approved; source implementation revision5 review pending. Source delivery and actual build acceptance remain pending. Priority P0. Owner: source/build executor; independent architecture and supply-chain/security review.
+Status: plan revision4 independently approved; source implementation revision5 independently CLEAR. Source delivery and actual build acceptance remain pending. Priority P0. Owner: source/build executor; independent architecture and supply-chain/security review.
 
 Goal: close the demonstrated Go1.26.8 compiler blocker through a traceable Auto World gosu1.19/Go1.26.9 preparation. Dependencies: delivered scanner security PR149/main969df, authenticated failed actual audit38181226203 and accepted ADR-0007/0011 boundaries. [ADR-0015](../../docs/decisions/ADR-0015-gosu-compiler-derivative.md) defines the new preparation receipt and future phase separation.
 

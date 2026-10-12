@@ -1,6 +1,6 @@
 # ADR-0015 â€” Traceable gosu compiler derivative
 
-Status: preparation plan revision4 independently approved; source review revision5 pending. Revision5 explicitly includes the additive diagnostic classification described below. Source delivery and actual independent-build acceptance remain separate and pending.
+Status: preparation plan revision4 independently approved; source review revision5 independently CLEAR. Revision5 explicitly includes the additive diagnostic classification described below. Source delivery and actual independent-build acceptance remain separate and pending.
 
 ## Context
 

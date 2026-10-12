@@ -42,3 +42,13 @@ Revision4 uses a private WeakMap with a deep-frozen byte-derived snapshot, rejec
 The attempted v4 adversarial agent review was interrupted by its content filter and supplied no verdict. A separate independent contract verifier reran Windows/Linux tests and classification2/2, confirmed the binding fixes, and found the additive diagnostic classification absent from documented ownership. Revision5 repairs only that scope declaration. Its2379-byte index/SHA256 9bc51d9d16437bd33eb04aa8888c230db9fe90a6f9d6d73657633feca5eab6c1 binds the unchanged eight sources, admission-consumers.json and ADR/plan. All eleven identities match before/after independent review: PASS/CLEAR for complete local source scope. These native-agent reviews are not GitHub Review objects.
 
 Root broad Windows revision3 gates passed lint/types,1771 root tests (1331 passes,440 explicit platform exclusions,0 failures),24 workspace tests and builds. Initial browser startup failed because port3107 was occupied; the original failure is retained. A separate foundation run on3108 passed6/6 Chromium tests. Interrupted secrets/dependency steps are not claimed. Fresh revision4 targeted gates and required final-head Linux CI remain separate from this older broad result.
+
+
+## Implementation CI checkpoint
+
+[Linux CI38190455271](https://github.com/CleMeY15/auto-world/actions/runs/38190455271) passes on b47b3c2ce13a5255356514939964cfcb73148ebb/tree ce3775db2b0f6fa710b3db446b6602ec9ea535a1. Root1983 tests:1927 passes/56 existing platform exclusions/0 failures; new preparer20/20 including Linux namespace refusal;24 workspace test tasks,12 lint/18 typecheck/12 build tasks; browser10 passes/2 intentional Chromium-only exclusions;848-file secrets scan and0 dependency findings. Original1389466-byte raw CI log/SHA256 e307b837f1bb5a9ec3da1f778a38acf2dea9907091ad8cc7394224049a6e5b7f and metadata are retained. Root verifies all eleven committed blobs exactly match source-scope v5; committed identity index2429 bytes/SHA256 ee6ebb8739aa6b079474f4e5e9cadf149fd9f00ad6215559b8ebde020eb6260f.
+
+This implementation CI is not the final integration head or real Go-build acceptance. Integration of the separate reviewed API repair, current closing documentation, final-head CI, identical merge tree and main CI remain required before manual actual preparation.
+
+
+Final integration incorporates only accepted API PR153/main52fdbefc plus current closing records. The eight Gosu sources and non-authorizing classification remain identical to reviewed v4/v5. Required final-head/main CI and actual two-build preparation remain pending; no Go build or manual dispatch occurred before this closure.
