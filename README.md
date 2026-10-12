@@ -88,7 +88,7 @@ pnpm --filter @auto-world/synthetic-connector test
 pnpm --filter @auto-world/demo-search-contract test
 ```
 
-The corpus proves raw-first ingestion, observation provenance, contradiction/history, withdrawal and bounded failure behavior only. TASK-0102 owns actual demo reads/API; TASK-0103 owns the search user flow. The current web preview still has no listings or working search. Production-exclusion and blocked network-primitive tests do not create an OS sandbox or authorize a real data source.
+The corpus proves raw-first ingestion, observation provenance, contradiction/history, withdrawal and bounded failure behavior only. TASK-0102 owns actual demo reads/API; TASK-0103 owns the search user flow. TASK-0101 alone did not add listings or working search; TASK-0103 now supplies the separately labeled synthetic `/demo` flow and grants no production or source admission. Production-exclusion and blocked network-primitive tests do not create an OS sandbox or authorize a real data source.
 
 The public contract is compiled TypeScript. The isolated fixture composition follows the existing SDK test-support `.mjs` pattern: its typecheck checks its declarations and typed SDK consumer probes, not JavaScript function bodies. Lint, runtime regressions and the production-exclusion/corpus build verifier cover those bodies; none is represented as a TypeScript compilation proof.
 
