@@ -1,6 +1,6 @@
 # ADR-0017 — Synthetic vehicle taxonomy V1
 
-Status: Accepted contract; TASK-0008 implementation in progress
+Status: Accepted and implemented; TASK-0008 implementation validated, final-head/main delivery pending in PR161
 Date: 2026-10-12
 
 ## Context and decision

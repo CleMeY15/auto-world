@@ -1,6 +1,6 @@
 # TASK-0008 — Synthetic vehicle taxonomy V1
 
-Status: IN_PROGRESS
+Status: DONE
 Priority: P0
 Owner role: Domain/schema executor; independent architecture and code/security/provenance review
 
@@ -28,3 +28,7 @@ Record meaningful failing tests before completed parser behavior: missing parent
 Run frozen installation; targeted lint/typecheck/test/build; root lint/typecheck/test/build and browser regression; secrets scan and dependency audit. Verify nonzero taxonomy tasks in all four Turbo graphs. Clean Linux CI supplies an independent checkout. Review code/security/provenance and architecture independently. Document security/rollback limits and exact evidence in [TASK-0008 validation](../../docs/validation/TASK-0008.md).
 
 Initial implementation CI and review precede DONE status. Final-head CI and accepted merged-main evidence remain separate delivery gates. Do not begin a dependent task from compilation alone.
+
+## Validation evidence
+
+[PR161](https://github.com/CleMeY15/auto-world/pull/161) and [implementation CI38228092035](https://github.com/CleMeY15/auto-world/actions/runs/38228092035) verify the implemented contract:36 taxonomy tests, compile-time proofs, all root/browser/secrets/dependency gates, independent code/provenance APPROVE and architecture CLEAR. [Detailed evidence](../../docs/validation/TASK-0008.md) separates local Windows exclusions from Linux coverage and records the corrected fixture-name finding. Final-head CI, identical-tree merge and main CI are recorded in the PR and remain mandatory before downstream execution.
