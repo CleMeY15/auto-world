@@ -1,6 +1,6 @@
 # ADR-0015 â€” Traceable gosu compiler derivative
 
-Status: original preparation sources delivered through PR151/main2790d79 and owned-cache cleanup PR154/main9e322643 with reviewed identical trees and successful final/main CI. Exact Go module-info cache correction PR155 has independent revision2 high-risk CLEAR and implementation CI38196567303 SUCCESS; final/main source delivery is pending. Both actual preparations38192612138 and38194957502 failed before upload with zero artifacts. Actual preparation/admission/support remain unaccepted.
+Status: original preparation sources delivered through PR151/main2790d79 and owned-cache cleanup PR154/main9e322643 with reviewed identical trees and successful final/main CI. Exact Go module-info cache correction PR155 is delivered on main59e5b157 with identical reviewed tree35c4dd78 and final CI38198975540/main CI38199524012 SUCCESS. All three actual preparations38192612138,38194957502 and38200213629 failed before upload with zero artifacts. Actual preparation/admission/support remain unaccepted.
 
 ## Context
 
@@ -73,3 +73,14 @@ Rollback for this preparation removes/abandons only its unused new files and own
 ## Exact Go cache-info correction, 2026-10-12
 
 The authenticated proxy .info wire file and the exact Go1.26.9 cache .info serialization have independent pinned byte identities. Both module cache descriptors are closed and fixed; the full collection validator rejects absent, partial, duplicate or reordered modules before scratch creation/downloads. Zip/GoMod/source/compiler/h1 pins and receipts remain unchanged. The wire .info hash establishes transport integrity; .info is not authenticated by SumDB. No arbitrary JSON-equivalence or serializer is added. See the focused plan and validation TASK-0005A-gosu-module-info-cache.md. Successful source CI does not establish actual Go preparation; dispatch requires final-source review, exact final-head CI, an identical reviewed merge and protected-main CI.
+
+## Current source delivery and command diagnostics, 2026-10-12
+
+PR155 source correction is DONE_ON_MAIN: final head4731e9464fc828dd4b92f4345769a478d8eedb90 and merge/main59e5b157d93dd12f31d14924a9d8cf8571e83b18 share tree35c4dd782934865cf056cae4a3dfc5c227f8b2f3. Independent49-file source closure CLEAR and final CI38198975540/main CI38199524012 SUCCESS are independently verified. Main raw log1415659bytes/SHA256e1f004004a935f7de26f9b1a55ab5454acdc4ab449f1d3ab2ea8a95b4e043a4b and metadata3368bytes/SHAd957a7bc35c883edb669c58cac3f6e42dcc356a37bcc750ff4efc4b025b6b685 are retained CNEW.
+
+Distinct actual preparation38200213629 attempt1 on that accepted main failed both build jobs before upload; zero artifacts and comparison skipped. Both original logs report gosu_command_failed without a cleanup marker. The first retained original ZIP22434bytes/SHA256a1879ccc04ffb7bfe1c2c4703cbddc74c5e606830dba7343d251b3042ae35e33 and all zero-byte CLI refusals remain preserved. Failure index4624bytes/SHA256415c700c5968a127193e4a68601ed7352716d801a41295ce5ddeb1e15c420253 binds the exact run/API/log identities. The historical failing command/cause is NOT_ESTABLISHED because run() discarded its command result. A closed stage/reason diagnostics increment is in progress; no workflow retry, actual preparation acceptance, image, Native, admission, support or currentEvidence change follows.
+
+
+## Closed command diagnostics source increment
+
+The [focused plan](../../roadmap/plans/TASK-0005A-gosu-command-failure.md) received independent architecture CLEAR before implementation. The existing receipt-bound builder records fixed stage/reason codes for its eight commands, with Error-code precedence over signals and exits and a separate malformed-result invariant. Only an exact bounded allowlisted child code plus LF may propagate from an ordinary isolation exit. Raw process output, command text, paths and environment never enter these command diagnostics. No runtime module or execution authority is added; the reviewed helper closure remains build, controls, archives. Existing cleanup behavior, compiler/source/module pins, receipt fields and workflow remain unchanged. [Validation](../validation/TASK-0005A-gosu-command-failure.md) records source gates separately from any subsequent distinct actual preparation. Rollback restores the prior command diagnostics.
