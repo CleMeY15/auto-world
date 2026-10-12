@@ -1,6 +1,6 @@
 # TASK-0103 — Premium synthetic Search → Results → Listing → Saved web flow
 
-Status: BLOCKED until TASK-0102 is Done on `main`. Priority: P1. Owner: Frontend/UX executor; independent UX/accessibility, security and performance review.
+Status: IN_PROGRESS — dependencies TASK-0007 and TASK-0102 accepted on main; ADR-0016 and focused plan under independent architecture/security/UX review before implementation. Priority: P1. Owner: Frontend/UX executor; independent UX/accessibility, security and performance review.
 
 ## Goal and dependencies
 

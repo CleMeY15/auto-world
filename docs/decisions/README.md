@@ -17,4 +17,5 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
-- [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): architecture plan CLEAR; TASK-0102 implementation, API/security/operations acceptance and delivery gates remain pending in PR150.
+- [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK0102 DONE_ON_MAIN through PR150 after independent implementation review and exact final/main delivery gates.
+- [ADR-0016 — Synthetic web flow](ADR-0016-synthetic-web-flow.md): TASK0103 proxy/local favorites/navigation/privacy plan under architecture/security/UX review; implementation acceptance pending.

@@ -1,6 +1,6 @@
 # TASK-0102 — Deterministic synthetic search API
 
-Status: SOURCE_VALIDATED / DELIVERY_PENDING — TASK-0101 accepted through PR148 and matching main CI38179981070; independent implementation architecture/API-security-operations CLEAR and Linux CI38185255447 PASS. Exact final-head/identical-tree/main acceptance is governed by PR150; this task is Done on main only after that record passes, and TASK-0103 remains blocked until then. Priority: P1. Owner: API/search executor; independent API/security and operations review.
+Status: DONE_ON_MAIN — [PR150](https://github.com/CleMeY15/auto-world/pull/150), final head99dcc911d43e4a0d5dc1332f18f7acb6793b71c0 / CI38186090262, identical tree62f9053aa4689f97be022e765f4a0a78b371153b and merge03ac41ffbfe7ec157d4108f8da2741dc7b08079e / main CI38186475270 PASS. Independent architecture/API-security-operations CLEAR and all applicable API acceptance gates passed. TASK-0103 dependency is satisfied. Priority: P1. Owner: API/search executor; independent API/security and operations review.
 
 ## Goal and dependencies
 
