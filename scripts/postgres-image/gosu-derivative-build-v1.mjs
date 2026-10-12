@@ -14,6 +14,7 @@ import {
 import {
   GOSU_PUBLIC_FILES_V1, assertInitiallyAbsentOwnedChild, canonicalJson, canonicalNotices, canonicalSbom, fileIdentity, moduleClosure, parseGosuBuildInfo,
   parseUpstreamTestJson, reviewedIdentities, validateBuildReceipt, validatePublicTree,
+  validateLock, validateModuleInfoCacheIdentity,
 } from "./gosu-derivative-controls-v1.mjs";
 
 const scriptFile = fileURLToPath(import.meta.url);
@@ -83,7 +84,8 @@ function cleanEnv(base) {
     NODE_OPTIONS: "", NODE_PATH: "",
   };
 }
-async function loadLock() { const bytes = await readFile(lockFile); const value = JSON.parse(bytes); return { value, identity: exactIdentity(bytes) }; }
+export function moduleInfoCacheIdentity(item) { return validateModuleInfoCacheIdentity(item); }
+async function loadLock() { const bytes = await readFile(lockFile); const value = JSON.parse(bytes); validateLock(value); return { value, identity: exactIdentity(bytes) }; }
 async function openDownload(url, redirects = 0) {
   if (redirects > 3 || !url.startsWith("https://")) fail("gosu_download_url_invalid");
   const response = await new Promise((resolve, reject) => { const request = https.get(url, { headers: { "user-agent": "auto-world-gosu-preparer-v1", accept: "application/octet-stream" } }, resolve); request.setTimeout(120_000, () => request.destroy(new Error("gosu_download_timeout"))); request.on("error", reject); });
@@ -145,7 +147,7 @@ async function buildOnline(repeat, lock, scratch, output) {
   const env = cleanEnv(base); const version = run(go, ["version"], { cwd: source, env }).stdout.toString().trim(); if (version !== lock.compiler.identity) fail("gosu_compiler_identity_invalid");
   const before = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); const downloaded = run(go, ["mod", "download", "-json", "all"], { cwd: source, env }).stdout.toString(); run(go, ["mod", "verify"], { cwd: source, env }); const after = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(before) !== JSON.stringify(after)) fail("gosu_source_mutated");
   const modules = downloaded.trim().split(/\n(?=\{)/u).filter(Boolean).map((item) => JSON.parse(item)); if (modules.length !== 2) fail("gosu_module_closure_invalid");
-  for (const expected of lock.modules) { const actual = modules.find((item) => item.Path === expected.path); if (!actual || actual.Version !== expected.version || actual.Sum !== expected.zip.h1 || actual.GoModSum !== expected.mod.h1) fail("gosu_module_closure_invalid"); for (const [key, descriptor] of [["Zip", expected.zip], ["GoMod", expected.mod], ["Info", expected.info]]) assertIdentity(await readFile(actual[key]), descriptor, "gosu_module_cache_invalid"); }
+  for (const expected of lock.modules) { const actual = modules.find((item) => item.Path === expected.path); if (!actual || actual.Version !== expected.version || actual.Sum !== expected.zip.h1 || actual.GoModSum !== expected.mod.h1) fail("gosu_module_closure_invalid"); for (const [key, descriptor] of [["Zip", expected.zip], ["GoMod", expected.mod], ["Info", moduleInfoCacheIdentity(expected)]]) assertIdentity(await readFile(actual[key]), descriptor, "gosu_module_cache_invalid"); }
   await writeFile(path.join(scratch, "online.json"), canonicalJson({ repeat, sourceFiles: after, compilerEntries: compilerScan.entries.length, compilerRegularBytes: compilerScan.regularBytes, sourceEntries: sourceScan.entries.length, sourceRegularBytes: sourceScan.regularBytes }), { flag: "wx" });
   return { source, compiler, go, base };
 }
