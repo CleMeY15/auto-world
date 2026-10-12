@@ -1,5 +1,9 @@
 # DATA PLATFORM & SOURCE EXPANSION
 
+## Synthetic taxonomy reference data
+
+[ADR-0017](../decisions/ADR-0017-vehicle-taxonomy-v1.md) defines a bounded make/model release separate from observed vehicle facts. Every release-local primary label and alias references synthetic attribution within that release. Duplicate names across entities remain distinct; no fuzzy matching or factual/rights claim is made. Declared catalog/release/revision references prevent tuple mismatch, but do not authenticate content or historical uniqueness. Real datasets and persistent lineage require separate reviewed tasks.
+
 ## Source onboarding checklist
 - Strategic value: inventory, geography, uniqueness.
 - Access path & rights.

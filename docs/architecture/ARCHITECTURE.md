@@ -34,6 +34,10 @@ Version external contracts. Cursor pagination. Typed errors. Request IDs. Rate l
 
 `packages/source-registry` owns source governance and depends only on the public `packages/vehicle-schema` contract for shared identity/result types. The dependency is one-way; vehicle data does not import governance. [ADR-0002](../decisions/ADR-0002-source-registry-contract.md) defines V1 immutable policy revisions, contextual grants, structural eligibility and independent health. A future authoritative-registry port must supply authenticated current state before any connector acts; this pure package does not establish that trust boundary itself.
 
+## Vehicle taxonomy boundary
+
+`packages/vehicle-taxonomy` owns the independent [synthetic make/model release contract](../decisions/ADR-0017-vehicle-taxonomy-v1.md). Its only dependency is public vehicle-schema validation types; observations do not import taxonomy. Parsers enforce bounded shape, parent/label-attribution integrity and detached frozen output. Typed lookup uses declared version tuples, not authenticated historical lineage. No persistence, resolver, source activation or application integration is introduced.
+
 ## Presentation boundary
 
 The presentation boundary is independent of acquisition and governance: [packages/design-system](../../packages/design-system/README.md) owns semantic tokens, generated scoped CSS and React primitives; `apps/web` owns the Next.js document, responsive composition and small client-only preview controls. Neither imports connectors, Source Registry, vehicle data contracts or service code. The server renders the initial page and disclosure; one client island owns ephemeral form/theme/state interactions. No external assets, telemetry collector, storage, database or search API is part of TASK-0007. Production-build traces and browser network checks enforce this boundary. Later synthetic data composition remains subject to ADR-0012 and the TASK-0101/0102 import-exclusion contract.

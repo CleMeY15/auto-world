@@ -1,0 +1,30 @@
+export const syntheticTaxonomyRelease = {
+  schemaVersion: 1,
+  catalogId: "taxcat_fixture_catalog",
+  releaseId: "taxrel_fixture_release_1",
+  revision: 1,
+  releasedAt: "2026-10-12T00:00:00.000Z",
+  dataMode: "synthetic",
+  attributions: [
+    { attributionId: "taxattr_alpha", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/alpha" },
+    { attributionId: "taxattr_beta", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/beta" },
+    { attributionId: "taxattr_delta", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/delta" },
+    { attributionId: "taxattr_gamma", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/gamma" },
+  ],
+  makes: [
+    { makeId: "make_aster", primaryName: { value: "AW Fixture Make Alpha", attributionId: "taxattr_alpha" }, aliases: [{ value: "AW Fixture Label A", attributionId: "taxattr_beta" }] },
+    { makeId: "make_brindle", primaryName: { value: "AW Fixture Make Beta", attributionId: "taxattr_beta" }, aliases: [] },
+    { makeId: "make_cinder", primaryName: { value: "AW Fixture Make Gamma", attributionId: "taxattr_delta" }, aliases: [{ value: "AW Fixture Alias Gamma", attributionId: "taxattr_gamma" }] },
+    { makeId: "make_dovetail", primaryName: { value: "AW Fixture Make Delta", attributionId: "taxattr_gamma" }, aliases: [] },
+  ],
+  models: [
+    { modelId: "model_arc", makeId: "make_aster", primaryName: { value: "AW Fixture Model Alpha", attributionId: "taxattr_alpha" }, aliases: [] },
+    { modelId: "model_beacon", makeId: "make_brindle", primaryName: { value: "AW Fixture Model Beta", attributionId: "taxattr_beta" }, aliases: [] },
+    { modelId: "model_cove", makeId: "make_cinder", primaryName: { value: "AW Fixture Model Gamma", attributionId: "taxattr_delta" }, aliases: [] },
+    { modelId: "model_drift", makeId: "make_dovetail", primaryName: { value: "AW Fixture Model Delta", attributionId: "taxattr_gamma" }, aliases: [] },
+    { modelId: "model_orbit_aster", makeId: "make_aster", primaryName: { value: "AW Fixture Shared Model", attributionId: "taxattr_alpha" }, aliases: [] },
+    { modelId: "model_orbit_brindle", makeId: "make_brindle", primaryName: { value: "AW Fixture Shared Model", attributionId: "taxattr_beta" }, aliases: [] },
+    { modelId: "model_rill", makeId: "make_cinder", primaryName: { value: "AW Fixture Model Epsilon", attributionId: "taxattr_delta" }, aliases: [{ value: "AW Fixture Alias Epsilon", attributionId: "taxattr_gamma" }] },
+    { modelId: "model_zenith", makeId: "make_dovetail", primaryName: { value: "AW Fixture Model Zeta", attributionId: "taxattr_gamma" }, aliases: [] },
+  ],
+};
