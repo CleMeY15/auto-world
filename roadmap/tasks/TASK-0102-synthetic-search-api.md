@@ -1,6 +1,6 @@
 # TASK-0102 — Deterministic synthetic search API
 
-Status: SOURCE_VALIDATED / DELIVERY_PENDING — TASK-0101 accepted through PR148 and matching main CI38179981070; independent implementation architecture/API-security-operations CLEAR and Linux CI38185255447 PASS. Exact final-head/identical-tree/main acceptance is governed by PR150; this task is Done on main only after that record passes, and TASK-0103 remains blocked until then. Priority: P1. Owner: API/search executor; independent API/security and operations review.
+Status: REOPENED_REAL_HTTP_CORRECTNESS — the original increment was delivered through PR150 at main03ac41ffbfe7ec157d4108f8da2741dc7b08079e with successful final/main CI. TASK-0103 real-browser validation exposed a normal HTTP-body completion incorrectly treated as disconnect; the focused socket lifecycle repair and actual network regression evidence must be accepted before downstream web acceptance. Priority: P1. Owner: API/search executor; independent API/security and operations review.
 
 ## Goal and dependencies
 
