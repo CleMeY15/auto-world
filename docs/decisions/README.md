@@ -19,7 +19,7 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
-- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): approved TASK-0009 contract; implementation/delivery pending. Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
+- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): TASK-0009 implementation independently APPROVE/CLEAR with47 package tests and full local gates; final-head/main delivery in [PR162](https://github.com/CleMeY15/auto-world/pull/162) governs acceptance. Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
 
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.
 

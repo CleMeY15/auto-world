@@ -1,6 +1,6 @@
 # TASK-0009 — Observation-change events V1
 
-Status: IN_PROGRESS — DoR and sequential Architect CLEAR / Critic APPROVE accepted; implementation pending
+Status: IMPLEMENTATION_VALIDATED — independent code APPROVE / architecture CLEAR; final-head/main delivery acceptance governed by [PR #162](https://github.com/CleMeY15/auto-world/pull/162)
 Priority: P0
 Owner: domain-contract executor; independent test, architecture, code/provenance and delivery reviewers
 Dependencies: TASK-0001, TASK-0002 (accepted on main); ADR-0001 and ADR-0012

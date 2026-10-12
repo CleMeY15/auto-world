@@ -1,6 +1,6 @@
 # ADR-0018 — Observation-change events V1
 
-Status: ACCEPTED contract; TASK-0009 implementation and delivery pending
+Status: ACCEPTED; TASK-0009 implementation independently validated; final-head/main delivery record in PR #162 governs downstream acceptance
 Date: 2026-10-12
 
 ## Context and decision

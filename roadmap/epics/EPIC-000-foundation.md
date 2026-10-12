@@ -17,7 +17,7 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 
 8. `TASK-0008-vehicle-taxonomy-v1.md` — DONE / implementation validated; independent APPROVE/CLEAR,36 taxonomy tests and full Linux CI38228092035; final-head/main delivery in [PR161](https://github.com/CleMeY15/auto-world/pull/161) governs downstream acceptance. Synthetic make/model contract only; [ADR-0017](../../docs/decisions/ADR-0017-vehicle-taxonomy-v1.md), [evidence](../../docs/validation/TASK-0008.md)
 
-9. `TASK-0009-observation-change-events.md` — IN_PROGRESS; approved bounded P0 event contract, implementation/delivery pending. [ADR-0018](../../docs/decisions/ADR-0018-observation-change-events.md), [evidence](../../docs/validation/TASK-0009.md). No broker, lifecycle or source activation.
+9. `TASK-0009-observation-change-events.md` — IMPLEMENTATION_VALIDATED; independent APPROVE/CLEAR,47 package tests, full local code/browser/secrets/audit gates. Final-head/main delivery in [PR162](https://github.com/CleMeY15/auto-world/pull/162) governs downstream acceptance. [ADR-0018](../../docs/decisions/ADR-0018-observation-change-events.md), [evidence](../../docs/validation/TASK-0009.md). No broker, lifecycle or source activation.
 
 ## Exit gate
 
