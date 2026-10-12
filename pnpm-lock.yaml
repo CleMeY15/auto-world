@@ -122,6 +122,12 @@ importers:
 
   packages/vehicle-schema: {}
 
+  packages/vehicle-taxonomy:
+    dependencies:
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../vehicle-schema
+
   services/ai: {}
 
   services/api:

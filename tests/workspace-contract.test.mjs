@@ -17,6 +17,7 @@ const expectedBoundaries = [
   ["services/search", "@auto-world/search", "service"],
   ["services/ai", "@auto-world/ai", "service"],
   ["packages/vehicle-schema", "@auto-world/vehicle-schema", "package"],
+  ["packages/vehicle-taxonomy", "@auto-world/vehicle-taxonomy", "package"],
   ["packages/source-registry", "@auto-world/source-registry", "package"],
   ["packages/demo-search-contract", "@auto-world/demo-search-contract", "package"],
   ["packages/design-system", "@auto-world/design-system", "package"],
@@ -51,13 +52,14 @@ test("declares every architecture boundary as a private workspace package", () =
     const registry = expectedName === "@auto-world/source-registry";
     const connector = expectedName === "@auto-world/connector-sdk";
     const demo = expectedName === "@auto-world/demo-search-contract";
+    const taxonomy = expectedName === "@auto-world/vehicle-taxonomy";
     const design = expectedName === "@auto-world/design-system";
     const web = expectedName === "@auto-world/web";
     const api = expectedName === "@auto-world/api";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || api;
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || taxonomy || api;
     const dependencyBuild = connector
       ? "pnpm --filter @auto-world/source-registry build && "
-      : registry || demo ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
+      : registry || demo || taxonomy ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
@@ -162,8 +164,11 @@ test("keeps connector and governance dependencies pointed toward public vehicle 
   assert.deepEqual(readJson("packages/demo-search-contract/package.json").dependencies, {
     "@auto-world/vehicle-schema": "workspace:*",
   });
+  assert.deepEqual(readJson("packages/vehicle-taxonomy/package.json").dependencies, {
+    "@auto-world/vehicle-schema": "workspace:*",
+  });
   assert.deepEqual(connector.files, ["dist"]);
-  assert.equal(expectedBoundaries.length, 11);
+  assert.equal(expectedBoundaries.length, 12);
 });
 
 test("keeps web primitives isolated from source and data-service authority", () => {
@@ -243,6 +248,17 @@ test("keeps public demo source free of SDK, fixtures and internal vehicle helper
   }
   for (const file of readdirSync(path.join(root, "connectors/_sdk/src")).filter((name) => name.endsWith(".ts"))) {
     assert.doesNotMatch(read(`connectors/_sdk/src/${file}`), /(?:test-support|synthetic-connector|synthetic\/demo)/u);
+  }
+});
+
+test("keeps taxonomy source independent of ingestion, UI, fixtures and private validators", () => {
+  const directory = "packages/vehicle-taxonomy/src";
+  const files = readdirSync(path.join(root, directory)).filter((file) => file.endsWith(".ts"));
+  assert.ok(files.length > 0);
+  assert.deepEqual(Object.keys(readJson("packages/vehicle-taxonomy/package.json").exports), ["."]);
+  for (const file of files) {
+    assert.doesNotMatch(read(`${directory}/${file}`),
+      /(?:@auto-world\/(?:connector-sdk|source-registry|synthetic-connector|demo-search-contract|design-system)|(?:connectors|services|apps|fixtures|test-support)\/|vehicle-schema\/(?:src|dist))/u);
   }
 });
 

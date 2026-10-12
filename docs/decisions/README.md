@@ -15,6 +15,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 - [ADR-0013 — Synthetic search contract V1](ADR-0013-demo-search-contract.md): TASK-0101 implementation reviewed/validated; final-head/main delivery record in PR #148. Read-port behavior remains TASK-0102.
 
+- [ADR-0017 — Synthetic vehicle taxonomy V1](ADR-0017-vehicle-taxonomy-v1.md): TASK-0008 implementation validated by independent APPROVE/CLEAR and full Linux CI38228092035; final-head/main delivery pending in PR161. Synthetic make/model releases and declared-version lookup only, not real automotive truth or authenticated lineage.
+
 ## Plans under implementation
 
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.

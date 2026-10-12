@@ -15,5 +15,7 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 6. `TASK-0006-first-vertical-slice-plan.md` — DONE on accepted `main` `198503c` through [PR #146](https://github.com/CleMeY15/auto-world/pull/146); final-head/main CI pass; [plan and downstream contracts](../plans/TASK-0006-synthetic-first-slice.md) are not a completed slice
 7. `TASK-0007-design-web-foundation.md` — DONE after independent code/UX acceptance and full exact-head CI on [PR #147](https://github.com/CleMeY15/auto-world/pull/147); final-head/main delivery record in the PR governs dependency acceptance; reusable primitives and component preview only; [evidence](../../docs/validation/TASK-0007.md)
 
+8. `TASK-0008-vehicle-taxonomy-v1.md` — DONE / implementation validated; independent APPROVE/CLEAR,36 taxonomy tests and full Linux CI38228092035; final-head/main delivery in [PR161](https://github.com/CleMeY15/auto-world/pull/161) governs downstream acceptance. Synthetic make/model contract only; [ADR-0017](../../docs/decisions/ADR-0017-vehicle-taxonomy-v1.md), [evidence](../../docs/validation/TASK-0008.md)
+
 ## Exit gate
 The first connector can be implemented without inventing schemas, source-rights semantics, retry behavior or canonical fields. The synthetic first-slice plan can be reviewed without waiting for image admission, but EPIC-000 remains IN_PROGRESS until this original readiness condition and all applicable task gates pass; no supported connector or four-service completion is inferred from synthetic planning.
