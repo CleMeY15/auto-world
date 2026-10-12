@@ -1,6 +1,6 @@
 # TASK-0103 — Premium synthetic Search → Results → Listing → Saved web flow
 
-Status: BLOCKED until TASK-0102 is Done on `main`. Priority: P1. Owner: Frontend/UX executor; independent UX/accessibility, security and performance review.
+Status: DONE_IMPLEMENTATION / DELIVERY_PENDING — dependencies TASK-0007 and real HTTP TASK-0102 accepted on main. Data/proxy CLEAR; responsive repair revision3 UX APPROVE, renewed actual API and laboratory performance evidence. Exact final-head/main delivery gates remain pending. Priority: P1. Owner: Frontend/UX executor; independent UX/accessibility, security and performance review.
 
 ## Goal and dependencies
 
@@ -18,5 +18,5 @@ Search/filter → results → detail/evidence → save → reload/reopen Saved �
 
 - E2E follows the whole flow including local persistence, empty Saved, observation trace, contradictory and withdrawn records. An unsupported natural-language query stays editable, reports its unsupported syntax and invents no filter or result; test this explicitly. Negative assertions prevent real seller/network CTA, VIN/score/verified-history wording and unlabeled synthetic content. Disconnect/reconnect tests prove the stated offline recovery and Saved behavior.
 - At 320 px, 390×844, 768×1024 and 1440×900: inspect light/dark and all material states, attach screenshots, no overflow/CLS/jank. Keyboard-only and screen-reader path, focus return, semantic names, 44 px touch targets and WCAG 2.2 AA checks pass.
-- Record search p95 from API plus representative mobile LCP p75 ≤2.5 s, INP p75 ≤200 ms, CLS p75 ≤0.1 and immediate favorite feedback target ≤100 ms; state sample/hardware/profile. No LLM is required to render results.
+- Record search p95 from API plus representative mobile LCP p75 ≤2.5 s, lab Event Timing p75 ≤200 ms (no production INP claim), CLS p75 ≤0.1 and immediate favorite feedback target ≤100 ms; state sample/hardware/profile. No LLM is required to render results.
 - Privacy-safe analytics schema is validated with no query text, raw payload or identifiers. Targeted tests, root quality/security gates, independent UX/security/performance review and `docs/validation/TASK-0103.md` evidence pass. Rollback disables the demo UI entrypoint while reading/clearing versioned local favorites safely.
