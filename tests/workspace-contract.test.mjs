@@ -53,7 +53,8 @@ test("declares every architecture boundary as a private workspace package", () =
     const demo = expectedName === "@auto-world/demo-search-contract";
     const design = expectedName === "@auto-world/design-system";
     const web = expectedName === "@auto-world/web";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo;
+    const api = expectedName === "@auto-world/api";
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || api;
     const dependencyBuild = connector
       ? "pnpm --filter @auto-world/source-registry build && "
       : registry || demo ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
@@ -69,6 +70,15 @@ test("declares every architecture boundary as a private workspace package", () =
       assert.equal(manifest.scripts["test:ui"], "playwright test");
       assert.equal(tsconfig.compilerOptions.noEmit, true);
       assert.ok(tsconfig.include.includes("src/**/*.tsx"));
+    } else if (api) {
+      assert.match(manifest.scripts.build, /tsc -p tsconfig.json.*verify-production-build/u);
+      assert.match(manifest.scripts.lint, /^eslint src demo scripts test/u);
+      assert.match(manifest.scripts.typecheck, /tsconfig.test.json --noEmit/u);
+      assert.match(manifest.scripts.test, /--conditions=auto-world-demo --test/u);
+      assert.equal(manifest.dependencies.fastify, "5.12.5");
+      assert.equal(manifest.devDependencies["@types/node"], "22.20.2");
+      assert.deepEqual(manifest.files, ["dist"]);
+      assert.deepEqual(Object.keys(manifest.exports), ["."]);
     } else if (design) {
       assert.match(manifest.scripts.build, /^tsc .*generate-styles/u);
       assert.match(manifest.scripts.lint, /^eslint src test scripts/u);

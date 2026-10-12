@@ -1,6 +1,6 @@
 # TASK-0102 — Deterministic synthetic search API
 
-Status: BLOCKED until TASK-0101 is Done on `main`. Priority: P1. Owner: API/search executor; independent API/security and operations review.
+Status: SOURCE_VALIDATED / DELIVERY_PENDING — TASK-0101 accepted through PR148 and matching main CI38179981070; independent implementation architecture/API-security-operations CLEAR and Linux CI38185255447 PASS. Exact final-head/identical-tree/main acceptance is governed by PR150; this task is Done on main only after that record passes, and TASK-0103 remains blocked until then. Priority: P1. Owner: API/search executor; independent API/security and operations review.
 
 ## Goal and dependencies
 
@@ -8,7 +8,7 @@ Expose the reviewed demo read/query contract through a small typed API without a
 
 ## Relevant contracts and scope
 
-[P1 plan](../plans/TASK-0006-synthetic-first-slice.md), [architecture](../../docs/architecture/ARCHITECTURE.md), [ADR-0012](../../docs/decisions/ADR-0012-synthetic-development-lane.md), [UX](../../docs/PRODUCT_UX.md), [DoD](../../docs/DEFINITION_OF_DONE.md), `packages/demo-search-contract` public API. Implement in `services/api` using the roadmap reference Fastify/TypeScript stack with exact reviewed package/license/security evidence; do not write a general-purpose router. API core consumes only `DemoReadPort`, never fixture bytes or SDK private test modules. Its separate production-excluded `services/api/demo/createSyntheticDemoReadPort` factory composes the `connectors/synthetic` fixture adapter with the SDK test-support store; only the API demo entrypoint imports this factory. There is no `services/api` → `services/ingestion` source import or additional transport/process. Bind loopback only; allowlisted Host/Origin, default-deny CORS, methods/content types and stack-trace suppression are explicit negative tests. Version request/response, typed errors, request IDs, bounded input, deterministic sort and opaque cursor. No external URL/credential, Docker or real-service connection.
+[Transport decision and implementation plan](../../docs/decisions/ADR-0014-demo-search-api.md), [P1 plan](../plans/TASK-0006-synthetic-first-slice.md), [architecture](../../docs/architecture/ARCHITECTURE.md), [ADR-0012](../../docs/decisions/ADR-0012-synthetic-development-lane.md), [UX](../../docs/PRODUCT_UX.md), [DoD](../../docs/DEFINITION_OF_DONE.md), `packages/demo-search-contract` public API. Implement in `services/api` using the roadmap reference Fastify/TypeScript stack with exact reviewed package/license/security evidence; do not write a general-purpose router. API core consumes only `DemoReadPort`, never fixture bytes or SDK private test modules. Its separate production-excluded `services/api/demo/createSyntheticDemoReadPort` factory composes the `connectors/synthetic` fixture adapter with the SDK test-support store; only the API demo entrypoint imports this factory. There is no `services/api` → `services/ingestion` source import or additional transport/process. Bind loopback only; allowlisted Host/Origin, default-deny CORS, methods/content types and stack-trace suppression are explicit negative tests. Version request/response, typed errors, request IDs, bounded input, deterministic sort and opaque cursor. No external URL/credential, Docker or real-service connection.
 
 ## Acceptance and test strategy
 
