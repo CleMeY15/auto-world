@@ -1,0 +1,49 @@
+{
+  "name": "Gosu derivative source preparation v1",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {"contents": "read"},
+  "concurrency": {"group": "gosu-derivative-preparation-v1", "cancel-in-progress": false},
+  "jobs": {
+    "build_1": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 90,
+      "outputs": {"tar_sha256": "${{ steps.prepare.outputs.tar_sha256 }}", "tar_bytes": "${{ steps.prepare.outputs.tar_bytes }}", "artifact_digest": "${{ steps.upload.outputs.artifact-digest }}"},
+      "steps": [
+        {"uses": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803", "with": {"persist-credentials": false}},
+        {"name": "Require exact dispatched main head", "run": "test \"$GITHUB_REF\" = refs/heads/main\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\n"},
+        {"uses": "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38", "with": {"node-version": "22.23.2", "cache": ""}},
+        {"id": "prepare", "name": "Authenticate and prepare build 1", "env": {"AW_GOSU_CI_RUN_ID": "${{ github.run_id }}", "AW_GOSU_CI_RUN_ATTEMPT": "${{ github.run_attempt }}", "AW_GOSU_CI_HEAD_SHA": "${{ github.sha }}", "AW_GOSU_CI_JOB": "build_1"}, "run": "env -u NODE_OPTIONS -u NODE_PATH node scripts/postgres-image/gosu-derivative-build-v1.mjs prepare 1"},
+        {"id": "upload", "uses": "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4", "with": {"name": "gosu-preparation-1", "path": "${{ runner.temp }}/gosu-preparation-1.tar", "if-no-files-found": "error", "retention-days": 14, "compression-level": 0}}
+      ]
+    },
+    "build_2": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 90,
+      "outputs": {"tar_sha256": "${{ steps.prepare.outputs.tar_sha256 }}", "tar_bytes": "${{ steps.prepare.outputs.tar_bytes }}", "artifact_digest": "${{ steps.upload.outputs.artifact-digest }}"},
+      "steps": [
+        {"uses": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803", "with": {"persist-credentials": false}},
+        {"name": "Require exact dispatched main head", "run": "test \"$GITHUB_REF\" = refs/heads/main\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\n"},
+        {"uses": "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38", "with": {"node-version": "22.23.2", "cache": ""}},
+        {"id": "prepare", "name": "Authenticate and prepare build 2", "env": {"AW_GOSU_CI_RUN_ID": "${{ github.run_id }}", "AW_GOSU_CI_RUN_ATTEMPT": "${{ github.run_attempt }}", "AW_GOSU_CI_HEAD_SHA": "${{ github.sha }}", "AW_GOSU_CI_JOB": "build_2"}, "run": "env -u NODE_OPTIONS -u NODE_PATH node scripts/postgres-image/gosu-derivative-build-v1.mjs prepare 2"},
+        {"id": "upload", "uses": "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4", "with": {"name": "gosu-preparation-2", "path": "${{ runner.temp }}/gosu-preparation-2.tar", "if-no-files-found": "error", "retention-days": 14, "compression-level": 0}}
+      ]
+    },
+    "compare": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}",
+      "needs": ["build_1", "build_2"],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 20,
+      "steps": [
+        {"uses": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803", "with": {"persist-credentials": false}},
+        {"name": "Require exact dispatched main head", "run": "test \"$GITHUB_REF\" = refs/heads/main\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\n"},
+        {"uses": "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38", "with": {"node-version": "22.23.2", "cache": ""}},
+        {"name": "Require absent owned comparison target", "run": "test ! -e \"$RUNNER_TEMP/gosu-preparation-comparison\""},
+        {"uses": "actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", "with": {"name": "gosu-preparation-1", "path": "${{ runner.temp }}/gosu-preparation-comparison/build-1"}},
+        {"uses": "actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53", "with": {"name": "gosu-preparation-2", "path": "${{ runner.temp }}/gosu-preparation-comparison/build-2"}},
+        {"name": "Authenticate transport and compare retained bytes", "env": {"AW_LEFT_TAR_SHA256": "${{ needs.build_1.outputs.tar_sha256 }}", "AW_LEFT_TAR_BYTES": "${{ needs.build_1.outputs.tar_bytes }}", "AW_RIGHT_TAR_SHA256": "${{ needs.build_2.outputs.tar_sha256 }}", "AW_RIGHT_TAR_BYTES": "${{ needs.build_2.outputs.tar_bytes }}", "AW_LEFT_ARTIFACT_DIGEST": "${{ needs.build_1.outputs.artifact_digest }}", "AW_RIGHT_ARTIFACT_DIGEST": "${{ needs.build_2.outputs.artifact_digest }}", "AW_CI_RUN_ID": "${{ github.run_id }}", "AW_CI_RUN_ATTEMPT": "${{ github.run_attempt }}", "AW_CI_HEAD_SHA": "${{ github.sha }}"}, "run": "env -u NODE_OPTIONS -u NODE_PATH node scripts/postgres-image/gosu-derivative-controls-v1.mjs compare"}
+      ]
+    }
+  }
+}

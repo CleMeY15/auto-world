@@ -1,6 +1,6 @@
 # ADR-0015 â€” Traceable gosu compiler derivative
 
-Status: PROPOSED for the next bounded TASK-0005A source-preparation increment; independent architecture/security review and all implementation gates pending.
+Status: preparation plan revision4 independently approved; source review revision5 pending. Revision5 explicitly includes the additive diagnostic classification described below. Source delivery and actual independent-build acceptance remain separate and pending.
 
 ## Context
 
@@ -28,7 +28,7 @@ Two independent Linux jobs perform actual builds from the same locked materials.
 
 ### Owned surface and archive budgets
 
-The implementation owns only these new paths: `infra/postgres-image/materials/gosu-derivative-lock-v1.json`; `scripts/postgres-image/gosu-derivative-build-v1.mjs`, `gosu-derivative-controls-v1.mjs`, `gosu-derivative-archives-v1.mjs`; `tests/postgres-gosu-derivative-build-v1.test.mjs`, `postgres-gosu-derivative-controls-v1.test.mjs`, `postgres-gosu-derivative-workflow-v1.test.mjs`; `.github/workflows/gosu-derivative-preparation-v1.yml`; and `docs/validation/TASK-0005A-gosu-compiler-preparation.md`. Documentation updates are limited to this ADR, its plan, the decisions index and an appended current preparation entry in DELIVERY.md. No existing recipe, lock, publisher, remote reader/auditor, retained evidence, source inventory or Native operator is edited.
+The implementation owns only these new paths: `infra/postgres-image/materials/gosu-derivative-lock-v1.json`; `scripts/postgres-image/gosu-derivative-build-v1.mjs`, `gosu-derivative-controls-v1.mjs`, `gosu-derivative-archives-v1.mjs`; `tests/postgres-gosu-derivative-build-v1.test.mjs`, `postgres-gosu-derivative-controls-v1.test.mjs`, `postgres-gosu-derivative-workflow-v1.test.mjs`; `.github/workflows/gosu-derivative-preparation-v1.yml`; and `docs/validation/TASK-0005A-gosu-compiler-preparation.md`. One existing metadata file is also in scope: `infra/postgres-image/admission-consumers.json`, with the sole additive change of listing `gosu-derivative-build-v1.mjs` under `diagnosticOnly`. All existing supported entrypoint/broker and false authority claims stay unchanged. This classification is excluded from execution pins by the existing inventory regression and grants no admission authority. Documentation updates are limited to this ADR, its plan, the decisions index and an appended current preparation entry in DELIVERY.md. No existing recipe, lock, publisher, remote reader/auditor, retained evidence, source inventory or Native operator is edited.
 
 Each build owns the initially absent direct child `RUNNER_TEMP/aw-gosu-preparation-1` or `-2`; its output is an initially absent direct child `RUNNER_TEMP/gosu-preparation-1` or `-2`. Reject symlinks in all ancestors and targets. Cleanup can remove only its own authenticated scratch child after making its owned directories writable; retain bounded failed public evidence, never recursively remove a caller-selected parent. A comparator owns only `RUNNER_TEMP/gosu-preparation-comparison`. Rollback removes these unused new source paths and owned scratch children; it cannot remove historical duties/evidence or reinterpret prior failures.
 
