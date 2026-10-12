@@ -4,6 +4,10 @@
 
 [ADR-0017](../decisions/ADR-0017-vehicle-taxonomy-v1.md) defines a bounded make/model release separate from observed vehicle facts. Every release-local primary label and alias references synthetic attribution within that release. Duplicate names across entities remain distinct; no fuzzy matching or factual/rights claim is made. Declared catalog/release/revision references prevent tuple mismatch, but do not authenticate content or historical uniqueness. Real datasets and persistent lineage require separate reviewed tasks.
 
+## Observation-change evidence
+
+[ADR-0018](../decisions/ADR-0018-observation-change-events.md) keeps price/mileage events as references to canonical observations, never a second value authority. A consistent pair has matching listing, field and source, strictly increasing provenance times and different exact value representations. Currency/unit-only differences are representation changes without conversion, economic/physical direction or plausibility claims. The checker cannot prove rights, authenticated provenance, repository membership, adjacency, latest state or history completeness; raw snapshots remain separate. No durable replay/outbox or source activation is introduced.
+
 ## Source onboarding checklist
 - Strategic value: inventory, geography, uniqueness.
 - Access path & rights.

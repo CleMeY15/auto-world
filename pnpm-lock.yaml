@@ -114,6 +114,12 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
 
+  packages/domain-events:
+    dependencies:
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../vehicle-schema
+
   packages/source-registry:
     dependencies:
       '@auto-world/vehicle-schema':

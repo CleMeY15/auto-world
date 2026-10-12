@@ -18,6 +18,7 @@ const expectedBoundaries = [
   ["services/ai", "@auto-world/ai", "service"],
   ["packages/vehicle-schema", "@auto-world/vehicle-schema", "package"],
   ["packages/vehicle-taxonomy", "@auto-world/vehicle-taxonomy", "package"],
+  ["packages/domain-events", "@auto-world/domain-events", "package"],
   ["packages/source-registry", "@auto-world/source-registry", "package"],
   ["packages/demo-search-contract", "@auto-world/demo-search-contract", "package"],
   ["packages/design-system", "@auto-world/design-system", "package"],
@@ -53,13 +54,14 @@ test("declares every architecture boundary as a private workspace package", () =
     const connector = expectedName === "@auto-world/connector-sdk";
     const demo = expectedName === "@auto-world/demo-search-contract";
     const taxonomy = expectedName === "@auto-world/vehicle-taxonomy";
+    const domainEvents = expectedName === "@auto-world/domain-events";
     const design = expectedName === "@auto-world/design-system";
     const web = expectedName === "@auto-world/web";
     const api = expectedName === "@auto-world/api";
-    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || taxonomy || api;
+    const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || taxonomy || domainEvents || api;
     const dependencyBuild = connector
       ? "pnpm --filter @auto-world/source-registry build && "
-      : registry || demo || taxonomy ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
+      : registry || demo || taxonomy || domainEvents ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
@@ -168,7 +170,10 @@ test("keeps connector and governance dependencies pointed toward public vehicle 
     "@auto-world/vehicle-schema": "workspace:*",
   });
   assert.deepEqual(connector.files, ["dist"]);
-  assert.equal(expectedBoundaries.length, 12);
+  assert.deepEqual(readJson("packages/domain-events/package.json").dependencies, {
+    "@auto-world/vehicle-schema": "workspace:*",
+  });
+  assert.equal(expectedBoundaries.length, 13);
 });
 
 test("keeps web primitives isolated from source and data-service authority", () => {
@@ -259,6 +264,26 @@ test("keeps taxonomy source independent of ingestion, UI, fixtures and private v
   for (const file of files) {
     assert.doesNotMatch(read(`${directory}/${file}`),
       /(?:@auto-world\/(?:connector-sdk|source-registry|synthetic-connector|demo-search-contract|design-system)|(?:connectors|services|apps|fixtures|test-support)\/|vehicle-schema\/(?:src|dist))/u);
+  }
+});
+
+test("keeps domain events isolated behind public canonical contracts", () => {
+  const directory = "packages/domain-events/src";
+  const files = readdirSync(path.join(root, directory), { recursive: true })
+    .filter((file) => file.endsWith(".ts"));
+  assert.ok(files.length > 0);
+  const manifest = readJson("packages/domain-events/package.json");
+  assert.deepEqual(Object.keys(manifest.exports), ["."]);
+  assert.deepEqual(manifest.files, ["dist"]);
+  assert.equal(manifest.devDependencies, undefined);
+  for (const file of files) {
+    const source = read(`${directory}/${file}`);
+    assert.doesNotMatch(source,
+      /(?:@auto-world\/(?:connector-sdk|source-registry|synthetic-connector|demo-search-contract|design-system|vehicle-taxonomy)|(?:connectors|services|apps|fixtures|test-support)\/|vehicle-schema\/)/u);
+    for (const [, specifier] of source.matchAll(/\b(?:from\s+|import\s*\(?\s*)["']([^"']+)["']/gu)) {
+      assert.ok(specifier === "@auto-world/vehicle-schema" || /^\.\/[^/]+\.js$/u.test(specifier),
+        `${file} must import only public canonical contracts or local implementation`);
+    }
   }
 });
 
