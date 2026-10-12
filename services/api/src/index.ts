@@ -33,6 +33,7 @@ interface RequestState {
   readonly route: string;
   readonly startedAt: number;
   readonly controller: AbortController;
+  deadline?: ReturnType<typeof setTimeout>;
   disconnected: boolean;
   recorded: boolean;
   code?: ApiErrorCode;
@@ -92,7 +93,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new RangeError("invalid boundPort");
   const clock = options.clock ?? (() => new Date());
   const states = new WeakMap<FastifyRequest, RequestState>();
-  const app = Fastify({ logger: false, trustProxy: false, exposeHeadRoutes: false, bodyLimit: 8_192, requestTimeout: 5_000, handlerTimeout: 5_000, connectionTimeout: 5_000, keepAliveTimeout: 5_000, maxRequestsPerSocket: 100, routerOptions: { maxParamLength: 128 }, http: { maxHeaderSize: 8_192 }, genReqId: () => newRequestId(options.requestIds) });
+  const app = Fastify({ logger: false, trustProxy: false, exposeHeadRoutes: false, bodyLimit: 8_192, requestTimeout: 5_000, connectionTimeout: 5_500, keepAliveTimeout: 5_000, maxRequestsPerSocket: 100, routerOptions: { maxParamLength: 128 }, http: { maxHeaderSize: 8_192 }, genReqId: () => newRequestId(options.requestIds) });
   app.server.maxHeadersCount = 64;
   app.server.headersTimeout = 5_000;
   app.removeAllContentTypeParsers();
@@ -103,6 +104,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
   const record = (state: RequestState, status: number, code?: ApiErrorCode): void => {
     if (state.recorded) return;
     state.recorded = true;
+    if (state.deadline !== undefined) clearTimeout(state.deadline);
     const durationMs = Math.max(0, clock().getTime() - state.startedAt);
     const sink = options.telemetry;
     safe(sink?.metric === undefined ? undefined : () => sink.metric?.({ name: "api_requests_total", labels: { route: state.route, status: String(status) }, value: 1 }));
@@ -125,16 +127,16 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     const accepted = supplied.length === 1 && REQUEST_ID.test(supplied[0] ?? "") ? supplied[0] : undefined;
     const state: RequestState = { requestId: accepted ?? newRequestId(options.requestIds), route: routeLabel(request), startedAt: clock().getTime(), controller: new AbortController(), disconnected: false, recorded: false };
     states.set(request, state);
-    const disconnect = (): void => { if (!reply.raw.writableEnded) { state.disconnected = true; state.controller.abort(); record(state, 499, "cancelled"); } };
-    request.raw.once("aborted", disconnect); reply.raw.once("close", disconnect);
-    request.signal.addEventListener("abort", () => {
-      const timeout = (request.signal.reason as { code?: string } | undefined)?.code === "FST_ERR_HANDLER_TIMEOUT";
-      if (!timeout && !reply.raw.writableEnded) {
-        state.disconnected = true;
-        record(state, 499, "cancelled");
+    const disconnect = (): void => { if (!state.recorded && !reply.raw.writableFinished) { state.disconnected = true; state.controller.abort(); record(state, 499, "cancelled"); } };
+    const incompleteRequest = (): void => { if (!request.raw.complete) disconnect(); };
+    const finish = (): void => record(state, state.status ?? reply.statusCode, state.code);
+    request.raw.once("aborted", incompleteRequest); reply.raw.once("close", disconnect);
+    reply.raw.once("finish", finish);
+    state.deadline = setTimeout(() => {
+      if (!state.recorded && !state.disconnected && !reply.sent && !reply.raw.writableEnded) {
+        state.controller.abort();
       }
-      state.controller.abort();
-    }, { once: true });
+    }, 5_000);
     if (Buffer.byteLength(request.raw.url ?? "", "utf8") > 2_048 || supplied.length > 1 || (supplied.length === 1 && accepted === undefined)) return fail(request, reply, "invalid_request");
     if (request.raw.rawHeaders.some((value, index) => index % 2 === 0 && (value.toLowerCase() === "forwarded" || value.toLowerCase().startsWith("x-forwarded-")))) return fail(request, reply, "invalid_request");
     const hosts = rawValues(request, "host");
@@ -145,7 +147,10 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
   });
   app.addHook("onSend", async (request, reply, payload) => {
     reply.header("content-type", "application/json; charset=utf-8").header("cache-control", "no-store").header("x-content-type-options", "nosniff");
-    const state = states.get(request); if (state !== undefined) record(state, state.status ?? reply.statusCode, state.code);
+    const state = states.get(request);
+    if (state !== undefined) {
+      if (state.deadline !== undefined) clearTimeout(state.deadline);
+    }
     return payload;
   });
 
@@ -166,8 +171,8 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
       }
     })();
     const aborted = new Promise<typeof ABORTED>((resolve) => {
-      if (request.signal.aborted) resolve(ABORTED);
-      else request.signal.addEventListener("abort", () => resolve(ABORTED), { once: true });
+      if (state.controller.signal.aborted) resolve(ABORTED);
+      else state.controller.signal.addEventListener("abort", () => resolve(ABORTED), { once: true });
     });
     const settled = await Promise.race([pending, aborted]);
     let validation: PortValidation;
@@ -193,9 +198,10 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
       }
     }
     const readCode = validation.success ? undefined : validation.code;
-    const readStatus = settled === ABORTED && state.disconnected ? 499 : readCode === undefined ? 200 : statusFor(readCode);
+    const readStatus = state.disconnected ? 499 : readCode === undefined ? 200 : statusFor(readCode);
     safe(options.telemetry?.span === undefined ? undefined : () => options.telemetry?.span?.({ name: "read_port.query", requestId: state.requestId, route: state.route, status: readStatus, durationMs: Math.max(0, clock().getTime() - started), ...(readCode === undefined ? {} : { code: readCode }) }));
-    if (settled === ABORTED) return undefined;
+    if (state.disconnected) return undefined;
+    if (settled === ABORTED) { fail(request, reply, "cancelled"); return undefined; }
     if (!validation.success) { fail(request, reply, validation.code); return undefined; }
     return validation.data;
   };
@@ -204,7 +210,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
     if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers["content-type"] ?? "")) return fail(request, reply, "unsupported_content_type");
     const query = parseDemoSearchQuery(request.body); if (!query.success) return fail(request, reply, "invalid_query");
-    const data = await callPort(request, reply, (context) => options.readPort.search(query.data, context), (candidate) => candidate.results.some((result) => result.availability !== "active") ? { success: false, code: "read_unavailable" } : { success: true, data: candidate }); if (data === undefined) return undefined;
+    const data = await callPort(request, reply, (context) => options.readPort.search(query.data, context), (candidate) => candidate.results.some((result) => result.availability !== "active") ? { success: false, code: "read_unavailable" } : { success: true, data: candidate }); if (data === undefined) return reply;
     return reply.code(200).send({ schemaVersion: 1, requestId: states.get(request)?.requestId, data });
   });
   app.get<{ Params: { listingId: string } }>(DETAIL_ROUTE, async (request, reply) => {
@@ -214,7 +220,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
       if (candidate.results.length === 0) return { success: false, code: "not_found" };
       if (candidate.results.length !== 1 || candidate.nextCursor !== undefined || (candidate.state === "complete" && candidate.totalCount !== 1) || candidate.results[0]?.listingId !== listing.data || !parseDemoResult(candidate.results[0]).success) return { success: false, code: "read_unavailable" };
       return { success: true, data: candidate };
-    }); if (data === undefined) return undefined;
+    }); if (data === undefined) return reply;
     return reply.code(200).send({ schemaVersion: 1, requestId: states.get(request)?.requestId, data });
   });
   app.route({ method: ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"], url: SEARCH_ROUTE, handler: async (request, reply) => fail(request, reply, "method_not_allowed") });
