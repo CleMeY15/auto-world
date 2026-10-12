@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { TEST_ONLY } from "../scripts/postgres-image/gosu-derivative-build-v1.mjs";
+import { TEST_ONLY, assertNetworkNamespaceChanged, formatGosuPreparationFailure, namespaceTransitionIdentity, readNetworkNamespaceIdentity } from "../scripts/postgres-image/gosu-derivative-build-v1.mjs";
 
 const setup = {
   repeat: "1", scratch: "/runner/aw-gosu-preparation-1", output: "/runner/gosu-preparation-1",
@@ -151,4 +151,199 @@ test("offline setup dispatch precedes lock loading and privileged code has no ar
   const setupBody = source.slice(source.indexOf("async function runOfflineSetup"), source.indexOf("async function offlinePhase"));
   for (const forbidden of ["loadLock(", "buildOnline(", "offlinePhase(", "scanGzipTar(", "writeFile(", 'run("offline_go_']) assert.equal(setupBody.includes(forbidden), false);
   assert.match(source, /function run\(stage, command, args, options\) \{ return runCommand\(stage, command, args, options, spawnSync\); \}/u);
+});
+
+const isolationMessage = (reason) => `gosu_offline_network_invalid\ngosu_isolation_reason_${reason}`;
+const setupAdapters = (runner) => ({
+  platform: "linux", geteuid: () => 0,
+  readlink: async (name) => name.endsWith("/net") ? "net:[101]" : "mnt:[201]",
+  lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => false }), runner,
+});
+const boundaryObservation = () => ({
+  platform: "linux", euid: 1000, egid: 1001, groups: [1001], expectedUid: "1000", expectedGid: "1001",
+  originalNetns: "net:[100]", netns: "net:[101]", originalMntns: "mnt:[200]", mntns: "mnt:[201]",
+  nodeOptions: "", nodePath: "", goenv: "off", gotoolchain: "local", gowork: "off", goproxy: "off", gosumdb: "off", goflags: "",
+  status: "CapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\nNoNewPrivs:\t1\n",
+  routes: "Iface\tDestination\n", interfaces: ["lo"], loopbackFlags: "0x8\n",
+});
+
+test("a rejected mount exit retains the exact isolation packet and never starts setpriv", async () => {
+  const commands = [];
+  await assert.rejects(TEST_ONLY.runOfflineSetup(TEST_ONLY.setupEnvironment(setup), setupAdapters((command) => {
+    commands.push(command); return { ...success, status: 17, stdout: Buffer.from("private-output"), stderr: Buffer.from("private-error") };
+  })), (error) => { assert.equal(error.message, isolationMessage("setup_mount_exit")); return true; });
+  assert.deepEqual(commands, ["/usr/bin/mount"]);
+});
+
+test("an observed loopback UP rejection retains its exact isolation packet", () => {
+  const observation = boundaryObservation(); observation.loopbackFlags = "0x9\n";
+  assert.throws(() => TEST_ONLY.validateOfflineNetworkObservation(observation), (error) => {
+    assert.equal(error.message, isolationMessage("boundary_loopback_up")); return true;
+  });
+});
+
+const exactIsolation = (reason) => (error) => {
+  assert.equal(error.message, isolationMessage(reason));
+  assert.equal(formatGosuPreparationFailure(error), `${isolationMessage(reason)}\n`);
+  for (const privateText of ["PRIVATE_SENTINEL", "/runner", "net:[", "mnt:[", "SIGKILL", "ETIMEDOUT", "ENOBUFS"]) assert.equal(error.message.includes(privateText), false);
+  return true;
+};
+
+test("all scalar setup rejections map to fixed reasons without invoking any command", async () => {
+  const cases = [
+    ["repeat_invalid", (x) => { x.repeat = "PRIVATE_SENTINEL"; }],
+    ["uid_invalid", (x) => { x.uid = "PRIVATE_SENTINEL"; }],
+    ["gid_invalid", (x) => { x.gid = "PRIVATE_SENTINEL"; }],
+    ["original_netns_invalid", (x) => { x.originalNetns = "PRIVATE_SENTINEL"; }],
+    ["original_mntns_invalid", (x) => { x.originalMntns = "PRIVATE_SENTINEL"; }],
+    ["scratch_invalid", (x) => { x.scratch = "PRIVATE_SENTINEL"; }],
+    ["output_invalid", (x) => { x.output = "PRIVATE_SENTINEL"; }],
+    ["owned_paths_invalid", (x) => { x.output = "/PRIVATE_SENTINEL/gosu-preparation-1"; }],
+    ["ci_invalid", (x) => { x.ci = "PRIVATE_SENTINEL"; }],
+    ["run_id_invalid", (x) => { x.ci.runId = "PRIVATE_SENTINEL"; }],
+    ["run_attempt_invalid", (x) => { x.ci.runAttempt = "PRIVATE_SENTINEL"; }],
+    ["head_sha_invalid", (x) => { x.ci.headSha = "PRIVATE_SENTINEL"; }],
+    ["job_invalid", (x) => { x.ci.job = "PRIVATE_SENTINEL"; }],
+  ];
+  for (const [reason, mutate] of cases) {
+    const changed = copy(setup); mutate(changed);
+    assert.throws(() => TEST_ONLY.setupEnvironment(changed), exactIsolation(reason));
+    assert.throws(() => TEST_ONLY.buildOuterIsolationInvocation(changed), exactIsolation(reason));
+  }
+  const environment = TEST_ONLY.setupEnvironment(setup); let calls = 0;
+  const adapters = setupAdapters(() => { calls += 1; return success; });
+  for (const commandArguments of [null, [], ["PRIVATE_SENTINEL", "1"], ["offline-setup", "1", "PRIVATE_SENTINEL"], ["offline-setup", "2"]]) {
+    await assert.rejects(TEST_ONLY.runOfflineSetup(environment, adapters, commandArguments), exactIsolation("setup_arguments_invalid"));
+  }
+  for (const changed of [null, [], { ...environment, PRIVATE_SENTINEL: "PRIVATE_SENTINEL" }, { AW_GOSU_REPEAT: "1" }]) {
+    await assert.rejects(TEST_ONLY.runOfflineSetup(changed, adapters, ["offline-setup", "1"]), exactIsolation(changed?.AW_GOSU_REPEAT === "1" ? "setup_environment_invalid" : "setup_arguments_invalid"));
+  }
+  assert.equal(calls, 0);
+});
+
+test("canonical setup environment shape fails before platform, reads or commands", async () => {
+  const environment = { ...TEST_ONLY.setupEnvironment(setup), PRIVATE_SENTINEL: "PRIVATE_SENTINEL" }; let reads = 0; let commands = 0;
+  const adapters = { ...setupAdapters(() => { commands += 1; return success; }), readlink: async () => { reads += 1; return "PRIVATE_SENTINEL"; } };
+  await assert.rejects(TEST_ONLY.runOfflineSetup(environment, adapters), exactIsolation("setup_environment_invalid"));
+  assert.equal(reads, 0); assert.equal(commands, 0);
+});
+
+test("supervisor platform, identity, reads, namespaces and sysfs rejections have exact fixed reasons", async () => {
+  const cases = [
+    ["setup_platform_invalid", { platform: "PRIVATE_SENTINEL" }],
+    ["setup_root_invalid", { geteuid: () => 1000 }],
+    ["setup_read_failed", { readlink: async () => { throw new Error("PRIVATE_SENTINEL"); } }],
+    ["setup_read_failed", { lstat: async () => { throw new Error("PRIVATE_SENTINEL"); } }],
+    ["namespace_net_invalid", { readlink: async (name) => name.endsWith("/net") ? "PRIVATE_SENTINEL" : "mnt:[201]" }],
+    ["namespace_mnt_invalid", { readlink: async (name) => name.endsWith("/net") ? "net:[101]" : "PRIVATE_SENTINEL" }],
+    ["setup_netns_reused", { readlink: async (name) => name.endsWith("/net") ? "net:[100]" : "mnt:[201]" }],
+    ["setup_mntns_reused", { readlink: async (name) => name.endsWith("/net") ? "net:[101]" : "mnt:[200]" }],
+    ["setup_sysfs_not_directory", { lstat: async () => ({ isDirectory: () => false, isSymbolicLink: () => false }) }],
+    ["setup_sysfs_symlink", { lstat: async () => ({ isDirectory: () => true, isSymbolicLink: () => true }) }],
+  ];
+  for (const [reason, overrides] of cases) {
+    const commands = []; const adapters = { ...setupAdapters((command) => { commands.push(command); return success; }), ...overrides };
+    await assert.rejects(TEST_ONLY.runOfflineSetup(TEST_ONLY.setupEnvironment(setup), adapters), exactIsolation(reason));
+    assert.deepEqual(commands, []);
+  }
+});
+
+test("mount and setpriv process failures classify before any later command without raw caller data", async () => {
+  for (const [stage, expectedCommands] of [["setup_mount", ["/usr/bin/mount"]], ["setup_setpriv", ["/usr/bin/mount", "/usr/bin/setpriv"]]]) {
+    const results = [
+      ["spawn", () => { throw new Error("PRIVATE_SENTINEL"); }],
+      ["spawn", () => ({ error: Object.assign(new Error("PRIVATE_SENTINEL"), { code: "EACCES" }), signal: "SIGKILL", status: 17 })],
+      ["timeout", () => ({ error: Object.assign(new Error("PRIVATE_SENTINEL"), { code: "ETIMEDOUT" }), signal: "SIGKILL", status: 17 })],
+      ["output_limit", () => ({ error: Object.assign(new Error("PRIVATE_SENTINEL"), { code: "ENOBUFS" }), signal: "SIGKILL", status: 17 })],
+      ["signal", () => ({ ...success, signal: "SIGKILL", status: null })],
+      ["exit", () => ({ ...success, status: 17, stdout: Buffer.from("PRIVATE_SENTINEL"), stderr: Buffer.from("PRIVATE_SENTINEL") })],
+      ["result_invalid", () => ({ ...success, stdout: "PRIVATE_SENTINEL" })],
+      ["result_invalid", () => ({ ...success, stderr: "PRIVATE_SENTINEL" })],
+      ["result_invalid", () => ({ ...success, status: null })],
+      ["result_invalid", () => ({ ...success, status: 1.5 })],
+      ["result_invalid", () => ({ ...success, signal: {} })],
+      ["result_invalid", () => ({ ...success, error: null })],
+      ["result_invalid", () => undefined],
+      ["result_invalid", () => Object.defineProperty({}, "stderr", { get() { throw new Error("PRIVATE_SENTINEL"); } })],
+    ];
+    for (const [reason, result] of results) {
+      const commands = [];
+      const adapters = setupAdapters((command) => {
+        commands.push(command);
+        if (stage === "setup_setpriv" && commands.length === 1) return success;
+        return result();
+      });
+      await assert.rejects(TEST_ONLY.runOfflineSetup(TEST_ONLY.setupEnvironment(setup), adapters), exactIsolation(`${stage}_${reason}`));
+      assert.deepEqual(commands, expectedCommands);
+    }
+  }
+});
+
+test("fixed mount and privilege-drop options remain exact and mount never propagates a child packet", async () => {
+  const calls = []; const adapters = setupAdapters((command, args, options) => { calls.push({ command, args, options }); return success; });
+  await TEST_ONLY.runOfflineSetup(TEST_ONLY.setupEnvironment(setup), adapters);
+  const fixed = { cwd: "/", env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, maxBuffer: 1024 * 1024, encoding: null, windowsHide: true };
+  assert.deepEqual(calls[0].options, { ...fixed, timeout: 60_000 });
+  assert.deepEqual(calls[1].options, { ...fixed, timeout: 70 * 60_000 });
+  const commands = [];
+  await assert.rejects(TEST_ONLY.runOfflineSetup(TEST_ONLY.setupEnvironment(setup), setupAdapters((command) => {
+    commands.push(command); return { ...success, status: 17, stderr: Buffer.from(`${isolationMessage("boundary_loopback_up")}\n`) };
+  })), exactIsolation("setup_mount_exit"));
+  assert.deepEqual(commands, ["/usr/bin/mount"]);
+});
+
+test("ordinary boundary rejects each network predicate in its original order with a fixed packet", () => {
+  const cases = [
+    ["namespace_net_invalid", (x) => { x.originalNetns = "PRIVATE_SENTINEL"; }],
+    ["namespace_net_invalid", (x) => { x.netns = "PRIVATE_SENTINEL"; }],
+    ["namespace_mnt_invalid", (x) => { x.originalMntns = "PRIVATE_SENTINEL"; }],
+    ["namespace_mnt_invalid", (x) => { x.mntns = "PRIVATE_SENTINEL"; }],
+    ["boundary_netns_reused", (x) => { x.netns = x.originalNetns; x.mntns = x.originalMntns; }],
+    ["boundary_mntns_reused", (x) => { x.mntns = x.originalMntns; x.interfaces = []; }],
+    ["boundary_observation_invalid", (x) => { x.status = null; x.interfaces = []; }],
+    ["boundary_observation_invalid", (x) => { x.routes = null; }],
+    ["boundary_observation_invalid", (x) => { x.loopbackFlags = null; }],
+    ["boundary_interfaces_invalid", (x) => { x.interfaces = ["PRIVATE_SENTINEL", "lo"]; x.routes += "PRIVATE_SENTINEL\n"; }],
+    ["boundary_interfaces_invalid", (x) => { x.interfaces = []; }],
+    ["boundary_routes_present", (x) => { x.routes += "PRIVATE_SENTINEL\n"; x.loopbackFlags = "PRIVATE_SENTINEL"; }],
+    ["boundary_flags_invalid", (x) => { x.loopbackFlags = "PRIVATE_SENTINEL"; }],
+    ["boundary_flags_invalid", (x) => { x.loopbackFlags = "0x08\n"; }],
+    ["boundary_flags_invalid", (x) => { x.loopbackFlags = "0x100000008\n"; }],
+    ["boundary_loopback_missing", (x) => { x.loopbackFlags = "0x1\n"; }],
+    ["boundary_loopback_up", (x) => { x.loopbackFlags = "0x9\n"; }],
+  ];
+  for (const [reason, mutate] of cases) {
+    const observation = boundaryObservation(); mutate(observation);
+    assert.throws(() => TEST_ONLY.validateOfflineNetworkObservation(observation), exactIsolation(reason));
+  }
+  const valid = boundaryObservation();
+  for (const flags of ["0x8\n", "0x18\n", "0xfffffff8\n"]) {
+    valid.loopbackFlags = flags;
+    assert.equal(TEST_ONLY.validateOfflineNetworkObservation(valid).checks.loopbackDown, true);
+  }
+});
+
+test("defensive flags-number rejection is normally unreachable under the strict eight-digit grammar", { concurrency: false }, () => {
+  const parse = Number.parseInt;
+  try {
+    for (const invalid of [NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 1.5]) {
+      Number.parseInt = () => invalid;
+      assert.throws(() => TEST_ONLY.validateOfflineNetworkObservation(boundaryObservation()), exactIsolation("boundary_flags_number_invalid"));
+    }
+  } finally { Number.parseInt = parse; }
+  assert.equal(TEST_ONLY.validateOfflineNetworkObservation(boundaryObservation()).checks.loopbackDown, true);
+});
+
+test("namespace transition rejection preserves its fixed packet and accepted binary identity", () => {
+  for (const [original, current] of [["PRIVATE_SENTINEL", "net:[101]"], ["net:[100]", "PRIVATE_SENTINEL"], ["net:[100]", "net:[100]"]]) {
+    assert.throws(() => namespaceTransitionIdentity(original, current), exactIsolation("namespace_transition_invalid"));
+  }
+  assert.deepEqual(namespaceTransitionIdentity("net:[100]", "net:[101]"), {
+    bytes: 26, sha256: "f2bca39fcc562c1b7afe1712ceb3a9d2439ec5db3f4980f62512597196e6d828",
+  });
+});
+
+test("existing namespace assertion rejects same current identity using only an ordinary Linux read", { skip: process.platform !== "linux" }, async () => {
+  const current = await readNetworkNamespaceIdentity();
+  await assert.rejects(assertNetworkNamespaceChanged(current), exactIsolation("namespace_changed_invalid"));
 });
