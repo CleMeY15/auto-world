@@ -72,7 +72,7 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
   min-height: var(--aw-size-touch);
   min-width: var(--aw-size-touch);
   padding: 0.75rem 1rem;
-  transition: background-color var(--aw-motion-quick) var(--aw-motion-easing), border-color var(--aw-motion-quick) var(--aw-motion-easing);
+  transition: border-color var(--aw-motion-quick) var(--aw-motion-easing);
 }
 
 .aw-button--secondary { background: var(--aw-color-surface); border-color: var(--aw-color-control-border); color: var(--aw-color-text); }
