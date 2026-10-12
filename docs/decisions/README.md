@@ -21,4 +21,4 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 - [ADR-0015 — Traceable gosu compiler derivative](ADR-0015-gosu-compiler-derivative.md): sources delivered through PR151/main2790d79 and owned-cache cleanup PR154/main9e322643 with identical reviewed trees and successful final/main CI. Actual preparation38192612138 and38194957502 failed before upload with zero uploaded artifacts; preparation/admission/support remain unaccepted.
 
-- [ADR-0016 — Synthetic web flow](ADR-0016-synthetic-web-flow.md): data/proxy CLEAR; Linux200% text repair revision3 UX APPROVE with renewed actual API/lab evidence; exact final-head/main delivery pending in PR152.
+- [ADR-0016 — Synthetic web flow](ADR-0016-synthetic-web-flow.md): implemented flow accepted with data/proxy CLEAR, revision3 UX APPROVE, renewed actual API/performance CLEAR and complete CI38196108928 SUCCESS; documentation closure final-head/main delivery pending in PR152.
