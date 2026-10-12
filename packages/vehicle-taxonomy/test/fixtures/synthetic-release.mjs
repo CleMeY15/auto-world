@@ -1,0 +1,30 @@
+export const syntheticTaxonomyRelease = {
+  schemaVersion: 1,
+  catalogId: "taxcat_fixture_catalog",
+  releaseId: "taxrel_fixture_release_1",
+  revision: 1,
+  releasedAt: "2026-10-12T00:00:00.000Z",
+  dataMode: "synthetic",
+  attributions: [
+    { attributionId: "taxattr_alpha", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/alpha" },
+    { attributionId: "taxattr_beta", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/beta" },
+    { attributionId: "taxattr_delta", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/delta" },
+    { attributionId: "taxattr_gamma", kind: "synthetic_fixture", fixtureRef: "fixtures/taxonomy/gamma" },
+  ],
+  makes: [
+    { makeId: "make_aster", primaryName: { value: "Aster Works", attributionId: "taxattr_alpha" }, aliases: [{ value: "Aster", attributionId: "taxattr_beta" }] },
+    { makeId: "make_brindle", primaryName: { value: "Brindle Forge", attributionId: "taxattr_beta" }, aliases: [] },
+    { makeId: "make_cinder", primaryName: { value: "Cinder Atelier", attributionId: "taxattr_delta" }, aliases: [{ value: "Cinder", attributionId: "taxattr_gamma" }] },
+    { makeId: "make_dovetail", primaryName: { value: "Dovetail Motion", attributionId: "taxattr_gamma" }, aliases: [] },
+  ],
+  models: [
+    { modelId: "model_arc", makeId: "make_aster", primaryName: { value: "Arc", attributionId: "taxattr_alpha" }, aliases: [] },
+    { modelId: "model_beacon", makeId: "make_brindle", primaryName: { value: "Beacon", attributionId: "taxattr_beta" }, aliases: [] },
+    { modelId: "model_cove", makeId: "make_cinder", primaryName: { value: "Cove", attributionId: "taxattr_delta" }, aliases: [] },
+    { modelId: "model_drift", makeId: "make_dovetail", primaryName: { value: "Drift", attributionId: "taxattr_gamma" }, aliases: [] },
+    { modelId: "model_orbit_aster", makeId: "make_aster", primaryName: { value: "Orbit", attributionId: "taxattr_alpha" }, aliases: [] },
+    { modelId: "model_orbit_brindle", makeId: "make_brindle", primaryName: { value: "Orbit", attributionId: "taxattr_beta" }, aliases: [] },
+    { modelId: "model_rill", makeId: "make_cinder", primaryName: { value: "Rill", attributionId: "taxattr_delta" }, aliases: [{ value: "Rill One", attributionId: "taxattr_gamma" }] },
+    { modelId: "model_zenith", makeId: "make_dovetail", primaryName: { value: "Zenith", attributionId: "taxattr_gamma" }, aliases: [] },
+  ],
+};

@@ -22,9 +22,9 @@ All properties and arrays are readonly. Five nominally distinct string IDs use p
 - `TaxonomyMakeV1`: `{makeId,primaryName,aliases}`.
 - `TaxonomyModelV1`: `{modelId,makeId,primaryName,aliases}`.
 
-Primary names are release-local display labels, not globally canonical automotive facts. Aliases have no locale/territory/synonym ranking semantics. Every name attribution must exist in the release. Aliases: dense ordinary arrays, maximum32, strictly ordinal ascending by value; values unique even across different attributions and cannot equal the primary value. Names may repeat across entities; no ambiguity is silently resolved.
+Primary names are release-local display labels, not globally canonical automotive facts. Aliases have no locale/territory/synonym ranking semantics. Every name attribution must exist in the release. Aliases: dense ordinary arrays, maximum 32, strictly ordinal ascending by value; values unique even across different attributions and cannot equal the primary value. Names may repeat across entities; no ambiguity is silently resolved.
 
-Attributions/makes/models are dense ordinary arrays, maximum2048/1024/16384 respectively, unique by domain ID and strictly ordinal ascending. Empty collections are valid. Every model parent must exist.
+Attributions/makes/models are dense ordinary arrays, maximum 2048/1024/16384 respectively, unique by domain ID and strictly ordinal ascending. Empty collections are valid. Every model parent must exist.
 
 ## Runtime boundary and outcomes
 
