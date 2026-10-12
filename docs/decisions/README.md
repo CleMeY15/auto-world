@@ -19,6 +19,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
+- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): approved TASK-0009 contract; implementation/delivery pending. Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
+
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.
 
 - [ADR-0015 — Traceable gosu compiler derivative](ADR-0015-gosu-compiler-derivative.md): source increments through PR158 delivered on main7896e189 with exact reviewed tree, successful final/main CI and independent delivery PASS/CLEAR. Six actual preparations failed before upload; actual preparation/admission/support remain unaccepted. [Closed isolation diagnostics](../../roadmap/plans/TASK-0005A-gosu-isolation-diagnostics.md) implemented with targeted PASS, independent source/security/integration CLEAR and fresh integrated six-gate/browser PASS (65 first-pass successes/five existing exclusions). Historical pre-edit approval unchanged; integrated evidence audit PASS/CLEAR (282 bindings); final-source/CI/main gates pending. Historical originals retained without identical retry.
