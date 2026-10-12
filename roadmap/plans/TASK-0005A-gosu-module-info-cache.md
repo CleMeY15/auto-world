@@ -28,3 +28,7 @@ Go 1.26.9 implements this boundary by decoding the proxy response in [`proxy.go`
 5. Run pinned Node.js 22.23.2 focused Gosu tests on Windows and Linux, repository lint, typecheck, applicable build, syntax/static checks and diff validation.
 
 Rollback removes the cache descriptors and restores the prior `Info` comparison. Actual preparation must remain blocked until this source repair receives independent review, merge and green CI.
+
+## Accepted main integration and final closure
+
+Accepted TASK0103/PR152 maincf71211d36e4ca49d6c6d88254eeca91d0517904 is integrated with source/merge tree10b9c94f91f9de681ea47cd7a1889f8ef7614a51; final CI38196985003/main CI38197621255 SUCCESS. The prior47-file integration review is CLEAR, index8811bytes/SHA2566e354635aa62a7d801e2f61fbd426f7d418c1dd6f8424053bd8eee102a4eb18a. Four Gosu implementation files remain byte-identical to accepted source5f136ce. The documentation closure records web delivery and the pending Gosu final/main gate. Historical source/CI/actual failures remain immutable. This exact integrated final head must pass independent review and full CI, merge with the same tree and pass main CI before a distinct actual preparation. No supported-service, image, registry, Native or support acceptance follows.

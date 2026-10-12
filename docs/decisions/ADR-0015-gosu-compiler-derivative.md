@@ -1,6 +1,6 @@
 # ADR-0015 â€” Traceable gosu compiler derivative
 
-Status: preparation plan revision4 independently approved; source review revision5 independently CLEAR. Revision5 explicitly includes the additive diagnostic classification described below. Source delivery and actual independent-build acceptance remain separate and pending.
+Status: original preparation sources delivered through PR151/main2790d79 and owned-cache cleanup PR154/main9e322643 with reviewed identical trees and successful final/main CI. Exact Go module-info cache correction PR155 has independent revision2 high-risk CLEAR and implementation CI38196567303 SUCCESS; final/main source delivery is pending. Both actual preparations38192612138 and38194957502 failed before upload with zero artifacts. Actual preparation/admission/support remain unaccepted.
 
 ## Context
 
@@ -69,3 +69,7 @@ Rollback for this preparation removes/abandons only its unused new files and own
 ## Primary references
 
 [gosu source commit](https://github.com/tianon/gosu/tree/6456aaa0f3c854d199d0f037f068eb97515b7513), [Go downloads](https://go.dev/dl/), [module authentication](https://go.dev/ref/mod#authenticating), [go build](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies), [go version -m](https://pkg.go.dev/cmd/go#hdr-Print_Go_version), [ADR-0007](ADR-0007-private-image-admission.md), [ADR-0011](ADR-0011-postgres-admission-runtime.md).
+
+## Exact Go cache-info correction, 2026-10-12
+
+The authenticated proxy .info wire file and the exact Go1.26.9 cache .info serialization have independent pinned byte identities. Both module cache descriptors are closed and fixed; the full collection validator rejects absent, partial, duplicate or reordered modules before scratch creation/downloads. Zip/GoMod/source/compiler/h1 pins and receipts remain unchanged. The wire .info hash establishes transport integrity; .info is not authenticated by SumDB. No arbitrary JSON-equivalence or serializer is added. See the focused plan and validation TASK-0005A-gosu-module-info-cache.md. Successful source CI does not establish actual Go preparation; dispatch requires final-source review, exact final-head CI, an identical reviewed merge and protected-main CI.
