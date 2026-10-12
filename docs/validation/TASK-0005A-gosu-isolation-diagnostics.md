@@ -1,0 +1,31 @@
+# TASK-0005A isolation rejection diagnostics
+
+Status: SOURCE_IMPLEMENTED_TARGETED_PASS; independent source/security CLEAR, full local gates/final-source/CI/main pending. Follow the [focused plan](../../roadmap/plans/TASK-0005A-gosu-isolation-diagnostics.md). Actual preparation/admission/support remain unaccepted.
+
+## Accepted dependency and original failure
+
+PR158 source6b8ef825c67d49cab06822337bbdbc6cdb0387aa is SOURCE_DONE_ON_MAIN at7896e189a2a3f4834a73987ef85ac1ee2ea7e231/treefba81b2e3f3a87171e836a31b2fbdbdaf14d862d; final CI38212274624/main CI38213353613 SUCCESS and independent60-source delivery PASS/CLEAR. Final PR CI retains a serious browser contrast failure followed by retry; main65 is not claimed (its49 tests pass first attempt/five exclusions). The separate TASK0103 correction in PR159 handles that retained finding.
+
+Distinct actual6 run38214245572, workflow_dispatch/attempt1 on exactly accepted main7896e189, fails both build steps before upload, comparison skipped/artifacts0. Both original817-byte logs contain only gosu_offline_network_invalid, without cleanup marker. Original ZIP22429bytes/SHA25617942657711791101d245c727ee8b7e987c6b88166b4b7f0e87909294fdd1ce4; failure index3973bytes/SHA2560b6927b503f553106821de124e4dad2db489af4dab34a3f781b7106d584cb2b4 and independent review1180bytes/SHA25626a99c07696e593ec2129957b766b6a8435ed402f241445b6d533a0c21afbab9 PASS/CLEAR. All10 captures and18 CRC-valid unique ZIP members verified in bounded memory,71736 expanded bytes/no extraction. Exact historical rejected branch remains NOT_ESTABLISHED. This is not evidence of a Go/build-info failure. Preserve all six failed runs/originals without identical retry/redownload.
+
+## Pre-edit review and meaningful regression
+
+Approved plan8219bytes/SHA256b1396b1028940367327a35f47e757cf6d9b1e580b7eff3a075d1ee47b130b7ea and exact original builder/two tests retained CNEW; pre-edit index13182bytes/SHA256a5f3273b044bf46b611b78fde1706eb5c8b7e4a545bcc6779ec782ee24e84dd2 binds all60 prior accepted source identities. Independent plan CLEAR distinguishes internal message without terminal LF from exact wire Buffer plus one LF.
+
+Meaningful RED against original40967-byte builder/SHA256cff2d5551646a6cbe8099cfd4510ae98f687926ea2bc0b896ae561f6bd2a08a3:8 tests/6passes/two semantic failures for mount exit and loopback UP. Both reject closed as before but lack the expected diagnostic packet. No missing import/export or harness error establishes RED. CNEW RED index868bytes/SHA256651e0d7b5632dd0fa6b13620594f29977660b5e2e95d876ddf24d0b4f1cfcfed.
+
+## Implemented source and targeted checks
+
+47 fixed reason packets retain gosu_offline_network_invalid as first line and add exactly one gosu_isolation_reason literal.35 historical single-line messages remain unchanged. Both relays use full bounded Buffer equality, precomputed internal messages/no final LF and wire packets/exact final LF. Spawn/timeout/output_limit/signal/malformed results cannot propagate a child packet. Process precedence and all predicate acceptance, argv/environment/caps/timeouts/mount-to-drop order, receipt/schema/three-helper closure and protected pins remain unchanged. No raw private output, new export/helper/dependency, fallback or privileged Go/archive operation.
+
+Final builder44165bytes/SHA25636137163fbe7084b9b95e49ad9ba25ebac519c0700188238738392a7a479daf2; command test16839/SHA25683bfbd3a2d3b9f847b68aa3dea00c884c4e725d0ca6a6e7db55f641846360415; network test23913/SHA25610196ba107bbfdb221898727d5c4d9a17f3702f64ee38fbaae038aa51ab9c6b5. Targeted validation index13953bytes/SHA25638368458543c6a466001e550af6f710325d5b01b1490e2469354eeede1bd021e binds3sources/52protected unchanged files/14raw streams. Windows56tests/54passes/two explicit Linux-only exclusions; ordinary Linux56/56. Syntax for all three sources, ESLint and diff-check pass. The defensive flags-number branch uses a synchronously restored parseInt test stub; its normal unreachability under strict flags grammar is explicit. Same-current namespace rejection uses existing unchanged API with an ordinary Linux read; no namespace creation/Root/network/Go/Gosu execution. Intermediate expected-hash fixture typo was corrected without changing production transition evidence; prior outputs remain retained.
+
+Independent local evidence audit PASS/CLEAR verifies60 pre-edit blobs, the meaningful RED and all targeted bindings/footers. The targeted indices/14streams do not themselves record argv, Node version or UID1000; this execution provenance relies on worker/leader context and is not authenticated by those raw files. This limitation is preserved separately from fresh full-gate/CI evidence.
+
+Independent source/security CLEAR review1418bytes/SHA2562ec7a9678a4ab04166ed27ba35460a1fcc8c400ef5b7f554c3c26d710ec14ff0 confirms exact sources/protected files/streams and no weakened boundary. Full gates, final documentary closure, exact final-head CI/identical reviewed merge/protected-main CI remain required before source Done and any distinct actual7. Diagnostic source delivery identifies a future rejected branch only; it is not actual preparation, upstream functional/vulnerability acceptance, transport or admission.
+
+Rollback restores the prior builder/tests and preserves all original evidence. No migration, output/schema, Native, support/currentEvidence or real-source authorization change. TASK0005A/0005 remain IN_PROGRESS; supported TASK0104 stays dependent.
+
+## Fresh full local gates on accepted pre-integration base
+
+Six full gates PASS on accepted main7896e189 with the three reviewed implementation sources unchanged. Index3185bytes/SHA256c53dfcd638a0a947fccfcb0ff65bfcc3bc5fc9061b6de8801655e90c60f81e79 binds fixed pinned launcher, six logs, sources and targeted/review indices. Nonzero tasks:lint12/typecheck18/test24/build12; root Windows1814tests/1373passes/0failures/441platform exclusions (440previous plus one new read-only Linux namespace test); web22/API38/SDK159; secrets889/audit0. The new Linux-only namespace test is an intentional platform constraint, not a failed check. Full browser/integration/final-head CI/main delivery remain pending; protected upstream UI source may be integrated only with its reviewed bytes and own delivery evidence.
