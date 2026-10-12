@@ -12,7 +12,7 @@ const nodeGlobals = {
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/.turbo/**", "**/.next/**", "**/next-env.d.ts", "**/playwright-report/**", "**/test-results/**"],
+    ignores: ["**/dist/**", "**/.test-dist/**", "**/node_modules/**", "**/.turbo/**", "**/.next/**", "**/next-env.d.ts", "**/playwright-report/**", "**/test-results/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -30,6 +30,17 @@ export default tseslint.config(
         patterns: [{
           group: ["@auto-world/connector-sdk", "@auto-world/source-registry", "@auto-world/vehicle-schema", "**/connectors/**", "**/services/**", "**/source-registry/**", "**/vehicle-schema/**", "**/test/**"],
           message: "Presentation code cannot import data authority or test fixtures; use a separately accepted public contract.",
+        }],
+      }],
+    },
+  },
+  {
+    files: ["apps/web/src/demo/**/*.ts", "apps/web/src/app/api/demo/**/route.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{
+          group: ["@auto-world/connector-sdk", "@auto-world/source-registry", "@auto-world/vehicle-schema/*", "**/connectors/**", "**/services/**", "**/source-registry/**", "**/vehicle-schema/**", "**/test/**", "**/test-support/**"],
+          message: "Demo transport may use public package exports only; data authority and fixtures remain excluded.",
         }],
       }],
     },

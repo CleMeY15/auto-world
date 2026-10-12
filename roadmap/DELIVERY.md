@@ -181,3 +181,8 @@ The entries below are chronological; the first is the current frontier and older
 ## Completion condition
 The delivery loop ends only when the ROADMAP North Star is implemented through P5, every shipped task meets its applicable Definition of Done, all production data sources are authorized and observable, and the final roadmap state matches deployed evidence.
 - TASK-0005A PostgreSQL P4 implementation PR131 delivered: exact head3dfc6aa/tree0791e994 Architect then Critic APPROVE, CI36852498144 and identical merged-main362ae304 CI36853563138 PASS. Actual first run36854000922 FAILED access cleanup; signer/verifier SKIPPED, no artifacts/signature. V1 disabled/exhausted; [failure projection](../infra/postgres-image/candidate-attestation-failure-v1.json) preserves exact proofs. Focused V2 owned-Buildx cleanup correction in review; no admission/support dates, P5-P7 and TASK-0005 remain open.
+
+
+## Synthetic web source checkpoint, 2026-10-12
+
+TASK-0103/PR152 has independent UX APPROVE, data/proxy CLEAR and lab-performance CLEAR after focused repairs. Real API flow passes on Chromium/WebKit after accepted PR153;68 new light/dark viewport captures preserve all major states. Laboratory APIp95=28.5953ms, mobile LCPp75=472ms/CLS0/EventTimingp75=32ms and favorite feedback max8.7ms are local synthetic measurements. Final-head CI, identical reviewed merge and main CI remain pending. See docs/validation/TASK-0103.md; supported tasks0104-0106 remain blocked by TASK-0005.

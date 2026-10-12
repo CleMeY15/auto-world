@@ -9,11 +9,13 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint src test next.config.mjs playwright.config.ts --max-warnings=0",
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/*.test.mjs",
+    "test": "pnpm --filter @auto-world/demo-search-contract build && tsc -p tsconfig.test.json && node --test test/*.test.mjs",
     "test:ui": "playwright test"
   },
   "dependencies": {
+    "@auto-world/demo-search-contract": "workspace:*",
     "@auto-world/design-system": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0"

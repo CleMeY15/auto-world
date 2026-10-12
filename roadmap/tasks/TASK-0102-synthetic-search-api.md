@@ -2,6 +2,8 @@
 
 Status: DONE — real HTTP correction delivered through PR153 at main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467 and main CI38190737513 SUCCESS. Historical PR150 evidence and the reopened socket defect remain preserved below.
 
+Priority: P1. Owner: API/search executor; independent API/security and operations review.
+
 ## Goal and dependencies
 
 Expose the reviewed demo read/query contract through a small typed API without adding an LLM, search engine, real source or data service. Depends on TASK-0101 accepted on `main` and its frozen `DemoSearchQueryV1`/`DemoResultV1`/`DemoSearchResponseV1` ADR. TASK-0005 is not used for this synthetic route.

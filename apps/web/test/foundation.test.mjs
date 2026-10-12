@@ -20,7 +20,14 @@ test("production traces exclude connectors, data authority and test fixtures", (
     const files = JSON.parse(readFileSync(path.join(".next/server/app", trace), "utf8")).files;
     assert.ok(files.length > 0);
     for (const file of files) {
-      assert.doesNotMatch(file.replaceAll("\\", "/"), /connectors\/|services\/|source-registry|vehicle-schema|\/test\//u);
+      const normalized = file.replaceAll("\\", "/");
+      assert.doesNotMatch(normalized, /connectors\/|services\/|source-registry|\/test\/|\/test-support\//u);
+      if (normalized.includes("vehicle-schema")) {
+        assert.match(normalized, /packages\/vehicle-schema\/(?:package\.json|dist\/(?:index|parsers|types|validation)\.js)$/u);
+      }
+      if (normalized.includes("demo-search-contract")) {
+        assert.match(normalized, /packages\/demo-search-contract\/(?:package\.json|dist\/(?:index|parsers|types|validation)\.js)$/u);
+      }
     }
   }
 });

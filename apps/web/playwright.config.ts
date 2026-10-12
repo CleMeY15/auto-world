@@ -6,6 +6,7 @@ export default defineConfig({
   expect: { timeout: 10000 },
   fullyParallel: false,
   workers: 1,
+  metadata: { demoDisabledBaseURL: "http://127.0.0.1:3110" },
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
@@ -19,11 +20,27 @@ export default defineConfig({
     { name: "chromium", use: { browserName: "chromium" } },
     { name: "webkit", use: { browserName: "webkit" } },
   ],
-  webServer: {
-    command: "pnpm start --port 3107",
-    url: "http://127.0.0.1:3107",
-    reuseExistingServer: false,
-    timeout: 60000,
-    env: { NEXT_TELEMETRY_DISABLED: "1" },
-  },
+  webServer: [
+    {
+      command: "pnpm --filter @auto-world/api demo",
+      port: 3210,
+      reuseExistingServer: false,
+      timeout: 60000,
+      env: { NODE_ENV: "development" },
+    },
+    {
+      command: "pnpm start --port 3107",
+      url: "http://127.0.0.1:3107",
+      reuseExistingServer: false,
+      timeout: 60000,
+      env: { NEXT_TELEMETRY_DISABLED: "1", AUTO_WORLD_DEMO: "1" },
+    },
+    {
+      command: "pnpm start --port 3110",
+      url: "http://127.0.0.1:3110",
+      reuseExistingServer: false,
+      timeout: 60000,
+      env: { NEXT_TELEMETRY_DISABLED: "1", AUTO_WORLD_DEMO: "0" },
+    },
+  ],
 });
