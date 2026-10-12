@@ -1,6 +1,8 @@
 # TASK-0102 — Deterministic synthetic search API
 
-Status: REOPENED_REAL_HTTP_CORRECTNESS — the original increment was delivered through PR150 at main03ac41ffbfe7ec157d4108f8da2741dc7b08079e with successful final/main CI. TASK-0103 real-browser validation exposed a normal HTTP-body completion incorrectly treated as disconnect; the focused socket lifecycle repair and actual network regression evidence must be accepted before downstream web acceptance. Priority: P1. Owner: API/search executor; independent API/security and operations review.
+Status: DONE — real HTTP correction delivered through PR153 at main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467 and main CI38190737513 SUCCESS. Historical PR150 evidence and the reopened socket defect remain preserved below.
+
+Priority: P1. Owner: API/search executor; independent API/security and operations review.
 
 ## Goal and dependencies
 
@@ -18,3 +20,5 @@ Expose the reviewed demo read/query contract through a small typed API without a
 - Return `dataAsOf` and explicit `complete|partial|stale` envelope state on every successful response; non-complete states use only frozen bounded reason codes and never claim a complete count. Validate/generate a request ID and propagate it through `DemoReadPort` and error responses.
 - Contract, hostile-input, pagination, redaction, no-network and production-import tests pass; fixture-profile p95 search <500 ms is measured with environment/sample count and not presented as production-scale performance.
 - Allowlisted telemetry uses event names/counts/field names only. Assert `api_requests_total{route,status}`, `api_errors_total{code}` and `api_request_duration_ms`, structured request-ID/route/status/duration/code logs, and `api.search`/`read_port.query` spans in a test sink. No raw query, VIN, source ID, raw hash/payload or persistent user ID may appear in logs, metrics or traces. Bounded errors and a test-only failure alert are asserted. Root quality/security gates, independent review and `docs/validation/TASK-0102.md` evidence pass. Rollback disables the demo entrypoint without touching canonical evidence.
+
+Current accepted real HTTP follow-up: [PR153](https://github.com/CleMeY15/auto-world/pull/153) closes the normal-body cancellation and premature telemetry defects with independent CLEAR,38/38 API tests and successful exact-head/main full gates. [The focused validation](../../docs/validation/TASK-0102-real-http-lifecycle.md) preserves both rejected revision1 and isolated original-main failures. This releases synthetic web verification only, with no supported-service admission.

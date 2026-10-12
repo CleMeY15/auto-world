@@ -17,4 +17,6 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
-- [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): architecture plan CLEAR; TASK-0102 implementation, API/security/operations acceptance and delivery gates remain pending in PR150.
+- [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.
+
+- [ADR-0015 — Traceable gosu compiler derivative](ADR-0015-gosu-compiler-derivative.md): source revision5 independently CLEAR; delivery and actual two-build preparation pending in PR151. No admission or support authority.

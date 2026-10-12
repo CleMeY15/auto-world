@@ -181,3 +181,11 @@ The entries below are chronological; the first is the current frontier and older
 ## Completion condition
 The delivery loop ends only when the ROADMAP North Star is implemented through P5, every shipped task meets its applicable Definition of Done, all production data sources are authorized and observable, and the final roadmap state matches deployed evidence.
 - TASK-0005A PostgreSQL P4 implementation PR131 delivered: exact head3dfc6aa/tree0791e994 Architect then Critic APPROVE, CI36852498144 and identical merged-main362ae304 CI36853563138 PASS. Actual first run36854000922 FAILED access cleanup; signer/verifier SKIPPED, no artifacts/signature. V1 disabled/exhausted; [failure projection](../infra/postgres-image/candidate-attestation-failure-v1.json) preserves exact proofs. Focused V2 owned-Buildx cleanup correction in review; no admission/support dates, P5-P7 and TASK-0005 remain open.
+
+
+## Gosu preparation source checkpoint, 2026-10-12
+
+[PR151](https://github.com/CleMeY15/auto-world/pull/151) has independently validated source revision5 for the unused compiler derivative. The eight preparer paths remain identical to reviewed revision4; the sole existing-file integration is additive diagnosticOnly classification excluded from execution pins and granting no authority. Windows passes19 tests with one Linux-only exclusion; Linux20/20; five original archive checks, lint and secrets pass. Rejected revisions and raw transcripts remain preserved in [the validation record](../docs/validation/TASK-0005A-gosu-compiler-preparation.md). Final-head CI, identical-tree merge, main CI and actual Go builds remain pending. Current PostgreSQL audit stays BLOCKED, generation5 PENDING, and support/currentEvidence unchanged.
+
+
+Current accepted API correction: PR153/main52fdbefc324dfc5cae7dd84414d7cbaf5fcbd67e, identical reviewed treef7c1e0826320a00e62514a2dc922b0fd9e60f444, final-head CI38190254467/main CI38190737513 SUCCESS. TASK-0102 real HTTP is DONE; synthetic TASK-0103 may verify its own real flow. This supersedes the reopened correctness checkpoint above and grants no supported-service admission.
