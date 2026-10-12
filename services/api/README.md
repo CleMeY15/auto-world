@@ -1,6 +1,6 @@
 # Auto World synthetic search API
 
-TASK-0102 implements the accepted public demo V1 contract over committed SDK fixture evidence. Implementation/delivery are pending in PR150. [ADR-0014](../../docs/decisions/ADR-0014-demo-search-api.md) defines routes, protocol denial, errors, loopback policy, cursors, freshness and telemetry. This API does not resolve vehicles or authorize a real source.
+TASK-0102 is delivered on main through [PR150](https://github.com/CleMeY15/auto-world/pull/150) with accepted final-head/identical-tree/main gates. It implements the deterministic adapter over committed SDK evidence and typed loopback API. [ADR-0014](../../docs/decisions/ADR-0014-demo-search-api.md) defines protocol, cursors, freshness and telemetry; [validation](../../docs/validation/TASK-0102.md) records delivery. This API does not resolve vehicles or authorize a real source.
 
 The production core imports only public contracts and Fastify5.12.5. The isolated demo factory/server live outside src/dist and reject NODE_ENV=production, including forced demo conditions. Package files/exports include dist only. No database, Docker, external network/source, LLM or source credential is used. The existing SDK test-support store is a fixture proof, not durable storage.
 
