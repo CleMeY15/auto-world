@@ -1,6 +1,6 @@
 # TASK-0005A — exact Go module-info cache identity
 
-Status: source revision 1 was independently rejected because early loading validated only module entries that happened to be present. Revision 2 reuses the complete lock validator before any preparation mutation. This source-only repair follows failed manual runs `38192612138` and `38194957502`; it does not establish a successful preparation, publication, admission or support interval.
+Status: DONE_IMPLEMENTATION / DELIVERY_PENDING in [PR155](https://github.com/CleMeY15/auto-world/pull/155). Strict source revision2 has independent high-risk CLEAR and full implementation CI38196567303 SUCCESS. Exact final-head/main delivery and a distinct actual preparation remain pending; preparation/admission/support are NOT_ESTABLISHED/NOT_AUTHORIZED.
 
 ## Defect
 

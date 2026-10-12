@@ -1,6 +1,6 @@
 # TASK-0005A Go module-info cache validation
 
-Status: source revision 1 was independently rejected. Revision 2 is verified locally and awaits a new independent review. A successful actual preparation remains unestablished and requires review, merge, green CI and a distinct future manual run.
+Status: DONE_IMPLEMENTATION / DELIVERY_PENDING in [PR155](https://github.com/CleMeY15/auto-world/pull/155). Strict source revision2 has independent high-risk CLEAR and full implementation CI38196567303 SUCCESS. Exact final-head/main delivery and a distinct actual preparation remain pending; preparation/admission/support are NOT_ESTABLISHED/NOT_AUTHORIZED.
 
 Revision 1's six source hashes and raw evidence remain immutable under `.omx/gosu-module-info-cache-freeze-v1`; its rejected index is 15,347 bytes with SHA-256 `9f56c7af71ce34fab7ebbeaf8f75acb86f6685076455f43a2efb50f7269ed033`. The reviewer found that `value.modules ?? []` validated only entries that were present, allowing an omitted, empty, partial, duplicate or reordered collection to bypass the claimed complete early validation.
 
@@ -51,3 +51,11 @@ Focused revision-2 evidence is retained under `.omx/gosu-module-info-cache-v2-va
 The added collection regressions reject omitted, empty, single-entry, duplicate, unknown and reordered module collections. A source-order assertion binds the production `loadLock` path to the complete validator before owned-path creation and downloads.
 
 No Go command, downloaded binary, workflow dispatch, image, registry, Native, admission or support action was performed by this source repair.
+
+## Independent revision2 acceptance and complete implementation CI
+
+Independent high-risk revision2 review is CLEAR: all six current source identities, all indexed raw evidence, rejected revision1 index and six before/after mappings remain exact before/after. Fresh pinned Node22.23.2 focused tests5/5 and three syntax checks pass. The existing pure full lock validator is called from loadLock before it returns; main awaits it before creating the owned scratch or starting material downloads. No source edits were made by the reviewer. Accepted freeze index9838bytes/SHA25689c9adef92dfe86e5b319ab55e3f20ad4c56fb87927fd18062cc9e8c239cf025.
+
+Complete implementation CI38196567303 on exact source head5f136ce51db83b9f13bac4f9a3cc2be5b4e8797a/tree4ebc93e8d3cd32a96d48efef179d6877450966fc is SUCCESS in all required stages. Original raw log1396574bytes/SHA25607bc4000a42c549a25feaf23ecad6e4a3734f84b77abc66f85ef162546afcb5f and metadata3368bytes/SHA25675b1be55e5b25198beacaf747b7858892cfa809a838891edce6cded70f4cd993 are preserved CNEW. Root1994 tests:1938PASS,zero failures,56 existing platform exclusions;24 workspace test tasks including38 API and159 SDK tests;lint12/typecheck18/build12;browser10PASS/2 existing WebKit matrix/CDP exclusions,secret scan855 andaudit0. This branch's accepted baseline still contains the foundation web preview; separate TASK0103 delivery remains distinct.
+
+This is source implementation acceptance. A documentation closure and integration of accepted main require independent final-source review, exact final-head CI, an identical reviewed merge and successful protected-main CI before any distinct actual preparation. The two failed manual runs and their original transport/log identities remain preserved; no retry, image publication, registry/Native operation, admission or support interval follows from green source CI.
