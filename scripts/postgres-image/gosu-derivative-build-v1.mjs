@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { appendFile, chmod, mkdir, readFile, readlink, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, chmod, lstat, mkdir, opendir, readFile, readlink, realpath, rename, rmdir, rm, unlink, writeFile } from "node:fs/promises";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   GOSU_ARCHIVE_LIMITS_V1, assertIdentity, exactIdentity, materializeArchiveFile, scanGzipTar,
   scanModuleZip, scanPreparationTar, writeDeterministicUstar,
@@ -19,7 +20,60 @@ const scriptFile = fileURLToPath(import.meta.url);
 const repo = path.resolve(path.dirname(scriptFile), "../..");
 const lockFile = path.join(repo, "infra/postgres-image/materials/gosu-derivative-lock-v1.json");
 const MAX_DOWNLOAD = 1024 * 1024 ** 2;
+const GOSU_CLEANUP_LIMITS_V1 = Object.freeze({ entries: 100_000, depth: 64, pathBytes: 4096 });
 function fail(code) { throw new Error(code); }
+function cleanupFailure(error) { return error?.message?.startsWith("gosu_cleanup_") ? error : new Error("gosu_cleanup_failed", { cause: error }); }
+
+async function checkedOwnedGosuScratch(scratch, runnerTemp) {
+  if (typeof scratch !== "string" || typeof runnerTemp !== "string" || !path.isAbsolute(scratch) || !path.isAbsolute(runnerTemp)) fail("gosu_cleanup_path_invalid");
+  const parent = path.resolve(runnerTemp); const target = path.resolve(scratch); const filesystemRoot = path.parse(parent).root;
+  if (parent === filesystemRoot || target === parent || path.dirname(target) !== parent || !/^aw-gosu-preparation-[12]$/u.test(path.basename(target))) fail("gosu_cleanup_path_invalid");
+  try {
+    for (let current = parent; ; current = path.dirname(current)) { const info = await lstat(current); if (info.isSymbolicLink()) fail("gosu_cleanup_path_invalid"); if (path.dirname(current) === current) break; }
+    const parentInfo = await lstat(parent); const targetInfo = await lstat(target); const [canonicalParent, canonicalTarget] = await Promise.all([realpath(parent), realpath(target)]);
+    if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink() || !targetInfo.isDirectory() || targetInfo.isSymbolicLink() || canonicalTarget !== path.join(canonicalParent, path.basename(target))) fail("gosu_cleanup_path_invalid");
+  } catch (error) { throw cleanupFailure(error); }
+  return target;
+}
+
+export async function removeOwnedGosuScratch(scratch, runnerTemp) {
+  const target = await checkedOwnedGosuScratch(scratch, runnerTemp); let entries = 0;
+  async function removeDirectory(entry) { for (let attempt = 0; ; attempt += 1) { try { await rmdir(entry); return; } catch (error) { if (attempt >= 3 || !["ENOTEMPTY", "EPERM"].includes(error.code)) throw error; await delay(20 * (attempt + 1)); } } }
+  async function removeEntry(entry, depth) {
+    const relative = path.relative(target, entry); const pathBytes = Buffer.byteLength(relative);
+    if (depth > GOSU_CLEANUP_LIMITS_V1.depth || pathBytes > GOSU_CLEANUP_LIMITS_V1.pathBytes || entries > GOSU_CLEANUP_LIMITS_V1.entries) fail("gosu_cleanup_limit_exceeded");
+    const info = await lstat(entry);
+    if (info.isSymbolicLink()) { await unlink(entry); return; }
+    if (info.isDirectory()) {
+      await chmod(entry, 0o700);
+      for await (const child of await opendir(entry)) {
+        const { name } = child;
+        entries += 1;
+        if (entries > GOSU_CLEANUP_LIMITS_V1.entries || name === "." || name === ".." || path.basename(name) !== name) fail("gosu_cleanup_limit_exceeded");
+        await removeEntry(path.join(entry, name), depth + 1);
+      }
+      const finalInfo = await lstat(entry); if (!finalInfo.isDirectory() || finalInfo.isSymbolicLink()) fail("gosu_cleanup_path_invalid");
+      await removeDirectory(entry); return;
+    }
+    if (!info.isFile()) fail("gosu_cleanup_entry_invalid");
+    if (info.nlink === 1) await chmod(entry, 0o600);
+    await unlink(entry);
+  }
+  try { await removeEntry(target, 0); } catch (error) { throw cleanupFailure(error); }
+}
+
+export async function completeOwnedGosuScratch(primaryError, scratch, runnerTemp) {
+  try { await removeOwnedGosuScratch(scratch, runnerTemp); }
+  catch (cleanupError) {
+    if (primaryError) throw new AggregateError([primaryError, cleanupError], primaryError.message, { cause: cleanupError });
+    throw cleanupError;
+  }
+  if (primaryError) throw primaryError;
+}
+export function formatGosuPreparationFailure(error) {
+  const primary = error instanceof AggregateError ? error.errors[0] : error; const message = primary?.message?.startsWith("gosu_") ? primary.message : "gosu_preparation_failed";
+  return `${message}${error instanceof AggregateError ? "\ngosu_cleanup_failed" : ""}\n`;
+}
 function cleanEnv(base) {
   return {
     HOME: base.home, TMPDIR: base.tmp, PATH: base.path, LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC",
@@ -130,8 +184,9 @@ async function main() {
   if (process.version !== "v22.23.2" || process.env.NODE_OPTIONS || process.env.NODE_PATH) fail("gosu_node_runtime_invalid"); const [command, repeatText] = process.argv.slice(2); const repeat = Number(repeatText); const { value: lock } = await loadLock();
   if (command === "offline") { const scratch = process.env.AW_GOSU_SCRATCH; const output = process.env.AW_GOSU_OUTPUT; if (![1, 2].includes(repeat) || !scratch || !output) fail("gosu_arguments_invalid"); const compiler = path.join(scratch, "compiler"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb }; await offlinePhase(repeat, lock, (await loadLock()).identity, scratch, output, path.join(scratch, "source"), compiler, base); return; }
   if (command !== "prepare" || ![1, 2].includes(repeat) || process.platform !== "linux" || !process.env.RUNNER_TEMP) fail("gosu_arguments_invalid");
-  const scratch = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `aw-gosu-preparation-${repeat}`); const output = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}`); await mkdir(scratch, { mode: 0o700 }); await mkdir(output, { mode: 0o700 });
-  try { const prepared = await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const originalNetns = await readNetworkNamespaceIdentity(); const offlineEnv = cleanEnv({ ...prepared.base, offline: true }); offlineEnv.AW_GOSU_SCRATCH = scratch; offlineEnv.AW_GOSU_OUTPUT = output; offlineEnv.AW_GOSU_EXPECT_UID = String(uid); offlineEnv.AW_GOSU_EXPECT_GID = String(gid); offlineEnv.AW_GOSU_ORIGINAL_NETNS = originalNetns; for (const key of ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]) offlineEnv[key] = process.env[key] ?? ""; const isolatedArguments = ["-n", "/usr/bin/unshare", "--net", "/usr/bin/setpriv", `--reuid=${uid}`, `--regid=${gid}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "/usr/bin/env", "-i", ...Object.entries(offlineEnv).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", String(repeat)]; run("/usr/bin/sudo", isolatedArguments, { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 }); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
-  finally { await chmod(scratch, 0o700).catch(() => {}); await rm(scratch, { recursive: true, force: true }); }
+  const scratch = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `aw-gosu-preparation-${repeat}`); const output = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}`); await mkdir(scratch, { mode: 0o700 }); let primaryError;
+  try { await mkdir(output, { mode: 0o700 }); const prepared = await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const originalNetns = await readNetworkNamespaceIdentity(); const offlineEnv = cleanEnv({ ...prepared.base, offline: true }); offlineEnv.AW_GOSU_SCRATCH = scratch; offlineEnv.AW_GOSU_OUTPUT = output; offlineEnv.AW_GOSU_EXPECT_UID = String(uid); offlineEnv.AW_GOSU_EXPECT_GID = String(gid); offlineEnv.AW_GOSU_ORIGINAL_NETNS = originalNetns; for (const key of ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]) offlineEnv[key] = process.env[key] ?? ""; const isolatedArguments = ["-n", "/usr/bin/unshare", "--net", "/usr/bin/setpriv", `--reuid=${uid}`, `--regid=${gid}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "/usr/bin/env", "-i", ...Object.entries(offlineEnv).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", String(repeat)]; run("/usr/bin/sudo", isolatedArguments, { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 }); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
+  catch (error) { primaryError = error; }
+  await completeOwnedGosuScratch(primaryError, scratch, process.env.RUNNER_TEMP);
 }
-if (path.resolve(process.argv[1] ?? "") === path.resolve(scriptFile)) main().catch((error) => { process.stderr.write(`${error.message?.startsWith("gosu_") ? error.message : "gosu_preparation_failed"}\n`); process.exitCode = 1; });
+if (path.resolve(process.argv[1] ?? "") === path.resolve(scriptFile)) main().catch((error) => { process.stderr.write(formatGosuPreparationFailure(error)); process.exitCode = 1; });
