@@ -1,6 +1,6 @@
 # TASK-0005A closed Gosu command diagnostics validation
 
-Status: SOURCE_IMPLEMENTED; local gates PASS and independent code/security CLEAR. Exact final-source CI, identical merge and protected-main CI remain pending. Actual preparation remains NOT_ESTABLISHED and admission NOT_AUTHORIZED.
+Status: SOURCE_DONE_ON_MAIN in PR156/main db14fb5205ea5bd3d3ac77b4cfe3dc7ae79eff69, identical reviewed tree516745ed and final CI38202712808/main CI38203543521 SUCCESS; independent delivery PASS/CLEAR. Earlier pending statements below describe their historical checkpoint. Actual preparation remains NOT_ESTABLISHED and admission NOT_AUTHORIZED.
 
 ## Accepted prerequisite and retained rejection
 
@@ -22,3 +22,9 @@ Fresh full local gates use Node 22.23.2 / pnpm 10.15.0: lint 12 tasks, typecheck
 Local gate index .omx/gosu-command-failure-local-gates-v2.json is 2841 bytes / SHA256 65cb1ad3edb4e0973d9ba4d4dfe832bf7833af56561644ff0e49fc7428957476, binding the six original local logs. Fresh Linux final-source CI, including browser gates, an identical reviewed merge and protected-main CI are still required. No UI code changed; the delivered synthetic web closure remains preserved.
 
 The ignored capture helper v5 separately received independent CLEAR: 28,532 bytes / SHA256 366eb1c4efbd1d7be2611eeb8c0b3aa503172bb474f555e8fca746dcf3e435d9; its 88-file validation index is 18,073 bytes / SHA256 17d93f1b294123e42e53b870e99a8a99baa2ac7778300ca814a26497d0d74ba3. It removes inherited forced-terminal variables and scopes the official gh api binary-output flag only to fixed log/ZIP endpoints with bounded exclusive file capture. This is evidence transport only; it does not accept preparation. No actual recapture was performed. All three failed run IDs are forbidden.
+
+## Delivered source and fourth actual preparation
+
+PR156 source diagnostics are DONE_ON_MAIN: source5b9a1bbb38d92ab82e02b06b78534c1f3549ca2f and main db14fb5205ea5bd3d3ac77b4cfe3dc7ae79eff69 share reviewed tree516745ed9f02d6e62be81dd5e1135a0c1ab48375. Final CI38202712808 and protected-main CI38203543521, both attempt1, passed all18 steps. Independent54-file closure and delivery review PASS/CLEAR. Linux root2001 tests/1945 passes/zero failures/56 existing skips; browser49 passes/5 existing skips; lint12/typecheck18/build12 and24 workspace tasks; web22/API38/SDK159, secretlint882 and dependency audit0.
+
+Distinct actual preparation38204301387, workflow_dispatch/attempt1 on that exact main, failed both builds before upload, with zero artifacts and skipped comparison. Both original817-byte step logs contain only gosu_offline_network_invalid, without cleanup failure. Original ZIP22505bytes/SHA2564a68bdfed597252d6f9debeeff4347a49a1d50336cef22996f2b83ab2e534ccb and ten-file failure index3477bytes/SHA2568480dec0a7194ca51bdc9fe89e3cbd81d55fdbb76948f33ed848a7b0b4375e27 are independently verified. The exact failed invariant is not identifiable from this code alone. Actual preparation stays NOT_ESTABLISHED, authority NOT_AUTHORIZED and support/currentEvidence unchanged. All four failed runs and original captures remain immutable; no retry/redownload.

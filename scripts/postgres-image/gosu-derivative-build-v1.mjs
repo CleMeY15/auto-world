@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { appendFile, chmod, lstat, mkdir, opendir, readFile, readlink, realpath, rename, rmdir, rm, unlink, writeFile } from "node:fs/promises";
+import { appendFile, chmod, lstat, mkdir, opendir, readFile, readdir, readlink, realpath, rename, rmdir, rm, unlink, writeFile } from "node:fs/promises";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +41,12 @@ const CHILD_FAILURE_LINES = Object.freeze([
   ...CHILD_FIXED_CODES,
 ].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })));
 const MAX_CHILD_FAILURE_LINE_BYTES = Math.max(...CHILD_FAILURE_LINES.map(({ line }) => line.length));
+const MAX_ORDINARY_ID = 4_294_967_294;
+const SETUP_ENV_KEYS = Object.freeze([
+  "AW_GOSU_ORIGINAL_NETNS", "AW_GOSU_ORIGINAL_MNTNS", "AW_GOSU_EXPECT_UID", "AW_GOSU_EXPECT_GID",
+  "AW_GOSU_REPEAT", "AW_GOSU_SCRATCH", "AW_GOSU_OUTPUT", "AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT",
+  "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB",
+]);
 function fail(code) { throw new Error(code); }
 function cleanupFailure(error) { return error?.message?.startsWith("gosu_cleanup_") ? error : new Error("gosu_cleanup_failed", { cause: error }); }
 
@@ -149,7 +155,57 @@ function runCommand(stage, command, args, { cwd, env, cap = 8 * 1024 ** 2, timeo
   return { status, stdout, stderr };
 }
 function run(stage, command, args, options) { return runCommand(stage, command, args, options, spawnSync); }
-export const TEST_ONLY = Object.freeze({ runCommand: (stage, command, args, options, runner) => runCommand(stage, command, args, options, runner) });
+export const TEST_ONLY = Object.freeze({
+  repo, scriptFile,
+  runCommand: (stage, command, args, options, runner) => runCommand(stage, command, args, options, runner),
+  setupEnvironment, buildOuterIsolationInvocation,
+  runOfflineSetup: (environment, adapters, commandArguments = ["offline-setup", environment?.AW_GOSU_REPEAT]) => dispatchOfflineSetup(commandArguments, environment, adapters),
+  validateOfflineNetworkObservation,
+});
+function setupScalar(value, pattern) { if (typeof value !== "string" || !pattern.test(value)) fail("gosu_offline_network_invalid"); return value; }
+function ordinaryId(value) { setupScalar(value, /^(?:[1-9]|[1-9][0-9]{1,9})$/u); const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ORDINARY_ID || String(parsed) !== value) fail("gosu_offline_network_invalid"); return value; }
+function namespaceValue(value, kind) { return setupScalar(value, new RegExp(`^${kind}:\\[[1-9][0-9]*\\]$`, "u")); }
+function ownedSetupPaths(scratch, output, repeat) {
+  for (const value of [scratch, output]) if (typeof value !== "string" || !value.startsWith("/") || path.posix.normalize(value) !== value || value === "/") fail("gosu_offline_network_invalid");
+  const scratchParent = path.posix.dirname(scratch); if (scratchParent === "/" || path.posix.dirname(output) !== scratchParent || path.posix.basename(scratch) !== `aw-gosu-preparation-${repeat}` || path.posix.basename(output) !== `gosu-preparation-${repeat}`) fail("gosu_offline_network_invalid");
+}
+function setupEnvironment(configuration) {
+  const repeat = setupScalar(configuration?.repeat, /^[12]$/u); const uid = ordinaryId(configuration?.uid); const gid = ordinaryId(configuration?.gid);
+  const originalNetns = namespaceValue(configuration?.originalNetns, "net"); const originalMntns = namespaceValue(configuration?.originalMntns, "mnt"); ownedSetupPaths(configuration?.scratch, configuration?.output, repeat);
+  const ci = configuration?.ci; if (!ci || typeof ci !== "object" || Array.isArray(ci)) fail("gosu_offline_network_invalid");
+  const runId = setupScalar(ci.runId, /^[1-9][0-9]*$/u); const runAttempt = setupScalar(ci.runAttempt, /^[1-9][0-9]*$/u); const headSha = setupScalar(ci.headSha, /^[0-9a-f]{40}$/u); const job = setupScalar(ci.job, /^build_[12]$/u);
+  return {
+    AW_GOSU_ORIGINAL_NETNS: originalNetns, AW_GOSU_ORIGINAL_MNTNS: originalMntns, AW_GOSU_EXPECT_UID: uid,
+    AW_GOSU_EXPECT_GID: gid, AW_GOSU_REPEAT: repeat, AW_GOSU_SCRATCH: configuration.scratch,
+    AW_GOSU_OUTPUT: configuration.output, AW_GOSU_CI_RUN_ID: runId, AW_GOSU_CI_RUN_ATTEMPT: runAttempt,
+    AW_GOSU_CI_HEAD_SHA: headSha, AW_GOSU_CI_JOB: job,
+  };
+}
+function validateSetupEnvironment(environment) {
+  if (!environment || typeof environment !== "object" || Array.isArray(environment) || Object.keys(environment).sort().join("\0") !== [...SETUP_ENV_KEYS].sort().join("\0")) fail("gosu_offline_network_invalid");
+  return setupEnvironment({
+    repeat: environment.AW_GOSU_REPEAT, scratch: environment.AW_GOSU_SCRATCH, output: environment.AW_GOSU_OUTPUT,
+    uid: environment.AW_GOSU_EXPECT_UID, gid: environment.AW_GOSU_EXPECT_GID, originalNetns: environment.AW_GOSU_ORIGINAL_NETNS,
+    originalMntns: environment.AW_GOSU_ORIGINAL_MNTNS, ci: { runId: environment.AW_GOSU_CI_RUN_ID, runAttempt: environment.AW_GOSU_CI_RUN_ATTEMPT, headSha: environment.AW_GOSU_CI_HEAD_SHA, job: environment.AW_GOSU_CI_JOB },
+  });
+}
+function buildOuterIsolationInvocation(configuration) {
+  const environment = setupEnvironment(configuration); const assignments = Object.entries(environment).map(([key, value]) => `${key}=${value}`);
+  return {
+    command: "/usr/bin/sudo",
+    args: ["-n", "--", "/usr/bin/unshare", "--mount", "--propagation", "private", "--net", "--", "/usr/bin/env", "-i", ...assignments, process.execPath, scriptFile, "offline-setup", environment.AW_GOSU_REPEAT],
+    options: { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 },
+  };
+}
+function setupProcess(command, args, options, runner, propagateChild) {
+  let result; try { result = runner(command, args, { ...options, encoding: null, windowsHide: true }); } catch { fail("gosu_offline_network_invalid"); }
+  if (!result || typeof result !== "object" || Array.isArray(result) || result.error !== undefined || result.signal !== null || !Number.isInteger(result.status)) fail("gosu_offline_network_invalid");
+  if (result.status !== 0) {
+    if (propagateChild && Buffer.isBuffer(result.stderr) && result.stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) { const child = CHILD_FAILURE_LINES.find(({ line }) => result.stderr.equals(line)); if (child) fail(child.code); }
+    fail("gosu_offline_network_invalid");
+  }
+  if (!Buffer.isBuffer(result.stdout) || !Buffer.isBuffer(result.stderr)) fail("gosu_offline_network_invalid");
+}
 async function copyLockedMaterials(lock, materials) {
   const descriptors = [
     [lock.source.url, lock.source.file, { bytes: lock.source.bytes, sha256: lock.source.sha256 }],
@@ -196,17 +252,54 @@ async function buildOnline(repeat, lock, scratch, output) {
   await writeFile(path.join(scratch, "online.json"), canonicalJson({ repeat, sourceFiles: after, compilerEntries: compilerScan.entries.length, compilerRegularBytes: compilerScan.regularBytes, sourceEntries: sourceScan.entries.length, sourceRegularBytes: sourceScan.regularBytes }), { flag: "wx" });
   return { source, compiler, go, base };
 }
-export async function readNetworkNamespaceIdentity() { const value = await readlink("/proc/self/ns/net"); if (!/^net:\[[1-9][0-9]*\]$/u.test(value)) fail("gosu_offline_network_invalid"); return value; }
+export async function readNetworkNamespaceIdentity() { const value = await readlink("/proc/self/ns/net"); return namespaceValue(value, "net"); }
+export async function readMountNamespaceIdentity() { const value = await readlink("/proc/self/ns/mnt"); return namespaceValue(value, "mnt"); }
 export async function assertNetworkNamespaceChanged(original) { const current = await readNetworkNamespaceIdentity(); if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || current === original) fail("gosu_offline_network_invalid"); return current; }
 export function namespaceTransitionIdentity(original, current) { if (!/^net:\[[1-9][0-9]*\]$/u.test(original ?? "") || !/^net:\[[1-9][0-9]*\]$/u.test(current ?? "") || original === current) fail("gosu_offline_network_invalid"); const originalBytes = Buffer.from(original); const currentBytes = Buffer.from(current); const transition = Buffer.alloc(8 + originalBytes.length + currentBytes.length); transition.writeUInt32BE(originalBytes.length, 0); originalBytes.copy(transition, 4); transition.writeUInt32BE(currentBytes.length, 4 + originalBytes.length); currentBytes.copy(transition, 8 + originalBytes.length); return exactIdentity(transition); }
-export async function assertOfflineBoundary() {
-  if (process.platform !== "linux" || process.geteuid?.() === 0 || process.env.NODE_OPTIONS || process.env.NODE_PATH || process.env.GOENV !== "off" || process.env.GOTOOLCHAIN !== "local" || process.env.GOWORK !== "off" || process.env.GOPROXY !== "off" || process.env.GOSUMDB !== "off" || process.env.GOFLAGS) fail("gosu_offline_environment_invalid");
-  const expectedUid = Number(process.env.AW_GOSU_EXPECT_UID); const expectedGid = Number(process.env.AW_GOSU_EXPECT_GID); if (!Number.isSafeInteger(expectedUid) || !Number.isSafeInteger(expectedGid) || process.geteuid() !== expectedUid || process.getegid() !== expectedGid || process.getgroups().some((group) => group !== expectedGid)) fail("gosu_offline_identity_invalid");
-  const originalNamespace = process.env.AW_GOSU_ORIGINAL_NETNS; const namespace = await assertNetworkNamespaceChanged(originalNamespace);
-  const status = await readFile("/proc/self/status", "utf8"); const caps = Object.fromEntries(status.split("\n").map((line) => line.split(":")).filter((item) => item.length === 2).map(([key, value]) => [key, value.trim()]));
+function validateOfflineNetworkObservation(observation) {
+  if (observation.platform !== "linux" || observation.euid === 0 || observation.nodeOptions || observation.nodePath || observation.goenv !== "off" || observation.gotoolchain !== "local" || observation.gowork !== "off" || observation.goproxy !== "off" || observation.gosumdb !== "off" || observation.goflags) fail("gosu_offline_environment_invalid");
+  const expectedUid = Number(ordinaryId(observation.expectedUid)); const expectedGid = Number(ordinaryId(observation.expectedGid));
+  if (observation.euid !== expectedUid || observation.egid !== expectedGid || !Array.isArray(observation.groups) || observation.groups.length < 1 || observation.groups.some((group) => group !== expectedGid)) fail("gosu_offline_identity_invalid");
+  namespaceValue(observation.originalNetns, "net"); namespaceValue(observation.netns, "net"); namespaceValue(observation.originalMntns, "mnt"); namespaceValue(observation.mntns, "mnt");
+  if (observation.netns === observation.originalNetns || observation.mntns === observation.originalMntns) fail("gosu_offline_network_invalid");
+  if (typeof observation.status !== "string" || typeof observation.routes !== "string" || typeof observation.loopbackFlags !== "string") fail("gosu_offline_network_invalid");
+  const caps = Object.fromEntries(observation.status.split("\n").map((line) => line.split(":")).filter((item) => item.length === 2).map(([key, value]) => [key, value.trim()]));
   if (caps.CapEff !== "0000000000000000" || caps.CapBnd !== "0000000000000000" || caps.CapAmb !== "0000000000000000" || caps.NoNewPrivs !== "1") fail("gosu_offline_privilege_invalid");
-  const [routes, loopbackFlags] = await Promise.all([readFile("/proc/net/route", "utf8"), readFile("/sys/class/net/lo/flags", "utf8")]);
-  if (routes.trim().split("\n").length !== 1 || (Number.parseInt(loopbackFlags.trim(), 16) & 1) !== 0) fail("gosu_offline_network_invalid"); const raw = { status: Buffer.from(status), routes: Buffer.from(routes), loopbackFlags: Buffer.from(loopbackFlags) }; const namespaceTransition = namespaceTransitionIdentity(originalNamespace, namespace); if (namespaceTransition.bytes < 22 || namespaceTransition.bytes > 136 || raw.status.length < 1 || raw.status.length > 64 * 1024 || raw.routes.length < 1 || raw.routes.length > 1024 * 1024 || raw.loopbackFlags.length < 1 || raw.loopbackFlags.length > 64) fail("gosu_offline_evidence_invalid"); return { checks: { namespaceChanged: true, loopbackDown: true, routesEmpty: true, ordinaryIdentity: true, zeroCapabilities: true, noNewPrivileges: true }, evidence: { namespaceTransition, ...Object.fromEntries(Object.entries(raw).map(([key, bytes]) => [key, exactIdentity(bytes)])) } };
+  if (!Array.isArray(observation.interfaces) || observation.interfaces.length !== 1 || observation.interfaces[0] !== "lo" || observation.routes.trim().split("\n").length !== 1 || !/^0x(?:0|[1-9a-f][0-9a-f]{0,7})\n$/u.test(observation.loopbackFlags)) fail("gosu_offline_network_invalid");
+  const flags = Number.parseInt(observation.loopbackFlags.slice(2, -1), 16); if (!Number.isSafeInteger(flags) || (flags & 0x8) !== 0x8 || (flags & 0x1) !== 0) fail("gosu_offline_network_invalid");
+  const raw = { status: Buffer.from(observation.status), routes: Buffer.from(observation.routes), loopbackFlags: Buffer.from(observation.loopbackFlags) }; const namespaceTransition = namespaceTransitionIdentity(observation.originalNetns, observation.netns);
+  if (namespaceTransition.bytes < 22 || namespaceTransition.bytes > 136 || raw.status.length < 1 || raw.status.length > 64 * 1024 || raw.routes.length > 1024 * 1024 || raw.loopbackFlags.length < 1 || raw.loopbackFlags.length > 64) fail("gosu_offline_evidence_invalid");
+  return { checks: { namespaceChanged: true, loopbackDown: true, routesEmpty: true, ordinaryIdentity: true, zeroCapabilities: true, noNewPrivileges: true }, evidence: { namespaceTransition, ...Object.fromEntries(Object.entries(raw).map(([key, bytes]) => [key, exactIdentity(bytes)])) } };
+}
+export async function assertOfflineBoundary() {
+  const [netns, mntns, status, routes, interfaces, loopbackFlags] = await Promise.all([readNetworkNamespaceIdentity(), readMountNamespaceIdentity(), readFile("/proc/self/status", "utf8"), readFile("/proc/net/route", "utf8"), readdir("/sys/class/net"), readFile("/sys/class/net/lo/flags", "utf8")]);
+  return validateOfflineNetworkObservation({
+    platform: process.platform, euid: process.geteuid?.(), egid: process.getegid?.(), groups: process.getgroups?.(), expectedUid: process.env.AW_GOSU_EXPECT_UID, expectedGid: process.env.AW_GOSU_EXPECT_GID,
+    originalNetns: process.env.AW_GOSU_ORIGINAL_NETNS, netns, originalMntns: process.env.AW_GOSU_ORIGINAL_MNTNS, mntns,
+    nodeOptions: process.env.NODE_OPTIONS, nodePath: process.env.NODE_PATH, goenv: process.env.GOENV, gotoolchain: process.env.GOTOOLCHAIN, gowork: process.env.GOWORK, goproxy: process.env.GOPROXY, gosumdb: process.env.GOSUMDB, goflags: process.env.GOFLAGS,
+    status, routes, interfaces, loopbackFlags,
+  });
+}
+async function runOfflineSetupWith(environmentInput, adapters) {
+  const environment = validateSetupEnvironment(environmentInput);
+  if (adapters?.platform !== "linux" || adapters.geteuid?.() !== 0) fail("gosu_offline_network_invalid");
+  let netns; let mntns; let sys;
+  try { [netns, mntns, sys] = await Promise.all([adapters.readlink("/proc/self/ns/net"), adapters.readlink("/proc/self/ns/mnt"), adapters.lstat("/sys")]); } catch { fail("gosu_offline_network_invalid"); }
+  namespaceValue(netns, "net"); namespaceValue(mntns, "mnt");
+  if (netns === environment.AW_GOSU_ORIGINAL_NETNS || mntns === environment.AW_GOSU_ORIGINAL_MNTNS || !sys.isDirectory() || sys.isSymbolicLink()) fail("gosu_offline_network_invalid");
+  const commandOptions = { cwd: "/", env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 60_000, maxBuffer: 1024 * 1024 };
+  setupProcess("/usr/bin/mount", ["--internal-only", "--no-canonicalize", "--types", "sysfs", "--options", "ro,nosuid,nodev,noexec", "--source", "sysfs", "--target", "/sys"], commandOptions, adapters.runner, false);
+  const scratch = environment.AW_GOSU_SCRATCH; const compiler = path.posix.join(scratch, "compiler"); const offline = cleanEnv({ home: path.posix.join(scratch, "home"), tmp: path.posix.join(scratch, "tmp"), path: `${path.posix.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.posix.join(scratch, "gocache"), gomodcache: path.posix.join(scratch, "gomodcache"), gopath: path.posix.join(scratch, "gopath"), offline: true });
+  for (const key of SETUP_ENV_KEYS) offline[key] = environment[key];
+  const setpriv = [`--reuid=${environment.AW_GOSU_EXPECT_UID}`, `--regid=${environment.AW_GOSU_EXPECT_GID}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "--", "/usr/bin/env", "-i", ...Object.entries(offline).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", environment.AW_GOSU_REPEAT];
+  setupProcess("/usr/bin/setpriv", setpriv, { ...commandOptions, timeout: 70 * 60_000 }, adapters.runner, true);
+}
+async function dispatchOfflineSetup(commandArguments, environment, adapters) {
+  if (!Array.isArray(commandArguments) || commandArguments.length !== 2 || commandArguments[0] !== "offline-setup" || !/^[12]$/u.test(commandArguments[1]) || commandArguments[1] !== environment?.AW_GOSU_REPEAT) fail("gosu_offline_network_invalid");
+  return runOfflineSetupWith(environment, adapters);
+}
+async function runOfflineSetup(commandArguments, environment) {
+  return dispatchOfflineSetup(commandArguments, environment, { platform: process.platform, geteuid: () => process.geteuid?.(), readlink, lstat, runner: spawnSync });
 }
 async function offlinePhase(repeat, lock, lockIdentity, scratch, output, source, compiler, base) {
   const cutoff = await assertOfflineBoundary(); const go = path.join(compiler, "bin", "go"); const env = cleanEnv({ ...base, offline: true }); const binary = path.join(output, "gosu");
@@ -228,11 +321,13 @@ async function offlinePhase(repeat, lock, lockIdentity, scratch, output, source,
   validateBuildReceipt(receipt, lock, reviewed); const receiptBytes = Buffer.from(canonicalJson(receipt)); await writeFile(path.join(output, "build-receipt.json"), receiptBytes, { flag: "wx" }); const controls = { kind: "POSTGRES_GOSU_DERIVATIVE_CONTROLS_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, valid: true, receipt: exactIdentity(receiptBytes), files }; await writeFile(path.join(output, "controls.json"), canonicalJson(controls), { flag: "wx" }); return receipt;
 }
 async function main() {
-  if (process.version !== "v22.23.2" || process.env.NODE_OPTIONS || process.env.NODE_PATH) fail("gosu_node_runtime_invalid"); const [command, repeatText] = process.argv.slice(2); const repeat = Number(repeatText); const { value: lock } = await loadLock();
+  if (process.version !== "v22.23.2" || process.env.NODE_OPTIONS || process.env.NODE_PATH) fail("gosu_node_runtime_invalid"); const [command, repeatText] = process.argv.slice(2);
+  if (command === "offline-setup") { await runOfflineSetup(process.argv.slice(2), process.env); return; }
+  const repeat = Number(repeatText); const { value: lock } = await loadLock();
   if (command === "offline") { const scratch = process.env.AW_GOSU_SCRATCH; const output = process.env.AW_GOSU_OUTPUT; if (![1, 2].includes(repeat) || !scratch || !output) fail("gosu_arguments_invalid"); const compiler = path.join(scratch, "compiler"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb }; await offlinePhase(repeat, lock, (await loadLock()).identity, scratch, output, path.join(scratch, "source"), compiler, base); return; }
   if (command !== "prepare" || ![1, 2].includes(repeat) || process.platform !== "linux" || !process.env.RUNNER_TEMP) fail("gosu_arguments_invalid");
   const scratch = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `aw-gosu-preparation-${repeat}`); const output = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}`); await mkdir(scratch, { mode: 0o700 }); let primaryError;
-  try { await mkdir(output, { mode: 0o700 }); const prepared = await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const originalNetns = await readNetworkNamespaceIdentity(); const offlineEnv = cleanEnv({ ...prepared.base, offline: true }); offlineEnv.AW_GOSU_SCRATCH = scratch; offlineEnv.AW_GOSU_OUTPUT = output; offlineEnv.AW_GOSU_EXPECT_UID = String(uid); offlineEnv.AW_GOSU_EXPECT_GID = String(gid); offlineEnv.AW_GOSU_ORIGINAL_NETNS = originalNetns; for (const key of ["AW_GOSU_CI_RUN_ID", "AW_GOSU_CI_RUN_ATTEMPT", "AW_GOSU_CI_HEAD_SHA", "AW_GOSU_CI_JOB"]) offlineEnv[key] = process.env[key] ?? ""; const isolatedArguments = ["-n", "/usr/bin/unshare", "--net", "/usr/bin/setpriv", `--reuid=${uid}`, `--regid=${gid}`, "--clear-groups", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all", "--no-new-privs", "/usr/bin/env", "-i", ...Object.entries(offlineEnv).map(([key, value]) => `${key}=${value}`), process.execPath, scriptFile, "offline", String(repeat)]; run("offline_isolation", "/usr/bin/sudo", isolatedArguments, { cwd: repo, env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" }, timeout: 70 * 60_000, cap: 1024 * 1024 }); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
+  try { await mkdir(output, { mode: 0o700 }); await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const [originalNetns, originalMntns] = await Promise.all([readNetworkNamespaceIdentity(), readMountNamespaceIdentity()]); const invocation = buildOuterIsolationInvocation({ repeat: String(repeat), scratch, output, uid: String(uid), gid: String(gid), originalNetns, originalMntns, ci: { runId: process.env.AW_GOSU_CI_RUN_ID ?? "", runAttempt: process.env.AW_GOSU_CI_RUN_ATTEMPT ?? "", headSha: process.env.AW_GOSU_CI_HEAD_SHA ?? "", job: process.env.AW_GOSU_CI_JOB ?? "" } }); run("offline_isolation", invocation.command, invocation.args, invocation.options); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
   catch (error) { primaryError = error; }
   await completeOwnedGosuScratch(primaryError, scratch, process.env.RUNNER_TEMP);
 }

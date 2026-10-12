@@ -15,6 +15,7 @@ const lock = JSON.parse(await readFile(new URL("../infra/postgres-image/material
 const reviewed = await reviewedIdentities();
 const id = (digit = "a", bytes = 1) => ({ bytes, sha256: digit.repeat(64) });
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 function receipt(repeat) {
   const files = Object.fromEntries(GOSU_PUBLIC_FILES_V1.filter((item) => !["build-receipt.json", "controls.json"].includes(item)).map((item) => [item, id()]));
   Object.assign(files, { "materials/gosu-commit.tar.gz": { bytes: lock.source.bytes, sha256: lock.source.sha256 }, "materials/go-compiler.tar.gz": { bytes: lock.compiler.bytes, sha256: lock.compiler.sha256 }, "materials/go-source.tar.gz": { bytes: lock.goSource.bytes, sha256: lock.goSource.sha256 }, "materials/gosu.go.mod": lock.source.goMod, "materials/gosu.go.sum": lock.source.goSum }); for (const item of lock.modules) for (const kind of ["zip", "mod", "info"]) files[`materials/${item[kind].file}`] = { bytes: item[kind].bytes, sha256: item[kind].sha256 };
@@ -24,6 +25,20 @@ function receipt(repeat) {
 
 test("receipt closes preparation authority, null dates, runtime/helper identities and zero-test truth", () => {
   const value = receipt(1); assert.deepEqual(validateBuildReceipt(value, lock, reviewed), value); const receiptBytes = Buffer.from(canonicalJson(value)); assert.equal(validateControls({ kind: "POSTGRES_GOSU_DERIVATIVE_CONTROLS_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, valid: true, receipt: { bytes: receiptBytes.length, sha256: createHash("sha256").update(receiptBytes).digest("hex") }, files: value.files }, value), true); const comparison = compareBuildReceipts(value, receipt(2), lock, reviewed, { leftTar: id("1", 100), rightTar: id("2", 100), leftArtifact: "3".repeat(64), rightArtifact: "4".repeat(64) }); assert.equal(comparison.authority, "NOT_AUTHORIZED"); assert.equal(comparison.functionalValidation, "NOT_ESTABLISHED"); assert.equal(comparison.ci.headSha, "a".repeat(40));
+});
+
+test("receipt accepts exact empty route evidence and rejects inconsistent empty identities", () => {
+  const empty = receipt(1); empty.networkCutoff.evidence.routes = { bytes: 0, sha256: EMPTY_SHA256 };
+  assert.deepEqual(validateBuildReceipt(empty, lock, reviewed), empty);
+  for (const routes of [
+    { bytes: 0, sha256: "3".repeat(64) },
+    { bytes: 1, sha256: EMPTY_SHA256 },
+    { bytes: 1024 * 1024 + 1, sha256: "3".repeat(64) },
+    { bytes: -1, sha256: EMPTY_SHA256 },
+  ]) {
+    const value = receipt(1); value.networkCutoff.evidence.routes = routes;
+    assert.throws(() => validateBuildReceipt(value, lock, reviewed), /gosu_receipt_network_invalid/u);
+  }
 });
 
 test("receipt rejects unknown/prototype/private data, weakened boundary, flags and reproduction mismatch", () => {
