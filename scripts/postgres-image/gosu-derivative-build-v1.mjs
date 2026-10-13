@@ -5,6 +5,7 @@ import { appendFile, chmod, lstat, mkdir, opendir, readFile, readdir, readlink, 
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { types } from "node:util";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -53,10 +54,21 @@ const ISOLATION_FAILURES = Object.freeze(Object.fromEntries(ISOLATION_REASONS.ma
   const code = `gosu_offline_network_invalid\ngosu_isolation_reason_${reason}`;
   return [reason, Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })];
 })));
+const CHILD_READ_STAGES = Object.freeze([
+  "lock_read", "boundary_netns_read", "boundary_mntns_read", "boundary_status_read",
+  "boundary_routes_read", "boundary_interfaces_read", "boundary_loopback_flags_read",
+]);
+const CHILD_MAIN_FAILURES = Object.freeze(Object.fromEntries([
+  ...CHILD_READ_STAGES.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `${stage}_${reason}`)),
+  "runtime_invalid", "arguments_invalid", "lock_json_invalid", "lock_contract_invalid", "main_unclassified",
+].map((reason) => {
+  const code = `gosu_preparation_failed\ngosu_child_main_entered\ngosu_child_failure_reason_${reason}`;
+  return [reason, Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })];
+})));
 const CHILD_FAILURE_LINES = Object.freeze([
   ...CHILD_COMMAND_STAGES.flatMap((stage) => COMMAND_REASONS.map((reason) => `gosu_command_failed_${stage}_${reason}`)),
   ...CHILD_FIXED_CODES,
-].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })).concat(Object.values(ISOLATION_FAILURES)));
+].map((code) => Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })).concat(Object.values(ISOLATION_FAILURES), Object.values(CHILD_MAIN_FAILURES)));
 const MAX_CHILD_FAILURE_LINE_BYTES = Math.max(...CHILD_FAILURE_LINES.map(({ line }) => line.length));
 const MAX_ORDINARY_ID = 4_294_967_294;
 const SETUP_ENV_KEYS = Object.freeze([
@@ -66,6 +78,28 @@ const SETUP_ENV_KEYS = Object.freeze([
 ]);
 function fail(code) { throw new Error(code); }
 function isolationFailure(reason) { fail(ISOLATION_FAILURES[reason].code); }
+function childMainFailure(reason) { fail(CHILD_MAIN_FAILURES[reason].code); }
+function ownErrorData(error, key) {
+  try {
+    if (!types.isNativeError(error)) return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(error, key);
+    return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  } catch { return undefined; }
+}
+async function childRead(stage, operation, offlineEntered) {
+  try { return await operation(); }
+  catch (error) {
+    if (!offlineEntered) throw error;
+    const code = ownErrorData(error, "code");
+    childMainFailure(`${stage}_${code === "EACCES" || code === "EPERM" ? "permission_denied" : code === "ENOENT" || code === "ENOTDIR" ? "path_unavailable" : "unclassified"}`);
+  }
+}
+function formatChildMainFailure(error, offlineEntered) {
+  if (!offlineEntered) return formatGosuPreparationFailure(error);
+  const message = ownErrorData(error, "message");
+  const recognized = CHILD_FAILURE_LINES.find(({ code }) => code === message);
+  return `${recognized?.code ?? CHILD_MAIN_FAILURES.main_unclassified.code}\n`;
+}
 function cleanupFailure(error) { return error?.message?.startsWith("gosu_cleanup_") ? error : new Error("gosu_cleanup_failed", { cause: error }); }
 
 async function checkedOwnedGosuScratch(scratch, runnerTemp) {
@@ -129,6 +163,13 @@ function cleanEnv(base) {
 }
 export function moduleInfoCacheIdentity(item) { return validateModuleInfoCacheIdentity(item); }
 async function loadLock() { const bytes = await readFile(lockFile); const value = JSON.parse(bytes); validateLock(value); return { value, identity: exactIdentity(bytes) }; }
+async function loadChildLock(offlineEntered = true, read = readFile) {
+  const bytes = await childRead("lock_read", () => read(lockFile), offlineEntered);
+  let value;
+  try { value = JSON.parse(bytes); } catch (error) { if (offlineEntered) childMainFailure("lock_json_invalid"); throw error; }
+  try { validateLock(value); } catch (error) { if (offlineEntered) childMainFailure("lock_contract_invalid"); throw error; }
+  return { value, identity: exactIdentity(bytes) };
+}
 async function openDownload(url, redirects = 0) {
   if (redirects > 3 || !url.startsWith("https://")) fail("gosu_download_url_invalid");
   const response = await new Promise((resolve, reject) => { const request = https.get(url, { headers: { "user-agent": "auto-world-gosu-preparer-v1", accept: "application/octet-stream" } }, resolve); request.setTimeout(120_000, () => request.destroy(new Error("gosu_download_timeout"))); request.on("error", reject); });
@@ -161,6 +202,7 @@ function runCommand(stage, command, args, { cwd, env, cap = 8 * 1024 ** 2, timeo
   if (signal !== null && (typeof signal !== "string" || signal.length === 0)) fail("gosu_command_result_invalid");
   if (status !== null && !Number.isInteger(status)) fail("gosu_command_result_invalid");
   if (signal !== null) commandFailure(stage, "signal");
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) fail("gosu_command_result_invalid");
   if (status !== 0) {
     if (status === null) fail("gosu_command_result_invalid");
     if (stage === "offline_isolation" && Buffer.isBuffer(stderr) && stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) {
@@ -169,7 +211,6 @@ function runCommand(stage, command, args, { cwd, env, cap = 8 * 1024 ** 2, timeo
     }
     commandFailure(stage, "exit");
   }
-  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) fail("gosu_command_result_invalid");
   return { status, stdout, stderr };
 }
 function run(stage, command, args, options) { return runCommand(stage, command, args, options, spawnSync); }
@@ -179,6 +220,7 @@ export const TEST_ONLY = Object.freeze({
   setupEnvironment, buildOuterIsolationInvocation,
   runOfflineSetup: (environment, adapters, commandArguments = ["offline-setup", environment?.AW_GOSU_REPEAT]) => dispatchOfflineSetup(commandArguments, environment, adapters),
   validateOfflineNetworkObservation,
+  formatChildMainFailure, childRead, loadLock: loadChildLock, collectOfflineBoundary, main,
 });
 function setupScalar(value, pattern, reason) { if (typeof value !== "string" || !pattern.test(value)) isolationFailure(reason); return value; }
 function ordinaryId(value, reason) { setupScalar(value, /^(?:[1-9]|[1-9][0-9]{1,9})$/u, reason); const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_ORDINARY_ID || String(parsed) !== value) isolationFailure(reason); return value; }
@@ -228,12 +270,12 @@ function setupProcess(stage, command, args, options, runner, propagateChild) {
   if (signal !== null && (typeof signal !== "string" || signal.length === 0)) isolationFailure(`${stage}_result_invalid`);
   if (status !== null && !Number.isInteger(status)) isolationFailure(`${stage}_result_invalid`);
   if (signal !== null) isolationFailure(`${stage}_signal`);
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) isolationFailure(`${stage}_result_invalid`);
   if (status !== 0) {
     if (status === null) isolationFailure(`${stage}_result_invalid`);
     if (propagateChild && Buffer.isBuffer(stderr) && stderr.length <= MAX_CHILD_FAILURE_LINE_BYTES) { const child = CHILD_FAILURE_LINES.find(({ line }) => stderr.equals(line)); if (child) fail(child.code); }
     isolationFailure(`${stage}_exit`);
   }
-  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr)) isolationFailure(`${stage}_result_invalid`);
 }
 async function copyLockedMaterials(lock, materials) {
   const descriptors = [
@@ -306,8 +348,19 @@ function validateOfflineNetworkObservation(observation) {
   if (namespaceTransition.bytes < 22 || namespaceTransition.bytes > 136 || raw.status.length < 1 || raw.status.length > 64 * 1024 || raw.routes.length > 1024 * 1024 || raw.loopbackFlags.length < 1 || raw.loopbackFlags.length > 64) fail("gosu_offline_evidence_invalid");
   return { checks: { namespaceChanged: true, loopbackDown: true, routesEmpty: true, ordinaryIdentity: true, zeroCapabilities: true, noNewPrivileges: true }, evidence: { namespaceTransition, ...Object.fromEntries(Object.entries(raw).map(([key, bytes]) => [key, exactIdentity(bytes)])) } };
 }
+async function collectOfflineBoundary(adapters = { readlink, readFile, readdir }, offlineEntered = offlineMainEntered) {
+  const [netns, mntns, status, routes, interfaces, loopbackFlags] = await Promise.all([
+    childRead("boundary_netns_read", () => adapters.readlink("/proc/self/ns/net"), offlineEntered).then((value) => namespaceValue(value, "net")),
+    childRead("boundary_mntns_read", () => adapters.readlink("/proc/self/ns/mnt"), offlineEntered).then((value) => namespaceValue(value, "mnt")),
+    childRead("boundary_status_read", () => adapters.readFile("/proc/self/status", "utf8"), offlineEntered),
+    childRead("boundary_routes_read", () => adapters.readFile("/proc/net/route", "utf8"), offlineEntered),
+    childRead("boundary_interfaces_read", () => adapters.readdir("/sys/class/net"), offlineEntered),
+    childRead("boundary_loopback_flags_read", () => adapters.readFile("/sys/class/net/lo/flags", "utf8"), offlineEntered),
+  ]);
+  return { netns, mntns, status, routes, interfaces, loopbackFlags };
+}
 export async function assertOfflineBoundary() {
-  const [netns, mntns, status, routes, interfaces, loopbackFlags] = await Promise.all([readNetworkNamespaceIdentity(), readMountNamespaceIdentity(), readFile("/proc/self/status", "utf8"), readFile("/proc/net/route", "utf8"), readdir("/sys/class/net"), readFile("/sys/class/net/lo/flags", "utf8")]);
+  const { netns, mntns, status, routes, interfaces, loopbackFlags } = await collectOfflineBoundary();
   return validateOfflineNetworkObservation({
     platform: process.platform, euid: process.geteuid?.(), egid: process.getegid?.(), groups: process.getgroups?.(), expectedUid: process.env.AW_GOSU_EXPECT_UID, expectedGid: process.env.AW_GOSU_EXPECT_GID,
     originalNetns: process.env.AW_GOSU_ORIGINAL_NETNS, netns, originalMntns: process.env.AW_GOSU_ORIGINAL_MNTNS, mntns,
@@ -359,15 +412,18 @@ async function offlinePhase(repeat, lock, lockIdentity, scratch, output, source,
   const receipt = { kind: "POSTGRES_GOSU_DERIVATIVE_BUILD_RECEIPT_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, repeat, component: lock.component, lock: lockIdentity, ci, source: { commit: lock.source.commit, archive: { bytes: lock.source.bytes, sha256: lock.source.sha256 }, vcsStamping: "DISABLED" }, compiler: { version: lock.compiler.identity, archive: { bytes: lock.compiler.bytes, sha256: lock.compiler.sha256 } }, node: { version: process.version, executable: reviewed.node }, helper: reviewed.helper, environment: { nodeOptionsEmpty: true, nodePathEmpty: true, goEnvOff: true, goToolchainLocal: true, goWorkOff: true, goFlagsEmpty: true }, networkCutoff: cutoff, build: { package: lock.build.package, flags: lock.build.flags, goos: lock.build.goos, goarch: lock.build.goarch, cgoEnabled: lock.build.cgoEnabled, mainVersion: "(devel)", vcs: false }, tests: { count: tests.run, passed: tests.passed, skipped: tests.skipped, failed: tests.failed, packagesPassed: tests.packagesPassed, packagesSkipped: tests.packagesSkipped, functionalValidation: tests.functionalValidation }, binary: binaryIdentity, files, claims: { preparation: "REPRODUCIBLE_SOURCE_PREPARATION_ONLY", candidateAdmission: "NOT_AUTHORIZED", vulnerabilityClearance: "NOT_ESTABLISHED", functionalValidation: tests.functionalValidation, actualTestCount: tests.run } };
   validateBuildReceipt(receipt, lock, reviewed); const receiptBytes = Buffer.from(canonicalJson(receipt)); await writeFile(path.join(output, "build-receipt.json"), receiptBytes, { flag: "wx" }); const controls = { kind: "POSTGRES_GOSU_DERIVATIVE_CONTROLS_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, valid: true, receipt: exactIdentity(receiptBytes), files }; await writeFile(path.join(output, "controls.json"), canonicalJson(controls), { flag: "wx" }); return receipt;
 }
-async function main() {
-  if (process.version !== "v22.23.2" || process.env.NODE_OPTIONS || process.env.NODE_PATH) fail("gosu_node_runtime_invalid"); const [command, repeatText] = process.argv.slice(2);
+async function main(adapters = { loadLock: loadChildLock, offlinePhase }) {
+  const [command, repeatText] = process.argv.slice(2); offlineMainEntered = command === "offline";
+  if (process.version !== "v22.23.2" || process.env.NODE_OPTIONS || process.env.NODE_PATH) { if (offlineMainEntered) childMainFailure("runtime_invalid"); fail("gosu_node_runtime_invalid"); }
   if (command === "offline-setup") { await runOfflineSetup(process.argv.slice(2), process.env); return; }
-  const repeat = Number(repeatText); const { value: lock } = await loadLock();
-  if (command === "offline") { const scratch = process.env.AW_GOSU_SCRATCH; const output = process.env.AW_GOSU_OUTPUT; if (![1, 2].includes(repeat) || !scratch || !output) fail("gosu_arguments_invalid"); const compiler = path.join(scratch, "compiler"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb }; await offlinePhase(repeat, lock, (await loadLock()).identity, scratch, output, path.join(scratch, "source"), compiler, base); return; }
+  const repeat = Number(repeatText);
+  if (command === "offline") { const { value: lock } = await adapters.loadLock(true); const scratch = process.env.AW_GOSU_SCRATCH; const output = process.env.AW_GOSU_OUTPUT; if (![1, 2].includes(repeat) || !scratch || !output) childMainFailure("arguments_invalid"); const compiler = path.join(scratch, "compiler"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb }; await adapters.offlinePhase(repeat, lock, (await adapters.loadLock(true)).identity, scratch, output, path.join(scratch, "source"), compiler, base); return; }
+  const { value: lock } = await loadLock();
   if (command !== "prepare" || ![1, 2].includes(repeat) || process.platform !== "linux" || !process.env.RUNNER_TEMP) fail("gosu_arguments_invalid");
   const scratch = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `aw-gosu-preparation-${repeat}`); const output = await assertInitiallyAbsentOwnedChild(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}`); await mkdir(scratch, { mode: 0o700 }); let primaryError;
   try { await mkdir(output, { mode: 0o700 }); await buildOnline(repeat, lock, scratch, output); const uid = process.getuid(); const gid = process.getgid(); if (uid === 0) fail("gosu_runner_identity_invalid"); const [originalNetns, originalMntns] = await Promise.all([readNetworkNamespaceIdentity(), readMountNamespaceIdentity()]); const invocation = buildOuterIsolationInvocation({ repeat: String(repeat), scratch, output, uid: String(uid), gid: String(gid), originalNetns, originalMntns, ci: { runId: process.env.AW_GOSU_CI_RUN_ID ?? "", runAttempt: process.env.AW_GOSU_CI_RUN_ATTEMPT ?? "", headSha: process.env.AW_GOSU_CI_HEAD_SHA ?? "", job: process.env.AW_GOSU_CI_JOB ?? "" } }); run("offline_isolation", invocation.command, invocation.args, invocation.options); const receipt = JSON.parse(await readFile(path.join(output, "build-receipt.json"), "utf8")); await validatePublicTree(output, receipt, lock, await reviewedIdentities()); const entries = await Promise.all(GOSU_PUBLIC_FILES_V1.map(async (name) => ({ path: name, type: "file", bytes: await readFile(path.join(output, name)) }))); const tar = path.join(process.env.RUNNER_TEMP, `gosu-preparation-${repeat}.tar`); const identity = await writeDeterministicUstar(entries, tar); await scanPreparationTar(tar, identity, new Set(GOSU_PUBLIC_FILES_V1)); if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, `tar_sha256=${identity.sha256}\ntar_bytes=${identity.bytes}\n`); process.stdout.write(canonicalJson({ repeat, ...identity })); }
   catch (error) { primaryError = error; }
   await completeOwnedGosuScratch(primaryError, scratch, process.env.RUNNER_TEMP);
 }
-if (path.resolve(process.argv[1] ?? "") === path.resolve(scriptFile)) main().catch((error) => { process.stderr.write(formatGosuPreparationFailure(error)); process.exitCode = 1; });
+let offlineMainEntered = false;
+if (path.resolve(process.argv[1] ?? "") === path.resolve(scriptFile)) main().catch((error) => { if (offlineMainEntered) process.stderr.write(formatChildMainFailure(error, true)); else process.stderr.write(formatGosuPreparationFailure(error)); process.exitCode = 1; });
