@@ -1,0 +1,44 @@
+{
+  "kind": "GOSU_LOCKED_PUBLIC_LICENSE_FIXTURES_V1",
+  "retrievedAtUtc": "2026-10-13T22:13:27.325006+00:00",
+  "scope": "PUBLIC_LOCK_AUTHENTICATED_TEST_INPUTS_ONLY",
+  "actualRunProvenance": "NOT_ESTABLISHED",
+  "files": [
+    {
+      "file": "apache-2.0.txt",
+      "url": "https://raw.githubusercontent.com/tianon/gosu/6456aaa0f3c854d199d0f037f068eb97515b7513/LICENSE",
+      "identity": {
+        "bytes": 11358,
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "matchesLock": true
+    },
+    {
+      "file": "go-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/golang/go/go1.26.9/LICENSE",
+      "identity": {
+        "bytes": 1453,
+        "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+      },
+      "matchesLock": true
+    },
+    {
+      "file": "x-sys-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/golang/sys/v0.1.0/LICENSE",
+      "identity": {
+        "bytes": 1479,
+        "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067"
+      },
+      "matchesLock": true
+    },
+    {
+      "file": "PATENTS.txt",
+      "url": "https://raw.githubusercontent.com/golang/go/go1.26.9/PATENTS",
+      "identity": {
+        "bytes": 1303,
+        "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+      },
+      "matchesLock": true
+    }
+  ]
+}

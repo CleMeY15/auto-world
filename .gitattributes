@@ -22,3 +22,4 @@ docs/validation/service-image-audits/** -text
 docs/validation/aws-cli-refresh/** -text
 infra/postgres-image/materials/** -text
 connectors/synthetic/demo/corpus/*.json -text
+tests/fixtures/gosu-public-license/** -text
