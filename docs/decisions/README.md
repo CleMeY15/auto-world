@@ -37,3 +37,6 @@ Create an ADR before introducing a cross-service contract or changing a previous
 PR166 has a reviewed local source increment with192targeted tests and complete local gates; [validation](../validation/TASK-0005A-gosu-sumdb-cache.md) records preservation and independent CLEAR_APPROVE. Final source/main delivery and actual10 preparation are still separate, with no admission/support authority.
 
 ADR-0015 has a focused [approved implementation plan](../../roadmap/plans/TASK-0005A-gosu-sumdb-cache.md) and [validation record](../validation/TASK-0005A-gosu-sumdb-cache.md) for standard Go-generated checksum-database state before isolation. It preserves source originals, existing offline behavior and PREPARATION_ONLY authority; source implementation/delivery and a distinct actual10 remain separate gates.
+# Gosu authenticated public-license checkpoint, 2026-10-14
+
+[ADR-0015](ADR-0015-gosu-compiler-derivative.md) records the six exact authenticated LICENSE/PATENTS boundary under TASK0005A. Targeted and full local source validation pass; final source/main delivery remains pending in [the validation record](../validation/TASK-0005A-gosu-public-license.md). TASK0005A/0005 remain incomplete and supported TASK0104 remains blocked.
