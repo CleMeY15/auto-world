@@ -17,9 +17,11 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 - [ADR-0017 — Synthetic vehicle taxonomy V1](ADR-0017-vehicle-taxonomy-v1.md): TASK-0008 implementation validated by independent APPROVE/CLEAR and full Linux CI38228092035; final-head/main delivery pending in PR161. Synthetic make/model releases and declared-version lookup only, not real automotive truth or authenticated lineage.
 
+- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): TASK-0009 DONE_ON_MAIN at `4f750960`, identical reviewed tree `7699a448`, final CI38431216651/main CI38433291505 SUCCESS and independent delivery PASS/CLEAR. [PR162 delivery](https://github.com/CleMeY15/auto-world/pull/162#issuecomment-6150751053). Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
+
 ## Plans under implementation
 
-- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): TASK-0009 implementation independently APPROVE/CLEAR with47 package tests and full local gates; final-head/main delivery in [PR162](https://github.com/CleMeY15/auto-world/pull/162) governs acceptance. Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
+- [ADR-0019 — Fiscal-rule versioning readiness](ADR-0019-fiscal-rule-versioning-readiness.md): TASK-0010 documentation-only readiness gate. No fiscal API/schema, official dataset, calculator or runtime implementation; future consumer/source/time decisions remain required before executable work is READY.
 
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.
 
