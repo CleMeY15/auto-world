@@ -32,7 +32,7 @@ Fresh targeted original capture index38756bytes/SHA256ab69ad1e3c723c03b68c8c2315
 
 The initial GREEN attempt is retained failed:136tests/134pass/2fail on both platforms. It exposed a duplicated physical command-stage site and a cloned-lock test fixture using object identity. The site now reuses one local wrapper; the fixture identifies only registered locked descriptors by bytes/hash. The primary pre-edit RED81tests/3pass/78assertion failures remains immutable; one invalid-verifier case is excluded from semantic claims because its underlying cause was the cloned-lock fixture. The77genuine pre-edit contract failures and positive original-builder control establish the prerequisite gap. Current-suite comparison with the frozen original records85tests/3pass/82normal semantic assertions per platform, zero exclusions and no known harness failure: index16015bytes/SHA25602963b5127041ab445246bc2abefb4dd93a0187805716610d8ef72f4ffb758dc. This is a post-edit comparison, not a new pre-edit capture. Additional retained directory/BOM focused regressions reproduced one/two normal assertions before their respective source corrections.
 
-Draft PR166 contains the plan before production edits. Full gates, independent review and delivery are still required. No actual10 has been dispatched.
+PR166 contains the plan before production edits. Complete local gates and independent source/security/targeted-evidence review pass. Final source/docs closure, exact final-head/main CI and independent delivery remain required. No actual10 has been dispatched.
 
 ## Complete local repository gates
 
