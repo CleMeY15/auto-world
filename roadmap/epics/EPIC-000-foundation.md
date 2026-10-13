@@ -17,7 +17,9 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 
 8. `TASK-0008-vehicle-taxonomy-v1.md` — DONE / implementation validated; independent APPROVE/CLEAR,36 taxonomy tests and full Linux CI38228092035; final-head/main delivery in [PR161](https://github.com/CleMeY15/auto-world/pull/161) governs downstream acceptance. Synthetic make/model contract only; [ADR-0017](../../docs/decisions/ADR-0017-vehicle-taxonomy-v1.md), [evidence](../../docs/validation/TASK-0008.md)
 
-9. `TASK-0009-observation-change-events.md` — IMPLEMENTATION_VALIDATED; independent APPROVE/CLEAR,47 package tests, full local code/browser/secrets/audit gates. Final-head/main delivery in [PR162](https://github.com/CleMeY15/auto-world/pull/162) governs downstream acceptance. [ADR-0018](../../docs/decisions/ADR-0018-observation-change-events.md), [evidence](../../docs/validation/TASK-0009.md). No broker, lifecycle or source activation.
+9. `TASK-0009-observation-change-events.md` — DONE_ON_MAIN at `4f75096037f37620e5dfec7a9221b2ba4e35f236`; identical reviewed tree `7699a448b67474b049ac5919184ba7579866437a`, final CI38431216651/main CI38433291505 SUCCESS, independent delivery PASS/CLEAR. [PR162 delivery](https://github.com/CleMeY15/auto-world/pull/162#issuecomment-6150751053), [ADR-0018](../../docs/decisions/ADR-0018-observation-change-events.md), [evidence](../../docs/validation/TASK-0009.md). Closed price/mileage representation-change contract only; no broker, lifecycle or source activation.
+
+10. [TASK-0010 — Fiscal-rule versioning readiness](../tasks/TASK-0010-fiscal-rule-versioning-readiness.md) — REVIEWED; final-head/main acceptance governed by its PR delivery comment. Five-file documentation checkpoint, not a fiscal implementation. [ADR-0019](../../docs/decisions/ADR-0019-fiscal-rule-versioning-readiness.md) requires consumer/source/time evidence before any executable fiscal task becomes READY. Fiscal P0 remains open.
 
 ## Exit gate
 
