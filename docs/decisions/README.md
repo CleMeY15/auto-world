@@ -30,3 +30,10 @@ Create an ADR before introducing a cross-service contract or changing a previous
 - [ADR-0016 — Synthetic web flow](ADR-0016-synthetic-web-flow.md): DONE_ON_MAIN in PR152/maincf71211d with identical reviewed tree10b9c94f, final CI38196985003/main CI38197621255 SUCCESS; data/proxy CLEAR, revision3 UX APPROVE and renewed actual API/performance CLEAR. Synthetic scope only. A [focused navigation contrast follow-up](../../roadmap/plans/TASK-0103-navigation-contrast.md) has independent pre-edit/source/visual/performance/evidence CLEAR and meaningful real-browser RED;65 clean full-browser passes/five existing exclusions. PR159 is SOURCE_DONE_ON_MAIN at identical reviewed merge931d1e5aa14a1a584d6098abb98619730d6bfd24/treee2877f3147f920839ac5cd21db2054656c91a82c; final CI38217311084 and protected-main CI38219609231 attempt2 SUCCESS, independent delivery PASS/CLEAR. Both pass all18 steps and65 browser tests without retries/five existing exclusions; cancelled dependency-install attempt1 remains retained.
 
 - ADR-0015 offline-phase continuation: [closed local phase diagnostics](../../roadmap/plans/TASK-0005A-gosu-offline-phase-diagnostics.md) and [validation](../validation/TASK-0005A-gosu-offline-phase-diagnostics.md), following accepted PR163 and independently reviewed distinct actual8 failure. Source increment in review; no preparation/admission authority.
+
+
+### Gosu online SumDB cache prerequisites
+
+PR166 has a reviewed local source increment with192targeted tests and complete local gates; [validation](../validation/TASK-0005A-gosu-sumdb-cache.md) records preservation and independent CLEAR_APPROVE. Final source/main delivery and actual10 preparation are still separate, with no admission/support authority.
+
+ADR-0015 has a focused [approved implementation plan](../../roadmap/plans/TASK-0005A-gosu-sumdb-cache.md) and [validation record](../validation/TASK-0005A-gosu-sumdb-cache.md) for standard Go-generated checksum-database state before isolation. It preserves source originals, existing offline behavior and PREPARATION_ONLY authority; source implementation/delivery and a distinct actual10 remain separate gates.
