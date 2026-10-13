@@ -37,7 +37,8 @@ const isolationMessages = isolationReasons.map((reason) => `gosu_offline_network
 const allChildMessages = [...childCodes, ...isolationMessages];
 const childMainMessage = (reason) => `gosu_preparation_failed\ngosu_child_main_entered\ngosu_child_failure_reason_${reason}`;
 const childReadStages = ["lock_read", "boundary_netns_read", "boundary_mntns_read", "boundary_status_read", "boundary_routes_read", "boundary_interfaces_read", "boundary_loopback_flags_read"];
-const childMainReasons = [...childReadStages.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `${stage}_${reason}`)), "runtime_invalid", "arguments_invalid", "lock_json_invalid", "lock_contract_invalid", "main_unclassified"];
+const childOfflineStages = ["boundary", "context", "upstream_tests", "binary_build", "source_evidence", "version", "build_info", "module_closure", "binary_identity", "sbom", "network_cutoff", "notices", "sumdb_inventory", "sumdb_archive", "output_inventory", "reviewed_identities", "receipt_validation", "receipt_record", "controls_record"];
+const childMainReasons = [...childReadStages.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `${stage}_${reason}`)), "runtime_invalid", "arguments_invalid", "lock_json_invalid", "lock_contract_invalid", "main_unclassified", ...childOfflineStages.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `offline_${stage}_${reason}`))];
 const childMainMessages = childMainReasons.map(childMainMessage);
 const success = () => ({ error: undefined, signal: null, status: 0, stdout: Buffer.from("ok"), stderr: Buffer.alloc(0) });
 const failure = (reason) => {
@@ -288,9 +289,9 @@ test("setpriv relay rejects malformed stdout before propagating an exact legacy 
   await assert.rejects(promise, exactMessage("gosu_offline_network_invalid\ngosu_isolation_reason_setup_setpriv_result_invalid"));
 });
 
-test("both relays propagate exactly all 26 fixed child-main packets and preserve all 82 legacy messages", async () => {
-  assert.equal(childMainMessages.length, 26); assert.equal(new Set(childMainMessages).size, 26);
-  assert.equal(new Set([...allChildMessages, ...childMainMessages]).size, 108);
+test("both relays propagate all 83 child-main packets and preserve all 82 legacy messages", async () => {
+  assert.equal(childMainMessages.length, 83); assert.equal(new Set(childMainMessages).size, 83);
+  assert.equal(new Set([...allChildMessages, ...childMainMessages]).size, 165);
   for (const message of [...allChildMessages, ...childMainMessages]) {
     assert.equal(message.endsWith("\n"), false); assert.match(message, /^[\x20-\x7e\n]+$/u);
     assert.equal(TEST_ONLY.formatChildMainFailure(new Error(message), true), `${message}\n`);
