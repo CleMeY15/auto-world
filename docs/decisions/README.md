@@ -34,4 +34,6 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ### Gosu online SumDB cache prerequisites
 
+PR166 has a reviewed local source increment with192targeted tests and complete local gates; [validation](../validation/TASK-0005A-gosu-sumdb-cache.md) records preservation and independent CLEAR_APPROVE. Final source/main delivery and actual10 preparation are still separate, with no admission/support authority.
+
 ADR-0015 has a focused [approved implementation plan](../../roadmap/plans/TASK-0005A-gosu-sumdb-cache.md) and [validation record](../validation/TASK-0005A-gosu-sumdb-cache.md) for standard Go-generated checksum-database state before isolation. It preserves source originals, existing offline behavior and PREPARATION_ONLY authority; source implementation/delivery and a distinct actual10 remain separate gates.

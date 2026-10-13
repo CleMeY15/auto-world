@@ -272,4 +272,6 @@ PR165 integration checkpoint: accepted PR164 fiscal-readiness documentation/main
 
 ## TASK-0005A - online SumDB prerequisite correction
 
+PR166 local source candidate:192targeted tests, Windows190pass/2existing Linux namespace exclusions and Linux192pass, zero failures. All926protected files/offline source/165packets preserved. Complete repository gates, independent review and final-head/main delivery remain pending; no actual10 or admission/support authority.
+
 PR165 source delivery is independently accepted on main3caeadb471b1824416403ef47237cc2afcad2ccb with matching final-head/main CI. Distinct actual9 run38449087110 is authenticated and its ten originals independently PASS_CLEAR: both prepare steps fail with offline_sumdb_inventory_path_unavailable; uploads/comparison skip and artifacts0. Exact path/errno/cause and preparation/admission authority remain unestablished. The [approved seven-path plan](plans/TASK-0005A-gosu-sumdb-cache.md) establishes standard Go checksum-database state before isolation, with source-before snapshots, strict validation of both downloads and bounded unlinked lookup/latest/cache reads. [Validation](../docs/validation/TASK-0005A-gosu-sumdb-cache.md) will record semantic RED and source/main gates before distinct actual10. TASK0005A/0005 remain IN_PROGRESS; TASK0104 stays blocked; support/currentEvidence unchanged.

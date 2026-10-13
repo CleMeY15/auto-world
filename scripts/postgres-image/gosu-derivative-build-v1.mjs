@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { createWriteStream } from "node:fs";
-import { appendFile, chmod, lstat, mkdir, opendir, readFile, readdir, readlink, realpath, rename, rmdir, rm, unlink, writeFile } from "node:fs/promises";
+import { constants, createWriteStream } from "node:fs";
+import { appendFile, chmod, lstat, mkdir, open, opendir, readFile, readdir, readlink, realpath, rename, rmdir, rm, unlink, writeFile } from "node:fs/promises";
 import https from "node:https";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { types } from "node:util";
+import { TextDecoder, types } from "node:util";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -301,6 +301,111 @@ async function extractTar(file, expected, limits, rootName, target, extra = {}) 
   } }); return { ...result, selected };
 }
 function assertSelected(selected, relative, expected) { const value = selected.get(relative); if (!value) fail("gosu_selected_file_missing"); assertIdentity(value.bytes, expected, "gosu_selected_file_invalid"); return value.bytes; }
+async function readOwnedSumdbFile(scratch, file, maximumBytes) {
+  let handle; let bytes; let invalid = false;
+  try {
+    const root = path.resolve(scratch); const target = path.resolve(file); const relative = path.relative(root, target);
+    if (!path.isAbsolute(scratch) || !path.isAbsolute(file) || !relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !Number.isSafeInteger(maximumBytes) || maximumBytes < 1) fail("gosu_sumdb_invalid");
+    let ancestor = root;
+    for (const part of relative.split(path.sep).slice(0, -1)) {
+      const info = await lstat(ancestor, { bigint: true });
+      if (!info.isDirectory() || info.isSymbolicLink()) fail("gosu_sumdb_invalid");
+      ancestor = path.join(ancestor, part);
+    }
+    const parentInfo = await lstat(ancestor, { bigint: true });
+    if (!parentInfo.isDirectory() || parentInfo.isSymbolicLink()) fail("gosu_sumdb_invalid");
+    const before = await lstat(target, { bigint: true }); const maximum = BigInt(maximumBytes);
+    if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n || before.size < 1n || before.size > maximum || before.size > BigInt(Number.MAX_SAFE_INTEGER)) fail("gosu_sumdb_invalid");
+    handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = await handle.stat({ bigint: true });
+    if (!opened.isFile() || opened.nlink !== 1n || opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size) fail("gosu_sumdb_invalid");
+    const length = Number(before.size); bytes = Buffer.alloc(length); let offset = 0;
+    while (offset < length) { const result = await handle.read(bytes, offset, length - offset, offset); if (!result || !Number.isInteger(result.bytesRead) || result.bytesRead < 1 || result.bytesRead > length - offset) fail("gosu_sumdb_invalid"); offset += result.bytesRead; }
+    const probe = await handle.read(Buffer.alloc(1), 0, 1, length); if (!probe || probe.bytesRead !== 0) fail("gosu_sumdb_invalid");
+    const after = await handle.stat({ bigint: true });
+    if (!after.isFile() || after.nlink !== 1n || after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size) fail("gosu_sumdb_invalid");
+  } catch { invalid = true; }
+  finally { if (handle) { try { await handle.close(); } catch { invalid = true; } } }
+  if (invalid || !bytes) fail("gosu_sumdb_invalid");
+  return bytes;
+}
+function parseSumdbTreeNote(bytes, verifierName, trustedKeyHash, allowZero) {
+  try {
+    if (!Buffer.isBuffer(bytes) || typeof verifierName !== "string" || !Buffer.isBuffer(trustedKeyHash) || trustedKeyHash.length !== 4 || typeof allowZero !== "boolean") fail("gosu_sumdb_invalid");
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    const hasControl = [...text].some((character) => { const code = character.codePointAt(0); return (code < 32 && code !== 10) || code === 127; });
+    if (!text || !text.endsWith("\n") || hasControl) fail("gosu_sumdb_invalid");
+    const separator = text.lastIndexOf("\n\n"); if (separator < 0) fail("gosu_sumdb_invalid");
+    const noteText = text.slice(0, separator + 1); const signatureText = text.slice(separator + 2); const lines = noteText.slice(0, -1).split("\n");
+    if (lines.length < 3 || lines[0] !== "go.sum database tree" || !/^(?:0|[1-9][0-9]*)$/u.test(lines[1])) fail("gosu_sumdb_invalid");
+    const size = BigInt(lines[1]); if (size > 9_223_372_036_854_775_807n || (!allowZero && size === 0n)) fail("gosu_sumdb_invalid");
+    const root = Buffer.from(lines[2], "base64"); if (root.length !== 32 || root.toString("base64") !== lines[2]) fail("gosu_sumdb_invalid");
+    if (!signatureText.endsWith("\n")) fail("gosu_sumdb_invalid"); const signatures = signatureText.slice(0, -1).split("\n"); if (!signatures.length || signatures.some((line) => !line)) fail("gosu_sumdb_invalid");
+    let trusted = false;
+    for (const line of signatures) {
+      if (!line.startsWith("— ")) fail("gosu_sumdb_invalid"); const split = line.indexOf(" ", 2); if (split < 3) fail("gosu_sumdb_invalid");
+      const name = line.slice(2, split); const token = line.slice(split + 1); if (!name || /[\p{White_Space}+]/u.test(name) || !token) fail("gosu_sumdb_invalid");
+      const signature = Buffer.from(token, "base64"); if (signature.length < 5 || signature.toString("base64") !== token) fail("gosu_sumdb_invalid");
+      if (name === verifierName && signature.length === 68 && signature.subarray(0, 4).equals(trustedKeyHash)) trusted = true;
+    }
+    if (!trusted) fail("gosu_sumdb_invalid"); return size;
+  } catch { fail("gosu_sumdb_invalid"); }
+}
+function validateSumdbLookup(bytes, expected, verifierName, trustedKeyHash) {
+  try {
+    if (!Buffer.isBuffer(bytes)) fail("gosu_sumdb_invalid"); const separator = bytes.indexOf(Buffer.from("\n\n")); if (separator < 0) fail("gosu_sumdb_invalid");
+    const prefix = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, separator)); const rows = prefix.split("\n");
+    if (rows.length !== 3 || rows.some((row) => !row) || !/^(?:0|[1-9][0-9]*)$/u.test(rows[0])) fail("gosu_sumdb_invalid");
+    const record = BigInt(rows[0]); if (record > 9_223_372_036_854_775_807n) fail("gosu_sumdb_invalid");
+    const wanted = [`${expected.path} ${expected.version} ${expected.zip.h1}`, `${expected.path} ${expected.version}/go.mod ${expected.mod.h1}`].sort();
+    if (JSON.stringify(rows.slice(1).sort()) !== JSON.stringify(wanted)) fail("gosu_sumdb_invalid");
+    const tree = parseSumdbTreeNote(bytes.subarray(separator + 2), verifierName, trustedKeyHash, false); if (tree <= record) fail("gosu_sumdb_invalid");
+  } catch { fail("gosu_sumdb_invalid"); }
+}
+async function validateOnlineModuleCache(downloaded, lock) {
+  let modules;
+  try { modules = downloaded.trim().split(/\n(?=\{)/u).filter(Boolean).map((item) => JSON.parse(item)); } catch { fail("gosu_module_closure_invalid"); }
+  if (modules.length !== lock.modules.length || modules.some((item) => !item || typeof item !== "object" || Array.isArray(item)) || new Set(modules.map((item) => item.Path)).size !== lock.modules.length) fail("gosu_module_closure_invalid");
+  for (const expected of lock.modules) {
+    const actual = modules.find((item) => item.Path === expected.path);
+    if (!actual || Object.hasOwn(actual, "Error") || actual.Version !== expected.version || actual.Sum !== expected.zip.h1 || actual.GoModSum !== expected.mod.h1 || ["Zip", "GoMod", "Info"].some((key) => typeof actual[key] !== "string" || !actual[key])) fail("gosu_module_closure_invalid");
+    for (const [key, descriptor] of [["Zip", expected.zip], ["GoMod", expected.mod], ["Info", moduleInfoCacheIdentity(expected)]]) { try { assertIdentity(await readFile(actual[key]), descriptor, "gosu_module_cache_invalid"); } catch { fail("gosu_module_cache_invalid"); } }
+  }
+}
+async function validateOnlineSumdbCache(scratch, lock) {
+  try {
+    const configured = "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8 https://sum.golang.org"; if (lock.sumdb !== configured) fail("gosu_sumdb_invalid");
+    const verifierName = "sum.golang.org"; const trustedKeyHash = Buffer.from("033de0ae", "hex"); const limits = GOSU_ARCHIVE_LIMITS_V1.sumdb;
+    const sumdbBase = path.join(scratch, "gomodcache", "cache", "download", "sumdb"); const verifierRoot = path.join(sumdbBase, verifierName); const tileRoot = path.join(verifierRoot, "tile");
+    const lookups = new Map(lock.modules.map((item) => [path.join(verifierRoot, "lookup", `${item.path}@${item.version}`), item])); const lookupBytes = new Map(); let members = 0; let totalBytes = 0; let tiles = 0;
+    const permittedDirectory = (directory) => directory === verifierRoot || directory === tileRoot || directory.startsWith(`${tileRoot}${path.sep}`) || tileRoot.startsWith(`${directory}${path.sep}`) || [...lookups.keys()].some((file) => file.startsWith(`${directory}${path.sep}`));
+    async function walk(directory, depth) {
+      const directoryInfo = await lstat(directory, { bigint: true }); if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || depth > limits.depth) fail("gosu_sumdb_invalid");
+      let entries; let invalid = false;
+      try {
+        entries = await opendir(directory);
+        for await (const entry of entries) {
+          members += 1; if (members > limits.members) fail("gosu_sumdb_invalid");
+          if (!entry || typeof entry.name !== "string" || !entry.name || entry.name === "." || entry.name === ".." || entry.name.includes("\\") || path.basename(entry.name) !== entry.name) fail("gosu_sumdb_invalid");
+          const file = path.join(directory, entry.name); const relative = path.relative(sumdbBase, file); const entryDepth = relative.split(path.sep).length;
+          if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || Buffer.byteLength(relative) > limits.pathBytes || entryDepth > limits.depth || entry.isSymbolicLink()) fail("gosu_sumdb_invalid");
+          if (entry.isDirectory()) { if (!permittedDirectory(file)) fail("gosu_sumdb_invalid"); await walk(file, entryDepth); continue; }
+          if (!entry.isFile() || (!lookups.has(file) && !file.startsWith(`${tileRoot}${path.sep}`))) fail("gosu_sumdb_invalid");
+          if (totalBytes >= limits.totalBytes) fail("gosu_sumdb_invalid");
+          const body = await readOwnedSumdbFile(scratch, file, Math.min(limits.memberBytes, limits.totalBytes - totalBytes)); totalBytes += body.length;
+          if (lookups.has(file)) { if (lookupBytes.has(file)) fail("gosu_sumdb_invalid"); lookupBytes.set(file, body); } else tiles += 1;
+        }
+      } catch { invalid = true; }
+      finally {
+        if (entries) { try { await entries.close(); } catch (error) { const descriptor = Object.getOwnPropertyDescriptor(error, "code"); if (!descriptor || descriptor.value !== "ERR_DIR_CLOSED") invalid = true; } }
+      }
+      if (invalid) fail("gosu_sumdb_invalid");
+    }
+    await walk(sumdbBase, 0); if (lookupBytes.size !== lookups.size || tiles < 1 || members < 1 || totalBytes > limits.totalBytes) fail("gosu_sumdb_invalid");
+    for (const [file, expected] of lookups) validateSumdbLookup(lookupBytes.get(file), expected, verifierName, trustedKeyHash);
+    const latest = await readOwnedSumdbFile(scratch, path.join(scratch, "gopath", "pkg", "sumdb", verifierName, "latest"), limits.memberBytes); parseSumdbTreeNote(latest, verifierName, trustedKeyHash, true);
+  } catch { fail("gosu_sumdb_invalid"); }
+}
 async function buildOnline(repeat, lock, scratch, output) {
   const materials = path.join(output, "materials"); const licenses = path.join(output, "licenses"); const source = path.join(scratch, "source"); const compiler = path.join(scratch, "compiler");
   await Promise.all([mkdir(materials), mkdir(licenses), mkdir(source), mkdir(compiler), mkdir(path.join(scratch, "home")), mkdir(path.join(scratch, "tmp")), mkdir(path.join(scratch, "gocache")), mkdir(path.join(scratch, "gomodcache")), mkdir(path.join(scratch, "gopath"))]);
@@ -323,9 +428,16 @@ async function buildOnline(repeat, lock, scratch, output) {
   }
   const go = path.join(compiler, "bin", "go"); const base = { home: path.join(scratch, "home"), tmp: path.join(scratch, "tmp"), path: `${path.join(compiler, "bin")}:/usr/local/bin:/usr/bin:/bin`, gocache: path.join(scratch, "gocache"), gomodcache: path.join(scratch, "gomodcache"), gopath: path.join(scratch, "gopath"), sumdb: lock.sumdb, offline: false };
   const env = cleanEnv(base); const version = run("online_go_version", go, ["version"], { cwd: source, env }).stdout.toString().trim(); if (version !== lock.compiler.identity) fail("gosu_compiler_identity_invalid");
-  const before = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); const downloaded = run("online_mod_download", go, ["mod", "download", "-json", "all"], { cwd: source, env }).stdout.toString(); run("online_mod_verify", go, ["mod", "verify"], { cwd: source, env }); const after = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(before) !== JSON.stringify(after)) fail("gosu_source_mutated");
-  const modules = downloaded.trim().split(/\n(?=\{)/u).filter(Boolean).map((item) => JSON.parse(item)); if (modules.length !== 2) fail("gosu_module_closure_invalid");
-  for (const expected of lock.modules) { const actual = modules.find((item) => item.Path === expected.path); if (!actual || actual.Version !== expected.version || actual.Sum !== expected.zip.h1 || actual.GoModSum !== expected.mod.h1) fail("gosu_module_closure_invalid"); for (const [key, descriptor] of [["Zip", expected.zip], ["GoMod", expected.mod], ["Info", moduleInfoCacheIdentity(expected)]]) assertIdentity(await readFile(actual[key]), descriptor, "gosu_module_cache_invalid"); }
+  const before = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); const expectedSource = [lock.source.goMod, lock.source.goSum]; const sameIdentities = (left, right) => left.length === right.length && left.every((item, index) => item.bytes === right[index].bytes && item.sha256 === right[index].sha256); if (!sameIdentities(before, expectedSource)) fail("gosu_source_mutated"); const downloadModules = (flags) => run("online_mod_download", go, ["mod", "download", ...flags, "-json", "all"], { cwd: source, env }).stdout.toString();
+  const checksumMod = path.join(scratch, "checksum.mod"); const checksumSum = path.join(scratch, "checksum.sum");
+  const requireAbsent = async (file) => { let absent = false; try { await lstat(file, { bigint: true }); } catch (error) { const descriptor = Object.getOwnPropertyDescriptor(error, "code"); absent = descriptor?.value === "ENOENT"; } if (!absent) fail("gosu_sumdb_invalid"); };
+  const scratchInfo = await lstat(scratch, { bigint: true }); if (!scratchInfo.isDirectory() || scratchInfo.isSymbolicLink()) fail("gosu_sumdb_invalid"); await requireAbsent(checksumMod); await requireAbsent(checksumSum); try { await writeFile(checksumMod, goMod, { flag: "wx" }); } catch { fail("gosu_sumdb_invalid"); } await requireAbsent(checksumSum);
+  const warmed = downloadModules([`-modfile=${checksumMod}`]); await validateOnlineModuleCache(warmed, lock);
+  let warmSource; let warmAlternate; try { [warmSource, warmAlternate] = await Promise.all([Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]), Promise.all([fileIdentity(checksumMod), fileIdentity(checksumSum)])]); } catch { fail("gosu_source_mutated"); }
+  if (!sameIdentities(warmSource, before) || !sameIdentities(warmAlternate, expectedSource)) fail("gosu_source_mutated"); await validateOnlineSumdbCache(scratch, lock);
+  const downloaded = downloadModules([]); await validateOnlineModuleCache(downloaded, lock); run("online_mod_verify", go, ["mod", "verify"], { cwd: source, env });
+  let after; let finalAlternate; try { [after, finalAlternate] = await Promise.all([Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]), Promise.all([fileIdentity(checksumMod), fileIdentity(checksumSum)])]); } catch { fail("gosu_source_mutated"); }
+  if (!sameIdentities(after, before) || !sameIdentities(finalAlternate, expectedSource)) fail("gosu_source_mutated"); await validateOnlineSumdbCache(scratch, lock);
   await writeFile(path.join(scratch, "online.json"), canonicalJson({ repeat, sourceFiles: after, compilerEntries: compilerScan.entries.length, compilerRegularBytes: compilerScan.regularBytes, sourceEntries: sourceScan.entries.length, sourceRegularBytes: sourceScan.regularBytes }), { flag: "wx" });
   return { source, compiler, go, base };
 }
