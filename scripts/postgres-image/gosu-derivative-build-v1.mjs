@@ -58,9 +58,15 @@ const CHILD_READ_STAGES = Object.freeze([
   "lock_read", "boundary_netns_read", "boundary_mntns_read", "boundary_status_read",
   "boundary_routes_read", "boundary_interfaces_read", "boundary_loopback_flags_read",
 ]);
+const CHILD_OFFLINE_STAGES = Object.freeze([
+  "boundary", "context", "upstream_tests", "binary_build", "source_evidence", "version", "build_info",
+  "module_closure", "binary_identity", "sbom", "network_cutoff", "notices", "sumdb_inventory", "sumdb_archive",
+  "output_inventory", "reviewed_identities", "receipt_validation", "receipt_record", "controls_record",
+]);
 const CHILD_MAIN_FAILURES = Object.freeze(Object.fromEntries([
   ...CHILD_READ_STAGES.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `${stage}_${reason}`)),
   "runtime_invalid", "arguments_invalid", "lock_json_invalid", "lock_contract_invalid", "main_unclassified",
+  ...CHILD_OFFLINE_STAGES.flatMap((stage) => ["permission_denied", "path_unavailable", "unclassified"].map((reason) => `offline_${stage}_${reason}`)),
 ].map((reason) => {
   const code = `gosu_preparation_failed\ngosu_child_main_entered\ngosu_child_failure_reason_${reason}`;
   return [reason, Object.freeze({ code, line: Buffer.from(`${code}\n`, "ascii") })];
@@ -394,23 +400,44 @@ async function runOfflineSetup(commandArguments, environment) {
   return dispatchOfflineSetup(commandArguments, environment, { platform: process.platform, geteuid: () => process.geteuid?.(), readlink, lstat, runner: spawnSync });
 }
 async function offlinePhase(repeat, lock, lockIdentity, scratch, output, source, compiler, base) {
-  const cutoff = await assertOfflineBoundary(); const go = path.join(compiler, "bin", "go"); const env = cleanEnv({ ...base, offline: true }); const binary = path.join(output, "gosu");
-  const testsRaw = run("offline_go_test", go, ["test", ...lock.build.testFlags], { cwd: source, env, cap: 16 * 1024 ** 2, timeout: 30 * 60_000 }).stdout.toString(); const tests = parseUpstreamTestJson(testsRaw); await writeFile(path.join(output, "upstream-tests.json"), canonicalJson(tests), { flag: "wx" });
-  run("offline_go_build", go, ["build", ...lock.build.flags, "-o", binary, lock.build.package], { cwd: source, env, timeout: 30 * 60_000 }); await chmod(binary, 0o755);
-  const online = JSON.parse(await readFile(path.join(scratch, "online.json"), "utf8")); const sourceFiles = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(sourceFiles) !== JSON.stringify(online.sourceFiles)) fail("gosu_source_mutated");
-  const version = run("offline_gosu_version", binary, ["--version"], { cwd: source, env }).stdout.toString().trim(); if (version !== "1.19 (go1.26.9 on linux/amd64; gc)") fail("gosu_version_invalid"); await writeFile(path.join(output, "version.txt"), `${version}\n`, { flag: "wx" });
-  const buildInfoText = run("offline_go_build_info", go, ["version", "-m", "./gosu"], { cwd: output, env }).stdout.toString(); parseGosuBuildInfo(buildInfoText, lock); await writeFile(path.join(output, "build-info.txt"), buildInfoText, { flag: "wx" });
-  await writeFile(path.join(output, "module-closure.json"), canonicalJson(moduleClosure(lock)), { flag: "wx" });
-  const binaryIdentity = await fileIdentity(binary); await writeFile(path.join(output, "sbom.cdx.json"), canonicalJson(canonicalSbom(lock, binaryIdentity)), { flag: "wx" });
-  await writeFile(path.join(output, "network-cutoff.json"), canonicalJson({ kind: "GOSU_NETWORK_CUTOFF_V1", checks: cutoff.checks, evidence: cutoff.evidence }), { flag: "wx" });
-  await writeFile(path.join(output, "licenses/notices.json"), canonicalJson(canonicalNotices()), { flag: "wx" });
-  const sumdbRoot = path.join(scratch, "gomodcache", "cache", "download", "sumdb"); const sumdbEntries = [];
-  async function collectSumdb(directory, prefix = "") { const entries = await import("node:fs/promises").then((fs) => fs.readdir(directory, { withFileTypes: true })); for (const entry of entries) { const relative = prefix ? `${prefix}/${entry.name}` : entry.name; if (entry.isSymbolicLink()) fail("gosu_sumdb_invalid"); if (entry.isDirectory()) await collectSumdb(path.join(directory, entry.name), relative); else if (entry.isFile()) sumdbEntries.push({ path: relative, type: "file", bytes: await readFile(path.join(directory, entry.name)) }); else fail("gosu_sumdb_invalid"); } }
-  await collectSumdb(sumdbRoot); const sumdbBytes = sumdbEntries.reduce((total, entry) => total + entry.bytes.length, 0); if (!sumdbEntries.length || sumdbEntries.length > GOSU_ARCHIVE_LIMITS_V1.sumdb.members || sumdbBytes > GOSU_ARCHIVE_LIMITS_V1.sumdb.totalBytes || sumdbEntries.some((entry) => entry.bytes.length > GOSU_ARCHIVE_LIMITS_V1.sumdb.memberBytes || entry.path.split("/").length > GOSU_ARCHIVE_LIMITS_V1.sumdb.depth || Buffer.byteLength(entry.path) > GOSU_ARCHIVE_LIMITS_V1.sumdb.pathBytes)) fail("gosu_sumdb_invalid"); await writeDeterministicUstar(sumdbEntries, path.join(output, "sumdb-proofs.tar"), GOSU_ARCHIVE_LIMITS_V1.sumdb);
-  const fileNames = GOSU_PUBLIC_FILES_V1.filter((item) => !["build-receipt.json", "controls.json"].includes(item)); const files = Object.fromEntries(await Promise.all(fileNames.map(async (name) => [name, await fileIdentity(path.join(output, name))])));
-  const reviewed = await reviewedIdentities(); if (JSON.stringify(reviewed.lock) !== JSON.stringify(lockIdentity)) fail("gosu_lock_identity_invalid"); const ci = { runId: process.env.AW_GOSU_CI_RUN_ID, runAttempt: process.env.AW_GOSU_CI_RUN_ATTEMPT, headSha: process.env.AW_GOSU_CI_HEAD_SHA, job: process.env.AW_GOSU_CI_JOB };
-  const receipt = { kind: "POSTGRES_GOSU_DERIVATIVE_BUILD_RECEIPT_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, repeat, component: lock.component, lock: lockIdentity, ci, source: { commit: lock.source.commit, archive: { bytes: lock.source.bytes, sha256: lock.source.sha256 }, vcsStamping: "DISABLED" }, compiler: { version: lock.compiler.identity, archive: { bytes: lock.compiler.bytes, sha256: lock.compiler.sha256 } }, node: { version: process.version, executable: reviewed.node }, helper: reviewed.helper, environment: { nodeOptionsEmpty: true, nodePathEmpty: true, goEnvOff: true, goToolchainLocal: true, goWorkOff: true, goFlagsEmpty: true }, networkCutoff: cutoff, build: { package: lock.build.package, flags: lock.build.flags, goos: lock.build.goos, goarch: lock.build.goarch, cgoEnabled: lock.build.cgoEnabled, mainVersion: "(devel)", vcs: false }, tests: { count: tests.run, passed: tests.passed, skipped: tests.skipped, failed: tests.failed, packagesPassed: tests.packagesPassed, packagesSkipped: tests.packagesSkipped, functionalValidation: tests.functionalValidation }, binary: binaryIdentity, files, claims: { preparation: "REPRODUCIBLE_SOURCE_PREPARATION_ONLY", candidateAdmission: "NOT_AUTHORIZED", vulnerabilityClearance: "NOT_ESTABLISHED", functionalValidation: tests.functionalValidation, actualTestCount: tests.run } };
-  validateBuildReceipt(receipt, lock, reviewed); const receiptBytes = Buffer.from(canonicalJson(receipt)); await writeFile(path.join(output, "build-receipt.json"), receiptBytes, { flag: "wx" }); const controls = { kind: "POSTGRES_GOSU_DERIVATIVE_CONTROLS_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, valid: true, receipt: exactIdentity(receiptBytes), files }; await writeFile(path.join(output, "controls.json"), canonicalJson(controls), { flag: "wx" }); return receipt;
+  let stage = "boundary";
+  try {
+    const cutoff = await assertOfflineBoundary(); stage = "context"; const go = path.join(compiler, "bin", "go"); const env = cleanEnv({ ...base, offline: true }); const binary = path.join(output, "gosu");
+    stage = "upstream_tests";
+    const testsRaw = run("offline_go_test", go, ["test", ...lock.build.testFlags], { cwd: source, env, cap: 16 * 1024 ** 2, timeout: 30 * 60_000 }).stdout.toString(); const tests = parseUpstreamTestJson(testsRaw); await writeFile(path.join(output, "upstream-tests.json"), canonicalJson(tests), { flag: "wx" });
+    stage = "binary_build";
+    run("offline_go_build", go, ["build", ...lock.build.flags, "-o", binary, lock.build.package], { cwd: source, env, timeout: 30 * 60_000 }); await chmod(binary, 0o755);
+    stage = "source_evidence";
+    const online = JSON.parse(await readFile(path.join(scratch, "online.json"), "utf8")); const sourceFiles = await Promise.all([fileIdentity(path.join(source, "go.mod")), fileIdentity(path.join(source, "go.sum"))]); if (JSON.stringify(sourceFiles) !== JSON.stringify(online.sourceFiles)) fail("gosu_source_mutated");
+    stage = "version";
+    const version = run("offline_gosu_version", binary, ["--version"], { cwd: source, env }).stdout.toString().trim(); if (version !== "1.19 (go1.26.9 on linux/amd64; gc)") fail("gosu_version_invalid"); await writeFile(path.join(output, "version.txt"), `${version}\n`, { flag: "wx" });
+    stage = "build_info";
+    const buildInfoText = run("offline_go_build_info", go, ["version", "-m", "./gosu"], { cwd: output, env }).stdout.toString(); parseGosuBuildInfo(buildInfoText, lock); await writeFile(path.join(output, "build-info.txt"), buildInfoText, { flag: "wx" });
+    stage = "module_closure";
+    await writeFile(path.join(output, "module-closure.json"), canonicalJson(moduleClosure(lock)), { flag: "wx" });
+    stage = "binary_identity";
+    const binaryIdentity = await fileIdentity(binary); stage = "sbom"; await writeFile(path.join(output, "sbom.cdx.json"), canonicalJson(canonicalSbom(lock, binaryIdentity)), { flag: "wx" });
+    stage = "network_cutoff";
+    await writeFile(path.join(output, "network-cutoff.json"), canonicalJson({ kind: "GOSU_NETWORK_CUTOFF_V1", checks: cutoff.checks, evidence: cutoff.evidence }), { flag: "wx" });
+    stage = "notices";
+    await writeFile(path.join(output, "licenses/notices.json"), canonicalJson(canonicalNotices()), { flag: "wx" });
+    stage = "sumdb_inventory";
+    const sumdbRoot = path.join(scratch, "gomodcache", "cache", "download", "sumdb"); const sumdbEntries = [];
+    async function collectSumdb(directory, prefix = "") { const entries = await import("node:fs/promises").then((fs) => fs.readdir(directory, { withFileTypes: true })); for (const entry of entries) { const relative = prefix ? `${prefix}/${entry.name}` : entry.name; if (entry.isSymbolicLink()) fail("gosu_sumdb_invalid"); if (entry.isDirectory()) await collectSumdb(path.join(directory, entry.name), relative); else if (entry.isFile()) sumdbEntries.push({ path: relative, type: "file", bytes: await readFile(path.join(directory, entry.name)) }); else fail("gosu_sumdb_invalid"); } }
+    await collectSumdb(sumdbRoot); const sumdbBytes = sumdbEntries.reduce((total, entry) => total + entry.bytes.length, 0); if (!sumdbEntries.length || sumdbEntries.length > GOSU_ARCHIVE_LIMITS_V1.sumdb.members || sumdbBytes > GOSU_ARCHIVE_LIMITS_V1.sumdb.totalBytes || sumdbEntries.some((entry) => entry.bytes.length > GOSU_ARCHIVE_LIMITS_V1.sumdb.memberBytes || entry.path.split("/").length > GOSU_ARCHIVE_LIMITS_V1.sumdb.depth || Buffer.byteLength(entry.path) > GOSU_ARCHIVE_LIMITS_V1.sumdb.pathBytes)) fail("gosu_sumdb_invalid"); stage = "sumdb_archive"; await writeDeterministicUstar(sumdbEntries, path.join(output, "sumdb-proofs.tar"), GOSU_ARCHIVE_LIMITS_V1.sumdb);
+    stage = "output_inventory";
+    const fileNames = GOSU_PUBLIC_FILES_V1.filter((item) => !["build-receipt.json", "controls.json"].includes(item)); const files = Object.fromEntries(await Promise.all(fileNames.map(async (name) => [name, await fileIdentity(path.join(output, name))])));
+    stage = "reviewed_identities";
+    const reviewed = await reviewedIdentities(); if (JSON.stringify(reviewed.lock) !== JSON.stringify(lockIdentity)) fail("gosu_lock_identity_invalid"); const ci = { runId: process.env.AW_GOSU_CI_RUN_ID, runAttempt: process.env.AW_GOSU_CI_RUN_ATTEMPT, headSha: process.env.AW_GOSU_CI_HEAD_SHA, job: process.env.AW_GOSU_CI_JOB };
+    stage = "receipt_validation";
+    const receipt = { kind: "POSTGRES_GOSU_DERIVATIVE_BUILD_RECEIPT_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, repeat, component: lock.component, lock: lockIdentity, ci, source: { commit: lock.source.commit, archive: { bytes: lock.source.bytes, sha256: lock.source.sha256 }, vcsStamping: "DISABLED" }, compiler: { version: lock.compiler.identity, archive: { bytes: lock.compiler.bytes, sha256: lock.compiler.sha256 } }, node: { version: process.version, executable: reviewed.node }, helper: reviewed.helper, environment: { nodeOptionsEmpty: true, nodePathEmpty: true, goEnvOff: true, goToolchainLocal: true, goWorkOff: true, goFlagsEmpty: true }, networkCutoff: cutoff, build: { package: lock.build.package, flags: lock.build.flags, goos: lock.build.goos, goarch: lock.build.goarch, cgoEnabled: lock.build.cgoEnabled, mainVersion: "(devel)", vcs: false }, tests: { count: tests.run, passed: tests.passed, skipped: tests.skipped, failed: tests.failed, packagesPassed: tests.packagesPassed, packagesSkipped: tests.packagesSkipped, functionalValidation: tests.functionalValidation }, binary: binaryIdentity, files, claims: { preparation: "REPRODUCIBLE_SOURCE_PREPARATION_ONLY", candidateAdmission: "NOT_AUTHORIZED", vulnerabilityClearance: "NOT_ESTABLISHED", functionalValidation: tests.functionalValidation, actualTestCount: tests.run } };
+    validateBuildReceipt(receipt, lock, reviewed); const receiptBytes = Buffer.from(canonicalJson(receipt)); stage = "receipt_record"; await writeFile(path.join(output, "build-receipt.json"), receiptBytes, { flag: "wx" }); stage = "controls_record"; const controls = { kind: "POSTGRES_GOSU_DERIVATIVE_CONTROLS_V1", state: "PREPARATION_ONLY", authority: "NOT_AUTHORIZED", supportStartsAt: null, supportEndsAt: null, archiveRetainUntil: null, valid: true, receipt: exactIdentity(receiptBytes), files }; await writeFile(path.join(output, "controls.json"), canonicalJson(controls), { flag: "wx" }); return receipt;
+  } catch (error) {
+    const message = ownErrorData(error, "message");
+    if (CHILD_FAILURE_LINES.some(({ code }) => code === message)) throw error;
+    const code = ownErrorData(error, "code");
+    childMainFailure(`offline_${stage}_${code === "EACCES" || code === "EPERM" ? "permission_denied" : code === "ENOENT" || code === "ENOTDIR" ? "path_unavailable" : "unclassified"}`);
+  }
 }
 async function main(adapters = { loadLock: loadChildLock, offlinePhase }) {
   const [command, repeatText] = process.argv.slice(2); offlineMainEntered = command === "offline";
