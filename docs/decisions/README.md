@@ -19,6 +19,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
+- [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): TASK-0009 implementation independently APPROVE/CLEAR with47 package tests and full local gates; final-head/main delivery in [PR162](https://github.com/CleMeY15/auto-world/pull/162) governs acceptance. Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
+
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.
 
 - [ADR-0015 — Traceable gosu compiler derivative](ADR-0015-gosu-compiler-derivative.md): source through PR160 SOURCE_DONE_ON_MAIN at b4675d5d, exact final/main CI and independently accepted delivery. Seven distinct actual preparations failed before upload; internal cause of actual7 remains unknown. [Closed child failure diagnostics](../../roadmap/plans/TASK-0005A-gosu-child-failure-diagnostics.md) has independent plan CLEAR_APPROVE and frozen baseline; implementation/source-security review and targeted80-test checks pass; all six repository gates and65 browser first passes succeed; final source delivery pending. Historical originals retained without retry/redownload; no preparation/admission/support authority.
