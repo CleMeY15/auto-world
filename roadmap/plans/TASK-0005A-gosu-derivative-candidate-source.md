@@ -227,4 +227,3 @@ Delta={scope:"FILESYSTEM_PREDICATE_MATCH_ONLY"|"CONDITIONAL_ON_AUTHENTICATED_OCI
 V1 rÃ©elle : validatePostgresConfigDelta(baseConfig,candidateConfig,expectedAdditionalLabels,expectedParentImage). Appel aprÃ¨s copie JSON sÃ»re avec {},undefined,profil STRICT_INHERITED_CONFIG_V2 ; comparaison complÃ¨te,Image inchangÃ©. ConfigResult={scope:"CONFIG_PREDICATE_MATCH_ONLY",authority:"NOT_AUTHORIZED",profile:"STRICT_INHERITED_CONFIG_V2"}. Builder incompatible : version/revue distincte,sans self-report.
 
 Codes fixes sans valeurs/stack ; zÃ©ro IO/CLI/spawn/rÃ©seau/archive/framework/deps. Aucune preuve image/fonctionnement/vulnÃ©rabilitÃ©s/publication/Native/admission/support/currentEvidence.
-
