@@ -302,3 +302,15 @@ PR168 is independently SOURCE_DONE_ON_MAIN at maina6cd921ce9a8fe2858fd0bd0af9f6d
 
 
 PR169 local source checkpoint:25 targeted tests pass on each Windows/Linux platform; ordinary Linux uid/euid1000. Six fresh gates pass14/20/28/14 tasks, root1980/1539passes/441existingWindows exclusions/zero failures,951 secret-scanned files/audit0. Source/security and architecture PASS_CLEAR; manifest independently computed and940 protected files preserved. Final11-path source closure, exact-head CI, identical-tree main/main CI and independent delivery remain pending. Image UNBUILT; no publication/admission/support authority.
+
+
+## TASK-0005A - closed Gosu source-context operator, 2026-10-14
+
+PR169 is independently SOURCE_DONE_ON_MAIN at source8081057b3a3f398dba0fe3f8d59e3165ea8ccda9/main25b55ad507c695e6caf9a65caa30afc0c671fe15/treeec4118c0a19c14e70883a062463ca34a06e37c79. Final CI38500544964/main CI38501946291 and independent delivery7983/SHA25687d169cf2b9e9012fffb839e7060974efaa40381380a8a5713e6c969011ff1fa pass. Its older pending checkpoints remain historical. Actual11 still establishes reproducible preparation only.
+
+[PR170](https://github.com/CleMeY15/auto-world/pull/170) implements the [approved seven-path plan](plans/TASK-0005A-gosu-derivative-context-source.md): one unused source module/three exports, synthetic hostile-format and VM failure tests, and append-only evidence documentation. Stat-only WSL observation and independent review read zero original ZIP/TAR/header/member bytes. Fixed private roots, exact ZIP/TAR profiles, dual output validation and durable no-replace promotion close the four rejected V1 plan branches. [Validation](../docs/validation/TASK-0005A-gosu-derivative-context-source.md) tracks source gates independently of the later actual original/context operation.
+
+Source implementation/gates/review/final-head/main delivery remain pending at this checkpoint. No actual context or image is accepted. TASK0005A/0005 remain IN_PROGRESS; TASK0104/0105/0106 dependent. No archive replay, workflow, registry, publisher, Native, activation, support, SQL retry or currentEvidence mutation occurs.
+
+
+PR170 local source checkpoint:32 context cases plus25 candidate controls pass57/57 on each pinned Windows/Linux Node22 platform; Linux ordinary uid/euid1000. Six local gates pass, root1981/1540passes/zero failures/441existing Windows exclusions, Turbo14/20/28/14 with caches14/19/27/13, secrets955/audit0. Static source/security PASS_CLEAR binds the final module; the close-after-retirement helper case proves refusal and retention without retry. Final seven-path closure, final-head/main CI and delivery remain pending. No actual private context or image is accepted.
