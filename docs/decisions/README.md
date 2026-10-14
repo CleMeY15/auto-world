@@ -44,3 +44,6 @@ ADR-0015 has a focused [approved implementation plan](../../roadmap/plans/TASK-0
 # Actual reproducible Gosu preparation checkpoint, 2026-10-14
 
 PR167 source delivery is SOURCE_DONE_ON_MAIN at d7bc2412104839e0be67ee97171d281b50465ccc. [Actual11](../validation/TASK-0005A-gosu-actual-preparation.md) has independent PASS_CLEAR for two authenticated retained trees and their exact canonical comparison: REPRODUCIBLE_SOURCE_PREPARATION_ONLY. The candidate lock/recipe/delta, publication, security/runtime/restore/attestation/retention and admission gates remain separate. TASK0005A/0005 stay IN_PROGRESS; supported TASK0104 stays BLOCKED.
+
+
+ADR-0015 candidate continuation: [source plan](../../roadmap/plans/TASK-0005A-gosu-derivative-candidate-source.md) and [validation](../validation/TASK-0005A-gosu-derivative-candidate-source.md) define unused V2 same-path/unchanged-APK candidate predicates after accepted PR168 preparation. Actual image, publication, runtime, admission and support remain separate.
