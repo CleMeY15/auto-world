@@ -1,0 +1,3 @@
+FROM postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3
+COPY --chown=0:0 gosu /usr/local/bin/gosu
+COPY --chown=0:0 auto-world-gosu/ /usr/share/licenses/auto-world-gosu/

@@ -1,0 +1,241 @@
+{
+  "kind": "POSTGRES_GOSU_DERIVATIVE_CANDIDATE_SOURCE_LOCK_V2",
+  "schemaVersion": 2,
+  "component": "auto-world-gosu/1.19-go1.26.9-r1",
+  "state": "SOURCE_ONLY",
+  "authority": "NOT_AUTHORIZED",
+  "base": {
+    "repository": "postgres",
+    "tag": "17.11-alpine3.24",
+    "indexDigest": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+    "platformDigest": "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+    "configId": "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537",
+    "platform": {
+      "os": "linux",
+      "architecture": "amd64",
+      "variant": null
+    }
+  },
+  "preparation": {
+    "runId": 38485260984,
+    "headSha": "d7bc2412104839e0be67ee97171d281b50465ccc",
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "workflowId": 381685649,
+    "repositoryId": 1357514939,
+    "artifacts": [
+      {
+        "repeat": 1,
+        "jobId": 115597243634,
+        "artifactId": 11859810750,
+        "zip": {
+          "bytes": 105074334,
+          "sha256": "8b6e5b2bf25263eb5d88beb29a14a0ce94f04e84532545b5f4b67c420d0b485c"
+        },
+        "tar": {
+          "bytes": 105074176,
+          "sha256": "60225c765c783733e729694110878d1265dcd5a6f977c3ad8db101cc34bc50d8"
+        }
+      },
+      {
+        "repeat": 2,
+        "jobId": 115597243869,
+        "artifactId": 11860070551,
+        "zip": {
+          "bytes": 105088670,
+          "sha256": "d3ea38965f56928d62d76d4a22254cebe7e0444f3a9f2f4dddfc468491e82e52"
+        },
+        "tar": {
+          "bytes": 105088512,
+          "sha256": "b24f4f93c1de255500052437d6ed6eeef6ba7fc8fa0267b28e84e601ce467488"
+        }
+      }
+    ],
+    "acceptance": {
+      "bytes": 3643,
+      "sha256": "eb862271418d63846aa44ae989ae7327899e9696b4bf0560510d1d83984a726b"
+    },
+    "comparison": {
+      "bytes": 1225,
+      "sha256": "9118376b641237457a177405edfbb7faa926027f3e93d8b0885661eb3131b439"
+    },
+    "documentProjection": {
+      "bytes": 16995,
+      "sha256": "b4230c510525f1d23b8f4598df42d92d614dc8a5ce4ea5495c90e0f7004cac5f"
+    }
+  },
+  "binary": {
+    "path": "usr/local/bin/gosu",
+    "type": "file",
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "mtime": 0,
+    "size": 1936912,
+    "sha256": "d0a386b6fcd757540277ed91e213e7c51f2406bad2965535ce0bd2c6214339d4"
+  },
+  "installation": {
+    "binaryPath": "/usr/local/bin/gosu",
+    "evidenceDirectory": "/usr/share/licenses/auto-world-gosu",
+    "binaryMode": 493,
+    "evidenceMode": 420,
+    "directoryMode": 493,
+    "uid": 0,
+    "gid": 0,
+    "mtime": 0
+  },
+  "evidence": [
+    {
+      "name": "gosu-LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "name": "moby-user-LICENSE",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "name": "go-LICENSE",
+      "bytes": 1453,
+      "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+    },
+    {
+      "name": "go-PATENTS",
+      "bytes": 1303,
+      "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+    },
+    {
+      "name": "x-sys-LICENSE",
+      "bytes": 1479,
+      "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067"
+    },
+    {
+      "name": "x-sys-PATENTS",
+      "bytes": 1303,
+      "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+    },
+    {
+      "name": "notices.json",
+      "bytes": 121,
+      "sha256": "e48215fcfd4ac9f0d66e88c9ecb2b2d60898681278f582452fbe60c853618c22"
+    },
+    {
+      "name": "module-closure.json",
+      "bytes": 399,
+      "sha256": "8234aa30428e11a6e39cc916557ec1c849fd1481c35385536e11bf4455f0c3cc"
+    },
+    {
+      "name": "sbom.cdx.json",
+      "bytes": 1192,
+      "sha256": "4dfb0c70caa63416dfeaad485cef2aea70e1689d39729dd90cc9ecd087439b26"
+    },
+    {
+      "name": "version.txt",
+      "bytes": 35,
+      "sha256": "7bd970d3ab80dd130d0faa363a39469dddda09274e0da70d1a8dd8fd2f7ca237"
+    },
+    {
+      "name": "build-info.txt",
+      "bytes": 950,
+      "sha256": "2196165397810ee92560467344c9aa9356ddcfa54cf6d5f086391bc1252a1a4b"
+    }
+  ],
+  "sourceContract": {
+    "preparationLock": {
+      "bytes": 5109,
+      "sha256": "d9a8eb3447db727d47f486cc48a3bef3b91b629d493ec6485cfd5b6d7c9297d7"
+    },
+    "helpers": {
+      "build": {
+        "bytes": 61234,
+        "sha256": "d8c3ac7f56e13ca330b7b3feb8a8403ceba26450aace95c1c45aff9e5ac1d2db"
+      },
+      "controls": {
+        "bytes": 35672,
+        "sha256": "cf89cf882e42a85d6e36dc9ff387f0bf0b7036616fc144f4a9105407e6abbe09"
+      },
+      "archives": {
+        "bytes": 20897,
+        "sha256": "fc11b6948be10d0bdc84ae59d3f6d8b5d2733a0b0385ccdfa6396c05e458001e"
+      }
+    },
+    "documentProjectionReview": {
+      "bytes": 7784,
+      "sha256": "52161f387ff2d5243805a2ca6c6c91a43ec1accfea6b74a46afb1566d57a4733"
+    },
+    "interface": {
+      "bytes": 10169,
+      "sha256": "a49c4dd315ea732b5b732492b480f0f51394ef67c99d242b685b3f23a00f74f5"
+    },
+    "source": {
+      "module": "github.com/tianon/gosu",
+      "version": "(devel)",
+      "commit": "6456aaa0f3c854d199d0f037f068eb97515b7513",
+      "archive": {
+        "bytes": 17631,
+        "sha256": "33d7537d588ea49458b9509bcf4554bdf5ceacc66da71e5caa1058ea3b689c3b"
+      },
+      "goMod": {
+        "bytes": 110,
+        "sha256": "0475f1708db81d718b633faf2d9dd64695037eabdc8562125060607bcb01b2ba"
+      },
+      "goSum": {
+        "bytes": 318,
+        "sha256": "2a8f3fb6adb84839bbb9999f12f1416fb86c184135aaa1c2e489b35203c08346"
+      }
+    },
+    "compiler": {
+      "version": "go1.26.9",
+      "identity": "go version go1.26.9 linux/amd64",
+      "archive": {
+        "bytes": 66935201,
+        "sha256": "42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d"
+      }
+    },
+    "modules": [
+      {
+        "id": "moby-user",
+        "path": "github.com/moby/sys/user",
+        "version": "v0.1.0",
+        "zip": {
+          "bytes": 13793,
+          "sha256": "85178932dc13b1c404c32e1b9f68fe88bf0b43e57dda39f24c45113e0bcf00ee",
+          "h1": "h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg="
+        },
+        "mod": {
+          "bytes": 74,
+          "sha256": "91a578705d847c83a40f0e3149724863961cef2b2d7ca4262b40cefe487eff03",
+          "h1": "h1:fKJhFOnsCN6xZ5gSfbM6zaHGgDJMrqt9/reuj4T7MmU="
+        }
+      },
+      {
+        "id": "x-sys",
+        "path": "golang.org/x/sys",
+        "version": "v0.1.0",
+        "zip": {
+          "bytes": 1861264,
+          "sha256": "e7cbe58ed3745ba63d482fe82603119bd635f9a5dd914ed95a4c1826fdcf54a7",
+          "h1": "h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U="
+        },
+        "mod": {
+          "bytes": 33,
+          "sha256": "f033333096fe198f3151deed93f2deba74e50bbfe7739134045bc3b7ce4a5024",
+          "h1": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg="
+        }
+      }
+    ]
+  },
+  "claims": {
+    "actualTestCount": 0,
+    "functionalValidation": "NOT_ESTABLISHED",
+    "vulnerabilityClearance": "NOT_ESTABLISHED",
+    "image": "UNBUILT",
+    "candidateAdmission": "NOT_AUTHORIZED"
+  },
+  "dates": {
+    "supportStartsAt": null,
+    "supportEndsAt": null,
+    "archiveRetainUntil": null
+  }
+}
