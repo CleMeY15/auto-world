@@ -1,4 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { demoCatalog, demoFixtureVersion, demoRelease, descriptionFields, mockDemoCatalog, v2Envelope, v2Error } from "./demo-v2-fixtures";
 
 const favoriteKey = "auto-world.demo.favorites.v1";
 const nextCursor = (value: string) => `cur_${value.repeat(64)}`;
@@ -18,18 +21,20 @@ function listing(index: number, observedAt: string, availability: "active" | "wi
       { evidenceId: latestPrice, field: "price", observedAt, confidenceBps: 9000, value: { amountMinor: 2500000 + index * 100000, currency: "EUR" } },
       { evidenceId: mileage, field: "mileage", observedAt, confidenceBps: 8500, value: { amount: 20000 + index * 1000, unit: "km" } },
     ],
+    ...descriptionFields(index, { contradictory }),
   };
 }
 function response(results: readonly unknown[], options: { readonly state?: "complete" | "partial" | "stale"; readonly dataAsOf?: string; readonly cursor?: string; readonly fixture?: string; readonly total?: number } = {}) {
   const state = options.state ?? "complete";
-  const common = { schemaVersion: 1, dataMode: "synthetic", fixtureVersion: options.fixture ?? "ui-states-v1", dataAsOf: options.dataAsOf ?? new Date().toISOString(), results, ...(options.cursor ? { nextCursor: options.cursor } : {}) };
+  const common = { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: options.fixture ?? demoFixtureVersion, taxonomyRelease: demoRelease, dataAsOf: options.dataAsOf ?? new Date().toISOString(), results, ...(options.cursor ? { nextCursor: options.cursor } : {}) };
   const data = state === "complete" ? { ...common, state, totalCount: options.total ?? results.length } : state === "partial" ? { ...common, state, reason: "projection_incomplete" } : { ...common, state, reason: "projection_stale" };
-  return { schemaVersion: 1, requestId, data };
+  return v2Envelope(data, requestId);
 }
 async function fulfill(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 async function ready(page: Page) {
+  await mockDemoCatalog(page);
   await page.goto("/demo");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
 }
@@ -41,8 +46,8 @@ async function search(page: Page) {
 test("detail exposes withdrawal and contradictory observations, then restores scroll, filters and trigger focus", async ({ page }) => {
   const at = new Date().toISOString();
   const results = Array.from({ length: 8 }, (_, index) => listing(index + 1, at));
-  await page.route("**/api/demo/search", (route) => fulfill(route, response(results)));
-  await page.route("**/api/demo/listings/*", (route) => fulfill(route, response([listing(6, at, "withdrawn", true)], { total: 1 })));
+  await page.route("**/api/demo/v2/search", (route) => fulfill(route, response(results)));
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(6, at, "withdrawn", true)], { total: 1 })));
   await ready(page);
   await page.getByLabel("Budget maximum (€)").fill("50000");
   await search(page);
@@ -50,7 +55,8 @@ test("detail exposes withdrawal and contradictory observations, then restores sc
   await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
   await expect(page.getByText("Publication retirée", { exact: true })).toBeVisible();
-  await expect(page.getByText(/se contredisent/)).toBeVisible();
+  await expect(page.getByText(/Plusieurs observations se contredisent/)).toBeVisible();
+  await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
   await page.goBack();
   await expect(trigger).toBeFocused();
   await page.getByRole("button", { name: "Modifier les critères" }).click();
@@ -58,17 +64,35 @@ test("detail exposes withdrawal and contradictory observations, then restores sc
 });
 
 test("direct detail hash handles a missing publication without exposing an identifier", async ({ page }) => {
-  await page.route("**/api/demo/listings/*", (route) => fulfill(route, { schemaVersion: 1, requestId, error: { code: "not_found" } }, 404));
+  await mockDemoCatalog(page);
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, v2Error("not_found", requestId), 404));
   await page.goto("/demo#detail/lst_state-42");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
   await expect(page.getByText("Publication non disponible", { exact: true })).toBeVisible();
   await expect(page.getByText("lst_state-42")).toHaveCount(0);
 });
 
+test("a detail response that arrives before a mismatched catalog triggers one bounded refresh", async ({ page }) => {
+  const at = new Date().toISOString();
+  let catalogCalls = 0;
+  await page.route("**/api/demo/v2/catalog", async (route) => {
+    catalogCalls += 1;
+    if (catalogCalls === 1) await new Promise((resolve) => setTimeout(resolve, 150));
+    const catalog = catalogCalls === 1 ? { ...demoCatalog, fixtureVersion: "mismatched-fixture" } : demoCatalog;
+    await fulfill(route, v2Envelope(catalog));
+  });
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(1, at)], { dataAsOf: at, total: 1 })));
+  await page.goto("/demo#detail/lst_state-01");
+  await expect(page.getByText("Libellés synthétiques indisponibles. Les identifiants bruts ne sont jamais affichés.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Marque Alpha fictive · Modèle Alpha 1 fictif", exact: true })).toBeVisible();
+  expect(catalogCalls).toBe(2);
+  await expect(page.getByText(/make_ui_|model_ui_/)).toHaveCount(0);
+});
+
 test("empty, partial, stale, slow and closed error states remain explicit", async ({ page }) => {
   let mode: "empty" | "partial" | "stale" | "slow" | "error" = "empty";
-  await page.route("**/api/demo/search", async (route) => {
-    if (mode === "error") return fulfill(route, { schemaVersion: 1, requestId, error: { code: "read_unavailable" } }, 503);
+  await page.route("**/api/demo/v2/search", async (route) => {
+    if (mode === "error") return fulfill(route, v2Error("read_unavailable", requestId), 503);
     if (mode === "slow") await new Promise((resolve) => setTimeout(resolve, 850));
     const dataAsOf = mode === "stale" ? new Date(Date.now() - 61_000).toISOString() : new Date().toISOString();
     const items = mode === "empty" ? [] : [listing(1, dataAsOf)];
@@ -87,14 +111,112 @@ test("empty, partial, stale, slow and closed error states remain explicit", asyn
   mode = "error"; await page.getByRole("button", { name: "Rechercher", exact: true }).click(); await expect(page.getByText("Recherche indisponible")).toBeVisible();
 });
 
+test("persistent catalog mismatch or failed refresh clears stale criteria and remains recoverable", async ({ page, browserName }, testInfo) => {
+  for (const failedRefresh of [false, true]) {
+    let calls = 0;
+    const submitted: Record<string, unknown>[] = [];
+    await page.unroute("**/api/demo/v2/catalog");
+    await page.unroute("**/api/demo/v2/search");
+    await page.route("**/api/demo/v2/catalog", async (route) => {
+      calls += 1;
+      if (calls === 2 && failedRefresh) return fulfill(route, v2Error("read_unavailable"), 503);
+      return fulfill(route, v2Envelope(calls >= 3 ? { ...demoCatalog, fixtureVersion: "changed-fixture" } : demoCatalog));
+    });
+    await page.route("**/api/demo/v2/search", (route) => {
+      submitted.push(route.request().postDataJSON());
+      return fulfill(route, response([listing(1, new Date().toISOString())], { fixture: "changed-fixture" }));
+    });
+    await page.goto("/demo");
+    await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+    await expect(page.getByLabel("Marque fictive")).toBeEnabled();
+    await page.getByLabel("Marque fictive").selectOption("make_ui_alpha");
+    await page.getByLabel("Modèle fictif").selectOption("model_ui_alpha_one");
+    await search(page);
+    await expect(page.getByRole("button", { name: "Réessayer les libellés" })).toBeVisible();
+    await expect(page.getByText(failedRefresh ? /libellés synthétiques sont indisponibles/ : /catalogue ne correspond pas/)).toBeVisible();
+    const directory = process.env.AW_SCREENSHOT_DIR;
+    if (directory) await mkdir(directory, { recursive: true });
+    const screenshot = `demo-390-light-catalog-${failedRefresh ? "failed-refresh" : "mismatch"}-${browserName}.png`;
+    await page.screenshot({ path: directory ? path.join(directory, screenshot) : testInfo.outputPath(screenshot), fullPage: true, scale: "css" });
+    expect(calls).toBe(2);
+    await expect(page.getByText("Marque Alpha fictive · Modèle Alpha 1 fictif")).toHaveCount(0);
+    await page.getByRole("button", { name: "Modifier les critères" }).click();
+    await expect(page.getByLabel("Marque fictive")).toBeDisabled();
+    await expect(page.getByLabel("Marque fictive")).toHaveValue("");
+    await expect(page.getByLabel("Modèle fictif")).toHaveValue("");
+    await page.getByLabel("Année de première immatriculation fictive").fill("2021");
+    await search(page);
+    expect(submitted[1]).toEqual({ schemaVersion: 2, sort: "listing_asc", firstRegistrationYear: 2021 });
+    await page.getByRole("button", { name: "Réessayer les libellés" }).click();
+    await expect(page.getByText("Marque Alpha fictive · Modèle Alpha 1 fictif")).toBeVisible();
+    expect(calls).toBe(3);
+  }
+});
+
+test("empty catalog and unavailable labels preserve numeric search and contradictory history", async ({ page }) => {
+  await page.route("**/api/demo/v2/catalog", (route) => fulfill(route, v2Envelope({ ...demoCatalog, taxonomyRelease: { ...demoCatalog.taxonomyRelease, attributions: [], makes: [], models: [] } })));
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(1, new Date().toISOString(), "active", true)])));
+  await page.goto("/demo#detail/lst_state-01");
+  await expect(page.getByText(/catalogue synthétique ne contient aucune marque/)).toBeVisible();
+  await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
+  await expect(page.getByText(/make_ui_|model_ui_/)).toHaveCount(0);
+  await page.getByRole("button", { name: "Recherche", exact: true }).click();
+  await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+  await expect(page.getByLabel("Marque fictive")).toBeDisabled();
+  await expect(page.getByLabel("Modèle fictif")).toBeDisabled();
+  await expect(page.getByLabel("Année de première immatriculation fictive")).toBeEnabled();
+});
+
+test("slow catalog explains progress and offline recovery keeps numeric filters usable", async ({ page, context }) => {
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let calls = 0;
+  await page.route("**/api/demo/v2/catalog", async (route) => {
+    calls += 1;
+    if (calls === 1) { await held; return route.abort(); }
+    return fulfill(route, v2Envelope(demoCatalog));
+  });
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+  await expect(page.getByText(/catalogue prend plus de temps/)).toBeVisible();
+  await context.setOffline(true);
+  release?.();
+  await expect(page.getByText(/catalogue est indisponible hors connexion/)).toBeVisible();
+  await expect(page.getByLabel("Année de première immatriculation fictive")).toBeEnabled();
+  await context.setOffline(false);
+  await page.getByRole("button", { name: "Réessayer les libellés" }).click();
+  await expect(page.getByLabel("Marque fictive")).toBeEnabled();
+});
+
+test("catalog failure disables only identity selectors and retry restores them without searching", async ({ page }) => {
+  let catalogCalls = 0;
+  let searchCalls = 0;
+  await page.route("**/api/demo/v2/catalog", async (route) => {
+    catalogCalls += 1;
+    if (catalogCalls === 1) return fulfill(route, v2Error("read_unavailable"), 503);
+    return fulfill(route, v2Envelope(demoCatalog));
+  });
+  await page.route("**/api/demo/v2/search", async (route) => { searchCalls += 1; await route.abort(); });
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+  await expect(page.getByText(/libellés synthétiques sont indisponibles/)).toBeVisible();
+  await expect(page.getByLabel("Marque fictive")).toBeDisabled();
+  await expect(page.getByLabel("Modèle fictif")).toBeDisabled();
+  await expect(page.getByLabel("Année de première immatriculation fictive")).toBeEnabled();
+  await page.getByRole("button", { name: "Réessayer les libellés" }).click();
+  await expect(page.getByLabel("Marque fictive")).toBeEnabled();
+  expect(catalogCalls).toBe(2);
+  expect(searchCalls).toBe(0);
+});
+
 test("partial and stale results can refresh without losing visible context", async ({ page }) => {
   for (const initialState of ["partial", "stale"] as const) {
     const initialAt = initialState === "stale" ? new Date(Date.now() - 61_000).toISOString() : new Date().toISOString();
     let calls = 0;
     let releaseRefresh: (() => void) | undefined;
     const heldRefresh = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    await page.unroute("**/api/demo/search");
-    await page.route("**/api/demo/search", async (route) => {
+    await page.unroute("**/api/demo/v2/search");
+    await page.route("**/api/demo/v2/search", async (route) => {
       calls += 1;
       if (calls === 1) return fulfill(route, response([listing(1, initialAt)], { state: initialState, dataAsOf: initialAt }));
       await heldRefresh;
@@ -141,7 +263,7 @@ test("favorites explain corrupt, future and denied storage without overwriting i
 
 test("cross-tab reconciliation, removal, undo and confirmed reset preserve favorite truth", async ({ page }) => {
   const at = new Date().toISOString();
-  await page.route("**/api/demo/listings/*", (route) => fulfill(route, response([listing(1, at)], { total: 1 })));
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(1, at)], { total: 1 })));
   await ready(page);
   await page.evaluate(({ key }) => {
     const value = JSON.stringify({ schemaVersion: 1, listingIds: ["lst_state-01"] });
@@ -165,12 +287,22 @@ test("cross-tab reconciliation, removal, undo and confirmed reset preserve favor
   await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeFocused();
 });
 
+test("direct Saved navigation bootstraps the catalog before exposing synthetic labels", async ({ page }) => {
+  const at = new Date().toISOString();
+  await page.addInitScript(({ key }) => localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, listingIds: ["lst_state-01"] })), { key: favoriteKey });
+  const catalogCalls = await mockDemoCatalog(page);
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(1, at)], { total: 1 })));
+  await page.goto("/demo#saved");
+  await expect(page.getByText("Marque Alpha fictive · Modèle Alpha 1 fictif")).toBeVisible();
+  expect(catalogCalls()).toBe(1);
+});
+
 test("first, middle and last pages append exactly once", async ({ page }) => {
   const at = new Date().toISOString();
   let pageNumber = 0;
   let releaseMiddle: (() => void) | undefined;
   const heldMiddle = new Promise<void>((resolve) => { releaseMiddle = resolve; });
-  await page.route("**/api/demo/search", async (route) => {
+  await page.route("**/api/demo/v2/search", async (route) => {
     pageNumber += 1;
     if (pageNumber === 2) await heldMiddle;
     const cursor = pageNumber === 1 ? nextCursor("a") : pageNumber === 2 ? nextCursor("b") : undefined;
@@ -193,11 +325,11 @@ test("first, middle and last pages append exactly once", async ({ page }) => {
 test("a failed continuation preserves acquired results and retries the same cursor", async ({ page }) => {
   const at = new Date().toISOString();
   let attempt = 0;
-  await page.route("**/api/demo/search", async (route) => {
+  await page.route("**/api/demo/v2/search", async (route) => {
     const body = route.request().postDataJSON() as { cursor?: string };
     if (!body.cursor) return fulfill(route, response([listing(1, at)], { dataAsOf: at, cursor: nextCursor("a"), total: 2 }));
     attempt += 1;
-    if (attempt === 1) return fulfill(route, { schemaVersion: 1, requestId, error: { code: "read_unavailable" } }, 503);
+    if (attempt === 1) return fulfill(route, v2Error("read_unavailable", requestId), 503);
     await fulfill(route, response([listing(2, at)], { dataAsOf: at, total: 2 }));
   });
   await ready(page); await search(page);
@@ -212,11 +344,11 @@ test("changed snapshots and duplicate pages fail closed while keeping current re
   const at = new Date().toISOString();
   for (const mutant of ["changed", "duplicate"] as const) {
     let calls = 0;
-    await page.unroute("**/api/demo/search");
-    await page.route("**/api/demo/search", async (route) => {
+    await page.unroute("**/api/demo/v2/search");
+    await page.route("**/api/demo/v2/search", async (route) => {
       calls += 1;
       if (calls === 1) return fulfill(route, response([listing(1, at)], { dataAsOf: at, cursor: nextCursor("a"), total: 2 }));
-      await fulfill(route, response([listing(mutant === "duplicate" ? 1 : 2, at)], { dataAsOf: at, fixture: mutant === "changed" ? "different-v2" : "ui-states-v1", total: 2 }));
+      await fulfill(route, response([listing(mutant === "duplicate" ? 1 : 2, at)], { dataAsOf: at, fixture: mutant === "changed" ? "different-v2" : demoFixtureVersion, total: 2 }));
     });
     await ready(page); await search(page);
     await page.getByRole("button", { name: "Charger plus" }).click();
@@ -230,7 +362,7 @@ test("a late continuation cannot overwrite a newer filtered search", async ({ pa
   let releasePage: (() => void) | undefined;
   const heldPage = new Promise<void>((resolve) => { releasePage = resolve; });
   let initialSearches = 0;
-  await page.route("**/api/demo/search", async (route) => {
+  await page.route("**/api/demo/v2/search", async (route) => {
     const body = route.request().postDataJSON() as { cursor?: string; priceMaxMinor?: number };
     if (body.cursor) {
       await heldPage;

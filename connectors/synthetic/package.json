@@ -15,12 +15,13 @@
   "scripts": {
     "build": "node scripts/verify-build.mjs",
     "lint": "eslint demo scripts test --max-warnings=0",
-    "typecheck": "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json --noEmit",
-    "test": "pnpm --filter @auto-world/connector-sdk build && node --conditions=auto-world-demo --test test/*.test.mjs"
+    "typecheck": "pnpm --filter @auto-world/connector-sdk build && pnpm --filter @auto-world/vehicle-taxonomy build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --filter @auto-world/connector-sdk build && pnpm --filter @auto-world/vehicle-taxonomy build && node --conditions=auto-world-demo --test test/*.test.mjs"
   },
   "devDependencies": {
     "@auto-world/connector-sdk": "workspace:*",
     "@auto-world/source-registry": "workspace:*",
+    "@auto-world/vehicle-taxonomy": "workspace:*",
     "@auto-world/vehicle-schema": "workspace:*"
   }
 }

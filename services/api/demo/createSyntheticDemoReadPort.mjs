@@ -4,13 +4,20 @@ import { createHash, randomBytes as systemRandomBytes } from "node:crypto";
 import {
   DEMO_FRESHNESS_MS,
   DEMO_PAGE_SIZE,
+  parseDemoCatalogResponseV2,
+  parseDemoSearchQueryV2,
   parseDemoSearchResponse,
+  parseDemoSearchResponseV2,
 } from "@auto-world/demo-search-contract";
 import { parseConnectorCheckpoint } from "@auto-world/connector-sdk";
 import { parseListingId } from "@auto-world/vehicle-schema";
 import {
+  createSyntheticDescriptionHarness,
   createSyntheticHarness,
+  inspectSyntheticDescriptionRaw,
   SYNTHETIC_CORPUS_MANIFEST,
+  SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST,
+  SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE,
 } from "@auto-world/synthetic-connector/demo";
 
 const MAX_RESULTS = 10_000;
@@ -41,13 +48,39 @@ function stable(value) {
   return JSON.stringify(value);
 }
 
+function frame(value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xdc00 && code <= 0xdfff) throw new Error("connector_invalid_unicode");
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const low = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || low < 0xdc00 || low > 0xdfff) {
+        throw new Error("connector_invalid_unicode");
+      }
+      index += 1;
+    }
+  }
+  const bytes = Buffer.from(value, "utf8");
+  return Buffer.concat([Buffer.from(`${bytes.byteLength}:`, "utf8"), bytes, Buffer.from([0])]);
+}
+
+function connectorKey(prefix, kind, parts) {
+  return `${prefix}${createHash("sha256").update(Buffer.concat([
+    Buffer.from("aw-connector-v1\0", "utf8"), frame(kind), ...parts.map(frame),
+  ])).digest("hex")}`;
+}
+
 function evidenceId(listingId, observationId) {
-  const frame = (value) => {
-    const bytes = Buffer.from(value, "utf8");
-    return Buffer.concat([Buffer.from(`${bytes.byteLength}:`, "ascii"), bytes, Buffer.from([0])]);
-  };
   return `ev_${createHash("sha256").update(Buffer.concat([
     Buffer.from("aw-demo-evidence-v1\0", "utf8"), frame(listingId), frame(observationId),
+  ])).digest("hex")}`;
+}
+
+function descriptionEvidenceId(listingId, listingVersionId, runId, snapshotId, rawSha256, mapperVersion) {
+  return `de_${createHash("sha256").update(Buffer.concat([
+    Buffer.from("aw-demo-description-evidence-v2\0", "utf8"),
+    frame(listingId), frame(listingVersionId), frame(runId), frame(snapshotId),
+    frame(rawSha256), frame(mapperVersion),
   ])).digest("hex")}`;
 }
 
@@ -361,6 +394,55 @@ function responseFor(state, dataAsOf, results, totalCount, nextCursor) {
   return { ...base, state: "partial", reason: "projection_incomplete" };
 }
 
+function createCursorSession(randomBytes, cursorCapacity, tokenDomain) {
+  const cursors = new Map();
+  const memo = new Map();
+  let identity = null;
+  let epoch = 0;
+
+  function observe(nextIdentity) {
+    if (identity !== null && identity !== nextIdentity) {
+      cursors.clear();
+      memo.clear();
+      epoch += 1;
+    }
+    identity = nextIdentity;
+  }
+
+  function tokenFor(binding, position) {
+    const key = `${binding}:${position}`;
+    const old = memo.get(key);
+    if (old) return old;
+    if (cursors.size >= cursorCapacity) throw new Error("cursor_capacity");
+    for (let attempt = 0; attempt < CURSOR_ATTEMPTS; attempt += 1) {
+      const entropy = randomBytes(32);
+      if (!(entropy instanceof Uint8Array) || entropy.byteLength !== 32) throw new Error("cursor_entropy");
+      const token = `cur_${createHash("sha256").update(tokenDomain).update(entropy)
+        .update(`\0${epoch}`).digest("hex")}`;
+      if (!cursors.has(token)) {
+        cursors.set(token, Object.freeze({ binding, position, epoch }));
+        memo.set(key, token);
+        return token;
+      }
+    }
+    throw new Error("cursor_collision");
+  }
+
+  function positionFor(token, binding, resultCount) {
+    const continuation = cursors.get(token);
+    return !continuation || continuation.epoch !== epoch || continuation.binding !== binding ||
+      !Number.isSafeInteger(continuation.position) || continuation.position < 1 ||
+      continuation.position >= resultCount ? null : continuation.position;
+  }
+
+  return Object.freeze({
+    get epoch() { return epoch; },
+    observe,
+    positionFor,
+    tokenFor,
+  });
+}
+
 export async function createSyntheticDemoReadPort(options = {}) {
   if (process.env.NODE_ENV === "production") throw new Error("demo_api_unavailable_in_production");
   const nowMs = options.nowMs ?? (() => Date.now());
@@ -376,39 +458,14 @@ export async function createSyntheticDemoReadPort(options = {}) {
     if (result.status !== "completed") throw new Error("demo_fixture_unavailable");
   }
   const snapshotProvider = options.snapshotProvider ?? (() => harness.storage.snapshot());
-  const cursors = new Map();
-  const memo = new Map();
-  let identity = null;
-  let epoch = 0;
-
-  function tokenFor(binding, position) {
-    const key = `${binding}:${position}`;
-    const old = memo.get(key);
-    if (old) return old;
-    if (cursors.size >= cursorCapacity) throw new Error("cursor_capacity");
-    for (let attempt = 0; attempt < CURSOR_ATTEMPTS; attempt += 1) {
-      const entropy = randomBytes(32);
-      if (!(entropy instanceof Uint8Array) || entropy.byteLength !== 32) throw new Error("cursor_entropy");
-      const token = `cur_${createHash("sha256").update("aw-demo-cursor-v1\0").update(entropy)
-        .update(`\0${epoch}`).digest("hex")}`;
-      if (!cursors.has(token)) {
-        cursors.set(token, Object.freeze({ binding, position, epoch }));
-        memo.set(key, token);
-        return token;
-      }
-    }
-    throw new Error("cursor_collision");
-  }
+  const cursorSession = createCursorSession(randomBytes, cursorCapacity, "aw-demo-cursor-v1\0");
 
   function capture() {
     const at = nowMs();
     if (!Number.isFinite(at)) throw new Error("clock_invalid");
     const snapshot = snapshotProvider();
     const inspection = inspectSnapshot(snapshot, at);
-    if (identity !== null && identity !== inspection.snapshotIdentity) {
-      cursors.clear(); memo.clear(); epoch += 1;
-    }
-    identity = inspection.snapshotIdentity;
+    cursorSession.observe(inspection.snapshotIdentity);
     const results = [...snapshot.projections.values()].filter((item) => sameScope(item.scope))
       .map((item) => publicResult(snapshot, item, inspection.runs, inspection.pageCheckpoints));
     return { snapshot, inspection, at, results };
@@ -421,21 +478,19 @@ export async function createSyntheticDemoReadPort(options = {}) {
       const active = results.filter((item) => item.availability === "active");
       const matches = filterAndSort(active, query);
       if (matches.length > MAX_RESULTS) throw new Error("result_limit");
-      const binding = createHash("sha256").update(stable({ epoch, snapshot: inspection.snapshotIdentity,
+      const binding = createHash("sha256").update(stable({ epoch: cursorSession.epoch,
+        snapshot: inspection.snapshotIdentity,
         fixtureVersion: SYNTHETIC_CORPUS_MANIFEST.fixtureVersion, sort: query.sort,
         priceMaxMinor: query.priceMaxMinor ?? null, mileageMaxKm: query.mileageMaxKm ?? null })).digest("hex");
       let position = 0;
       if (query.cursor !== undefined) {
-        const continuation = cursors.get(query.cursor);
-        if (!continuation || continuation.epoch !== epoch || continuation.binding !== binding ||
-            !Number.isSafeInteger(continuation.position) || continuation.position < 1 || continuation.position >= matches.length) {
-          return failure("invalid_cursor");
-        }
-        position = continuation.position;
+        const continuationPosition = cursorSession.positionFor(query.cursor, binding, matches.length);
+        if (continuationPosition === null) return failure("invalid_cursor");
+        position = continuationPosition;
       }
       const page = matches.slice(position, position + DEMO_PAGE_SIZE);
       const nextPosition = position + page.length;
-      const nextCursor = nextPosition < matches.length ? tokenFor(binding, nextPosition) : undefined;
+      const nextCursor = nextPosition < matches.length ? cursorSession.tokenFor(binding, nextPosition) : undefined;
       if (cancelled(context.signal)) return failure("cancelled");
       const response = responseFor(inspection.state, inspection.selected.record.recordedAt,
         page, matches.length, nextCursor);
@@ -463,6 +518,279 @@ export async function createSyntheticDemoReadPort(options = {}) {
   }
 
   return Object.freeze({ search, getListing });
+}
+
+function createDescriptionDescriptorMap(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 64) {
+    throw new Error("description_descriptors_invalid");
+  }
+  const descriptors = new Map();
+  for (const descriptor of input) {
+    if (descriptor === null || typeof descriptor !== "object" || Array.isArray(descriptor) ||
+        Object.getPrototypeOf(descriptor) !== Object.prototype ||
+        Object.keys(descriptor).sort().join("\0") !== ["byteLength", "name", "sha256"].join("\0") ||
+        typeof descriptor.name !== "string" || !/^[a-z0-9][a-z0-9.-]{0,127}\.json$/.test(descriptor.name) ||
+        !Number.isSafeInteger(descriptor.byteLength) || descriptor.byteLength < 1 || descriptor.byteLength > 64 * 1024 ||
+        typeof descriptor.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(descriptor.sha256) ||
+        descriptors.has(descriptor.sha256)) throw new Error("description_descriptors_invalid");
+    descriptors.set(descriptor.sha256, Object.freeze({
+      name: descriptor.name,
+      byteLength: descriptor.byteLength,
+      sha256: descriptor.sha256,
+    }));
+  }
+  return descriptors;
+}
+
+function findDescriptionMake(makeId) {
+  return SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE.makes.find((item) => item.makeId === makeId);
+}
+
+function findDescriptionModel(modelId) {
+  return SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE.models.find((item) => item.modelId === modelId);
+}
+
+function descriptionValue(description) {
+  return Object.freeze({
+    release: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.taxonomyRelease,
+    makeId: description.makeId,
+    modelId: description.modelId,
+    firstRegistrationYear: description.firstRegistrationYear,
+    attribution: description.attribution,
+  });
+}
+
+function enrichDescriptionResult(snapshot, projection, base, descriptionDescriptors, runs, pageCheckpoints) {
+  const versions = [...snapshot.versions.entries()]
+    .filter(([, item]) => item.listingId === projection.listingId)
+    .map(([key, item]) => {
+      if (key !== item.listingVersionId || exactUtc(item.capturedAt) === null) throw new Error("description_version_invalid");
+      const raw = snapshot.raw.get(item.raw?.snapshotId);
+      const run = runs.get(item.connectorRunId);
+      const descriptor = descriptionDescriptors.get(item.raw?.sha256);
+      if (!run || run.request?.mapperVersion !== item.mapperVersion ||
+          !raw || !(raw.bytes instanceof Uint8Array) || !descriptor ||
+          raw.pending?.snapshotId !== item.raw.snapshotId || raw.pending.sha256 !== descriptor.sha256 ||
+          raw.pending.byteLength !== descriptor.byteLength || raw.pending.capturedAt !== item.capturedAt ||
+          raw.pending.pageIdentity !== `${SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion}:${descriptor.name}`) {
+        throw new Error("description_raw_association_invalid");
+      }
+      const expectedListingId = connectorKey("lst_", "listing", [item.sourceId, item.sourceListingId]);
+      const pageKey = connectorKey("page_", "page", [item.connectorRunId,
+        String(raw.pending.pageOrdinal), raw.pending.pageIdentity]);
+      const expectedSnapshotId = connectorKey("raw_", "raw", [item.sourceId, pageKey]);
+      const expectedVersionId = connectorKey("lv_", "listing-version", [item.listingId,
+        item.connectorRunId, item.raw.snapshotId, item.raw.sha256, item.mapperVersion]);
+      const commitKey = connectorKey("commit_", "commit", [pageKey, item.raw.sha256, item.mapperVersion]);
+      const committed = snapshot.ledger.get(commitKey);
+      if (item.listingId !== expectedListingId || item.raw.snapshotId !== expectedSnapshotId ||
+          item.listingVersionId !== expectedVersionId || !committed || committed.kind !== "page.committed" ||
+          committed.operationKey !== commitKey || committed.record?.operationKey !== commitKey ||
+          committed.record.runId !== item.connectorRunId ||
+          committed.record.pageOrdinal !== raw.pending.pageOrdinal ||
+          committed.record.sourceId !== item.sourceId || committed.record.outcome !== "success" ||
+          !pageCheckpoints.has(commitKey)) {
+        throw new Error("description_committed_association_invalid");
+      }
+      const page = inspectSyntheticDescriptionRaw(raw.bytes, descriptor);
+      const matches = page.descriptions.filter((entry) => entry.sourceListingId === projection.sourceListingId);
+      if (matches.length !== 1) throw new Error("description_listing_association_invalid");
+      const evidence = matches[0].description ? Object.freeze({
+        evidenceId: descriptionEvidenceId(projection.listingId, item.listingVersionId, item.connectorRunId,
+          item.raw.snapshotId, item.raw.sha256, item.mapperVersion),
+        capturedAt: item.capturedAt,
+        value: descriptionValue(matches[0].description),
+      }) : null;
+      return { item, evidence };
+    });
+  versions.sort((left, right) => Date.parse(left.item.capturedAt) - Date.parse(right.item.capturedAt) ||
+    ascii(left.item.listingVersionId, right.item.listingVersionId));
+  if (versions.length === 0 || projection.latestVersionId !== versions.at(-1).item.listingVersionId) {
+    throw new Error("description_latest_version_invalid");
+  }
+  const descriptionEvidence = versions.flatMap((entry) => entry.evidence ? [entry.evidence] : []);
+  if (descriptionEvidence.length > MAX_EVIDENCE ||
+      new Set(descriptionEvidence.map((item) => item.evidenceId)).size !== descriptionEvidence.length) {
+    throw new Error("description_evidence_limit");
+  }
+  const current = versions.at(-1).evidence;
+  return Object.freeze({
+    result: Object.freeze({
+      ...base,
+      description: current ? Object.freeze({
+        status: "authored_synthetic",
+        value: current.value,
+        evidenceId: current.evidenceId,
+      }) : Object.freeze({ status: "unavailable" }),
+      descriptionEvidence: Object.freeze(descriptionEvidence),
+    }),
+    fingerprint: Object.freeze(versions.map((entry) => Object.freeze([
+      entry.item.listingVersionId,
+      entry.item.connectorRunId,
+      entry.item.raw.snapshotId,
+      entry.item.raw.sha256,
+      entry.item.mapperVersion,
+      entry.item.capturedAt,
+      entry.evidence?.value ?? null,
+    ]))),
+  });
+}
+
+function filterAndSortV2(results, query) {
+  return filterAndSort(results, query).filter((item) => {
+    if (query.makeId === undefined && query.modelId === undefined && query.firstRegistrationYear === undefined) return true;
+    if (item.description.status !== "authored_synthetic") return false;
+    return (query.makeId === undefined || item.description.value.makeId === query.makeId) &&
+      (query.modelId === undefined || item.description.value.modelId === query.modelId) &&
+      (query.firstRegistrationYear === undefined ||
+        item.description.value.firstRegistrationYear === query.firstRegistrationYear);
+  });
+}
+
+function responseForV2(state, dataAsOf, results, totalCount, nextCursor) {
+  const base = {
+    schemaVersion: 2,
+    dataMode: "synthetic",
+    fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+    taxonomyRelease: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.taxonomyRelease,
+    dataAsOf,
+    results,
+    ...(nextCursor ? { nextCursor } : {}),
+  };
+  if (state === "complete") return { ...base, state, totalCount };
+  if (state === "stale") return { ...base, state, reason: "projection_stale" };
+  return { ...base, state: "partial", reason: "projection_incomplete" };
+}
+
+function validateDescriptionPage(results) {
+  const evidenceIds = results.flatMap((item) => item.descriptionEvidence.map((evidence) => evidence.evidenceId));
+  if (evidenceIds.length > MAX_EVIDENCE || new Set(evidenceIds).size !== evidenceIds.length) {
+    throw new Error("description_page_evidence_limit");
+  }
+}
+
+export async function createSyntheticDemoReadPortV2(options = {}) {
+  if (process.env.NODE_ENV === "production") throw new Error("demo_api_unavailable_in_production");
+  const nowMs = options.nowMs ?? (() => Date.now());
+  const randomBytes = options.randomBytes ?? systemRandomBytes;
+  const cursorCapacity = options.cursorCapacity ?? DEFAULT_CURSOR_CAPACITY;
+  if (!Number.isSafeInteger(cursorCapacity) || cursorCapacity < 1 || cursorCapacity > DEFAULT_CURSOR_CAPACITY) {
+    throw new Error("demo_cursor_capacity_invalid");
+  }
+  const descriptionDescriptors = createDescriptionDescriptorMap(options.descriptionDescriptors ??
+    Object.values(SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.files));
+  let harness = options.harness;
+  if (!harness && !options.snapshotProvider) {
+    const initialTime = nowMs();
+    if (!Number.isFinite(initialTime)) throw new Error("clock_invalid");
+    harness = createSyntheticDescriptionHarness({ initialTime: initialTime - 1_000 });
+    const baseline = await harness.run("descriptionBaseline");
+    const delta = baseline.status === "completed"
+      ? await harness.run("descriptionDelta", { mode: "incremental" })
+      : baseline;
+    if (baseline.status !== "completed" || delta.status !== "completed") throw new Error("demo_fixture_unavailable");
+  }
+  const snapshotProvider = options.snapshotProvider ?? (() => harness.storage.snapshot());
+  const cursorSession = createCursorSession(randomBytes, cursorCapacity, "aw-demo-cursor-v2\0");
+
+  function capture() {
+    const at = nowMs();
+    if (!Number.isFinite(at)) throw new Error("clock_invalid");
+    const snapshot = snapshotProvider();
+    const inspection = inspectSnapshot(snapshot, at);
+    const enriched = [...snapshot.projections.values()].filter((item) => sameScope(item.scope)).map((projection) => {
+      const base = publicResult(snapshot, projection, inspection.runs, inspection.pageCheckpoints);
+      const value = enrichDescriptionResult(snapshot, projection, base, descriptionDescriptors,
+        inspection.runs, inspection.pageCheckpoints);
+      return Object.freeze({ listingId: projection.listingId, ...value });
+    });
+    const results = enriched.map((item) => item.result);
+    const snapshotIdentity = createHash("sha256").update(stable({
+      base: inspection.snapshotIdentity,
+      fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+      taxonomyRelease: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.taxonomyRelease,
+      descriptions: enriched.map((item) => [item.listingId, item.fingerprint]),
+    })).digest("hex");
+    cursorSession.observe(snapshotIdentity);
+    return { inspection, at, results, snapshotIdentity };
+  }
+
+  async function catalog(context) {
+    if (cancelled(context.signal)) return failure("cancelled");
+    const parsed = parseDemoCatalogResponseV2({
+      schemaVersion: 2,
+      dataMode: "synthetic",
+      fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+      taxonomyRelease: SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE,
+    });
+    if (cancelled(context.signal)) return failure("cancelled");
+    return parsed.success ? Object.freeze({ success: true, data: parsed.data }) : failure("read_unavailable");
+  }
+
+  async function search(input, context) {
+    if (cancelled(context.signal)) return failure("cancelled");
+    const parsedQuery = parseDemoSearchQueryV2(input);
+    if (!parsedQuery.success) return failure("invalid_query");
+    const query = parsedQuery.data;
+    const make = query.makeId === undefined ? undefined : findDescriptionMake(query.makeId);
+    const model = query.modelId === undefined ? undefined : findDescriptionModel(query.modelId);
+    if ((query.makeId !== undefined && !make) || (query.modelId !== undefined && (!model || model.makeId !== query.makeId))) {
+      return failure("invalid_query");
+    }
+    try {
+      const captured = capture();
+      const active = captured.results.filter((item) => item.availability === "active");
+      const matches = filterAndSortV2(active, query);
+      if (matches.length > MAX_RESULTS) throw new Error("result_limit");
+      const binding = createHash("sha256").update(stable({
+        epoch: cursorSession.epoch,
+        snapshot: captured.snapshotIdentity,
+        fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+        taxonomyRelease: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.taxonomyRelease,
+        sort: query.sort,
+        priceMaxMinor: query.priceMaxMinor ?? null,
+        mileageMaxKm: query.mileageMaxKm ?? null,
+        makeId: query.makeId ?? null,
+        modelId: query.modelId ?? null,
+        firstRegistrationYear: query.firstRegistrationYear ?? null,
+      })).digest("hex");
+      let position = 0;
+      if (query.cursor !== undefined) {
+        const continuationPosition = cursorSession.positionFor(query.cursor, binding, matches.length);
+        if (continuationPosition === null) return failure("invalid_cursor");
+        position = continuationPosition;
+      }
+      const page = matches.slice(position, position + DEMO_PAGE_SIZE);
+      validateDescriptionPage(page);
+      const nextPosition = position + page.length;
+      const nextCursor = nextPosition < matches.length ? cursorSession.tokenFor(binding, nextPosition) : undefined;
+      if (cancelled(context.signal)) return failure("cancelled");
+      const response = responseForV2(captured.inspection.state, captured.inspection.selected.record.recordedAt,
+        page, matches.length, nextCursor);
+      const parsed = parseDemoSearchResponseV2(response, new Date(captured.at).toISOString());
+      return parsed.success ? Object.freeze({ success: true, data: parsed.data }) : failure("read_unavailable");
+    } catch {
+      return failure("read_unavailable");
+    }
+  }
+
+  async function getListing(listingId, context) {
+    if (cancelled(context.signal)) return failure("cancelled");
+    try {
+      if (!parseListingId(listingId).success) return failure("read_unavailable");
+      const captured = capture();
+      const results = captured.results.filter((item) => item.listingId === listingId);
+      validateDescriptionPage(results);
+      const response = responseForV2(captured.inspection.state, captured.inspection.selected.record.recordedAt,
+        results, results.length, undefined);
+      const parsed = parseDemoSearchResponseV2(response, new Date(captured.at).toISOString());
+      return parsed.success ? Object.freeze({ success: true, data: parsed.data }) : failure("read_unavailable");
+    } catch {
+      return failure("read_unavailable");
+    }
+  }
+
+  return Object.freeze({ catalog, search, getListing });
 }
 
 export const DEMO_CURSOR_CAPACITY = DEFAULT_CURSOR_CAPACITY;

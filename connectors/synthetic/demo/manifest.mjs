@@ -40,3 +40,47 @@ export const SYNTHETIC_SCENARIOS = Object.freeze({
   withdrawnBaseline: pages({ file: "withdrawnBaseline", complete: true, nextCursor: "fixture-withdrawn-baseline-v1" }),
   withdrawnDelta: pages({ file: "withdrawnDelta", complete: true, nextCursor: "fixture-withdrawn-delta-v1" }),
 });
+
+export const SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST = Object.freeze({
+  schemaVersion: 2,
+  fixtureVersion: "synthetic-description-v2",
+  taxonomyRelease: Object.freeze({
+    catalogId: "taxcat_demo_description",
+    releaseId: "taxrel_demo_description_1",
+    revision: 1,
+  }),
+  source: SYNTHETIC_CORPUS_MANIFEST.source,
+  files: Object.freeze({
+    descriptionBaseline: Object.freeze({
+      name: "description-baseline.json",
+      byteLength: 3729,
+      sha256: "0468e9bd7cda9b629affb52fa6076cd227db4eab04f2b805be8f059f17544167",
+    }),
+    descriptionDelta: Object.freeze({
+      name: "description-delta.json",
+      byteLength: 617,
+      sha256: "174a76dc91d9f47c8f4ec300e411893b171fd9906c4d1c849ae40b8998ddf8ee",
+    }),
+    descriptionPagination: Object.freeze({
+      name: "description-pagination.json",
+      byteLength: 19657,
+      sha256: "236145ea0dfdfea274d6c7fdcf5845367b7115bed1b63393b9808d87bdbdc538",
+    }),
+    descriptionOmittedDelta: Object.freeze({
+      name: "description-omitted-delta.json",
+      byteLength: 398,
+      sha256: "d3a27dd4ff09f970b1bc120bfce1f8c2c908dbb0446746390b911dcb3ddb39cb",
+    }),
+  }),
+});
+
+export const SYNTHETIC_DESCRIPTION_SCENARIOS = Object.freeze({
+  descriptionBaseline: pages({ file: "descriptionBaseline", complete: true,
+    nextCursor: "fixture-description-baseline-v2" }),
+  descriptionDelta: pages({ file: "descriptionDelta", complete: true,
+    nextCursor: "fixture-description-delta-v2" }),
+  descriptionPagination: pages({ file: "descriptionPagination", complete: true,
+    nextCursor: "fixture-description-pagination-v2" }),
+  descriptionOmittedDelta: pages({ file: "descriptionOmittedDelta", complete: true,
+    nextCursor: "fixture-description-omitted-delta-v2" }),
+});

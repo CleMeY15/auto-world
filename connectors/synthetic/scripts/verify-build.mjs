@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
-import { SYNTHETIC_CORPUS_MANIFEST } from "../demo/manifest.mjs";
+import { SYNTHETIC_CORPUS_MANIFEST, SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST } from "../demo/manifest.mjs";
 
 const root = new URL("../", import.meta.url);
 const packageJson = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
@@ -15,6 +15,7 @@ assert.deepEqual(Object.keys(packageJson.devDependencies).sort(), [
   "@auto-world/connector-sdk",
   "@auto-world/source-registry",
   "@auto-world/vehicle-schema",
+  "@auto-world/vehicle-taxonomy",
 ]);
 for (const forbidden of ["main", "module", "bin", "start", "deploy"]) {
   assert.equal(Object.hasOwn(packageJson, forbidden), false, forbidden);
@@ -31,7 +32,14 @@ for (const descriptor of Object.values(SYNTHETIC_CORPUS_MANIFEST.files)) {
   assert.equal(createHash("sha256").update(bytes).digest("hex"), descriptor.sha256, descriptor.name);
 }
 
-const demoModules = ["demo/adapter.mjs", "demo/harness.mjs", "demo/index.mjs", "demo/manifest.mjs"];
+for (const descriptor of Object.values(SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.files)) {
+  const bytes = await readFile(new URL(`demo/corpus/${descriptor.name}`, root));
+  assert.equal(bytes.byteLength, descriptor.byteLength, descriptor.name);
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), descriptor.sha256, descriptor.name);
+}
+
+const demoModules = ["demo/adapter.mjs", "demo/description-adapter.mjs", "demo/description.mjs", "demo/harness.mjs",
+  "demo/index.mjs", "demo/manifest.mjs", "demo/taxonomy-release.mjs"];
 for (const file of demoModules) {
   const source = await readFile(new URL(file, root), "utf8");
   assert.match(source, /^import "\.\/guard\.mjs";/, file);
@@ -39,7 +47,8 @@ for (const file of demoModules) {
   const imports = [...source.matchAll(/(?:from\s+|import\s+)["']([^"']+)["']/g)].map((match) => match[1]);
   for (const specifier of imports) {
     assert.ok(specifier.startsWith("node:") || specifier.startsWith("./") ||
-      specifier === "@auto-world/connector-sdk" || specifier === "../../_sdk/test-support/index.mjs",
+      specifier === "@auto-world/connector-sdk" || specifier === "@auto-world/vehicle-taxonomy" ||
+      specifier === "../../_sdk/test-support/index.mjs",
     `${file}:${specifier}`);
   }
 }

@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: TASK-0007 implementation visually approved on its dedicated branch; final delivery gates remain in [validation](docs/validation/TASK-0007.md). The later synthetic search/detail/Saved flow is not implemented.
-- Last refreshed: 2026-10-08.
+- Status: Active. TASK-0103 search/detail/Saved is implemented; TASK-0107 adds authored synthetic descriptions and exact filters, with final visual/delivery gates recorded separately in [validation](docs/validation/TASK-0107.md).
+- Last refreshed: 2026-10-14.
 - Primary product surfaces: responsive web search, results, synthetic listing detail and local saved listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -12,7 +12,7 @@
 - Avoid: copying Apple assets or layouts, invented car imagery/specifications, fake deal/trust badges, dashboard clutter and dark patterns.
 
 ## Product goals
-- Goals: understand a small search result quickly, inspect its evidence, save and revisit it without losing context.
+- Goals: understand a small search result quickly, narrow it by exact fictitious make/model/first-registration year, inspect separate canonical observations and authored-description evidence, then save and revisit it without losing context.
 - Non-goals for synthetic P1: real marketplace inventory, AI search, account sync, valuation, VIN/history reports and import estimates.
 - Success signals: task completion in the E2E flow, readable cards, stable layout, accessible controls and measured responsiveness.
 
@@ -27,7 +27,7 @@
 - Content hierarchy: persistent demo disclosure, search controls, scannable synthetic listing card, evidence/history on demand, one clear next action.
 
 ## Design principles
-- Show only accepted facts by default; disclose provenance and contradictions progressively.
+- Show only accepted facts by default; disclose observation provenance and authored-fixture provenance separately, with contradictions progressively available.
 - Make search and save actions immediate, reversible and understandable.
 - Prefer an honest empty field over a guessed make, model, year, image, price signal or VIN.
 - Tradeoff: the synthetic slice has less automotive detail than the target product, but never pretends placeholder content is verified inventory.
@@ -42,7 +42,7 @@
 
 ## Components
 - Existing components to reuse: `@auto-world/design-system` Button, Field, Chip, Card, Skeleton and Banner; shared tokens and local Search/Bookmark/Filter/Back/Close vectors. `apps/web` demonstrates these primitives without vehicle data.
-- New/changed components: shared tokens/primitives first, then search field/filter controls, result card, evidence row, favorite control, navigation, skeleton and recovery states.
+- New/changed components: the existing advanced-filter disclosure owns exact fictitious make/model/year controls; the make selection scopes models and clears an incompatible model. Result, Detail and Saved reuse one description summary plus a separate authored-description history. Catalog loading/error/retry reuses Skeleton, Banner and Button rather than adding a second component system.
 - Variants and states: default, focus, hover, pressed, disabled, loading, empty, error, offline, partial and success where applicable.
 - Token/component ownership: one shared design-system boundary before web duplication; native consumers may later reuse semantic tokens without forcing identical platform widgets.
 
@@ -65,10 +65,11 @@
 - Success: results count and save/remove feedback; no fake verification badge.
 - Disabled: explain why an action is unavailable.
 - Offline/slow network: the demo API may be unavailable after disconnect. Preserve the query/filters and offer retry; local Saved IDs remain viewable/removable with details marked unavailable. Do not bundle a second browser-side fixture/search implementation or imply offline search still works.
+- Catalog mismatch: never expose raw taxonomy identifiers or stale labels. Keep price/mileage/year usable, hide unresolved description labels, and perform one bounded refresh against the explicit catalog route.
 
 ## Content voice
 - Tone: concise, neutral and decision-oriented.
-- Terminology: say “données de démonstration” persistently; say “observé le …” for an observation and “non vérifié” for unsupported claims.
+- Terminology: say “données de démonstration” persistently; say “observé le …” for canonical observations, “première immatriculation fictive” for the authored year, and “déclaration issue d’une fixture synthétique, non vérifiée” for make/model/year provenance. Never shorten this year to “année-modèle”.
 - Microcopy rules: no “bonne affaire”, “historique vérifié”, “VIN certifié” or real-source endorsement in the synthetic slice.
 
 ## Implementation constraints
@@ -81,5 +82,5 @@
 ## Open questions and sign-off
 - [x] Independent Product/UX reviewer: APPROVE for TASK-0007's exact palette, platform-native hierarchy, wordmark, local icons and 14 phone/tablet/desktop/state screenshots plus two wider-font regressions. Original 320px clipping and the later real Linux system-font wrapping defect are repaired; final regenerated screenshots/copy are independently re-reviewed with primary action and focus outline fully contained. Final production branding remains separate; this sign-off covers the implemented component preview, not later screens.
 - [x] Frontend/architecture boundary: exact framework versions and server/client hydration contract recorded in TASK-0007 validation and architecture docs; no persistent storage in this task.
-- [ ] TASK-0103 owner: implement the separately versioned `localStorage` favorite schema with denied/quota/corrupt recovery before the Saved flow ships.
+- [x] TASK-0103 owner: the separately versioned `localStorage` favorite schema, denied/quota/corrupt recovery and Saved flow are implemented and retained by TASK-0107.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.

@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { recordAnalyticsEvent } from "../.test-dist/src/demo/analytics.js";
-import { createDemoClient } from "../.test-dist/src/demo/client.js";
-import { parseDemoHttpOutcome } from "../.test-dist/src/demo/protocol.js";
+import { createDemoClient, createDemoClientV2 } from "../.test-dist/src/demo/client.js";
+import { parseDemoCatalogHttpOutcomeV2, parseDemoHttpOutcome, parseDemoHttpOutcomeV2 } from "../.test-dist/src/demo/protocol.js";
 import { createDemoProxyHandler, formatDemoProxyTelemetry } from "../.test-dist/src/demo/proxy.js";
 
 const NOW = "2026-10-12T08:00:00.000Z";
@@ -12,6 +12,11 @@ const REQUEST_ID = "req_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 function result(overrides = {}) { return { listingId: ID, availability: "active", price: { status: "unavailable" }, mileage: { status: "unavailable" }, evidence: [], ...overrides }; }
 function data(overrides = {}) { return { schemaVersion: 1, dataMode: "synthetic", fixtureVersion: "fixture-v1", dataAsOf: NOW, state: "complete", results: [result()], totalCount: 1, ...overrides }; }
 function envelope(overrides = {}) { return JSON.stringify({ schemaVersion: 1, requestId: REQUEST_ID, data: data(overrides) }); }
+const release = { catalogId: "taxcat_fixture", releaseId: "taxrel_fixture", revision: 1 };
+function v2Result(overrides = {}) { return { ...result(), description: { status: "unavailable" }, descriptionEvidence: [], ...overrides }; }
+function v2Data(overrides = {}) { return { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "fixture-v2", taxonomyRelease: release, dataAsOf: NOW, state: "complete", results: [v2Result()], totalCount: 1, ...overrides }; }
+function v2Envelope(overrides = {}) { return JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, data: v2Data(overrides) }); }
+function catalogEnvelope() { return JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, data: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "fixture-v2", taxonomyRelease: { schemaVersion: 1, ...release, releasedAt: NOW, dataMode: "synthetic", attributions: [{ attributionId: "taxattr_fixture", kind: "synthetic_fixture", fixtureRef: "fixture" }], makes: [{ makeId: "make_fixture", primaryName: { value: "Marque UI fictive", attributionId: "taxattr_fixture" }, aliases: [] }], models: [{ modelId: "model_fixture", makeId: "make_fixture", primaryName: { value: "Modèle UI fictif", attributionId: "taxattr_fixture" }, aliases: [] }] } } }); }
 function request(path, init = {}) { const { headers, ...rest } = init; return new Request(`http://127.0.0.1:3107${path}`, { ...rest, headers: { host: "127.0.0.1:3107", ...headers } }); }
 function apiResponse(body, status = 200, headers = {}) { return new Response(body, { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } }); }
 
@@ -21,6 +26,44 @@ test("closed HTTP parser validates wrappers, status, temporal DTO and detail ide
   assert.equal(parseDemoHttpOutcome(envelope({ results: [result({ listingId: "lst_other" })] }), 200, NOW, ID), undefined);
   assert.equal(parseDemoHttpOutcome('{"schemaVersion":1,"requestId":"req_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","requestId":"req_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","data":{}}', 200, NOW), undefined);
   assert.equal(parseDemoHttpOutcome(JSON.stringify({ schemaVersion: 1, requestId: REQUEST_ID, error: { code: "not_found" } }), 503, NOW), undefined);
+});
+
+test("closed V2 parsers distinguish catalog and result envelopes", () => {
+  assert.equal(parseDemoHttpOutcomeV2(v2Envelope(), 200, NOW).ok, true);
+  assert.equal(parseDemoHttpOutcomeV2(v2Envelope(), 200, NOW, ID).ok, true);
+  assert.equal(parseDemoCatalogHttpOutcomeV2(catalogEnvelope(), 200).ok, true);
+  assert.equal(parseDemoCatalogHttpOutcomeV2(v2Envelope(), 200), undefined);
+  assert.equal(parseDemoHttpOutcomeV2(JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, error: { code: "invalid_query" } }), 400, NOW).code, "invalid_query");
+});
+
+test("catalog HTTP outcomes reject search semantics but retain closed transport and flag errors", async () => {
+  for (const code of ["invalid_query", "invalid_cursor"]) {
+    const body = JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, error: { code } });
+    assert.equal(parseDemoCatalogHttpOutcomeV2(body, 400), undefined);
+    const handler = createDemoProxyHandler({ route: "catalog", schemaVersion: 2, isEnabled: () => true, fetchImpl: async () => apiResponse(body, 400) });
+    const response = await handler(request("/api/demo/v2/catalog", { method: "GET" }));
+    assert.equal(response.status, 503);
+    const outcome = await response.json();
+    assert.equal(outcome.error.code, "read_unavailable");
+    assert.notEqual(outcome.requestId, REQUEST_ID);
+  }
+  for (const [code, status] of [["invalid_request", 400], ["not_found", 404], ["method_not_allowed", 405], ["cancelled", 408], ["request_too_large", 413], ["unsupported_content_type", 415], ["read_unavailable", 503]]) {
+    const body = JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, error: { code } });
+    assert.deepEqual(parseDemoCatalogHttpOutcomeV2(body, status), { ok: false, requestId: REQUEST_ID, code });
+    assert.equal(parseDemoCatalogHttpOutcomeV2(body, 200), undefined);
+  }
+});
+
+test("V2 proxy uses only literal catalog, search and detail destinations", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return apiResponse(url.endsWith("/catalog") ? catalogEnvelope() : v2Envelope()); };
+  const catalog = createDemoProxyHandler({ route: "catalog", schemaVersion: 2, isEnabled: () => true, clock: () => new Date(NOW), fetchImpl });
+  const search = createDemoProxyHandler({ route: "search", schemaVersion: 2, isEnabled: () => true, clock: () => new Date(NOW), fetchImpl });
+  const detail = createDemoProxyHandler({ route: "detail", schemaVersion: 2, isEnabled: () => true, clock: () => new Date(NOW), fetchImpl });
+  assert.equal((await catalog(request("/api/demo/v2/catalog", { method: "GET" }))).status, 200);
+  assert.equal((await search(request("/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }))).status, 200);
+  assert.equal((await detail(request(`/api/demo/v2/listings/${ID}`, { method: "GET" }), ID)).status, 200);
+  assert.deepEqual(calls, ["http://127.0.0.1:3210/v2/demo/catalog", "http://127.0.0.1:3210/v2/demo/search", `http://127.0.0.1:3210/v2/demo/listings/${ID}`]);
 });
 
 test("proxy uses the fixed destination, strips incoming headers and preserves the original strict body", async () => {
@@ -131,6 +174,16 @@ test("client has no retry and analytics reject identifiers, queries and unknown 
   assert.equal(recordAnalyticsEvent({ eventName: "search_submitted", screen: "search", outcome: "success", query: "secret" }), false);
   assert.equal(recordAnalyticsEvent(new Proxy({}, { ownKeys() { throw new Error("secret"); } })), false);
   assert.equal(events.length, 1);
+});
+
+test("V2 client bootstraps catalog without a hidden search and keeps literal same-origin paths", async () => {
+  const paths = [];
+  const client = createDemoClientV2({ clock: () => new Date(NOW), async fetchImpl(url) { paths.push(url); return new Response(url.endsWith("catalog") ? catalogEnvelope() : v2Envelope(), { status: 200 }); } });
+  assert.equal((await client.catalog()).ok, true);
+  assert.deepEqual(paths, ["/api/demo/v2/catalog"]);
+  assert.equal((await client.search({ schemaVersion: 2, sort: "listing_asc" })).ok, true);
+  assert.equal((await client.listing(ID)).ok, true);
+  assert.deepEqual(paths, ["/api/demo/v2/catalog", "/api/demo/v2/search", `/api/demo/v2/listings/${ID}`]);
 });
 
 test("proxy telemetry formatter exposes only the closed operational fields", () => {

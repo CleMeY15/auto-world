@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { descriptionFields, mockDemoCatalog, v2Envelope, v2Error, v2Response } from "./demo-v2-fixtures";
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
   const report = await page.evaluate(() => {
@@ -29,22 +30,25 @@ test("the complete demo state matrix remains usable across required light and da
   if (directory) await mkdir(directory, { recursive: true });
   type Mode = "complete" | "empty" | "partial" | "stale" | "error" | "slow";
   let mode: Mode = "complete";
+  let detailUnavailable = false;
   let slowGate: Promise<void> = Promise.resolve();
   const requestId = `req_${"c".repeat(32)}`;
-  const visualResult = (observedAt: string, availability: "active" | "withdrawn" = "active") => ({ listingId: "lst_visual-01", availability, price: { status: "observed", value: { amountMinor: 3250000, currency: "EUR" }, evidenceId: `ev_${"1".repeat(64)}` }, mileage: { status: "observed", value: { amount: 28500, unit: "km" }, evidenceId: `ev_${"3".repeat(64)}` }, evidence: [{ evidenceId: `ev_${"0".repeat(64)}`, field: "price", observedAt: new Date(Date.parse(observedAt) - 1000).toISOString(), confidenceBps: 7000, value: { amountMinor: 3100000, currency: "EUR" } }, { evidenceId: `ev_${"1".repeat(64)}`, field: "price", observedAt, confidenceBps: 9000, value: { amountMinor: 3250000, currency: "EUR" } }, { evidenceId: `ev_${"3".repeat(64)}`, field: "mileage", observedAt, confidenceBps: 8500, value: { amount: 28500, unit: "km" } }] });
-  await page.route("**/api/demo/search", async (route) => {
-    if (mode === "error") return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, requestId, error: { code: "read_unavailable" } }) });
+  const visualResult = (observedAt: string, availability: "active" | "withdrawn" = "active") => ({ listingId: "lst_visual-01", availability, price: { status: "observed", value: { amountMinor: 3250000, currency: "EUR" }, evidenceId: `ev_${"1".repeat(64)}` }, mileage: { status: "observed", value: { amount: 28500, unit: "km" }, evidenceId: `ev_${"3".repeat(64)}` }, evidence: [{ evidenceId: `ev_${"0".repeat(64)}`, field: "price", observedAt: new Date(Date.parse(observedAt) - 1000).toISOString(), confidenceBps: 7000, value: { amountMinor: 3100000, currency: "EUR" } }, { evidenceId: `ev_${"1".repeat(64)}`, field: "price", observedAt, confidenceBps: 9000, value: { amountMinor: 3250000, currency: "EUR" } }, { evidenceId: `ev_${"3".repeat(64)}`, field: "mileage", observedAt, confidenceBps: 8500, value: { amount: 28500, unit: "km" } }], ...descriptionFields(1, { contradictory: true }) });
+  await mockDemoCatalog(page);
+  await page.route("**/api/demo/v2/search", async (route) => {
+    if (mode === "error") return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify(v2Error("read_unavailable", requestId)) });
     if (mode === "slow") await slowGate;
     const observedAt = mode === "stale" ? new Date(Date.now() - 61_000).toISOString() : new Date().toISOString();
     const results = mode === "empty" ? [] : [visualResult(observedAt)];
     const state = mode === "partial" ? "partial" : mode === "stale" ? "stale" : "complete";
-    const data = { schemaVersion: 1, dataMode: "synthetic", fixtureVersion: `ui-visual-${mode}-v1`, dataAsOf: observedAt, state, results, ...(state === "complete" ? { totalCount: results.length } : { reason: state === "partial" ? "projection_incomplete" : "projection_stale" }) };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, requestId, data }) });
+    const data = v2Response(results, { state, dataAsOf: observedAt, total: results.length });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(v2Envelope(data, requestId)) });
   });
-  await page.route("**/api/demo/listings/*", async (route) => {
+  await page.route("**/api/demo/v2/listings/*", async (route) => {
     const observedAt = new Date().toISOString();
-    const data = { schemaVersion: 1, dataMode: "synthetic", fixtureVersion: "ui-visual-detail-v1", dataAsOf: observedAt, state: "complete", totalCount: 1, results: [visualResult(observedAt, "withdrawn")] };
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, requestId, data }) });
+    const base = visualResult(observedAt, "withdrawn");
+    const data = v2Response([{ ...base, ...(detailUnavailable ? descriptionFields(1, { unavailable: true }) : {}) }], { dataAsOf: observedAt, total: 1 });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(v2Envelope(data, requestId)) });
   });
   async function capture(name: string, fullPage = true) {
     await expectNoHorizontalOverflow(page);
@@ -63,17 +67,30 @@ test("the complete demo state matrix remains usable across required light and da
       const targets = await page.locator("button, input, select, a").evaluateAll((elements) => elements.filter((element) => getComputedStyle(element).visibility !== "hidden").map((element) => { const bounds = element.getBoundingClientRect(); return { height: bounds.height, width: bounds.width }; }));
       expect(targets.every((target) => target.height >= 44 && target.width >= 44)).toBe(true);
       await capture(`demo-${width}-${theme}-search.png`, false);
+      await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+      await expect(page.getByLabel("Marque fictive")).toBeEnabled();
+      const filterTargets = await page.locator(".demo-advanced input, .demo-advanced select").evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height));
+      expect(filterTargets.length).toBeGreaterThanOrEqual(3);
+      expect(filterTargets.every((height) => height >= 44)).toBe(true);
+      await capture(`demo-${width}-${theme}-advanced-filters.png`);
       await page.getByRole("button", { name: "Rechercher", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
       await capture(`demo-${width}-${theme}-results.png`);
       const card = page.locator(".demo-result-card").first();
       await card.getByRole("button", { name: "Ajouter aux favoris" }).click();
       await card.getByRole("button", { name: "Voir le détail" }).click();
-      await expect(page.getByText(/se contredisent/)).toBeVisible();
+      await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
       await capture(`demo-${width}-${theme}-detail-withdrawn-contradictory.png`);
       await page.getByRole("button", { name: /Favoris \(1\)/ }).click();
       await expect(page.getByText("Favori synthétique 1")).toBeVisible();
       await capture(`demo-${width}-${theme}-saved.png`);
+      if (width === 390) {
+        detailUnavailable = true;
+        await page.goto("/demo#detail/lst_visual-01");
+        await expect(page.getByText("Description synthétique non disponible.")).toBeVisible();
+        await capture(`demo-${width}-${theme}-detail-description-unavailable.png`);
+        detailUnavailable = false;
+      }
 
       for (const recovery of ["empty", "partial", "stale", "error"] as const) {
         mode = recovery;
@@ -110,12 +127,24 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
   if (directory) await mkdir(directory, { recursive: true });
   const priceEvidence = `ev_${"4".repeat(64)}`;
   const mileageEvidence = `ev_${"5".repeat(64)}`;
-  const result = { listingId: "lst_text-01", availability: "active", price: { status: "observed", value: { amountMinor: 3250000, currency: "EUR" }, evidenceId: priceEvidence }, mileage: { status: "observed", value: { amount: 28500, unit: "km" }, evidenceId: mileageEvidence }, evidence: [{ evidenceId: priceEvidence, field: "price", observedAt, confidenceBps: 9000, value: { amountMinor: 3250000, currency: "EUR" } }, { evidenceId: mileageEvidence, field: "mileage", observedAt, confidenceBps: 8500, value: { amount: 28500, unit: "km" } }] };
-  await page.route("**/api/demo/search", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: 1, requestId: `req_${"d".repeat(32)}`, data: { schemaVersion: 1, dataMode: "synthetic", fixtureVersion: "ui-text-v1", dataAsOf: observedAt, state: "complete", totalCount: 1, results: [result] } }) }));
+  const result = { listingId: "lst_text-01", availability: "active", price: { status: "observed", value: { amountMinor: 3250000, currency: "EUR" }, evidenceId: priceEvidence }, mileage: { status: "observed", value: { amount: 28500, unit: "km" }, evidenceId: mileageEvidence }, evidence: [{ evidenceId: priceEvidence, field: "price", observedAt, confidenceBps: 9000, value: { amountMinor: 3250000, currency: "EUR" } }, { evidenceId: mileageEvidence, field: "mileage", observedAt, confidenceBps: 8500, value: { amount: 28500, unit: "km" } }], ...descriptionFields(1) };
+  await mockDemoCatalog(page);
+  await page.route("**/api/demo/v2/search", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(v2Envelope(v2Response([result], { dataAsOf: observedAt, total: 1 }), `req_${"d".repeat(32)}`)) }));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/demo");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
   await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const brokenHeadingWords = await page.locator("h1").evaluate((heading) => {
+    const text = heading.firstChild;
+    if (!(text instanceof Text)) throw new Error("Expected a plain heading");
+    return Array.from(text.data.matchAll(/\S+/gu)).filter((word) => {
+      const range = document.createRange();
+      range.setStart(text, word.index);
+      range.setEnd(text, word.index + word[0].length);
+      return range.getClientRects().length > 1;
+    }).map((word) => word[0]);
+  });
+  expect(brokenHeadingWords).toEqual([]);
   async function captureTextState(name: string) {
     await expectNoHorizontalOverflow(page);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);

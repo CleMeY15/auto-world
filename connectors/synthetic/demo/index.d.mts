@@ -6,6 +6,7 @@ import type {
   ConnectorRunResult,
 } from "@auto-world/connector-sdk";
 import type { SourceRegistry } from "@auto-world/source-registry";
+import type { TaxonomyReleaseReferenceV1, TaxonomyReleaseV1 } from "@auto-world/vehicle-taxonomy";
 
 export interface SyntheticCorpusFile {
   readonly name: string;
@@ -36,6 +37,20 @@ export type SyntheticScenarioName =
   | "withdrawnBaseline"
   | "withdrawnDelta";
 
+export type SyntheticDescriptionScenarioName =
+  | "descriptionBaseline"
+  | "descriptionDelta"
+  | "descriptionOmittedDelta"
+  | "descriptionPagination";
+
+export interface SyntheticDescriptionCorpusManifest {
+  readonly schemaVersion: 2;
+  readonly fixtureVersion: "synthetic-description-v2";
+  readonly taxonomyRelease: TaxonomyReleaseReferenceV1;
+  readonly source: SyntheticCorpusManifest["source"];
+  readonly files: Readonly<Record<string, SyntheticCorpusFile>>;
+}
+
 export interface SyntheticRunOverrides {
   readonly invocationKey?: string;
   readonly limits?: Partial<ConnectorRunLimits>;
@@ -56,7 +71,27 @@ export interface SyntheticHarness {
   ): Promise<ConnectorRunResult>;
 }
 
+export interface SyntheticDescriptionHarness extends Omit<SyntheticHarness, "run"> {
+  run(
+    scenarioName?: SyntheticDescriptionScenarioName,
+    overrides?: SyntheticRunOverrides,
+    signal?: AbortSignal,
+  ): Promise<ConnectorRunResult>;
+}
+
 export const SYNTHETIC_CORPUS_MANIFEST: SyntheticCorpusManifest;
 export const SYNTHETIC_SCENARIOS: Readonly<Record<SyntheticScenarioName, readonly Readonly<Record<string, unknown>>[]>>;
+export const SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST: SyntheticDescriptionCorpusManifest;
+export const SYNTHETIC_DESCRIPTION_SCENARIOS: Readonly<Record<SyntheticDescriptionScenarioName, readonly Readonly<Record<string, unknown>>[]>>;
+export const SYNTHETIC_DESCRIPTION_TAXONOMY_REFERENCE: TaxonomyReleaseReferenceV1;
+export const SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE: TaxonomyReleaseV1;
 export function createCorpusAdapter(scenarioName: SyntheticScenarioName, trace?: string[]): ConnectorAdapterPort;
+export function createDescriptionCorpusAdapter(scenarioName: SyntheticDescriptionScenarioName, trace?: string[]): ConnectorAdapterPort;
 export function createSyntheticHarness(options?: Readonly<Record<string, unknown>>): SyntheticHarness;
+export function createSyntheticDescriptionHarness(options?: Readonly<Record<string, unknown>>): SyntheticDescriptionHarness;
+export function parseSyntheticDescriptionPageV2(input: unknown): Readonly<{
+  taxonomyRelease: TaxonomyReleaseReferenceV1;
+  sdkDraft: Readonly<{ items: readonly Readonly<Record<string, unknown>>[] }>;
+  descriptions: readonly Readonly<Record<string, unknown>>[];
+}>;
+export function inspectSyntheticDescriptionRaw(bytes: Uint8Array, descriptor: SyntheticCorpusFile): ReturnType<typeof parseSyntheticDescriptionPageV2>;
