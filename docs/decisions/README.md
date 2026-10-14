@@ -47,3 +47,6 @@ PR167 source delivery is SOURCE_DONE_ON_MAIN at d7bc2412104839e0be67ee97171d281b
 
 
 ADR-0015 candidate continuation: [source plan](../../roadmap/plans/TASK-0005A-gosu-derivative-candidate-source.md) and [validation](../validation/TASK-0005A-gosu-derivative-candidate-source.md) define unused V2 same-path/unchanged-APK candidate predicates after accepted PR168 preparation. Actual image, publication, runtime, admission and support remain separate.
+
+
+ADR-0015 context-source continuation: [PR170 plan](../../roadmap/plans/TASK-0005A-gosu-derivative-context-source.md) and [validation](../validation/TASK-0005A-gosu-derivative-context-source.md) define the fixed-root fifteen-entry private TAR operator. PR169 is SOURCE_DONE_ON_MAIN; B0 source delivery and the distinct actual private operation remain separate gates.
