@@ -40,3 +40,7 @@ ADR-0015 has a focused [approved implementation plan](../../roadmap/plans/TASK-0
 # Gosu authenticated public-license checkpoint, 2026-10-14
 
 [ADR-0015](ADR-0015-gosu-compiler-derivative.md) records the six exact authenticated LICENSE/PATENTS boundary under TASK0005A. Targeted and full local source validation pass; final source/main delivery remains pending in [the validation record](../validation/TASK-0005A-gosu-public-license.md). TASK0005A/0005 remain incomplete and supported TASK0104 remains blocked.
+
+# Actual reproducible Gosu preparation checkpoint, 2026-10-14
+
+PR167 source delivery is SOURCE_DONE_ON_MAIN at d7bc2412104839e0be67ee97171d281b50465ccc. [Actual11](../validation/TASK-0005A-gosu-actual-preparation.md) has independent PASS_CLEAR for two authenticated retained trees and their exact canonical comparison: REPRODUCIBLE_SOURCE_PREPARATION_ONLY. The candidate lock/recipe/delta, publication, security/runtime/restore/attestation/retention and admission gates remain separate. TASK0005A/0005 stay IN_PROGRESS; supported TASK0104 stays BLOCKED.

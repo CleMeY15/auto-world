@@ -1,6 +1,6 @@
 # ADR-0015 â€” Traceable gosu compiler derivative
 
-Status: Gosu source increments through PR158 are SOURCE_DONE_ON_MAIN at7896e189 with identical reviewed tree/final-main CI/independent delivery PASS/CLEAR. All six actual preparations failed before upload, actual preparation/admission/support unaccepted. Closed isolation diagnostic source implemented with targeted/integrated local PASS and independent source/security/integration/evidence CLEAR; final-source/CI/main pending. Historical checkpoints below retained.
+Status: source through PR167 is SOURCE_DONE_ON_MAIN at d7bc2412104839e0be67ee97171d281b50465ccc with identical reviewed tree and successful final-head/main CI. Distinct actual11 is independently accepted as REPRODUCIBLE_SOURCE_PREPARATION_ONLY. Functional validation, vulnerability clearance, candidate admission and derivative support activation remain unaccepted. Historical checkpoints below are retained.
 
 ## Context
 
