@@ -1,6 +1,6 @@
 # TASK-0005A - authenticated public license boundary
 
-Status: LOCAL_GATES_PASS_SOURCE_REVIEW_PENDING; independent final source closure and final-head/main delivery pending. TASK0005A/0005 remain IN_PROGRESS; TASK0104 remains BLOCKED.
+Status: SOURCE_DONE_ON_MAIN through PR167; later actual11 is independently accepted for reproducible source preparation only. TASK0005A/0005 remain IN_PROGRESS; TASK0104 remains BLOCKED. Historical pending checkpoints below are preserved.
 
 ## Accepted prerequisite and actual observation
 
@@ -33,3 +33,9 @@ Full local lint/typecheck/test/build/secrets/dependency-audit pass. Root tests19
 Existing fixed diagnostics remain unchanged; no new public path, payload or exception is logged. All other builder/helper/lock/module/compiler/workflow/export/dependency/receipt/public-allowlist, Native/publisher/admission/support/currentEvidence and UI bytes are preserved. Revert this focused increment for rollback; no migration, activation or configuration change. One-calendar-year support with continuous security controls remains unchanged and inactive.
 
 Ignored CNEW original evidence is retained on this workstation; it is not claimed available from a clean clone. Never retry or redownload38192612138,38194957502,38200213629,38204301387,38209201492,38214245572,38227184667,38432916399,38449087110,38473597270.
+
+## Accepted source delivery and subsequent preparation
+
+PR167 final head0ddbdf12465b40433ac4b91b0e0695ea6665e7ad passed CI38477955973; identical tree6ed598a31353e229b4e00fed18060e05108dbe12 merged as d7bc2412104839e0be67ee97171d281b50465ccc and passed main CI38480780045. Independent delivery review8855bytes/SHA2567e52c556609bd14c6947de95d11b307261c073f57b961509b5d03e6118840175 accepts SOURCE_DONE_ON_MAIN. Both Linux CI checkpoints pass2165 root tests/2107 passes/58 existing exclusions/zero failures, all eight license regressions, full workspace gates,65 browser passes/five existing exclusions/zero retries, secrets941/audit0.
+
+The distinct [actual11 preparation record](TASK-0005A-gosu-actual-preparation.md) accepts both retained archives and the byte-exact original comparison under unchanged genuine production validators. Its independent decision is REPRODUCIBLE_SOURCE_PREPARATION_ONLY; test count0, functional validation and vulnerability clearance remain NOT_ESTABLISHED. No image admission, support activation or TASK0005 acceptance follows. This later acceptance supersedes the earlier pending delivery statements without changing the original failures or their observed limits.

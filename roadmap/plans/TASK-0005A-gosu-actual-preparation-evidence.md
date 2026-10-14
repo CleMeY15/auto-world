@@ -1,6 +1,6 @@
 # TASK-0005A - actual Gosu preparation evidence
 
-Status: IMPLEMENTATION_PLAN; source delivery of this record remains pending.
+Status: LOCAL_RECORD_GATES_PASS_REVIEW_PENDING; final source review and final-head/main delivery of this record remain pending.
 
 ## Goal and dependencies
 
