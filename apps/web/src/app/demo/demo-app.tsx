@@ -400,7 +400,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
       {(screen === "search" || effectiveSearch) && enabled ? (
         <section aria-labelledby="demo-screen-title">
-          <ScreenHeader title="Rechercher dans la démo" description="Ajustez des critères déterministes, puis parcourez uniquement les publications synthétiques actives." />
+          <ScreenHeader title="Explorer la démo" description="Ajustez des critères déterministes, puis parcourez uniquement les publications synthétiques actives." />
           {location.invalid ? <Banner tone="warning">Le lien demandé n’est pas valide. La recherche est de nouveau disponible.</Banner> : null}
           {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
           <div className="demo-search-layout">
@@ -428,7 +428,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
       {screen === "results" && response ? (
         <section aria-labelledby="demo-screen-title">
-          <ScreenHeader title="Résultats synthétiques" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
+          <ScreenHeader title="Résultats de la démo" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
           <ActiveCriteria query={resultQuery} catalog={responseCatalog} />
           {response.state === "partial" ? <div className="demo-projection-state"><Banner tone="warning">La projection est partielle. Les éléments affichés restent consultables, mais la liste n’est pas complète.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}
           {response.state === "stale" ? <div className="demo-projection-state"><Banner tone="warning">Cet instant de démonstration est ancien. Les éléments restent synthétiques et peuvent ne plus refléter la projection la plus récente.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}

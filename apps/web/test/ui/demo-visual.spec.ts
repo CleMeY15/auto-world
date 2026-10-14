@@ -74,7 +74,7 @@ test("the complete demo state matrix remains usable across required light and da
       expect(filterTargets.every((height) => height >= 44)).toBe(true);
       await capture(`demo-${width}-${theme}-advanced-filters.png`);
       await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
       await capture(`demo-${width}-${theme}-results.png`);
       const card = page.locator(".demo-result-card").first();
       await card.getByRole("button", { name: "Ajouter aux favoris" }).click();
@@ -99,7 +99,7 @@ test("the complete demo state matrix remains usable across required light and da
         await page.getByLabel("Apparence").selectOption(theme);
         await page.getByRole("button", { name: "Rechercher", exact: true }).click();
         if (recovery === "error") await expect(page.getByText("Recherche indisponible")).toBeVisible();
-        else await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+        else await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         await capture(`demo-${width}-${theme}-${recovery}.png`);
       }
       if (width === 390) {
@@ -112,7 +112,7 @@ test("the complete demo state matrix remains usable across required light and da
         await expect(page.getByText(/plus de temps que prévu/)).toBeVisible();
         await capture(`demo-${width}-${theme}-slow.png`);
         releaseSlow?.();
-        await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         await page.evaluate(() => localStorage.setItem("auto-world.demo.favorites.v1", "{broken"));
         await page.goto("/demo#saved"); await page.reload(); await expect(page.getByText(/favoris enregistrés sont illisibles/)).toBeVisible(); await page.getByLabel("Apparence").selectOption(theme);
         await capture(`demo-${width}-${theme}-storage-corrupt.png`);
@@ -131,36 +131,40 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
   await mockDemoCatalog(page);
   await page.route("**/api/demo/v2/search", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(v2Envelope(v2Response([result], { dataAsOf: observedAt, total: 1 }), `req_${"d".repeat(32)}`)) }));
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/demo");
-  await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
-  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-  const brokenHeadingWords = await page.locator("h1").evaluate((heading) => {
-    const text = heading.firstChild;
-    if (!(text instanceof Text)) throw new Error("Expected a plain heading");
-    return Array.from(text.data.matchAll(/\S+/gu)).filter((word) => {
-      const range = document.createRange();
-      range.setStart(text, word.index);
-      range.setEnd(text, word.index + word[0].length);
-      return range.getClientRects().length > 1;
-    }).map((word) => word[0]);
-  });
-  expect(brokenHeadingWords).toEqual([]);
-  async function captureTextState(name: string) {
-    await expectNoHorizontalOverflow(page);
-    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
-    const targets = await page.locator("main button, main input, main select").evaluateAll((elements) => elements.map((element) => {
-      const bounds = element.getBoundingClientRect();
-      return {
-        height: bounds.height,
-        width: bounds.width,
-        contentFits: element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1,
-      };
-    }));
-    expect(targets.every((target) => target.height >= 44 && target.width >= 44 && target.contentFits)).toBe(true);
-    await page.screenshot({ path: directory ? path.join(directory, name) : testInfo.outputPath(name), fullPage: true, scale: "css" });
+  for (const font of ["platform", "Verdana"] as const) {
+    await page.goto("/demo");
+    await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
+    if (font !== "platform") await page.addStyleTag({ content: `:root { --aw-font-family: ${font}, sans-serif; }` });
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    async function captureTextState(name: string) {
+      const brokenHeadingWords = await page.locator("h1").evaluate((heading) => {
+        const text = heading.firstChild;
+        if (!(text instanceof Text)) throw new Error("Expected a plain heading");
+        return Array.from(text.data.matchAll(/\S+/gu)).filter((word) => {
+          const range = document.createRange();
+          range.setStart(text, word.index);
+          range.setEnd(text, word.index + word[0].length);
+          return range.getClientRects().length > 1;
+        }).map((word) => word[0]);
+      });
+      expect(brokenHeadingWords).toEqual([]);
+      await expectNoHorizontalOverflow(page);
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      const targets = await page.locator("main button, main input, main select").evaluateAll((elements) => elements.map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          height: bounds.height,
+          width: bounds.width,
+          contentFits: element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1,
+        };
+      }));
+      expect(targets.every((target) => target.height >= 44 && target.width >= 44 && target.contentFits)).toBe(true);
+      await page.screenshot({ path: directory ? path.join(directory, name) : testInfo.outputPath(name), fullPage: true, scale: "css" });
+    }
+    const suffix = font === "platform" ? "" : "-wide-font";
+    await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-search.png`);
+    await page.getByRole("button", { name: "Rechercher", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
+    await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-results.png`);
   }
-  await captureTextState(`demo-390-light-text-200-${browserName}-search.png`);
-  await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
-  await captureTextState(`demo-390-light-text-200-${browserName}-results.png`);
 });

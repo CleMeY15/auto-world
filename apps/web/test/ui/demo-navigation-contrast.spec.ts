@@ -119,7 +119,7 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
       await appearance.selectOption("light");
       await expect(page.locator("html")).toHaveAttribute("data-aw-theme", "light");
       await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-      await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
       const card = page.locator(".demo-result-card").first();
       await card.getByRole("button", { name: "Ajouter aux favoris" }).click();
 
@@ -127,11 +127,11 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
         await expectReadableChange(page, testInfo, `${theme}-results-to-detail`, () => card.getByRole("button", { name: "Voir le détail" }).click());
         await expect(page.getByRole("heading", { name: "Observations disponibles" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-detail-to-results`, () => search.click());
-        await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-results-to-saved`, () => saved.click());
         await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-saved-to-results`, () => search.click());
-        await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         const nextTheme = theme === "light" ? "dark" : "light";
         await expectReadableChange(page, testInfo, `${theme}-to-${nextTheme}`, () => appearance.selectOption(nextTheme));
         await expect(page.locator("html")).toHaveAttribute("data-aw-theme", nextTheme);

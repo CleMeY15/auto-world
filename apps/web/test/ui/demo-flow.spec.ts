@@ -36,7 +36,7 @@ async function mockSinglePage(page: Page) {
 async function submitDefaultSearch(page: Page) {
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
 test("the real local API supports search, detail, persisted favorite, removal and undo", async ({ page }) => {
@@ -162,7 +162,7 @@ test("search activity, active navigation and keyboard focus remain explicit", as
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
   await expect(page.getByRole("button", { name: "Recherche…", exact: true })).toBeVisible();
   releaseSearch?.();
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
   await page.getByRole("button", { name: /Favoris \(0\)/ }).click();
   await expect(page.getByRole("button", { name: /Favoris \(0\)/ })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("button", { name: "Recherche", exact: true })).not.toHaveAttribute("aria-current", "page");
@@ -197,7 +197,7 @@ test("offline failure preserves criteria and offers a retry", async ({ page, con
   await context.setOffline(false);
   await mockSinglePage(page);
   await page.getByRole("button", { name: "Réessayer" }).click();
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 });
 
 test("keyboard flow and the primary demo states pass WCAG 2.2 AA automation", async ({ page, browserName }) => {
@@ -213,5 +213,5 @@ test("keyboard flow and the primary demo states pass WCAG 2.2 AA automation", as
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   await submitDefaultSearch(page);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeFocused();
 });

@@ -40,7 +40,7 @@ async function ready(page: Page) {
 }
 async function search(page: Page) {
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
 test("detail exposes withdrawal and contradictory observations, then restores scroll, filters and trigger focus", async ({ page }) => {
@@ -106,7 +106,7 @@ test("empty, partial, stale, slow and closed error states remain explicit", asyn
   await page.getByRole("button", { name: "Modifier les critères" }).click();
   mode = "stale"; await search(page); await expect(page.getByText(/instant de démonstration est ancien/)).toBeVisible();
   await page.getByRole("button", { name: "Modifier les critères" }).click();
-  mode = "slow"; await page.getByRole("button", { name: "Rechercher", exact: true }).click(); await expect(page.getByText(/plus de temps que prévu/)).toBeVisible(); await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeVisible();
+  mode = "slow"; await page.getByRole("button", { name: "Rechercher", exact: true }).click(); await expect(page.getByText(/plus de temps que prévu/)).toBeVisible(); await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
   await page.getByRole("button", { name: "Modifier les critères" }).click();
   mode = "error"; await page.getByRole("button", { name: "Rechercher", exact: true }).click(); await expect(page.getByText("Recherche indisponible")).toBeVisible();
 });
@@ -231,7 +231,7 @@ test("partial and stale results can refresh without losing visible context", asy
     await expect(page.getByText(/26.000,00/)).toBeVisible();
     releaseRefresh?.();
     await expect(page.getByText(/27.000,00/)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Résultats synthétiques" })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeFocused();
   }
 });
 
