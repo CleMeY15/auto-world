@@ -12,6 +12,16 @@ import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/fa
 import { parseFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
 import {
+  captureSavedSearchCriteria,
+  createSavedSearchStore,
+  getSavedSearchKey,
+  savedSearchToFilterInput,
+  type SavedSearch,
+  type SavedSearchCriteria,
+  type SavedSearchSnapshot,
+  type SavedSearchStorageStatus,
+} from "../../demo/saved-searches";
+import {
   ActiveCriteria,
   EvidenceDetails,
   LoadingResults,
@@ -22,6 +32,7 @@ import {
   StatePanel,
   SyntheticDisclosure,
 } from "./demo-components";
+import { SavedSearchesSection } from "./saved-search-components";
 
 type Screen = "search" | "results" | "detail" | "saved";
 type ListingId = NonNullable<ReturnType<typeof parsePublicListingId>>;
@@ -81,14 +92,25 @@ function storageCopy(status: FavoritesStorageStatus) {
   return undefined;
 }
 
+function savedSearchStorageCopy(status: SavedSearchStorageStatus) {
+  if (status === "session") return "Les recherches enregistrées restent disponibles dans cette session, mais elles ne sont pas enregistrées sur cet appareil.";
+  if (status === "quota") return "L’enregistrement local est plein. Les recherches ajoutées restent limitées à cette session.";
+  if (status === "denied") return "Le stockage local est inaccessible. Les recherches ajoutées restent limitées à cette session.";
+  if (status === "corrupt") return "Les recherches enregistrées sont illisibles. Vous pouvez les réinitialiser explicitement.";
+  if (status === "future") return "Ces recherches enregistrées proviennent d’une version plus récente. Elles sont préservées et ne seront pas modifiées.";
+  return undefined;
+}
+
 export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const hash = useSyncExternalStore(subscribeHash, getHashSnapshot, getHashServerSnapshot);
   const online = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getOnlineServerSnapshot);
   const location = parseLocation(hash);
   const screen: Screen = enabled ? location.screen : "saved";
   const [favorites] = useState(() => createFavoritesStore());
+  const [savedSearches] = useState(() => createSavedSearchStore());
   const [pagination] = useState(() => createSearchPaginationV2());
   const favoriteSnapshot = useSyncExternalStore(favorites.subscribe, favorites.getSnapshot, favorites.getServerSnapshot);
+  const savedSearchSnapshot = useSyncExternalStore(savedSearches.subscribe, savedSearches.getSnapshot, savedSearches.getServerSnapshot);
   const [theme, setTheme] = useState<Theme>("system");
   const [text, setText] = useState("");
   const [price, setPrice] = useState("");
@@ -101,6 +123,10 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [fieldError, setFieldError] = useState<{ readonly field: "text" | "priceMaxEUR" | "mileageMaxKm" | "sort" | "makeId" | "modelId" | "firstRegistrationYear"; readonly message: string }>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
   const [resultQuery, setResultQuery] = useState<DemoSearchQueryV2>();
+  const [acceptedCriteria, setAcceptedCriteria] = useState<SavedSearchCriteria>();
+  const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  const [saveSearchName, setSaveSearchName] = useState("");
+  const [saveSearchError, setSaveSearchError] = useState<"invalid" | "duplicate" | "full" | "readonly">();
   const [catalog, setCatalog] = useState<CatalogState>({ status: "idle" });
   const [catalogSlow, setCatalogSlow] = useState(false);
   const [catalogRetry, setCatalogRetry] = useState(0);
@@ -114,6 +140,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [savedDetails, setSavedDetails] = useState<ReadonlyMap<ListingId, DemoClientOutcomeV2>>(() => new Map());
   const [announcement, setAnnouncement] = useState("");
   const [resetArmed, setResetArmed] = useState(false);
+  const [savedSearchResetArmed, setSavedSearchResetArmed] = useState(false);
+  const [savedSearchResetToken, setSavedSearchResetToken] = useState<SavedSearchSnapshot>();
   const searchAbort = useRef<AbortController | undefined>(undefined);
   const detailAbort = useRef<AbortController | undefined>(undefined);
   const savedAbort = useRef<AbortController | undefined>(undefined);
@@ -129,6 +157,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const resultsReturnIndex = useRef<number | undefined>(undefined);
   const appendStartIndex = useRef(0);
   const removedFavoriteIndex = useRef<number | undefined>(undefined);
+  const removedSavedSearchIndex = useRef<number | undefined>(undefined);
   const pendingResponseFocus = useRef<string | undefined>(undefined);
   const initialSearchFocus = useRef(true);
   const markHydrated = useCallback((node: HTMLElement | null) => { if (node) node.dataset.demoHydrated = "true"; }, []);
@@ -146,9 +175,9 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     else window.location.hash = nextHash;
   }, [screen]);
 
-  useEffect(() => { favorites.hydrate(); }, [favorites]);
+  useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); }, [favorites, savedSearches]);
   useEffect(() => {
-    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : "Favoris synthétiques";
+    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : "Mes listes";
     document.title = `${label} — Auto World`;
   }, [screen]);
   useEffect(() => {
@@ -157,10 +186,15 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     }
   }, [favoriteSnapshot.storageStatus, screen]);
   useEffect(() => {
-    const listener = (event: StorageEvent) => favorites.reconcileStorageEvent(event);
+    if (["session", "corrupt", "future", "denied", "quota"].includes(savedSearchSnapshot.storageStatus)) {
+      recordAnalyticsEvent({ eventName: "storage_failed", screen, outcome: "error" });
+    }
+  }, [savedSearchSnapshot.storageStatus, screen]);
+  useEffect(() => {
+    const listener = (event: StorageEvent) => { favorites.reconcileStorageEvent(event); savedSearches.reconcileStorageEvent(event); };
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
-  }, [favorites]);
+  }, [favorites, savedSearches]);
 
   const retryCatalog = useCallback(() => {
     catalogMismatchAttempts.current.clear();
@@ -280,6 +314,12 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     if ((query.makeId !== undefined || query.modelId !== undefined) && catalogStateRef.current.status !== "ready") { navigate("search"); return; }
     const pageToken = append ? pagination.beginNext() : pagination.beginSearch();
     if (pageToken === undefined) return;
+    if (!append) {
+      setAcceptedCriteria(undefined);
+      setSaveSearchOpen(false);
+      setSaveSearchName("");
+      setSaveSearchError(undefined);
+    }
     const requestedQuery: DemoSearchQueryV2 = {
       schemaVersion: query.schemaVersion,
       sort: query.sort,
@@ -309,6 +349,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     else if (focusAfter === "refresh") pendingResponseFocus.current = "demo-screen-title";
     setResponse(next);
     setResultQuery(requestedQuery);
+    if (!append) setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
     recordAnalyticsEvent({ eventName: "results_shown", screen: "results", outcome: outcomeForResponse(next) });
     if (!append && focusAfter !== "refresh") navigate("results");
   }, [ensureCatalogForResponse, focusAfterRender, navigate, pagination]);
@@ -322,7 +363,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       window.requestAnimationFrame(() => document.getElementById(`demo-${parsed.field}`)?.focus());
       return;
     }
-    setFieldError(undefined); setResponse(undefined); lastQuery.current = parsed.query;
+    setFieldError(undefined); setResponse(undefined); setAcceptedCriteria(undefined); lastQuery.current = parsed.query;
     recordAnalyticsEvent({ eventName: "search_submitted", screen: "search", outcome: "success" });
     void runSearch(parsed.query, false);
   }
@@ -369,6 +410,117 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     recordAnalyticsEvent({ eventName: "favorite_undone", screen: "saved", outcome: "success" });
   }
 
+  function openSaveSearch() {
+    setSaveSearchOpen(true);
+    setSaveSearchName("");
+    setSaveSearchError(undefined);
+    focusAfterRender("demo-saved-search-name");
+  }
+
+  function cancelSaveSearch() {
+    setSaveSearchOpen(false);
+    setSaveSearchName("");
+    setSaveSearchError(undefined);
+    focusAfterRender("demo-save-search-start");
+  }
+
+  function submitSavedSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (acceptedCriteria === undefined || loadingMore) return;
+    const result = savedSearches.add(saveSearchName, acceptedCriteria);
+    if (!result.ok) {
+      setSaveSearchError(result.reason);
+      if (result.reason === "invalid") focusAfterRender("demo-saved-search-name");
+      return;
+    }
+    setSaveSearchOpen(false);
+    setSaveSearchName("");
+    setSaveSearchError(undefined);
+    setAnnouncement(savedSearches.getSnapshot().storageStatus === "persisted" ? "Recherche enregistrée sur cet appareil." : "Recherche conservée pour cette session.");
+    focusAfterRender("demo-save-search-start");
+    recordAnalyticsEvent({ eventName: "saved_search_added", screen: "results", outcome: "success" });
+  }
+
+  function viewSavedSearches(index?: number) {
+    navigate("saved");
+    focusAfterRender(index === undefined ? "demo-saved-searches-title" : `demo-saved-search-name-${index}`);
+  }
+
+  function loadSavedSearch(search: SavedSearch, omitIdentity: boolean) {
+    const input = savedSearchToFilterInput(search.criteria, catalogStateRef.current.status === "ready" ? catalogStateRef.current.data : undefined, omitIdentity);
+    if (input === undefined) {
+      setAnnouncement("La marque ou le modèle enregistré n’est pas disponible. Choisissez le chargement sans identité.");
+      return;
+    }
+    searchAbort.current?.abort();
+    searchAbort.current = undefined;
+    searchEpoch.current += 1;
+    pagination.beginSearch();
+    pendingResponseFocus.current = undefined;
+    resultsReturnIndex.current = undefined;
+    setLoading(false); setLoadingMore(false); setSlow(false); setSearchError(undefined); setPageFailure(false);
+    setResponse(undefined); setResultQuery(undefined); setAcceptedCriteria(undefined); lastQuery.current = undefined;
+    setText(input.text); setPrice(input.priceMaxEUR); setMileage(input.mileageMaxKm); setMakeId(input.makeId); setModelId(input.modelId);
+    setFirstRegistrationYear(input.firstRegistrationYear); setSort(input.sort); setFieldError(undefined);
+    setAdvanced(input.mileageMaxKm !== "" || input.makeId !== "" || input.modelId !== "" || input.firstRegistrationYear !== "" || input.sort !== "listing_asc");
+    setSaveSearchOpen(false); setSaveSearchName(""); setSaveSearchError(undefined);
+    setAnnouncement(omitIdentity
+      ? `Les critères de « ${search.name} » sont prêts sans marque ni modèle. Lancez la recherche lorsque vous le souhaitez.`
+      : `Les critères de « ${search.name} » sont prêts. Lancez la recherche lorsque vous le souhaitez.`);
+    recordAnalyticsEvent({ eventName: "saved_search_restored", screen: "saved", outcome: "success" });
+    navigate("search");
+  }
+
+  function removeSavedSearch(search: SavedSearch, index: number) {
+    if (!savedSearches.remove(getSavedSearchKey(search.criteria))) return;
+    removedSavedSearchIndex.current = index;
+    setAnnouncement("Recherche enregistrée supprimée. Vous pouvez annuler cette action.");
+    focusAfterRender("demo-saved-search-undo");
+    recordAnalyticsEvent({ eventName: "saved_search_removed", screen: "saved", outcome: "success" });
+  }
+
+  function undoSavedSearch() {
+    if (savedSearches.undo() === undefined) return;
+    setAnnouncement("La recherche enregistrée a été restaurée à sa position précédente.");
+    const restoredIndex = removedSavedSearchIndex.current;
+    if (restoredIndex !== undefined) focusAfterRender(`demo-saved-search-remove-${restoredIndex}`);
+    recordAnalyticsEvent({ eventName: "saved_search_undone", screen: "saved", outcome: "success" });
+  }
+
+  function armSavedSearchReset() {
+    setSavedSearchResetToken(savedSearches.getSnapshot());
+    setSavedSearchResetArmed(true);
+    focusAfterRender("demo-saved-search-reset-confirm");
+  }
+
+  function cancelSavedSearchReset() {
+    setSavedSearchResetToken(undefined);
+    setSavedSearchResetArmed(false);
+    focusAfterRender("demo-saved-search-reset-start");
+  }
+
+  function confirmSavedSearchReset() {
+    if (savedSearchResetToken !== savedSearches.getSnapshot()) {
+      setSavedSearchResetToken(undefined);
+      setSavedSearchResetArmed(false);
+      setAnnouncement("Les recherches enregistrées ont changé. La confirmation a été annulée.");
+      focusAfterRender("demo-saved-search-reset-start");
+      return;
+    }
+    const result = savedSearches.reset();
+    if (!result.ok) {
+      setSavedSearchResetToken(undefined);
+      setSavedSearchResetArmed(false);
+      setAnnouncement("La réinitialisation a été annulée car les données enregistrées ont changé.");
+      focusAfterRender("demo-saved-search-reset-start");
+      return;
+    }
+    setSavedSearchResetToken(undefined);
+    setSavedSearchResetArmed(false);
+    setAnnouncement(result.scope === "session" ? "Les recherches de cette session ont été effacées." : "Les recherches enregistrées dans ce navigateur ont été effacées.");
+    focusAfterRender("demo-saved-searches-title");
+  }
+
 
   function armReset() { setResetArmed(true); focusAfterRender("demo-reset-confirm"); }
   function cancelReset() { setResetArmed(false); focusAfterRender("demo-reset-start"); }
@@ -381,9 +533,29 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   const effectiveSearch = screen === "results" && response === undefined;
   const storageMessage = storageCopy(favoriteSnapshot.storageStatus);
+  const savedSearchStorageMessage = savedSearchStorageCopy(savedSearchSnapshot.storageStatus);
   const catalogData = catalog.status === "ready" ? catalog.data : undefined;
   const availableModels = catalogData === undefined || makeId === "" ? [] : modelsForMake(catalogData, makeId);
   const responseCatalog = matchingCatalog(catalogData, response);
+  const acceptedSearchKey = acceptedCriteria === undefined ? undefined : getSavedSearchKey(acceptedCriteria);
+  const acceptedSearchIndex = acceptedSearchKey === undefined ? -1 : savedSearchSnapshot.searches.findIndex((search) => getSavedSearchKey(search.criteria) === acceptedSearchKey);
+  const savedSearchResetActive = savedSearchResetArmed && savedSearchResetToken === savedSearchSnapshot;
+  const bothSavedListsEmpty = savedSearchSnapshot.searches.length === 0 && favoriteSnapshot.listingIds.length === 0;
+  const savedCollectionsHydrating = savedSearchSnapshot.storageStatus === "unhydrated" || favoriteSnapshot.storageStatus === "unhydrated";
+  const bothSavedListsPersisted = savedSearchSnapshot.storageStatus === "persisted" && favoriteSnapshot.storageStatus === "persisted";
+  const showAuthoritativeSavedEmpty = bothSavedListsEmpty && bothSavedListsPersisted;
+  const showSavedSections = !savedCollectionsHydrating && (!bothSavedListsEmpty || bothSavedListsPersisted);
+  const savedSearchEmptyCopy = savedSearchSnapshot.storageStatus === "persisted"
+    ? "Aucune recherche enregistrée. Vous pouvez en nommer une depuis les résultats."
+    : ["session", "quota", "denied"].includes(savedSearchSnapshot.storageStatus)
+      ? "Aucune recherche conservée pour cette session."
+      : undefined;
+  const favoriteEmptyCopy = favoriteSnapshot.storageStatus === "persisted"
+    ? "Aucun favori. Ajoutez une publication synthétique depuis les résultats pour la retrouver ici."
+    : ["session", "quota", "denied"].includes(favoriteSnapshot.storageStatus)
+      ? "Aucun favori conservé pour cette session."
+      : undefined;
+  const savedSearchResetIsSession = ["session", "quota", "denied"].includes(savedSearchSnapshot.storageStatus);
 
   return (
     <main className="demo-shell demo-main" id="demo-main" ref={markHydrated} tabIndex={-1}>
@@ -391,7 +563,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       <div className="demo-toolbar" aria-label="Navigation de la démonstration">
         <nav aria-label="Sections principales">
           <Button aria-current={screen === "search" || screen === "results" ? "page" : undefined} variant={screen === "search" || screen === "results" ? "primary" : "secondary"} onClick={() => navigate(response ? "results" : "search")}><SearchIcon />Recherche</Button>
-          <Button aria-current={screen === "saved" ? "page" : undefined} variant={screen === "saved" ? "primary" : "secondary"} onClick={() => navigate("saved")}>Favoris ({favoriteSnapshot.listingIds.length})</Button>
+          <Button aria-current={screen === "saved" ? "page" : undefined} variant={screen === "saved" ? "primary" : "secondary"} onClick={() => navigate("saved")}>Enregistrés</Button>
         </nav>
         <label htmlFor="demo-theme">Apparence<select id="demo-theme" value={theme} onChange={(event) => changeTheme(event.target.value as Theme)}><option value="system">Automatique</option><option value="light">Clair</option><option value="dark">Sombre</option></select></label>
       </div>
@@ -430,6 +602,24 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Résultats de la démo" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
           <ActiveCriteria query={resultQuery} catalog={responseCatalog} />
+          {acceptedCriteria ? <div className="demo-save-search">
+            <p className="demo-field-hint" id="demo-save-search-limit">Uniquement dans ce navigateur. Aucun compte ni alerte.</p>
+            {acceptedSearchIndex >= 0 ? <Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches(acceptedSearchIndex)}>Voir la recherche enregistrée</Button> : savedSearchSnapshot.searches.length >= 10 ? <><Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches()}>Gérer les recherches</Button><p className="demo-field-hint">Vous avez atteint la limite de 10 recherches enregistrées.</p></> : savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt" ? <Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches()}>Gérer les recherches</Button> : !saveSearchOpen ? <Button id="demo-save-search-start" variant="secondary" disabled={loadingMore} onClick={openSaveSearch}>Enregistrer cette recherche</Button> : (
+              <form className="demo-save-search-form" noValidate onSubmit={submitSavedSearch}>
+                <Field id="demo-saved-search-name" label="Nom de la recherche" value={saveSearchName} onChange={(event) => { setSaveSearchName(event.target.value); setSaveSearchError(undefined); }} error={saveSearchError === "invalid" ? "Choisissez un nom de 1 à 60 caractères, sans caractères de contrôle." : undefined} autoComplete="off" />
+                {saveSearchError === "duplicate" ? <Banner role="alert" tone="warning">Cette recherche est déjà enregistrée.</Banner> : null}
+                {saveSearchError === "full" ? <Banner role="alert" tone="warning">Vous avez atteint la limite de 10 recherches enregistrées.</Banner> : null}
+                {saveSearchError === "readonly" ? <Banner role="alert" tone="warning">Ces données enregistrées sont en lecture seule. Gérez-les depuis l’écran Enregistrés.</Banner> : null}
+                <div className="demo-form-actions">
+                  <Button type="submit" disabled={loadingMore}>Enregistrer</Button>
+                  <Button id="demo-save-search-cancel" type="button" variant="secondary" onClick={cancelSaveSearch}>Annuler</Button>
+                  {saveSearchError === "duplicate" ? <Button type="button" variant="secondary" onClick={() => viewSavedSearches(acceptedSearchIndex >= 0 ? acceptedSearchIndex : undefined)}>Voir la recherche enregistrée</Button> : null}
+                  {saveSearchError === "full" || saveSearchError === "readonly" ? <Button type="button" variant="secondary" onClick={() => viewSavedSearches()}>Gérer les recherches</Button> : null}
+                </div>
+              </form>
+            )}
+            {savedSearchStorageMessage ? <Banner role="note" tone="warning">{savedSearchStorageMessage}</Banner> : null}
+          </div> : null}
           {response.state === "partial" ? <div className="demo-projection-state"><Banner tone="warning">La projection est partielle. Les éléments affichés restent consultables, mais la liste n’est pas complète.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}
           {response.state === "stale" ? <div className="demo-projection-state"><Banner tone="warning">Cet instant de démonstration est ancien. Les éléments restent synthétiques et peuvent ne plus refléter la projection la plus récente.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}
           {searchError ? <StatePanel tone="danger" title="Impossible de poursuivre la lecture" action={pageFailure && (searchError === "offline" || searchError === "cancelled" || searchError === "read_unavailable") ? <Button id="demo-page-retry" onClick={loadMore}>Réessayer la page</Button> : <Button onClick={retrySearch}>Recommencer la recherche</Button>}><p>{errorCopy(searchError)}</p></StatePanel> : null}
@@ -454,12 +644,20 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
       {screen === "saved" ? (
         <section aria-labelledby="demo-screen-title">
-          <ScreenHeader title="Favoris synthétiques" description={enabled ? "Les détails sont relus uniquement lorsque cet écran est actif." : "La démonstration est désactivée. Vous pouvez encore gérer les identifiants enregistrés localement."} action={enabled ? <Button variant="secondary" onClick={() => navigate(response ? "results" : "search")}>Retour à la recherche</Button> : undefined} />
+          <ScreenHeader title="Mes listes" description="Recherches et favoris conservés uniquement dans ce navigateur. Aucun compte ni alerte n’est créé." action={enabled ? <Button variant="secondary" onClick={() => navigate(response ? "results" : "search")}>Retour à la recherche</Button> : undefined} />
           {!enabled ? <Banner role="note" tone="warning">La recherche et le détail sont désactivés. Aucun appel réseau n’est effectué depuis cet écran.</Banner> : null}
           {!online && enabled ? <Banner role="note" tone="warning">Vous êtes hors connexion. Les favoris restent gérables, mais leurs détails ne sont pas chargés.</Banner> : null}
+          {savedSearchStorageMessage ? <Banner role="note" tone="warning">{savedSearchStorageMessage}</Banner> : null}
           {storageMessage ? <Banner role="note" tone="warning">{storageMessage}</Banner> : null}
+          {savedCollectionsHydrating ? <LoadingResults label="Chargement des éléments enregistrés…" /> : null}
+          {showAuthoritativeSavedEmpty ? <StatePanel title="Aucun élément enregistré"><p>Enregistrez une recherche ou ajoutez une publication synthétique aux favoris pour la retrouver ici.</p>{enabled ? <Button onClick={() => navigate(response ? "results" : "search")}>Rechercher</Button> : null}</StatePanel> : null}
+          {savedSearchSnapshot.canUndo ? <div className="demo-undo"><span>Une recherche enregistrée vient d’être supprimée.</span><Button id="demo-saved-search-undo" variant="secondary" onClick={undoSavedSearch}>Annuler la suppression</Button></div> : null}
+          {showSavedSections ? <SavedSearchesSection searches={savedSearchSnapshot.searches} catalog={catalogData} catalogPending={enabled && (catalog.status === "idle" || catalog.status === "loading")} enabled={enabled} readOnly={savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt"} emptyCopy={showAuthoritativeSavedEmpty ? undefined : savedSearchEmptyCopy} showCount={savedSearchSnapshot.searches.length > 0 || savedSearchSnapshot.storageStatus === "persisted"} onLoad={loadSavedSearch} onRemove={removeSavedSearch} /> : null}
+          {(savedSearchSnapshot.searches.length > 0 || savedSearchStorageMessage) && savedSearchSnapshot.storageStatus !== "future" ? <div className="demo-reset">{savedSearchResetActive ? <><p>{savedSearchResetIsSession ? "Confirmez la suppression des recherches conservées pour cette session uniquement." : "Confirmez la suppression des recherches enregistrées dans ce navigateur."}</p><Button id="demo-saved-search-reset-confirm" onClick={confirmSavedSearchReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelSavedSearchReset}>Conserver</Button></> : <Button id="demo-saved-search-reset-start" variant="secondary" onClick={armSavedSearchReset}>{savedSearchResetIsSession ? "Effacer les recherches de cette session" : "Effacer les recherches enregistrées"}</Button>}</div> : null}
           {favoriteSnapshot.canUndo ? <div className="demo-undo"><span>Un favori vient d’être retiré.</span><Button id="demo-favorite-undo" variant="secondary" onClick={undoFavorite}>Annuler</Button></div> : null}
-          {favoriteSnapshot.listingIds.length === 0 ? <StatePanel title="Aucun favori"><p>Ajoutez une publication synthétique depuis les résultats pour la retrouver ici.</p>{enabled ? <Button onClick={() => navigate(response ? "results" : "search")}>Rechercher</Button> : null}</StatePanel> : (
+          {showSavedSections ? <section aria-labelledby="demo-favorites-title" className="demo-saved-section">
+            <div className="demo-section-heading"><h2 id="demo-favorites-title" tabIndex={-1}>Favoris synthétiques</h2><p>{enabled ? "Les détails sont relus uniquement lorsque cet écran est actif." : "Les identifiants restent gérables localement."}</p></div>
+          {favoriteSnapshot.listingIds.length === 0 ? (showAuthoritativeSavedEmpty ? null : favoriteEmptyCopy ? <p className="demo-section-empty">{favoriteEmptyCopy}</p> : null) : (
             <ol className="demo-saved-list">
               {favoriteSnapshot.listingIds.map((listingId, index) => {
                 const outcome = savedDetails.get(listingId);
@@ -469,6 +667,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
             </ol>
           )}
           {(favoriteSnapshot.listingIds.length > 0 || storageMessage) && favoriteSnapshot.storageStatus !== "future" ? <div className="demo-reset">{resetArmed ? <><p>Confirmez la suppression des favoris de cette version de démonstration.</p><Button id="demo-reset-confirm" onClick={confirmReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelReset}>Conserver</Button></> : <Button id="demo-reset-start" variant="secondary" onClick={armReset}>Réinitialiser les favoris</Button>}</div> : null}
+          </section> : favoriteSnapshot.storageStatus === "corrupt" ? <div className="demo-reset">{resetArmed ? <><p>Confirmez la suppression des favoris illisibles de cette version de démonstration.</p><Button id="demo-reset-confirm" onClick={confirmReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelReset}>Conserver</Button></> : <Button id="demo-reset-start" variant="secondary" onClick={armReset}>Réinitialiser les favoris</Button>}</div> : null}
         </section>
       ) : null}
     </main>

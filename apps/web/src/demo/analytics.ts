@@ -1,9 +1,9 @@
-export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "storage_failed" | "retry_clicked";
+export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "saved_search_added" | "saved_search_restored" | "saved_search_removed" | "saved_search_undone" | "storage_failed" | "retry_clicked";
 export type DemoAnalyticsScreen = "search" | "results" | "detail" | "saved";
 export type DemoAnalyticsOutcome = "success" | "empty" | "error" | "offline" | "partial" | "stale";
 export interface DemoAnalyticsEvent { readonly eventName: DemoAnalyticsEventName; readonly screen: DemoAnalyticsScreen; readonly outcome: DemoAnalyticsOutcome }
 export type DemoAnalyticsSink = (event: DemoAnalyticsEvent) => void;
-const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "storage_failed", "retry_clicked"]);
+const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "saved_search_added", "saved_search_restored", "saved_search_removed", "saved_search_undone", "storage_failed", "retry_clicked"]);
 const screens = new Set<DemoAnalyticsScreen>(["search", "results", "detail", "saved"]);
 const outcomes = new Set<DemoAnalyticsOutcome>(["success", "empty", "error", "offline", "partial", "stale"]);
 
