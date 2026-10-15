@@ -417,7 +417,7 @@ function parseBuilder(value, lease) {
       if (name === "Name") nodeCount += 1;
       node.set(name, content);
     }
-    if (section === "TOP" || nodeCount !== 1 || top.get("Name") !== "default" || top.get("Driver") !== "docker") {
+    if (section === "TOP" || nodeCount !== 1 || top.get("Name") !== lease.contextName || top.get("Driver") !== "docker") {
       fail("gosu_derivative_image_observation_routing_invalid", "ROUTING");
     }
     builder = { Driver: top.get("Driver"), Nodes: [{ Name: node.get("Name"), Endpoint: node.get("Endpoint"), Status: node.get("Status"),
@@ -425,7 +425,7 @@ function parseBuilder(value, lease) {
   }
   const node = builder?.Nodes?.[0];
   if (builder?.Driver !== "docker" || !Array.isArray(builder.Nodes) || builder.Nodes.length !== 1 || !plain(node)
-    || node.Name !== "default" || ![lease.endpoint, lease.contextName].includes(node.Endpoint)
+    || node.Name !== lease.contextName || ![lease.endpoint, lease.contextName].includes(node.Endpoint)
     || !String(node.Platforms ?? "").split(/,[ \t]*/u).map((item) => item.replace(/\*$/u, "")).includes("linux/amd64")
     || String(node.Status ?? "").toLowerCase() !== "running" || typeof node.Buildkit !== "string" || node.Buildkit.length === 0) {
     fail("gosu_derivative_image_observation_routing_invalid", "ROUTING");
@@ -666,7 +666,7 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
       || info.Containerd?.Address !== lease.containerdAddress
       || info.Containerd?.Namespaces?.Containers !== lease.containersNamespace
       || info.Containerd?.Namespaces?.Plugins !== lease.pluginsNamespace) fail("gosu_derivative_image_observation_routing_invalid", phase);
-    const builderResult = await command(phase, ["buildx", "inspect", "default"], 15_000);
+    const builderResult = await command(phase, ["buildx", "inspect"], 15_000);
     const builder = parseBuilder(builderResult.stdout, lease);
     await inventory([], phase);
     phase = "CONTEXT";
@@ -686,7 +686,7 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     const baseSave = await command("SAVE_BASE", ["image", "save", "--platform", "linux/amd64", BASE_REFERENCE], 90_000, { stdoutPath: basePartial });
     if (!runnerInjected) promoteNoReplace(basePartial, baseFinal, baseSave.outputPhysical);
     phase = "BUILD"; buildStarted = true; const candidateReference = `aw-postgres-gosu:${nonce}`;
-    await command(phase, ["buildx", "build", "--builder", "default", "--platform", "linux/amd64", "--network", "none", "--pull=false",
+    await command(phase, ["buildx", "build", "--platform", "linux/amd64", "--network", "none", "--pull=false",
       "--provenance=false", "--sbom=false", "--progress", "plain", "--tag", candidateReference, "--file", "Dockerfile", "-"], 180_000,
     { stdin: contextBuffer });
     contextSession?.guard();

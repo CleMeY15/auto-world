@@ -86,7 +86,7 @@ function routingRunner(builderNode = {}, builderOutput) {
       Containerd: { Address: lease().containerdAddress, Namespaces: {
         Containers: lease().containersNamespace, Plugins: lease().pluginsNamespace } } }));
     else if (tail[0] === "buildx") value = builderOutput ?? Buffer.from(JSON.stringify({ Driver: "docker",
-      Nodes: [{ Name: "default", Endpoint: lease().endpoint, Status: "running", Buildkit: "v0.24.0",
+      Nodes: [{ Name: lease().contextName, Endpoint: lease().endpoint, Status: "running", Buildkit: "v0.24.0",
         Platforms: "linux/amd64", ...builderNode }] }));
     return { exitCode: 0, timedOut: false, stdinBytes: request.stdin?.length ?? 0, stdinEnded: true,
       stdout: value, stderr: Buffer.alloc(0), stdoutBytes: value.length };
@@ -281,10 +281,11 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
       },
     },
   });
-  const route = routingRunner();
+  const route = routingRunner(); const requests = [];
   const dependencies = {
     now: () => 0,
     async runner(request) {
+      requests.push(request);
       const tail = request.args.slice(request.args[2] === "--context" ? 4 : 2);
       if (tail[0] === "image" && tail[1] === "pull") basePulled = true;
       if (tail[0] === "buildx" && tail[1] === "build") built = true;
@@ -314,7 +315,7 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
       const sha256 = readerHashMismatch && specification.role === "CANDIDATE" ? "0".repeat(64) : hash(selected.archive);
       return { buffer: selected.archive, identity: { bytes: selected.archive.length, sha256 }, physical: { dev: "1" } }; },
   };
-  return { api, base, candidate, dependencies };
+  return { api, base, candidate, dependencies, requests };
 }
 
 test("observation v2 exports only the three closed public interfaces", async () => {
@@ -467,7 +468,7 @@ if (typeof vm.SourceTextModule !== "function") {
 
   test("VM routing rejects ambiguous native Buildx text before context", async () => {
     const fixture = await formatOnlyRoutingVm();
-    const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
+    const valid = `Name: ${lease().contextName}\nDriver: docker\nNodes:\nName: ${lease().contextName}\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
     const cases = [`${valid}Driver: docker\n`, `${valid}Unknown field: forbidden\n`,
       `${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`];
     for (const output of cases) {
@@ -483,7 +484,7 @@ if (typeof vm.SourceTextModule !== "function") {
 
   test("VM native Buildx routes one node to context and rejects a second node first", async () => {
     const fixture = await formatOnlyRoutingVm();
-    const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
+    const valid = `Name: ${lease().contextName}\nDriver: docker\nNodes:\nName: ${lease().contextName}\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
     for (const [output, expectedReads] of [[valid, 1], [`${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`, 0]]) {
       let contextReads = 0;
       await assert.rejects(fixture.invoke(lease(), {
@@ -526,7 +527,7 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.deepEqual(Object.keys(specification).sort(), ["bytes", "path", "sha256"]);
   });
 
-  test("VM builder inspection keeps the supported fixed argv", async () => {
+  test("VM builder inspection uses the private context without an explicit builder name", async () => {
     const fixture = await formatOnlyRoutingVm(); const requests = []; const route = routingRunner();
     await assert.rejects(fixture.invoke(lease(), {
       runner(request) { requests.push(request); return route(request); },
@@ -534,7 +535,20 @@ if (typeof vm.SourceTextModule !== "function") {
       archiveReader() { throw new Error("archive must remain closed"); },
     }));
     const builder = requests.find((request) => request.args.includes("buildx")); assert.ok(builder);
-    assert.deepEqual([...builder.args.slice(4)], ["buildx", "inspect", "default"]);
+    assert.deepEqual([...builder.args.slice(4)], ["buildx", "inspect"]);
+    assert.equal(builder.args.includes("default"), false); assert.equal(builder.args.includes("--bootstrap"), false);
+  });
+
+  test("VM rejects the principal default builder frame before context", async () => {
+    const fixture = await formatOnlyRoutingVm(); const requests = []; let contextReads = 0;
+    const principal = Buffer.from("Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: default\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n");
+    await assert.rejects(fixture.invoke(lease(), {
+      runner(request) { requests.push(request); return routingRunner({}, principal)(request); },
+      contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
+      archiveReader() { throw new Error("archive must remain closed"); },
+    }), /gosu_derivative_image_observation_routing_invalid/u);
+    const builder = requests.find((request) => request.args.includes("buildx")); assert.ok(builder);
+    assert.equal(builder.args.includes("default"), false); assert.equal(contextReads, 0);
   });
 
   test("default runner rejects EPIPE before reporting authenticated stdin EOF", async () => {
@@ -707,6 +721,12 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.equal(result.state, "FORMAT_ONLY_SIMULATION"); assert.equal(result.scope, "FORMAT_ONLY");
     assert.equal(result.image, "NOT_ESTABLISHED"); assert.equal(result.candidateAdmission, "NOT_ESTABLISHED");
     assert.doesNotMatch(JSON.stringify(result), /BUILT_UNVALIDATED|IMAGE_BUILD_FORMAT_OBSERVED_REVIEW_PENDING/u);
+    const contextCreate = fixture.requests.find((request) => request.args.includes("create")); assert.ok(contextCreate);
+    for (const request of fixture.requests.filter((value) => value !== contextCreate)) {
+      assert.deepEqual([...request.args.slice(0, 4)], ["--config", lease().dockerConfig, "--context", lease().contextName]);
+    }
+    const build = fixture.requests.find((request) => request.args.includes("build")); assert.ok(build);
+    assert.equal(build.args.includes("--builder"), false); assert.equal(build.args.includes("default"), false);
   });
 
   test("postbuild failure preserves its closed code and phase beside MAY_HAVE_BEEN_BUILT state", async () => {
