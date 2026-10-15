@@ -12,6 +12,8 @@ const EVENT_TIMING_FLOOR_MS = 16;
 type BrowserMeasurements = {
   readonly cls: number;
   readonly favoriteFeedbackMs: number;
+  readonly restoreFeedbackMs: number;
+  readonly savedSearchFeedbackMs: number;
   readonly eventDurations: readonly number[];
   readonly eventTimingSupported: boolean;
   readonly lcp: number;
@@ -21,6 +23,8 @@ type BrowserMeasurements = {
 type Sample = {
   readonly cls: number;
   readonly favoriteFeedbackMs: number;
+  readonly restoreFeedbackMs: number;
+  readonly savedSearchFeedbackMs: number;
   readonly interactionDurationMs: number;
   readonly interactionEntryCount: number;
   readonly interactionMeasurement: "event-timing" | "event-timing-floor";
@@ -72,7 +76,7 @@ test("real loopback proxy meets the deterministic synthetic search latency budge
   expect(p95Ms).toBeLessThanOrEqual(500);
 });
 
-test("real synthetic web flow stays within mobile lab and favorite feedback budgets", async ({ browser, browserName, context, page }, testInfo) => {
+test("real synthetic web flow stays within mobile lab and local-action feedback budgets", async ({ browser, browserName, context, page }, testInfo) => {
   test.skip(browserName !== "chromium", "CDP network and CPU throttling are Chromium-only");
   test.setTimeout(180_000);
 
@@ -81,6 +85,8 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
     const state = {
       cls: 0,
       favoriteFeedbackMs: -1,
+      restoreFeedbackMs: -1,
+      savedSearchFeedbackMs: -1,
       eventDurations: [] as number[],
       eventTimingSupported: false,
       lcp: 0,
@@ -113,6 +119,7 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
       } as PerformanceObserverInit & { durationThreshold: number });
     }
     localStorage.removeItem("auto-world.demo.favorites.v1");
+    localStorage.removeItem("auto-world.demo.saved-searches.v1");
     state.observersReady = true;
   }, EVENT_TIMING_FLOOR_MS);
 
@@ -140,8 +147,9 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
     await freeText.click();
     await page.keyboard.type("voyage");
     await freeText.fill("");
+    await page.getByLabel("Budget maximum (€)").fill("40000");
     await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-    const favorite = page.locator(".demo-result-card").first().getByRole("button", { name: "Ajouter aux favoris" });
+    const favorite = page.locator(".demo-result-card").first().getByRole("button", { name: /^(Ajouter aux|Retirer des) favoris$/ });
     await expect(favorite).toBeVisible();
     await favorite.evaluate((button) => {
       button.addEventListener("click", () => {
@@ -157,8 +165,47 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
       }, { once: true });
     });
     await favorite.click();
-    await expect(page.getByRole("button", { name: /Favoris \(1\)/ })).toBeVisible();
+    await expect(favorite).toHaveAttribute("aria-pressed", "true");
     await page.waitForFunction(() => (window as typeof window & { __awPerformance: { favoriteFeedbackMs: number } }).__awPerformance.favoriteFeedbackMs >= 0);
+
+    await page.locator("#demo-save-search-start").click();
+    await page.getByLabel("Nom de la recherche").fill(`Mesure ${index + 1}`);
+    const save = page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true });
+    await save.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          if (document.querySelector(".demo-save-search-form") !== null) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awPerformance: { savedSearchFeedbackMs: number } }).__awPerformance.savedSearchFeedbackMs = performance.now() - started;
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }, { once: true });
+    });
+    await save.click();
+    await page.waitForFunction(() => (window as typeof window & { __awPerformance: { savedSearchFeedbackMs: number } }).__awPerformance.savedSearchFeedbackMs >= 0);
+
+    await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+    const restore = page.locator(".demo-saved-search").getByRole("button", { name: "Charger les critères", exact: true });
+    await restore.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          const heading = document.querySelector("h1");
+          const price = document.querySelector<HTMLInputElement>("#demo-priceMaxEUR");
+          if (heading?.textContent?.trim() !== "Explorer la démo" || price?.value !== "40000") return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awPerformance: { restoreFeedbackMs: number } }).__awPerformance.restoreFeedbackMs = performance.now() - started;
+          });
+        });
+        observer.observe(document.body, { attributes: true, childList: true, subtree: true });
+      }, { once: true });
+    });
+    await restore.click();
+    await page.waitForFunction(() => (window as typeof window & { __awPerformance: { restoreFeedbackMs: number } }).__awPerformance.restoreFeedbackMs >= 0);
     await page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
@@ -172,6 +219,8 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
     samples.push({
       cls: measurement.cls,
       favoriteFeedbackMs: measurement.favoriteFeedbackMs,
+      restoreFeedbackMs: measurement.restoreFeedbackMs,
+      savedSearchFeedbackMs: measurement.savedSearchFeedbackMs,
       interactionDurationMs: Math.max(EVENT_TIMING_FLOOR_MS, observedInteractionDuration ?? 0),
       interactionEntryCount: measurement.eventDurations.length,
       interactionMeasurement: observedInteractionDuration === undefined ? "event-timing-floor" : "event-timing",
@@ -184,6 +233,8 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
   const p75 = {
     cls: percentile75(samples.map((sample) => sample.cls)),
     favoriteFeedbackMs: percentile75(samples.map((sample) => sample.favoriteFeedbackMs)),
+    restoreFeedbackMs: percentile75(samples.map((sample) => sample.restoreFeedbackMs)),
+    savedSearchFeedbackMs: percentile75(samples.map((sample) => sample.savedSearchFeedbackMs)),
     interactionDurationMs: percentile75(samples.map((sample) => sample.interactionDurationMs)),
     lcpMs: percentile75(samples.map((sample) => sample.lcpMs)),
   };
@@ -192,10 +243,12 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
     collectedAt: new Date().toISOString(),
     platform: process.platform,
     host: { architecture: arch(), logicalCpus: cpus().length, cpuModel: cpus()[0]?.model, memoryBytes: totalmem() },
-    scenario: "Actual separately started synthetic API; no UI route interception. Cold Search, real typing/submit, Results and persisted favorite DOM feedback through next animation frame.",
+    scenario: "Actual separately started synthetic API; no UI route interception. Cold Search, real typing/submit, Results, persisted favorite, saved-search and criteria-restore DOM feedback through the next animation frame.",
     budgets: {
       clsP75: CLS_BUDGET,
       favoriteFeedbackMaxMs: 100,
+      restoreFeedbackMaxMs: 100,
+      savedSearchFeedbackMaxMs: 100,
       interactionDurationP75Ms: INTERACTION_BUDGET_MS,
       lcpP75Ms: LCP_BUDGET_MS,
     },
@@ -221,6 +274,8 @@ test("real synthetic web flow stays within mobile lab and favorite feedback budg
   }
 
   expect(Math.max(...samples.map((sample) => sample.favoriteFeedbackMs)), "Every observed favorite update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
+  expect(Math.max(...samples.map((sample) => sample.savedSearchFeedbackMs)), "Every observed saved-search update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
+  expect(Math.max(...samples.map((sample) => sample.restoreFeedbackMs)), "Every observed restore update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
   expect(p75.lcpMs, "LCP p75 should remain within the mobile lab budget").toBeLessThanOrEqual(LCP_BUDGET_MS);
   expect(p75.cls, "CLS p75 should remain within the mobile lab budget").toBeLessThanOrEqual(CLS_BUDGET);
   expect(p75.interactionDurationMs, "Event Timing p75 should remain responsive").toBeLessThanOrEqual(INTERACTION_BUDGET_MS);

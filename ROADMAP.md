@@ -2,7 +2,7 @@
 
 ## North Star
 
-Increment produit indépendant : [TASK-0107 — descriptions fictives et filtres exacts](roadmap/tasks/TASK-0107-synthetic-description-filters.md), implémentation validée localement sur les dépendances acceptées TASK-0008/0103 ; livraison finale suivie dans sa PR. Extension V2 synthétique uniquement ; ni résolution de véhicule réel, ni admission d'infrastructure, ni déblocage de TASK-0104 à0106.
+Incrément produit indépendant : [TASK-0108 — recherches enregistrées localement](roadmap/tasks/TASK-0108-local-saved-searches.md), implémenté et validé localement sur les dépendances acceptées TASK-0103/0107 ; livraison finale soumise au checkpoint CI de sa PR. TASK-0107 est livré sur main par [PR171](https://github.com/CleMeY15/auto-world/pull/171), CI38696369736 SUCCESS. Critères de démonstration uniquement, sans compte ni alerte ; ni résolution de véhicule réel, ni admission d'infrastructure, ni déblocage de TASK-0104 à0106.
 Construire le moteur de recherche et d'intelligence automobile mondial le plus rapide, complet et utile à la décision : une recherche unique multi-pays/multi-sources, web+iOS+Android, langage naturel, historique véhicule, scoring d'affaires et de confiance, coût rendu/immatriculé en France, alertes et données B2B.
 
 Le produit ne doit pas seulement aider à trouver une annonce. Il doit aider à trouver, comprendre, vérifier, comparer, importer et acheter le bon véhicule.

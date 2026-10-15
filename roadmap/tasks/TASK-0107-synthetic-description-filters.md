@@ -1,6 +1,6 @@
 # TASK-0107 — Synthetic descriptions and exact filters
 
-Status: IMPLEMENTATION_VALIDATED locally, 2026-10-14. Independent code/architecture/UX findings are resolved; local gates and83 browser tests pass. Not Done until final-head CI and main delivery gates pass, as recorded in the PR.
+Status: DONE_ON_MAIN, 2026-10-15. [PR171](https://github.com/CleMeY15/auto-world/pull/171) merged normally; final source CI38515261125 and exact main CI38696369736 SUCCESS, independent delivery PASS_CLEAR. Main `f68a12b50b1f4e6f90cfafab9813bfabb9a7baed` has the reviewed source tree. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/171#issuecomment-6186696360). Historical local evidence remains in the validation record.
 
 ## Goal, ownership and dependencies
 

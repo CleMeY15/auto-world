@@ -243,7 +243,7 @@ test("favorites explain corrupt, future and denied storage without overwriting i
     }
   }, { key: favoriteKey });
   await ready(page);
-  await page.getByRole("button", { name: /Favoris \(0\)/ }).click();
+  await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
   await expect(page.getByText(/favoris enregistrés sont illisibles/)).toBeVisible();
   await page.getByRole("button", { name: "Réinitialiser les favoris" }).click();
   await page.getByRole("button", { name: "Confirmer la réinitialisation" }).click();
@@ -258,7 +258,19 @@ test("favorites explain corrupt, future and denied storage without overwriting i
   const denied = await page.context().newPage();
   await denied.addInitScript(() => Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new DOMException("denied", "SecurityError"); } }));
   await denied.goto("/demo#saved");
-  await expect(denied.getByText(/stockage local est inaccessible/)).toBeVisible();
+  await expect(denied.getByText("Le stockage local est inaccessible. Les changements restent limités à cette session.", { exact: true })).toBeVisible();
+  await denied.getByRole("button", { name: "Recherche", exact: true }).click();
+  await denied.getByRole("button", { name: "Rechercher", exact: true }).click();
+  const deniedFavorite = denied.locator(".demo-result-card").first().getByRole("button", { name: /^(Ajouter aux|Retirer des) favoris$/ });
+  await deniedFavorite.click();
+  await expect(deniedFavorite).toHaveAttribute("aria-pressed", "true");
+  await denied.getByRole("button", { name: "Enregistrés", exact: true }).click();
+  await denied.getByRole("button", { name: "Retirer", exact: true }).click();
+  const deniedUndo = denied.locator("#demo-favorite-undo");
+  await expect(deniedUndo).toBeFocused();
+  await deniedUndo.click();
+  await expect(denied.getByText("Favori synthétique 1")).toBeVisible();
+  await expect(denied.getByRole("button", { name: "Retirer", exact: true })).toBeFocused();
 });
 
 test("cross-tab reconciliation, removal, undo and confirmed reset preserve favorite truth", async ({ page }) => {
@@ -270,8 +282,8 @@ test("cross-tab reconciliation, removal, undo and confirmed reset preserve favor
     localStorage.setItem(key, value);
     window.dispatchEvent(new StorageEvent("storage", { key, newValue: value, storageArea: localStorage }));
   }, { key: favoriteKey });
-  await expect(page.getByRole("button", { name: "Favoris (1)" })).toBeVisible();
-  await page.getByRole("button", { name: "Favoris (1)" }).click();
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), favoriteKey)).toContain("lst_state-01");
+  await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
   await page.getByRole("button", { name: "Retirer", exact: true }).click();
   await expect(page.getByRole("button", { name: "Annuler" })).toBeFocused();
   await page.getByRole("button", { name: "Annuler" }).click();
@@ -283,8 +295,10 @@ test("cross-tab reconciliation, removal, undo and confirmed reset preserve favor
   await expect(page.getByRole("button", { name: "Réinitialiser les favoris" })).toBeFocused();
   await page.getByRole("button", { name: "Réinitialiser les favoris" }).click();
   await page.getByRole("button", { name: "Confirmer la réinitialisation" }).click();
-  await expect(page.getByText("Aucun favori")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeFocused();
+  await expect(page.getByRole("status").filter({ hasText: "Aucun élément enregistré" })).toBeVisible();
+  await expect(page.locator(".demo-saved-list")).toHaveCount(0);
+  expect(await page.evaluate((key) => localStorage.getItem(key), favoriteKey)).toBeNull();
+  await expect(page.getByRole("heading", { name: "Mes listes" })).toBeFocused();
 });
 
 test("direct Saved navigation bootstraps the catalog before exposing synthetic labels", async ({ page }) => {
@@ -403,12 +417,15 @@ test("disabled runtime keeps Saved recovery local and performs no API request", 
   await expect(page.getByRole("button", { name: "Voir le détail" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Retirer", exact: true }).click();
-  await expect(page.getByText("Aucun favori")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Aucun élément enregistré" })).toBeVisible();
+  await expect(page.locator(".demo-saved-list")).toHaveCount(0);
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), favoriteKey)).toContain('"listingIds":[]');
   await page.getByRole("button", { name: "Annuler" }).click();
   await expect(page.getByText("Favori synthétique 1")).toBeVisible();
   await page.getByRole("button", { name: "Réinitialiser les favoris" }).click();
   await page.getByRole("button", { name: "Confirmer la réinitialisation" }).click();
-  await expect(page.getByText("Aucun favori")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Aucun élément enregistré" })).toBeVisible();
+  await expect(page.locator(".demo-saved-list")).toHaveCount(0);
   expect(await page.evaluate((key) => localStorage.getItem(key), favoriteKey)).toBeNull();
   expect(apiCalls).toBe(0);
 

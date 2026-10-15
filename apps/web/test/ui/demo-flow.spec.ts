@@ -44,16 +44,21 @@ test("the real local API supports search, detail, persisted favorite, removal an
   page.on("request", (request) => { if (new URL(request.url()).hostname !== "127.0.0.1") external.push(request.url()); });
   await page.goto("/demo");
   await expect(page.getByText("Données entièrement synthétiques. Aucun véhicule à vendre.")).toBeVisible();
+  const searchReplyPromise = page.waitForResponse((response) => response.url().endsWith("/api/demo/v2/search") && response.request().method() === "POST");
   await submitDefaultSearch(page);
+  const acceptedListingId = ((await (await searchReplyPromise).json()) as { data: { results: Array<{ listingId: string }> } }).data.results[0]?.listingId;
+  expect(acceptedListingId).toBeDefined();
   const cards = page.locator(".demo-result-card");
   await expect(cards.first()).toBeVisible();
-  await cards.first().getByRole("button", { name: "Ajouter aux favoris" }).click();
-  await expect(page.getByRole("button", { name: /Favoris \(1\)/ })).toBeVisible();
+  const favorite = cards.first().getByRole("button", { name: /^(Ajouter aux|Retirer des) favoris$/ });
+  await favorite.click();
+  await expect(favorite).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("auto-world.demo.favorites.v1") ?? "null"))).toEqual({ schemaVersion: 1, listingIds: [acceptedListingId] });
   await cards.first().getByRole("button", { name: "Voir le détail" }).click();
   await expect(page.getByRole("heading", { name: "Détail de la publication synthétique" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Observations disponibles" })).toBeVisible();
-  await page.getByRole("button", { name: /Favoris \(1\)/ }).click();
-  await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeVisible();
+  await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
   await expect(page.getByText("Favori synthétique 1")).toBeVisible();
   await page.reload();
   await expect(page.getByText("Favori synthétique 1")).toBeVisible();
@@ -150,7 +155,7 @@ test("search activity, active navigation and keyboard focus remain explicit", as
   await page.goto("/demo");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
   await expect(page.getByRole("button", { name: "Recherche", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("button", { name: /Favoris/ })).not.toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "Enregistrés", exact: true })).not.toHaveAttribute("aria-current", "page");
   await page.getByLabel("Recherche libre").focus();
   await page.keyboard.press("Tab");
   const budget = page.getByLabel("Budget maximum (€)");
@@ -163,8 +168,8 @@ test("search activity, active navigation and keyboard focus remain explicit", as
   await expect(page.getByRole("button", { name: "Recherche…", exact: true })).toBeVisible();
   releaseSearch?.();
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
-  await page.getByRole("button", { name: /Favoris \(0\)/ }).click();
-  await expect(page.getByRole("button", { name: /Favoris \(0\)/ })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Enregistrés", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("button", { name: "Recherche", exact: true })).not.toHaveAttribute("aria-current", "page");
 });
 
