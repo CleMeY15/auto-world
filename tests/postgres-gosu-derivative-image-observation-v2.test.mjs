@@ -93,6 +93,19 @@ function routingRunner(builderNode = {}, builderOutput) {
   };
 }
 
+function profileEnvelope(value) {
+  return { encoding: "base64", bytes: value.length, sha256: hash(value), base64: value.toString("base64") };
+}
+
+function routingProfileKey(request) {
+  const tail = request.args.slice(request.args[2] === "--context" ? 4 : 2);
+  if (tail[0] === "context" && tail[1] === "inspect") return "context";
+  if (tail[0] === "version") return "version";
+  if (tail[0] === "info") return "info";
+  if (tail[0] === "buildx" && tail[1] === "inspect") return "builder";
+  return undefined;
+}
+
 async function observationInternals({ processValue, spawn, fsValues = {}, cryptoValues = {}, archiveValues = {}, candidateValues = {}, zlibValues = {} } = {}) {
   const sourcePath = new URL("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs", import.meta.url);
   const sourceText = `${fs.readFileSync(sourcePath, "utf8")}\nexport { runtimeGuard as __runtimeGuard, defaultRunner as __defaultRunner, closed as __closed };
@@ -229,7 +242,7 @@ async function formatOnlyRoutingVm() {
   });
   const invoke = (callerLease, dependencies, onFirstRequest) => api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
     nonce: "a".repeat(24), lease: callerLease }, { now: () => 0, ...dependencies }, onFirstRequest);
-  return { invoke, mockedReads };
+  return { invoke, mockedReads, diagnostic: api.gosuDerivativeImageObservationFailureDiagnostic };
 }
 
 async function nonFullyInjectedPreflightVm(statfsSync) {
@@ -727,6 +740,142 @@ if (typeof vm.SourceTextModule !== "function") {
     }
     const build = fixture.requests.find((request) => request.args.includes("build")); assert.ok(build);
     assert.equal(build.args.includes("--builder"), false); assert.equal(build.args.includes("default"), false);
+  });
+
+  test("FORMAT_ONLY result retains exact bounded pre-context profile bytes and closed projections", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner;
+    const captured = new Map(); let ordinal = 0;
+    fixture.dependencies.runner = async (request) => {
+      const result = await originalRunner(request); const key = routingProfileKey(request);
+      if (key === undefined) return result;
+      const stdout = Buffer.from(result.stdout); const stderr = Buffer.from([0x00, ordinal += 1, 0xff, 0x7f]);
+      captured.set(key, { stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) });
+      return { ...result, stdout, stderr, stdoutBytes: stdout.length };
+    };
+    const result = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies);
+    const profiles = JSON.parse(JSON.stringify(result.profiles));
+    assert.deepEqual(Object.keys(profiles), ["stage", "context", "version", "info", "builder"]);
+    assert.equal(profiles.stage, "PRE_CONTEXT");
+    const expectedCommands = {
+      context: ["--config", lease().dockerConfig, "--context", lease().contextName, "context", "inspect", lease().contextName],
+      version: ["--config", lease().dockerConfig, "--context", lease().contextName, "version", "--format", "{{json .}}"],
+      info: ["--config", lease().dockerConfig, "--context", lease().contextName, "info", "--format", "{{json .}}"],
+      builder: ["--config", lease().dockerConfig, "--context", lease().contextName, "buildx", "inspect"],
+    };
+    const expectedParsed = {
+      context: { name: lease().contextName, endpoint: lease().endpoint },
+      version: { serverVersion: "28.0.4" },
+      info: { daemonId: lease().daemonId, dataRoot: lease().dataRoot, os: "linux", arch: "x86_64", driver: "overlay2",
+        containerdAddress: lease().containerdAddress, namespaces: { containers: lease().containersNamespace, plugins: lease().pluginsNamespace } },
+      builder: { name: null, nodeName: lease().contextName, driver: "docker", endpoint: lease().endpoint, status: "running",
+        buildkit: "v0.24.0", platforms: "linux/amd64", representation: "FORMAT_ONLY_JSON" },
+    };
+    for (const key of ["context", "version", "info", "builder"]) {
+      assert.deepEqual(profiles[key].command, { binary: "/usr/bin/docker", args: expectedCommands[key] });
+      assert.equal(profiles[key].representation, key === "builder" ? "FORMAT_ONLY_JSON" : "JSON");
+      assert.deepEqual(profiles[key].parsed, expectedParsed[key]);
+      assert.deepEqual(profiles[key].stdout, profileEnvelope(captured.get(key).stdout));
+      assert.deepEqual(profiles[key].stderr, profileEnvelope(captured.get(key).stderr));
+      assert.deepEqual(Object.keys(profiles[key]).sort(), ["command", "parsed", "representation", "stderr", "stdout"]);
+      assert.equal(fixture.requests.filter((request) => routingProfileKey(request) === key).length, 1);
+    }
+    assert.deepEqual(JSON.parse(JSON.stringify(result.builder)), { driver: "docker", endpoint: lease().endpoint,
+      platforms: "linux/amd64", representation: "FORMAT_ONLY_JSON" });
+    assert.equal(Object.isFrozen(result.profiles), true); assert.equal(Object.isFrozen(result.profiles.info.parsed.namespaces), true);
+    assert.equal(Object.isFrozen(result.profiles.context.stdout), true); assert.equal(Buffer.isBuffer(result.profiles.context.stdout), false);
+    assert.throws(() => { result.profiles.stage = "MUTATED"; }, TypeError);
+  });
+
+  test("pre-context profile capture survives mutation by later runner and context callbacks", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner;
+    const originalContextReader = fixture.dependencies.contextReader; const returned = []; const captured = new Map();
+    const mutateReturned = () => { for (const pair of returned) { pair.stdout.fill(0x5a); pair.stderr.fill(0xa5); } };
+    fixture.dependencies.runner = async (request) => {
+      mutateReturned(); const result = await originalRunner(request); const key = routingProfileKey(request);
+      if (key === undefined) return result;
+      const stdout = Buffer.from(result.stdout); const stderr = Buffer.from([0x00, returned.length + 1, 0xfe]);
+      captured.set(key, { stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) }); returned.push({ stdout, stderr });
+      return { ...result, stdout, stderr, stdoutBytes: stdout.length };
+    };
+    fixture.dependencies.contextReader = (...args) => { mutateReturned(); return originalContextReader(...args); };
+    const result = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies);
+    const profiles = JSON.parse(JSON.stringify(result.profiles));
+    for (const key of ["context", "version", "info", "builder"]) {
+      assert.deepEqual(profiles[key].stdout, profileEnvelope(captured.get(key).stdout));
+      assert.deepEqual(profiles[key].stderr, profileEnvelope(captured.get(key).stderr));
+    }
+  });
+
+  test("pre-context profile buffers are detached before the post-runner deadline callback", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner;
+    const captured = new Map(); let pending;
+    fixture.dependencies.now = () => {
+      if (pending !== undefined) { pending.stdout.fill(0x4d); pending.stderr.fill(0x6e); pending = undefined; }
+      return 0;
+    };
+    fixture.dependencies.runner = async (request) => {
+      const result = await originalRunner(request); const key = routingProfileKey(request);
+      if (key === undefined) return result;
+      const stdout = Buffer.from(result.stdout); const stderr = Buffer.from([0x00, captured.size + 1, 0xfd]);
+      captured.set(key, { stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) }); pending = { stdout, stderr };
+      return { ...result, stdout, stderr, stdoutBytes: stdout.length };
+    };
+    const result = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies);
+    const profiles = JSON.parse(JSON.stringify(result.profiles));
+    for (const key of ["context", "version", "info", "builder"]) {
+      assert.deepEqual(profiles[key].stdout, profileEnvelope(captured.get(key).stdout));
+      assert.deepEqual(profiles[key].stderr, profileEnvelope(captured.get(key).stderr));
+    }
+  });
+
+  test("native Buildx text retains distinct top and node names in its pre-context projection", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner;
+    const native = Buffer.from(`Name: ${lease().contextName}\nDriver: docker\nNodes:\nName: ${lease().contextName}\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`);
+    fixture.dependencies.runner = async (request) => {
+      const result = await originalRunner(request);
+      return routingProfileKey(request) === "builder" ? { ...result, stdout: native, stdoutBytes: native.length } : result;
+    };
+    const result = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies);
+    const builder = JSON.parse(JSON.stringify(result.profiles.builder));
+    assert.equal(builder.representation, "NATIVE_TEXT");
+    assert.deepEqual(builder.parsed, { name: lease().contextName, nodeName: lease().contextName, driver: "docker",
+      endpoint: lease().endpoint, status: "running", buildkit: "v0.24.0", platforms: "linux/amd64", representation: "NATIVE_TEXT" });
+    assert.deepEqual(builder.stdout, profileEnvelope(native));
+    assert.deepEqual(JSON.parse(JSON.stringify(result.builder)), { driver: "docker", endpoint: lease().endpoint,
+      platforms: "linux/amd64", representation: "NATIVE_TEXT" });
+  });
+
+  test("routing rejects oversized or inconsistent injected command metadata before context access", async () => {
+    const cases = [
+      ["oversized stdout", (result) => ({ ...result, stdout: Buffer.alloc(2 * 1024 ** 2 + 1), stdoutBytes: 2 * 1024 ** 2 + 1 })],
+      ["oversized stderr", (result) => ({ ...result, stderr: Buffer.alloc(2 * 1024 ** 2 + 1) })],
+      ["mismatched stdoutBytes", (result) => ({ ...result, stdoutBytes: result.stdout.length + 1 })],
+      ["negative stdoutBytes", (result) => ({ ...result, stdoutBytes: -1 })],
+    ];
+    for (const [name, alter] of cases) {
+      const routing = routingRunner(); const fixture = await formatOnlyRoutingVm(); let contextReads = 0;
+      let failure;
+      try {
+        await fixture.invoke(lease(), {
+          async runner(request) {
+            const result = await routing(request);
+            return routingProfileKey(request) === "context" ? alter(result) : result;
+          },
+          contextReader() { contextReads += 1; throw new Error("private context must remain closed"); },
+          archiveReader() { throw new Error("archive must remain closed"); },
+        });
+        assert.fail(`expected ${name} rejection`);
+      } catch (error) { failure = error; }
+      assert.equal(failure.message, "gosu_derivative_image_observation_command_failed", name);
+      assert.equal(failure.phase, "ROUTING", name); assert.equal(failure.state, "UNBUILT", name); assert.equal(contextReads, 0, name);
+      const diagnostic = JSON.parse(JSON.stringify(fixture.diagnostic(failure)));
+      assert.deepEqual(diagnostic, { code: "gosu_derivative_image_observation_command_failed", phase: "ROUTING", state: "UNBUILT" });
+      assert.doesNotMatch(JSON.stringify(diagnostic), /private context/u);
+    }
   });
 
   test("postbuild failure preserves its closed code and phase beside MAY_HAVE_BEEN_BUILT state", async () => {

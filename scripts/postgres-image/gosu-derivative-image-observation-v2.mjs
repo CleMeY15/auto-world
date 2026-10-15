@@ -420,7 +420,7 @@ function parseBuilder(value, lease) {
     if (section === "TOP" || nodeCount !== 1 || top.get("Name") !== lease.contextName || top.get("Driver") !== "docker") {
       fail("gosu_derivative_image_observation_routing_invalid", "ROUTING");
     }
-    builder = { Driver: top.get("Driver"), Nodes: [{ Name: node.get("Name"), Endpoint: node.get("Endpoint"), Status: node.get("Status"),
+    builder = { Name: top.get("Name"), Driver: top.get("Driver"), Nodes: [{ Name: node.get("Name"), Endpoint: node.get("Endpoint"), Status: node.get("Status"),
       Buildkit: node.get("BuildKit version"), Platforms: node.get("Platforms") }] };
   }
   const node = builder?.Nodes?.[0];
@@ -430,7 +430,8 @@ function parseBuilder(value, lease) {
     || String(node.Status ?? "").toLowerCase() !== "running" || typeof node.Buildkit !== "string" || node.Buildkit.length === 0) {
     fail("gosu_derivative_image_observation_routing_invalid", "ROUTING");
   }
-  return freeze({ driver: "docker", endpoint: node.Endpoint, platforms: String(node.Platforms), representation: parsedJson ? "FORMAT_ONLY_JSON" : "NATIVE_TEXT" });
+  return freeze({ name: parsedJson ? null : builder.Name, nodeName: node.Name, driver: "docker", endpoint: node.Endpoint,
+    status: node.Status, buildkit: node.Buildkit, platforms: String(node.Platforms), representation: parsedJson ? "FORMAT_ONLY_JSON" : "NATIVE_TEXT" });
 }
 function promoteNoReplace(partial, final, expectedPhysical) {
   const before = lstatSync(partial, { bigint: true });
@@ -583,6 +584,10 @@ function parseCommandJson(result, phase) {
   try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(result.stdout)); }
   catch { fail("gosu_derivative_image_observation_command_failed", phase); }
 }
+function privateProfile(result, representation, parsed) {
+  const envelope = (buffer) => ({ encoding: "base64", bytes: buffer.length, sha256: hash(buffer), base64: buffer.toString("base64") });
+  return freeze({ command: result.command, representation, parsed, stdout: envelope(result.stdout), stderr: envelope(result.stderr) });
+}
 function commandLines(result, pattern, phase) {
   if (!plain(result) || result.exitCode !== 0 || !Buffer.isBuffer(result.stdout) || result.stdout.length > OUTPUT_LIMIT) {
     fail("gosu_derivative_image_observation_command_failed", phase);
@@ -632,16 +637,23 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
       const request = freeze({ phase, binary: DOCKER, args: [...routedPrefix, ...args], cwd: lease.outputDirectory, env,
         timeoutMs: Math.min(timeoutMs, remaining()), stdin: options.stdin, stdoutMode: options.stdoutPath ? "FILE" : "BUFFER",
         stdoutPath: options.stdoutPath, stdoutLimit: options.stdoutPath ? ARCHIVE_LIMIT : OUTPUT_LIMIT, stderrLimit: STDERR_LIMIT });
-      const result = await runner(request); remaining();
-      if (!plain(result) || result.exitCode !== 0 || result.timedOut !== false || result.stdinBytes !== (options.stdin?.length ?? 0)
-        || result.stdinEnded !== true || !Buffer.isBuffer(result.stderr) || result.stderr.length > STDERR_LIMIT
-        || !Buffer.isBuffer(result.stdout) || !Number.isSafeInteger(result.stdoutBytes ?? result.stdout.length)
-        || options.stdoutPath && (!plain(result.outputPhysical) || !exact(result.outputIdentity, ["bytes", "sha256"])
-          || result.outputIdentity.bytes !== result.stdoutBytes || !/^[0-9a-f]{64}$/u.test(result.outputIdentity.sha256)
-          || result.outputPhysical.size !== result.outputIdentity.bytes)) {
+      const result = await runner(request);
+      if (!plain(result) || !Object.values(Object.getOwnPropertyDescriptors(result)).every((descriptor) => Object.hasOwn(descriptor, "value"))) {
         fail("gosu_derivative_image_observation_command_failed", phase);
       }
-      return result;
+      const { exitCode, timedOut, stdinBytes, stdinEnded, stdout, stderr, stdoutBytes, outputPhysical, outputIdentity } = result;
+      if (exitCode !== 0 || timedOut !== false || stdinBytes !== (options.stdin?.length ?? 0)
+        || stdinEnded !== true || !Buffer.isBuffer(stderr) || stderr.length > STDERR_LIMIT
+        || !Buffer.isBuffer(stdout) || !Number.isSafeInteger(stdoutBytes) || stdoutBytes < 0
+        || !options.stdoutPath && (stdout.length > OUTPUT_LIMIT || stdoutBytes !== stdout.length)
+        || options.stdoutPath && (!plain(outputPhysical) || !exact(outputIdentity, ["bytes", "sha256"])
+          || outputIdentity.bytes !== stdoutBytes || !/^[0-9a-f]{64}$/u.test(outputIdentity.sha256)
+          || outputPhysical.size !== outputIdentity.bytes)) {
+        fail("gosu_derivative_image_observation_command_failed", phase);
+      }
+      const owned = { exitCode, timedOut, stdinBytes, stdinEnded, stdout: Buffer.from(stdout), stderr: Buffer.from(stderr),
+        stdoutBytes, outputPhysical, outputIdentity, command: { binary: request.binary, args: request.args } };
+      remaining(); return owned;
     };
     const inventory = async (expectedImages, inventoryPhase) => {
       const images = commandLines(await command(inventoryPhase, ["image", "ls", "--all", "--quiet", "--no-trunc"], 15_000), DIGEST, inventoryPhase);
@@ -654,20 +666,33 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     };
     phase = "ROUTING";
     await command(phase, ["context", "create", lease.contextName, "--docker", `host=${lease.endpoint}`], 15_000, { createContext: true });
-    const context = parseCommandJson(await command(phase, ["context", "inspect", lease.contextName], 15_000), phase);
+    const contextResult = await command(phase, ["context", "inspect", lease.contextName], 15_000);
+    const context = parseCommandJson(contextResult, phase);
     const contextItem = Array.isArray(context) ? context[0] : context;
     if (!plain(contextItem) || contextItem.Name !== lease.contextName || contextItem.Endpoints?.docker?.Host !== lease.endpoint) {
       fail("gosu_derivative_image_observation_routing_invalid", phase);
     }
-    const version = parseCommandJson(await command(phase, ["version", "--format", "{{json .}}"], 15_000), phase);
-    const info = parseCommandJson(await command(phase, ["info", "--format", "{{json .}}"], 15_000), phase);
+    const contextProfile = privateProfile(contextResult, "JSON", { name: contextItem.Name, endpoint: contextItem.Endpoints.docker.Host });
+    const versionResult = await command(phase, ["version", "--format", "{{json .}}"], 15_000);
+    const version = parseCommandJson(versionResult, phase);
+    const versionProfile = privateProfile(versionResult, "JSON", { serverVersion: version.Server?.Version });
+    const infoResult = await command(phase, ["info", "--format", "{{json .}}"], 15_000);
+    const info = parseCommandJson(infoResult, phase);
     if (version.Server?.Version !== "28.0.4" || info.ID !== lease.daemonId || info.DockerRootDir !== lease.dataRoot
       || info.OSType !== "linux" || info.Architecture !== "x86_64" || info.Driver !== "overlay2"
       || info.Containerd?.Address !== lease.containerdAddress
       || info.Containerd?.Namespaces?.Containers !== lease.containersNamespace
       || info.Containerd?.Namespaces?.Plugins !== lease.pluginsNamespace) fail("gosu_derivative_image_observation_routing_invalid", phase);
+    const infoProfile = privateProfile(infoResult, "JSON", { daemonId: info.ID, dataRoot: info.DockerRootDir, os: info.OSType,
+      arch: info.Architecture, driver: info.Driver, containerdAddress: info.Containerd.Address,
+      namespaces: { containers: info.Containerd.Namespaces.Containers, plugins: info.Containerd.Namespaces.Plugins } });
     const builderResult = await command(phase, ["buildx", "inspect"], 15_000);
-    const builder = parseBuilder(builderResult.stdout, lease);
+    const parsedBuilder = parseBuilder(builderResult.stdout, lease);
+    const builderProfile = privateProfile(builderResult, parsedBuilder.representation, parsedBuilder);
+    const builder = freeze({ driver: parsedBuilder.driver, endpoint: parsedBuilder.endpoint,
+      platforms: parsedBuilder.platforms, representation: parsedBuilder.representation });
+    // These original routing bytes are private evidence, never public logs or diagnostics.
+    const profiles = freeze({ stage: "PRE_CONTEXT", context: contextProfile, version: versionProfile, info: infoProfile, builder: builderProfile });
     await inventory([], phase);
     phase = "CONTEXT";
     const contextRecord = readerRecord(await contextReader(freeze({ path: CONTEXT_PATH, bytes: CONTEXT_BYTES, sha256: CONTEXT_SHA256 }), control),
@@ -724,7 +749,7 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     const simulated = { state: "FORMAT_ONLY_SIMULATION", scope: "FORMAT_ONLY", image: "NOT_ESTABLISHED",
       candidateAdmission: "NOT_ESTABLISHED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
     const result = freeze({ ...(injected ? simulated : operational),
-      nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder,
+      nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
       preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, base, candidate, dates: null });
     contextSession?.close(); clearTimeout(deadlineTimer); return result;
   } catch (error) {
