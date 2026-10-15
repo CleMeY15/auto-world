@@ -1,6 +1,6 @@
 # TASK-0005A — isolated Gosu image build observation
 
-Status: SOURCE_IMPLEMENTATION_IN_PROGRESS. Image build/format observation NOT_RUN. TASK-0005A/0005 remain IN_PROGRESS; TASK-0104/0105/0106 remain dependent.
+Status: LOCAL_SOURCE_VALIDATED_REVIEWED_FINAL_DELIVERY_PENDING. Image build/format observation NOT_RUN. TASK-0005A/0005 remain IN_PROGRESS; TASK-0104/0105/0106 remain dependent.
 
 ## Accepted prerequisite
 
@@ -14,9 +14,18 @@ Two distinct actual-evidence reviewers accept the same tuple: lifecycle review11
 
 ## Current source increment
 
-The [approved plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.md) owns nine paths: two runtime modules, two tests, plan/validation and three append-only documents. Architect and distinct Critic accept source implementation. The978-file baseline starts from mainf68a12b50b1f4e6f90cfafab9813bfabb9a7baed/treeb6e1b39c6a40a8cd61b10ff21b31a7b6b7660407 and preserves incoming PR171 product work. Node22.23.2/pnpm10.15.0 frozen-lock installation passes. No dependency/lockfile, A/B0/V1, recipe, publisher, registry, workflow or Native change.
+The [approved plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.md) owns ten paths: two runtime modules, two tests, plan/validation, three append-only documents and the existing diagnostic-consumer classification. The latter changes only through two sorted diagnosticOnly additions; all supported routes and authority claims remain exact. The exhaustive pre-existing consumer regression found this necessary classification during full-suite validation; its failed attempt is retained. The original nine-path closure is superseded by this precise metadata correction, with974 protected baseline files. Architect and distinct Critic accepted the plan for source implementation; the completed implementation has distinct Root-lease and client source/security reviews; final source closure and delivery remain pending. The978-file baseline starts from mainf68a12b50b1f4e6f90cfafab9813bfabb9a7baed/treeb6e1b39c6a40a8cd61b10ff21b31a7b6b7660407 and preserves incoming PR171 product work. Node22.23.2/pnpm10.15.0 frozen-lock installation passes. No dependency/lockfile, A/B0/V1, recipe, publisher, registry, workflow or Native change.
 
-Implementation, independently authored targeted tests, full lint/typecheck/test/build/secrets/dependency checks, source/security review, exact closure, final-head CI, reviewed identical merge and main CI remain pending. No local or source check is actual image evidence. Tests use small genuine hostile-format fixtures and synthetic process/FS scenarios, explicitly FORMAT_ONLY; they never forge an accepted full genuine context/image.
+Implementation, independently authored targeted tests, six full local gates and distinct Root-lease/client source-security reviews pass. Exact committed-source closure, fresh final-head CI, reviewed identical merge, protected-main CI and independent delivery remain pending. No local or source check is actual image evidence. Tests use small genuine hostile-format fixtures and synthetic process/FS scenarios, explicitly FORMAT_ONLY; they never forge an accepted full genuine context/image.
+
+
+## Local source validation and review
+
+Pinned Node22.23.2 Windows/Linux targeted suites pass21/21 each; their nonempty VM child suites exercise the real module boundaries. Independent direct VM review passes11 daemon cases and29 client cases. The ordinary Linux process is uid/euid/gid/egid1000. Targeted index, full-gates index, daemon review and client review respectively bind 7613/SHA256626d02974298febdcb250ca6da0a4e1347ad41115b9a34574a74856e70d130dc; 10876/SHA2569d4dae72529f428c4d436e026b47ddbbba61c0af778ed72e78142f32b2ac5330; 1370/SHA2565de2c9eabf29cebb88f830636c1f73cfa853bd8fc9f6b9964d96948d4ce1983d; 2123/SHA2566570e260c2f440cf8f159008e1370f5c8285a55f95bc2e8ece53f837d0dc67e1.
+
+Six fresh local invocations pass lint/typecheck/test/build/secrets/dependency audit. Root tests: 2002 total, 1561 pass, zero failures, 441 existing Windows exclusions. Turbo lint/typecheck/test/build resolve14/21/28/14 tasks, with reported caches0/0/6/13; no zero-task success. Secretlint scans984 tracked files; dependency audit reports no known vulnerabilities. Workspace caches remain explicitly reported, and two frozen accepted-source optional positive controls are enabled locally. These are local source checks, not final CI or actual image evidence.
+
+Initial failing lint and full-suite classification failure remain retained. Review corrections close primary-group reporting, complete single-node Buildx grammar, immutable lease and injected FORMAT_ONLY status, original post-build error code/phase, measured stdin/EOF and save hashes, durable failure partials/descriptor closure, atime-only tolerance, live read/scan/expansion budgets and exclusive owned-stop reserve. The real gzip-output regression proves abort while a small compressed input expands. The diagnostic registry changes by exactly two sorted names; all other bytes and authority claims remain unchanged.
 
 ## Operational limits and rollback
 
