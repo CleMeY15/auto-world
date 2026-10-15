@@ -119,7 +119,13 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
       contextReader: async (specification, control) => __record(await dependencies.contextReader(specification, control)),
       archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
       });
-    };`;
+    };
+    export const __probeRunNonFullyInjected = (input, dependencies) => runGosuDerivativeImageBuildObservationV2(
+      JSON.parse(JSON.stringify(input)), {
+        now: dependencies.now,
+        runner: async (request) => __runner(await dependencies.runner(request)),
+        contextReader: async (specification, control) => __record(await dependencies.contextReader(specification, control)),
+      });`;
   const context = vm.createContext({ AbortController: globalThis.AbortController, Buffer, TextDecoder, clearTimeout, setTimeout });
   context.process = processValue ?? vm.runInContext(`Object.freeze({ platform: "linux", version: "v22.23.2", env: {},
     getuid: () => 1000, geteuid: () => 1000, getgid: () => 1000, getegid: () => 1000, getgroups: () => [1000] })`, context);
@@ -186,7 +192,7 @@ function fakeChild(mode, fsRecord) {
   return child;
 }
 
-function acceptanceBuffer() {
+function acceptanceBuffer(receipts) {
   const value = Buffer.from(JSON.stringify({
     kind: "GOSU_DERIVATIVE_CONTEXT_PRIVATE_ACCEPTANCE_V1",
     source: { head: "582fb97e88cf5a498e6ae34ec76eb5736ada2a47", main: "e4fa47cbe66758a5b56f5347c2c27e61bdae1ed0",
@@ -194,6 +200,7 @@ function acceptanceBuffer() {
     context: { bytes: 1_986_560, sha256: "d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb" },
     checks: { contextTupleEqualAcrossOperationReceiptStreamStat: true, claimPrePostEqual: true, inputsPrePostEqual: true },
     candidateAdmission: "NOT_AUTHORIZED", functionalValidation: "NOT_ESTABLISHED",
+    ...(receipts === undefined ? {} : { receipts }),
   }));
   return Buffer.concat([value, Buffer.alloc(11_744 - value.length, 0x20)]);
 }
@@ -223,6 +230,32 @@ async function formatOnlyRoutingVm() {
   const invoke = (callerLease, dependencies, onFirstRequest) => api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
     nonce: "a".repeat(24), lease: callerLease }, { now: () => 0, ...dependencies }, onFirstRequest);
   return { invoke, mockedReads };
+}
+
+async function nonFullyInjectedPreflightVm(statfsSync) {
+  const claim = Buffer.from("FORMAT_ONLY claim receipt"); const success = Buffer.from("FORMAT_ONLY success receipt");
+  const receipts = {
+    claim: { bytes: claim.length, sha256: hash(claim), path: "/vm/claim.json" },
+    success: { bytes: success.length, sha256: hash(success), path: "/vm/success.json" },
+  };
+  const reads = [];
+  const api = await observationInternals({
+    cryptoValues: { createHash: pinnedCreateHash },
+    fsValues: {
+      readFileSync(name, encoding) {
+        reads.push(String(name));
+        if (name === "/proc/self/status" && encoding === "utf8") return "Groups:\t\nNoNewPrivs:\t1\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\n";
+        if (String(name).endsWith("gosu-derivative-context-private-acceptance-v1.json")) return acceptanceBuffer(receipts);
+        if (name === receipts.claim.path) return claim;
+        if (name === receipts.success.path) return success;
+        throw new Error("unexpected VM read");
+      },
+      statfsSync,
+    },
+  });
+  const invoke = (dependencies) => api.__probeRunNonFullyInjected({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+    nonce: "a".repeat(24), lease: lease() }, { now: () => 0, ...dependencies });
+  return { invoke, reads };
 }
 
 async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch = false } = {}) {
@@ -376,6 +409,49 @@ if (typeof vm.SourceTextModule !== "function") {
       assert.equal(name, "/proc/self/status"); assert.equal(encoding, "utf8"); return status;
     } } });
     assert.doesNotThrow(() => api.__runtimeGuard());
+  });
+
+  test("ordinary runtime preflight checks root and output space without traversing private data root", async () => {
+    const targets = []; let dataRootCalls = 0; let runnerCalls = 0; let contextReads = 0;
+    const fixture = await nonFullyInjectedPreflightVm((target, options) => {
+      targets.push(target); assert.equal(options.bigint, true); assert.deepEqual(Object.keys(options), ["bigint"]);
+      if (target === lease().dataRoot) { dataRootCalls += 1; throw Object.assign(new Error("denied"), { code: "EACCES" }); }
+      return { bavail: 16n * 1024n ** 3n, bsize: 1n };
+    });
+    let failure;
+    try {
+      await fixture.invoke({
+        runner() { runnerCalls += 1; throw new Error("gosu_derivative_image_observation_routing_invalid"); },
+        contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
+      });
+      assert.fail("expected bounded routing stop");
+    } catch (error) { failure = error; }
+    assert.equal(failure.message, "gosu_derivative_image_observation_routing_invalid"); assert.equal(failure.phase, "ROUTING");
+    assert.deepEqual(targets, [lease().root, lease().outputDirectory]);
+    assert.equal(dataRootCalls, 0); assert.equal(runnerCalls, 1); assert.equal(contextReads, 0);
+  });
+
+  test("low space on either accessible target fails before runner, context or private data root", async () => {
+    for (const [lowTarget, expectedTargets] of [[lease().root, [lease().root]],
+      [lease().outputDirectory, [lease().root, lease().outputDirectory]]]) {
+      const targets = []; let dataRootCalls = 0; let runnerCalls = 0; let contextReads = 0;
+      const fixture = await nonFullyInjectedPreflightVm((target) => {
+        targets.push(target);
+        if (target === lease().dataRoot) { dataRootCalls += 1; throw Object.assign(new Error("denied"), { code: "EACCES" }); }
+        return target === lowTarget ? { bavail: 1n, bsize: 1n } : { bavail: 16n * 1024n ** 3n, bsize: 1n };
+      });
+      let failure;
+      try {
+        await fixture.invoke({
+          runner() { runnerCalls += 1; throw new Error("runner must remain closed"); },
+          contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
+        });
+        assert.fail("expected low-space failure");
+      } catch (error) { failure = error; }
+      assert.equal(failure.message, "gosu_derivative_image_observation_runtime_invalid"); assert.equal(failure.phase, "PREFLIGHT");
+      assert.deepEqual(targets, expectedTargets);
+      assert.equal(dataRootCalls, 0); assert.equal(runnerCalls, 0); assert.equal(contextReads, 0);
+    }
   });
 
   test("VM routing rejects builder endpoint mismatch before context without native private reads", async () => {

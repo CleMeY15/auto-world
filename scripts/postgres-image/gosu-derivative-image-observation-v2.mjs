@@ -606,7 +606,7 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     if (!fullyInjected) runtimeGuard();
     const acceptedPreflight = acceptedContextPreflight(!fullyInjected);
     if (!fullyInjected) {
-      for (const target of [lease.outputDirectory, lease.dataRoot]) {
+      for (const target of [lease.root, lease.outputDirectory]) {
         const fs = statfsSync(target, { bigint: true });
         if (fs.bavail * fs.bsize < 8n * BigInt(GiB)) fail("gosu_derivative_image_observation_runtime_invalid", phase);
       }
