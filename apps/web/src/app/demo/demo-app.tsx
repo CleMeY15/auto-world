@@ -8,6 +8,7 @@ import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearch
 import { recordAnalyticsEvent, type DemoAnalyticsOutcome, type DemoAnalyticsScreen } from "../../demo/analytics";
 import { createDemoClientV2, createSearchPaginationV2, loadSavedDetailsV2, type DemoClientErrorCode, type DemoClientOutcomeV2 } from "../../demo/client";
 import { matchingCatalog, modelsForMake } from "../../demo/catalog";
+import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, type ComparisonEntry } from "../../demo/comparison";
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
 import { parseFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
@@ -32,9 +33,10 @@ import {
   StatePanel,
   SyntheticDisclosure,
 } from "./demo-components";
+import { ComparisonScreen } from "./comparison-components";
 import { SavedSearchesSection } from "./saved-search-components";
 
-type Screen = "search" | "results" | "detail" | "saved";
+type Screen = "search" | "results" | "detail" | "saved" | "compare";
 type ListingId = NonNullable<ReturnType<typeof parsePublicListingId>>;
 type DetailState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly response: DemoSearchResponseV2; readonly result: DemoResultV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode };
 type CatalogState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly data: DemoCatalogResponseV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode; readonly mismatch?: boolean; readonly empty?: boolean };
@@ -60,6 +62,7 @@ function parseLocation(hash: string): { readonly screen: Screen; readonly listin
   if (hash === "#demo-main") return { screen: "search" };
   if (hash === "#saved") return { screen: "saved" };
   if (hash === "#results") return { screen: "results" };
+  if (hash === "#compare") return { screen: "compare" };
   if (hash.startsWith("#detail/")) {
     let raw: string;
     try { raw = decodeURIComponent(hash.slice(8)); } catch { return { screen: "search", invalid: true }; }
@@ -122,6 +125,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [advanced, setAdvanced] = useState(false);
   const [fieldError, setFieldError] = useState<{ readonly field: "text" | "priceMaxEUR" | "mileageMaxKm" | "sort" | "makeId" | "modelId" | "firstRegistrationYear"; readonly message: string }>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
+  const [comparisonIds, setComparisonIds] = useState<readonly string[]>([]);
   const [resultQuery, setResultQuery] = useState<DemoSearchQueryV2>();
   const [acceptedCriteria, setAcceptedCriteria] = useState<SavedSearchCriteria>();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
@@ -155,6 +159,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const lastQuery = useRef<DemoSearchQueryV2 | undefined>(undefined);
   const resultsScroll = useRef(0);
   const resultsReturnIndex = useRef<number | undefined>(undefined);
+  const comparisonReturnPending = useRef(false);
   const appendStartIndex = useRef(0);
   const removedFavoriteIndex = useRef<number | undefined>(undefined);
   const removedSavedSearchIndex = useRef<number | undefined>(undefined);
@@ -169,7 +174,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }, []);
 
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
-    if (screen === "results" && next === "detail") resultsScroll.current = window.scrollY;
+    if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
@@ -177,7 +182,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); }, [favorites, savedSearches]);
   useEffect(() => {
-    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : "Mes listes";
+    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : "Mes listes";
     document.title = `${label} — Auto World`;
   }, [screen]);
   useEffect(() => {
@@ -245,7 +250,14 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     }
     initialSearchFocus.current = false;
     const heading = document.getElementById("demo-screen-title");
-    if (screen === "results" && resultsReturnIndex.current !== undefined) {
+    if (screen === "results" && comparisonReturnPending.current) {
+      const comparisonOpen = document.getElementById("demo-comparison-open") as HTMLButtonElement | null;
+      const selectedToggle = document.querySelector<HTMLButtonElement>('[id^="demo-result-compare-"][aria-pressed="true"]');
+      const returnTarget = comparisonOpen?.disabled === false ? comparisonOpen : selectedToggle ?? heading;
+      returnTarget?.focus({ preventScroll: true });
+      window.scrollTo({ top: resultsScroll.current });
+      comparisonReturnPending.current = false;
+    } else if (screen === "results" && resultsReturnIndex.current !== undefined) {
       const trigger = document.getElementById(`demo-result-open-${resultsReturnIndex.current}`);
       trigger?.focus({ preventScroll: true });
       window.scrollTo({ top: resultsScroll.current });
@@ -315,6 +327,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     const pageToken = append ? pagination.beginNext() : pagination.beginSearch();
     if (pageToken === undefined) return;
     if (!append) {
+      comparisonReturnPending.current = false;
+      setComparisonIds([]);
       setAcceptedCriteria(undefined);
       setSaveSearchOpen(false);
       setSaveSearchName("");
@@ -456,6 +470,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     searchAbort.current = undefined;
     searchEpoch.current += 1;
     pagination.beginSearch();
+    comparisonReturnPending.current = false;
+    setComparisonIds([]);
     pendingResponseFocus.current = undefined;
     resultsReturnIndex.current = undefined;
     setLoading(false); setLoadingMore(false); setSlow(false); setSearchError(undefined); setPageFailure(false);
@@ -531,12 +547,49 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     focusAfterRender("demo-screen-title");
   }
 
+  function toggleComparison(listingId: string) {
+    if (loading) return;
+    const selected = comparisonIds.includes(listingId);
+    const next = toggleComparisonSelection(comparisonIds, response, listingId);
+    const changed = next.length !== comparisonIds.length || next.some((value, index) => value !== comparisonIds[index]);
+    if (!changed) {
+      if (!selected) setAnnouncement(`Vous pouvez comparer jusqu’à ${COMPARISON_LIMIT} publications.`);
+      return;
+    }
+    setComparisonIds(next);
+    setAnnouncement(selected ? "Publication retirée de la comparaison." : "Publication ajoutée à la comparaison.");
+    recordAnalyticsEvent({ eventName: selected ? "comparison_removed" : "comparison_added", screen: "results", outcome: "success" });
+  }
+
+  function openComparison() {
+    if (loading || comparisonEntries.length < 2) return;
+    comparisonReturnPending.current = true;
+    recordAnalyticsEvent({ eventName: "comparison_opened", screen: "results", outcome: "success" });
+    navigate("compare");
+  }
+
+  function returnFromComparison() {
+    navigate(response === undefined ? "search" : "results");
+  }
+
+  function removeFromComparison(entry: ComparisonEntry) {
+    const position = comparisonEntries.findIndex((candidate) => candidate.result.listingId === entry.result.listingId);
+    const nextIds = toggleComparisonSelection(comparisonIds, response, entry.result.listingId);
+    const nextEntries = selectComparisonEntries(response, nextIds);
+    setComparisonIds(nextIds);
+    setAnnouncement("Publication retirée de la comparaison.");
+    recordAnalyticsEvent({ eventName: "comparison_removed", screen: "compare", outcome: "success" });
+    const nextEntry = nextEntries[position] ?? nextEntries[position - 1];
+    focusAfterRender(nextEntry === undefined ? "demo-screen-title" : `demo-comparison-remove-${nextEntry.index}`);
+  }
+
   const effectiveSearch = screen === "results" && response === undefined;
   const storageMessage = storageCopy(favoriteSnapshot.storageStatus);
   const savedSearchStorageMessage = savedSearchStorageCopy(savedSearchSnapshot.storageStatus);
   const catalogData = catalog.status === "ready" ? catalog.data : undefined;
   const availableModels = catalogData === undefined || makeId === "" ? [] : modelsForMake(catalogData, makeId);
   const responseCatalog = matchingCatalog(catalogData, response);
+  const comparisonEntries = selectComparisonEntries(response, comparisonIds);
   const acceptedSearchKey = acceptedCriteria === undefined ? undefined : getSavedSearchKey(acceptedCriteria);
   const acceptedSearchIndex = acceptedSearchKey === undefined ? -1 : savedSearchSnapshot.searches.findIndex((search) => getSavedSearchKey(search.criteria) === acceptedSearchKey);
   const savedSearchResetActive = savedSearchResetArmed && savedSearchResetToken === savedSearchSnapshot;
@@ -602,6 +655,10 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Résultats de la démo" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
           <ActiveCriteria query={resultQuery} catalog={responseCatalog} />
+          <div className="demo-comparison-controls" aria-live="polite">
+            <p>{comparisonEntries.length} publication{comparisonEntries.length > 1 ? "s" : ""} sur {COMPARISON_LIMIT} sélectionnée{comparisonEntries.length > 1 ? "s" : ""}.</p>
+            <Button id="demo-comparison-open" disabled={loading || comparisonEntries.length < 2} onClick={openComparison}>Comparer</Button>
+          </div>
           {acceptedCriteria ? <div className="demo-save-search">
             <p className="demo-field-hint" id="demo-save-search-limit">Uniquement dans ce navigateur. Aucun compte ni alerte.</p>
             {acceptedSearchIndex >= 0 ? <Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches(acceptedSearchIndex)}>Voir la recherche enregistrée</Button> : savedSearchSnapshot.searches.length >= 10 ? <><Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches()}>Gérer les recherches</Button><p className="demo-field-hint">Vous avez atteint la limite de 10 recherches enregistrées.</p></> : savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt" ? <Button id="demo-save-search-start" variant="secondary" onClick={() => viewSavedSearches()}>Gérer les recherches</Button> : !saveSearchOpen ? <Button id="demo-save-search-start" variant="secondary" disabled={loadingMore} onClick={openSaveSearch}>Enregistrer cette recherche</Button> : (
@@ -625,12 +682,27 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
           {searchError ? <StatePanel tone="danger" title="Impossible de poursuivre la lecture" action={pageFailure && (searchError === "offline" || searchError === "cancelled" || searchError === "read_unavailable") ? <Button id="demo-page-retry" onClick={loadMore}>Réessayer la page</Button> : <Button onClick={retrySearch}>Recommencer la recherche</Button>}><p>{errorCopy(searchError)}</p></StatePanel> : null}
           {response.results.length === 0 ? <StatePanel title="Aucun résultat synthétique" action={<Button onClick={() => navigate("search")}>Ajuster les critères</Button>}><p>Aucune publication active ne correspond à ces critères.</p></StatePanel> : (
             <div className="demo-results" aria-busy={loadingMore || undefined}>
-              {response.results.map((result, index) => <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => { resultsReturnIndex.current = index; recordAnalyticsEvent({ eventName: "detail_opened", screen: "results", outcome: "success" }); navigate("detail", result.listingId); }} />)}
+              {response.results.map((result, index) => {
+                const selectedForComparison = comparisonIds.includes(result.listingId);
+                return <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} selectedForComparison={selectedForComparison} comparisonDisabled={loading || (!selectedForComparison && comparisonEntries.length >= COMPARISON_LIMIT)} onToggleComparison={() => toggleComparison(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => { resultsReturnIndex.current = index; recordAnalyticsEvent({ eventName: "detail_opened", screen: "results", outcome: "success" }); navigate("detail", result.listingId); }} />;
+              })}
             </div>
           )}
           {loadingMore ? <LoadingResults label={slow ? "La page suivante prend plus de temps que prévu…" : "Chargement de la page suivante…"} /> : null}
           {response.nextCursor || loadingMore ? <div className="demo-load-more"><Button id="demo-load-more" aria-busy={loadingMore || undefined} aria-disabled={loadingMore || undefined} onClick={loadMore}>{loadingMore ? "Chargement…" : "Charger plus"}</Button></div> : null}
         </section>
+      ) : null}
+
+      {screen === "compare" && enabled ? (
+        <ComparisonScreen
+          entries={comparisonEntries}
+          response={response}
+          catalog={responseCatalog}
+          online={online}
+          refreshError={searchError ? errorCopy(searchError) : undefined}
+          onReturn={returnFromComparison}
+          onRemove={removeFromComparison}
+        />
       ) : null}
 
       {screen === "detail" && enabled ? (

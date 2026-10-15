@@ -11,6 +11,8 @@ const EVENT_TIMING_FLOOR_MS = 16;
 
 type BrowserMeasurements = {
   readonly cls: number;
+  readonly comparisonSelectMs: number;
+  readonly comparisonOpenMs: number;
   readonly favoriteFeedbackMs: number;
   readonly restoreFeedbackMs: number;
   readonly savedSearchFeedbackMs: number;
@@ -22,6 +24,8 @@ type BrowserMeasurements = {
 
 type Sample = {
   readonly cls: number;
+  readonly comparisonSelectMs: number;
+  readonly comparisonOpenMs: number;
   readonly favoriteFeedbackMs: number;
   readonly restoreFeedbackMs: number;
   readonly savedSearchFeedbackMs: number;
@@ -84,6 +88,8 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
   await page.addInitScript((eventTimingFloorMs) => {
     const state = {
       cls: 0,
+      comparisonSelectMs: -1,
+      comparisonOpenMs: -1,
       favoriteFeedbackMs: -1,
       restoreFeedbackMs: -1,
       savedSearchFeedbackMs: -1,
@@ -168,6 +174,40 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
     await expect(favorite).toHaveAttribute("aria-pressed", "true");
     await page.waitForFunction(() => (window as typeof window & { __awPerformance: { favoriteFeedbackMs: number } }).__awPerformance.favoriteFeedbackMs >= 0);
 
+    const compare = page.locator("#demo-result-compare-0");
+    await compare.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          if (button.getAttribute("aria-pressed") !== "true") return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awPerformance: { comparisonSelectMs: number } }).__awPerformance.comparisonSelectMs = performance.now() - started;
+          });
+        });
+        observer.observe(button, { attributes: true, attributeFilter: ["aria-pressed"] });
+      }, { once: true });
+    });
+    await compare.click();
+    await page.locator("#demo-result-compare-1").click();
+    const openCompare = page.locator("#demo-comparison-open");
+    await openCompare.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          if (document.querySelector(".demo-comparison-table") === null) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awPerformance: { comparisonOpenMs: number } }).__awPerformance.comparisonOpenMs = performance.now() - started;
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }, { once: true });
+    });
+    await openCompare.click();
+    await page.waitForFunction(() => (window as typeof window & { __awPerformance: { comparisonOpenMs: number } }).__awPerformance.comparisonOpenMs >= 0);
+    await page.getByRole("button", { name: "Retour aux résultats", exact: true }).click();
+
     await page.locator("#demo-save-search-start").click();
     await page.getByLabel("Nom de la recherche").fill(`Mesure ${index + 1}`);
     const save = page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true });
@@ -218,6 +258,8 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
       : undefined;
     samples.push({
       cls: measurement.cls,
+      comparisonSelectMs: measurement.comparisonSelectMs,
+      comparisonOpenMs: measurement.comparisonOpenMs,
       favoriteFeedbackMs: measurement.favoriteFeedbackMs,
       restoreFeedbackMs: measurement.restoreFeedbackMs,
       savedSearchFeedbackMs: measurement.savedSearchFeedbackMs,
@@ -232,6 +274,8 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
 
   const p75 = {
     cls: percentile75(samples.map((sample) => sample.cls)),
+    comparisonSelectMs: percentile75(samples.map((sample) => sample.comparisonSelectMs)),
+    comparisonOpenMs: percentile75(samples.map((sample) => sample.comparisonOpenMs)),
     favoriteFeedbackMs: percentile75(samples.map((sample) => sample.favoriteFeedbackMs)),
     restoreFeedbackMs: percentile75(samples.map((sample) => sample.restoreFeedbackMs)),
     savedSearchFeedbackMs: percentile75(samples.map((sample) => sample.savedSearchFeedbackMs)),
@@ -243,9 +287,11 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
     collectedAt: new Date().toISOString(),
     platform: process.platform,
     host: { architecture: arch(), logicalCpus: cpus().length, cpuModel: cpus()[0]?.model, memoryBytes: totalmem() },
-    scenario: "Actual separately started synthetic API; no UI route interception. Cold Search, real typing/submit, Results, persisted favorite, saved-search and criteria-restore DOM feedback through the next animation frame.",
+    scenario: "Actual separately started synthetic API; no UI route interception. Cold Search, real typing/submit, Results, persisted favorite, comparison selection/open, saved-search and criteria-restore DOM feedback through the next animation frame.",
     budgets: {
       clsP75: CLS_BUDGET,
+      comparisonSelectMaxMs: 100,
+      comparisonOpenMaxMs: 100,
       favoriteFeedbackMaxMs: 100,
       restoreFeedbackMaxMs: 100,
       savedSearchFeedbackMaxMs: 100,
@@ -274,6 +320,9 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
   }
 
   expect(Math.max(...samples.map((sample) => sample.favoriteFeedbackMs)), "Every observed favorite update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
+  expect(Math.min(...samples.map((sample) => sample.comparisonSelectMs))).toBeGreaterThanOrEqual(0);
+  expect(Math.max(...samples.map((sample) => sample.comparisonSelectMs)), "Every comparison selection update within100ms").toBeLessThanOrEqual(100);
+  expect(Math.max(...samples.map((sample) => sample.comparisonOpenMs)), "Every comparison open within100ms").toBeLessThanOrEqual(100);
   expect(Math.max(...samples.map((sample) => sample.savedSearchFeedbackMs)), "Every observed saved-search update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
   expect(Math.max(...samples.map((sample) => sample.restoreFeedbackMs)), "Every observed restore update should commit by the next frame within100ms").toBeLessThanOrEqual(100);
   expect(p75.lcpMs, "LCP p75 should remain within the mobile lab budget").toBeLessThanOrEqual(LCP_BUDGET_MS);

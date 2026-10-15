@@ -1,7 +1,7 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103 and TASK-0107 are accepted on main; TASK-0108 adds local saved search criteria under its own [validation gates](docs/validation/TASK-0108.md).
+- Status: Active. TASK-0103, TASK-0107 and TASK-0108 are accepted on main; TASK-0109 adds ephemeral synthetic publication comparison under its own [validation gates](docs/validation/TASK-0109.md).
 - Last refreshed: 2026-10-15.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
@@ -90,5 +90,16 @@
 - [x] Frontend/architecture boundary: exact framework versions and server/client hydration contract recorded in TASK-0007 validation and architecture docs; no persistent storage in this task.
 - [x] TASK-0103 owner: the separately versioned `localStorage` favorite schema, denied/quota/corrupt recovery and Saved flow are implemented and retained by TASK-0107.
 - [x] TASK-0108 implementation: independent code APPROVE, architecture CLEAR and actual Windows/Linux viewport/enlarged-text UX APPROVE. Local gates and125 passing browser tests per platform validate the saved-search flow; [evidence](docs/validation/TASK-0108.md).
-- [ ] TASK-0108 delivery: exact final-head CI and protected-main CI remain separate PR checkpoints before Done.
+- [x] TASK-0108 delivery: sourceCI38707338245/mainCI38708392017 SUCCESS; accepted main45bcb652. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/173#issuecomment-6188438418).
+- [x] TASK-0109 implementation: independent code APPROVE, architecture CLEAR and final actual-pixel Windows/Linux UX APPROVE/CLEAR;149 browser tests per platform, accessibility and performance gates pass. [Evidence](docs/validation/TASK-0109.md). Final-head/main delivery remains a separate PR checkpoint.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.
+
+## TASK-0109 comparison contract
+- Current-results publications only,2–3, ephemeral IDs. Selection reset on first-page request/restore/reload; no new storage/API or vehicle identity claim. Reuse buttons/tokens, keep primary navigation unchanged.
+- Availability is active at the accepted search instant, not a live lifecycle status; the existing search protocol rejects non-active results before comparison.
+- Results selection → compact count/Comparer action → local #compare. Entry focuses Comparer heading; return restores Results scroll and comparison trigger. Removal focuses next remove or heading. Below2 retains remaining item and return CTA. Pending first-page refresh locks old-result selection.
+- Semantic fact table, readable columns, labelled keyboard-focusable horizontal scroll region and narrow-screen hint; no viewport overflow. Ordinary table headers preferred over overlapping sticky labels. Text states Identique/Différences/Incomplet/Non comparable, not color alone. Unknown values are not equal; currencies/units are never converted or ranked. Preserve exact values when formatting would hide a distinction.
+- Decision hierarchy: availability, then observed price/mileage, then authored make/model/year. Consolidate their shared authored provenance once per publication under the year rather than repeating it in three rows. The scroll hint explicitly applies to narrow screens. Both engines validate two- and three-publication layouts in every required viewport/theme.
+- Result selection uses concise Comparer / Retirer labels with publication-specific accessible names that include the visible label. Enlarged wide-font text must not split those words; cards and actions can shrink without clipping. Table cells and headings explicitly bind to semantic text tokens to preserve contrast during WebKit theme changes.
+- Values from the accepted search, dataAsOf visible, never auto-refreshed. Partial/stale/offline and differing histories explicit. Observed evidence dates/confidence stay distinct from authored make/model/year declarations; unmatched catalog makes that whole declaration unavailable, but observed price/mileage remain usable. No fabricated photos/specs/scores/AI explanation.
+- Validate320/390/768/1440 light/dark,200% platform/wide-font, keyboard/focus/44px/axe and responsiveness before sign-off. Production Compare/Garage remains separate scope.
