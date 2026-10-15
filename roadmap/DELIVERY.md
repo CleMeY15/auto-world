@@ -314,3 +314,12 @@ Source implementation/gates/review/final-head/main delivery remain pending at th
 
 
 PR170 local source checkpoint:32 context cases plus25 candidate controls pass57/57 on each pinned Windows/Linux Node22 platform; Linux ordinary uid/euid1000. Six local gates pass, root1981/1540passes/zero failures/441existing Windows exclusions, Turbo14/20/28/14 with caches14/19/27/13, secrets955/audit0. Static source/security PASS_CLEAR binds the final module; the close-after-retirement helper case proves refusal and retention without retry. Final seven-path closure, final-head/main CI and delivery remain pending. No actual private context or image is accepted.
+
+
+## TASK-0005A — accepted private Gosu context and isolated build source, 2026-10-15
+
+PR170 is independently SOURCE_DONE_ON_MAIN at source582fb97e88cf5a498e6ae34ec76eb5736ada2a47/main e4fa47cbe66758a5b56f5347c2c27e61bdae1ed0/tree7292e98e7ee23e45ebccff075577af41f271dbf9. Final CI38509721849/main CI38511322367 pass and their original endpoint budgets are consumed. Historical pending checkpoints above remain preserved.
+
+The sole materialization and distinct conditional V3 validation now establish PRIVATE_CONTEXT_ACCEPTED only,1986560/SHA256d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb. Two independent actual reviews close structure/body/physical/lifecycle bindings; final acceptance11744/SHA25682b1b1735d6e1063048fbade9d3c86e6b0819a90e54c54ec9898d4937721f5a3. The earlier V2 failure and pending source receipts remain immutable, with zero V2 body reads proven before genuine imports. Twelve synthetic comparator controls pass in V3; its one external stream is consumed. No rematerialization or original archive/provider replay.
+
+The [approved B1a source plan](plans/TASK-0005A-gosu-image-build-observation.md) starts from mainf68a12b/PR171, preserving its descriptions/filters work. New isolated Root lease and UID1000 client/observer, hostile-format/failure tests and append-only docs are in progress. [Validation](../docs/validation/TASK-0005A-gosu-image-build-observation.md) records source gates separately from any future single actual local build. Source review/final-head/main delivery remain pending. Image UNBUILT; functional/vulnerability NOT_ESTABLISHED; admission/authority NOT_AUTHORIZED; derivative support dates null/currentEvidence unchanged. TASK0005A/0005 stay IN_PROGRESS; TASK0104/0105/0106 remain dependent.

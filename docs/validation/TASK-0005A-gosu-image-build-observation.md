@@ -1,0 +1,27 @@
+# TASK-0005A — isolated Gosu image build observation
+
+Status: SOURCE_IMPLEMENTATION_IN_PROGRESS. Image build/format observation NOT_RUN. TASK-0005A/0005 remain IN_PROGRESS; TASK-0104/0105/0106 remain dependent.
+
+## Accepted prerequisite
+
+PR170 is SOURCE_DONE_ON_MAIN: source582fb97e88cf5a498e6ae34ec76eb5736ada2a47, main e4fa47cbe66758a5b56f5347c2c27e61bdae1ed0, tree7292e98e7ee23e45ebccff075577af41f271dbf9. Final CI38509721849 and main CI38511322367 pass; delivery review4649/SHA256753f9f145203766f9d076bf6a2d921a757b9b8f7a3a2bbc2b7a924fc1a76e5d4 accepts SOURCE_CONTEXT_OPERATOR_ONLY. These endpoint sets are consumed and are not recaptured.
+
+The sole B0 materialization succeeded. A source receipt is still CONTEXT_MATERIALIZED_REVIEW_PENDING and its claim OPERATING; neither is rewritten to accept itself. The original external V2 validator failed and remains FAILED_RETAINED. Independent pinned control-flow diagnosis establishes zero V2 context-body reads: its property-order comparator necessarily fails before genuine imports and context stream; the first historical throw remains NOT_ESTABLISHED. The accepted conditional recovery keeps that failure/claim consumed and permits a different one-attempt V3. Twelve synthetic comparison controls reproduce five V2 order failures plus seven controls and then pass12/12 under isDeepStrictEqual.
+
+The sole V3 launch on2026-10-15 exits0, stderr0, no timeout/overflow. A single physical stream reads1986560 bytes; SHA256d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb matches operation/result/receipt/stat. Genuine Seaweed and source contract A validate fifteen entries/fourteen files/one directory/twelve evidence files, metadata, offsets and body hashes. Canonical byte equality reuses B0's encoder; its dependency is explicitly declared rather than claimed independent. Context/ancestor path-FD and955-source/claim snapshots are stable.
+
+Two distinct actual-evidence reviewers accept the same tuple: lifecycle review11881/SHA25613c05b520fe380662579c578807b81face13c3f1b9e3bc59d062b154a04ecddf and content review5055/SHA2566df758021039bbdd3ecab8d9202e70a9e5ed795fae1eff3a4fa18e7eeb3eb355. Separate final acceptance11744/SHA25682b1b1735d6e1063048fbade9d3c86e6b0819a90e54c54ec9898d4937721f5a3 is PRIVATE_CONTEXT_ACCEPTED / PRIVATE_BUILD_CONTEXT_BYTES_AND_LIFECYCLE_ONLY. The external validation budget is exhausted; the new B1a consumption is a separate reviewed build phase. No original preparation archive is reread or rematerialized.
+
+## Current source increment
+
+The [approved plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.md) owns nine paths: two runtime modules, two tests, plan/validation and three append-only documents. Architect and distinct Critic accept source implementation. The978-file baseline starts from mainf68a12b50b1f4e6f90cfafab9813bfabb9a7baed/treeb6e1b39c6a40a8cd61b10ff21b31a7b6b7660407 and preserves incoming PR171 product work. Node22.23.2/pnpm10.15.0 frozen-lock installation passes. No dependency/lockfile, A/B0/V1, recipe, publisher, registry, workflow or Native change.
+
+Implementation, independently authored targeted tests, full lint/typecheck/test/build/secrets/dependency checks, source/security review, exact closure, final-head CI, reviewed identical merge and main CI remain pending. No local or source check is actual image evidence. Tests use small genuine hostile-format fixtures and synthetic process/FS scenarios, explicitly FORMAT_ONLY; they never forge an accepted full genuine context/image.
+
+## Operational limits and rollback
+
+Root prepares an isolated daemon; UID1000 owns client/source parsing. All commands select a private named Docker context and private config. A unique bounded context Buffer is authenticated before build. Anonymous public exact-digest base pull and separate base/candidate saves remain local/private. The recipe has only FROM and two COPY instructions, no image-program execution. RUN network isolation does not claim daemon-wide no-egress. New format counts/config/history are observed before B1b freezes its codec and exact predicates.
+
+Success can establish only IMAGE_BUILD_FORMAT_OBSERVED_REVIEW_PENDING/NOT_AUTHORIZED. Exact image proof, functional validation and vulnerability clearance remain NOT_ESTABLISHED; admission/activation/support/currentEvidence unchanged. The one-year support policy starts only at future activation; current derivative dates remain null.
+
+Rollback abandons unused new source and reverses only the three owned appends through focused review. Preserve all old source/receipts/failures/archives/duties and principal Docker state. Stop only an owned proven daemon PID; retain its private data and any failed partials. No prune, recursive removal, retry, publication, SQL or Native mutation.
