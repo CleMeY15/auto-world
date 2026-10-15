@@ -108,12 +108,18 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
     const __runner = (value) => ({ ...value,
       ...(value.outputPhysical === undefined ? {} : { outputPhysical: { ...value.outputPhysical } }),
       ...(value.outputIdentity === undefined ? {} : { outputIdentity: { ...value.outputIdentity } }) });
-    export const __probeRun = (input, dependencies) => runGosuDerivativeImageBuildObservationV2(JSON.parse(JSON.stringify(input)), {
+    export const __probeRun = (input, dependencies, onFirstRequest) => {
+      const copiedInput = JSON.parse(JSON.stringify(input)); let firstRequest = true;
+      return runGosuDerivativeImageBuildObservationV2(copiedInput, {
       now: dependencies.now,
-      runner: async (request) => __runner(await dependencies.runner(request)),
+      runner: async (request) => {
+        if (firstRequest) { firstRequest = false; onFirstRequest?.(copiedInput.lease); }
+        return __runner(await dependencies.runner(request));
+      },
       contextReader: async (specification, control) => __record(await dependencies.contextReader(specification, control)),
       archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
-    });`;
+      });
+    };`;
   const context = vm.createContext({ AbortController: globalThis.AbortController, Buffer, TextDecoder, clearTimeout, setTimeout });
   context.process = processValue ?? vm.runInContext(`Object.freeze({ platform: "linux", version: "v22.23.2", env: {},
     getuid: () => 1000, geteuid: () => 1000, getgid: () => 1000, getegid: () => 1000, getgroups: () => [1000] })`, context);
@@ -214,8 +220,8 @@ async function formatOnlyRoutingVm() {
       throw new Error("unexpected VM read");
     } },
   });
-  const invoke = (callerLease, dependencies) => api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
-    nonce: "a".repeat(24), lease: callerLease }, { now: () => 0, ...dependencies });
+  const invoke = (callerLease, dependencies, onFirstRequest) => api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+    nonce: "a".repeat(24), lease: callerLease }, { now: () => 0, ...dependencies }, onFirstRequest);
   return { invoke, mockedReads };
 }
 
@@ -415,18 +421,20 @@ if (typeof vm.SourceTextModule !== "function") {
 
   test("VM caller lease mutation during await cannot change later routing or paths", async () => {
     const fixture = await formatOnlyRoutingVm(); const callerLease = lease(); const original = JSON.parse(JSON.stringify(callerLease));
-    const requests = []; const route = routingRunner(); let first = true; let contextReads = 0;
+    const requests = []; const route = routingRunner(); let contextReads = 0; let mutationApplied = false;
     await assert.rejects(fixture.invoke(callerLease, {
       async runner(request) {
         requests.push(request);
-        if (first) { first = false; callerLease.outputDirectory = "/tmp/attacker"; callerLease.dockerConfig = "/tmp/config";
-          callerLease.contextName = "attacker"; callerLease.deadlineAtMs = 1; }
         return route(request);
       },
       contextReader() { contextReads += 1; throw new Error("bounded stop"); },
       archiveReader() { throw new Error("archive must remain closed"); },
+    }, (vmLease) => {
+      vmLease.outputDirectory = "/tmp/attacker"; vmLease.dockerConfig = "/tmp/config";
+      vmLease.contextName = "attacker"; vmLease.deadlineAtMs = 1; mutationApplied = true;
+      assert.equal(vmLease.outputDirectory, "/tmp/attacker"); assert.equal(vmLease.contextName, "attacker");
     }));
-    assert.equal(contextReads, 1); assert.ok(requests.length > 1);
+    assert.equal(mutationApplied, true); assert.equal(contextReads, 1); assert.ok(requests.length > 1);
     for (const request of requests) { assert.equal(request.cwd, original.outputDirectory);
       assert.equal(request.args.includes("attacker"), false); assert.equal(request.args.includes("/tmp/config"), false); }
   });
