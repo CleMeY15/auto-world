@@ -18,7 +18,7 @@ export function NeutralIllustration() {
   );
 }
 
-function formatPrice(result: DemoResultV2) {
+export function formatPrice(result: DemoResultV2) {
   if (result.price.status === "unavailable") return "Prix non disponible";
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -29,7 +29,7 @@ function formatPrice(result: DemoResultV2) {
   return formatter.format(result.price.value.amountMinor / (10 ** digits));
 }
 
-function formatMileage(result: DemoResultV2) {
+export function formatMileage(result: DemoResultV2) {
   if (result.mileage.status === "unavailable") return "Kilométrage non disponible";
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(result.mileage.value.amount)} ${result.mileage.value.unit}`;
 }
@@ -41,7 +41,7 @@ function formatEvidenceValue(evidence: DemoEvidence) {
   return formatter.format(evidence.value.amountMinor / (10 ** digits));
 }
 
-function availabilityLabel(value: DemoResultV2["availability"]) {
+export function availabilityLabel(value: DemoResultV2["availability"]) {
   if (value === "active") return "Publication active";
   if (value === "withdrawn") return "Publication retirée";
   if (value === "deleted") return "Publication supprimée";
@@ -86,12 +86,15 @@ export function ActiveCriteria({ query, catalog }: { readonly query?: DemoSearch
   return <p className="demo-field-hint">Critères appliqués : {criteria.length === 0 ? "aucun filtre" : criteria.join(" · ")}.</p>;
 }
 
-export function ResultCard({ index, result, catalog, saved, onOpen, onToggleSaved }: {
+export function ResultCard({ index, result, catalog, saved, selectedForComparison, comparisonDisabled, onOpen, onToggleSaved, onToggleComparison }: {
   readonly index: number;
   readonly result: DemoResultV2;
   readonly saved: boolean;
+  readonly selectedForComparison: boolean;
+  readonly comparisonDisabled: boolean;
   readonly onOpen: () => void;
   readonly onToggleSaved: () => void;
+  readonly onToggleComparison: () => void;
   readonly catalog?: DemoCatalogResponseV2;
 }) {
   return (
@@ -102,6 +105,16 @@ export function ResultCard({ index, result, catalog, saved, onOpen, onToggleSave
         <ResultSummary result={result} catalog={catalog} />
       </div>
       <div className="demo-card-actions">
+        <Button
+          id={`demo-result-compare-${index}`}
+          variant="secondary"
+          aria-pressed={selectedForComparison}
+          aria-label={`${selectedForComparison ? "Retirer de la comparaison" : "Comparer"} — Publication synthétique ${String(index + 1).padStart(2, "0")}`}
+          disabled={comparisonDisabled}
+          onClick={onToggleComparison}
+        >
+          {selectedForComparison ? "Retirer" : "Comparer"}
+        </Button>
         <Button variant="secondary" onClick={onToggleSaved} aria-pressed={saved}>
           <BookmarkIcon />{saved ? "Retirer des favoris" : "Ajouter aux favoris"}
         </Button>

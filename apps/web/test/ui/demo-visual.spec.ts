@@ -149,17 +149,17 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
     if (font !== "platform") await page.addStyleTag({ content: `:root { --aw-font-family: ${font}, sans-serif; }` });
     await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
     async function captureTextState(name: string) {
-      const brokenHeadingWords = await page.locator("h1").evaluate((heading) => {
-        const text = heading.firstChild;
-        if (!(text instanceof Text)) throw new Error("Expected a plain heading");
+      const brokenWords = await page.locator("h1, [id^=demo-result-compare-]").evaluateAll((elements) => elements.flatMap((element) => {
+        const text = element.firstChild;
+        if (!(text instanceof Text)) throw new Error("Expected a plain heading or comparison label");
         return Array.from(text.data.matchAll(/\S+/gu)).filter((word) => {
           const range = document.createRange();
           range.setStart(text, word.index);
           range.setEnd(text, word.index + word[0].length);
           return range.getClientRects().length > 1;
         }).map((word) => word[0]);
-      });
-      expect(brokenHeadingWords).toEqual([]);
+      }));
+      expect(brokenWords).toEqual([]);
       await expectNoHorizontalOverflow(page);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       const targets = await page.locator("main button, main input, main select").evaluateAll((elements) => elements.map((element) => {
