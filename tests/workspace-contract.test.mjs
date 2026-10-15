@@ -59,9 +59,11 @@ test("declares every architecture boundary as a private workspace package", () =
     const web = expectedName === "@auto-world/web";
     const api = expectedName === "@auto-world/api";
     const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || taxonomy || domainEvents || api;
-    const dependencyBuild = connector
+    const dependencyBuild = demo
+      ? "pnpm --filter @auto-world/vehicle-schema build && pnpm --filter @auto-world/vehicle-taxonomy build && "
+      : connector
       ? "pnpm --filter @auto-world/source-registry build && "
-      : registry || demo || taxonomy || domainEvents ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
+      : registry || taxonomy || domainEvents ? "pnpm --filter @auto-world/vehicle-schema build && " : "";
 
     assert.equal(manifest.name, expectedName);
     assert.equal(manifest.version, "0.0.0");
@@ -165,6 +167,7 @@ test("keeps connector and governance dependencies pointed toward public vehicle 
   assert.equal(vehicle.dependencies, undefined);
   assert.deepEqual(readJson("packages/demo-search-contract/package.json").dependencies, {
     "@auto-world/vehicle-schema": "workspace:*",
+    "@auto-world/vehicle-taxonomy": "workspace:*",
   });
   assert.deepEqual(readJson("packages/vehicle-taxonomy/package.json").dependencies, {
     "@auto-world/vehicle-schema": "workspace:*",
@@ -234,6 +237,7 @@ test("isolates the synthetic connector from ordinary production imports and buil
     "@auto-world/connector-sdk": "workspace:*",
     "@auto-world/source-registry": "workspace:*",
     "@auto-world/vehicle-schema": "workspace:*",
+    "@auto-world/vehicle-taxonomy": "workspace:*",
   });
   for (const gate of ["lint", "typecheck", "test", "build"]) {
     assert.equal(typeof manifest.scripts[gate], "string");

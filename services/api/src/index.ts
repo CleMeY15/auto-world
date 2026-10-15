@@ -4,13 +4,14 @@ import {
   parseDemoResult,
   parseDemoSearchQuery,
   parseDemoSearchResponse,
-  type DemoReadFailureCode,
-  type DemoReadOutcome,
+  parseDemoCatalogResponseV2,
+  parseDemoSearchQueryV2,
+  parseDemoSearchResponseV2,
   type DemoReadPort,
+  type DemoReadPortV2,
   type DemoSearchQueryV1,
-  type DemoSearchResponseV1,
 } from "@auto-world/demo-search-contract";
-import { parseListingId } from "@auto-world/vehicle-schema";
+import { parseListingId, type ValidationResult } from "@auto-world/vehicle-schema";
 import { parseStrictJson } from "./strict-json.js";
 
 export const workspaceBoundary = { name: "@auto-world/api", kind: "service", status: "active" } as const;
@@ -18,6 +19,12 @@ export const workspaceBoundary = { name: "@auto-world/api", kind: "service", sta
 const REQUEST_ID = /^req_[0-9a-f]{32}$/u;
 const SEARCH_ROUTE = "/v1/demo/search";
 const DETAIL_ROUTE = "/v1/demo/listings/:listingId";
+const SEARCH_ROUTE_V2 = "/v2/demo/search";
+const DETAIL_ROUTE_V2 = "/v2/demo/listings/:listingId";
+const CATALOG_ROUTE_V2 = "/v2/demo/catalog";
+const READ_FAILURES = ["invalid_cursor", "read_unavailable", "cancelled"] as const;
+const READ_FAILURES_V2 = ["invalid_query", ...READ_FAILURES] as const;
+const CATALOG_FAILURES = ["read_unavailable", "cancelled"] as const;
 type ApiErrorCode = "invalid_query" | "invalid_cursor" | "invalid_request" | "not_found" | "method_not_allowed" | "unsupported_content_type" | "request_too_large" | "read_unavailable" | "cancelled";
 
 export interface DemoApiMetric { readonly name: "api_requests_total" | "api_errors_total" | "api_request_duration_ms"; readonly labels: Readonly<Record<string, string>>; readonly value: number }
@@ -26,7 +33,7 @@ export interface DemoApiSpan { readonly name: "api.search" | "read_port.query"; 
 export interface DemoApiAlert { readonly name: "api.failure"; readonly route: string; readonly status: number; readonly code: ApiErrorCode }
 export interface DemoApiTelemetrySink { metric?(event: DemoApiMetric): void; log?(event: DemoApiLog): void; span?(event: DemoApiSpan): void; alert?(event: DemoApiAlert): void }
 export interface LoopbackPolicy { readonly boundPort?: number }
-export interface DemoApiOptions { readonly readPort: DemoReadPort; readonly clock?: () => Date; readonly requestIds?: () => string; readonly telemetry?: DemoApiTelemetrySink; readonly loopbackPolicy?: LoopbackPolicy }
+export interface DemoApiOptions { readonly readPort: DemoReadPort; readonly readPortV2?: DemoReadPortV2; readonly clock?: () => Date; readonly requestIds?: () => string; readonly telemetry?: DemoApiTelemetrySink; readonly loopbackPolicy?: LoopbackPolicy }
 
 interface RequestState {
   readonly requestId: string;
@@ -40,8 +47,8 @@ interface RequestState {
   status?: number;
 }
 
-type PortValidation =
-  | { readonly success: true; readonly data: DemoSearchResponseV1 }
+type PortValidation<T> =
+  | { readonly success: true; readonly data: T }
   | { readonly success: false; readonly code: ApiErrorCode };
 
 const ABORTED = Symbol("aborted");
@@ -63,7 +70,7 @@ function rawValues(request: FastifyRequest, name: string): string[] {
 }
 function routeLabel(request: FastifyRequest): string {
   const route = request.routeOptions.url;
-  return route === SEARCH_ROUTE || route === DETAIL_ROUTE ? route : "unknown";
+  return route === SEARCH_ROUTE || route === DETAIL_ROUTE || route === SEARCH_ROUTE_V2 || route === DETAIL_ROUTE_V2 || route === CATALOG_ROUTE_V2 ? route : "unknown";
 }
 function statusFor(code: ApiErrorCode): number {
   if (code === "invalid_query" || code === "invalid_cursor" || code === "invalid_request") return 400;
@@ -74,13 +81,13 @@ function statusFor(code: ApiErrorCode): number {
   if (code === "unsupported_content_type") return 415;
   return 503;
 }
-function readFailure(outcome: unknown): DemoReadFailureCode | undefined {
+function readFailure(outcome: unknown, allowed: readonly ApiErrorCode[]): ApiErrorCode | undefined {
   if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) return undefined;
   const candidate = outcome as { success?: unknown; error?: unknown };
   if (Object.keys(candidate).sort().join() !== "error,success" || candidate.success !== false || typeof candidate.error !== "object" || candidate.error === null || Array.isArray(candidate.error)) return undefined;
   if (Object.keys(candidate.error).join() !== "code") return undefined;
   const code = (candidate.error as { code?: unknown }).code;
-  return code === "invalid_cursor" || code === "read_unavailable" || code === "cancelled" ? code : undefined;
+  return typeof code === "string" && allowed.includes(code as ApiErrorCode) ? code as ApiErrorCode : undefined;
 }
 function readData(outcome: unknown): unknown | undefined {
   if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) return undefined;
@@ -111,7 +118,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     safe(sink?.metric === undefined ? undefined : () => sink.metric?.({ name: "api_request_duration_ms", labels: { route: state.route, status: String(status) }, value: durationMs }));
     if (code !== undefined) safe(sink?.metric === undefined ? undefined : () => sink.metric?.({ name: "api_errors_total", labels: { code }, value: 1 }));
     safe(sink?.log === undefined ? undefined : () => sink.log?.({ name: "api.request", requestId: state.requestId, route: state.route, status, durationMs, ...(code === undefined ? {} : { code }) }));
-    if (state.route === SEARCH_ROUTE) safe(sink?.span === undefined ? undefined : () => sink.span?.({ name: "api.search", requestId: state.requestId, route: state.route, status, durationMs, ...(code === undefined ? {} : { code }) }));
+    if (state.route === SEARCH_ROUTE || state.route === SEARCH_ROUTE_V2) safe(sink?.span === undefined ? undefined : () => sink.span?.({ name: "api.search", requestId: state.requestId, route: state.route, status, durationMs, ...(code === undefined ? {} : { code }) }));
     if (code !== undefined && status >= 500) safe(sink?.alert === undefined ? undefined : () => sink.alert?.({ name: "api.failure", route: state.route, status, code }));
   };
   const writable = (reply: FastifyReply, state: RequestState): boolean => !state.disconnected && !reply.raw.destroyed && !reply.raw.writableEnded;
@@ -119,7 +126,7 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     const state = states.get(request); if (state === undefined) return undefined;
     state.code = code; state.status = statusFor(code);
     if (!writable(reply, state)) { record(state, 499, "cancelled"); return undefined; }
-    return reply.code(state.status).send({ schemaVersion: 1, requestId: state.requestId, error: { code } });
+    return reply.code(state.status).send({ schemaVersion: state.route.startsWith("/v2/") ? 2 : 1, requestId: state.requestId, error: { code } });
   };
 
   app.addHook("onRequest", async (request, reply) => {
@@ -154,12 +161,14 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     return payload;
   });
 
-  const callPort = async (
+  const callPort = async <T>(
     request: FastifyRequest,
     reply: FastifyReply,
-    operation: (context: { requestId: string; signal: AbortSignal }) => Promise<DemoReadOutcome>,
-    validate: (data: DemoSearchResponseV1) => PortValidation,
-  ): Promise<DemoSearchResponseV1 | undefined> => {
+    operation: (context: { requestId: string; signal: AbortSignal }) => Promise<unknown>,
+    parse: (input: unknown, asOf: string) => ValidationResult<T>,
+    validate: (data: T) => PortValidation<T>,
+    failureCodes: readonly ApiErrorCode[] = READ_FAILURES,
+  ): Promise<T | undefined> => {
     const state = states.get(request); if (state === undefined) return undefined;
     const started = clock().getTime();
     const pending = (() => {
@@ -175,20 +184,20 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
       else state.controller.signal.addEventListener("abort", () => resolve(ABORTED), { once: true });
     });
     const settled = await Promise.race([pending, aborted]);
-    let validation: PortValidation;
+    let validation: PortValidation<T>;
     if (settled === ABORTED) {
       validation = { success: false, code: "cancelled" };
     } else {
       try {
         if (!settled.settled) validation = { success: false, code: "read_unavailable" };
         else {
-          const failure = readFailure(settled.outcome);
+          const failure = readFailure(settled.outcome, failureCodes);
           if (failure !== undefined) validation = { success: false, code: failure };
           else {
             const data = readData(settled.outcome);
             if (data === undefined) validation = { success: false, code: "read_unavailable" };
             else {
-              const parsed = parseDemoSearchResponse(data, clock().toISOString());
+              const parsed = parse(data, clock().toISOString());
               validation = parsed.success ? validate(parsed.data) : { success: false, code: "read_unavailable" };
             }
           }
@@ -210,13 +219,13 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
     if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
     if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers["content-type"] ?? "")) return fail(request, reply, "unsupported_content_type");
     const query = parseDemoSearchQuery(request.body); if (!query.success) return fail(request, reply, "invalid_query");
-    const data = await callPort(request, reply, (context) => options.readPort.search(query.data, context), (candidate) => candidate.results.some((result) => result.availability !== "active") ? { success: false, code: "read_unavailable" } : { success: true, data: candidate }); if (data === undefined) return reply;
+    const data = await callPort(request, reply, (context) => options.readPort.search(query.data, context), parseDemoSearchResponse, (candidate) => candidate.results.some((result) => result.availability !== "active") ? { success: false, code: "read_unavailable" } : { success: true, data: candidate }); if (data === undefined) return reply;
     return reply.code(200).send({ schemaVersion: 1, requestId: states.get(request)?.requestId, data });
   });
   app.get<{ Params: { listingId: string } }>(DETAIL_ROUTE, async (request, reply) => {
     if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
     const listing = parseListingId(request.params.listingId); if (!listing.success) return fail(request, reply, "invalid_request");
-    const data = await callPort(request, reply, (context) => options.readPort.getListing(listing.data, context), (candidate) => {
+    const data = await callPort(request, reply, (context) => options.readPort.getListing(listing.data, context), parseDemoSearchResponse, (candidate) => {
       if (candidate.results.length === 0) return { success: false, code: "not_found" };
       if (candidate.results.length !== 1 || candidate.nextCursor !== undefined || (candidate.state === "complete" && candidate.totalCount !== 1) || candidate.results[0]?.listingId !== listing.data || !parseDemoResult(candidate.results[0]).success) return { success: false, code: "read_unavailable" };
       return { success: true, data: candidate };
@@ -225,6 +234,40 @@ export function createDemoApi(options: DemoApiOptions): FastifyInstance {
   });
   app.route({ method: ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"], url: SEARCH_ROUTE, handler: async (request, reply) => fail(request, reply, "method_not_allowed") });
   app.route({ method: ["POST", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"], url: DETAIL_ROUTE, handler: async (request, reply) => fail(request, reply, "method_not_allowed") });
+  const readPortV2 = options.readPortV2;
+  if (readPortV2 !== undefined) {
+    app.get(CATALOG_ROUTE_V2, async (request, reply) => {
+      if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
+      const data = await callPort(request, reply, (context) => readPortV2.catalog(context), parseDemoCatalogResponseV2,
+        (candidate) => ({ success: true, data: candidate }), CATALOG_FAILURES);
+      if (data === undefined) return reply;
+      return reply.code(200).send({ schemaVersion: 2, requestId: states.get(request)?.requestId, data });
+    });
+    app.post(SEARCH_ROUTE_V2, async (request, reply) => {
+      if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
+      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers["content-type"] ?? "")) return fail(request, reply, "unsupported_content_type");
+      const query = parseDemoSearchQueryV2(request.body); if (!query.success) return fail(request, reply, "invalid_query");
+      const data = await callPort(request, reply, (context) => readPortV2.search(query.data, context), parseDemoSearchResponseV2,
+        (candidate) => candidate.results.some((item) => item.availability !== "active") ? { success: false, code: "read_unavailable" } : { success: true, data: candidate }, READ_FAILURES_V2);
+      if (data === undefined) return reply;
+      return reply.code(200).send({ schemaVersion: 2, requestId: states.get(request)?.requestId, data });
+    });
+    app.get<{ Params: { listingId: string } }>(DETAIL_ROUTE_V2, async (request, reply) => {
+      if (request.raw.url?.includes("?")) return fail(request, reply, "invalid_request");
+      const listing = parseListingId(request.params.listingId); if (!listing.success) return fail(request, reply, "invalid_request");
+      const data = await callPort(request, reply, (context) => readPortV2.getListing(listing.data, context), parseDemoSearchResponseV2, (candidate) => {
+        if (candidate.results.length === 0) return { success: false, code: "not_found" };
+        if (candidate.results.length !== 1 || candidate.nextCursor !== undefined || (candidate.state === "complete" && candidate.totalCount !== 1) || candidate.results[0]?.listingId !== listing.data) return { success: false, code: "read_unavailable" };
+        return { success: true, data: candidate };
+      }, READ_FAILURES_V2);
+      if (data === undefined) return reply;
+      return reply.code(200).send({ schemaVersion: 2, requestId: states.get(request)?.requestId, data });
+    });
+    app.route({ method: ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"], url: SEARCH_ROUTE_V2, handler: async (request, reply) => fail(request, reply, "method_not_allowed") });
+    for (const url of [DETAIL_ROUTE_V2, CATALOG_ROUTE_V2]) {
+      app.route({ method: ["POST", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS"], url, handler: async (request, reply) => fail(request, reply, "method_not_allowed") });
+    }
+  }
   app.setNotFoundHandler(async (request, reply) => fail(request, reply, "not_found"));
   app.setErrorHandler(async (error, request, reply) => {
     if ((error as { code?: string }).code === "FST_ERR_HANDLER_TIMEOUT") return fail(request, reply, "cancelled");

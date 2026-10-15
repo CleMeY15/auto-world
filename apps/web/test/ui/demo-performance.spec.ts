@@ -39,11 +39,11 @@ test("real loopback proxy meets the deterministic synthetic search latency budge
   const states: Record<string, number> = {};
   for (let index = 0; index < 55; index += 1) {
     const started = performance.now();
-    const response = await request.post("/api/demo/search", { data: { schemaVersion: 1, sort: "listing_asc" } });
+    const response = await request.post("/api/demo/v2/search", { data: { schemaVersion: 2, sort: "listing_asc" } });
     const elapsed = performance.now() - started;
     expect(response.status()).toBe(200);
     const payload = await response.json() as { schemaVersion: number; data: { dataMode: string; state: string } };
-    expect(payload.schemaVersion).toBe(1);
+    expect(payload.schemaVersion).toBe(2);
     expect(payload.data.dataMode).toBe("synthetic");
     expect(["complete", "partial", "stale"]).toContain(payload.data.state);
     if (index >= 5) {

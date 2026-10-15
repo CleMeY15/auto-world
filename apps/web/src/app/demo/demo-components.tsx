@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Banner, BookmarkIcon, Button, Card, ChevronLeftIcon, Skeleton } from "@auto-world/design-system/primitives";
-import type { DemoEvidence, DemoResultV1 } from "@auto-world/demo-search-contract";
+import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchQueryV2 } from "@auto-world/demo-search-contract";
+import { resolveDescription } from "../../demo/catalog";
 
 export function SyntheticDisclosure() {
   return <p className="demo-disclosure">Données entièrement synthétiques. Aucun véhicule à vendre.</p>;
@@ -17,7 +18,7 @@ export function NeutralIllustration() {
   );
 }
 
-function formatPrice(result: DemoResultV1) {
+function formatPrice(result: DemoResultV2) {
   if (result.price.status === "unavailable") return "Prix non disponible";
   const formatter = new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -28,7 +29,7 @@ function formatPrice(result: DemoResultV1) {
   return formatter.format(result.price.value.amountMinor / (10 ** digits));
 }
 
-function formatMileage(result: DemoResultV1) {
+function formatMileage(result: DemoResultV2) {
   if (result.mileage.status === "unavailable") return "Kilométrage non disponible";
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(result.mileage.value.amount)} ${result.mileage.value.unit}`;
 }
@@ -40,35 +41,65 @@ function formatEvidenceValue(evidence: DemoEvidence) {
   return formatter.format(evidence.value.amountMinor / (10 ** digits));
 }
 
-function availabilityLabel(value: DemoResultV1["availability"]) {
+function availabilityLabel(value: DemoResultV2["availability"]) {
   if (value === "active") return "Publication active";
   if (value === "withdrawn") return "Publication retirée";
   if (value === "deleted") return "Publication supprimée";
   return "Publication introuvable";
 }
 
-export function ResultSummary({ result }: { readonly result: DemoResultV1 }) {
+export function DescriptionSummary({ result, catalog }: { readonly result: DemoResultV2; readonly catalog?: DemoCatalogResponseV2 }) {
+  if (result.description.status === "unavailable") return <p className="demo-description-unavailable">Description synthétique non disponible.</p>;
+  const resolved = resolveDescription(catalog, result.description.value);
+  if (resolved === undefined) return <p className="demo-description-unavailable">Libellés synthétiques indisponibles. Les identifiants bruts ne sont jamais affichés.</p>;
   return (
-    <dl className="demo-facts">
-      <div><dt>Prix observé</dt><dd>{formatPrice(result)}</dd></div>
-      <div><dt>Kilométrage observé</dt><dd>{formatMileage(result)}</dd></div>
-    </dl>
+    <div className="demo-description">
+      <h2>{resolved.makeLabel} · {resolved.modelLabel}</h2>
+      <p>Première immatriculation fictive : {resolved.firstRegistrationYear}</p>
+      <p className="demo-provenance">Déclaration issue d’une fixture synthétique, non vérifiée comme fait automobile.</p>
+    </div>
   );
 }
 
-export function ResultCard({ index, result, saved, onOpen, onToggleSaved }: {
+export function ResultSummary({ result, catalog }: { readonly result: DemoResultV2; readonly catalog?: DemoCatalogResponseV2 }) {
+  return (
+    <>
+      <DescriptionSummary result={result} catalog={catalog} />
+      <dl className="demo-facts">
+        <div><dt>Prix observé</dt><dd>{formatPrice(result)}</dd></div>
+        <div><dt>Kilométrage observé</dt><dd>{formatMileage(result)}</dd></div>
+      </dl>
+    </>
+  );
+}
+
+export function ActiveCriteria({ query, catalog }: { readonly query?: DemoSearchQueryV2; readonly catalog?: DemoCatalogResponseV2 }) {
+  if (query === undefined) return null;
+  const criteria: string[] = [];
+  const make = catalog?.taxonomyRelease.makes.find((item) => item.makeId === query.makeId);
+  const model = catalog?.taxonomyRelease.models.find((item) => item.makeId === query.makeId && item.modelId === query.modelId);
+  if (query.makeId !== undefined) criteria.push(make?.primaryName.value ?? "Marque : libellé indisponible");
+  if (query.modelId !== undefined) criteria.push(model?.primaryName.value ?? "Modèle : libellé indisponible");
+  if (query.firstRegistrationYear !== undefined) criteria.push(`Première immatriculation fictive : ${query.firstRegistrationYear}`);
+  if (query.priceMaxMinor !== undefined) criteria.push(`Budget ≤ ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(query.priceMaxMinor / 100)}`);
+  if (query.mileageMaxKm !== undefined) criteria.push(`Kilométrage ≤ ${new Intl.NumberFormat("fr-FR").format(query.mileageMaxKm)} km`);
+  return <p className="demo-field-hint">Critères appliqués : {criteria.length === 0 ? "aucun filtre" : criteria.join(" · ")}.</p>;
+}
+
+export function ResultCard({ index, result, catalog, saved, onOpen, onToggleSaved }: {
   readonly index: number;
-  readonly result: DemoResultV1;
+  readonly result: DemoResultV2;
   readonly saved: boolean;
   readonly onOpen: () => void;
   readonly onToggleSaved: () => void;
+  readonly catalog?: DemoCatalogResponseV2;
 }) {
   return (
     <Card className="demo-result-card">
       <div className="demo-result-copy">
         <p className="demo-status">{availabilityLabel(result.availability)}</p>
-        <h3>Publication synthétique {String(index + 1).padStart(2, "0")}</h3>
-        <ResultSummary result={result} />
+        <p className="demo-result-number">Publication synthétique {String(index + 1).padStart(2, "0")}</p>
+        <ResultSummary result={result} catalog={catalog} />
       </div>
       <div className="demo-card-actions">
         <Button variant="secondary" onClick={onToggleSaved} aria-pressed={saved}>
@@ -80,7 +111,7 @@ export function ResultCard({ index, result, saved, onOpen, onToggleSaved }: {
   );
 }
 
-export function EvidenceDetails({ result }: { readonly result: DemoResultV1 }) {
+export function EvidenceDetails({ result, catalog }: { readonly result: DemoResultV2; readonly catalog?: DemoCatalogResponseV2 }) {
   const priceValues = new Set(result.evidence.filter((item) => item.field === "price").map(formatEvidenceValue));
   const mileageValues = new Set(result.evidence.filter((item) => item.field === "mileage").map(formatEvidenceValue));
   const contradictory = priceValues.size > 1 || mileageValues.size > 1;
@@ -102,6 +133,31 @@ export function EvidenceDetails({ result }: { readonly result: DemoResultV1 }) {
           ))}
         </ol>
       )}
+      <DescriptionEvidenceDetails result={result} catalog={catalog} />
+    </section>
+  );
+}
+
+function DescriptionEvidenceDetails({ result, catalog }: { readonly result: DemoResultV2; readonly catalog?: DemoCatalogResponseV2 }) {
+  if (result.descriptionEvidence.length === 0) return <div className="demo-description-history"><h2>Déclarations synthétiques</h2><p>Aucune déclaration de description n’est disponible.</p></div>;
+  const resolved = result.descriptionEvidence.map((item) => ({ item, value: resolveDescription(catalog, item.value) }));
+  const comparable = result.descriptionEvidence.map(({ value }) => JSON.stringify([value.makeId, value.modelId, value.firstRegistrationYear]));
+  const contradictory = new Set(comparable).size > 1;
+  return (
+    <section aria-labelledby="description-evidence-title" className="demo-description-history">
+      <div className="demo-section-heading"><div><h2 id="description-evidence-title">Déclarations synthétiques</h2><p>Historique séparé des observations de prix et de kilométrage.</p></div></div>
+      {contradictory ? <Banner role="note" tone="warning">Les déclarations synthétiques se contredisent. Elles restent affichées séparément.</Banner> : null}
+      {resolved.some((entry) => entry.value === undefined) ? <p>Certains libellés ne peuvent pas être reliés au catalogue validé.</p> : null}
+      <ol className="demo-evidence-list">
+        {[...resolved].reverse().map(({ item, value }, index) => (
+          <li key={item.evidenceId}>
+            <strong>Déclaration synthétique {index + 1}</strong>
+            <span>{value ? `${value.makeLabel} · ${value.modelLabel}` : "Libellés indisponibles"}</span>
+            {value ? <span>Première immatriculation fictive : {value.firstRegistrationYear}</span> : null}
+            <span>Déclaré le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.capturedAt))}</span>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

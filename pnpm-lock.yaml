@@ -92,12 +92,18 @@ importers:
       '@auto-world/vehicle-schema':
         specifier: workspace:*
         version: link:../../packages/vehicle-schema
+      '@auto-world/vehicle-taxonomy':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-taxonomy
 
   packages/demo-search-contract:
     dependencies:
       '@auto-world/vehicle-schema':
         specifier: workspace:*
         version: link:../vehicle-schema
+      '@auto-world/vehicle-taxonomy':
+        specifier: workspace:*
+        version: link:../vehicle-taxonomy
 
   packages/design-system:
     devDependencies:

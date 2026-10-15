@@ -3,7 +3,7 @@ import http from "node:http";
 import net from "node:net";
 import test from "node:test";
 import { createDemoApi } from "../dist/index.js";
-import { createSyntheticDemoReadPort } from "../demo/createSyntheticDemoReadPort.mjs";
+import { createSyntheticDemoReadPort, createSyntheticDemoReadPortV2 } from "../demo/createSyntheticDemoReadPort.mjs";
 
 const NOW = "2026-10-12T00:00:00.000Z";
 const LISTING_ID = "lst_socket_lifecycle";
@@ -45,7 +45,7 @@ function response(overrides = {}) {
 
 async function listen(readPort, options = {}) {
   const port = await availablePort();
-  const app = createDemoApi({ readPort, clock: options.clock ?? (() => new Date(NOW)), requestIds: () => "req_33333333333333333333333333333333", telemetry: options.telemetry, loopbackPolicy: { boundPort: port } });
+  const app = createDemoApi({ readPort, ...(options.readPortV2 === undefined ? {} : { readPortV2: options.readPortV2 }), clock: options.clock ?? (() => new Date(NOW)), requestIds: () => "req_33333333333333333333333333333333", telemetry: options.telemetry, loopbackPolicy: { boundPort: port } });
   await app.listen({ host: "127.0.0.1", port });
   return { app, port };
 }
@@ -53,6 +53,59 @@ async function listen(readPort, options = {}) {
 function searchRequest(port, body = '{"schemaVersion":1,"sort":"listing_asc"}') {
   return rawRequest(port, { host: `127.0.0.1:${port}`, "content-type": "application/json", "content-length": Buffer.byteLength(body) }, body);
 }
+
+test("V2 actual retained fixtures support catalog, exact filters and matching detail over sockets", async (context) => {
+  const now = "2026-10-14T00:00:00.000Z";
+  const readPort = await createSyntheticDemoReadPort({ nowMs: () => Date.parse(now) });
+  const readPortV2 = await createSyntheticDemoReadPortV2({ nowMs: () => Date.parse(now) });
+  const { app, port } = await listen(readPort, { readPortV2, clock: () => new Date(now) });
+  context.after(() => app.close());
+  const headers = { host: `127.0.0.1:${port}` };
+  const catalogReply = await rawRequest(port, headers, undefined, { method: "GET", path: "/v2/demo/catalog" });
+  assert.equal(catalogReply.status, 200, catalogReply.body);
+  const catalog = JSON.parse(catalogReply.body).data;
+  assert.ok(catalog.taxonomyRelease.makes.length >= 2);
+  const request = (query) => rawRequest(port, { ...headers, "content-type": "application/json" }, JSON.stringify({ schemaVersion: 2, sort: "listing_asc", ...query }), { path: "/v2/demo/search" });
+  const first = await request({});
+  assert.equal(first.status, 200, first.body);
+  const firstData = JSON.parse(first.body).data;
+  const described = firstData.results.find((item) => item.description.status === "authored_synthetic");
+  assert.ok(described);
+  const { makeId, modelId, firstRegistrationYear } = described.description.value;
+  const filtered = await request({ makeId, modelId, firstRegistrationYear });
+  assert.equal(filtered.status, 200, filtered.body);
+  const data = JSON.parse(filtered.body).data;
+  assert.ok(data.results.length > 0);
+  assert.equal(data.fixtureVersion, catalog.fixtureVersion);
+  assert.equal(data.taxonomyRelease.releaseId, catalog.taxonomyRelease.releaseId);
+  assert.ok(data.results.every((item) => item.description.value.makeId === makeId && item.description.value.modelId === modelId && item.description.value.firstRegistrationYear === firstRegistrationYear));
+  const detail = await rawRequest(port, headers, undefined, { method: "GET", path: `/v2/demo/listings/${described.listingId}` });
+  assert.equal(detail.status, 200, detail.body);
+  assert.deepEqual(JSON.parse(detail.body).data.results[0], described);
+  const incompatibleMake = catalog.taxonomyRelease.makes.find((item) => item.makeId !== makeId).makeId;
+  const invalid = await request({ makeId: incompatibleMake, modelId });
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(JSON.parse(invalid.body).error, { code: "invalid_query" });
+  assert.equal((await searchRequest(port)).status, 200);
+});
+
+test("V2 catalog deadline aborts the same socket boundary without late publication", async (context) => {
+  let signal;
+  const events = [];
+  const never = () => new Promise(() => {});
+  const { app, port } = await listen({ search: never, getListing: never }, {
+    readPortV2: { catalog(readContext) { signal = readContext.signal; return never(); }, search: never, getListing: never },
+    telemetry: { log(event) { events.push(event); } },
+  });
+  context.after(() => app.close());
+  const reply = await rawRequest(port, { host: `127.0.0.1:${port}` }, undefined, { method: "GET", path: "/v2/demo/catalog" });
+  assert.equal(reply.status, 408);
+  assert.equal(JSON.parse(reply.body).schemaVersion, 2);
+  assert.deepEqual(JSON.parse(reply.body).error, { code: "cancelled" });
+  assert.equal(signal.aborted, true);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].route, "/v2/demo/catalog");
+});
 
 test("the actual synthetic read port returns non-empty search and matching detail envelopes over HTTP", async (context) => {
   const readPort = await createSyntheticDemoReadPort({ nowMs: () => Date.parse(NOW) });

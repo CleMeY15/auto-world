@@ -3,6 +3,12 @@ import type {
   ListingId,
   MileageUnit,
 } from "@auto-world/vehicle-schema";
+import type {
+  MakeId,
+  ModelId,
+  TaxonomyReleaseReferenceV1,
+  TaxonomyReleaseV1,
+} from "@auto-world/vehicle-taxonomy";
 
 export type DemoSearchSort =
   | "listing_asc"
@@ -118,4 +124,110 @@ export interface DemoReadPort {
     listingId: ListingId,
     context: DemoReadContext,
   ): Promise<DemoReadOutcome>;
+}
+
+export interface DemoSearchQueryV2 {
+  readonly schemaVersion: 2;
+  readonly sort: DemoSearchSort;
+  readonly priceMaxMinor?: number;
+  readonly mileageMaxKm?: number;
+  readonly makeId?: MakeId;
+  readonly modelId?: ModelId;
+  readonly firstRegistrationYear?: number;
+  readonly cursor?: string;
+}
+
+export interface DemoDescriptionAttributionV2 {
+  readonly kind: "synthetic_fixture";
+  readonly fixtureRef: string;
+}
+
+export interface DemoDescriptionValueV2 {
+  readonly release: TaxonomyReleaseReferenceV1;
+  readonly makeId: MakeId;
+  readonly modelId: ModelId;
+  readonly firstRegistrationYear: number;
+  readonly attribution: DemoDescriptionAttributionV2;
+}
+
+export interface DemoDescriptionEvidenceV2 {
+  readonly evidenceId: string;
+  readonly capturedAt: string;
+  readonly value: DemoDescriptionValueV2;
+}
+
+export type DemoDescriptionFieldV2 =
+  | { readonly status: "unavailable" }
+  | {
+      readonly status: "authored_synthetic";
+      readonly value: DemoDescriptionValueV2;
+      readonly evidenceId: string;
+    };
+
+export interface DemoResultV2 extends DemoResultV1 {
+  readonly description: DemoDescriptionFieldV2;
+  readonly descriptionEvidence: readonly DemoDescriptionEvidenceV2[];
+}
+
+interface DemoSearchResponseBaseV2 {
+  readonly schemaVersion: 2;
+  readonly dataMode: "synthetic";
+  readonly fixtureVersion: string;
+  readonly taxonomyRelease: TaxonomyReleaseReferenceV1;
+  readonly dataAsOf: string;
+  readonly results: readonly DemoResultV2[];
+  readonly nextCursor?: string;
+}
+
+export type DemoSearchResponseV2 =
+  | (DemoSearchResponseBaseV2 & {
+      readonly state: "complete";
+      readonly totalCount: number;
+    })
+  | (DemoSearchResponseBaseV2 & {
+      readonly state: "partial";
+      readonly reason: "projection_incomplete";
+    })
+  | (DemoSearchResponseBaseV2 & {
+      readonly state: "stale";
+      readonly reason: "projection_stale";
+    });
+
+export interface DemoCatalogResponseV2 {
+  readonly schemaVersion: 2;
+  readonly dataMode: "synthetic";
+  readonly fixtureVersion: string;
+  readonly taxonomyRelease: TaxonomyReleaseV1;
+}
+
+export type DemoReadFailureCodeV2 =
+  | "invalid_query"
+  | DemoReadFailureCode;
+
+export type DemoReadOutcomeV2 =
+  | { readonly success: true; readonly data: DemoSearchResponseV2 }
+  | {
+      readonly success: false;
+      readonly error: { readonly code: DemoReadFailureCodeV2 };
+    };
+
+export type DemoCatalogReadFailureCodeV2 = "read_unavailable" | "cancelled";
+
+export type DemoCatalogReadOutcomeV2 =
+  | { readonly success: true; readonly data: DemoCatalogResponseV2 }
+  | {
+      readonly success: false;
+      readonly error: { readonly code: DemoCatalogReadFailureCodeV2 };
+    };
+
+export interface DemoReadPortV2 {
+  catalog(context: DemoReadContext): Promise<DemoCatalogReadOutcomeV2>;
+  search(
+    query: DemoSearchQueryV2,
+    context: DemoReadContext,
+  ): Promise<DemoReadOutcomeV2>;
+  getListing(
+    listingId: ListingId,
+    context: DemoReadContext,
+  ): Promise<DemoReadOutcomeV2>;
 }

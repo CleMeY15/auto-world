@@ -1,14 +1,22 @@
 import { randomBytes } from "node:crypto";
-import { parseDemoHttpOutcome, parsePublicListingId, statusForDemoError, type DemoHttpErrorCode } from "./protocol.ts";
+import {
+  parseDemoCatalogHttpOutcomeV2,
+  parseDemoHttpOutcome,
+  parseDemoHttpOutcomeV2,
+  parsePublicListingId,
+  statusForDemoError,
+  type DemoHttpErrorCode,
+} from "./protocol.ts";
 
 const upstreamOrigin = "http://127.0.0.1:3210";
 const requestLimit = 8_192;
 const responseLimit = 1_048_576;
 
-export interface DemoProxyTelemetryEvent { readonly route: "search" | "detail"; readonly status: number; readonly durationMs: number; readonly code?: DemoHttpErrorCode }
+export interface DemoProxyTelemetryEvent { readonly route: "catalog" | "search" | "detail"; readonly status: number; readonly durationMs: number; readonly code?: DemoHttpErrorCode }
 export type DemoProxyTelemetrySink = (event: DemoProxyTelemetryEvent) => void;
 export interface DemoProxyOptions {
-  readonly route: "search" | "detail";
+  readonly route: "catalog" | "search" | "detail";
+  readonly schemaVersion?: 1 | 2;
   readonly fetchImpl?: typeof fetch;
   readonly clock?: () => Date;
   readonly telemetry?: DemoProxyTelemetrySink;
@@ -28,8 +36,8 @@ function localRequestId(): string { return `req_${randomBytes(16).toString("hex"
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 }
-function localError(code: DemoHttpErrorCode): Response {
-  return jsonResponse({ schemaVersion: 1, requestId: localRequestId(), error: { code } }, statusForDemoError(code));
+function localError(code: DemoHttpErrorCode, schemaVersion: 1 | 2): Response {
+  return jsonResponse({ schemaVersion, requestId: localRequestId(), error: { code } }, statusForDemoError(code));
 }
 function validInbound(request: Request): boolean {
   const host = request.headers.get("host");
@@ -74,6 +82,8 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
   const fetchImpl = options.fetchImpl ?? fetch;
   const clock = options.clock ?? (() => new Date());
   const enabled = options.isEnabled ?? (() => process.env.AUTO_WORLD_DEMO === "1");
+  const schemaVersion = options.schemaVersion ?? 1;
+  if (options.route === "catalog" && schemaVersion !== 2) throw new TypeError("catalog requires schemaVersion 2");
   return async (request, listingIdInput) => {
     const startedAt = clock().getTime();
     let recorded = false;
@@ -88,32 +98,34 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
       }
       return response;
     };
-    if (!enabled()) return finish(localError("not_found"), "not_found");
+    if (!enabled()) return finish(localError("not_found", schemaVersion), "not_found");
     const expectedMethod = options.route === "search" ? "POST" : "GET";
-    if (request.method !== expectedMethod) return finish(localError("method_not_allowed"), "method_not_allowed");
-    if (!validInbound(request)) return finish(localError("invalid_request"), "invalid_request");
+    if (request.method !== expectedMethod) return finish(localError("method_not_allowed", schemaVersion), "method_not_allowed");
+    if (!validInbound(request)) return finish(localError("invalid_request", schemaVersion), "invalid_request");
     const incomingUrl = new URL(request.url);
-    if (incomingUrl.search !== "") return finish(localError("invalid_request"), "invalid_request");
+    if (incomingUrl.search !== "") return finish(localError("invalid_request", schemaVersion), "invalid_request");
 
     let path: string;
     let expectedListingId: ReturnType<typeof parsePublicListingId> = undefined;
     let body: Uint8Array | undefined;
     if (options.route === "search") {
-      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers.get("content-type") ?? "")) return finish(localError("unsupported_content_type"), "unsupported_content_type");
+      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(request.headers.get("content-type") ?? "")) return finish(localError("unsupported_content_type", schemaVersion), "unsupported_content_type");
       const declared = request.headers.get("content-length");
-      if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > requestLimit)) return finish(localError("request_too_large"), "request_too_large");
+      if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > requestLimit)) return finish(localError("request_too_large", schemaVersion), "request_too_large");
       try { body = await readBounded(request.body, requestLimit, request.signal); }
       catch {
         const code: DemoHttpErrorCode = request.signal.aborted ? "cancelled" : "request_too_large";
-        return finish(localError(code), code);
+        return finish(localError(code, schemaVersion), code);
       }
       try { decodeUtf8(body); }
-      catch { return finish(localError("invalid_request"), "invalid_request"); }
-      path = "/v1/demo/search";
-    } else {
+      catch { return finish(localError("invalid_request", schemaVersion), "invalid_request"); }
+      path = schemaVersion === 1 ? "/v1/demo/search" : "/v2/demo/search";
+    } else if (options.route === "detail") {
       expectedListingId = parsePublicListingId(listingIdInput);
-      if (expectedListingId === undefined) return finish(localError("invalid_request"), "invalid_request");
-      path = `/v1/demo/listings/${encodeURIComponent(expectedListingId)}`;
+      if (expectedListingId === undefined) return finish(localError("invalid_request", schemaVersion), "invalid_request");
+      path = schemaVersion === 1 ? `/v1/demo/listings/${encodeURIComponent(expectedListingId)}` : `/v2/demo/listings/${encodeURIComponent(expectedListingId)}`;
+    } else {
+      path = "/v2/demo/catalog";
     }
 
     const controller = new AbortController();
@@ -131,24 +143,28 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
         cache: "no-store",
         redirect: "error",
       });
-      if (controller.signal.aborted) return finish(localError("cancelled"), "cancelled");
-      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(upstream.headers.get("content-type") ?? "")) return finish(localError("read_unavailable"), "read_unavailable");
+      if (controller.signal.aborted) return finish(localError("cancelled", schemaVersion), "cancelled");
+      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(upstream.headers.get("content-type") ?? "")) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
       const declared = upstream.headers.get("content-length");
-      if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > responseLimit)) return finish(localError("read_unavailable"), "read_unavailable");
+      if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > responseLimit)) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
       let source: string;
       try { source = decodeUtf8(await readBounded(upstream.body, responseLimit, controller.signal)); }
       catch {
         const code: DemoHttpErrorCode = controller.signal.aborted ? "cancelled" : "read_unavailable";
-        return finish(localError(code), code);
+        return finish(localError(code, schemaVersion), code);
       }
-      if (controller.signal.aborted) return finish(localError("cancelled"), "cancelled");
-      const parsed = parseDemoHttpOutcome(source, upstream.status, clock().toISOString(), expectedListingId);
-      if (parsed === undefined) return finish(localError("read_unavailable"), "read_unavailable");
-      if (parsed.ok) return finish(jsonResponse({ schemaVersion: 1, requestId: parsed.requestId, data: parsed.data }, 200));
-      return finish(jsonResponse({ schemaVersion: 1, requestId: parsed.requestId, error: { code: parsed.code } }, statusForDemoError(parsed.code)), parsed.code);
+      if (controller.signal.aborted) return finish(localError("cancelled", schemaVersion), "cancelled");
+      const parsed = options.route === "catalog"
+        ? parseDemoCatalogHttpOutcomeV2(source, upstream.status)
+        : schemaVersion === 1
+          ? parseDemoHttpOutcome(source, upstream.status, clock().toISOString(), expectedListingId)
+          : parseDemoHttpOutcomeV2(source, upstream.status, clock().toISOString(), expectedListingId);
+      if (parsed === undefined) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
+      if (parsed.ok) return finish(jsonResponse({ schemaVersion, requestId: parsed.requestId, data: parsed.data }, 200));
+      return finish(jsonResponse({ schemaVersion, requestId: parsed.requestId, error: { code: parsed.code } }, statusForDemoError(parsed.code)), parsed.code);
     } catch {
       const code: DemoHttpErrorCode = timedOut || request.signal.aborted ? "cancelled" : "read_unavailable";
-      return finish(localError(code), code);
+      return finish(localError(code, schemaVersion), code);
     } finally {
       clearTimeout(timer);
       request.signal.removeEventListener("abort", abort);
