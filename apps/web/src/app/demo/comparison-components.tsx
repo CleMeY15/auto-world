@@ -3,6 +3,7 @@ import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchRespo
 
 import { comparisonConflicts, comparisonRows, type ComparisonEntry } from "../../demo/comparison";
 import { resolveDescription } from "../../demo/catalog";
+import { formatExactNumber, formatObservationConfidence, formatObservedPrice } from "../../demo/observation-history";
 import { availabilityLabel, formatPrice, ScreenHeader, StatePanel } from "./demo-components";
 
 type ComparisonField = ReturnType<typeof comparisonRows>[number]["field"];
@@ -43,32 +44,7 @@ function authoredMetadata(result: DemoResultV2) {
 
 function formatComparisonPrice(result: DemoResultV2) {
   if (result.price.status === "unavailable") return formatPrice(result);
-  const { amountMinor, currency } = result.price.value;
-  const resolved = new Intl.NumberFormat("fr-FR", { style: "currency", currency }).resolvedOptions();
-  const digits = resolved.maximumFractionDigits ?? 2;
-  const scale = 10n ** BigInt(digits);
-  const exact = BigInt(amountMinor);
-  const whole = exact / scale;
-  const fraction = (exact % scale).toString().padStart(digits, "0");
-  const formatter = new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  return formatter.formatToParts(whole).map((part) => part.type === "fraction" ? fraction : part.value).join("");
-}
-
-function formatExactNumber(value: number) {
-  const formatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 20 });
-  const parts = formatter.formatToParts(value);
-  const normalized = parts.map((part) => {
-    if (part.type === "group") return "";
-    if (part.type === "decimal") return ".";
-    if (part.type === "minusSign") return "-";
-    return part.type === "integer" || part.type === "fraction" ? part.value : "";
-  }).join("");
-  return Number(normalized) === value ? parts.map((part) => part.value).join("") : String(value);
+  return formatObservedPrice(result.price.value);
 }
 
 function ObservationMetadata({ result, field }: { readonly result: DemoResultV2; readonly field: "price" | "mileage" }) {
@@ -77,7 +53,7 @@ function ObservationMetadata({ result, field }: { readonly result: DemoResultV2;
   return (
     <span className="demo-comparison-meta">
       Observé le <time dateTime={observation.observedAt}>{formatDate(observation.observedAt)}</time>
-      {" · "}Confiance {new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 }).format(observation.confidenceBps / 10_000)}
+      {" · "}Confiance {formatObservationConfidence(observation.confidenceBps)}
     </span>
   );
 }

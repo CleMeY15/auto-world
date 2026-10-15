@@ -34,6 +34,7 @@ import {
   SyntheticDisclosure,
 } from "./demo-components";
 import { ComparisonScreen } from "./comparison-components";
+import { DetailSnapshot } from "./history-components";
 import { SavedSearchesSection } from "./saved-search-components";
 
 type Screen = "search" | "results" | "detail" | "saved" | "compare";
@@ -709,8 +710,16 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Détail de la publication synthétique" description="Les valeurs ci-dessous sont des observations de démonstration, pas une offre commerciale." backLabel="Retour aux résultats" onBack={() => navigate(response ? "results" : "search")} action={location.listingId ? <Button variant="secondary" onClick={() => toggleSaved(location.listingId!, "detail")}>{favoriteSnapshot.listingIds.includes(location.listingId) ? "Retirer des favoris" : "Ajouter aux favoris"}</Button> : undefined} />
           {detail.status === "loading" ? <LoadingResults label="Chargement du détail synthétique…" /> : null}
-          {detail.status === "error" ? <StatePanel tone="danger" title={detail.code === "not_found" ? "Publication non disponible" : "Détail indisponible"} action={<Button onClick={() => setDetailRetry((value) => value + 1)}>Réessayer</Button>}><p>{detail.code === "not_found" ? "Cette publication synthétique est retirée, supprimée ou introuvable." : errorCopy(detail.code)}</p></StatePanel> : null}
-          {detail.status === "ready" ? <div className="demo-detail"><NeutralIllustration /><p className="demo-status">{detail.result.availability === "active" ? "Publication active" : detail.result.availability === "withdrawn" ? "Publication retirée" : detail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p><ResultSummary result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} /><EvidenceDetails result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} /></div> : null}
+          {detail.status === "error" ? <StatePanel tone="danger" title={detail.code === "not_found" ? "Publication non disponible" : "Détail indisponible"} action={<Button onClick={() => setDetailRetry((value) => value + 1)}>Réessayer</Button>}><p>{detail.code === "not_found" ? "Cette publication synthétique est introuvable dans cette lecture." : detail.code === "offline" ? "Reconnectez-vous pour charger ce détail, puis réessayez." : "Le détail ne peut pas être chargé pour le moment. Réessayez ou revenez à la recherche."}</p></StatePanel> : null}
+          {detail.status === "ready" ? (
+            <div className="demo-detail" key={`${detail.result.listingId}:${detail.response.dataAsOf}`}>
+              <NeutralIllustration />
+              <p className="demo-status">{detail.result.availability === "active" ? "Publication active" : detail.result.availability === "withdrawn" ? "Publication retirée" : detail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p>
+              <ResultSummary result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} />
+              <DetailSnapshot response={detail.response} online={online} />
+              <EvidenceDetails result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} />
+            </div>
+          ) : null}
         </section>
       ) : null}
 

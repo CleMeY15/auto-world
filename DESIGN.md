@@ -1,7 +1,7 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103, TASK-0107 and TASK-0108 are accepted on main; TASK-0109 adds ephemeral synthetic publication comparison under its own [validation gates](docs/validation/TASK-0109.md).
+- Status: Active. TASK-0103/0107/0108/0109 are accepted on main; TASK-0110 adds readable existing observation history under its own [validation gates](docs/validation/TASK-0110.md).
 - Last refreshed: 2026-10-15.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
@@ -28,7 +28,7 @@
 - Content hierarchy: persistent demo disclosure, search controls, scannable synthetic listing card, evidence/history on demand, one clear next action.
 
 ## Design principles
-- Show only accepted facts by default; disclose observation provenance and authored-fixture provenance separately, with contradictions progressively available.
+- Show only accepted facts by default; disclose observation provenance and authored-fixture provenance separately, with distinct historical observations progressively available. A historical variation alone does not establish a contradiction.
 - Make search and save actions immediate, reversible and understandable.
 - Prefer an honest empty field over a guessed make, model, year, image, price signal or VIN.
 - Tradeoff: the synthetic slice has less automotive detail than the target product, but never pretends placeholder content is verified inventory.
@@ -92,6 +92,8 @@
 - [x] TASK-0108 implementation: independent code APPROVE, architecture CLEAR and actual Windows/Linux viewport/enlarged-text UX APPROVE. Local gates and125 passing browser tests per platform validate the saved-search flow; [evidence](docs/validation/TASK-0108.md).
 - [x] TASK-0108 delivery: sourceCI38707338245/mainCI38708392017 SUCCESS; accepted main45bcb652. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/173#issuecomment-6188438418).
 - [x] TASK-0109 implementation: independent code APPROVE, architecture CLEAR and final actual-pixel Windows/Linux UX APPROVE/CLEAR;149 browser tests per platform, accessibility and performance gates pass. [Evidence](docs/validation/TASK-0109.md). Final-head/main delivery remains a separate PR checkpoint.
+- [x] TASK-0109 delivery: sourceCI38729166121/mainCI38730858398 SUCCESS, accepted main d929158. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/176#issuecomment-6191690565).
+- [x] TASK-0110 implementation: selected observation plus native field-history disclosure, exact representation and honest snapshot states; independent code/architecture/final Windows/Linux pixel approvals,192 passing browser tests per platform and performance/accessibility gates. [Evidence](docs/validation/TASK-0110.md). Exact-source/main CI delivery remains a separate PR checkpoint.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.
 
 ## TASK-0109 comparison contract
@@ -103,3 +105,10 @@
 - Result selection uses concise Comparer / Retirer labels with publication-specific accessible names that include the visible label. Enlarged wide-font text must not split those words; cards and actions can shrink without clipping. Table cells and headings explicitly bind to semantic text tokens to preserve contrast during WebKit theme changes.
 - Values from the accepted search, dataAsOf visible, never auto-refreshed. Partial/stale/offline and differing histories explicit. Observed evidence dates/confidence stay distinct from authored make/model/year declarations; unmatched catalog makes that whole declaration unavailable, but observed price/mileage remain usable. No fabricated photos/specs/scores/AI explanation.
 - Validate320/390/768/1440 light/dark,200% platform/wide-font, keyboard/focus/44px/axe and responsiveness before sign-off. Production Compare/Garage remains separate scope.
+
+## TASK-0110 history contract
+- Detail remains the existing destination. Display accepted facts/availability and dataAsOf before Historique des observations. State plainly that values are not automatically refreshed; partial/stale/offline qualify only the already-loaded response.404 is unavailable, not proof of withdrawal/deletion; successful ended detail keeps status and evidence.
+- Separate Prix observé and Kilométrage observé sections. Show Observation affichée selected by exact evidenceId; all other observations live in field-specific native details/summary, with no empty disclosure. Preserve reverse accepted-array order, including timestamp ties, without claiming precedence among ties. Keep every retained record; no chart, trend, conversion or inferred vehicle history.
+- Clear currency codes in history; exact minor-unit and tiny mileage values shared with other observation surfaces. UTC dates with seconds/nonzero milliseconds; observation confidence preserves basis points. Unknowns, mixed units/currencies and same-instant observations use neutral explanatory text. Authored declarations remain separate and catalogue-gated; varied declarations are not automatically contradictions.
+- Reuse tokens, restrained borders and native disclosure behavior. Selected row has subtle emphasis; auto-fit field columns collapse naturally on narrow/enlarged text.44px summaries, visible keyboard focus, focus retained during toggle, no new navigation/requests/storage/analytics schema. Open state resets when the detail response is replaced.
+- Validate both engines320/390/768/1440 light/dark,200% platform/Verdana, empty/hostile/expanded states, axe/content fit and256-record interaction feedback≤100ms. Actual-pixel review is mandatory, not inferred from automated passes.

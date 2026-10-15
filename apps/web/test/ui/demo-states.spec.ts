@@ -43,7 +43,7 @@ async function search(page: Page) {
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
-test("detail exposes withdrawal and contradictory observations, then restores scroll, filters and trigger focus", async ({ page }) => {
+test("detail exposes withdrawal and historical observations, then restores scroll, filters and trigger focus", async ({ page }) => {
   const at = new Date().toISOString();
   const results = Array.from({ length: 8 }, (_, index) => listing(index + 1, at));
   await page.route("**/api/demo/v2/search", (route) => fulfill(route, response(results)));
@@ -55,8 +55,10 @@ test("detail exposes withdrawal and contradictory observations, then restores sc
   await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
   await expect(page.getByText("Publication retirée", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Plusieurs observations se contredisent/)).toBeVisible();
-  await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
+  await expect(page.locator('[data-history-disclosure="price"] > summary')).toBeVisible();
+  await expect(page.getByText(/se contredisent/)).toHaveCount(0);
+  await expect(page.getByText(/Plusieurs déclarations synthétiques existent/)).toBeVisible();
   await page.goBack();
   await expect(trigger).toBeFocused();
   await page.getByRole("button", { name: "Modifier les critères" }).click();
@@ -153,12 +155,12 @@ test("persistent catalog mismatch or failed refresh clears stale criteria and re
   }
 });
 
-test("empty catalog and unavailable labels preserve numeric search and contradictory history", async ({ page }) => {
+test("empty catalog and unavailable labels preserve numeric search and authored history", async ({ page }) => {
   await page.route("**/api/demo/v2/catalog", (route) => fulfill(route, v2Envelope({ ...demoCatalog, taxonomyRelease: { ...demoCatalog.taxonomyRelease, attributions: [], makes: [], models: [] } })));
   await page.route("**/api/demo/v2/listings/*", (route) => fulfill(route, response([listing(1, new Date().toISOString(), "active", true)])));
   await page.goto("/demo#detail/lst_state-01");
   await expect(page.getByText(/catalogue synthétique ne contient aucune marque/)).toBeVisible();
-  await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
+  await expect(page.getByText(/Plusieurs déclarations synthétiques existent/)).toBeVisible();
   await expect(page.getByText(/make_ui_|model_ui_/)).toHaveCount(0);
   await page.getByRole("button", { name: "Recherche", exact: true }).click();
   await page.getByRole("button", { name: "Afficher les critères avancés" }).click();

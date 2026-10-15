@@ -291,7 +291,7 @@ test("detail navigation preserves selection and restoring criteria cancels a lat
   await page.locator("#demo-result-compare-0").click();
   await page.locator("#demo-result-compare-1").click();
   await page.locator("#demo-result-open-0").click();
-  await expect(page.getByRole("heading", { name: "Observations disponibles" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
   await page.getByRole("button", { name: "Retour aux résultats", exact: true }).click();
   await expect(page.locator("#demo-result-compare-0")).toHaveAttribute("aria-pressed", "true");
   let release!: () => void;

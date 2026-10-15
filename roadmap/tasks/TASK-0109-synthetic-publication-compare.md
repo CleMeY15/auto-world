@@ -1,6 +1,6 @@
 # TASK-0109 — Ephemeral synthetic publication comparison
 
-Status: IMPLEMENTATION_VALIDATED, 2026-10-15. Definition of Ready and local Definition of Done gates satisfied: implementation, root quality gates,149 passing browser tests per platform, source-bound visual/performance evidence and independent code/architecture/UX approvals. Exact final-head CI/protected-main delivery checkpoint pending; not DONE_ON_MAIN and no following task started. [Evidence](../../docs/validation/TASK-0109.md).
+Status: DONE_ON_MAIN, 2026-10-15. [PR176 accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/176#issuecomment-6191690565): sourceCI38729166121 and exact merged-mainCI38730858398 SUCCESS; main `d929158da01c2a586c01f78d856bc738ea63612c`, identical reviewed tree. Root gates,149 browser tests per platform and independent code/architecture/actual-pixel UX approvals. No following task started before acceptance. [Evidence](../../docs/validation/TASK-0109.md).
 
 ## Goal, owner and dependencies
 Compare two or three publications from one accepted demo search without inventing vehicle identity or automotive facts. Owner: application lead, disjoint model/UI execution and independent code/architecture/UX review. Prerequisites TASK-0103/0107/0108 accepted; [TASK-0108 final delivery](https://github.com/CleMeY15/auto-world/pull/173#issuecomment-6188438418). Base main2ecf0a323daa5ec6f7bd462d5bb278e59881cc0b, CI38720025906 SUCCESS. TASK-0005 not a dependency;0104–0106 remain blocked.
