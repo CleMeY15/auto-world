@@ -56,7 +56,7 @@ test("the real local API supports search, detail, persisted favorite, removal an
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("auto-world.demo.favorites.v1") ?? "null"))).toEqual({ schemaVersion: 1, listingIds: [acceptedListingId] });
   await cards.first().getByRole("button", { name: "Voir le détail" }).click();
   await expect(page.getByRole("heading", { name: "Détail de la publication synthétique" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Observations disponibles" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
   await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
   await expect(page.getByText("Favori synthétique 1")).toBeVisible();

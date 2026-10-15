@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { Banner, BookmarkIcon, Button, Card, ChevronLeftIcon, Skeleton } from "@auto-world/design-system/primitives";
-import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchQueryV2 } from "@auto-world/demo-search-contract";
+import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2 } from "@auto-world/demo-search-contract";
 import { resolveDescription } from "../../demo/catalog";
+import { formatExactNumber, formatObservedPrice } from "../../demo/observation-history";
+import { ObservationHistory } from "./history-components";
 
 export function SyntheticDisclosure() {
   return <p className="demo-disclosure">Données entièrement synthétiques. Aucun véhicule à vendre.</p>;
@@ -20,25 +22,12 @@ export function NeutralIllustration() {
 
 export function formatPrice(result: DemoResultV2) {
   if (result.price.status === "unavailable") return "Prix non disponible";
-  const formatter = new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: result.price.value.currency,
-    maximumFractionDigits: new Intl.NumberFormat("fr-FR", { style: "currency", currency: result.price.value.currency }).resolvedOptions().maximumFractionDigits,
-  });
-  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
-  return formatter.format(result.price.value.amountMinor / (10 ** digits));
+  return formatObservedPrice(result.price.value);
 }
 
 export function formatMileage(result: DemoResultV2) {
   if (result.mileage.status === "unavailable") return "Kilométrage non disponible";
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(result.mileage.value.amount)} ${result.mileage.value.unit}`;
-}
-
-function formatEvidenceValue(evidence: DemoEvidence) {
-  if (evidence.field === "mileage") return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(evidence.value.amount)} ${evidence.value.unit}`;
-  const formatter = new Intl.NumberFormat("fr-FR", { style: "currency", currency: evidence.value.currency });
-  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
-  return formatter.format(evidence.value.amountMinor / (10 ** digits));
+  return `${formatExactNumber(result.mileage.value.amount)} ${result.mileage.value.unit}`;
 }
 
 export function availabilityLabel(value: DemoResultV2["availability"]) {
@@ -125,27 +114,9 @@ export function ResultCard({ index, result, catalog, saved, selectedForCompariso
 }
 
 export function EvidenceDetails({ result, catalog }: { readonly result: DemoResultV2; readonly catalog?: DemoCatalogResponseV2 }) {
-  const priceValues = new Set(result.evidence.filter((item) => item.field === "price").map(formatEvidenceValue));
-  const mileageValues = new Set(result.evidence.filter((item) => item.field === "mileage").map(formatEvidenceValue));
-  const contradictory = priceValues.size > 1 || mileageValues.size > 1;
   return (
     <section aria-labelledby="evidence-title" className="demo-evidence">
-      <div className="demo-section-heading">
-        <div><h2 id="evidence-title">Observations disponibles</h2><p>Chaque valeur reste liée à sa date et à son niveau de confiance.</p></div>
-      </div>
-      {contradictory ? <Banner role="note" tone="warning">Plusieurs observations se contredisent. La valeur la plus récente est affichée en premier.</Banner> : null}
-      {result.evidence.length === 0 ? <p>Aucune observation détaillée n’est disponible.</p> : (
-        <ol className="demo-evidence-list">
-          {[...result.evidence].reverse().map((item, index) => (
-            <li key={item.evidenceId}>
-              <strong>{item.field === "price" ? "Prix" : "Kilométrage"} · observation {index + 1}</strong>
-              <span>{formatEvidenceValue(item)}</span>
-              <span>Observé le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.observedAt))}</span>
-              <span>Confiance de l’observation : {new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 }).format(item.confidenceBps / 10_000)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <ObservationHistory result={result} />
       <DescriptionEvidenceDetails result={result} catalog={catalog} />
     </section>
   );
@@ -159,7 +130,7 @@ function DescriptionEvidenceDetails({ result, catalog }: { readonly result: Demo
   return (
     <section aria-labelledby="description-evidence-title" className="demo-description-history">
       <div className="demo-section-heading"><div><h2 id="description-evidence-title">Déclarations synthétiques</h2><p>Historique séparé des observations de prix et de kilométrage.</p></div></div>
-      {contradictory ? <Banner role="note" tone="warning">Les déclarations synthétiques se contredisent. Elles restent affichées séparément.</Banner> : null}
+      {contradictory ? <p>Plusieurs déclarations synthétiques existent dans cet historique. Elles restent affichées séparément.</p> : null}
       {resolved.some((entry) => entry.value === undefined) ? <p>Certains libellés ne peuvent pas être reliés au catalogue validé.</p> : null}
       <ol className="demo-evidence-list">
         {[...resolved].reverse().map(({ item, value }, index) => (

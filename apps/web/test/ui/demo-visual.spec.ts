@@ -84,8 +84,8 @@ test("the complete demo state matrix remains usable across required light and da
       const card = page.locator(".demo-result-card").first();
       await card.getByRole("button", { name: "Ajouter aux favoris" }).click();
       await card.getByRole("button", { name: "Voir le détail" }).click();
-      await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
-      await capture(`demo-${width}-${theme}-detail-withdrawn-contradictory.png`);
+      await expect(page.getByText(/Plusieurs déclarations synthétiques existent/)).toBeVisible();
+      await capture(`demo-${width}-${theme}-detail-withdrawn-history.png`);
       await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
       await expect(page.locator(".demo-saved-search")).toHaveCount(1);
       await expect(page.getByText("Favori synthétique 1")).toBeVisible();

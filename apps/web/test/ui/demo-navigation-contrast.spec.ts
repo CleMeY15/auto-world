@@ -125,7 +125,7 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
 
       for (const theme of ["light", "dark"] as const) {
         await expectReadableChange(page, testInfo, `${theme}-results-to-detail`, () => card.getByRole("button", { name: "Voir le détail" }).click());
-        await expect(page.getByRole("heading", { name: "Observations disponibles" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-detail-to-results`, () => search.click());
         await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-results-to-saved`, () => saved.click());
