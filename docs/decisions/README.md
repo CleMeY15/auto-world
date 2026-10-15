@@ -50,3 +50,6 @@ ADR-0015 candidate continuation: [source plan](../../roadmap/plans/TASK-0005A-go
 
 
 ADR-0015 context-source continuation: [PR170 plan](../../roadmap/plans/TASK-0005A-gosu-derivative-context-source.md) and [validation](../validation/TASK-0005A-gosu-derivative-context-source.md) define the fixed-root fifteen-entry private TAR operator. PR169 is SOURCE_DONE_ON_MAIN; B0 source delivery and the distinct actual private operation remain separate gates.
+
+
+ADR-0015 checkpoint2026-10-15: PR170 source and the separately reviewed private context are accepted within their limited scopes. The [isolated Gosu image-format observation plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.md) requires a new source-first B1a lease/client and one private diagnostic before B1b closes the observed format. Existing image/admission/support/Native boundaries and V1 contracts remain unchanged.

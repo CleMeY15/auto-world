@@ -20,6 +20,8 @@
     "complete-private-copy-launch.mjs",
     "diagnostic.mjs",
     "gosu-derivative-build-v1.mjs",
+    "gosu-derivative-image-daemon-v2.mjs",
+    "gosu-derivative-image-observation-v2.mjs",
     "gosu-source-retention.mjs",
     "local-cold-load-diagnostic.mjs",
     "local-private-copy-diagnostic.mjs",
