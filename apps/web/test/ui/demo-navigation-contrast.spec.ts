@@ -113,7 +113,7 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
       await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
       const navigation = page.getByRole("navigation", { name: "Sections principales" });
       const search = navigation.getByRole("button", { name: "Recherche", exact: true });
-      const saved = navigation.getByRole("button", { name: "Favoris (1)", exact: true });
+      const saved = navigation.getByRole("button", { name: "Enregistrés", exact: true });
       const appearance = page.getByLabel("Apparence");
       // These use the real loopback synthetic API started by the existing config.
       await appearance.selectOption("light");
@@ -129,7 +129,7 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
         await expectReadableChange(page, testInfo, `${theme}-detail-to-results`, () => search.click());
         await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-results-to-saved`, () => saved.click());
-        await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
         await expectReadableChange(page, testInfo, `${theme}-saved-to-results`, () => search.click());
         await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
         const nextTheme = theme === "light" ? "dark" : "light";
@@ -149,7 +149,7 @@ for (const [width, height] of [[320, 780], [390, 844], [768, 1024], [1440, 900]]
       expect(focus.width).toBeGreaterThanOrEqual(2);
       expect(focus.offset).toBeGreaterThanOrEqual(0);
       await expectReadableChange(page, testInfo, "keyboard-to-saved", () => page.keyboard.press("Enter"));
-      await expect(page.getByRole("heading", { name: "Favoris synthétiques" })).toBeFocused();
+      await expect(page.getByRole("heading", { name: "Mes listes" })).toBeFocused();
       const targets = await navigation.getByRole("button").evaluateAll((buttons) => buttons.map((button) => {
         const bounds = button.getBoundingClientRect();
         return { width: bounds.width, height: bounds.height };

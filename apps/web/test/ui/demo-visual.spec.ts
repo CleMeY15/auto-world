@@ -76,12 +76,18 @@ test("the complete demo state matrix remains usable across required light and da
       await page.getByRole("button", { name: "Rechercher", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
       await capture(`demo-${width}-${theme}-results.png`);
+      await page.locator("#demo-save-search-start").click();
+      await expect(page.getByLabel("Nom de la recherche")).toBeFocused();
+      await capture(`demo-${width}-${theme}-save-search-form.png`);
+      await page.getByLabel("Nom de la recherche").fill(`Recherche ${width} ${theme}`);
+      await page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
       const card = page.locator(".demo-result-card").first();
       await card.getByRole("button", { name: "Ajouter aux favoris" }).click();
       await card.getByRole("button", { name: "Voir le détail" }).click();
       await expect(page.getByText(/déclarations synthétiques se contredisent/)).toBeVisible();
       await capture(`demo-${width}-${theme}-detail-withdrawn-contradictory.png`);
-      await page.getByRole("button", { name: /Favoris \(1\)/ }).click();
+      await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+      await expect(page.locator(".demo-saved-search")).toHaveCount(1);
       await expect(page.getByText("Favori synthétique 1")).toBeVisible();
       await capture(`demo-${width}-${theme}-saved.png`);
       if (width === 390) {
@@ -113,8 +119,12 @@ test("the complete demo state matrix remains usable across required light and da
         await capture(`demo-${width}-${theme}-slow.png`);
         releaseSlow?.();
         await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
-        await page.evaluate(() => localStorage.setItem("auto-world.demo.favorites.v1", "{broken"));
+        await page.evaluate(() => {
+          localStorage.setItem("auto-world.demo.favorites.v1", "{broken");
+          localStorage.setItem("auto-world.demo.saved-searches.v1", "{broken");
+        });
         await page.goto("/demo#saved"); await page.reload(); await expect(page.getByText(/favoris enregistrés sont illisibles/)).toBeVisible(); await page.getByLabel("Apparence").selectOption(theme);
+        await expect(page.getByText(/recherches enregistrées.*illisibles/i)).toBeVisible();
         await capture(`demo-${width}-${theme}-storage-corrupt.png`);
       }
     }
@@ -133,6 +143,8 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const font of ["platform", "Verdana"] as const) {
     await page.goto("/demo");
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
     await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
     if (font !== "platform") await page.addStyleTag({ content: `:root { --aw-font-family: ${font}, sans-serif; }` });
     await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
@@ -166,5 +178,20 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
     await page.getByRole("button", { name: "Rechercher", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
     await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-results.png`);
+    await page.locator("#demo-save-search-start").click();
+    await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-save-search-form.png`);
+    await page.getByLabel("Nom de la recherche").fill("Très grande valeur 🚗 <test>");
+    await page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
+    await page.evaluate(() => {
+      const key = "auto-world.demo.saved-searches.v1";
+      const value = JSON.stringify({ schemaVersion: 1, searches: [{ name: "Très grande valeur 🚗 <test>", criteria: { query: { schemaVersion: 2, sort: "price_desc", priceMaxMinor: Number.MAX_SAFE_INTEGER, mileageMaxKm: 0.0000001 } } }] });
+      localStorage.setItem(key, value);
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: value, storageArea: localStorage }));
+    });
+    await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+    await expect(page.locator(".demo-saved-search")).toContainText("90071992547409.91");
+    await expect(page.locator(".demo-saved-search")).toContainText("0.0000001");
+    await expect(page.locator(".demo-saved-search")).toContainText("<test>");
+    await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-saved-search.png`);
   }
 });
