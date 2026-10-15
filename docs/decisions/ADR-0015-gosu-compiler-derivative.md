@@ -185,3 +185,6 @@ Source-scope correction: the existing exhaustive admission-consumer regression r
 
 
 PR172 local source checkpoint: two pinned-platform targeted suites pass21/21; independent direct VM reviews pass11 daemon/29 client cases. Six local gates pass; root2002/1561passes/zero failures/441existing Windows exclusions; Turbo14/21/28/14 tasks, reported caches0/0/6/13, secrets984/audit0. Distinct Root/client source-security reviews PASS_CLEAR after regression repairs. Final ten-path byte/prefix/classification closure, exact-head CI, identical-tree main/main CI and independent delivery remain pending. Actual B1a NOT_RUN, image UNBUILT, functional/vulnerability NOT_ESTABLISHED and authority/admission NOT_AUTHORIZED.
+
+
+PR172 clean-CI correction: source67d24cb failed CI38708305045 before delivery because routing probes depended on an ignored private control file. The failed original is retained/consumed; six probes now run only through the existing FORMAT_ONLY VM, with unchanged production modules. Separate984-file clean source copies reproduce RED/GREEN without private files. Targeted15/15 Windows/Linux, daemon/client VM11/29 and six full local gates pass; root1996/1555passes/0fail/441exclusions, Turbo14/21/28/14 caches14/20/27/13, secrets984/audit0. Distinct corrected-head/final-main delivery remains pending, with no actual image/admission/support change.

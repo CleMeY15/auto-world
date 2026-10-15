@@ -19,7 +19,7 @@ The [approved plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.
 Implementation, independently authored targeted tests, six full local gates and distinct Root-lease/client source-security reviews pass. Exact committed-source closure, fresh final-head CI, reviewed identical merge, protected-main CI and independent delivery remain pending. No local or source check is actual image evidence. Tests use small genuine hostile-format fixtures and synthetic process/FS scenarios, explicitly FORMAT_ONLY; they never forge an accepted full genuine context/image.
 
 
-## Local source validation and review
+## Historical local checkpoint before clean-CI correction
 
 Pinned Node22.23.2 Windows/Linux targeted suites pass21/21 each; their nonempty VM child suites exercise the real module boundaries. Independent direct VM review passes11 daemon cases and29 client cases. The ordinary Linux process is uid/euid/gid/egid1000. Targeted index, full-gates index, daemon review and client review respectively bind 7613/SHA256626d02974298febdcb250ca6da0a4e1347ad41115b9a34574a74856e70d130dc; 10876/SHA2569d4dae72529f428c4d436e026b47ddbbba61c0af778ed72e78142f32b2ac5330; 1370/SHA2565de2c9eabf29cebb88f830636c1f73cfa853bd8fc9f6b9964d96948d4ce1983d; 2123/SHA2566570e260c2f440cf8f159008e1370f5c8285a55f95bc2e8ece53f837d0dc67e1.
 
@@ -34,3 +34,14 @@ Root prepares an isolated daemon; UID1000 owns client/source parsing. All comman
 Success can establish only IMAGE_BUILD_FORMAT_OBSERVED_REVIEW_PENDING/NOT_AUTHORIZED. Exact image proof, functional validation and vulnerability clearance remain NOT_ESTABLISHED; admission/activation/support/currentEvidence unchanged. The one-year support policy starts only at future activation; current derivative dates remain null.
 
 Rollback abandons unused new source and reverses only the three owned appends through focused review. Preserve all old source/receipts/failures/archives/duties and principal Docker state. Stop only an owned proven daemon PID; retain its private data and any failed partials. No prune, recursive removal, retry, publication, SQL or Native mutation.
+
+
+## Clean-checkout test correction, 2026-10-15
+
+Source head67d24cb was not delivered: final CI38708305045 failed at Test, with2212 tests/2148 passes/6 failures/58 exclusions; build/browser/secrets/audit steps were skipped. Its sole original capture is FAILED_RETAINED, with three complete original outputs and no retry. Independent diagnosis binds five direct workflow failures and their VM wrapper to a private acceptance-control file unintentionally read before routing. The source operator, private context and all receipts remain unchanged; no Docker operation occurred.
+
+The six routing/workflow probes now use only the existing explicitly FORMAT_ONLY VM preflight, including the endpoint-negative case that could otherwise pass for the wrong reason. The real production preflight remains unchanged and fail-closed. Two distinct source copies contain exactly984 tracked files and no ignored/private directory: old committed tests reproduce RED, corrected tests pass GREEN. No private file was copied, renamed, deleted or uploaded.
+
+Current targeted suites pass15/15 on both pinned Windows/Linux Node22.23.2, with the same29 client VM cases and11 daemon cases retained. Six fresh gates pass; root1996 total/1555 passes/zero failures/441 existing Windows exclusions; Turbo14/21/28/14, reported caches14/20/27/13, secrets984 and dependency audit0. Fewer outer cases reflect moving the six probes into the already mandatory nonempty VM child suite, without removing their assertions. Diagnosis, clean-copy RED/GREEN, targeted and full-gates identities respectively: 10590/SHA2561c43d1cb7584c101c7f9a66084b1ede2c4eee3cf091c20bf9d896ab1fcdc89f7; 779/SHA256b44612c8af41b5bff9ef80489b04658e920a0ffca626d1441edfe1805f171986; 7613/SHA256c328570110eeb5a229ba651ff1930009497947f8e8ecb962df62167a286a6dc0; 10879/SHA256b67768a3d775f834b4ee53286f5054482eb520d544b09956de86aaaea9c60e96.
+
+The old V1 final-head capture is consumed and its actor retired, including its unused main budget. A corrected source commit requires its own reviewed CNEW V2 capture actor, a distinct successful final-head run, identical reviewed merge and main CI. The failed run is forbidden and never recaptured or rerun. Final delivery remains pending; actual B1a NOT_RUN, image UNBUILT, functional/vulnerability NOT_ESTABLISHED and admission NOT_AUTHORIZED.

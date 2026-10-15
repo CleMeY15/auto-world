@@ -204,6 +204,21 @@ function pinnedCreateHash() {
   } };
 }
 
+async function formatOnlyRoutingVm() {
+  const mockedReads = [];
+  const api = await observationInternals({
+    cryptoValues: { createHash: pinnedCreateHash },
+    fsValues: { readFileSync(name) {
+      mockedReads.push(String(name));
+      if (String(name).endsWith("gosu-derivative-context-private-acceptance-v1.json")) return acceptanceBuffer();
+      throw new Error("unexpected VM read");
+    } },
+  });
+  const invoke = (callerLease, dependencies) => api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+    nonce: "a".repeat(24), lease: callerLease }, { now: () => 0, ...dependencies });
+  return { invoke, mockedReads };
+}
+
 async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch = false } = {}) {
   const realArchive = await import("../scripts/seaweed-image/archive.mjs");
   const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
@@ -328,113 +343,6 @@ test("wrong lease routing fails before context open or any build command", async
   assert.deepEqual(phases, []);
 });
 
-test("builder endpoint mismatch is rejected before opening the accepted context", async () => {
-  let contextReads = 0;
-  await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-    purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: lease(),
-  }, {
-    now: () => 0,
-    runner: routingRunner({ Endpoint: "unix:///var/run/docker.sock" }),
-    contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
-    archiveReader() { throw new Error("archive must remain closed"); },
-  }));
-  assert.equal(contextReads, 0);
-});
-
-test("ambiguous Buildx text is rejected before opening the accepted context", async () => {
-  const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
-  const cases = [
-    `${valid}Driver: docker\n`,
-    `${valid}Unknown field: forbidden\n`,
-    `${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`,
-  ];
-  for (const output of cases) {
-    let contextReads = 0;
-    await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-      purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: lease(),
-    }, {
-      now: () => 0,
-      runner: routingRunner({}, Buffer.from(output)),
-      contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
-      archiveReader() { throw new Error("archive must remain closed"); },
-    }), /gosu_derivative_image_observation_routing_invalid/u);
-    assert.equal(contextReads, 0);
-  }
-});
-
-test("one native Buildx node reaches context read while a second node is rejected first", async () => {
-  const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
-  for (const [output, expectedReads] of [[valid, 1], [`${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`, 0]]) {
-    let contextReads = 0;
-    await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-      purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: lease(),
-    }, {
-      now: () => 0,
-      runner: routingRunner({}, Buffer.from(output)),
-      contextReader() { contextReads += 1; throw new Error("bounded stop"); },
-      archiveReader() { throw new Error("archive must remain closed"); },
-    }));
-    assert.equal(contextReads, expectedReads);
-  }
-});
-
-test("caller lease mutation during an awaited command cannot change later routing or paths", async () => {
-  const callerLease = lease(); const original = JSON.parse(JSON.stringify(callerLease)); const requests = []; const route = routingRunner();
-  let first = true; let contextReads = 0;
-  await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-    purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: callerLease,
-  }, {
-    now: () => 0,
-    async runner(request) {
-      requests.push(request);
-      if (first) {
-        first = false; callerLease.outputDirectory = "/tmp/attacker"; callerLease.dockerConfig = "/tmp/config";
-        callerLease.contextName = "attacker"; callerLease.deadlineAtMs = 1;
-      }
-      return route(request);
-    },
-    contextReader() { contextReads += 1; throw new Error("bounded stop"); },
-    archiveReader() { throw new Error("archive must remain closed"); },
-  }));
-  assert.equal(contextReads, 1);
-  assert.ok(requests.length > 1);
-  for (const request of requests) {
-    assert.equal(request.cwd, original.outputDirectory);
-    assert.equal(request.args.includes("attacker"), false);
-    assert.equal(request.args.includes("/tmp/config"), false);
-  }
-});
-
-test("context reader receives a closed immutable read specification", async () => {
-  let specification;
-  await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-    purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: lease(),
-  }, {
-    now: () => 0,
-    runner: routingRunner(),
-    contextReader(value) { specification = value; return { buffer: Buffer.alloc(1), identity: {}, physical: {} }; },
-    archiveReader() { throw new Error("archive must remain closed"); },
-  }));
-  assert.ok(specification && typeof specification === "object");
-  assert.equal(Object.isFrozen(specification), true);
-  assert.deepEqual(Object.keys(specification).sort(), ["bytes", "path", "sha256"]);
-});
-
-test("builder inspection uses the supported targeted command without an unavailable format flag", async () => {
-  const requests = []; const route = routingRunner();
-  await assert.rejects(runGosuDerivativeImageBuildObservationV2({
-    purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", nonce: "a".repeat(24), lease: lease(),
-  }, {
-    now: () => 0,
-    runner(request) { requests.push(request); return route(request); },
-    contextReader() { throw new Error("stop after routing"); },
-    archiveReader() { throw new Error("archive must remain closed"); },
-  }));
-  const builder = requests.find((request) => request.args.includes("buildx"));
-  assert.ok(builder);
-  assert.deepEqual(builder.args.slice(4), ["buildx", "inspect", "default"]);
-});
-
 test("observation diagnostics remain closed and never expose hostile exceptions", () => {
   let reads = 0; const diagnostic = gosuDerivativeImageObservationFailureDiagnostic({
     get message() { reads += 1; return "secret path token stdout"; },
@@ -462,6 +370,87 @@ if (typeof vm.SourceTextModule !== "function") {
       assert.equal(name, "/proc/self/status"); assert.equal(encoding, "utf8"); return status;
     } } });
     assert.doesNotThrow(() => api.__runtimeGuard());
+  });
+
+  test("VM routing rejects builder endpoint mismatch before context without native private reads", async () => {
+    const fixture = await formatOnlyRoutingVm(); let contextReads = 0;
+    await assert.rejects(fixture.invoke(lease(), {
+      runner: routingRunner({ Endpoint: "unix:///var/run/docker.sock" }),
+      contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
+      archiveReader() { throw new Error("archive must remain closed"); },
+    }), /gosu_derivative_image_observation_routing_invalid/u);
+    assert.equal(contextReads, 0); assert.equal(fixture.mockedReads.length, 1);
+    assert.ok(fixture.mockedReads[0].endsWith("gosu-derivative-context-private-acceptance-v1.json"));
+  });
+
+  test("VM routing rejects ambiguous native Buildx text before context", async () => {
+    const fixture = await formatOnlyRoutingVm();
+    const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
+    const cases = [`${valid}Driver: docker\n`, `${valid}Unknown field: forbidden\n`,
+      `${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`];
+    for (const output of cases) {
+      let contextReads = 0;
+      await assert.rejects(fixture.invoke(lease(), {
+        runner: routingRunner({}, Buffer.from(output)),
+        contextReader() { contextReads += 1; throw new Error("context must remain closed"); },
+        archiveReader() { throw new Error("archive must remain closed"); },
+      }), /gosu_derivative_image_observation_routing_invalid/u);
+      assert.equal(contextReads, 0);
+    }
+  });
+
+  test("VM native Buildx routes one node to context and rejects a second node first", async () => {
+    const fixture = await formatOnlyRoutingVm();
+    const valid = `Name: default\nDriver: docker\nNodes:\nName: default\nEndpoint: ${lease().endpoint}\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`;
+    for (const [output, expectedReads] of [[valid, 1], [`${valid}Name: second\nEndpoint: unix:///var/run/docker.sock\nStatus: running\nBuildKit version: v0.24.0\nPlatforms: linux/amd64\n`, 0]]) {
+      let contextReads = 0;
+      await assert.rejects(fixture.invoke(lease(), {
+        runner: routingRunner({}, Buffer.from(output)),
+        contextReader() { contextReads += 1; throw new Error("bounded stop"); },
+        archiveReader() { throw new Error("archive must remain closed"); },
+      }));
+      assert.equal(contextReads, expectedReads);
+    }
+  });
+
+  test("VM caller lease mutation during await cannot change later routing or paths", async () => {
+    const fixture = await formatOnlyRoutingVm(); const callerLease = lease(); const original = JSON.parse(JSON.stringify(callerLease));
+    const requests = []; const route = routingRunner(); let first = true; let contextReads = 0;
+    await assert.rejects(fixture.invoke(callerLease, {
+      async runner(request) {
+        requests.push(request);
+        if (first) { first = false; callerLease.outputDirectory = "/tmp/attacker"; callerLease.dockerConfig = "/tmp/config";
+          callerLease.contextName = "attacker"; callerLease.deadlineAtMs = 1; }
+        return route(request);
+      },
+      contextReader() { contextReads += 1; throw new Error("bounded stop"); },
+      archiveReader() { throw new Error("archive must remain closed"); },
+    }));
+    assert.equal(contextReads, 1); assert.ok(requests.length > 1);
+    for (const request of requests) { assert.equal(request.cwd, original.outputDirectory);
+      assert.equal(request.args.includes("attacker"), false); assert.equal(request.args.includes("/tmp/config"), false); }
+  });
+
+  test("VM context reader receives the closed immutable fixed specification", async () => {
+    const fixture = await formatOnlyRoutingVm(); let specification;
+    await assert.rejects(fixture.invoke(lease(), {
+      runner: routingRunner(),
+      contextReader(value) { specification = value; return { buffer: Buffer.alloc(1), identity: {}, physical: {} }; },
+      archiveReader() { throw new Error("archive must remain closed"); },
+    }));
+    assert.ok(specification && typeof specification === "object"); assert.equal(Object.isFrozen(specification), true);
+    assert.deepEqual(Object.keys(specification).sort(), ["bytes", "path", "sha256"]);
+  });
+
+  test("VM builder inspection keeps the supported fixed argv", async () => {
+    const fixture = await formatOnlyRoutingVm(); const requests = []; const route = routingRunner();
+    await assert.rejects(fixture.invoke(lease(), {
+      runner(request) { requests.push(request); return route(request); },
+      contextReader() { throw new Error("stop after routing"); },
+      archiveReader() { throw new Error("archive must remain closed"); },
+    }));
+    const builder = requests.find((request) => request.args.includes("buildx")); assert.ok(builder);
+    assert.deepEqual([...builder.args.slice(4)], ["buildx", "inspect", "default"]);
   });
 
   test("default runner rejects EPIPE before reporting authenticated stdin EOF", async () => {
