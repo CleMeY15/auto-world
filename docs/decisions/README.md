@@ -56,3 +56,7 @@ ADR-0015 checkpoint2026-10-15: PR170 source and the separately reviewed private 
 
 
 ADR-0015 archive-diagnostic continuation: the [closed source plan](../../roadmap/plans/TASK-0005A-gosu-image-archive-diagnostics.md) and [validation](../validation/TASK-0005A-gosu-image-archive-diagnostics.md) define an opt-in finite archive failure detail. The old diagnostic and parser contract remain compatible; actual image format, cleanup, admission and support remain unestablished.
+
+
+
+ADR-0015 Docker-save manifest compatibility: the [focused V2 plan](../../roadmap/plans/TASK-0005A-gosu-docker-manifest-compatibility.md) and [validation](../validation/TASK-0005A-gosu-docker-manifest-compatibility.md) allow only documented optional Parent/LayerSources metadata in the manifest entry. Core identity/layer checks, result/diagnostic schemas and all admission/support boundaries stay unchanged; no real archive acceptance follows from source delivery.

@@ -78,3 +78,9 @@ Upstream integration checkpoint: current main45bcb652227905926035bc6c61e01b5b16e
 ## Compatible archive-detail source continuation
 
 The original three-export ownership above describes the initial B1a implementation. The separately reviewed [archive diagnostics increment](TASK-0005A-gosu-image-archive-diagnostics.md) adds only gosuDerivativeImageObservationArchiveFailureDetailV1, a fourth opt-in export. Existing diagnostic and successful-result schemas, accepted archive language, OPAQUE handling and operational limits remain unchanged. A new private caller review is required before consuming that detail; the failed generation2 attempt remains immutable and does not become accepted.
+
+
+
+## Docker-save manifest compatibility continuation
+
+The original exact-three-key manifest entry is stricter than the documented Docker/Moby producer contract. The [focused V2 correction](TASK-0005A-gosu-docker-manifest-compatibility.md) allows only optional Parent(string) and LayerSources(plain object), preserving the three required own data fields and all existing semantic, binding, layer, budget and diagnostic checks. Optional values are not projected or interpreted; existing complete-byte archive/manifest hashes continue to cover them. This supersedes only the prior no-parser-change constraint for that predicate. No caller, operational budget, original claim, retained archive acceptance, cleanup, admission, support or currentEvidence change follows from this source increment.

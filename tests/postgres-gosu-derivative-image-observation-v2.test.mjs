@@ -64,11 +64,15 @@ function diagnosticSaveFixture(options = {}) {
   const role = options.role ?? "CANDIDATE"; const tag = `aw-postgres-gosu:${"a".repeat(24)}`;
   const layer = options.layer ?? tar([{ path: "usr/local/bin/gosu", bytes: Buffer.from("FORMAT_ONLY gosu bytes\n") }]);
   const configValue = options.configValue ?? { architecture: "amd64", os: "linux",
-    rootfs: { type: "layers", diff_ids: [digest(layer)] } };
+    rootfs: { type: "layers", diff_ids: [digest(layer)] },
+    ...(options.configMarker === undefined ? {} : { config: { marker: options.configMarker } }) };
   const config = options.configBytes ?? Buffer.from(JSON.stringify(configValue));
   const configId = options.configId ?? digest(config); const configName = `${configId.slice(7)}.json`;
-  const layerName = `${hash(layer)}/layer.tar`; const manifestValue = options.manifestValue
-    ?? [{ Config: configName, RepoTags: role === "BASE" ? [] : [tag], Layers: [layerName] }];
+  const layerName = `${hash(layer)}/layer.tar`; const manifestEntry = {
+    Config: configName, RepoTags: role === "BASE" ? [] : [tag], Layers: [layerName], ...(options.manifestExtras ?? {}),
+  };
+  for (const key of options.omitManifestFields ?? []) delete manifestEntry[key];
+  const manifestValue = options.manifestValue ?? [manifestEntry];
   const manifest = options.manifestBytes ?? Buffer.from(JSON.stringify(manifestValue)); const entries = [];
   if (!options.omitConfig) entries.push({ path: configName, bytes: config });
   if (!options.omitManifest) entries.push({ path: "manifest.json", bytes: manifest });
@@ -128,6 +132,21 @@ function routingProfileKey(request) {
 async function observationInternals({ processValue, spawn, fsValues = {}, cryptoValues = {}, archiveValues = {}, candidateValues = {}, zlibValues = {} } = {}) {
   const sourcePath = new URL("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs", import.meta.url);
   const sourceText = `${fs.readFileSync(sourcePath, "utf8")}\nexport { runtimeGuard as __runtimeGuard, defaultRunner as __defaultRunner, closed as __closed };
+    export const __probeManifestEntry = (variant) => {
+      let reads = 0; const core = { Config: "config.json", RepoTags: [], Layers: ["layer.tar"] }; let value = core;
+      if (variant === "symbol") core[Symbol("secret")] = "value";
+      if (variant === "coreGetter") Object.defineProperty(core, "Config", { enumerable: true,
+        get() { reads += 1; throw new Error("must not read core getter"); } });
+      if (variant === "optionalGetter") Object.defineProperty(core, "Parent", { enumerable: true,
+        get() { reads += 1; throw new Error("must not read optional getter"); } });
+      if (variant === "entryProxy") value = new Proxy(core, { ownKeys() { reads += 1; throw new Error("must not enumerate proxy"); } });
+      if (variant === "layerProxy") core.LayerSources = new Proxy({}, {
+        getPrototypeOf() { reads += 1; throw new Error("must not inspect proxy"); } });
+      if (variant === "nestedGetter") { core.LayerSources = {};
+        Object.defineProperty(core.LayerSources, "url", { enumerable: true,
+          get() { reads += 1; throw new Error("must not traverse nested metadata"); } }); }
+      return { accepted: manifestEntry(value), reads };
+    };
     export const __probeArchiveReader = (file, role, control) => defaultArchiveReader({ path: file, role, maximumBytes: ARCHIVE_LIMIT }, control);
     export const __probeInspect = (buffer, subject, control) => inspectSave(buffer, JSON.parse(JSON.stringify(subject)), control);
     export const __probeGzip = (body, diffId, maximum, control) => scanGzipLayerWithControl(body, diffId, maximum, control);
@@ -247,6 +266,30 @@ function pinnedCreateHash() {
     else result = createHash("sha256").update(value).digest("hex");
     return encoding === "hex" ? result : Buffer.from(result, "hex");
   } };
+}
+
+let baseInspectionApiPromise;
+async function inspectOptionalManifestFixture(fixture) {
+  if (fixture.subject.role === "CANDIDATE") {
+    try { return await inspectGosuDerivativeImageSaveV2(fixture.archive, fixture.subject); }
+    catch (error) {
+      const detail = gosuDerivativeImageObservationArchiveFailureDetailV1(error);
+      throw new Error(`optional manifest rejected ${JSON.stringify(detail)}`, { cause: error });
+    }
+  }
+  baseInspectionApiPromise ??= (async () => {
+    const archive = await import("../scripts/seaweed-image/archive.mjs");
+    return observationInternals({ cryptoValues: { createHash: pinnedCreateHash },
+      archiveValues: { scanRawUstar: archive.scanRawUstar } });
+  })();
+  const api = await baseInspectionApiPromise;
+  const control = { guard: () => undefined, signal: undefined, maximumExpanded: () => 64 * 1024 ** 2,
+    consumeExpanded: () => undefined };
+  try { return await api.__probeInspect(fixture.archive, fixture.subject, control); }
+  catch (error) {
+    const detail = api.gosuDerivativeImageObservationArchiveFailureDetailV1(error);
+    throw new Error(`optional manifest rejected ${JSON.stringify(detail)}`, { cause: error });
+  }
 }
 
 async function formatOnlyRoutingVm() {
@@ -442,6 +485,56 @@ test("manifest and config failures distinguish member, JSON, schema, size and id
     { version: 1, role: "CANDIDATE", stage: "CONFIG", reason: "IDENTITY_MISMATCH" });
 });
 
+test("manifest compatibility remains closed for missing core, unknown keys and wrong optional types", async () => {
+  const cases = [
+    { omitManifestFields: ["Config"] }, { omitManifestFields: ["RepoTags"] }, { omitManifestFields: ["Layers"] },
+    { manifestExtras: { Unknown: true } }, { manifestExtras: { Parent: null } },
+    { manifestExtras: { Parent: {} } }, { manifestExtras: { Parent: [] } }, { manifestExtras: { Parent: 1 } },
+    { manifestExtras: { LayerSources: null } }, { manifestExtras: { LayerSources: [] } },
+    { manifestExtras: { LayerSources: "remote" } }, { manifestExtras: { LayerSources: 1 } },
+  ];
+  for (const options of cases) {
+    const fixture = diagnosticSaveFixture(options);
+    const failure = await inspectGosuDerivativeImageSaveV2(fixture.archive, fixture.subject).catch((error) => error);
+    assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+      { version: 1, role: "CANDIDATE", stage: "MANIFEST", reason: "SCHEMA_INVALID" });
+  }
+});
+
+const manifestCompatibilityRoles = typeof vm.SourceTextModule === "function" ? ["BASE", "CANDIDATE"] : ["CANDIDATE"];
+for (const role of manifestCompatibilityRoles) {
+  for (const [label, manifestExtras] of [
+    ["Parent", { Parent: "sha256:parent-metadata-only" }],
+    ["LayerSources", { LayerSources: { "sha256:diff-id": { mediaType: "application/vnd.test", size: 7 } } }],
+    ["Parent and LayerSources", { Parent: "sha256:parent-metadata-only",
+      LayerSources: { "sha256:diff-id": { mediaType: "application/vnd.test", size: 7 } } }],
+  ]) {
+    test(`Docker-save manifest accepts optional ${label} metadata for ${role}`, async () => {
+      const fixture = diagnosticSaveFixture({ role, manifestExtras,
+        ...(role === "BASE" ? { configMarker: "BASE",
+          configId: "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537" } : {}) });
+      const observed = await inspectOptionalManifestFixture(fixture);
+      assert.equal(observed.state, "FORMAT_OBSERVED_ONLY");
+      assert.equal(observed.subject.role, role);
+    });
+  }
+}
+
+test("manifest optional metadata keeps its values opaque while full-byte hashes remain binding", async () => {
+  const marker = "OPTIONAL_METADATA_MUST_NOT_PROJECT"; const url = "https://metadata.invalid/must-not-fetch";
+  const core = diagnosticSaveFixture();
+  const optional = diagnosticSaveFixture({ manifestExtras: { Parent: marker,
+    LayerSources: { "sha256:diff-id": { url, marker } } } });
+  const [coreObserved, optionalObserved] = await Promise.all([
+    inspectGosuDerivativeImageSaveV2(core.archive, core.subject),
+    inspectGosuDerivativeImageSaveV2(optional.archive, optional.subject),
+  ]);
+  assert.notEqual(optionalObserved.archive.sha256, coreObserved.archive.sha256);
+  assert.notEqual(optionalObserved.manifest.sha256, coreObserved.manifest.sha256);
+  assert.deepEqual(Object.keys(optionalObserved.manifest).sort(), ["config", "layers", "path", "repoTags", "sha256"]);
+  assert.doesNotMatch(JSON.stringify(optionalObserved), new RegExp(`${marker}|metadata\\.invalid`, "u"));
+});
+
 test("layer failures retain finite detail while OPAQUE success remains unchanged", async () => {
   const missing = diagnosticSaveFixture({ omitLayer: true });
   let failure = await inspectGosuDerivativeImageSaveV2(missing.archive, missing.subject).catch((error) => error);
@@ -539,6 +632,16 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.ok(count && Number(count[1]) > 15, transcript); assert.equal(result.status, 0, transcript);
   });
 } else {
+  test("manifest compatibility rejects descriptors, symbols and proxies without traversing metadata", async () => {
+    const api = await observationInternals();
+    assert.deepEqual(JSON.parse(JSON.stringify(api.__probeManifestEntry("plain"))), { accepted: true, reads: 0 });
+    assert.deepEqual(JSON.parse(JSON.stringify(api.__probeManifestEntry("nestedGetter"))),
+      { accepted: true, reads: 0 });
+    for (const variant of ["symbol", "coreGetter", "optionalGetter", "entryProxy", "layerProxy"]) {
+      assert.deepEqual(JSON.parse(JSON.stringify(api.__probeManifestEntry(variant))), { accepted: false, reads: 0 });
+    }
+  });
+
   test("scanner messages require an own data descriptor and a finite allowlist", async () => {
     const subject = imageSaveFixture().subject; const control = { guard: () => undefined, signal: undefined,
       maximumExpanded: () => 1024, consumeExpanded: () => undefined };
