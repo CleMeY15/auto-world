@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103/0107/0108/0109 are accepted on main; TASK-0110 adds readable existing observation history under its own [validation gates](docs/validation/TASK-0110.md).
-- Last refreshed: 2026-10-15.
+- Status: Active. TASK-0103/0107/0108/0109/0110 are accepted on main; TASK-0111 adds explicit reproducible synthetic search links under its own [validation gates](docs/validation/TASK-0111.md).
+- Last refreshed: 2026-10-18.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -94,6 +94,8 @@
 - [x] TASK-0109 implementation: independent code APPROVE, architecture CLEAR and final actual-pixel Windows/Linux UX APPROVE/CLEAR;149 browser tests per platform, accessibility and performance gates pass. [Evidence](docs/validation/TASK-0109.md). Final-head/main delivery remains a separate PR checkpoint.
 - [x] TASK-0109 delivery: sourceCI38729166121/mainCI38730858398 SUCCESS, accepted main d929158. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/176#issuecomment-6191690565).
 - [x] TASK-0110 implementation: selected observation plus native field-history disclosure, exact representation and honest snapshot states; independent code/architecture/final Windows/Linux pixel approvals,192 passing browser tests per platform and performance/accessibility gates. [Evidence](docs/validation/TASK-0110.md). Exact-source/main CI delivery remains a separate PR checkpoint.
+- [x] TASK-0110 delivery: sourceCI38744869739/mainCI38746704125 SUCCESS, accepted main5e220c7. [Final checkpoint](https://github.com/CleMeY15/auto-world/pull/177#issuecomment-6248301095).
+- [x] TASK-0111 implementation: explicit criteria-only create/copy/review/load/search flow; independent architecture/code/actual-pixel Windows/Linux UX/acceptance reviews CLEAR or APPROVE;255 browser tests passed per platform, accessibility and performance budgets retained. [Evidence and preserved first-run performance incident](docs/validation/TASK-0111.md). Final-head/main delivery remains a separate PR checkpoint.
 - [ ] Product owner: decide whether a later public-ready search includes natural-language parsing; the synthetic slice explicitly does not claim it.
 
 ## TASK-0109 comparison contract
@@ -112,3 +114,10 @@
 - Clear currency codes in history; exact minor-unit and tiny mileage values shared with other observation surfaces. UTC dates with seconds/nonzero milliseconds; observation confidence preserves basis points. Unknowns, mixed units/currencies and same-instant observations use neutral explanatory text. Authored declarations remain separate and catalogue-gated; varied declarations are not automatically contradictions.
 - Reuse tokens, restrained borders and native disclosure behavior. Selected row has subtle emphasis; auto-fit field columns collapse naturally on narrow/enlarged text.44px summaries, visible keyboard focus, focus retained during toggle, no new navigation/requests/storage/analytics schema. Open state resets when the detail response is replaced.
 - Validate both engines320/390/768/1440 light/dark,200% platform/Verdana, empty/hostile/expanded states, axe/content fit and256-record interaction feedback≤100ms. Actual-pixel review is mandatory, not inferred from automated passes.
+
+## TASK-0111 search-link contract
+- One secondary Créer un lien action near saved-search controls on accepted Results, never one per listing. Inline labelled region, aria-expanded/controls, readonly Lien de recherche field dir=ltr, focus/select on open; Copier le lien and Fermer. Close restores trigger focus. Reuse tokens, Field, Button and existing criteria summary; no modal or new primary destination.
+- State that the link contains criteria, not results, and anyone holding it can read them. Current local-demo constraint is visible before copy. No automatic clipboard access; visible polite success only after confirmed write, manual selectable-field fallback on failure/unavailable API. Replacement/navigation cannot announce obsolete completion.
+- Recherche reçue is a shallow received-link screen with exact readable criteria, never raw identifiers. Opening leaves existing draft untouched. Explicit Charger les critères loads editable Search and focuses its heading; only Rechercher submits. Ignorer le lien preserves draft. Invalid/unsupported links show fixed recovery copy without echoing payload.
+- Catalogue loading explains disabled identity load; missing/mismatched catalogue offers explicit Charger sans marque ni modèle, retaining budget/km/year/sort. Numeric links restore offline; API availability remains honest. Disabled demo remains Saved-only with no API calls.
+- Inspect320/390/768/1440 light/dark,200% platform/Verdana, long-link internal field scrolling with no page overflow,44px targets, keyboard/focus/axe/reduced motion and create/load feedback≤100ms. Clipboard OS latency is outside that UI budget. [Task and evidence](roadmap/tasks/TASK-0111-synthetic-search-links.md) govern final sign-off.

@@ -12,6 +12,7 @@ import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, t
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
 import { parseFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
+import { decodeSearchLinkFragment, isSearchLinkFragment } from "../../demo/search-link";
 import {
   captureSavedSearchCriteria,
   createSavedSearchStore,
@@ -36,8 +37,9 @@ import {
 import { ComparisonScreen } from "./comparison-components";
 import { DetailSnapshot } from "./history-components";
 import { SavedSearchesSection } from "./saved-search-components";
+import { SearchLinkCreator, SearchLinkReview } from "./search-link-components";
 
-type Screen = "search" | "results" | "detail" | "saved" | "compare";
+type Screen = "search" | "results" | "detail" | "saved" | "compare" | "shared";
 type ListingId = NonNullable<ReturnType<typeof parsePublicListingId>>;
 type DetailState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly response: DemoSearchResponseV2; readonly result: DemoResultV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode };
 type CatalogState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly data: DemoCatalogResponseV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode; readonly mismatch?: boolean; readonly empty?: boolean };
@@ -60,6 +62,7 @@ function getOnlineSnapshot() { return navigator.onLine; }
 function getOnlineServerSnapshot() { return true; }
 
 function parseLocation(hash: string): { readonly screen: Screen; readonly listingId?: ListingId; readonly invalid?: boolean } {
+  if (isSearchLinkFragment(hash)) return { screen: "shared" };
   if (hash === "#demo-main") return { screen: "search" };
   if (hash === "#saved") return { screen: "saved" };
   if (hash === "#results") return { screen: "results" };
@@ -110,6 +113,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const online = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getOnlineServerSnapshot);
   const location = parseLocation(hash);
   const screen: Screen = enabled ? location.screen : "saved";
+  const sharedHash = screen === "shared" ? hash : undefined;
   const [favorites] = useState(() => createFavoritesStore());
   const [savedSearches] = useState(() => createSavedSearchStore());
   const [pagination] = useState(() => createSearchPaginationV2());
@@ -144,6 +148,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [detailRetry, setDetailRetry] = useState(0);
   const [savedDetails, setSavedDetails] = useState<ReadonlyMap<ListingId, DemoClientOutcomeV2>>(() => new Map());
   const [announcement, setAnnouncement] = useState("");
+  const [linkedCriteriaNotice, setLinkedCriteriaNotice] = useState<string>();
   const [resetArmed, setResetArmed] = useState(false);
   const [savedSearchResetArmed, setSavedSearchResetArmed] = useState(false);
   const [savedSearchResetToken, setSavedSearchResetToken] = useState<SavedSearchSnapshot>();
@@ -183,7 +188,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); }, [favorites, savedSearches]);
   useEffect(() => {
-    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : "Mes listes";
+    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : "Mes listes";
     document.title = `${label} — Auto World`;
   }, [screen]);
   useEffect(() => {
@@ -201,6 +206,19 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
   }, [favorites, savedSearches]);
+
+  useEffect(() => {
+    const cancelForSharedLink = () => {
+      if (!enabled || !isSearchLinkFragment(window.location.hash)) return;
+      searchAbort.current?.abort();
+      searchAbort.current = undefined;
+      searchEpoch.current += 1;
+      pendingResponseFocus.current = undefined;
+      setLoading(false); setLoadingMore(false); setSlow(false);
+    };
+    window.addEventListener("hashchange", cancelForSharedLink);
+    return () => window.removeEventListener("hashchange", cancelForSharedLink);
+  }, [enabled]);
 
   const retryCatalog = useCallback(() => {
     catalogMismatchAttempts.current.clear();
@@ -267,7 +285,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       heading?.focus({ preventScroll: true });
       window.scrollTo({ top: 0 });
     }
-  }, [screen, location.listingId]);
+  }, [screen, location.listingId, sharedHash]);
   useLayoutEffect(() => {
     if (!response || pendingResponseFocus.current === undefined) return;
     document.getElementById(pendingResponseFocus.current)?.focus({ preventScroll: true });
@@ -353,7 +371,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     const slowTimer = window.setTimeout(() => { if (!controller.signal.aborted && epoch === searchEpoch.current) setSlow(true); }, 750);
     const outcome = await client.search(requestedQuery, { signal: controller.signal });
     window.clearTimeout(slowTimer);
-    if (controller.signal.aborted || epoch !== searchEpoch.current) return;
+    if (controller.signal.aborted || epoch !== searchEpoch.current || isSearchLinkFragment(window.location.hash)) return;
     setSlow(false); if (append) setLoadingMore(false); else setLoading(false);
     if (!outcome.ok) { setPageFailure(append); setSearchError(outcome.code); if (append) focusAfterRender("demo-page-retry"); return; }
     const accepted = append ? pagination.acceptNext(pageToken, outcome.data) : pagination.acceptFirst(pageToken, outcome.data);
@@ -371,6 +389,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setLinkedCriteriaNotice(undefined);
     const parsed = parseFilterInputV2({ priceMaxEUR: price, mileageMaxKm: mileage, sort, text, makeId, modelId, firstRegistrationYear });
     if (!parsed.ok) {
       const message = parsed.code === "unsupported_text" ? "La recherche libre n’est pas encore prise en charge. Effacez ce texte ou utilisez les filtres structurés." : "Vérifiez cette valeur avant de rechercher.";
@@ -384,6 +403,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }
 
   function resetFilters() {
+    setLinkedCriteriaNotice(undefined);
     setText(""); setPrice(""); setMileage(""); setMakeId(""); setModelId(""); setFirstRegistrationYear(""); setSort("listing_asc"); setFieldError(undefined);
     setAnnouncement("Les critères ont été réinitialisés.");
   }
@@ -461,11 +481,11 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     focusAfterRender(index === undefined ? "demo-saved-searches-title" : `demo-saved-search-name-${index}`);
   }
 
-  function loadSavedSearch(search: SavedSearch, omitIdentity: boolean) {
-    const input = savedSearchToFilterInput(search.criteria, catalogStateRef.current.status === "ready" ? catalogStateRef.current.data : undefined, omitIdentity);
+  function restoreSearchCriteria(criteria: SavedSearchCriteria, omitIdentity: boolean, message: string): boolean {
+    const input = savedSearchToFilterInput(criteria, catalogStateRef.current.status === "ready" ? catalogStateRef.current.data : undefined, omitIdentity);
     if (input === undefined) {
       setAnnouncement("La marque ou le modèle enregistré n’est pas disponible. Choisissez le chargement sans identité.");
-      return;
+      return false;
     }
     searchAbort.current?.abort();
     searchAbort.current = undefined;
@@ -481,11 +501,28 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     setFirstRegistrationYear(input.firstRegistrationYear); setSort(input.sort); setFieldError(undefined);
     setAdvanced(input.mileageMaxKm !== "" || input.makeId !== "" || input.modelId !== "" || input.firstRegistrationYear !== "" || input.sort !== "listing_asc");
     setSaveSearchOpen(false); setSaveSearchName(""); setSaveSearchError(undefined);
-    setAnnouncement(omitIdentity
-      ? `Les critères de « ${search.name} » sont prêts sans marque ni modèle. Lancez la recherche lorsque vous le souhaitez.`
-      : `Les critères de « ${search.name} » sont prêts. Lancez la recherche lorsque vous le souhaitez.`);
-    recordAnalyticsEvent({ eventName: "saved_search_restored", screen: "saved", outcome: "success" });
+    setLinkedCriteriaNotice(undefined);
+    setAnnouncement(message);
     navigate("search");
+    return true;
+  }
+
+  function loadSavedSearch(search: SavedSearch, omitIdentity: boolean) {
+    const message = omitIdentity
+      ? `Les critères de « ${search.name} » sont prêts sans marque ni modèle. Lancez la recherche lorsque vous le souhaitez.`
+      : `Les critères de « ${search.name} » sont prêts. Lancez la recherche lorsque vous le souhaitez.`;
+    if (restoreSearchCriteria(search.criteria, omitIdentity, message)) recordAnalyticsEvent({ eventName: "saved_search_restored", screen: "saved", outcome: "success" });
+  }
+
+  function loadLinkedSearch(criteria: SavedSearchCriteria, omitIdentity: boolean) {
+    if (!enabled || window.location.hash !== sharedHash) return;
+    const message = omitIdentity
+      ? "Critères reçus chargés sans marque ni modèle. Vérifiez-les, puis lancez la recherche."
+      : "Critères reçus chargés. Vérifiez-les, puis lancez la recherche.";
+    if (restoreSearchCriteria(criteria, omitIdentity, message)) {
+      setLinkedCriteriaNotice(message);
+      recordAnalyticsEvent({ eventName: "search_link_loaded", screen: "shared", outcome: "success" });
+    }
   }
 
   function removeSavedSearch(search: SavedSearch, index: number) {
@@ -627,6 +664,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       {(screen === "search" || effectiveSearch) && enabled ? (
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Explorer la démo" description="Ajustez des critères déterministes, puis parcourez uniquement les publications synthétiques actives." />
+          {linkedCriteriaNotice ? <p className="demo-loaded-link">{linkedCriteriaNotice}</p> : null}
           {location.invalid ? <Banner tone="warning">Le lien demandé n’est pas valide. La recherche est de nouveau disponible.</Banner> : null}
           {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
           <div className="demo-search-layout">
@@ -677,6 +715,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
               </form>
             )}
             {savedSearchStorageMessage ? <Banner role="note" tone="warning">{savedSearchStorageMessage}</Banner> : null}
+            <SearchLinkCreator key={acceptedSearchKey} criteria={acceptedCriteria} />
           </div> : null}
           {response.state === "partial" ? <div className="demo-projection-state"><Banner tone="warning">La projection est partielle. Les éléments affichés restent consultables, mais la liste n’est pas complète.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}
           {response.state === "stale" ? <div className="demo-projection-state"><Banner tone="warning">Cet instant de démonstration est ancien. Les éléments restent synthétiques et peuvent ne plus refléter la projection la plus récente.</Banner><Button variant="secondary" loading={loading} onClick={refreshProjection}>{loading ? "Actualisation…" : "Actualiser"}</Button></div> : null}
@@ -693,6 +732,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
           {response.nextCursor || loadingMore ? <div className="demo-load-more"><Button id="demo-load-more" aria-busy={loadingMore || undefined} aria-disabled={loadingMore || undefined} onClick={loadMore}>{loadingMore ? "Chargement…" : "Charger plus"}</Button></div> : null}
         </section>
       ) : null}
+
+      {screen === "shared" && enabled ? <SearchLinkReview link={decodeSearchLinkFragment(hash)} catalog={catalogData} catalogPending={catalog.status === "idle" || catalog.status === "loading"} onLoad={loadLinkedSearch} onIgnore={() => navigate("search")} /> : null}
 
       {screen === "compare" && enabled ? (
         <ComparisonScreen

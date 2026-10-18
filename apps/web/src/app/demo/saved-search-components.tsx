@@ -7,6 +7,7 @@ import {
   SAVED_SEARCH_LIMIT,
   savedSearchToFilterInput,
   type SavedSearch,
+  type SavedSearchCriteria,
 } from "../../demo/saved-searches";
 
 const sortLabels: Readonly<Record<DemoSearchSort, string>> = Object.freeze({
@@ -17,10 +18,10 @@ const sortLabels: Readonly<Record<DemoSearchSort, string>> = Object.freeze({
   mileage_desc: "Kilométrage décroissant (km d’abord)",
 });
 
-function SavedSearchSummary({ search, catalog }: { readonly search: SavedSearch; readonly catalog?: DemoCatalogResponseV2 }) {
-  const query = search.criteria.query;
-  const compatibleCatalog = matchingSavedSearchCatalog(search.criteria, catalog);
-  const exactInput = savedSearchToFilterInput(search.criteria, compatibleCatalog, true);
+export function SearchCriteriaSummary({ criteria, catalog }: { readonly criteria: SavedSearchCriteria; readonly catalog?: DemoCatalogResponseV2 }) {
+  const query = criteria.query;
+  const compatibleCatalog = matchingSavedSearchCatalog(criteria, catalog);
+  const exactInput = savedSearchToFilterInput(criteria, compatibleCatalog, true);
   const make = compatibleCatalog?.taxonomyRelease.makes.find((item) => item.makeId === query.makeId);
   const model = compatibleCatalog?.taxonomyRelease.models.find((item) => item.makeId === query.makeId && item.modelId === query.modelId);
 
@@ -75,7 +76,7 @@ export function SavedSearchesSection({
                 <Card className="demo-saved-search">
                   <div className="demo-saved-search-copy">
                     <h3 id={`demo-saved-search-name-${index}`} tabIndex={-1}>{search.name}</h3>
-                    <SavedSearchSummary search={search} catalog={catalog} />
+                    <SearchCriteriaSummary criteria={search.criteria} catalog={catalog} />
                     {hasIdentity && catalogPending ? <p className="demo-field-hint" role="status">Vérification de la marque et du modèle enregistrés…</p> : null}
                     {identityUnavailable ? <Banner role="note" tone="warning">La marque ou le modèle de cette recherche n’est plus disponible dans le catalogue validé.</Banner> : null}
                   </div>
