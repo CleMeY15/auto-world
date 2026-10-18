@@ -1,6 +1,6 @@
 # TASK-0005A — Docker-save manifest compatibility
 
-Status: PROPOSED_FOR_INDEPENDENT_PLAN_REVIEW. Owner: Platform/SRE. One focused source branch/PR; no actual operation is authorized by this plan.
+Status: IMPLEMENTATION_VALIDATED; independent source reviews and all six local gates pass. Final-head and merged-main source delivery are pending. Owner: Platform/SRE. One focused source branch/PR; no actual operation is authorized by this plan.
 
 ## Goal, readiness and evidence
 

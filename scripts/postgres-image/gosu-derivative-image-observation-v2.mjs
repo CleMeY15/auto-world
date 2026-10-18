@@ -72,6 +72,17 @@ const plain = (value) => value !== null && typeof value === "object" && !Array.i
   && !types.isProxy(value) && Object.getPrototypeOf(value) === Object.prototype;
 const exact = (value, fields) => plain(value) && isDeepStrictEqual(Object.keys(value).sort(), [...fields].sort())
   && Object.values(Object.getOwnPropertyDescriptors(value)).every((descriptor) => Object.hasOwn(descriptor, "value"));
+const MANIFEST_REQUIRED_FIELDS = Object.freeze(["Config", "RepoTags", "Layers"]);
+const MANIFEST_OPTIONAL_FIELDS = Object.freeze(["Parent", "LayerSources"]);
+const manifestEntry = (value) => {
+  if (!plain(value)) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value); const keys = Reflect.ownKeys(descriptors);
+  if (keys.some((key) => typeof key !== "string" || ![...MANIFEST_REQUIRED_FIELDS, ...MANIFEST_OPTIONAL_FIELDS].includes(key))
+    || MANIFEST_REQUIRED_FIELDS.some((key) => !Object.hasOwn(descriptors, key))
+    || keys.some((key) => !Object.hasOwn(descriptors[key], "value"))) return false;
+  if (Object.hasOwn(descriptors, "Parent") && typeof descriptors.Parent.value !== "string") return false;
+  return !Object.hasOwn(descriptors, "LayerSources") || plain(descriptors.LayerSources.value);
+};
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const freeze = (value) => Array.isArray(value) ? Object.freeze(value.map(freeze)) : plain(value)
   ? Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, freeze(item)]))) : value;
@@ -239,7 +250,7 @@ async function inspectSave(buffer, subject, control) {
   const manifest = parseJson(memberBody(buffer, manifestMember, accepted.role, "MANIFEST"),
     "gosu_derivative_image_observation_archive_invalid", JSON_LIMIT, "OBSERVE",
     archiveDetail(accepted.role, "MANIFEST", "JSON_INVALID"));
-  if (!Array.isArray(manifest) || manifest.length !== 1 || !exact(manifest[0], ["Config", "RepoTags", "Layers"])
+  if (!Array.isArray(manifest) || manifest.length !== 1 || !manifestEntry(manifest[0])
     || typeof manifest[0].Config !== "string"
     || accepted.role === "CANDIDATE" && (!Array.isArray(manifest[0].RepoTags) || !manifest[0].RepoTags.includes(accepted.reference))
     || accepted.role === "BASE" && manifest[0].RepoTags !== null && !Array.isArray(manifest[0].RepoTags)
