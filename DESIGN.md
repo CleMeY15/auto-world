@@ -1,7 +1,7 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103/0107/0108/0109/0110 are accepted on main; TASK-0111 adds explicit reproducible synthetic search links under its own [validation gates](docs/validation/TASK-0111.md).
+- Status: Active. TASK-0103/0107/0108/0109/0110/0111 are accepted on main; TASK-0112 adds explicit local publication links under its own [validation gates](docs/validation/TASK-0112.md).
 - Last refreshed: 2026-10-18.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
@@ -121,3 +121,12 @@
 - Recherche reçue is a shallow received-link screen with exact readable criteria, never raw identifiers. Opening leaves existing draft untouched. Explicit Charger les critères loads editable Search and focuses its heading; only Rechercher submits. Ignorer le lien preserves draft. Invalid/unsupported links show fixed recovery copy without echoing payload.
 - Catalogue loading explains disabled identity load; missing/mismatched catalogue offers explicit Charger sans marque ni modèle, retaining budget/km/year/sort. Numeric links restore offline; API availability remains honest. Disabled demo remains Saved-only with no API calls.
 - Inspect320/390/768/1440 light/dark,200% platform/Verdana, long-link internal field scrolling with no page overflow,44px targets, keyboard/focus/axe/reduced motion and create/load feedback≤100ms. Clipboard OS latency is outside that UI budget. [Task and evidence](roadmap/tasks/TASK-0111-synthetic-search-links.md) govern final sign-off.
+
+## TASK-0112 publication-link contract
+
+- Accepted detail only: response ID must equal route ID for the entire body/creator. Keep all availability, partial/stale/offline qualifiers; successful missing is distinct from HTTP404.
+- Inline creator after snapshot summary, before evidence/history. Reuse link field/actions/status/tokens; no extra modal, card, navigation destination or header competition with favorites. Label « Lien de publication »; explicit create/copy/manual fallback/close with focus restoration.
+- Copy: « Ce lien pointe vers cette publication synthétique. Il ne fige ni les valeurs ni sa disponibilité et n’identifie pas un véhicule réel. » Retain local-computer/demo-only disclosure. Only validated public ID in URL, no frozen/current-across-fixtures guarantee.
+- Same clipboard lifecycle and access/performance matrix as0111; stale completion after close/navigation/replacement must not announce success. No clipboard read or implicit write. [Task](roadmap/tasks/TASK-0112-synthetic-publication-links.md) and [evidence](docs/validation/TASK-0112.md) govern sign-off.
+- TASK-0111 delivery is accepted: sourceCI39139363548/mainCI39140493041 SUCCESS, main3cccfb4; [checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551).
+- TASK-0112 implementation: independent code APPROVE/architecture CLEAR and final Windows/Linux actual-pixel UX APPROVE;291 passing browser tests per platform,78 web unit tests and existing accessibility/performance budgets pass. Exact-head/main delivery remains separate; [evidence](docs/validation/TASK-0112.md).

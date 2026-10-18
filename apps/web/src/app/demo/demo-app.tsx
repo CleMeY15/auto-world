@@ -37,7 +37,7 @@ import {
 import { ComparisonScreen } from "./comparison-components";
 import { DetailSnapshot } from "./history-components";
 import { SavedSearchesSection } from "./saved-search-components";
-import { SearchLinkCreator, SearchLinkReview } from "./search-link-components";
+import { PublicationLinkCreator, SearchLinkCreator, SearchLinkReview } from "./search-link-components";
 
 type Screen = "search" | "results" | "detail" | "saved" | "compare" | "shared";
 type ListingId = NonNullable<ReturnType<typeof parsePublicListingId>>;
@@ -145,6 +145,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [slow, setSlow] = useState(false);
   const [detail, setDetail] = useState<DetailState>({ status: "idle" });
+  const acceptedDetail = detail.status === "ready" && detail.result.listingId === location.listingId ? detail : undefined;
   const [detailRetry, setDetailRetry] = useState(0);
   const [savedDetails, setSavedDetails] = useState<ReadonlyMap<ListingId, DemoClientOutcomeV2>>(() => new Map());
   const [announcement, setAnnouncement] = useState("");
@@ -752,13 +753,14 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
           <ScreenHeader title="Détail de la publication synthétique" description="Les valeurs ci-dessous sont des observations de démonstration, pas une offre commerciale." backLabel="Retour aux résultats" onBack={() => navigate(response ? "results" : "search")} action={location.listingId ? <Button variant="secondary" onClick={() => toggleSaved(location.listingId!, "detail")}>{favoriteSnapshot.listingIds.includes(location.listingId) ? "Retirer des favoris" : "Ajouter aux favoris"}</Button> : undefined} />
           {detail.status === "loading" ? <LoadingResults label="Chargement du détail synthétique…" /> : null}
           {detail.status === "error" ? <StatePanel tone="danger" title={detail.code === "not_found" ? "Publication non disponible" : "Détail indisponible"} action={<Button onClick={() => setDetailRetry((value) => value + 1)}>Réessayer</Button>}><p>{detail.code === "not_found" ? "Cette publication synthétique est introuvable dans cette lecture." : detail.code === "offline" ? "Reconnectez-vous pour charger ce détail, puis réessayez." : "Le détail ne peut pas être chargé pour le moment. Réessayez ou revenez à la recherche."}</p></StatePanel> : null}
-          {detail.status === "ready" ? (
-            <div className="demo-detail" key={`${detail.result.listingId}:${detail.response.dataAsOf}`}>
+          {acceptedDetail !== undefined ? (
+            <div className="demo-detail" key={`${acceptedDetail.result.listingId}:${acceptedDetail.response.dataAsOf}`}>
               <NeutralIllustration />
-              <p className="demo-status">{detail.result.availability === "active" ? "Publication active" : detail.result.availability === "withdrawn" ? "Publication retirée" : detail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p>
-              <ResultSummary result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} />
-              <DetailSnapshot response={detail.response} online={online} />
-              <EvidenceDetails result={detail.result} catalog={matchingCatalog(catalogData, detail.response)} />
+              <p className="demo-status">{acceptedDetail.result.availability === "active" ? "Publication active" : acceptedDetail.result.availability === "withdrawn" ? "Publication retirée" : acceptedDetail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p>
+              <ResultSummary result={acceptedDetail.result} catalog={matchingCatalog(catalogData, acceptedDetail.response)} />
+              <DetailSnapshot response={acceptedDetail.response} online={online} />
+              <PublicationLinkCreator listingId={acceptedDetail.result.listingId} />
+              <EvidenceDetails result={acceptedDetail.result} catalog={matchingCatalog(catalogData, acceptedDetail.response)} />
             </div>
           ) : null}
         </section>

@@ -1,6 +1,6 @@
 # TASK-0111 — Reproducible synthetic search links
 
-Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-10-18. Local implementation/gates and independent code/architecture/UX/acceptance reviews passed; exact final-head CI and protected-main acceptance remain separate PR checkpoint gates. DoR passed after sequential independent Architect CLEAR and Critic APPROVE. Priority P1, independent synthetic product lane. Owner: application lead with disjoint codec/unit and browser-test lanes, independent implementation/UX review.
+Status: DONE_ON_MAIN, 2026-10-18. Source CI39139363548 and exact main CI39140493041 SUCCESS; accepted main3cccfb457864aceb72af3c49d5f99d15f3ce1505. [Immutable delivery checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551). Historical local evidence below remains unchanged.
 
 ## Goal and dependencies
 Create a link from accepted demo search criteria, inspect those criteria after opening, explicitly load the editable form, then explicitly search. TASK-0103/0107/0108/0109/0110 accepted; [TASK-0110 delivery](https://github.com/CleMeY15/auto-world/pull/177#issuecomment-6248301095). Base main02ba4faa2aaccf589aa7114fec2bda7ee9432e16, CI39131742418 SUCCESS. TASK-0005 is not a dependency;0104–0106 remain gated separately.

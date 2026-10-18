@@ -1,9 +1,9 @@
-export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "saved_search_added" | "saved_search_restored" | "saved_search_removed" | "saved_search_undone" | "comparison_added" | "comparison_removed" | "comparison_opened" | "storage_failed" | "retry_clicked" | "search_link_created" | "search_link_copied" | "search_link_loaded";
+export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "saved_search_added" | "saved_search_restored" | "saved_search_removed" | "saved_search_undone" | "comparison_added" | "comparison_removed" | "comparison_opened" | "storage_failed" | "retry_clicked" | "search_link_created" | "search_link_copied" | "search_link_loaded" | "listing_link_created" | "listing_link_copied";
 export type DemoAnalyticsScreen = "search" | "results" | "detail" | "saved" | "compare" | "shared";
 export type DemoAnalyticsOutcome = "success" | "empty" | "error" | "offline" | "partial" | "stale";
 export interface DemoAnalyticsEvent { readonly eventName: DemoAnalyticsEventName; readonly screen: DemoAnalyticsScreen; readonly outcome: DemoAnalyticsOutcome }
 export type DemoAnalyticsSink = (event: DemoAnalyticsEvent) => void;
-const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "saved_search_added", "saved_search_restored", "saved_search_removed", "saved_search_undone", "comparison_added", "comparison_removed", "comparison_opened", "storage_failed", "retry_clicked", "search_link_created", "search_link_copied", "search_link_loaded"]);
+const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "saved_search_added", "saved_search_restored", "saved_search_removed", "saved_search_undone", "comparison_added", "comparison_removed", "comparison_opened", "storage_failed", "retry_clicked", "search_link_created", "search_link_copied", "search_link_loaded", "listing_link_created", "listing_link_copied"]);
 const screens = new Set<DemoAnalyticsScreen>(["search", "results", "detail", "saved", "compare", "shared"]);
 const outcomes = new Set<DemoAnalyticsOutcome>(["success", "empty", "error", "offline", "partial", "stale"]);
 
@@ -17,6 +17,7 @@ export function parseAnalyticsEvent(input: unknown): DemoAnalyticsEvent | undefi
       return [key, descriptor.value];
     })) as Record<string, unknown>;
     if (!eventNames.has(value.eventName as DemoAnalyticsEventName) || !screens.has(value.screen as DemoAnalyticsScreen) || !outcomes.has(value.outcome as DemoAnalyticsOutcome)) return undefined;
+    if ((value.eventName === "listing_link_created" || value.eventName === "listing_link_copied") && (value.screen !== "detail" || (value.outcome !== "success" && value.outcome !== "error"))) return undefined;
     return Object.freeze({ eventName: value.eventName as DemoAnalyticsEventName, screen: value.screen as DemoAnalyticsScreen, outcome: value.outcome as DemoAnalyticsOutcome });
   } catch { return undefined; }
 }
