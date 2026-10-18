@@ -26,11 +26,13 @@ const digest = (value) => `sha256:${hash(value)}`;
 function octal(header, offset, length, value) {
   Buffer.from(`${value.toString(8).padStart(length - 1, "0")}\0`).copy(header, offset);
 }
-function tarHeader(name, size, type = "0") {
+function tarHeader(name, size, type = "0", linkname = "", metadata = {}) {
   const value = Buffer.alloc(BLOCK); Buffer.from(name).copy(value);
-  octal(value, 100, 8, type === "5" ? 0o755 : 0o644); octal(value, 108, 8, 0); octal(value, 116, 8, 0);
-  octal(value, 124, 12, size); octal(value, 136, 12, 1_700_000_000); value.fill(0x20, 148, 156);
-  value.write(type, 156); Buffer.from("ustar\0").copy(value, 257); Buffer.from("00").copy(value, 263);
+  octal(value, 100, 8, metadata.mode ?? (type === "5" ? 0o755 : 0o644));
+  octal(value, 108, 8, metadata.uid ?? 0); octal(value, 116, 8, metadata.gid ?? 0);
+  octal(value, 124, 12, size); octal(value, 136, 12, metadata.mtime ?? 1_700_000_000); value.fill(0x20, 148, 156);
+  value.write(type, 156); Buffer.from(linkname).copy(value, 157); Buffer.from("ustar\0").copy(value, 257);
+  Buffer.from("00").copy(value, 263);
   Buffer.from("root").copy(value, 265); Buffer.from("root").copy(value, 297);
   const checksum = value.reduce((sum, byte) => sum + byte, 0);
   Buffer.from(`${checksum.toString(8).padStart(6, "0")}\0 `).copy(value, 148);
@@ -39,10 +41,29 @@ function tarHeader(name, size, type = "0") {
 function tar(entries, endBlocks = 2) {
   const parts = [];
   for (const entry of entries) {
-    const bytes = entry.bytes ?? Buffer.alloc(0); parts.push(tarHeader(entry.path, bytes.length, entry.type ?? "0"));
+    const bytes = entry.bytes ?? Buffer.alloc(0);
+    parts.push(tarHeader(entry.path, bytes.length, entry.type ?? "0", entry.linkname ?? "", entry));
     if (bytes.length) parts.push(bytes, Buffer.alloc((BLOCK - bytes.length % BLOCK) % BLOCK));
   }
   parts.push(Buffer.alloc(BLOCK * endBlocks)); return Buffer.concat(parts);
+}
+function hardlinkImageSaveFixture({ role, encoding, entries, diffId }) {
+  const tag = `aw-postgres-gosu:${"b".repeat(24)}`;
+  const rawLayer = tar(entries ?? [{ path: "usr/local/bin/tool", bytes: Buffer.from("FORMAT_ONLY hardlink target\n") },
+    { path: "usr/local/bin/gosu", type: "1", linkname: "usr/local/bin/tool" }]);
+  const storedLayer = encoding === "GZIP" ? gzipSync(rawLayer) : rawLayer;
+  const config = Buffer.from(JSON.stringify({ architecture: "amd64", os: "linux",
+    rootfs: { type: "layers", diff_ids: [diffId ?? digest(rawLayer)] }, config: { marker: role } }));
+  const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
+  const configId = role === "BASE" ? baseId : digest(config); const configName = `${configId.slice(7)}.json`;
+  const layerName = `${hash(storedLayer)}/layer.tar`;
+  const manifest = Buffer.from(JSON.stringify([{ Config: configName, RepoTags: role === "BASE" ? [] : [tag],
+    Layers: [layerName] }]));
+  const archive = tar([{ path: configName, bytes: config }, { path: "manifest.json", bytes: manifest },
+    { path: layerName, bytes: storedLayer }]);
+  return { archive, rawLayer, storedLayer, config, subject: { role, reference: role === "BASE"
+    ? "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3" : tag,
+  imageId: configId, configId, platform: { os: "linux", architecture: "amd64" } } };
 }
 function imageSaveFixture(options = {}) {
   const role = options.role ?? "CANDIDATE";
@@ -150,6 +171,7 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
     export const __probeArchiveReader = (file, role, control) => defaultArchiveReader({ path: file, role, maximumBytes: ARCHIVE_LIMIT }, control);
     export const __probeInspect = (buffer, subject, control) => inspectSave(buffer, JSON.parse(JSON.stringify(subject)), control);
     export const __probeGzip = (body, diffId, maximum, control) => scanGzipLayerWithControl(body, diffId, maximum, control);
+    export const __probeAuthenticateContext = (buffer, control) => authenticateContext(buffer, control);
     export const __probePreflight = (input, dependencies) => {
       const copied = JSON.parse(JSON.stringify(input));
       return { inputExact: exact(copied, ["purpose", "nonce", "lease"]), lease: validateLease(copied.lease, copied.nonce),
@@ -502,6 +524,94 @@ test("manifest compatibility remains closed for missing core, unknown keys and w
 });
 
 const manifestCompatibilityRoles = typeof vm.SourceTextModule === "function" ? ["BASE", "CANDIDATE"] : ["CANDIDATE"];
+for (const role of manifestCompatibilityRoles) {
+  for (const encoding of ["USTAR", "GZIP"]) {
+    test(`image layer hardlinks accept the bounded existing subset for ${encoding} ${role}`, async () => {
+      const fixture = hardlinkImageSaveFixture({ role, encoding });
+      const observed = await inspectOptionalManifestFixture(fixture);
+      const projected = JSON.parse(JSON.stringify(observed));
+      assert.equal(projected.state, "FORMAT_OBSERVED_ONLY");
+      assert.equal(projected.subject.role, role);
+      assert.equal(projected.archive.sha256, hash(fixture.archive));
+      assert.deepEqual(projected.layers[0], {
+        ordinal: 0,
+        path: projected.layers[0].path,
+        storedBytes: fixture.storedLayer.length,
+        storedSha256: hash(fixture.storedLayer),
+        encoding,
+        expandedBytes: fixture.rawLayer.length,
+        diffId: digest(fixture.rawLayer),
+        members: projected.layers[0].members,
+      });
+      assert.equal(projected.layers[0].members.length, 2);
+      assert.equal(projected.layers[0].members[0].type, "file");
+      assert.equal(projected.layers[0].members[0].sha256, hash(Buffer.from("FORMAT_ONLY hardlink target\n")));
+      assert.equal(projected.layers[0].members[1].type, "hardlink");
+      assert.equal(projected.layers[0].members[1].size, 0);
+      assert.equal(projected.layers[0].members[1].mode, projected.layers[0].members[0].mode);
+      assert.equal(projected.layers[0].members[1].uid, projected.layers[0].members[0].uid);
+      assert.equal(projected.layers[0].members[1].gid, projected.layers[0].members[0].gid);
+      assert.equal(projected.layers[0].members[1].mtime, projected.layers[0].members[0].mtime);
+      assert.deepEqual(Object.keys(projected.layers[0].members[1]).sort(),
+        ["dataOffset", "gid", "headerOffset", "mode", "mtime", "ordinal", "path", "size", "type", "uid"]);
+      assert.doesNotMatch(JSON.stringify(projected.layers[0].members[1]), /linkname|usr\/local\/bin\/tool/u);
+      assert.deepEqual(Object.keys(projected).sort(),
+        ["archive", "config", "layers", "manifest", "predicates", "state", "subject"]);
+    });
+  }
+}
+
+test("image layer hardlink opt-in keeps unsafe cases closed for raw and gzip layers", async () => {
+  const target = { path: "target", bytes: Buffer.from("target") };
+  const cases = [
+    ["forward", [{ path: "alias", type: "1", linkname: "target" }, target], "seaweed_archive_tar_link_invalid"],
+    ["missing", [target, { path: "alias", type: "1", linkname: "missing" }], "seaweed_archive_tar_link_invalid"],
+    ["self", [target, { path: "alias", type: "1", linkname: "alias" }], "seaweed_archive_tar_link_invalid"],
+    ["chained", [target, { path: "first", type: "1", linkname: "target" },
+      { path: "second", type: "1", linkname: "first" }], "seaweed_archive_tar_link_invalid"],
+    ["absolute", [target, { path: "alias", type: "1", linkname: "/target" }], "seaweed_archive_tar_link_invalid"],
+    ["traversal", [target, { path: "alias", type: "1", linkname: "../target" }], "seaweed_archive_tar_link_invalid"],
+    ["metadata", [target, { path: "alias", type: "1", linkname: "target", mode: 0o600 }],
+      "seaweed_archive_tar_link_invalid"],
+    ["payload", [target, { path: "alias", type: "1", linkname: "target", bytes: Buffer.from("x") }],
+      "seaweed_archive_tar_header_invalid"],
+    ["duplicate", [target, { path: "target", type: "1", linkname: "target" }],
+      "seaweed_archive_tar_duplicate_invalid"],
+    ["unsupported", [{ path: "unsupported", type: "x" }], "seaweed_archive_tar_type_invalid"],
+  ];
+  for (const encoding of ["USTAR", "GZIP"]) {
+    for (const [label, entries, reason] of cases) {
+      const fixture = hardlinkImageSaveFixture({ role: "CANDIDATE", encoding, entries });
+      const failure = await inspectGosuDerivativeImageSaveV2(fixture.archive, fixture.subject).catch((error) => error);
+      assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+        { version: 1, role: "CANDIDATE", stage: "LAYER", reason }, `${encoding} ${label}`);
+    }
+    const mismatch = hardlinkImageSaveFixture({ role: "CANDIDATE", encoding, diffId: `sha256:${"0".repeat(64)}` });
+    const failure = await inspectGosuDerivativeImageSaveV2(mismatch.archive, mismatch.subject).catch((error) => error);
+    assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+      { version: 1, role: "CANDIDATE", stage: "LAYER", reason: "seaweed_archive_diffid_mismatch" });
+  }
+});
+
+test("Docker-save outer archives remain strict when an outer member is a hardlink", async () => {
+  const fixture = imageSaveFixture();
+  const archive = tar([{ path: "target", bytes: Buffer.from("target") },
+    { path: "alias", type: "1", linkname: "target" }]);
+  const failure = await inspectGosuDerivativeImageSaveV2(archive, fixture.subject).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "CANDIDATE", stage: "OUTER_TAR", reason: "seaweed_archive_tar_type_invalid" });
+});
+
+test("authenticated build contexts keep hardlinks disabled", { skip: typeof vm.SourceTextModule !== "function" }, async () => {
+  let options;
+  const api = await observationInternals({ cryptoValues: { createHash: pinnedCreateHash },
+    archiveValues: { scanRawUstar: async (value) => { options = value;
+      throw new Error("seaweed_archive_tar_type_invalid"); } } });
+  await assert.rejects(api.__probeAuthenticateContext(Buffer.alloc(1_986_560),
+    { guard: () => undefined, signal: undefined }), /gosu_derivative_image_observation_context_invalid/u);
+  assert.equal(options.allowHardlinks, false);
+});
+
 for (const role of manifestCompatibilityRoles) {
   for (const [label, manifestExtras] of [
     ["Parent", { Parent: "sha256:parent-metadata-only" }],
