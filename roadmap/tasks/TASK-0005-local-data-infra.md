@@ -91,3 +91,8 @@ User update, 2026-09-14: "Zap le test d’accès" waives the external authentica
 - Operational notes cover resources, logs/health, backup/restore, failure isolation and rollback.
 - Independent infra/security review and CI evidence are linked in `docs/validation/TASK-0005.md`.
 - Mark `BLOCKED` only if neither local nor CI runtime can supply real services; otherwise set `DONE` after green review/CI, rerun CI, then merge.
+
+
+## 2026-10-18 — PostgreSQL image reader hardlink compatibility
+
+The current BASE parser blockage is identified as TAR hardlink type1. [The focused PR182 increment](../../docs/validation/TASK-0005A-gosu-layer-hardlinks.md) covers bounded interpretation of links inside raw/gzip image layers, preserving strict outer/context boundaries and all identity/resource guards. Source delivery and a new real-archive observation remain explicit gates. PostgreSQL image/current-audit/admission completion, application migrations and integrated PostgreSQL/OpenSearch/Redis/S3-compatible acceptance still remain. TASK-0005 stays IN_PROGRESS and TASK-0006 blocked; no support period starts from a diagnostic or source fixture.

@@ -1,6 +1,6 @@
-# TASK-0005A â€” bounded hardlinks in image layers
+# TASK-0005A — bounded hardlinks in image layers
 
-Status: PLAN_REVIEW. A focused parser compatibility increment; TASK-0005A and TASK-0005 remain IN_PROGRESS.
+Status: PLAN_APPROVED. A focused parser compatibility increment; TASK-0005A and TASK-0005 remain IN_PROGRESS.
 
 Owner role: infrastructure/backend. Contracts: ADR-0015, the Gosu V2 observation exports/finite diagnostics, and the existing shared `scanRawUstar` hardlink subset.
 

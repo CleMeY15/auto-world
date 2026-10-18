@@ -189,7 +189,8 @@ async function scanGzipLayerWithControl(body, diffId, maxRawBytes, control, role
     control.guard();
   })());
   try {
-    const result = await scanRawUstar({ input: guardedOutput, diffId, maxRawBytes, maxMembers: 100_000, signal: control.signal });
+    const result = await scanRawUstar({ input: guardedOutput, diffId, maxRawBytes, maxMembers: 100_000,
+      allowHardlinks: true, signal: control.signal });
     control.guard();
     if (compressedBytes !== body.length || compressedHash.digest("hex") !== compressedSha256 || gunzip.bytesWritten !== body.length) {
       archiveFail(role, "LAYER", "IDENTITY_MISMATCH");
@@ -287,7 +288,7 @@ async function inspectSave(buffer, subject, control) {
         encoding = "USTAR";
         const maximum = expansion(accepted.role, () => control.maximumExpanded());
         tar = await scanRawUstar({ input: readable(body, control.guard), diffId: config.rootfs.diff_ids[index], maxRawBytes: maximum,
-          maxMembers: 100_000, allowHardlinks: false, signal: control.signal });
+          maxMembers: 100_000, allowHardlinks: true, signal: control.signal });
       }
     } catch (error) { scannerFailure(error, accepted.role, "LAYER"); }
     if (tar !== null) expansion(accepted.role, () => control.consumeExpanded(tar.rawSize ?? tar.uncompressedSize));
