@@ -12,6 +12,7 @@ import vm from "node:vm";
 import { isDeepStrictEqual, TextDecoder, types } from "node:util";
 import { createGunzip, gzipSync } from "node:zlib";
 import {
+  gosuDerivativeImageObservationArchiveFailureDetailV1,
   gosuDerivativeImageObservationFailureDiagnostic,
   inspectGosuDerivativeImageSaveV2,
   runGosuDerivativeImageBuildObservationV2,
@@ -58,6 +59,24 @@ function imageSaveFixture(options = {}) {
   return { archive, config, layer, subject: { role, reference: role === "BASE"
     ? "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3" : tag, imageId: configId, configId,
     platform: { os: "linux", architecture: "amd64" } } };
+}
+function diagnosticSaveFixture(options = {}) {
+  const role = options.role ?? "CANDIDATE"; const tag = `aw-postgres-gosu:${"a".repeat(24)}`;
+  const layer = options.layer ?? tar([{ path: "usr/local/bin/gosu", bytes: Buffer.from("FORMAT_ONLY gosu bytes\n") }]);
+  const configValue = options.configValue ?? { architecture: "amd64", os: "linux",
+    rootfs: { type: "layers", diff_ids: [digest(layer)] } };
+  const config = options.configBytes ?? Buffer.from(JSON.stringify(configValue));
+  const configId = options.configId ?? digest(config); const configName = `${configId.slice(7)}.json`;
+  const layerName = `${hash(layer)}/layer.tar`; const manifestValue = options.manifestValue
+    ?? [{ Config: configName, RepoTags: role === "BASE" ? [] : [tag], Layers: [layerName] }];
+  const manifest = options.manifestBytes ?? Buffer.from(JSON.stringify(manifestValue)); const entries = [];
+  if (!options.omitConfig) entries.push({ path: configName, bytes: config });
+  if (!options.omitManifest) entries.push({ path: "manifest.json", bytes: manifest });
+  if (!options.omitLayer) entries.push({ path: layerName, bytes: layer });
+  const archive = tar(entries);
+  return { archive, config, layer, subject: { role, reference: role === "BASE"
+    ? "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3" : tag,
+  imageId: configId, configId, platform: { os: "linux", architecture: "amd64" } } };
 }
 function lease() {
   const root = "/var/tmp/aw-cl-ABC123"; const nonce = "a".repeat(24);
@@ -271,7 +290,8 @@ async function nonFullyInjectedPreflightVm(statfsSync) {
   return { invoke, reads };
 }
 
-async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch = false } = {}) {
+async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch = false, readerFailureRole,
+  readerFailureValue } = {}) {
   const realArchive = await import("../scripts/seaweed-image/archive.mjs");
   const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
   const candidate = imageSaveFixture(); const base = imageSaveFixture({ role: "BASE", configId: baseId });
@@ -325,19 +345,121 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
     contextReader: () => ({ buffer: context, identity: { bytes: context.length,
       sha256: "d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb" }, physical: { dev: "1" } }),
     archiveReader: (specification) => { const selected = specification.role === "BASE" ? base : candidate;
-      const sha256 = readerHashMismatch && specification.role === "CANDIDATE" ? "0".repeat(64) : hash(selected.archive);
+      if (specification.role === readerFailureRole) throw readerFailureValue ?? new Error("secret native reader path");
+      const mismatchRoles = readerHashMismatch === true ? ["CANDIDATE"]
+        : Array.isArray(readerHashMismatch) ? readerHashMismatch : [readerHashMismatch];
+      const sha256 = mismatchRoles.includes(specification.role) ? "0".repeat(64) : hash(selected.archive);
       return { buffer: selected.archive, identity: { bytes: selected.archive.length, sha256 }, physical: { dev: "1" } }; },
   };
   return { api, base, candidate, dependencies, requests };
 }
 
-test("observation v2 exports only the three closed public interfaces", async () => {
+test("observation v2 exports only the four closed public interfaces", async () => {
   const api = await import("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs");
   assert.deepEqual(Object.keys(api).sort(), [
+    "gosuDerivativeImageObservationArchiveFailureDetailV1",
     "gosuDerivativeImageObservationFailureDiagnostic",
     "inspectGosuDerivativeImageSaveV2",
     "runGosuDerivativeImageBuildObservationV2",
   ]);
+});
+
+test("archive failures expose a frozen opt-in detail without changing the historical diagnostic", async () => {
+  const fixture = imageSaveFixture(); const checksum = Buffer.from(fixture.archive); checksum[148] ^= 1;
+  const failure = await inspectGosuDerivativeImageSaveV2(checksum, fixture.subject).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure), {
+    version: 1, role: "CANDIDATE", stage: "OUTER_TAR", reason: "seaweed_archive_tar_checksum_invalid",
+  });
+  assert.deepEqual(gosuDerivativeImageObservationFailureDiagnostic(failure), {
+    code: "gosu_derivative_image_observation_archive_invalid", phase: "OBSERVE", state: "UNBUILT",
+  });
+  const detail = gosuDerivativeImageObservationArchiveFailureDetailV1(failure);
+  assert.equal(Object.isFrozen(detail), true);
+  assert.deepEqual(Object.keys(detail), ["version", "role", "stage", "reason"]);
+});
+
+test("archive detail getter is reflection-free for unknown and hostile inputs", () => {
+  let reads = 0; const accessor = {};
+  Object.defineProperty(accessor, "message", { get() { reads += 1; throw new Error("secret getter"); } });
+  const proxy = new Proxy({}, { get() { reads += 1; throw new Error("secret proxy"); },
+    getOwnPropertyDescriptor() { reads += 1; throw new Error("secret descriptor"); } });
+  for (const value of [null, undefined, 1, "error", {}, new Error("seaweed_archive_tar_checksum_invalid"), accessor, proxy]) {
+    assert.equal(gosuDerivativeImageObservationArchiveFailureDetailV1(value), null);
+  }
+  assert.equal(reads, 0);
+});
+
+test("read failures separate invalid input from bounded size rejection without touching hostile subjects", async () => {
+  const fixture = imageSaveFixture(); let reads = 0; const hostile = {};
+  Object.defineProperty(hostile, "role", { enumerable: true, get() { reads += 1; throw new Error("secret role"); } });
+  let failure = await inspectGosuDerivativeImageSaveV2(new Proxy(fixture.archive, {}), hostile).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "UNKNOWN", stage: "READ", reason: "READ_INVALID" });
+  failure = await inspectGosuDerivativeImageSaveV2(Buffer.alloc(0), fixture.subject).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "CANDIDATE", stage: "READ", reason: "SIZE_INVALID" });
+  assert.equal(reads, 0);
+});
+
+test("outer USTAR failures retain only finite scanner reasons", async () => {
+  const fixture = imageSaveFixture(); const checksum = Buffer.from(fixture.archive); checksum[148] ^= 1;
+  const cases = [
+    [checksum, "seaweed_archive_tar_checksum_invalid"],
+    [fixture.archive.subarray(0, -BLOCK), "seaweed_archive_tar_eoa_invalid"],
+    [tar([{ path: "../escape", bytes: Buffer.from("x") }]), "seaweed_archive_tar_path_invalid"],
+    [tar([{ path: "link", type: "2" }]), "seaweed_archive_tar_link_invalid"],
+    [tar([{ path: "same", bytes: Buffer.from("a") }, { path: "same", bytes: Buffer.from("b") }]),
+      "seaweed_archive_tar_duplicate_invalid"],
+  ];
+  for (const [archive, reason] of cases) {
+    const failure = await inspectGosuDerivativeImageSaveV2(archive, fixture.subject).catch((error) => error);
+    assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+      { version: 1, role: "CANDIDATE", stage: "OUTER_TAR", reason });
+  }
+});
+
+test("manifest and config failures distinguish member, JSON, schema, size and identity branches", async () => {
+  const malformedConfig = Buffer.from("{");
+  const fixtures = [
+    [diagnosticSaveFixture({ omitManifest: true }), "MANIFEST", "MEMBER_INVALID"],
+    [diagnosticSaveFixture({ manifestBytes: Buffer.from("{") }), "MANIFEST", "JSON_INVALID"],
+    [diagnosticSaveFixture({ manifestValue: [] }), "MANIFEST", "SCHEMA_INVALID"],
+    [diagnosticSaveFixture({ manifestBytes: Buffer.alloc(4 * 1024 ** 2 + 1, 0x20) }), "MANIFEST", "SIZE_INVALID"],
+    [diagnosticSaveFixture({ omitConfig: true }), "CONFIG", "MEMBER_INVALID"],
+    [diagnosticSaveFixture({ configBytes: malformedConfig }), "CONFIG", "JSON_INVALID"],
+    [diagnosticSaveFixture({ configValue: { architecture: "amd64", os: "linux", rootfs: null } }),
+      "CONFIG", "SCHEMA_INVALID"],
+  ];
+  for (const [fixture, stage, reason] of fixtures) {
+    const failure = await inspectGosuDerivativeImageSaveV2(fixture.archive, fixture.subject).catch((error) => error);
+    assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+      { version: 1, role: "CANDIDATE", stage, reason });
+  }
+  const fixture = diagnosticSaveFixture();
+  const failure = await inspectGosuDerivativeImageSaveV2(fixture.archive,
+    { ...fixture.subject, imageId: `sha256:${"0".repeat(64)}` }).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "CANDIDATE", stage: "CONFIG", reason: "IDENTITY_MISMATCH" });
+});
+
+test("layer failures retain finite detail while OPAQUE success remains unchanged", async () => {
+  const missing = diagnosticSaveFixture({ omitLayer: true });
+  let failure = await inspectGosuDerivativeImageSaveV2(missing.archive, missing.subject).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "CANDIDATE", stage: "LAYER", reason: "MEMBER_INVALID" });
+  const layer = tar([{ path: "file", bytes: Buffer.from("body") }]);
+  const mismatch = diagnosticSaveFixture({ layer,
+    configValue: { architecture: "amd64", os: "linux", rootfs: { type: "layers", diff_ids: [digest(Buffer.from("other"))] } } });
+  failure = await inspectGosuDerivativeImageSaveV2(mismatch.archive, mismatch.subject).catch((error) => error);
+  assert.deepEqual(gosuDerivativeImageObservationArchiveFailureDetailV1(failure),
+    { version: 1, role: "CANDIDATE", stage: "LAYER", reason: "seaweed_archive_diffid_mismatch" });
+  const opaque = diagnosticSaveFixture({ layer: Buffer.from("opaque FORMAT_ONLY bytes") });
+  const observed = await inspectGosuDerivativeImageSaveV2(opaque.archive, opaque.subject);
+  assert.deepEqual(observed.layers[0], { ordinal: 0, path: observed.layers[0].path,
+    storedBytes: opaque.layer.length, storedSha256: hash(opaque.layer), encoding: "OPAQUE",
+    expandedBytes: "NOT_ESTABLISHED", diffId: "NOT_ESTABLISHED", members: "NOT_ESTABLISHED" });
+  assert.deepEqual(observed.predicates,
+    { functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED", candidateAdmission: "NOT_ESTABLISHED" });
 });
 
 test("FORMAT_ONLY Docker save observation parses a real small USTAR without claiming image acceptance", async () => {
@@ -417,6 +539,137 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.ok(count && Number(count[1]) > 15, transcript); assert.equal(result.status, 0, transcript);
   });
 } else {
+  test("scanner messages require an own data descriptor and a finite allowlist", async () => {
+    const subject = imageSaveFixture().subject; const control = { guard: () => undefined, signal: undefined,
+      maximumExpanded: () => 1024, consumeExpanded: () => undefined };
+    let reads = 0; const forged = { message: "seaweed_archive_tar_checksum_invalid" };
+    const inherited = Object.create({ message: "seaweed_archive_tar_checksum_invalid" });
+    const accessor = {}; Object.defineProperty(accessor, "message", { get() { reads += 1; return "seaweed_archive_tar_checksum_invalid"; } });
+    const proxy = new Proxy(new Error("seaweed_archive_tar_checksum_invalid"), {
+      get() { reads += 1; throw new Error("secret proxy"); },
+      getOwnPropertyDescriptor() { reads += 1; throw new Error("secret descriptor"); },
+    });
+    const cases = [[new Error("seaweed_archive_tar_checksum_invalid"), "seaweed_archive_tar_checksum_invalid"],
+      [new Error("secret native path token"), "UNKNOWN"], [forged, "UNKNOWN"], [inherited, "UNKNOWN"],
+      [accessor, "UNKNOWN"], [proxy, "UNKNOWN"]];
+    for (const [thrown, reason] of cases) {
+      const api = await observationInternals({ archiveValues: { scanRawUstar: async () => { throw thrown; } } });
+      const failure = await api.__probeInspect(Buffer.from("FORMAT_ONLY"), subject, control).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure))),
+        { version: 1, role: "CANDIDATE", stage: "OUTER_TAR", reason });
+      assert.doesNotMatch(JSON.stringify(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure)), /secret|path|token/u);
+    }
+    assert.equal(reads, 2);
+  });
+
+  test("scanner preserves historical codes from plain, inherited, and accessor messages without archive detail", async () => {
+    const code = "gosu_derivative_image_observation_deadline_exceeded";
+    const inherited = Object.create({ message: code });
+    const accessor = {}; Object.defineProperty(accessor, "message", { get: () => code });
+    for (const thrown of [{ message: code }, inherited, accessor]) {
+      const api = await observationInternals({ archiveValues: { scanRawUstar: async () => { throw thrown; } } });
+      const failure = await api.__probeInspect(Buffer.from("FORMAT_ONLY"), imageSaveFixture().subject,
+        { guard: () => undefined, signal: undefined, maximumExpanded: () => 1024,
+          consumeExpanded: () => undefined }).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationFailureDiagnostic(failure, "OBSERVE"))),
+        { code, phase: "OBSERVE", state: "UNBUILT" });
+      assert.equal(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure), null);
+    }
+  });
+
+  test("expansion-bound failures retain a local LAYER reason", async () => {
+    const realArchive = await import("../scripts/seaweed-image/archive.mjs"); const fixture = imageSaveFixture();
+    const api = await observationInternals({ archiveValues: { scanRawUstar: realArchive.scanRawUstar } });
+    const control = { guard: () => undefined, signal: undefined,
+      maximumExpanded() { throw new Error("private expansion budget"); }, consumeExpanded: () => undefined };
+    const failure = await api.__probeInspect(fixture.archive, fixture.subject, control).catch((error) => error);
+    assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure))),
+      { version: 1, role: "CANDIDATE", stage: "LAYER", reason: "EXPANSION_LIMIT" });
+  });
+
+  test("native archive-invalid expansion limits retain their historical code and local detail", async () => {
+    const realArchive = await import("../scripts/seaweed-image/archive.mjs"); const fixture = imageSaveFixture();
+    const code = "gosu_derivative_image_observation_archive_invalid";
+    for (const point of ["maximum", "consume"]) {
+      const api = await observationInternals({ archiveValues: { scanRawUstar: realArchive.scanRawUstar } });
+      const control = { guard: () => undefined, signal: undefined,
+        maximumExpanded() { if (point === "maximum") throw new Error(code); return 1024 ** 2; },
+        consumeExpanded() { if (point === "consume") throw new Error(code); } };
+      const failure = await api.__probeInspect(fixture.archive, fixture.subject, control).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationFailureDiagnostic(failure, "OBSERVE"))),
+        { code, phase: "OBSERVE", state: "UNBUILT" });
+      assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure))),
+        { version: 1, role: "CANDIDATE", stage: "LAYER", reason: "EXPANSION_LIMIT" });
+    }
+  });
+
+  test("native non-archive and forged archive-invalid expansion codes remain unbranded", async () => {
+    const realArchive = await import("../scripts/seaweed-image/archive.mjs"); const fixture = imageSaveFixture();
+    const cases = [new Error("gosu_derivative_image_observation_deadline_exceeded"),
+      { message: "gosu_derivative_image_observation_archive_invalid" },
+      Object.create(Error.prototype, { message: { value: "gosu_derivative_image_observation_archive_invalid" } })];
+    for (const thrown of cases) {
+      const api = await observationInternals({ archiveValues: { scanRawUstar: realArchive.scanRawUstar } });
+      const control = { guard: () => undefined, signal: undefined,
+        maximumExpanded() { throw thrown; }, consumeExpanded: () => undefined };
+      const failure = await api.__probeInspect(fixture.archive, fixture.subject, control).catch((error) => error);
+      assert.equal(failure, thrown);
+      assert.equal(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure), null);
+    }
+  });
+
+  test("expansion preserves pre-existing closed rejection codes", async () => {
+    const realArchive = await import("../scripts/seaweed-image/archive.mjs"); const fixture = imageSaveFixture();
+    for (const code of ["gosu_derivative_image_observation_input_invalid",
+      "gosu_derivative_image_observation_runtime_invalid", "gosu_derivative_image_observation_routing_invalid",
+      "gosu_derivative_image_observation_context_invalid", "gosu_derivative_image_observation_command_failed",
+      "gosu_derivative_image_observation_stream_invalid", "gosu_derivative_image_observation_archive_invalid",
+      "gosu_derivative_image_observation_identity_invalid", "gosu_derivative_image_observation_deadline_exceeded"]) {
+      const api = await observationInternals({ archiveValues: { scanRawUstar: realArchive.scanRawUstar } });
+      const control = { guard: () => undefined, signal: undefined,
+        maximumExpanded() { throw { message: code }; }, consumeExpanded: () => undefined };
+      const failure = await api.__probeInspect(fixture.archive, fixture.subject, control).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationFailureDiagnostic(failure, "OBSERVE"))),
+        { code, phase: "OBSERVE", state: "UNBUILT" });
+      assert.equal(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure), null);
+    }
+  });
+
+  test("post-build archive reader preserves historical plain-object rejection codes", async () => {
+    const code = "gosu_derivative_image_observation_deadline_exceeded";
+    const fixture = await fullInjectedWorkflow({ readerFailureRole: "BASE", readerFailureValue: { message: code } });
+    const failure = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies).catch((error) => error);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.gosuDerivativeImageObservationFailureDiagnostic(failure))),
+      { code, phase: "OBSERVE", state: "MAY_HAVE_BEEN_BUILT" });
+    assert.equal(fixture.api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure), null);
+  });
+
+  test("post-build BASE and CANDIDATE read failures retain role without raw error text", async () => {
+    for (const role of ["BASE", "CANDIDATE"]) {
+      const fixture = await fullInjectedWorkflow({ readerFailureRole: role });
+      const failure = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+        nonce: "a".repeat(24), lease: lease() }, fixture.dependencies).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure))),
+        { version: 1, role, stage: "READ", reason: "READ_INVALID" });
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.gosuDerivativeImageObservationFailureDiagnostic(failure))),
+        { code: "gosu_derivative_image_observation_input_invalid", phase: "OBSERVE", state: "MAY_HAVE_BEEN_BUILT" });
+      assert.doesNotMatch(JSON.stringify(fixture.api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure)), /secret|path/u);
+    }
+  });
+
+  test("archive identity binding reports the first failing role deterministically", async () => {
+    for (const [mismatch, role] of [["BASE", "BASE"], ["CANDIDATE", "CANDIDATE"], [["BASE", "CANDIDATE"], "BASE"]]) {
+      const fixture = await fullInjectedWorkflow({ readerHashMismatch: mismatch });
+      const failure = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+        nonce: "a".repeat(24), lease: lease() }, fixture.dependencies).catch((error) => error);
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure))),
+        { version: 1, role, stage: "BIND", reason: "IDENTITY_MISMATCH" });
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.gosuDerivativeImageObservationFailureDiagnostic(failure))),
+        { code: "gosu_derivative_image_observation_archive_invalid", phase: "OBSERVE", state: "MAY_HAVE_BEEN_BUILT" });
+    }
+  });
+
   test("runtime accepts cleared supplementary groups when getgroups retains primary gid 1000", async () => {
     const status = "Groups:\t\nNoNewPrivs:\t1\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\n";
     const api = await observationInternals({ fsValues: { readFileSync: (name, encoding) => {
@@ -635,6 +888,23 @@ if (typeof vm.SourceTextModule !== "function") {
     await assert.rejects(async () => api.__probeArchiveReader("/tmp/archive.tar", "BASE", control),
       /gosu_derivative_image_observation_deadline_exceeded/u);
     assert.equal(reads, 1); assert.equal(closed, 1);
+  });
+
+  test("default archive reader preserves historical plain-object rejection codes", async () => {
+    const code = "gosu_derivative_image_observation_deadline_exceeded";
+    const record = { dev: 1n, ino: 2n, uid: 1000n, gid: 1000n, nlink: 1n, mode: 0o100600n, size: 1n,
+      mtimeNs: 1n, ctimeNs: 1n, birthtimeNs: 1n, isFile: () => true, isSymbolicLink: () => false };
+    let closed = 0;
+    const api = await observationInternals({ fsValues: {
+      openSync: () => 92, fstatSync: () => record, lstatSync: () => record, realpathSync: (value) => value,
+      readSync() { throw { message: code }; }, closeSync: () => { closed += 1; },
+    } });
+    const failure = await Promise.resolve().then(() => api.__probeArchiveReader("/tmp/archive.tar", "BASE",
+      { guard: () => undefined })).catch((error) => error);
+    assert.deepEqual(JSON.parse(JSON.stringify(api.gosuDerivativeImageObservationFailureDiagnostic(failure, "OBSERVE"))),
+      { code, phase: "OBSERVE", state: "UNBUILT" });
+    assert.equal(api.gosuDerivativeImageObservationArchiveFailureDetailV1(failure), null);
+    assert.equal(closed, 1);
   });
 
   test("default archive reader allows access-time drift after reading a fresh save", async () => {

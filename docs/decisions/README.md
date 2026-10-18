@@ -53,3 +53,6 @@ ADR-0015 context-source continuation: [PR170 plan](../../roadmap/plans/TASK-0005
 
 
 ADR-0015 checkpoint2026-10-15: PR170 source and the separately reviewed private context are accepted within their limited scopes. The [isolated Gosu image-format observation plan](../../roadmap/plans/TASK-0005A-gosu-image-build-observation.md) requires a new source-first B1a lease/client and one private diagnostic before B1b closes the observed format. Existing image/admission/support/Native boundaries and V1 contracts remain unchanged.
+
+
+ADR-0015 archive-diagnostic continuation: the [closed source plan](../../roadmap/plans/TASK-0005A-gosu-image-archive-diagnostics.md) and [validation](../validation/TASK-0005A-gosu-image-archive-diagnostics.md) define an opt-in finite archive failure detail. The old diagnostic and parser contract remain compatible; actual image format, cleanup, admission and support remain unestablished.
