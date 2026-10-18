@@ -1,4 +1,5 @@
 import { parseSavedSearchCriteria, type SavedSearchCriteria } from "./saved-searches.ts";
+import { buildDemoBaseUrl } from "./demo-link-origin.ts";
 import { parseStrictJson } from "./strict-json.ts";
 
 export const SEARCH_LINK_PREFIX = "#search-link/";
@@ -42,13 +43,8 @@ export function decodeSearchLinkFragment(input: unknown): SearchLinkDecodeResult
 }
 
 export function buildSearchLink(criteria: unknown, pageUrl: string): string | undefined {
-  if (typeof pageUrl !== "string") return undefined;
   const fragment = encodeSearchLinkFragment(criteria);
   if (fragment === undefined) return undefined;
-  let current: URL;
-  try { current = new URL(pageUrl); }
-  catch { return undefined; }
-  if ((current.protocol !== "http:" && current.protocol !== "https:") || current.username !== "" || current.password !== "" || current.hostname === "") return undefined;
-  const destination = new URL("/demo", current.origin);
-  return `${destination.href}${fragment}`;
+  const baseUrl = buildDemoBaseUrl(pageUrl);
+  return baseUrl === undefined ? undefined : `${baseUrl}${fragment}`;
 }
