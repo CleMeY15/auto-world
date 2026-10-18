@@ -73,3 +73,8 @@ Clean-CI correction: the first final-head CI failed because six synthetic routin
 
 
 Upstream integration checkpoint: current main45bcb652227905926035bc6c61e01b5b16e0549d/treea5cce5634614e18f86ac017c948594cd2d069093 includes PR173 browser-local saved searches. The original978-file baseline is retained historically; the current baseline has985 files, source991,981 protected, three exact append-only prefixes, one additive classification and six new owned files. All21 incoming PR173 changes are preserved outside the ten B1a paths; no product implementation is authored in this increment. The c414 source head and its unconsumed CI actor V2 are superseded; listed run38710679087 is retired without original capture and forbidden by the next actor. Six fresh integrated-source gates pass14/21/28/14 with caches13/19/25/13, secrets991/audit0; root1996/1555passes/0fail/441Windows exclusions.
+
+
+## Compatible archive-detail source continuation
+
+The original three-export ownership above describes the initial B1a implementation. The separately reviewed [archive diagnostics increment](TASK-0005A-gosu-image-archive-diagnostics.md) adds only gosuDerivativeImageObservationArchiveFailureDetailV1, a fourth opt-in export. Existing diagnostic and successful-result schemas, accepted archive language, OPAQUE handling and operational limits remain unchanged. A new private caller review is required before consuming that detail; the failed generation2 attempt remains immutable and does not become accepted.

@@ -45,10 +45,28 @@ const CODES = new Set([
   "gosu_derivative_image_observation_identity_invalid",
   "gosu_derivative_image_observation_deadline_exceeded",
 ]);
+const ARCHIVE_ROLES = new Set(["BASE", "CANDIDATE", "UNKNOWN"]);
+const ARCHIVE_STAGES = new Set(["READ", "BIND", "OUTER_TAR", "MANIFEST", "CONFIG", "LAYER"]);
+const ARCHIVE_LOCAL_REASONS = new Set([
+  "READ_INVALID", "SIZE_INVALID", "IDENTITY_MISMATCH", "MEMBER_INVALID", "JSON_INVALID", "SCHEMA_INVALID",
+  "EXPANSION_LIMIT", "UNKNOWN",
+]);
+const SEAWEED_ARCHIVE_REASONS = new Set([
+  "seaweed_archive_aborted", "seaweed_archive_compressed_identity_invalid", "seaweed_archive_compressed_limit",
+  "seaweed_archive_descriptor_invalid", "seaweed_archive_diffid_invalid", "seaweed_archive_diffid_mismatch",
+  "seaweed_archive_gzip_trailing_data", "seaweed_archive_hardlink_option_invalid",
+  "seaweed_archive_input_chunk_invalid", "seaweed_archive_input_invalid", "seaweed_archive_limit_invalid",
+  "seaweed_archive_raw_limit", "seaweed_archive_signal_invalid", "seaweed_archive_stream_invalid",
+  "seaweed_archive_tar_checksum_invalid", "seaweed_archive_tar_duplicate_invalid", "seaweed_archive_tar_eoa_invalid",
+  "seaweed_archive_tar_format_invalid", "seaweed_archive_tar_header_invalid", "seaweed_archive_tar_link_invalid",
+  "seaweed_archive_tar_member_limit", "seaweed_archive_tar_octal_invalid", "seaweed_archive_tar_padding_invalid",
+  "seaweed_archive_tar_path_invalid", "seaweed_archive_tar_truncated", "seaweed_archive_tar_type_invalid",
+]);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const ACCEPTANCE_PATH = path.join(repoRoot, ".omx", "gosu-derivative-context-private-acceptance-v1.json");
 const LOCK_PATH = path.join(repoRoot, "infra", "postgres-image", "gosu-derivative-candidate-lock-v2.json");
 const contextSessions = new WeakMap();
+const archiveFailureDetails = new WeakMap();
 
 const plain = (value) => value !== null && typeof value === "object" && !Array.isArray(value)
   && !types.isProxy(value) && Object.getPrototypeOf(value) === Object.prototype;
@@ -57,13 +75,71 @@ const exact = (value, fields) => plain(value) && isDeepStrictEqual(Object.keys(v
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const freeze = (value) => Array.isArray(value) ? Object.freeze(value.map(freeze)) : plain(value)
   ? Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, freeze(item)]))) : value;
-function fail(code, phase) { throw Object.assign(new Error(code), { phase }); }
+function archiveDetail(role, stage, reason) {
+  const packet = { version: 1, role: ARCHIVE_ROLES.has(role) ? role : "UNKNOWN",
+    stage: ARCHIVE_STAGES.has(stage) ? stage : "READ",
+    reason: ARCHIVE_LOCAL_REASONS.has(reason) || SEAWEED_ARCHIVE_REASONS.has(reason) ? reason : "UNKNOWN" };
+  return Object.freeze(packet);
+}
+function brandArchiveFailure(error, detail) { archiveFailureDetails.set(error, detail); return error; }
+function fail(code, phase, detail) {
+  const error = Object.assign(new Error(code), { phase });
+  throw detail === undefined ? error : brandArchiveFailure(error, detail);
+}
+function archiveFail(role, stage, reason, code = "gosu_derivative_image_observation_archive_invalid") {
+  fail(code, "OBSERVE", archiveDetail(role, stage, reason));
+}
+function ownDataMessage(error) {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null || types.isProxy(error)
+    || !types.isNativeError(error)) return null;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, "message");
+    return descriptor && Object.hasOwn(descriptor, "value") && typeof descriptor.value === "string" ? descriptor.value : null;
+  } catch { return null; }
+}
+function legacyCodeProjection(error) {
+  try {
+    const message = error?.message;
+    return CODES.has(message) ? message : null;
+  } catch { return null; }
+}
+function archiveRole(value) {
+  if (!plain(value)) return "UNKNOWN";
+  const descriptor = Object.getOwnPropertyDescriptor(value, "role");
+  return descriptor && Object.hasOwn(descriptor, "value") && ["BASE", "CANDIDATE"].includes(descriptor.value)
+    ? descriptor.value : "UNKNOWN";
+}
+function scannerFailure(error, role, stage, fallback = "UNKNOWN") {
+  if (legacyCodeProjection(error) !== null) throw error;
+  const message = ownDataMessage(error);
+  archiveFail(role, stage, message !== null && SEAWEED_ARCHIVE_REASONS.has(message) ? message : fallback);
+}
+function expansion(role, operation) {
+  try { return operation(); }
+  catch (error) {
+    const code = legacyCodeProjection(error);
+    if (code !== null) {
+      if (code === "gosu_derivative_image_observation_archive_invalid" && ownDataMessage(error) === code) {
+        throw brandArchiveFailure(error, archiveDetail(role, "LAYER", "EXPANSION_LIMIT"));
+      }
+      throw error;
+    }
+    archiveFail(role, "LAYER", "EXPANSION_LIMIT");
+  }
+}
 function closed(error, phase, fallback = "gosu_derivative_image_observation_input_invalid") {
   let code = fallback;
   try { if (CODES.has(error?.message)) code = error.message; } catch { /* Closed error projection. */ }
   let state = "UNBUILT";
   try { if (error?.state === "MAY_HAVE_BEEN_BUILT") state = "MAY_HAVE_BEEN_BUILT"; } catch { /* Closed state projection. */ }
-  return Object.assign(new Error(code), { phase: PHASES.includes(phase) ? phase : "PREFLIGHT", state });
+  const retained = Object.assign(new Error(code), { phase: PHASES.includes(phase) ? phase : "PREFLIGHT", state });
+  const detail = (typeof error === "object" || typeof error === "function") && error !== null
+    ? archiveFailureDetails.get(error) : undefined;
+  return detail === undefined ? retained : brandArchiveFailure(retained, detail);
+}
+export function gosuDerivativeImageObservationArchiveFailureDetailV1(error) {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return null;
+  return archiveFailureDetails.get(error) ?? null;
 }
 export function gosuDerivativeImageObservationFailureDiagnostic(error, phase) {
   let code = "gosu_derivative_image_observation_input_invalid"; let state = "UNBUILT";
@@ -79,9 +155,9 @@ function chunks(buffer, guard = () => undefined) {
   })();
 }
 function readable(buffer, guard) { return Readable.from(chunks(buffer, guard)); }
-async function scanGzipLayerWithControl(body, diffId, maxRawBytes, control) {
+async function scanGzipLayerWithControl(body, diffId, maxRawBytes, control, role = "UNKNOWN") {
   if (body.length === 0 || body.length > GZIP_COMPRESSED_LIMIT) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+    archiveFail(role, "LAYER", "SIZE_INVALID");
   }
   const compressedSha256 = hash(body); let compressedBytes = 0; const compressedHash = createHash("sha256");
   const input = Readable.from((async function* guardedCompressedInput() {
@@ -105,35 +181,35 @@ async function scanGzipLayerWithControl(body, diffId, maxRawBytes, control) {
     const result = await scanRawUstar({ input: guardedOutput, diffId, maxRawBytes, maxMembers: 100_000, signal: control.signal });
     control.guard();
     if (compressedBytes !== body.length || compressedHash.digest("hex") !== compressedSha256 || gunzip.bytesWritten !== body.length) {
-      fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+      archiveFail(role, "LAYER", "IDENTITY_MISMATCH");
     }
     return result;
   } catch (error) {
     if (control.signal?.aborted) control.guard();
-    throw error;
+    scannerFailure(error, role, "LAYER");
   } finally {
     control.signal?.removeEventListener("abort", abort);
     input.destroy(); gunzip.destroy(); guardedOutput.destroy();
   }
 }
-function parseJson(buffer, code, maximum = JSON_LIMIT, phase = "OBSERVE") {
-  if (!Buffer.isBuffer(buffer) || buffer.length > maximum) fail(code, phase);
-  try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer)); } catch { fail(code, phase); }
+function parseJson(buffer, code, maximum = JSON_LIMIT, phase = "OBSERVE", detail) {
+  if (!Buffer.isBuffer(buffer) || buffer.length > maximum) fail(code, phase, detail);
+  try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer)); } catch { fail(code, phase, detail); }
 }
-function validateSubject(value) {
+function validateSubject(value, role = archiveRole(value)) {
   if (!exact(value, ["role", "reference", "imageId", "configId", "platform"])
     || !["BASE", "CANDIDATE"].includes(value.role) || !DIGEST.test(value.imageId) || !DIGEST.test(value.configId)
     || !exact(value.platform, ["os", "architecture"]) || value.platform.os !== "linux" || value.platform.architecture !== "amd64"
     || value.role === "BASE" && (value.reference !== BASE_REFERENCE || value.imageId !== BASE_CONFIG_ID || value.configId !== BASE_CONFIG_ID)
     || value.role === "CANDIDATE" && !/^aw-postgres-gosu:[0-9a-f]{24}$/u.test(value.reference)) {
-    fail("gosu_derivative_image_observation_identity_invalid", "OBSERVE");
+    archiveFail(role, "BIND", "IDENTITY_MISMATCH", "gosu_derivative_image_observation_identity_invalid");
   }
   return freeze({ ...value, platform: { ...value.platform } });
 }
-function memberBody(buffer, member) {
+function memberBody(buffer, member, role = "UNKNOWN", stage = "OUTER_TAR") {
   const { uncompressedDataOffset: offset, entry } = member;
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(entry.size) || offset + entry.size > buffer.length) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+    archiveFail(role, stage, "MEMBER_INVALID");
   }
   return buffer.subarray(offset, offset + entry.size);
 }
@@ -145,64 +221,65 @@ function descriptor(member) {
 }
 
 async function inspectSave(buffer, subject, control) {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0 || buffer.length > ARCHIVE_LIMIT) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
-  }
-  const accepted = validateSubject(subject);
+  const role = archiveRole(subject);
+  if (types.isProxy(buffer) || !Buffer.isBuffer(buffer)) archiveFail(role, "READ", "READ_INVALID");
+  if (buffer.length === 0 || buffer.length > ARCHIVE_LIMIT) archiveFail(role, "READ", "SIZE_INVALID");
+  const accepted = validateSubject(subject, role);
   let scan;
   try {
     control.guard();
     scan = await scanRawUstar({ input: readable(buffer, control.guard), diffId: `sha256:${hash(buffer)}`, maxRawBytes: ARCHIVE_LIMIT,
       maxMembers: 4096, allowHardlinks: false, signal: control.signal });
     control.guard();
-  } catch (error) { if (CODES.has(error?.message)) throw error; fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
+  } catch (error) { scannerFailure(error, accepted.role, "OUTER_TAR"); }
   const byPath = new Map(scan.members.map((member) => [member.entry.path, member]));
   const manifestMember = byPath.get("manifest.json");
-  if (!manifestMember || manifestMember.entry.type !== "file" || manifestMember.entry.size > JSON_LIMIT) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
-  }
-  const manifest = parseJson(memberBody(buffer, manifestMember), "gosu_derivative_image_observation_archive_invalid");
+  if (!manifestMember || manifestMember.entry.type !== "file") archiveFail(accepted.role, "MANIFEST", "MEMBER_INVALID");
+  if (manifestMember.entry.size > JSON_LIMIT) archiveFail(accepted.role, "MANIFEST", "SIZE_INVALID");
+  const manifest = parseJson(memberBody(buffer, manifestMember, accepted.role, "MANIFEST"),
+    "gosu_derivative_image_observation_archive_invalid", JSON_LIMIT, "OBSERVE",
+    archiveDetail(accepted.role, "MANIFEST", "JSON_INVALID"));
   if (!Array.isArray(manifest) || manifest.length !== 1 || !exact(manifest[0], ["Config", "RepoTags", "Layers"])
     || typeof manifest[0].Config !== "string"
     || accepted.role === "CANDIDATE" && (!Array.isArray(manifest[0].RepoTags) || !manifest[0].RepoTags.includes(accepted.reference))
     || accepted.role === "BASE" && manifest[0].RepoTags !== null && !Array.isArray(manifest[0].RepoTags)
     || !Array.isArray(manifest[0].Layers) || manifest[0].Layers.length === 0
     || new Set(manifest[0].Layers).size !== manifest[0].Layers.length) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+    archiveFail(accepted.role, "MANIFEST", "SCHEMA_INVALID");
   }
   const configMember = byPath.get(manifest[0].Config);
-  if (!configMember || configMember.entry.type !== "file" || configMember.entry.size > JSON_LIMIT) {
-    fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
-  }
-  const configBytes = memberBody(buffer, configMember);
+  if (!configMember || configMember.entry.type !== "file") archiveFail(accepted.role, "CONFIG", "MEMBER_INVALID");
+  if (configMember.entry.size > JSON_LIMIT) archiveFail(accepted.role, "CONFIG", "SIZE_INVALID");
+  const configBytes = memberBody(buffer, configMember, accepted.role, "CONFIG");
   if (`sha256:${hash(configBytes)}` !== accepted.configId || accepted.imageId !== accepted.configId) {
-    fail("gosu_derivative_image_observation_identity_invalid", "OBSERVE");
+    archiveFail(accepted.role, "CONFIG", "IDENTITY_MISMATCH", "gosu_derivative_image_observation_identity_invalid");
   }
-  const config = parseJson(configBytes, "gosu_derivative_image_observation_archive_invalid");
+  const config = parseJson(configBytes, "gosu_derivative_image_observation_archive_invalid", JSON_LIMIT, "OBSERVE",
+    archiveDetail(accepted.role, "CONFIG", "JSON_INVALID"));
   if (!plain(config) || config.os !== "linux" || config.architecture !== "amd64" || !plain(config.rootfs)
     || config.rootfs.type !== "layers" || !Array.isArray(config.rootfs.diff_ids)
     || config.rootfs.diff_ids.length !== manifest[0].Layers.length || config.rootfs.diff_ids.some((item) => !DIGEST.test(item))) {
-    fail("gosu_derivative_image_observation_identity_invalid", "OBSERVE");
+    archiveFail(accepted.role, "CONFIG", "SCHEMA_INVALID", "gosu_derivative_image_observation_identity_invalid");
   }
   const layers = [];
   for (const [index, layerPath] of manifest[0].Layers.entries()) {
-    if (typeof layerPath !== "string") fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+    if (typeof layerPath !== "string") archiveFail(accepted.role, "LAYER", "SCHEMA_INVALID");
     const member = byPath.get(layerPath);
-    if (!member || member.entry.type !== "file") fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
-    const body = memberBody(buffer, member); const storedSha256 = hash(body); let encoding = "OPAQUE"; let tar = null;
+    if (!member || member.entry.type !== "file") archiveFail(accepted.role, "LAYER", "MEMBER_INVALID");
+    const body = memberBody(buffer, member, accepted.role, "LAYER"); const storedSha256 = hash(body); let encoding = "OPAQUE"; let tar = null;
     try {
       if (body[0] === 0x1f && body[1] === 0x8b) {
         encoding = "GZIP";
-        const maximum = control.maximumExpanded();
-        tar = await scanGzipLayerWithControl(body, config.rootfs.diff_ids[index], maximum, control);
+        const maximum = expansion(accepted.role, () => control.maximumExpanded());
+        tar = await scanGzipLayerWithControl(body, config.rootfs.diff_ids[index], maximum, control, accepted.role);
       } else if (body.length >= 265 && body.subarray(257, 263).equals(Buffer.from("ustar\0"))) {
         encoding = "USTAR";
-        const maximum = control.maximumExpanded();
+        const maximum = expansion(accepted.role, () => control.maximumExpanded());
         tar = await scanRawUstar({ input: readable(body, control.guard), diffId: config.rootfs.diff_ids[index], maxRawBytes: maximum,
           maxMembers: 100_000, allowHardlinks: false, signal: control.signal });
       }
-    } catch (error) { if (CODES.has(error?.message)) throw error; fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
-    if (tar !== null) control.consumeExpanded(tar.rawSize ?? tar.uncompressedSize);
+    } catch (error) { scannerFailure(error, accepted.role, "LAYER"); }
+    if (tar !== null) expansion(accepted.role, () => control.consumeExpanded(tar.rawSize ?? tar.uncompressedSize));
     layers[layers.length] = freeze({ ordinal: index, path: layerPath, storedBytes: body.length, storedSha256, encoding,
       expandedBytes: tar === null ? "NOT_ESTABLISHED" : tar.rawSize ?? tar.uncompressedSize,
       diffId: encoding === "OPAQUE" ? "NOT_ESTABLISHED" : config.rootfs.diff_ids[index],
@@ -360,12 +437,21 @@ function defaultContextReader(specification, control) {
     throw error;
   }
 }
-function readerRecord(value, expected, phase) {
-  if (!exact(value, ["buffer", "identity", "physical"]) || !Buffer.isBuffer(value.buffer)
-    || !isDeepStrictEqual(value.identity, { bytes: value.buffer.length, sha256: hash(value.buffer) })
-    || value.identity.bytes > expected.maximumBytes || expected.bytes !== undefined && value.identity.bytes !== expected.bytes
-    || expected.sha256 !== undefined && value.identity.sha256 !== expected.sha256 || !plain(value.physical)) {
-    fail(phase === "CONTEXT" ? "gosu_derivative_image_observation_context_invalid" : "gosu_derivative_image_observation_archive_invalid", phase);
+function readerRecord(value, expected, phase, role = "UNKNOWN") {
+  if (!exact(value, ["buffer", "identity", "physical"]) || !Buffer.isBuffer(value.buffer) || !plain(value.identity)
+    || !plain(value.physical)) {
+    if (phase === "CONTEXT") fail("gosu_derivative_image_observation_context_invalid", phase);
+    archiveFail(role, "READ", "READ_INVALID");
+  }
+  if (!isDeepStrictEqual(value.identity, { bytes: value.buffer.length, sha256: hash(value.buffer) })
+    || expected.bytes !== undefined && value.identity.bytes !== expected.bytes
+    || expected.sha256 !== undefined && value.identity.sha256 !== expected.sha256) {
+    if (phase === "CONTEXT") fail("gosu_derivative_image_observation_context_invalid", phase);
+    archiveFail(role, "BIND", "IDENTITY_MISMATCH");
+  }
+  if (value.identity.bytes > expected.maximumBytes) {
+    if (phase === "CONTEXT") fail("gosu_derivative_image_observation_context_invalid", phase);
+    archiveFail(role, "READ", "SIZE_INVALID");
   }
   return value;
 }
@@ -451,25 +537,32 @@ function promoteNoReplace(partial, final, expectedPhysical) {
   finally { closeSync(directoryFd); }
 }
 function defaultArchiveReader(specification, control) {
+  const role = archiveRole(specification);
   if (!exact(specification, ["path", "role", "maximumBytes"]) || !["BASE", "CANDIDATE"].includes(specification.role)
-    || specification.maximumBytes !== ARCHIVE_LIMIT) fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
-  const fd = openSync(specification.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    || specification.maximumBytes !== ARCHIVE_LIMIT) archiveFail(role, "READ", "READ_INVALID");
+  let fd;
+  try { fd = openSync(specification.path, constants.O_RDONLY | constants.O_NOFOLLOW); }
+  catch { archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid"); }
   try {
     const stat = fstatSync(fd, { bigint: true }); const named = lstatSync(specification.path, { bigint: true });
     if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n || stat.uid !== 1000n || stat.gid !== 1000n
-      || (stat.mode & 0o7777n) !== 0o600n || stat.size <= 0n || stat.size > BigInt(ARCHIVE_LIMIT)
+      || (stat.mode & 0o7777n) !== 0o600n
       || !isDeepStrictEqual(stableSnapshot(stat), stableSnapshot(named)) || realpathSync(specification.path) !== specification.path) {
-      fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+      archiveFail(role, "READ", "READ_INVALID");
     }
+    if (stat.size <= 0n || stat.size > BigInt(ARCHIVE_LIMIT)) archiveFail(role, "READ", "SIZE_INVALID");
     const buffer = Buffer.allocUnsafe(Number(stat.size)); let offset = 0;
     while (offset < buffer.length) { control.guard(); const count = readSync(fd, buffer, offset, Math.min(MiB, buffer.length - offset), offset); if (count <= 0) break; offset += count; }
     control.guard();
     const after = fstatSync(fd, { bigint: true }); const final = lstatSync(specification.path, { bigint: true });
     if (offset !== buffer.length || !isDeepStrictEqual(stableSnapshot(stat), stableSnapshot(after))
       || !isDeepStrictEqual(stableSnapshot(stat), stableSnapshot(final)) || realpathSync(specification.path) !== specification.path) {
-      fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE");
+      archiveFail(role, "READ", "READ_INVALID");
     }
     return freeze({ buffer, identity: { bytes: buffer.length, sha256: hash(buffer) }, physical: stableSnapshot(stat) });
+  } catch (error) {
+    if (legacyCodeProjection(error) !== null) throw error;
+    archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid");
   } finally { closeSync(fd); }
 }
 function defaultRunner(request) {
@@ -731,16 +824,23 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     const candidateSave = await command("SAVE_CANDIDATE", ["image", "save", "--platform", "linux/amd64", candidateReference], 90_000, { stdoutPath: candidatePartial });
     if (!runnerInjected) promoteNoReplace(candidatePartial, candidateFinal, candidateSave.outputPhysical);
     phase = "OBSERVE";
-    const baseRecord = readerRecord(await archiveReader(freeze({ path: runnerInjected ? basePartial : baseFinal,
-      role: "BASE", maximumBytes: ARCHIVE_LIMIT }), control), { maximumBytes: ARCHIVE_LIMIT }, phase);
-    const candidateRecord = readerRecord(await archiveReader(freeze({ path: runnerInjected ? candidatePartial : candidateFinal,
-      role: "CANDIDATE", maximumBytes: ARCHIVE_LIMIT }), control), { maximumBytes: ARCHIVE_LIMIT }, phase);
-    if (!isDeepStrictEqual(baseRecord.identity, baseSave.outputIdentity)
-      || !isDeepStrictEqual(candidateRecord.identity, candidateSave.outputIdentity)) fail("gosu_derivative_image_observation_archive_invalid", phase);
+    const readArchive = async (role, archivePath) => {
+      try {
+        return readerRecord(await archiveReader(freeze({ path: archivePath, role, maximumBytes: ARCHIVE_LIMIT }), control),
+          { maximumBytes: ARCHIVE_LIMIT }, phase, role);
+      } catch (error) {
+        if (archiveFailureDetails.has(error) || legacyCodeProjection(error) !== null) throw error;
+        archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid");
+      }
+    };
+    const baseRecord = await readArchive("BASE", runnerInjected ? basePartial : baseFinal);
+    const candidateRecord = await readArchive("CANDIDATE", runnerInjected ? candidatePartial : candidateFinal);
+    if (!isDeepStrictEqual(baseRecord.identity, baseSave.outputIdentity)) archiveFail("BASE", "BIND", "IDENTITY_MISMATCH");
+    if (!isDeepStrictEqual(candidateRecord.identity, candidateSave.outputIdentity)) archiveFail("CANDIDATE", "BIND", "IDENTITY_MISMATCH");
     const baseArchive = baseRecord.buffer; const candidateArchive = candidateRecord.buffer;
-    if (!Buffer.isBuffer(baseArchive) || !Buffer.isBuffer(candidateArchive) || baseArchive.length + candidateArchive.length > 2 * GiB) {
-      fail("gosu_derivative_image_observation_archive_invalid", phase);
-    }
+    if (!Buffer.isBuffer(baseArchive)) archiveFail("BASE", "BIND", "READ_INVALID");
+    if (!Buffer.isBuffer(candidateArchive)) archiveFail("CANDIDATE", "BIND", "READ_INVALID");
+    if (baseArchive.length + candidateArchive.length > 2 * GiB) archiveFail("UNKNOWN", "BIND", "SIZE_INVALID");
     const base = await inspectSave(baseArchive, baseSubject, control);
     const candidate = await inspectSave(candidateArchive, candidateSubject, control);
     phase = "FINAL";
