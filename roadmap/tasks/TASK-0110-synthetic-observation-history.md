@@ -1,6 +1,6 @@
 # TASK-0110 — Readable synthetic observation history
 
-Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-10-15. DoR, implementation, independent code/architecture/final Windows/Linux pixel reviews and local quality gates complete. Both full browser suites192 pass/6 intentional exclusions/zero failures; [evidence](../../docs/validation/TASK-0110.md). Exact-source CI, protected merge and exact-main CI remain separate gates recorded in the final PR acceptance checkpoint; not Done at this source checkpoint.
+Status: DONE_ON_MAIN, accepted2026-10-18. [PR177 checkpoint](https://github.com/CleMeY15/auto-world/pull/177#issuecomment-6248301095): sourceCI38744869739/mainCI38746704125 SUCCESS, main5e220c7c71e8a5ec1ad716b8e708d944ee31f301 with identical reviewed tree. Independent code/architecture/Windows/Linux pixel reviews and both192-pass browser suites accepted; [evidence](../../docs/validation/TASK-0110.md). TASK-0111 starts only after this delivery acceptance.
 Priority: P1, independent synthetic product lane.
 Owner: application lead; disjoint pure-model/test and browser-test lanes; independent code, architecture and actual-pixel UX review.
 

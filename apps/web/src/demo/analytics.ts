@@ -1,10 +1,10 @@
-export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "saved_search_added" | "saved_search_restored" | "saved_search_removed" | "saved_search_undone" | "comparison_added" | "comparison_removed" | "comparison_opened" | "storage_failed" | "retry_clicked";
-export type DemoAnalyticsScreen = "search" | "results" | "detail" | "saved" | "compare";
+export type DemoAnalyticsEventName = "search_submitted" | "results_shown" | "detail_opened" | "favorite_added" | "favorite_removed" | "favorite_undone" | "saved_search_added" | "saved_search_restored" | "saved_search_removed" | "saved_search_undone" | "comparison_added" | "comparison_removed" | "comparison_opened" | "storage_failed" | "retry_clicked" | "search_link_created" | "search_link_copied" | "search_link_loaded";
+export type DemoAnalyticsScreen = "search" | "results" | "detail" | "saved" | "compare" | "shared";
 export type DemoAnalyticsOutcome = "success" | "empty" | "error" | "offline" | "partial" | "stale";
 export interface DemoAnalyticsEvent { readonly eventName: DemoAnalyticsEventName; readonly screen: DemoAnalyticsScreen; readonly outcome: DemoAnalyticsOutcome }
 export type DemoAnalyticsSink = (event: DemoAnalyticsEvent) => void;
-const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "saved_search_added", "saved_search_restored", "saved_search_removed", "saved_search_undone", "comparison_added", "comparison_removed", "comparison_opened", "storage_failed", "retry_clicked"]);
-const screens = new Set<DemoAnalyticsScreen>(["search", "results", "detail", "saved", "compare"]);
+const eventNames = new Set<DemoAnalyticsEventName>(["search_submitted", "results_shown", "detail_opened", "favorite_added", "favorite_removed", "favorite_undone", "saved_search_added", "saved_search_restored", "saved_search_removed", "saved_search_undone", "comparison_added", "comparison_removed", "comparison_opened", "storage_failed", "retry_clicked", "search_link_created", "search_link_copied", "search_link_loaded"]);
+const screens = new Set<DemoAnalyticsScreen>(["search", "results", "detail", "saved", "compare", "shared"]);
 const outcomes = new Set<DemoAnalyticsOutcome>(["success", "empty", "error", "offline", "partial", "stale"]);
 
 export function parseAnalyticsEvent(input: unknown): DemoAnalyticsEvent | undefined {

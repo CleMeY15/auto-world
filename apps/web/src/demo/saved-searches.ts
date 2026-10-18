@@ -132,7 +132,7 @@ function canonicalQuery(input: unknown, rejectCursor = true): Omit<DemoSearchQue
   });
 }
 
-function parseCriteria(input: unknown): SavedSearchCriteria | undefined {
+export function parseSavedSearchCriteria(input: unknown): SavedSearchCriteria | undefined {
   let hasBinding: boolean;
   try { hasBinding = typeof input === "object" && input !== null && Object.hasOwn(input, "binding"); }
   catch { return undefined; }
@@ -148,7 +148,7 @@ function parseCriteria(input: unknown): SavedSearchCriteria | undefined {
 }
 
 function cloneSearch(search: SavedSearch): SavedSearch {
-  return Object.freeze({ name: search.name, criteria: parseCriteria(search.criteria)! });
+  return Object.freeze({ name: search.name, criteria: parseSavedSearchCriteria(search.criteria)! });
 }
 
 function canonicalEntry(search: SavedSearch): object {
@@ -174,7 +174,7 @@ function decode(source: string): Decoded {
     const entry = ownDataObject(item, ["name", "criteria"]);
     if (entry === undefined) return { kind: "corrupt" };
     const name = normalizeName(entry.name, true);
-    const criteria = parseCriteria(entry.criteria);
+    const criteria = parseSavedSearchCriteria(entry.criteria);
     if (name === undefined || criteria === undefined) return { kind: "corrupt" };
     const key = getSavedSearchKey(criteria);
     if (keys.has(key)) return { kind: "corrupt" };
@@ -189,7 +189,7 @@ function failureStatus(error: unknown): SavedSearchStorageStatus {
 }
 
 export function getSavedSearchKey(criteria: SavedSearchCriteria): string {
-  const parsed = parseCriteria(criteria);
+  const parsed = parseSavedSearchCriteria(criteria);
   if (parsed === undefined) return "";
   return JSON.stringify(parsed);
 }
@@ -204,11 +204,11 @@ export function captureSavedSearchCriteria(query: DemoSearchQueryV2, response: D
   if (queryWithoutCursor === undefined) return undefined;
   const hasIdentity = queryWithoutCursor.makeId !== undefined || queryWithoutCursor.modelId !== undefined;
   const binding = hasIdentity ? Object.freeze({ fixtureVersion: parsedResponse.data.fixtureVersion, taxonomyRelease: parsedResponse.data.taxonomyRelease }) : undefined;
-  return parseCriteria({ query: queryWithoutCursor, ...(binding === undefined ? {} : { binding }) });
+  return parseSavedSearchCriteria({ query: queryWithoutCursor, ...(binding === undefined ? {} : { binding }) });
 }
 
 export function matchingSavedSearchCatalog(criteria: SavedSearchCriteria, catalog: DemoCatalogResponseV2 | undefined): DemoCatalogResponseV2 | undefined {
-  const parsedCriteria = parseCriteria(criteria);
+  const parsedCriteria = parseSavedSearchCriteria(criteria);
   if (parsedCriteria === undefined || parsedCriteria.binding === undefined || catalog === undefined) return undefined;
   const parsedCatalog = parseDemoCatalogResponseV2(catalog);
   if (!parsedCatalog.success) return undefined;
@@ -244,7 +244,7 @@ function finiteToPlainDecimal(value: number): string {
 }
 
 export function savedSearchToFilterInput(criteria: SavedSearchCriteria, catalog?: DemoCatalogResponseV2, omitIdentity = false): DemoFilterInputV2 | undefined {
-  const parsed = parseCriteria(criteria);
+  const parsed = parseSavedSearchCriteria(criteria);
   if (parsed === undefined) return undefined;
   const hasIdentity = parsed.query.makeId !== undefined || parsed.query.modelId !== undefined;
   if (hasIdentity && !omitIdentity && matchingSavedSearchCatalog(parsed, catalog) === undefined) return undefined;
@@ -340,7 +340,7 @@ export function createSavedSearchStore(options: { readonly storageProvider?: () 
     add(nameInput: unknown, criteriaInput: unknown) {
       if (!writable()) return { ok: false, reason: "readonly" };
       const name = normalizeName(nameInput);
-      const criteria = parseCriteria(criteriaInput);
+      const criteria = parseSavedSearchCriteria(criteriaInput);
       if (name === undefined || criteria === undefined) return { ok: false, reason: "invalid" };
       const key = getSavedSearchKey(criteria);
       if (searches.some((item) => getSavedSearchKey(item.criteria) === key)) return { ok: false, reason: "duplicate" };
