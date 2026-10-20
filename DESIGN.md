@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103/0107/0108/0109/0110/0111 are accepted on main; TASK-0112 adds explicit local publication links under its own [validation gates](docs/validation/TASK-0112.md).
-- Last refreshed: 2026-10-18.
+- Status: Active. TASK-0103/0107/0108/0109/0110/0111/0112 are accepted on main; TASK-0113 adds explicit local comparison links under its own [validation gates](docs/validation/TASK-0113.md).
+- Last refreshed: 2026-10-20.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -130,3 +130,13 @@
 - Same clipboard lifecycle and access/performance matrix as0111; stale completion after close/navigation/replacement must not announce success. No clipboard read or implicit write. [Task](roadmap/tasks/TASK-0112-synthetic-publication-links.md) and [evidence](docs/validation/TASK-0112.md) govern sign-off.
 - TASK-0111 delivery is accepted: sourceCI39139363548/mainCI39140493041 SUCCESS, main3cccfb4; [checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551).
 - TASK-0112 implementation: independent code APPROVE/architecture CLEAR and final Windows/Linux actual-pixel UX APPROVE;291 passing browser tests per platform,78 web unit tests and existing accessibility/performance budgets pass. Exact-head/main delivery remains separate; [evidence](docs/validation/TASK-0112.md).
+
+## TASK-0113 comparison-link contract
+
+- TASK0112 delivery is accepted on main1d0133e17a9b8bcf763ae520ab1a2a05bc25e334, sourceCI39145354060/mainCI39146578449 SUCCESS; [checkpoint](https://github.com/CleMeY15/auto-world/pull/181#issuecomment-6252629201).
+- Existing Compare gains one inline secondary Créer un lien action for2–3 publications, using the shared labelled field/copy/manual fallback/focus pattern. No new modal, card stack, primary navigation or visual theme. Use the established calm palette, tokens and touch targets.
+- Received Comparaison reçue explains that the link contains publication references, not frozen values or a real vehicle identity. State the local-computer/current-runtime limit before explicit Charger la comparaison. No implicit detail reads/search/save/copy; no editing of existing draft/results/selection.
+- Show each requested numbered slot during loading/failure. Full comparison appears only after all requested compatible detail reads succeed; unavailable/mixed-fixture data offers explained retry-all rather than a silently reduced table. Successful ended/missing publications retain their availability label.
+- Each column has its own read timestamp (UTC seconds/nonzero milliseconds) and partial/stale qualification. Catalogue mismatch leaves identity unavailable; observed price/km retain their provenance and exact units. No fabricated common instant, conversion or rank.
+- Explicit re-read clears old table and provides immediate loading/slow feedback; no late response or clipboard completion may announce a superseded action. Offline loaded data stays qualified. Return/retry/focus/keyboard/44px/axe and both-engine viewport/enlarged-text gates remain mandatory. [Task](roadmap/tasks/TASK-0113-synthetic-comparison-links.md) and [validation](docs/validation/TASK-0113.md) govern acceptance.
+- Local sign-off: code APPROVE, architecture CLEAR and independently inspected Windows/Linux Chromium/WebKit pixels APPROVE. Both full browser suites361 pass/7 existing exclusions; Windows full production-source run precedes two fixture-only clock repairs validated20/20 separately, Linux full run includes them. No relaxed assertion/budget/exclusion. Exact-source/main delivery remains pending and is not implied by visual approval.

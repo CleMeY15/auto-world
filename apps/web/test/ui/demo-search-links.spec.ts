@@ -420,7 +420,8 @@ test("ignoring a link preserves the edited draft and accepted result snapshot", 
 
 test("shared-route interruption preserves the accepted pagination cursor for an exact retry", async ({ page }) => {
   const cursor = `cur_${"c".repeat(64)}`;
-  const observedAt = new Date().toISOString();
+  // Stay fresh without requiring the runner and browser clocks to agree to the millisecond.
+  const observedAt = new Date(Date.now() - 5_000).toISOString();
   const submitted: SubmittedQuery[] = [];
   let calls = 0;
   let releaseOldPage!: () => void;

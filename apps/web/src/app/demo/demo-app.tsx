@@ -6,8 +6,9 @@ import { Banner, Button, Card, Field, FilterIcon, SearchIcon, Skeleton } from "@
 import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchResponseV2, DemoSearchSort } from "@auto-world/demo-search-contract";
 
 import { recordAnalyticsEvent, type DemoAnalyticsOutcome, type DemoAnalyticsScreen } from "../../demo/analytics";
-import { createDemoClientV2, createSearchPaginationV2, loadSavedDetailsV2, type DemoClientErrorCode, type DemoClientOutcomeV2 } from "../../demo/client";
+import { createDemoClientV2, createSearchPaginationV2, loadSavedDetailsV2, type DemoClientErrorCode, type DemoClientOutcomeV2, type SavedDetailResultV2 } from "../../demo/client";
 import { matchingCatalog, modelsForMake } from "../../demo/catalog";
+import { decodeComparisonLinkFragment, isComparisonLinkFragment, resolveComparisonBundle } from "../../demo/comparison-link";
 import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, type ComparisonEntry } from "../../demo/comparison";
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
 import { parseFilterInputV2 } from "../../demo/model";
@@ -35,11 +36,12 @@ import {
   SyntheticDisclosure,
 } from "./demo-components";
 import { ComparisonScreen } from "./comparison-components";
+import { ComparisonLinkReview, type ComparisonLinkLoadState, type ComparisonLinkSlotState } from "./comparison-link-components";
 import { DetailSnapshot } from "./history-components";
 import { SavedSearchesSection } from "./saved-search-components";
 import { PublicationLinkCreator, SearchLinkCreator, SearchLinkReview } from "./search-link-components";
 
-type Screen = "search" | "results" | "detail" | "saved" | "compare" | "shared";
+type Screen = "search" | "results" | "detail" | "saved" | "compare" | "shared" | "received-comparison";
 type ListingId = NonNullable<ReturnType<typeof parsePublicListingId>>;
 type DetailState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly response: DemoSearchResponseV2; readonly result: DemoResultV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode };
 type CatalogState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly data: DemoCatalogResponseV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode; readonly mismatch?: boolean; readonly empty?: boolean };
@@ -62,6 +64,7 @@ function getOnlineSnapshot() { return navigator.onLine; }
 function getOnlineServerSnapshot() { return true; }
 
 function parseLocation(hash: string): { readonly screen: Screen; readonly listingId?: ListingId; readonly invalid?: boolean } {
+  if (isComparisonLinkFragment(hash)) return { screen: "received-comparison" };
   if (isSearchLinkFragment(hash)) return { screen: "shared" };
   if (hash === "#demo-main") return { screen: "search" };
   if (hash === "#saved") return { screen: "saved" };
@@ -74,6 +77,10 @@ function parseLocation(hash: string): { readonly screen: Screen; readonly listin
     return parsed === undefined ? { screen: "search", invalid: true } : { screen: "detail", listingId: parsed };
   }
   return { screen: "search", invalid: hash !== "" && hash !== "#search" };
+}
+
+function comparisonSlots(count: number, status: ComparisonLinkSlotState["status"], message: string): readonly ComparisonLinkSlotState[] {
+  return Object.freeze(Array.from({ length: count }, () => Object.freeze({ status, message })));
 }
 
 function errorCopy(code: SearchError | undefined) {
@@ -114,6 +121,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const location = parseLocation(hash);
   const screen: Screen = enabled ? location.screen : "saved";
   const sharedHash = screen === "shared" ? hash : undefined;
+  const receivedComparisonHash = screen === "received-comparison" ? hash : undefined;
+  const decodedComparisonLink = decodeComparisonLinkFragment(hash);
   const [favorites] = useState(() => createFavoritesStore());
   const [savedSearches] = useState(() => createSavedSearchStore());
   const [pagination] = useState(() => createSearchPaginationV2());
@@ -148,6 +157,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const acceptedDetail = detail.status === "ready" && detail.result.listingId === location.listingId ? detail : undefined;
   const [detailRetry, setDetailRetry] = useState(0);
   const [savedDetails, setSavedDetails] = useState<ReadonlyMap<ListingId, DemoClientOutcomeV2>>(() => new Map());
+  const [comparisonLinkState, setComparisonLinkState] = useState<{ readonly rawHash: string; readonly load: ComparisonLinkLoadState }>(() => ({ rawHash: "", load: { status: "idle", slots: Object.freeze([]) } }));
+  const [comparisonLinkSlow, setComparisonLinkSlow] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [linkedCriteriaNotice, setLinkedCriteriaNotice] = useState<string>();
   const [resetArmed, setResetArmed] = useState(false);
@@ -157,10 +168,15 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const detailAbort = useRef<AbortController | undefined>(undefined);
   const savedAbort = useRef<AbortController | undefined>(undefined);
   const catalogAbort = useRef<AbortController | undefined>(undefined);
+  const comparisonLinkAbort = useRef<AbortController | undefined>(undefined);
   const searchEpoch = useRef(0);
   const detailEpoch = useRef(0);
   const savedEpoch = useRef(0);
   const catalogEpoch = useRef(0);
+  const comparisonLinkEpoch = useRef(0);
+  const comparisonLinkLoading = useRef(false);
+  const comparisonLinkSlowTimer = useRef<number | undefined>(undefined);
+  const comparisonLinkDeadlineTimer = useRef<number | undefined>(undefined);
   const catalogMismatchAttempts = useRef(new Set<string>());
   const catalogStateRef = useRef<CatalogState>(catalog);
   const lastQuery = useRef<DemoSearchQueryV2 | undefined>(undefined);
@@ -189,7 +205,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); }, [favorites, savedSearches]);
   useEffect(() => {
-    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : "Mes listes";
+    const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : screen === "received-comparison" ? "Comparaison reçue" : "Mes listes";
     document.title = `${label} — Auto World`;
   }, [screen]);
   useEffect(() => {
@@ -209,16 +225,43 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }, [favorites, savedSearches]);
 
   useEffect(() => {
-    const cancelForSharedLink = () => {
-      if (!enabled || !isSearchLinkFragment(window.location.hash)) return;
+    const cancelForReceivedLink = () => {
+      if (!enabled || (!isSearchLinkFragment(window.location.hash) && !isComparisonLinkFragment(window.location.hash))) return;
       searchAbort.current?.abort();
       searchAbort.current = undefined;
       searchEpoch.current += 1;
       pendingResponseFocus.current = undefined;
       setLoading(false); setLoadingMore(false); setSlow(false);
     };
-    window.addEventListener("hashchange", cancelForSharedLink);
-    return () => window.removeEventListener("hashchange", cancelForSharedLink);
+    window.addEventListener("hashchange", cancelForReceivedLink);
+    return () => window.removeEventListener("hashchange", cancelForReceivedLink);
+  }, [enabled]);
+
+  useEffect(() => {
+    let active = true;
+    const resetComparisonLink = () => {
+      if (!active) return;
+      comparisonLinkAbort.current?.abort();
+      comparisonLinkAbort.current = undefined;
+      if (comparisonLinkSlowTimer.current !== undefined) window.clearTimeout(comparisonLinkSlowTimer.current);
+      if (comparisonLinkDeadlineTimer.current !== undefined) window.clearTimeout(comparisonLinkDeadlineTimer.current);
+      comparisonLinkSlowTimer.current = undefined;
+      comparisonLinkDeadlineTimer.current = undefined;
+      comparisonLinkEpoch.current += 1;
+      comparisonLinkLoading.current = false;
+      const rawHash = window.location.hash;
+      const decoded = enabled ? decodeComparisonLinkFragment(rawHash) : undefined;
+      const slots = comparisonSlots(decoded?.status === "valid" ? decoded.listingIds.length : 0, "idle", "Prête à être lue. Aucun détail n’a été chargé.");
+      setComparisonLinkSlow(false);
+      setComparisonLinkState({ rawHash, load: { status: "idle", slots } });
+    };
+    // Observe every navigation, including a leave-and-return batched into one render.
+    window.addEventListener("hashchange", resetComparisonLink);
+    queueMicrotask(resetComparisonLink);
+    return () => {
+      active = false;
+      window.removeEventListener("hashchange", resetComparisonLink);
+    };
   }, [enabled]);
 
   const retryCatalog = useCallback(() => {
@@ -286,7 +329,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       heading?.focus({ preventScroll: true });
       window.scrollTo({ top: 0 });
     }
-  }, [screen, location.listingId, sharedHash]);
+  }, [screen, location.listingId, receivedComparisonHash, sharedHash]);
   useLayoutEffect(() => {
     if (!response || pendingResponseFocus.current === undefined) return;
     document.getElementById(pendingResponseFocus.current)?.focus({ preventScroll: true });
@@ -336,7 +379,13 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     for (const outcome of savedDetails.values()) if (outcome.ok) ensureCatalogForResponse(outcome.data);
   }, [catalog, detail, ensureCatalogForResponse, response, savedDetails]);
 
-  useEffect(() => () => { searchAbort.current?.abort(); detailAbort.current?.abort(); savedAbort.current?.abort(); catalogAbort.current?.abort(); }, []);
+  useEffect(() => () => {
+    searchAbort.current?.abort(); detailAbort.current?.abort(); savedAbort.current?.abort(); catalogAbort.current?.abort(); comparisonLinkAbort.current?.abort();
+    if (comparisonLinkSlowTimer.current !== undefined) window.clearTimeout(comparisonLinkSlowTimer.current);
+    if (comparisonLinkDeadlineTimer.current !== undefined) window.clearTimeout(comparisonLinkDeadlineTimer.current);
+    comparisonLinkEpoch.current += 1;
+    comparisonLinkLoading.current = false;
+  }, []);
 
   const focusAfterRender = useCallback((id: string) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(id)?.focus()));
@@ -372,7 +421,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     const slowTimer = window.setTimeout(() => { if (!controller.signal.aborted && epoch === searchEpoch.current) setSlow(true); }, 750);
     const outcome = await client.search(requestedQuery, { signal: controller.signal });
     window.clearTimeout(slowTimer);
-    if (controller.signal.aborted || epoch !== searchEpoch.current || isSearchLinkFragment(window.location.hash)) return;
+    if (controller.signal.aborted || epoch !== searchEpoch.current || isSearchLinkFragment(window.location.hash) || isComparisonLinkFragment(window.location.hash)) return;
     setSlow(false); if (append) setLoadingMore(false); else setLoading(false);
     if (!outcome.ok) { setPageFailure(append); setSearchError(outcome.code); if (append) focusAfterRender("demo-page-retry"); return; }
     const accepted = append ? pagination.acceptNext(pageToken, outcome.data) : pagination.acceptFirst(pageToken, outcome.data);
@@ -526,6 +575,82 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function loadLinkedComparison() {
+    if (!enabled || receivedComparisonHash === undefined || window.location.hash !== receivedComparisonHash || decodedComparisonLink.status !== "valid" || comparisonLinkLoading.current) return;
+    comparisonLinkLoading.current = true;
+    const rawHash = receivedComparisonHash;
+    const requestedIds = decodedComparisonLink.listingIds;
+    const controller = new AbortController();
+    comparisonLinkAbort.current?.abort();
+    comparisonLinkAbort.current = controller;
+    const epoch = ++comparisonLinkEpoch.current;
+    let deadlineReached = false;
+    setComparisonLinkSlow(false);
+    setComparisonLinkState({ rawHash, load: { status: "loading", slots: comparisonSlots(requestedIds.length, "loading", "Lecture en cours…") } });
+    const slowTimer = window.setTimeout(() => {
+      if (!controller.signal.aborted && epoch === comparisonLinkEpoch.current && window.location.hash === rawHash) setComparisonLinkSlow(true);
+    }, 750);
+    const deadline = window.setTimeout(() => { deadlineReached = true; controller.abort(); }, 15_000);
+    comparisonLinkSlowTimer.current = slowTimer;
+    comparisonLinkDeadlineTimer.current = deadline;
+    let items: readonly SavedDetailResultV2[];
+    try {
+      items = await loadSavedDetailsV2(client, requestedIds, {
+        signal: controller.signal,
+        onItem(item, index) {
+          if (epoch !== comparisonLinkEpoch.current || window.location.hash !== rawHash) return;
+          setComparisonLinkState((current) => {
+            if (current.rawHash !== rawHash || current.load.status !== "loading") return current;
+            const slots = [...current.load.slots];
+            slots[index] = Object.freeze(item.outcome.ok
+              ? { status: "ready" as const, message: "Lecture reçue." }
+              : { status: "error" as const, message: item.outcome.code === "not_found" ? "Publication introuvable dans cette lecture." : item.outcome.code === "offline" ? "Lecture impossible hors connexion." : "Lecture indisponible." });
+            return { rawHash, load: { status: "loading", slots: Object.freeze(slots) } };
+          });
+        },
+      });
+    } catch (error) {
+      // Expected network/protocol failures are structured client outcomes.
+      // Programming failures must remain observable, never become an empty batch.
+      controller.abort();
+      throw error;
+    } finally {
+      window.clearTimeout(slowTimer);
+      window.clearTimeout(deadline);
+      if (comparisonLinkSlowTimer.current === slowTimer) comparisonLinkSlowTimer.current = undefined;
+      if (comparisonLinkDeadlineTimer.current === deadline) comparisonLinkDeadlineTimer.current = undefined;
+      if (epoch === comparisonLinkEpoch.current) {
+        comparisonLinkLoading.current = false;
+        setComparisonLinkSlow(false);
+      }
+      if (comparisonLinkAbort.current === controller) comparisonLinkAbort.current = undefined;
+    }
+    if (epoch !== comparisonLinkEpoch.current || window.location.hash !== rawHash) return;
+
+    const itemsById = new Map(items.map((item) => [item.listingId, item]));
+    const slots = Object.freeze(requestedIds.map((listingId) => {
+      const item = itemsById.get(listingId);
+      if (item?.outcome.ok) return Object.freeze({ status: "ready" as const, message: "Lecture reçue." });
+      if (item !== undefined && !item.outcome.ok) {
+        const message = item.outcome.code === "not_found"
+          ? "Publication introuvable dans cette lecture."
+          : item.outcome.code === "offline"
+            ? "Lecture impossible hors connexion."
+            : item.outcome.code === "cancelled"
+              ? "La lecture a dépassé le délai autorisé."
+              : "Lecture indisponible.";
+        return Object.freeze({ status: "error" as const, message });
+      }
+      return Object.freeze({ status: "error" as const, message: deadlineReached ? "La lecture a dépassé le délai autorisé." : "Aucune lecture valide n’a été reçue." });
+    }));
+    const resolution = resolveComparisonBundle(requestedIds, items);
+    const load: ComparisonLinkLoadState = resolution.status === "ready"
+      ? { status: "ready", slots, entries: resolution.entries, responses: resolution.responses }
+      : { status: resolution.status, slots };
+    setComparisonLinkState({ rawHash, load });
+    recordAnalyticsEvent({ eventName: "comparison_link_loaded", screen: "received-comparison", outcome: resolution.status === "ready" ? "success" : "error" });
+  }
+
   function removeSavedSearch(search: SavedSearch, index: number) {
     if (!savedSearches.remove(getSavedSearchKey(search.criteria))) return;
     removedSavedSearchIndex.current = index;
@@ -629,6 +754,14 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const availableModels = catalogData === undefined || makeId === "" ? [] : modelsForMake(catalogData, makeId);
   const responseCatalog = matchingCatalog(catalogData, response);
   const comparisonEntries = selectComparisonEntries(response, comparisonIds);
+  const comparisonLinkLoad = comparisonLinkState.rawHash === receivedComparisonHash
+    ? comparisonLinkState.load
+    : {
+      status: "idle" as const,
+      slots: decodedComparisonLink.status === "valid"
+        ? comparisonSlots(decodedComparisonLink.listingIds.length, "idle", "Prête à être lue. Aucun détail n’a été chargé.")
+        : Object.freeze([]),
+    };
   const acceptedSearchKey = acceptedCriteria === undefined ? undefined : getSavedSearchKey(acceptedCriteria);
   const acceptedSearchIndex = acceptedSearchKey === undefined ? -1 : savedSearchSnapshot.searches.findIndex((search) => getSavedSearchKey(search.criteria) === acceptedSearchKey);
   const savedSearchResetActive = savedSearchResetArmed && savedSearchResetToken === savedSearchSnapshot;
@@ -735,6 +868,8 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
       ) : null}
 
       {screen === "shared" && enabled ? <SearchLinkReview link={decodeSearchLinkFragment(hash)} catalog={catalogData} catalogPending={catalog.status === "idle" || catalog.status === "loading"} onLoad={loadLinkedSearch} onIgnore={() => navigate("search")} /> : null}
+
+      {screen === "received-comparison" && enabled ? <ComparisonLinkReview link={decodedComparisonLink} load={comparisonLinkLoad} catalog={catalogData} online={online} slow={comparisonLinkSlow} onLoad={() => { void loadLinkedComparison(); }} onReturn={() => navigate("search")} /> : null}
 
       {screen === "compare" && enabled ? (
         <ComparisonScreen

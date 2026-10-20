@@ -3,6 +3,7 @@ import { Banner, Button, Field } from "@auto-world/design-system/primitives";
 import type { DemoCatalogResponseV2 } from "@auto-world/demo-search-contract";
 
 import { recordAnalyticsEvent } from "../../demo/analytics";
+import { buildComparisonLink } from "../../demo/comparison-link";
 import { buildPublicationLink } from "../../demo/publication-link";
 import { buildSearchLink, type SearchLinkDecodeResult } from "../../demo/search-link";
 import { matchingSavedSearchCatalog, type SavedSearchCriteria } from "../../demo/saved-searches";
@@ -17,12 +18,19 @@ export function PublicationLinkCreator({ listingId }: { readonly listingId: stri
   return <LinkCreator key={listingId} target={{ kind: "publication", listingId }} />;
 }
 
-type LinkTarget = { readonly kind: "search"; readonly criteria: SavedSearchCriteria } | { readonly kind: "publication"; readonly listingId: string };
+export function ComparisonLinkCreator({ listingIds }: { readonly listingIds: readonly string[] }) {
+  return <LinkCreator key={listingIds.join("\u0000")} target={{ kind: "comparison", listingIds }} />;
+}
+
+type LinkTarget =
+  | { readonly kind: "search"; readonly criteria: SavedSearchCriteria }
+  | { readonly kind: "publication"; readonly listingId: string }
+  | { readonly kind: "comparison"; readonly listingIds: readonly string[] };
 
 function LinkCreator({ target }: { readonly target: LinkTarget }) {
-  const prefix = target.kind === "search" ? "demo-search-link" : "demo-publication-link";
-  const label = target.kind === "search" ? "Lien de recherche" : "Lien de publication";
-  const screen = target.kind === "search" ? "results" : "detail";
+  const prefix = target.kind === "search" ? "demo-search-link" : target.kind === "publication" ? "demo-publication-link" : "demo-comparison-link";
+  const label = target.kind === "search" ? "Lien de recherche" : target.kind === "publication" ? "Lien de publication" : "Lien de comparaison";
+  const screen = target.kind === "search" ? "results" : target.kind === "publication" ? "detail" : "compare";
   const [url, setUrl] = useState<string>();
   const [status, setStatus] = useState<"idle" | "copying" | "copied" | "manual" | "unavailable">("idle");
   const copyEpoch = useRef(0);
@@ -38,10 +46,14 @@ function LinkCreator({ target }: { readonly target: LinkTarget }) {
   }, [selectLink]);
 
   function createLink() {
-    const next = target.kind === "search" ? buildSearchLink(target.criteria, window.location.href) : buildPublicationLink(target.listingId, window.location.href);
+    const next = target.kind === "search"
+      ? buildSearchLink(target.criteria, window.location.href)
+      : target.kind === "publication"
+        ? buildPublicationLink(target.listingId, window.location.href)
+        : buildComparisonLink(target.listingIds, window.location.href);
     setStatus(next === undefined ? "unavailable" : "idle");
     setUrl(next);
-    recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_created" : "listing_link_created", screen, outcome: next === undefined ? "error" : "success" });
+    recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_created" : target.kind === "publication" ? "listing_link_created" : "comparison_link_created", screen, outcome: next === undefined ? "error" : "success" });
   }
 
   function closeLink() {
@@ -60,12 +72,12 @@ function LinkCreator({ target }: { readonly target: LinkTarget }) {
       await navigator.clipboard.writeText(url);
       if (copyEpoch.current !== epoch) return;
       setStatus("copied");
-      recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_copied" : "listing_link_copied", screen, outcome: "success" });
+      recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_copied" : target.kind === "publication" ? "listing_link_copied" : "comparison_link_copied", screen, outcome: "success" });
     } catch {
       if (copyEpoch.current !== epoch) return;
       setStatus("manual");
       selectLink();
-      recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_copied" : "listing_link_copied", screen, outcome: "error" });
+      recordAnalyticsEvent({ eventName: target.kind === "search" ? "search_link_copied" : target.kind === "publication" ? "listing_link_copied" : "comparison_link_copied", screen, outcome: "error" });
     }
   }
 
@@ -74,7 +86,7 @@ function LinkCreator({ target }: { readonly target: LinkTarget }) {
       <Button id={`${prefix}-start`} variant="secondary" aria-expanded={url !== undefined} aria-controls={url === undefined ? undefined : `${prefix}-panel`} onClick={url === undefined ? createLink : closeLink}>Créer un lien</Button>
       {url !== undefined ? (
         <div id={`${prefix}-panel`} className="demo-search-link-panel" role="region" aria-label={label} ref={focusOpenedPanel}>
-          <p>{target.kind === "search" ? "Ce lien partage uniquement les critères de cette recherche, pas ses résultats. Toute personne qui possède le lien peut lire ces critères." : "Ce lien pointe vers cette publication synthétique. Il ne fige ni les valeurs ni sa disponibilité et n’identifie pas un véhicule réel."}</p>
+          <p>{target.kind === "search" ? "Ce lien partage uniquement les critères de cette recherche, pas ses résultats. Toute personne qui possède le lien peut lire ces critères." : target.kind === "publication" ? "Ce lien pointe vers cette publication synthétique. Il ne fige ni les valeurs ni sa disponibilité et n’identifie pas un véhicule réel." : "Ce lien pointe vers ces publications synthétiques dans l’ordre affiché. Il ne fige ni leurs valeurs ni leur disponibilité et n’identifie pas des véhicules réels."}</p>
           <p className="demo-field-hint">{target.kind === "search" ? "Cette démo est locale : le lien fonctionne seulement sur cet ordinateur, tant que la démo est active." : "Cette démo est locale : le lien fonctionne uniquement sur cet ordinateur, tant que la démo est active."}</p>
           <Field id={`${prefix}-url`} label={label} type="url" dir="ltr" readOnly value={url} spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} />
           <div className="demo-form-actions">
@@ -83,7 +95,7 @@ function LinkCreator({ target }: { readonly target: LinkTarget }) {
           </div>
           <p className="demo-search-link-status" role="status">{status === "copied" ? "Lien copié." : status === "manual" ? "Copie automatique impossible. Sélectionnez le lien ci-dessus et copiez-le manuellement." : status === "copying" ? "Copie en cours… Vous pouvez aussi sélectionner le lien." : "Vous pouvez copier ce lien automatiquement ou le sélectionner manuellement."}</p>
         </div>
-      ) : status === "unavailable" ? <p role="status">{target.kind === "search" ? "Le lien ne peut pas être créé. Relancez la recherche, puis réessayez." : "Le lien ne peut pas être créé. Rechargez ce détail, puis réessayez."}</p> : null}
+      ) : status === "unavailable" ? <p role="status">{target.kind === "search" ? "Le lien ne peut pas être créé. Relancez la recherche, puis réessayez." : target.kind === "publication" ? "Le lien ne peut pas être créé. Rechargez ce détail, puis réessayez." : "Le lien ne peut pas être créé. Revenez aux résultats, puis recréez la comparaison."}</p> : null}
     </div>
   );
 }
