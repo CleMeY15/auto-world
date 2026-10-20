@@ -12,12 +12,14 @@ import { isDeepStrictEqual, TextDecoder, types } from "node:util";
 import { createGunzip } from "node:zlib";
 
 import { candidateContractV2, openCandidateLockV2, validateCandidateContextV2 } from "./gosu-derivative-candidate-v2.mjs";
+import { openGosuDerivativeDockerSaveV1, proveGosuDerivativeImagePairV1 } from "./gosu-derivative-image-proof-v1.mjs";
 import { scanRawUstar } from "../seaweed-image/archive.mjs";
 
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
 const DOCKER = "/usr/bin/docker";
 const PURPOSE = "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION";
+const PROOF_PURPOSE = "GOSU_DERIVATIVE_IMAGE_BUILD_PROOF_V1";
 const BASE_REFERENCE = "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3";
 const BASE_CONFIG_ID = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
 const CONTEXT_PATH = "/home/autoworld/auto-world-private-contexts/gosu-candidate-context-v2/context.tar";
@@ -664,7 +666,7 @@ function defaultRunner(request) {
     }
   });
 }
-function authenticateContext(buffer, control) {
+function authenticateContext(buffer, control, retainLockHandle = false) {
   if (!Buffer.isBuffer(buffer) || buffer.length !== CONTEXT_BYTES || hash(buffer) !== CONTEXT_SHA256) {
     fail("gosu_derivative_image_observation_context_invalid", "CONTEXT");
   }
@@ -680,7 +682,8 @@ function authenticateContext(buffer, control) {
       : { path: member.entry.path, type: member.entry.type, mode: member.entry.mode, uid: member.entry.uid, gid: member.entry.gid, mtime: member.entry.mtime,
         body: memberBody(buffer, member) });
     validateCandidateContextV2(handle, { entries });
-    return freeze({ bytes: buffer.length, sha256: hash(buffer), entries: scan.members.map(descriptor) });
+    const observation = freeze({ bytes: buffer.length, sha256: hash(buffer), entries: scan.members.map(descriptor) });
+    return retainLockHandle ? Object.freeze({ observation, lockHandle: handle }) : observation;
   }).catch((error) => { if (CODES.has(error?.message)) throw error; fail("gosu_derivative_image_observation_context_invalid", "CONTEXT"); });
 }
 function parseCommandJson(result, phase) {
@@ -705,9 +708,18 @@ function commandLines(result, pattern, phase) {
 }
 
 export async function runGosuDerivativeImageBuildObservationV2(input, dependencies = {}) {
+  return runGosuDerivativeImageBuild(input, dependencies, false);
+}
+
+export async function runGosuDerivativeImageBuildProofV1(input, dependencies = {}) {
+  return runGosuDerivativeImageBuild(input, dependencies, true);
+}
+
+async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
   let phase = "PREFLIGHT"; let buildStarted = false; let contextSession; let deadlineTimer;
   try {
-    if (!exact(input, ["purpose", "nonce", "lease"]) || input.purpose !== PURPOSE || !HEX24.test(input.nonce)) {
+    const expectedPurpose = proofEnabled ? PROOF_PURPOSE : PURPOSE;
+    if (!exact(input, ["purpose", "nonce", "lease"]) || input.purpose !== expectedPurpose || !HEX24.test(input.nonce)) {
       fail("gosu_derivative_image_observation_input_invalid", phase);
     }
     const nonce = input.nonce; validateDependencies(dependencies); const lease = validateLease(input.lease, nonce);
@@ -803,7 +815,9 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     const contextRecord = readerRecord(await contextReader(freeze({ path: CONTEXT_PATH, bytes: CONTEXT_BYTES, sha256: CONTEXT_SHA256 }), control),
       { maximumBytes: CONTEXT_BYTES, bytes: CONTEXT_BYTES, sha256: CONTEXT_SHA256 }, phase);
     contextSession = contextSessions.get(contextRecord); contextSession?.guard();
-    const contextBuffer = contextRecord.buffer; const contextObservation = await authenticateContext(contextBuffer, control); contextSession?.guard();
+    const contextBuffer = contextRecord.buffer; const authenticatedContext = await authenticateContext(contextBuffer, control, proofEnabled);
+    const contextObservation = proofEnabled ? authenticatedContext.observation : authenticatedContext;
+    const lockHandle = proofEnabled ? authenticatedContext.lockHandle : undefined; contextSession?.guard();
     phase = "BASE"; await command(phase, ["image", "pull", "--platform", "linux/amd64", BASE_REFERENCE], 180_000);
     const baseInspect = parseCommandJson(await command(phase, ["image", "inspect", "--format", "{{json .}}", BASE_REFERENCE], 15_000), phase);
     if (baseInspect.Id !== BASE_CONFIG_ID || baseInspect.Os !== "linux" || baseInspect.Architecture !== "amd64") {
@@ -815,10 +829,28 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     const basePartial = path.join(lease.outputDirectory, "base-image.tar.partial"); const baseFinal = path.join(lease.outputDirectory, "base-image.tar");
     const baseSave = await command("SAVE_BASE", ["image", "save", "--platform", "linux/amd64", BASE_REFERENCE], 90_000, { stdoutPath: basePartial });
     if (!runnerInjected) promoteNoReplace(basePartial, baseFinal, baseSave.outputPhysical);
-    phase = "BUILD"; buildStarted = true; const candidateReference = `aw-postgres-gosu:${nonce}`;
+    phase = "BUILD"; const candidateReference = `aw-postgres-gosu:${nonce}`; let buildWindow;
+    let windowStartedAt;
+    if (proofEnabled) {
+      windowStartedAt = now();
+      if (!Number.isSafeInteger(windowStartedAt) || windowStartedAt < 0 || windowStartedAt < startedAt || windowStartedAt >= deadline) {
+        fail("gosu_derivative_image_observation_deadline_exceeded", phase);
+      }
+    }
+    buildStarted = true;
     await command(phase, ["buildx", "build", "--platform", "linux/amd64", "--network", "none", "--pull=false",
       "--provenance=false", "--sbom=false", "--progress", "plain", "--tag", candidateReference, "--file", "Dockerfile", "-"], 180_000,
     { stdin: contextBuffer });
+    if (proofEnabled) {
+      const windowCompletedSample = now();
+      if (!Number.isSafeInteger(windowCompletedSample) || windowCompletedSample < windowStartedAt
+        || windowCompletedSample >= Number.MAX_SAFE_INTEGER) fail("gosu_derivative_image_observation_deadline_exceeded", phase);
+      const completedAtMs = windowCompletedSample + 1;
+      if (completedAtMs > deadline || completedAtMs - windowStartedAt > 600_000) {
+        fail("gosu_derivative_image_observation_deadline_exceeded", phase);
+      }
+      buildWindow = freeze({ startedAtMs: windowStartedAt, completedAtMs });
+    }
     contextSession?.guard();
     if (contextBuffer.length !== CONTEXT_BYTES || hash(contextBuffer) !== CONTEXT_SHA256) fail("gosu_derivative_image_observation_context_invalid", phase);
     const candidateInspect = parseCommandJson(await command("BUILD", ["image", "inspect", "--format", "{{json .}}", candidateReference], 15_000), "BUILD");
@@ -853,16 +885,40 @@ export async function runGosuDerivativeImageBuildObservationV2(input, dependenci
     if (!Buffer.isBuffer(baseArchive)) archiveFail("BASE", "BIND", "READ_INVALID");
     if (!Buffer.isBuffer(candidateArchive)) archiveFail("CANDIDATE", "BIND", "READ_INVALID");
     if (baseArchive.length + candidateArchive.length > 2 * GiB) archiveFail("UNKNOWN", "BIND", "SIZE_INVALID");
-    const base = await inspectSave(baseArchive, baseSubject, control);
-    const candidate = await inspectSave(candidateArchive, candidateSubject, control);
+    let base; let candidate; let pairProof;
+    if (proofEnabled) {
+      const openSave = async (archive, subject) => {
+        try { return await openGosuDerivativeDockerSaveV1(archive, subject); }
+        catch { fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
+      };
+      control.guard();
+      base = await openSave(baseArchive, freeze({ role: "BASE", archive: baseSave.outputIdentity, configId: baseSubject.configId }));
+      control.guard();
+      candidate = await openSave(candidateArchive,
+        freeze({ role: "CANDIDATE", archive: candidateSave.outputIdentity, configId: candidateSubject.configId }));
+      control.guard();
+      try { pairProof = proveGosuDerivativeImagePairV1(lockHandle, { baseSave: base, candidateSave: candidate, buildWindow }); }
+      catch { fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
+      control.guard();
+    } else {
+      base = await inspectSave(baseArchive, baseSubject, control);
+      candidate = await inspectSave(candidateArchive, candidateSubject, control);
+    }
     phase = "FINAL";
     const operational = { state: "IMAGE_BUILD_FORMAT_OBSERVED_REVIEW_PENDING", authority: "NOT_AUTHORIZED", image: "BUILT_UNVALIDATED",
       candidateAdmission: "NOT_AUTHORIZED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
     const simulated = { state: "FORMAT_ONLY_SIMULATION", scope: "FORMAT_ONLY", image: "NOT_ESTABLISHED",
       candidateAdmission: "NOT_ESTABLISHED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
-    const result = freeze({ ...(injected ? simulated : operational),
+    const proofOperational = { state: "IMAGE_PAIR_PROOF_OBSERVED_REVIEW_PENDING", authority: "NOT_AUTHORIZED", image: "BUILT_UNVALIDATED",
+      candidateAdmission: "NOT_AUTHORIZED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
+    const proofSimulated = { state: "PAIR_PROOF_SIMULATION", scope: "CONDITIONAL_PAIR_PROOF_ONLY", authority: "NOT_AUTHORIZED",
+      image: "NOT_ESTABLISHED", candidateAdmission: "NOT_ESTABLISHED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
+    const result = proofEnabled ? freeze({ ...(injected ? proofSimulated : proofOperational),
       nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
-      preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, base, candidate, dates: null });
+      preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, buildWindow, pairProof, dates: null })
+      : freeze({ ...(injected ? simulated : operational),
+        nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
+        preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, base, candidate, dates: null });
     contextSession?.close(); clearTimeout(deadlineTimer); return result;
   } catch (error) {
     clearTimeout(deadlineTimer);

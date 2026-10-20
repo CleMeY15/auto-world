@@ -101,3 +101,8 @@ The current BASE parser blockage is identified as TAR hardlink type1. [The focus
 ## 2026-10-20 — TAR fix delivered; conditional image proof continuation
 
 PR182 is merged with passing exact-head/main CI, and both current BASE10/CANDIDATE12 USTAR format observations have independent acceptance. The [approved B1b.1 source increment](../plans/TASK-0005A-gosu-image-proof-v1.md) now connects archive bytes/configuration/rootfs to the genuine candidate V2 predicates while keeping authentication of the archive pair and build window explicit. [Validation](../../docs/validation/TASK-0005A-gosu-image-proof-v1.md) distinguishes this conditional source proof from real-image/admission and four-service acceptance. TASK-0005 remains IN_PROGRESS, supported TASK-0006 blocked, currentEvidence unchanged and support dates null; migrations and PostgreSQL/OpenSearch/Redis/SeaweedFS readiness/persistence/restore acceptance still require completion.
+
+
+## 2026-10-20 — fresh-build conditional proof bridge
+
+The [B1b bridge source increment](../../docs/validation/TASK-0005A-gosu-build-proof-v1.md) records the build period required by PR183 and verifies the resulting identity-bound archive pair through a dedicated opt-in entrypoint. Source delivery is distinct from actual-image acceptance and does not complete the image or four-service foundation gates. TASK-0005 remains IN_PROGRESS; supported downstream dependencies, admission/currentEvidence and null support dates remain unchanged.
