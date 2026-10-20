@@ -3,8 +3,9 @@ import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchRespo
 
 import { comparisonConflicts, comparisonRows, type ComparisonEntry } from "../../demo/comparison";
 import { resolveDescription } from "../../demo/catalog";
-import { formatExactNumber, formatObservationConfidence, formatObservedPrice } from "../../demo/observation-history";
+import { formatExactNumber, formatObservationConfidence, formatObservationTimestamp, formatObservedPrice } from "../../demo/observation-history";
 import { availabilityLabel, formatPrice, ScreenHeader, StatePanel } from "./demo-components";
+import { ComparisonLinkCreator } from "./search-link-components";
 
 type ComparisonField = ReturnType<typeof comparisonRows>[number]["field"];
 type ComparisonStatus = ReturnType<typeof comparisonRows>[number]["status"];
@@ -108,13 +109,57 @@ export interface ComparisonScreenProps {
   readonly onRemove: (entry: ComparisonEntry) => void;
 }
 
-export function ComparisonScreen({ entries, response, catalog, online, refreshError, onReturn, onRemove }: ComparisonScreenProps) {
+export function ComparisonTable({ entries, catalog, responses }: {
+  readonly entries: readonly ComparisonEntry[];
+  readonly catalog?: DemoCatalogResponseV2;
+  readonly responses?: readonly DemoSearchResponseV2[];
+}) {
   const rows = comparisonRows(entries, catalog);
   const conflicts = entries.reduce((state, { result }) => {
     const next = comparisonConflicts(result);
     return { observations: state.observations || next.observations, descriptions: state.descriptions || next.descriptions };
   }, { observations: false, descriptions: false });
 
+  return (
+    <>
+      {conflicts.observations || conflicts.descriptions ? <Banner role="note" tone="warning">{conflicts.observations && conflicts.descriptions ? "Plusieurs valeurs et déclarations existent dans les historiques" : conflicts.observations ? "Plusieurs valeurs existent dans l’historique des observations" : "Plusieurs déclarations existent dans l’historique synthétique"}. Consultez le détail pour voir leurs dates et provenances séparées.</Banner> : null}
+      <p className="demo-comparison-hint" id="demo-comparison-hint">Sur écran étroit, faites défiler le tableau horizontalement pour consulter toutes les publications.</p>
+      <div className="demo-comparison-scroll" role="region" aria-labelledby="demo-screen-title" aria-describedby="demo-comparison-hint" tabIndex={0}>
+        <table className="demo-comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Caractéristique</th>
+              {entries.map((entry, position) => {
+                const response = responses?.[position];
+                return (
+                  <th scope="col" key={entry.result.listingId} data-comparison-slot={position} data-status={response ? "ready" : undefined}>
+                    Publication {String(entry.index + 1).padStart(2, "0")}
+                    {response ? (
+                      <div className="demo-comparison-meta">
+                        Données arrêtées au <time dateTime={response.dataAsOf}>{formatObservationTimestamp(response.dataAsOf)}</time>.
+                        <br />{response.state === "partial" ? "Lecture partielle : certaines données peuvent manquer." : response.state === "stale" ? "Lecture ancienne : les valeurs correspondent à l’instant indiqué." : "Lecture complète à cet instant."}
+                      </div>
+                    ) : null}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.field} data-comparison-field={row.field}>
+                <th scope="row"><span>{fieldLabels[row.field]}</span><span className={`demo-comparison-status demo-comparison-status-${row.status}`}>{statusLabels[row.status]}</span></th>
+                {entries.map((entry) => <td key={entry.result.listingId}><ComparisonValue entry={entry} field={row.field} catalog={catalog} /></td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+export function ComparisonScreen({ entries, response, catalog, online, refreshError, onReturn, onRemove }: ComparisonScreenProps) {
   return (
     <section aria-labelledby="demo-screen-title">
       <ScreenHeader
@@ -133,31 +178,13 @@ export function ComparisonScreen({ entries, response, catalog, online, refreshEr
             <p>Valeurs de cette recherche, non actualisées automatiquement.</p>
             <p>Données arrêtées au <time dateTime={response.dataAsOf}>{formatDate(response.dataAsOf)}</time>.</p>
           </div>
+          {entries.length >= 2 ? <ComparisonLinkCreator listingIds={entries.map((entry) => entry.result.listingId)} /> : null}
           {response.state === "partial" ? <Banner role="note" tone="warning">La projection est partielle : la comparaison porte uniquement sur les publications affichées.</Banner> : null}
           {response.state === "stale" ? <Banner role="note" tone="warning">Cet instant de démonstration est ancien. Les valeurs restent celles de la recherche acceptée.</Banner> : null}
           {!online ? <Banner role="note" tone="warning">Vous êtes hors connexion. Ces données ont déjà été chargées ; aucune actualisation en direct n’est effectuée.</Banner> : null}
           {refreshError ? <Banner role="alert" tone="danger">La dernière actualisation a échoué. {refreshError} Les valeurs ci-dessous restent celles de la recherche acceptée.</Banner> : null}
-          {conflicts.observations || conflicts.descriptions ? <Banner role="note" tone="warning">{conflicts.observations && conflicts.descriptions ? "Plusieurs valeurs et déclarations existent dans les historiques" : conflicts.observations ? "Plusieurs valeurs existent dans l’historique des observations" : "Plusieurs déclarations existent dans l’historique synthétique"}. Consultez le détail pour voir leurs dates et provenances séparées.</Banner> : null}
           {entries.length < 2 ? <Banner role="status" tone="info">Une seconde publication est nécessaire pour établir les ressemblances et différences. La publication restante reste visible ci-dessous.</Banner> : null}
-          <p className="demo-comparison-hint" id="demo-comparison-hint">Sur écran étroit, faites défiler le tableau horizontalement pour consulter toutes les publications.</p>
-          <div className="demo-comparison-scroll" role="region" aria-labelledby="demo-screen-title" aria-describedby="demo-comparison-hint" tabIndex={0}>
-            <table className="demo-comparison-table">
-              <thead>
-                <tr>
-                  <th scope="col">Caractéristique</th>
-                  {entries.map((entry) => <th scope="col" key={entry.result.listingId}>Publication {String(entry.index + 1).padStart(2, "0")}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.field} data-comparison-field={row.field}>
-                    <th scope="row"><span>{fieldLabels[row.field]}</span><span className={`demo-comparison-status demo-comparison-status-${row.status}`}>{statusLabels[row.status]}</span></th>
-                    {entries.map((entry) => <td key={entry.result.listingId}><ComparisonValue entry={entry} field={row.field} catalog={catalog} /></td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ComparisonTable entries={entries} catalog={catalog} />
           <div className="demo-comparison-remove" aria-label="Retirer une publication de la comparaison">
             {entries.map((entry) => (
               <Button id={`demo-comparison-remove-${entry.index}`} variant="secondary" key={entry.result.listingId} onClick={() => onRemove(entry)}>

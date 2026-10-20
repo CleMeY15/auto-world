@@ -1,6 +1,6 @@
 # TASK-0112 — Explicit synthetic publication links
 
-Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-10-18. Implementation, local gates and independent architecture/code/actual-pixel reviews passed. Exact final-head CI and protected-main acceptance remain separate PR checkpoint gates. DoR passed: Architect CLEAR followed by distinct Critic APPROVE; native executor/test lanes under application lead ownership. Priority P1, independent synthetic lane.
+Status: DONE_ON_MAIN. Delivery2026-10-18, rechecked2026-10-20: sourcefa20f96/main1d0133e, identical tree27d936e, sourceCI39145354060/mainCI39146578449 SUCCESS. [Immutable PR181 checkpoint](https://github.com/CleMeY15/auto-world/pull/181#issuecomment-6252629201). Historical local evidence below remains preserved. Priority P1, independent synthetic lane.
 
 ## Goal, dependencies and contracts
 Continue ROADMAP Share: create and explicitly copy a link from an accepted synthetic publication detail. TASK-0103/0107/0110/0111 accepted; [0111 delivery checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551), accepted main3cccfb457864aceb72af3c49d5f99d15f3ce1505, CI39140493041 SUCCESS. TASK-0005/0005A and0104–0106 remain independently gated.

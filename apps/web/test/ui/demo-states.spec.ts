@@ -357,7 +357,8 @@ test("a failed continuation preserves acquired results and retries the same curs
 });
 
 test("changed snapshots and duplicate pages fail closed while keeping current results", async ({ page }) => {
-  const at = new Date().toISOString();
+  // Leave clock-skew margin inside the existing 60-second freshness window.
+  const at = new Date(Date.now() - 5_000).toISOString();
   for (const mutant of ["changed", "duplicate"] as const) {
     let calls = 0;
     await page.unroute("**/api/demo/v2/search");
