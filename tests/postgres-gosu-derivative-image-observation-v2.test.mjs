@@ -15,6 +15,7 @@ import {
   gosuDerivativeImageObservationArchiveFailureDetailV1,
   gosuDerivativeImageObservationFailureDiagnostic,
   inspectGosuDerivativeImageSaveV2,
+  runGosuDerivativeImageBuildProofV1,
   runGosuDerivativeImageBuildObservationV2,
 } from "../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs";
 
@@ -150,7 +151,8 @@ function routingProfileKey(request) {
   return undefined;
 }
 
-async function observationInternals({ processValue, spawn, fsValues = {}, cryptoValues = {}, archiveValues = {}, candidateValues = {}, zlibValues = {} } = {}) {
+async function observationInternals({ processValue, spawn, fsValues = {}, cryptoValues = {}, archiveValues = {}, candidateValues = {},
+  proofValues = {}, timerValues = {}, zlibValues = {} } = {}) {
   const sourcePath = new URL("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs", import.meta.url);
   const sourceText = `${fs.readFileSync(sourcePath, "utf8")}\nexport { runtimeGuard as __runtimeGuard, defaultRunner as __defaultRunner, closed as __closed };
     export const __probeManifestEntry = (variant) => {
@@ -193,6 +195,17 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
       archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
       });
     };
+    export const __probeRunProof = (input, dependencies, onContextClose) => runGosuDerivativeImageBuildProofV1(
+      JSON.parse(JSON.stringify(input)), {
+        now: dependencies.now,
+        runner: async (request) => __runner(await dependencies.runner(request)),
+        contextReader: async (specification, control) => {
+          const record = __record(await dependencies.contextReader(specification, control));
+          if (onContextClose !== undefined) contextSessions.set(record, { guard: () => undefined, close: onContextClose });
+          return record;
+        },
+        archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
+      });
     export const __probeRunNonFullyInjected = (input, dependencies) => runGosuDerivativeImageBuildObservationV2(
       JSON.parse(JSON.stringify(input)), {
         now: dependencies.now,
@@ -215,12 +228,15 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
     ["node:fs", synthetic("mock:fs", nodeFs)],
     ["node:path", synthetic("mock:path", { default: path.posix })],
     ["node:stream", synthetic("mock:stream", { Readable })],
-    ["node:timers", synthetic("mock:timers", { clearTimeout, setTimeout })],
+    ["node:timers", synthetic("mock:timers", { clearTimeout, setTimeout, ...timerValues })],
     ["node:url", synthetic("mock:url", { fileURLToPath: () => "/repo/scripts/postgres-image/gosu-derivative-image-observation-v2.mjs" })],
     ["node:util", synthetic("mock:util", { isDeepStrictEqual, TextDecoder, types })],
     ["node:zlib", synthetic("mock:zlib", { createGunzip, ...zlibValues })],
     ["./gosu-derivative-candidate-v2.mjs", synthetic("mock:candidate", {
       candidateContractV2: unavailable, openCandidateLockV2: unavailable, validateCandidateContextV2: unavailable, ...candidateValues,
+    })],
+    ["./gosu-derivative-image-proof-v1.mjs", synthetic("mock:proof", {
+      openGosuDerivativeDockerSaveV1: unavailable, proveGosuDerivativeImagePairV1: unavailable, ...proofValues,
     })],
     ["../seaweed-image/archive.mjs", synthetic("mock:archive", {
       scanGzipLayer: unavailable, scanRawUstar: unavailable, ...archiveValues,
@@ -356,11 +372,21 @@ async function nonFullyInjectedPreflightVm(statfsSync) {
 }
 
 async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch = false, readerFailureRole,
-  readerFailureValue } = {}) {
+  readerFailureValue, proofOpenFailureRole, proofPairFailure = false, failBuild = false,
+  onProofOpen = () => undefined, onProofPair = () => undefined, timerValues = {} } = {}) {
   const realArchive = await import("../scripts/seaweed-image/archive.mjs");
   const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
   const candidate = imageSaveFixture(); const base = imageSaveFixture({ role: "BASE", configId: baseId });
-  const context = Buffer.alloc(1_986_560); let basePulled = false; let built = false;
+  const context = Buffer.alloc(1_986_560); let basePulled = false; let built = false; let imageScans = 0;
+  const candidateLockHandle = Object.freeze(Object.create(null)); const proofCalls = { opens: [], pairs: [] };
+  const pairProof = Object.freeze({ scope: "CONDITIONAL_ON_AUTHENTICATED_ARCHIVES_AND_BUILD_WINDOW",
+    authority: "NOT_AUTHORIZED", profile: "POSTGRES_GOSU_DERIVATIVE_DOCKER_SAVE_USTAR_V1",
+    base: Object.freeze({ archive: Object.freeze({ bytes: base.archive.length, sha256: hash(base.archive) }),
+      configId: baseId, layers: 10 }),
+    candidate: Object.freeze({ archive: Object.freeze({ bytes: candidate.archive.length, sha256: hash(candidate.archive) }),
+      configId: candidate.subject.configId, layers: 12 }),
+    inheritedLayers: 10, addedLayers: 2, configProfile: "STRICT_INHERITED_CONFIG_V2",
+    delta: Object.freeze({ scope: "FORMAT_ONLY_PROTOCOL_SPY" }) });
   const member = (ordinal) => ({ memberOrdinal: ordinal, uncompressedHeaderOffset: ordinal * 512,
     uncompressedDataOffset: ordinal * 512 + 512, entry: { path: `entry-${ordinal}`, type: "directory", mode: 0o755,
       uid: 0, gid: 0, mtime: 1_700_000_000, size: 0 } });
@@ -368,13 +394,30 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
     cryptoValues: { createHash: pinnedCreateHash },
     fsValues: { readFileSync: (name) => String(name).endsWith("gosu-derivative-context-private-acceptance-v1.json")
       ? acceptanceBuffer() : Buffer.from("lock") },
-    candidateValues: { openCandidateLockV2: () => ({}), candidateContractV2: () => ({}), validateCandidateContextV2: () => ({}) },
+    candidateValues: { openCandidateLockV2: () => candidateLockHandle, candidateContractV2: () => ({}),
+      validateCandidateContextV2: () => ({}) },
+    proofValues: {
+      async openGosuDerivativeDockerSaveV1(buffer, subject) {
+        proofCalls.opens.push({ buffer, subject });
+        onProofOpen(subject.role);
+        if (subject.role === proofOpenFailureRole) throw new Error("secret proof opener detail");
+        return Object.freeze({ role: subject.role });
+      },
+      proveGosuDerivativeImagePairV1(handle, value) {
+        proofCalls.pairs.push({ handle, value });
+        onProofPair();
+        if (proofPairFailure) throw new Error("secret proof pair detail");
+        return pairProof;
+      },
+    },
+    timerValues,
     archiveValues: {
       scanGzipLayer: realArchive.scanGzipLayer,
       scanRawUstar(options) {
         if (options.diffId.endsWith("d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb")) {
           return Promise.resolve({ rawSize: context.length, members: Array.from({ length: 15 }, (_unused, index) => member(index)) });
         }
+        imageScans += 1;
         const hostOptions = { ...options }; delete hostOptions.signal; return realArchive.scanRawUstar(hostOptions);
       },
     },
@@ -386,7 +429,10 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
       requests.push(request);
       const tail = request.args.slice(request.args[2] === "--context" ? 4 : 2);
       if (tail[0] === "image" && tail[1] === "pull") basePulled = true;
-      if (tail[0] === "buildx" && tail[1] === "build") built = true;
+      if (tail[0] === "buildx" && tail[1] === "build") {
+        if (failBuild) throw new Error("secret build failure");
+        built = true;
+      }
       if (failAfterBuild && built && tail[0] === "image" && tail[1] === "inspect" && String(tail.at(-1)).startsWith("aw-postgres-gosu:")) {
         throw Object.assign(new Error("gosu_derivative_image_observation_stream_invalid"), { phase: "BUILD" });
       }
@@ -416,16 +462,24 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
       const sha256 = mismatchRoles.includes(specification.role) ? "0".repeat(64) : hash(selected.archive);
       return { buffer: selected.archive, identity: { bytes: selected.archive.length, sha256 }, physical: { dev: "1" } }; },
   };
-  return { api, base, candidate, dependencies, requests };
+  return { api, base, candidate, candidateLockHandle, context, dependencies, imageScans: () => imageScans,
+    pairProof, proofCalls, requests };
 }
 
-test("observation v2 exports only the four closed public interfaces", async () => {
+const buildProofInput = () => ({
+  purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_PROOF_V1",
+  nonce: "a".repeat(24),
+  lease: lease(),
+});
+
+test("observation v2 exports only the five closed public interfaces", async () => {
   const api = await import("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs");
   assert.deepEqual(Object.keys(api).sort(), [
     "gosuDerivativeImageObservationArchiveFailureDetailV1",
     "gosuDerivativeImageObservationFailureDiagnostic",
     "inspectGosuDerivativeImageSaveV2",
     "runGosuDerivativeImageBuildObservationV2",
+    "runGosuDerivativeImageBuildProofV1",
   ]);
 });
 
@@ -1383,5 +1437,244 @@ if (typeof vm.SourceTextModule !== "function") {
     } catch (error) { failure = error; }
     assert.equal(failure.message, "gosu_derivative_image_observation_archive_invalid");
     assert.equal(failure.phase, "OBSERVE"); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+  });
+
+  test("build proof V1 binds one fresh pair to its retained context handle and conservative window", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner; let clock = 0;
+    fixture.dependencies.now = () => clock;
+    fixture.dependencies.runner = async (request) => {
+      const result = await originalRunner(request);
+      if (request.args.includes("buildx") && request.args.includes("build")) clock = 5;
+      return result;
+    };
+    const result = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.buildWindow)), { startedAtMs: 0, completedAtMs: 6 });
+    assert.equal(result.state, "PAIR_PROOF_SIMULATION"); assert.equal(result.scope, "CONDITIONAL_PAIR_PROOF_ONLY");
+    assert.equal(result.authority, "NOT_AUTHORIZED"); assert.equal(result.image, "NOT_ESTABLISHED");
+    assert.equal(result.candidateAdmission, "NOT_ESTABLISHED"); assert.equal(result.functional, "NOT_ESTABLISHED");
+    assert.equal(result.vulnerabilities, "NOT_ESTABLISHED"); assert.equal(result.dates, null);
+    assert.strictEqual(result.pairProof, fixture.pairProof); assert.equal(Object.isFrozen(result), true);
+    assert.equal(fixture.proofCalls.opens.length, 2); assert.equal(fixture.proofCalls.pairs.length, 1);
+    const [baseOpen, candidateOpen] = fixture.proofCalls.opens;
+    assert.strictEqual(baseOpen.buffer, fixture.base.archive); assert.strictEqual(candidateOpen.buffer, fixture.candidate.archive);
+    assert.deepEqual(JSON.parse(JSON.stringify(baseOpen.subject)), {
+      role: "BASE", archive: { bytes: fixture.base.archive.length, sha256: hash(fixture.base.archive) },
+      configId: fixture.base.subject.configId,
+    });
+    assert.deepEqual(JSON.parse(JSON.stringify(candidateOpen.subject)), {
+      role: "CANDIDATE", archive: { bytes: fixture.candidate.archive.length, sha256: hash(fixture.candidate.archive) },
+      configId: fixture.candidate.subject.configId,
+    });
+    const pair = fixture.proofCalls.pairs[0];
+    assert.strictEqual(pair.handle, fixture.candidateLockHandle);
+    assert.deepEqual(JSON.parse(JSON.stringify(pair.value.buildWindow)), { startedAtMs: 0, completedAtMs: 6 });
+    assert.deepEqual(pair.value.baseSave, { role: "BASE" }); assert.deepEqual(pair.value.candidateSave, { role: "CANDIDATE" });
+    const build = fixture.requests.filter((request) => request.args.includes("buildx") && request.args.includes("build"));
+    assert.equal(build.length, 1); assert.strictEqual(build[0].stdin, fixture.context);
+    assert.equal(fixture.imageScans(), 0);
+  });
+
+  test("build proof V1 rejects wrong public shapes and keeps legacy observation proof-free", async () => {
+    let calls = 0; const dependencies = {
+      now() { calls += 1; return 0; },
+      runner() { calls += 1; throw new Error("must not run"); },
+      contextReader() { calls += 1; throw new Error("must not read"); },
+      archiveReader() { calls += 1; throw new Error("must not read"); },
+    };
+    for (const input of [
+      { ...buildProofInput(), purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION" },
+      { ...buildProofInput(), extra: true },
+    ]) {
+      const failure = await runGosuDerivativeImageBuildProofV1(input, dependencies).catch((error) => error);
+      assert.equal(failure.message, "gosu_derivative_image_observation_input_invalid");
+      assert.equal(failure.phase, "PREFLIGHT"); assert.equal(failure.state, "UNBUILT");
+    }
+    let failure = await runGosuDerivativeImageBuildProofV1(buildProofInput(), { unexpected() {} }).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_input_invalid");
+    assert.equal(failure.phase, "PREFLIGHT"); assert.equal(failure.state, "UNBUILT"); assert.equal(calls, 0);
+
+    const fixture = await fullInjectedWorkflow();
+    const result = await fixture.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, fixture.dependencies);
+    assert.equal(result.state, "FORMAT_ONLY_SIMULATION"); assert.equal(fixture.proofCalls.opens.length, 0);
+    assert.equal(fixture.proofCalls.pairs.length, 0); assert.ok(fixture.imageScans() > 0);
+    assert.equal(Object.hasOwn(result, "buildWindow"), false); assert.equal(Object.hasOwn(result, "pairProof"), false);
+  });
+
+  test("build proof V1 refuses rollback and unsafe completion clocks without invoking proof", async () => {
+    const cases = [
+      ["rollback", -1],
+      ["unsafe", Number.MAX_SAFE_INTEGER],
+      ["deadline", lease().deadlineAtMs - 25_000],
+    ];
+    for (const [name, terminalClock] of cases) {
+      const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner; let clock = 0;
+      fixture.dependencies.now = () => clock;
+      fixture.dependencies.runner = async (request) => {
+        const result = await originalRunner(request);
+        if (request.args.includes("buildx") && request.args.includes("build")) clock = terminalClock;
+        return result;
+      };
+      const failure = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(failure.message, "gosu_derivative_image_observation_deadline_exceeded", name);
+      assert.equal(failure.phase, "BUILD", name); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT", name);
+      assert.equal(fixture.proofCalls.opens.length, 0, name); assert.equal(fixture.proofCalls.pairs.length, 0, name);
+    }
+
+    const beforeBuild = await fullInjectedWorkflow(); const originalRunner = beforeBuild.dependencies.runner;
+    let clock = 10;
+    beforeBuild.dependencies.now = () => clock;
+    beforeBuild.dependencies.runner = async (request) => {
+      const result = await originalRunner(request);
+      if (request.phase === "SAVE_BASE") clock = 9;
+      return result;
+    };
+    const failure = await beforeBuild.api.__probeRunProof(buildProofInput(), beforeBuild.dependencies).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_deadline_exceeded");
+    assert.equal(failure.phase, "BUILD"); assert.equal(failure.state, "UNBUILT");
+    assert.equal(beforeBuild.requests.some((request) => request.args.includes("buildx") && request.args.includes("build")), false);
+
+    for (const [name, invalidStart] of [["negative start", -1], ["fractional start", 0.5],
+      ["NaN start", Number.NaN], ["unsafe start", Number.MAX_SAFE_INTEGER]]) {
+      const fixture = await fullInjectedWorkflow(); const original = fixture.dependencies.runner;
+      let afterBase = false; let guardedBaseReturn = false;
+      fixture.dependencies.now = () => {
+        if (!afterBase) return 0;
+        if (!guardedBaseReturn) { guardedBaseReturn = true; return 0; }
+        return invalidStart;
+      };
+      fixture.dependencies.runner = async (request) => {
+        const result = await original(request);
+        if (request.phase === "SAVE_BASE") afterBase = true;
+        return result;
+      };
+      const rejected = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(rejected.message, "gosu_derivative_image_observation_deadline_exceeded", name);
+      assert.equal(rejected.phase, "BUILD", name); assert.equal(rejected.state, "UNBUILT", name);
+      assert.equal(fixture.proofCalls.opens.length, 0, name);
+    }
+
+    for (const [name, invalidEnd] of [["fractional end", 0.5], ["NaN end", Number.NaN]]) {
+      const fixture = await fullInjectedWorkflow(); const original = fixture.dependencies.runner;
+      let afterBuild = false; let guardedBuildReturn = false;
+      fixture.dependencies.now = () => {
+        if (!afterBuild) return 0;
+        if (!guardedBuildReturn) { guardedBuildReturn = true; return 0; }
+        return invalidEnd;
+      };
+      fixture.dependencies.runner = async (request) => {
+        const result = await original(request);
+        if (request.args.includes("buildx") && request.args.includes("build")) afterBuild = true;
+        return result;
+      };
+      const rejected = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(rejected.message, "gosu_derivative_image_observation_deadline_exceeded", name);
+      assert.equal(rejected.phase, "BUILD", name); assert.equal(rejected.state, "MAY_HAVE_BEEN_BUILT", name);
+      assert.equal(fixture.proofCalls.opens.length, 0, name);
+    }
+
+    const boundary = await fullInjectedWorkflow(); const boundaryRunner = boundary.dependencies.runner;
+    let boundaryClock = 0;
+    boundary.dependencies.now = () => boundaryClock;
+    boundary.dependencies.runner = async (request) => {
+      const result = await boundaryRunner(request);
+      if (request.args.includes("buildx") && request.args.includes("build")) {
+        boundaryClock = lease().deadlineAtMs - 25_000 - 1;
+      }
+      return result;
+    };
+    const accepted = await boundary.api.__probeRunProof(buildProofInput(), boundary.dependencies);
+    assert.deepEqual(JSON.parse(JSON.stringify(accepted.buildWindow)),
+      { startedAtMs: 0, completedAtMs: lease().deadlineAtMs - 25_000 });
+  });
+
+  test("build proof V1 closes proof failures and never proves unread or unbound archives", async () => {
+    for (const options of [{ proofOpenFailureRole: "BASE" }, { proofOpenFailureRole: "CANDIDATE" },
+      { proofPairFailure: true }]) {
+      const fixture = await fullInjectedWorkflow(options);
+      const failure = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(failure.message, "gosu_derivative_image_observation_archive_invalid");
+      assert.equal(failure.phase, "OBSERVE"); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+      assert.equal(failure.cause, undefined); assert.doesNotMatch(JSON.stringify(failure), /secret proof/u);
+    }
+    for (const options of [{ readerFailureRole: "BASE" }, { readerHashMismatch: true }]) {
+      const fixture = await fullInjectedWorkflow(options);
+      const failure = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+      assert.equal(fixture.proofCalls.opens.length, 0); assert.equal(fixture.proofCalls.pairs.length, 0);
+    }
+
+    for (const stage of ["opener", "pair"]) {
+      let clock = 0;
+      const fixture = await fullInjectedWorkflow({
+        onProofOpen(role) { if (stage === "opener" && role === "BASE") clock = lease().deadlineAtMs - 25_000; },
+        onProofPair() { if (stage === "pair") clock = lease().deadlineAtMs - 25_000; },
+      });
+      fixture.dependencies.now = () => clock;
+      const failure = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies).catch((error) => error);
+      assert.equal(failure.message, "gosu_derivative_image_observation_deadline_exceeded", stage);
+      assert.equal(failure.phase, "OBSERVE", stage); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT", stage);
+    }
+
+    let calls = 0;
+    const badLease = { ...lease(), endpoint: "unix:///var/run/docker.sock" };
+    let failure = await runGosuDerivativeImageBuildProofV1({ ...buildProofInput(), lease: badLease }, {
+      now() { calls += 1; return 0; }, runner() { calls += 1; }, contextReader() { calls += 1; }, archiveReader() { calls += 1; },
+    }).catch((error) => error);
+    assert.equal(failure.phase, "PREFLIGHT"); assert.equal(failure.state, "UNBUILT"); assert.equal(calls, 0);
+
+    const routing = await fullInjectedWorkflow(); const routingRunnerOriginal = routing.dependencies.runner;
+    routing.dependencies.runner = async (request) => {
+      if (request.args.includes("context") && request.args.includes("inspect")) {
+        const result = await routingRunnerOriginal(request);
+        const stdout = Buffer.from("[]"); return { ...result, stdout, stdoutBytes: stdout.length };
+      }
+      return routingRunnerOriginal(request);
+    };
+    failure = await routing.api.__probeRunProof(buildProofInput(), routing.dependencies).catch((error) => error);
+    assert.equal(failure.phase, "ROUTING"); assert.equal(failure.state, "UNBUILT");
+    assert.equal(routing.proofCalls.opens.length, 0);
+    assert.equal(routing.requests.some((request) => request.args.includes("buildx") && request.args.includes("build")), false);
+
+    const contextFailure = await fullInjectedWorkflow();
+    contextFailure.dependencies.contextReader = () => { throw new Error("secret context refusal"); };
+    failure = await contextFailure.api.__probeRunProof(buildProofInput(), contextFailure.dependencies).catch((error) => error);
+    assert.equal(failure.phase, "CONTEXT"); assert.equal(failure.state, "UNBUILT");
+    assert.equal(contextFailure.proofCalls.opens.length, 0);
+    assert.equal(contextFailure.requests.some((request) => request.args.includes("buildx") && request.args.includes("build")), false);
+
+    const buildFailure = await fullInjectedWorkflow({ failBuild: true }); let archiveReads = 0;
+    const archiveReader = buildFailure.dependencies.archiveReader;
+    buildFailure.dependencies.archiveReader = (...args) => { archiveReads += 1; return archiveReader(...args); };
+    failure = await buildFailure.api.__probeRunProof(buildProofInput(), buildFailure.dependencies).catch((error) => error);
+    assert.equal(failure.phase, "BUILD"); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+    assert.equal(archiveReads, 0); assert.equal(buildFailure.proofCalls.opens.length, 0);
+  });
+
+  test("build proof V1 keeps the exact fixed build and archive flow under injected simulation", async () => {
+    let timerClears = 0; let contextCloses = 0; const timer = Object.freeze({});
+    const fixture = await fullInjectedWorkflow({ timerValues: {
+      setTimeout: () => timer,
+      clearTimeout: (value) => { assert.strictEqual(value, timer); timerClears += 1; },
+    } });
+    const result = await fixture.api.__probeRunProof(buildProofInput(), fixture.dependencies, () => { contextCloses += 1; });
+    const phases = fixture.requests.map((request) => request.phase);
+    assert.equal(phases.filter((phase) => phase === "SAVE_BASE").length, 1);
+    assert.equal(phases.filter((phase) => phase === "SAVE_CANDIDATE").length, 1);
+    assert.equal(fixture.requests.filter((request) => request.args.includes("buildx") && request.args.includes("build")).length, 1);
+    assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(result))).sort(), [
+      "authority", "buildWindow", "builder", "candidateAdmission", "context", "dates", "functional", "image", "lease",
+      "nonce", "pairProof", "preflight", "profiles", "scope", "state", "vulnerabilities",
+    ]);
+    assert.doesNotMatch(JSON.stringify(result), /IMAGE_PAIR_PROOF_OBSERVED_REVIEW_PENDING|BUILT_UNVALIDATED/u);
+    assert.equal(contextCloses, 1); assert.equal(timerClears, 1);
+
+    let failureCloses = 0; let failureTimerClears = 0; const failed = await fullInjectedWorkflow({
+      proofPairFailure: true,
+      timerValues: { setTimeout: () => timer, clearTimeout: () => { failureTimerClears += 1; } },
+    });
+    await assert.rejects(failed.api.__probeRunProof(buildProofInput(), failed.dependencies, () => { failureCloses += 1; }),
+      /gosu_derivative_image_observation_archive_invalid/u);
+    assert.equal(failureCloses, 1); assert.equal(failureTimerClears, 1);
   });
 }
