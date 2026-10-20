@@ -192,3 +192,8 @@ Keep this task incomplete through scanner-only success. Full DONE requires actua
 ## 2026-10-18 — current BASE hardlink compatibility
 
 [PR182 evidence](../../docs/validation/TASK-0005A-gosu-layer-hardlinks.md) records one independently accepted current BASE diagnostic: TAR hardlink byte49 in layer4 at offset288330752. The focused source increment enables only the existing bounded hardlink option in raw/gzip image-layer readers; outer/context/shared defaults remain strict. Complete source checks/reviews/delivery and a fresh delivered-source observation are tracked in that evidence. This diagnostic does not establish full image validity, functionality, CVEs, provenance, admission or support activation. TASK-0005A/0005 remain IN_PROGRESS, supported0104-0106 blocked, currentEvidence unchanged and support dates null.
+
+
+## 2026-10-20 — current formats accepted; conditional B1b.1 source proof
+
+PR182 exact-head/main CI passed. Independently accepted current observations now decode BASE10 and CANDIDATE12 USTAR layers without opaque layers. The [B1b.1 plan](../plans/TASK-0005A-gosu-image-proof-v1.md), approved by Architect then distinct Critic, implements the pure byte-bound archive/config/rootfs relationship and genuine V2 delta checks with authority NOT_AUTHORIZED. [Evidence](../../docs/validation/TASK-0005A-gosu-image-proof-v1.md) records the accepted observations and separates this conditional source increment from later authenticated real-image proof. No consumed control or native archive is replayed here. TASK-0005A/0005 remain IN_PROGRESS; publication, remote audit, runtime/restore, remaining evidence/admission and integrated service gates remain; currentEvidence and null support dates are unchanged.
