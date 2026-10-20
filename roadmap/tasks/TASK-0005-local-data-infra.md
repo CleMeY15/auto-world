@@ -96,3 +96,8 @@ User update, 2026-09-14: "Zap le test d’accès" waives the external authentica
 ## 2026-10-18 — PostgreSQL image reader hardlink compatibility
 
 The current BASE parser blockage is identified as TAR hardlink type1. [The focused PR182 increment](../../docs/validation/TASK-0005A-gosu-layer-hardlinks.md) covers bounded interpretation of links inside raw/gzip image layers, preserving strict outer/context boundaries and all identity/resource guards. Source delivery and a new real-archive observation remain explicit gates. PostgreSQL image/current-audit/admission completion, application migrations and integrated PostgreSQL/OpenSearch/Redis/S3-compatible acceptance still remain. TASK-0005 stays IN_PROGRESS and TASK-0006 blocked; no support period starts from a diagnostic or source fixture.
+
+
+## 2026-10-20 — TAR fix delivered; conditional image proof continuation
+
+PR182 is merged with passing exact-head/main CI, and both current BASE10/CANDIDATE12 USTAR format observations have independent acceptance. The [approved B1b.1 source increment](../plans/TASK-0005A-gosu-image-proof-v1.md) now connects archive bytes/configuration/rootfs to the genuine candidate V2 predicates while keeping authentication of the archive pair and build window explicit. [Validation](../../docs/validation/TASK-0005A-gosu-image-proof-v1.md) distinguishes this conditional source proof from real-image/admission and four-service acceptance. TASK-0005 remains IN_PROGRESS, supported TASK-0006 blocked, currentEvidence unchanged and support dates null; migrations and PostgreSQL/OpenSearch/Redis/SeaweedFS readiness/persistence/restore acceptance still require completion.
