@@ -2,7 +2,7 @@
 
 ## North Star
 
-Incrément produit indépendant : [TASK-0112 — liens de publication synthétique](roadmap/tasks/TASK-0112-synthetic-publication-links.md), implémentation et validation locale approuvées (291 tests navigateur réussis par plateforme Windows/Linux), livraison finale soumise aux CI de la tête de PR puis du main protégé. TASK-0111 est livré par [PR180 et son checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551), CI du main39140493041 SUCCESS. Les liens de publication pointent vers la lecture actuelle de la démo locale, sans figer les données ni identifier un véhicule réel. Cette voie n'admet aucune infrastructure et ne débloque pas TASK-0104 à0106.
+Dernier incrément produit livré : [TASK-0113 — liens de comparaison synthétique](roadmap/tasks/TASK-0113-synthetic-comparison-links.md), DONE_ON_MAIN par [PR184 et son checkpoint final](https://github.com/CleMeY15/auto-world/pull/184#issuecomment-6301516770), le 20 octobre 2026. [CI de la tête de PR](https://github.com/CleMeY15/auto-world/actions/runs/39493715293) et [CI du main fusionné](https://github.com/CleMeY15/auto-world/actions/runs/39495578353) SUCCESS : 361 tests navigateur réussis et 7 exclusions préexistantes par run, sans échec ni retry rapporté. Le lien local référence 2–3 publications de démonstration ; leur lecture actuelle reste explicite, sans données figées ni identité de véhicule réel. Les preuves exactes sont consignées dans [le registre de livraison](roadmap/DELIVERY.md). Cette livraison produit n'admet aucune infrastructure ni source réelle et ne débloque pas TASK-0104 à TASK-0106.
 Construire le moteur de recherche et d'intelligence automobile mondial le plus rapide, complet et utile à la décision : une recherche unique multi-pays/multi-sources, web+iOS+Android, langage naturel, historique véhicule, scoring d'affaires et de confiance, coût rendu/immatriculé en France, alertes et données B2B.
 
 Le produit ne doit pas seulement aider à trouver une annonce. Il doit aider à trouver, comprendre, vérifier, comparer, importer et acheter le bon véhicule.
@@ -141,3 +141,9 @@ Stopper une intégration si droits incertains, usage interdit, instabilité chro
 
 ## Exécution
 La source de vérité opérationnelle est `roadmap/`. Codex lit `AGENTS.md`, puis cette roadmap, puis l'epic actif. Une tâche READY au plus peut avancer dans chaque voie indépendante définie par [ADR-0012](docs/decisions/ADR-0012-synthetic-development-lane.md) : planification/produit synthétique sans conteneur et infrastructure supportée. Dans chaque voie, respecter l'ordre des dépendances et la priorité P0 ; un travail partagé exige coordination avant modification. TASK-0006 n'autorise qu'un plan synthétique tant que TASK-0005 est inachevée. Les Strategic Moats doivent influencer les décisions d'architecture même lorsqu'une fonctionnalité correspondante n'est livrée que dans une phase ultérieure.
+
+## Historique du suivi produit
+
+Point de suivi antérieur à la livraison de TASK-0113, conservé sans réécriture ; il ne représente pas l'état de livraison courant :
+
+Incrément produit indépendant : [TASK-0112 — liens de publication synthétique](roadmap/tasks/TASK-0112-synthetic-publication-links.md), implémentation et validation locale approuvées (291 tests navigateur réussis par plateforme Windows/Linux), livraison finale soumise aux CI de la tête de PR puis du main protégé. TASK-0111 est livré par [PR180 et son checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551), CI du main39140493041 SUCCESS. Les liens de publication pointent vers la lecture actuelle de la démo locale, sans figer les données ni identifier un véhicule réel. Cette voie n'admet aucune infrastructure et ne débloque pas TASK-0104 à0106.
