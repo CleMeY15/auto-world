@@ -106,3 +106,10 @@ PR182 is merged with passing exact-head/main CI, and both current BASE10/CANDIDA
 ## 2026-10-20 — fresh-build conditional proof bridge
 
 The [B1b bridge source increment](../../docs/validation/TASK-0005A-gosu-build-proof-v1.md) records the build period required by PR183 and verifies the resulting identity-bound archive pair through a dedicated opt-in entrypoint. Source delivery is distinct from actual-image acceptance and does not complete the image or four-service foundation gates. TASK-0005 remains IN_PROGRESS; supported downstream dependencies, admission/currentEvidence and null support dates remain unchanged.
+
+
+## 2026-10-21 — actual image build-pair milestone accepted
+
+[The actual B1b V2 checkpoint](../../docs/validation/TASK-0005A-gosu-build-proof-v1.md#2026-10-21--actual-b1b-v2-build-pair-proof-accepted) records PR185 delivered source and one fresh, independently reviewed real build-pair proof. Architect then distinct Security accept BUILD_PAIR_PROOF_ONLY; the daemon is stopped, fourteen captures settled and cleanup uncertainty false. V1 remains a retained failure and V2 is consumed immutable, without retry or replay.
+
+TASK-0005 remains IN_PROGRESS. The new configuration ID does not establish a registry manifest digest or image admission. Separately reviewed retention/private publication/readback, fresh same-digest audit/SBOM, runtime/restore, source closure, attestation/second private copy and admission still remain, alongside migrations and integrated PostgreSQL/OpenSearch/Redis/S3-compatible readiness, persistence and restoration. Supported TASK-0006/0104-0106 remain blocked, currentEvidence unchanged and derivative support dates null; no support period starts from this build-only milestone.
