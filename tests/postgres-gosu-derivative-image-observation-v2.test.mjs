@@ -3,6 +3,7 @@ import childProcess from "node:child_process";
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import test from "node:test";
@@ -17,6 +18,7 @@ import {
   inspectGosuDerivativeImageSaveV2,
   runGosuDerivativeImageBuildProofV1,
   runGosuDerivativeImageBuildObservationV2,
+  runGosuDerivativeImageRetainedBuildProofV1,
 } from "../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs";
 
 const BLOCK = 512;
@@ -152,9 +154,9 @@ function routingProfileKey(request) {
 }
 
 async function observationInternals({ processValue, spawn, fsValues = {}, cryptoValues = {}, archiveValues = {}, candidateValues = {},
-  proofValues = {}, timerValues = {}, zlibValues = {} } = {}) {
+  proofValues = {}, timerValues = {}, zlibValues = {}, protocolValues = {} } = {}) {
   const sourcePath = new URL("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs", import.meta.url);
-  const sourceText = `${fs.readFileSync(sourcePath, "utf8")}\nexport { runtimeGuard as __runtimeGuard, defaultRunner as __defaultRunner, closed as __closed };
+  let sourceText = `${fs.readFileSync(sourcePath, "utf8")}\nexport { runtimeGuard as __runtimeGuard, defaultRunner as __defaultRunner, closed as __closed };
     export const __probeManifestEntry = (variant) => {
       let reads = 0; const core = { Config: "config.json", RepoTags: [], Layers: ["layer.tar"] }; let value = core;
       if (variant === "symbol") core[Symbol("secret")] = "value";
@@ -201,18 +203,69 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
         runner: async (request) => __runner(await dependencies.runner(request)),
         contextReader: async (specification, control) => {
           const record = __record(await dependencies.contextReader(specification, control));
-          if (onContextClose !== undefined) contextSessions.set(record, { guard: () => undefined, close: onContextClose });
+          if (onContextClose !== undefined) contextSessions.set(record, {
+            guard: () => undefined, guardNamed: () => undefined,
+            closeAllOnce: () => { onContextClose(); return { error: undefined, closeUncertain: false }; },
+            close: onContextClose,
+          });
           return record;
         },
         archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
       });
+    export const __probeRunRetained = (input, dependencies, onContextClose) => runGosuDerivativeImageRetainedBuildProofV1(
+      JSON.parse(JSON.stringify(input)), {
+        now: dependencies.now,
+        runner: async (request) => __runner(await dependencies.runner(request)),
+        contextReader: async (specification, control) => {
+          const record = __record(await dependencies.contextReader(specification, control));
+          if (onContextClose !== undefined) contextSessions.set(record, {
+            guard: () => undefined, guardNamed: () => undefined,
+            closeAllOnce: () => { onContextClose(); return { error: undefined, closeUncertain: false }; },
+            close: onContextClose,
+          });
+          return record;
+        },
+        archiveReader: async (specification, control) => __record(await dependencies.archiveReader(specification, control)),
+      });
+    export const __probeOpenRetentionDirectory = (directory) => openRetentionDirectorySession(directory);
+    export const __probeRetentionDirectoryGuard = (session, expected) =>
+      session.guard(JSON.parse(JSON.stringify(expected)));
+    export const __probeRetentionDirectoryGuardNamed = (session, expected) =>
+      session.guardNamed(JSON.parse(JSON.stringify(expected)));
+    export const __probeRetentionDirectoryTransition = (session, expected) =>
+      session.transition(JSON.parse(JSON.stringify(expected)));
+    export const __probeRetainedArchiveReader = (file, role, control) =>
+      defaultRetainedArchiveReader({ path: file, role, maximumBytes: ARCHIVE_LIMIT }, control);
+    export const __probeRetentionArchiveSession = (record) => retentionArchiveSessions.get(record);
+    export const __probeCloseRetentionOwners = (owners, guard) => closeRetentionOwners(owners, guard);
+    export const __probeDescriptorOwners = (fds) => fds.map((fd) => descriptorOwner(fd));
+    export const __probeRetentionStabilityFailed = (error) => retentionStabilityFailures.has(error);
+    export const __probeRetentionFailureDetail = (sealedRoles, closeUncertain, stabilityFailed) =>
+      retentionFailureDetail(sealedRoles, closeUncertain, stabilityFailed);
+    export const __probeRetentionSnapshotRecord = (buildWindow, pairProof, directory, basePhysical, candidatePhysical) =>
+      retentionSnapshotRecord(...[buildWindow, pairProof, directory, basePhysical, candidatePhysical]
+        .map((value) => JSON.parse(JSON.stringify(value))));
     export const __probeRunNonFullyInjected = (input, dependencies) => runGosuDerivativeImageBuildObservationV2(
       JSON.parse(JSON.stringify(input)), {
         now: dependencies.now,
         runner: async (request) => __runner(await dependencies.runner(request)),
         contextReader: async (specification, control) => __record(await dependencies.contextReader(specification, control)),
       });`;
+  if (protocolValues.runner !== undefined) sourceText += `
+    defaultRunner = async (request) => __runner(await globalThis.__protocolRunner(request));
+    defaultContextReader = async (specification, control) => {
+      const record = __record(await globalThis.__protocolContextReader(specification, control));
+      contextSessions.set(record, globalThis.__protocolContextSession);
+      return record;
+    };
+    export const __probeRunRetainedZeroDependencyProtocol = (input) =>
+      runGosuDerivativeImageRetainedBuildProofV1(JSON.parse(JSON.stringify(input)));`;
   const context = vm.createContext({ AbortController: globalThis.AbortController, Buffer, TextDecoder, clearTimeout, setTimeout });
+  context.__protocolRunner = protocolValues.runner;
+  context.__protocolContextReader = protocolValues.contextReader;
+  context.__protocolContextSession = protocolValues.contextSession;
+  context.__protocolNow = protocolValues.now;
+  if (protocolValues.now !== undefined) sourceText += "\nDate.now = () => globalThis.__protocolNow();";
   context.process = processValue ?? vm.runInContext(`Object.freeze({ platform: "linux", version: "v22.23.2", env: {},
     getuid: () => 1000, geteuid: () => 1000, getgid: () => 1000, getegid: () => 1000, getgroups: () => [1000] })`, context);
   const synthetic = (identifier, values) => new vm.SyntheticModule(Object.keys(values), function initialize() {
@@ -221,7 +274,10 @@ async function observationInternals({ processValue, spawn, fsValues = {}, crypto
   const unavailable = () => { throw new Error("unexpected fs call"); };
   const nodeFs = { closeSync: unavailable, constants: fs.constants, fstatSync: unavailable, fsyncSync: unavailable,
     linkSync: unavailable, lstatSync: unavailable, openSync: unavailable, readFileSync: unavailable, readSync: unavailable,
-    realpathSync: unavailable, statfsSync: unavailable, unlinkSync: unavailable, writeSync: unavailable, ...fsValues };
+    readdirSync: unavailable, realpathSync: unavailable, statfsSync: unavailable, unlinkSync: unavailable,
+    writeSync: unavailable, ...fsValues };
+  context.__hostReaddirSync = nodeFs.readdirSync;
+  nodeFs.readdirSync = vm.runInContext("(name) => Array.from(__hostReaddirSync(name))", context);
   const modules = new Map([
     ["node:child_process", synthetic("mock:child", { spawn: spawn ?? (() => { throw new Error("unexpected spawn"); }) })],
     ["node:crypto", synthetic("mock:crypto", { createHash, ...cryptoValues })],
@@ -279,6 +335,74 @@ function fakeChild(mode, fsRecord) {
   if (mode === "early-close") void Promise.resolve().then(() => child.emit("close", 0, null));
   if (fsRecord) child.fsRecord = fsRecord;
   return child;
+}
+
+function retentionStat({ dev = 1n, ino, mode, nlink = 1n, size = 0n, uid = 1000n, gid = 1000n,
+  mtimeNs = 1n, ctimeNs = 1n, birthtimeNs = 1n, type }) {
+  return { dev, ino, mode, nlink, size, uid, gid, mtimeNs, ctimeNs, birthtimeNs,
+    isDirectory: () => type === "directory", isFile: () => type === "file", isSymbolicLink: () => type === "symlink" };
+}
+
+function retentionPhysical(value) {
+  return { dev: String(value.dev), ino: String(value.ino), mode: Number(value.mode), nlink: Number(value.nlink),
+    size: Number(value.size), uid: Number(value.uid), gid: Number(value.gid), mtimeNs: String(value.mtimeNs),
+    ctimeNs: String(value.ctimeNs), birthtimeNs: String(value.birthtimeNs) };
+}
+
+async function retentionFsVm() {
+  const directory = "/tmp/aw-retained"; const basePath = `${directory}/base-image.tar`;
+  const candidatePath = `${directory}/candidate-image.tar`; const paths = [basePath, candidatePath];
+  const contents = new Map([[basePath, Buffer.from("base archive")], [candidatePath, Buffer.from("candidate archive")]]);
+  const named = new Map([[directory, retentionStat({ ino: 10n, mode: 0o40700n, nlink: 2n, type: "directory" })]]);
+  const held = new Map(); const fdByPath = new Map(); const pathByFd = new Map(); const closes = new Map(); const syncs = new Map();
+  let nextFd = 40; let entries = []; let fsyncFailureFd; let closeFailureFd; let closeHook = () => undefined;
+  let lstatHook;
+  const api = await observationInternals({ fsValues: {
+    openSync(name) { const key = String(name); const fd = nextFd += 1; fdByPath.set(key, fd); pathByFd.set(fd, key);
+      held.set(fd, named.get(key)); return fd; },
+    fstatSync(fd) { return held.get(fd); },
+    lstatSync(name) { return lstatHook?.(String(name)) ?? named.get(String(name)); },
+    realpathSync(name) { return String(name); },
+    readdirSync(name) { assert.equal(String(name), directory); return [...entries]; },
+    readSync(fd, buffer, offset, length, position) { const body = contents.get(pathByFd.get(fd));
+      const count = Math.min(length, body.length - position); body.copy(buffer, offset, position, position + count); return count; },
+    fsyncSync(fd) { syncs.set(fd, (syncs.get(fd) ?? 0) + 1); if (fd === fsyncFailureFd) throw new Error("private fsync detail"); },
+    closeSync(fd) { closes.set(fd, (closes.get(fd) ?? 0) + 1); closeHook(fd);
+      if (fd === closeFailureFd) throw new Error("private close detail"); },
+  } });
+  const addArchives = () => {
+    named.set(basePath, retentionStat({ ino: 11n, mode: 0o100600n, size: BigInt(contents.get(basePath).length), type: "file" }));
+    named.set(candidatePath, retentionStat({ ino: 12n, mode: 0o100600n, size: BigInt(contents.get(candidatePath).length), type: "file" }));
+    entries = ["base-image.tar", "candidate-image.tar"];
+  };
+  return { api, directory, basePath, candidatePath, paths, contents, named, held, fdByPath, pathByFd, closes, syncs,
+    addArchives, setEntries: (value) => { entries = [...value]; },
+    onClose: (value) => { closeHook = value; },
+    onLstat: (value) => { lstatHook = value; },
+    failFsyncFor: (name) => { fsyncFailureFd = fdByPath.get(name); }, failCloseFor: (name) => { closeFailureFd = fdByPath.get(name); } };
+}
+
+const realRetentionFsValues = () => ({
+  closeSync: fs.closeSync, fstatSync: fs.fstatSync, fsyncSync: fs.fsyncSync, lstatSync: fs.lstatSync,
+  openSync: fs.openSync, readdirSync: fs.readdirSync, readSync: fs.readSync, realpathSync: fs.realpathSync,
+});
+
+function freshRetentionDirectory() {
+  const parent = fs.realpathSync(os.tmpdir()); const directory = fs.mkdtempSync(path.join(parent, "aw-retained-proof-"));
+  fs.chmodSync(directory, 0o700);
+  assert.equal(path.dirname(fs.realpathSync(directory)), parent);
+  assert.match(path.basename(directory), /^aw-retained-proof-[A-Za-z0-9]+$/u);
+  return directory;
+}
+
+function removeFreshRetentionDirectory(directory, names) {
+  const parent = fs.realpathSync(os.tmpdir()); const resolved = fs.realpathSync(directory);
+  assert.equal(path.dirname(resolved), parent); assert.match(path.basename(resolved), /^aw-retained-proof-[A-Za-z0-9]+$/u);
+  for (const name of names) {
+    const target = path.join(directory, name);
+    try { fs.unlinkSync(target); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  }
+  fs.rmdirSync(directory);
 }
 
 function acceptanceBuffer(receipts) {
@@ -466,13 +590,129 @@ async function fullInjectedWorkflow({ failAfterBuild = false, readerHashMismatch
     pairProof, proofCalls, requests };
 }
 
+async function retainedZeroDependencyProtocolVm({ proofPairFailure = false, candidateSealFailure = false,
+  baseCloseFailure = false, baseCloseReplacesPath = false, closeAdvancesDeadline = false,
+  contextCloseFailure = false } = {}) {
+  const realArchive = await import("../scripts/seaweed-image/archive.mjs");
+  const runtimeLease = lease(); const output = runtimeLease.outputDirectory;
+  const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
+  const candidate = imageSaveFixture(); const base = imageSaveFixture({ role: "BASE", configId: baseId });
+  const context = Buffer.alloc(1_986_560); const candidateLockHandle = Object.freeze(Object.create(null));
+  const pairProof = Object.freeze({ scope: "CONDITIONAL_ON_AUTHENTICATED_ARCHIVES_AND_BUILD_WINDOW", authority: "NOT_AUTHORIZED",
+    profile: "POSTGRES_GOSU_DERIVATIVE_DOCKER_SAVE_USTAR_V1",
+    base: Object.freeze({ archive: Object.freeze({ bytes: base.archive.length, sha256: hash(base.archive) }), configId: baseId, layers: 10 }),
+    candidate: Object.freeze({ archive: Object.freeze({ bytes: candidate.archive.length, sha256: hash(candidate.archive) }),
+      configId: candidate.subject.configId, layers: 12 }), inheritedLayers: 10, addedLayers: 2,
+    configProfile: "STRICT_INHERITED_CONFIG_V2", delta: Object.freeze({ scope: "PROTOCOL_SIMULATION" }) });
+  const directoryStat = retentionStat({ ino: 500n, mode: 0o40700n, nlink: 2n, type: "directory" });
+  const named = new Map([[output, directoryStat]]); const contents = new Map(); const held = new Map(); const pathByFd = new Map();
+  const fdKind = new Map(); const closeCounts = new Map(); const fsyncCounts = new Map(); let nextFd = 600; let nextIno = 700n;
+  let retentionDirectoryFd; let basePulled = false; let built = false; let contextCloseCount = 0; let clock = 0;
+  const proofCalls = { opens: [], pairs: [] }; const requests = [];
+  const bumpDirectory = () => { directoryStat.mtimeNs += 1n; directoryStat.ctimeNs += 1n; };
+  const createPartial = (name, body, role) => {
+    const stat = retentionStat({ ino: nextIno += 1n, mode: 0o100600n, size: BigInt(body.length), type: "file" });
+    named.set(name, stat); contents.set(name, body); bumpDirectory(); return { stat, role };
+  };
+  const claim = Buffer.from("PROTOCOL_SIMULATION claim"); const success = Buffer.from("PROTOCOL_SIMULATION success");
+  const receipts = { claim: { bytes: claim.length, sha256: hash(claim), path: "/protocol/claim.json" },
+    success: { bytes: success.length, sha256: hash(success), path: "/protocol/success.json" } };
+  const fsValues = {
+    readFileSync(name, encoding) {
+      const value = String(name);
+      if (value === "/proc/self/status" && encoding === "utf8") return "Groups:\t\nNoNewPrivs:\t1\nCapInh:\t0000000000000000\nCapPrm:\t0000000000000000\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000000\nCapAmb:\t0000000000000000\n";
+      if (value.endsWith("gosu-derivative-context-private-acceptance-v1.json")) return acceptanceBuffer(receipts);
+      if (value === receipts.claim.path) return claim; if (value === receipts.success.path) return success;
+      if (value.endsWith("gosu-derivative-candidate-lock-v2.json")) return Buffer.from("PROTOCOL_SIMULATION lock");
+      throw new Error("unexpected protocol read");
+    },
+    statfsSync: () => ({ bavail: 16n, bsize: 1024n ** 3n }),
+    openSync(name) {
+      const key = String(name); const stat = named.get(key); if (stat === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      const fd = nextFd += 1; held.set(fd, stat); pathByFd.set(fd, key);
+      if (key === output) { fdKind.set(fd, "DIRECTORY"); retentionDirectoryFd ??= fd; }
+      else if (key.endsWith("base-image.tar")) fdKind.set(fd, "BASE");
+      else if (key.endsWith("candidate-image.tar")) fdKind.set(fd, "CANDIDATE");
+      return fd;
+    },
+    fstatSync: (fd) => held.get(fd), lstatSync: (name) => named.get(String(name)), realpathSync: (name) => String(name),
+    readdirSync(name) { assert.equal(String(name), output); return [...named.keys()].filter((key) => key.startsWith(`${output}/`))
+      .map((key) => path.posix.basename(key)); },
+    readSync(fd, buffer, offset, length, position) { const body = contents.get(pathByFd.get(fd)); const count = Math.min(length, body.length - position);
+      body.copy(buffer, offset, position, position + count); return count; },
+    linkSync(partial, final) { const source = String(partial); const target = String(final); const stat = named.get(source);
+      stat.nlink = 2n; named.set(target, stat); contents.set(target, contents.get(source)); bumpDirectory(); },
+    unlinkSync(name) { const key = String(name); const stat = named.get(key); named.delete(key); contents.delete(key); stat.nlink -= 1n; bumpDirectory(); },
+    fsyncSync(fd) { const kind = fdKind.get(fd); fsyncCounts.set(fd, (fsyncCounts.get(fd) ?? 0) + 1);
+      if (candidateSealFailure && kind === "CANDIDATE") throw new Error("PROTOCOL_SIMULATION candidate fsync"); },
+    closeSync(fd) { const kind = fdKind.get(fd); closeCounts.set(fd, (closeCounts.get(fd) ?? 0) + 1);
+      if (kind === "BASE" && baseCloseReplacesPath) named.set(pathByFd.get(fd), retentionStat({ ino: 999n,
+        mode: 0o100600n, size: BigInt(contents.get(pathByFd.get(fd)).length), type: "file" }));
+      if (kind === "BASE" && closeAdvancesDeadline) clock = lease().deadlineAtMs;
+      if (baseCloseFailure && kind === "BASE") throw new Error("PROTOCOL_SIMULATION base close"); },
+  };
+  const route = routingRunner();
+  const runner = async (request) => {
+    requests.push(request); const tail = request.args.slice(request.args[2] === "--context" ? 4 : 2);
+    if (tail[0] === "image" && tail[1] === "pull") basePulled = true;
+    if (tail[0] === "buildx" && tail[1] === "build") built = true;
+    let response = await route(request);
+    if (tail[0] === "image" && tail[1] === "ls") {
+      const ids = built ? [baseId, candidate.subject.imageId] : basePulled ? [baseId] : [];
+      const stdout = Buffer.from(ids.length ? `${ids.join("\n")}\n` : ""); response = { ...response, stdout, stdoutBytes: stdout.length };
+    } else if (tail[0] === "container" || tail[0] === "volume") response = { ...response, stdout: Buffer.alloc(0), stdoutBytes: 0 };
+    else if (tail[0] === "image" && tail[1] === "inspect") {
+      const selectedCandidate = String(tail.at(-1)).startsWith("aw-postgres-gosu:");
+      const stdout = Buffer.from(JSON.stringify({ Id: selectedCandidate ? candidate.subject.imageId : baseId, Os: "linux", Architecture: "amd64" }));
+      response = { ...response, stdout, stdoutBytes: stdout.length };
+    } else if (tail[0] === "image" && tail[1] === "save") {
+      const selectedCandidate = String(tail.at(-1)).startsWith("aw-postgres-gosu:"); const selected = selectedCandidate ? candidate : base;
+      const created = createPartial(request.stdoutPath, selected.archive, selectedCandidate ? "CANDIDATE" : "BASE");
+      response = { ...response, stdoutBytes: selected.archive.length, outputPhysical: retentionPhysical(created.stat),
+        outputIdentity: { bytes: selected.archive.length, sha256: hash(selected.archive) } };
+    }
+    return response;
+  };
+  const member = (ordinal) => ({ memberOrdinal: ordinal, uncompressedHeaderOffset: ordinal * 512,
+    uncompressedDataOffset: ordinal * 512 + 512, entry: { path: `entry-${ordinal}`, type: "directory", mode: 0o755,
+      uid: 0, gid: 0, mtime: 1_700_000_000, size: 0 } });
+  const contextSession = { guard: () => undefined, guardNamed: () => undefined,
+    closeAllOnce(guard) { let error; let closeUncertain = false;
+      try { guard(); } catch (guardError) { error ??= guardError; }
+      contextCloseCount += 1;
+      if (contextCloseFailure) { error ??= new Error("PROTOCOL_SIMULATION context close"); closeUncertain = true; }
+      try { guard(); } catch (guardError) { error ??= guardError; }
+      return { error, closeUncertain }; }, close: () => { contextCloseCount += 1; } };
+  const api = await observationInternals({ cryptoValues: { createHash: pinnedCreateHash }, fsValues,
+    protocolValues: { now: () => clock, runner, contextReader: () => ({ buffer: context, identity: { bytes: context.length,
+      sha256: "d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb" }, physical: { dev: "1" } }), contextSession },
+    candidateValues: { openCandidateLockV2: () => candidateLockHandle, candidateContractV2: () => ({}), validateCandidateContextV2: () => ({}) },
+    proofValues: { async openGosuDerivativeDockerSaveV1(buffer, subject) { proofCalls.opens.push({ buffer, subject });
+      return Object.freeze({ role: subject.role }); }, proveGosuDerivativeImagePairV1(handle, value) { proofCalls.pairs.push({ handle, value });
+      if (proofPairFailure) throw new Error("PROTOCOL_SIMULATION proof failure"); return pairProof; } },
+    archiveValues: { scanGzipLayer: realArchive.scanGzipLayer, scanRawUstar(options) {
+      if (options.diffId.endsWith("d29f612378a01c0ec6cd61c9482da96c99868695b3e526622dc38659e22567cb")) {
+        return Promise.resolve({ rawSize: context.length, members: Array.from({ length: 15 }, (_unused, index) => member(index)) });
+      }
+      return realArchive.scanRawUstar({ ...options, signal: undefined });
+    } }, timerValues: { setTimeout: () => Object.freeze({}), clearTimeout: () => undefined } });
+  return { api, base, candidate, pairProof, proofCalls, requests, closeCounts, fsyncCounts, fdKind,
+    retentionDirectoryFd: () => retentionDirectoryFd, contextCloseCount: () => contextCloseCount };
+}
+
 const buildProofInput = () => ({
   purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_PROOF_V1",
   nonce: "a".repeat(24),
   lease: lease(),
 });
 
-test("observation v2 exports only the five closed public interfaces", async () => {
+const retainedBuildProofInput = () => ({
+  purpose: "GOSU_DERIVATIVE_IMAGE_RETAINED_BUILD_PROOF_V1",
+  nonce: "a".repeat(24),
+  lease: lease(),
+});
+
+test("observation v2 exports only the six closed public interfaces", async () => {
   const api = await import("../scripts/postgres-image/gosu-derivative-image-observation-v2.mjs");
   assert.deepEqual(Object.keys(api).sort(), [
     "gosuDerivativeImageObservationArchiveFailureDetailV1",
@@ -480,6 +720,7 @@ test("observation v2 exports only the five closed public interfaces", async () =
     "inspectGosuDerivativeImageSaveV2",
     "runGosuDerivativeImageBuildObservationV2",
     "runGosuDerivativeImageBuildProofV1",
+    "runGosuDerivativeImageRetainedBuildProofV1",
   ]);
 });
 
@@ -1676,5 +1917,455 @@ if (typeof vm.SourceTextModule !== "function") {
     await assert.rejects(failed.api.__probeRunProof(buildProofInput(), failed.dependencies, () => { failureCloses += 1; }),
       /gosu_derivative_image_observation_archive_invalid/u);
     assert.equal(failureCloses, 1); assert.equal(failureTimerClears, 1);
+  });
+
+  test("retained build proof V1 Linux filesystem seals two fresh files with real kernel identities", {
+    skip: process.platform === "linux" && process.getuid?.() === 1000 ? false : "requires the pinned Linux UID1000 actor",
+  }, async () => {
+    const directory = freshRetentionDirectory(); const names = ["base-image.tar", "candidate-image.tar"];
+    const basePath = path.join(directory, names[0]); const candidatePath = path.join(directory, names[1]);
+    let directorySession; let baseSession; let candidateSession;
+    try {
+      const api = await observationInternals({ fsValues: realRetentionFsValues() });
+      directorySession = api.__probeOpenRetentionDirectory(directory);
+      fs.writeFileSync(basePath, Buffer.from("fresh base archive"), { mode: 0o600, flag: "wx" });
+      fs.writeFileSync(candidatePath, Buffer.from("fresh candidate archive"), { mode: 0o600, flag: "wx" });
+      const control = { guard: () => undefined };
+      const baseRecord = api.__probeRetainedArchiveReader(basePath, "BASE", control);
+      const candidateRecord = api.__probeRetainedArchiveReader(candidatePath, "CANDIDATE", control);
+      baseSession = api.__probeRetentionArchiveSession(baseRecord);
+      candidateSession = api.__probeRetentionArchiveSession(candidateRecord);
+      const expected = [{ name: names[0], physical: baseRecord.physical }, { name: names[1], physical: candidateRecord.physical }];
+      api.__probeRetentionDirectoryTransition(directorySession, expected);
+      baseSession.seal(control); candidateSession.seal(control); directorySession.seal(control);
+      assert.deepEqual({ ...baseSession.snapshot() }, retentionPhysical(fs.lstatSync(basePath, { bigint: true })));
+      assert.deepEqual({ ...candidateSession.snapshot() }, retentionPhysical(fs.lstatSync(candidatePath, { bigint: true })));
+      const outcome = api.__probeCloseRetentionOwners([baseSession, candidateSession, directorySession]);
+      assert.equal(outcome.error, undefined); assert.equal(outcome.closeUncertain, false);
+    } finally {
+      try { baseSession?.close(); } catch { /* already attempted; never retry at the syscall boundary */ }
+      try { candidateSession?.close(); } catch { /* already attempted; never retry at the syscall boundary */ }
+      try { directorySession?.close(); } catch { /* already attempted; never retry at the syscall boundary */ }
+      removeFreshRetentionDirectory(directory, names);
+    }
+  });
+
+  test("retained build proof V1 Linux filesystem rejects a symbolic-link archive without following it", {
+    skip: process.platform === "linux" && process.getuid?.() === 1000 ? false : "requires the pinned Linux UID1000 actor",
+  }, async () => {
+    const directory = freshRetentionDirectory(); const targetName = "target.tar"; const linkName = "base-image.tar";
+    try {
+      const target = path.join(directory, targetName); const link = path.join(directory, linkName);
+      fs.writeFileSync(target, Buffer.from("fresh target"), { mode: 0o600, flag: "wx" }); fs.symlinkSync(target, link);
+      const api = await observationInternals({ fsValues: realRetentionFsValues() });
+      await assert.rejects(async () => api.__probeRetainedArchiveReader(link, "BASE", { guard: () => undefined }),
+        /gosu_derivative_image_observation_input_invalid/u);
+      assert.equal(fs.readFileSync(target, "utf8"), "fresh target");
+    } finally { removeFreshRetentionDirectory(directory, [linkName, targetName]); }
+  });
+
+  test("retained build proof V1 Linux filesystem rejects a real additional hard link", {
+    skip: process.platform === "linux" && process.getuid?.() === 1000 ? false : "requires the pinned Linux UID1000 actor",
+  }, async () => {
+    const directory = freshRetentionDirectory(); const archiveName = "base-image.tar"; const aliasName = "alias.tar";
+    try {
+      const archive = path.join(directory, archiveName); const alias = path.join(directory, aliasName);
+      fs.writeFileSync(archive, Buffer.from("fresh hardlink target"), { mode: 0o600, flag: "wx" }); fs.linkSync(archive, alias);
+      assert.equal(fs.lstatSync(archive).nlink, 2);
+      const api = await observationInternals({ fsValues: realRetentionFsValues() });
+      await assert.rejects(async () => api.__probeRetainedArchiveReader(archive, "BASE", { guard: () => undefined }),
+        /gosu_derivative_image_observation_archive_invalid/u);
+    } finally { removeFreshRetentionDirectory(directory, [aliasName, archiveName]); }
+  });
+
+  test("retained build proof V1 Linux filesystem detects path replacement while retaining the original descriptor", {
+    skip: process.platform === "linux" && process.getuid?.() === 1000 ? false : "requires the pinned Linux UID1000 actor",
+  }, async () => {
+    const directory = freshRetentionDirectory(); const originalName = "base-image.tar"; const displacedName = "displaced.tar";
+    const original = path.join(directory, originalName); const displaced = path.join(directory, displacedName); let session;
+    try {
+      fs.writeFileSync(original, Buffer.from("fresh original"), { mode: 0o600, flag: "wx" });
+      const api = await observationInternals({ fsValues: realRetentionFsValues() });
+      const record = api.__probeRetainedArchiveReader(original, "BASE", { guard: () => undefined });
+      session = api.__probeRetentionArchiveSession(record); fs.renameSync(original, displaced);
+      fs.writeFileSync(original, Buffer.from("fresh replacement"), { mode: 0o600, flag: "wx" });
+      assert.throws(() => session.guard(), /gosu_derivative_image_observation_archive_invalid/u);
+      session.close();
+    } finally {
+      try { session?.close(); } catch { /* descriptor owner records the first attempt */ }
+      removeFreshRetentionDirectory(directory, [originalName, displacedName]);
+    }
+  });
+
+  test("retained build proof V1 VM rejects wrong public shapes and unknown dependencies before work", async () => {
+    let calls = 0; const dependencies = {
+      now() { calls += 1; return 0; },
+      runner() { calls += 1; throw new Error("must not run"); },
+      contextReader() { calls += 1; throw new Error("must not read"); },
+      archiveReader() { calls += 1; throw new Error("must not read"); },
+    };
+    for (const input of [
+      { ...retainedBuildProofInput(), purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_PROOF_V1" },
+      { ...retainedBuildProofInput(), extra: true },
+    ]) {
+      const failure = await runGosuDerivativeImageRetainedBuildProofV1(input, dependencies).catch((error) => error);
+      assert.equal(failure.message, "gosu_derivative_image_observation_input_invalid");
+      assert.equal(failure.phase, "PREFLIGHT"); assert.equal(failure.state, "UNBUILT");
+    }
+    const failure = await runGosuDerivativeImageRetainedBuildProofV1(retainedBuildProofInput(), {
+      ...dependencies, retentionSession() { calls += 1; },
+    }).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_input_invalid");
+    assert.equal(failure.phase, "PREFLIGHT"); assert.equal(failure.state, "UNBUILT"); assert.equal(calls, 0);
+  });
+
+  test("retained build proof V1 VM keeps injected authority simulated and the fixed protocol sequence", async () => {
+    const fixture = await fullInjectedWorkflow(); let archiveReads = 0; let contextCloses = 0;
+    const reader = fixture.dependencies.archiveReader;
+    fixture.dependencies.archiveReader = (...args) => { archiveReads += 1; return reader(...args); };
+    const result = await fixture.api.__probeRunRetained(retainedBuildProofInput(), fixture.dependencies,
+      () => { contextCloses += 1; });
+    const phases = fixture.requests.map((request) => request.phase);
+    assert.equal(phases.filter((phase) => phase === "BUILD").length >= 1, true);
+    assert.equal(fixture.requests.filter((request) => request.args.includes("buildx") && request.args.includes("build")).length, 1);
+    assert.equal(phases.filter((phase) => phase === "SAVE_BASE").length, 1);
+    assert.equal(phases.filter((phase) => phase === "SAVE_CANDIDATE").length, 1);
+    assert.equal(archiveReads, 2); assert.equal(fixture.proofCalls.opens.length, 2); assert.equal(fixture.proofCalls.pairs.length, 1);
+    assert.equal(contextCloses, 1); assert.equal(result.state, "RETAINED_PAIR_PROOF_SIMULATION");
+    assert.equal(result.authority, "NOT_AUTHORIZED"); assert.equal(result.image, "NOT_ESTABLISHED");
+    assert.equal(result.candidateAdmission, "NOT_ESTABLISHED"); assert.equal(result.functional, "NOT_ESTABLISHED");
+    assert.equal(result.vulnerabilities, "NOT_ESTABLISHED"); assert.equal(result.dates, null);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.retention)), {
+      state: "SIMULATED_NOT_RETAINED", preservation: "NOT_ESTABLISHED",
+      authority: "NOT_AUTHORIZED", admission: "NOT_ESTABLISHED",
+    });
+    assert.strictEqual(result.pairProof, fixture.pairProof); assert.equal(Object.isFrozen(result), true);
+    assert.doesNotMatch(JSON.stringify(result), /SEALED_SNAPSHOT|REVIEW_PENDING|BUILT_UNVALIDATED|base-image\.tar|candidate-image\.tar/u);
+  });
+
+  test("retained build proof V1 VM proof failure returns no retention snapshot", async () => {
+    const fixture = await fullInjectedWorkflow({ proofPairFailure: true });
+    const failure = await fixture.api.__probeRunRetained(retainedBuildProofInput(), fixture.dependencies).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_archive_invalid");
+    assert.equal(failure.phase, "OBSERVE"); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+    assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.equal(fixture.proofCalls.opens.length, 2); assert.equal(fixture.proofCalls.pairs.length, 1);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation returns the complete closed snapshot after one fixed flow", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm();
+    const result = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput());
+    const serialized = JSON.parse(JSON.stringify(result));
+    assert.equal(result.state, "IMAGE_PAIR_RETENTION_SNAPSHOT_OBSERVED_REVIEW_PENDING");
+    assert.equal(result.image, "BUILT_UNVALIDATED"); assert.equal(result.authority, "NOT_AUTHORIZED");
+    assert.equal(result.candidateAdmission, "NOT_AUTHORIZED"); assert.equal(result.dates, null);
+    assert.equal(serialized.retention.state, "SEALED_SNAPSHOT_REVIEW_PENDING");
+    assert.deepEqual(serialized.pairProof, JSON.parse(JSON.stringify(fixture.pairProof)));
+    assert.equal(fixture.requests.filter((request) => request.args.includes("buildx") && request.args.includes("build")).length, 1);
+    assert.equal(fixture.requests.filter((request) => request.phase === "SAVE_BASE").length, 1);
+    assert.equal(fixture.requests.filter((request) => request.phase === "SAVE_CANDIDATE").length, 1);
+    assert.equal(fixture.proofCalls.opens.length, 2); assert.equal(fixture.proofCalls.pairs.length, 1);
+    assert.equal([...fixture.fsyncCounts].filter(([fd]) => fixture.fdKind.get(fd) === "BASE").length, 1);
+    assert.equal([...fixture.fsyncCounts].filter(([fd]) => fixture.fdKind.get(fd) === "CANDIDATE").length, 1);
+    assert.equal(fixture.fsyncCounts.get(fixture.retentionDirectoryFd()), 1);
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+    assert.doesNotMatch(JSON.stringify(result.retention), /buffer|handle|descriptor|(?:[A-Za-z]:\\|\/tmp\/|\/var\/)/iu);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation proof failure seals no archive", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ proofPairFailure: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.equal(fixture.proofCalls.opens.length, 2); assert.equal(fixture.proofCalls.pairs.length, 1);
+    assert.equal([...fixture.fsyncCounts].filter(([fd]) => ["BASE", "CANDIDATE"].includes(fixture.fdKind.get(fd))).length, 0);
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation candidate seal failure returns only partial failure", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ candidateSealFailure: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(failure.retentionFailure)), {
+      state: "PARTIAL_PAIR_SNAPSHOT", sealedRoles: ["BASE"], closeUncertain: false,
+    });
+    assert.equal([...fixture.fsyncCounts].filter(([fd]) => fixture.fdKind.get(fd) === "BASE").length, 1);
+    assert.equal([...fixture.fsyncCounts].filter(([fd]) => fixture.fdKind.get(fd) === "CANDIDATE").length, 1);
+    assert.equal(fixture.fsyncCounts.has(fixture.retentionDirectoryFd()), false);
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation archive close uncertainty returns no complete snapshot", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ baseCloseFailure: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(failure.retentionFailure)), {
+      state: "PAIR_STABILITY_FAILED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: true,
+    });
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation close path replacement returns no complete snapshot", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ baseCloseReplacesPath: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(failure.retentionFailure)), {
+      state: "PAIR_STABILITY_FAILED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: false,
+    });
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation close deadline expiry returns no complete snapshot", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ closeAdvancesDeadline: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_deadline_exceeded");
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(failure.retentionFailure)), {
+      state: "SNAPSHOT_NOT_COMMITTED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: false,
+    });
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+  });
+
+  test("retained build proof V1 VM zero dependency protocol simulation context close uncertainty returns no complete snapshot", async () => {
+    const fixture = await retainedZeroDependencyProtocolVm({ contextCloseFailure: true });
+    const failure = await fixture.api.__probeRunRetainedZeroDependencyProtocol(retainedBuildProofInput()).catch((error) => error);
+    assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT"); assert.equal(Object.hasOwn(failure, "retention"), false);
+    assert.deepEqual(JSON.parse(JSON.stringify(failure.retentionFailure)), {
+      state: "PAIR_STABILITY_FAILED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: true,
+    });
+    assert.equal([...fixture.closeCounts.values()].every((count) => count === 1), true);
+    assert.equal(fixture.contextCloseCount(), 1);
+  });
+
+  test("retained build proof V1 VM projects a closed snapshot from the exact proof identities", async () => {
+    const api = await observationInternals();
+    const buildWindow = { startedAtMs: 100, completedAtMs: 200 };
+    const pairProof = { base: { archive: { bytes: 11, sha256: "a".repeat(64) }, configId: `sha256:${"b".repeat(64)}` },
+      candidate: { archive: { bytes: 13, sha256: "c".repeat(64) }, configId: `sha256:${"d".repeat(64)}` } };
+    const directory = retentionPhysical(retentionStat({ ino: 10n, mode: 0o40700n, nlink: 2n, type: "directory" }));
+    const basePhysical = retentionPhysical(retentionStat({ ino: 11n, mode: 0o100600n, size: 11n, type: "file" }));
+    const candidatePhysical = retentionPhysical(retentionStat({ ino: 12n, mode: 0o100600n, size: 13n, type: "file" }));
+    const retention = api.__probeRetentionSnapshotRecord(buildWindow, pairProof, directory, basePhysical, candidatePhysical);
+    assert.deepEqual(Object.keys(retention), ["state", "preservation", "authority", "admission", "directory", "buildWindow", "base", "candidate"]);
+    assert.deepEqual(JSON.parse(JSON.stringify(retention)), {
+      state: "SEALED_SNAPSHOT_REVIEW_PENDING", preservation: "FUTURE_CONTROLLER_REQUIRED",
+      authority: "NOT_AUTHORIZED", admission: "NOT_AUTHORIZED", directory, buildWindow,
+      base: { name: "base-image.tar", archive: pairProof.base.archive, configId: pairProof.base.configId, physical: basePhysical },
+      candidate: { name: "candidate-image.tar", archive: pairProof.candidate.archive,
+        configId: pairProof.candidate.configId, physical: candidatePhysical },
+    });
+    assert.equal(Object.isFrozen(retention), true); assert.equal(Object.isFrozen(retention.base.archive), true);
+    assert.doesNotMatch(JSON.stringify(retention), /(?:[A-Za-z]:\\|\/var\/|\/tmp\/)|buffer|handle|descriptor|base64/iu);
+  });
+
+  test("retained build proof V1 VM seals both exact archive identities before closing every owner", async () => {
+    const fixture = await retentionFsVm(); const control = { guard: () => undefined };
+    const directorySession = fixture.api.__probeOpenRetentionDirectory(fixture.directory); fixture.addArchives();
+    const baseRecord = fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", control);
+    const candidateRecord = fixture.api.__probeRetainedArchiveReader(fixture.candidatePath, "CANDIDATE", control);
+    const expected = [{ name: "base-image.tar", physical: baseRecord.physical },
+      { name: "candidate-image.tar", physical: candidateRecord.physical }];
+    fixture.api.__probeRetentionDirectoryTransition(directorySession, expected);
+    const baseSession = fixture.api.__probeRetentionArchiveSession(baseRecord);
+    const candidateSession = fixture.api.__probeRetentionArchiveSession(candidateRecord);
+    assert.deepEqual({ ...baseRecord.identity }, { bytes: fixture.contents.get(fixture.basePath).length,
+      sha256: hash(fixture.contents.get(fixture.basePath)) });
+    assert.deepEqual({ ...candidateRecord.identity }, { bytes: fixture.contents.get(fixture.candidatePath).length,
+      sha256: hash(fixture.contents.get(fixture.candidatePath)) });
+    baseSession.guard(); candidateSession.guard(); fixture.api.__probeRetentionDirectoryGuard(directorySession, expected);
+    baseSession.seal(control); candidateSession.seal(control); directorySession.seal(control);
+    assert.deepEqual({ ...baseSession.snapshot() }, retentionPhysical(fixture.named.get(fixture.basePath)));
+    assert.deepEqual({ ...candidateSession.snapshot() }, retentionPhysical(fixture.named.get(fixture.candidatePath)));
+    const outcome = fixture.api.__probeCloseRetentionOwners([baseSession, candidateSession, directorySession]);
+    assert.equal(outcome.error, undefined); assert.equal(outcome.closeUncertain, false);
+    assert.deepEqual([...fixture.syncs.values()], [1, 1, 1]); assert.deepEqual([...fixture.closes.values()], [1, 1, 1]);
+  });
+
+  test("retained build proof V1 VM rejects archive symlinks special files metadata drift and extra links", async () => {
+    const variants = [
+      ["symlink", { type: "symlink" }], ["fifo", { type: "fifo", mode: 0o10600n }],
+      ["hardlink", { nlink: 2n }], ["owner", { uid: 0n }], ["mode", { mode: 0o100640n }],
+    ];
+    for (const [name, change] of variants) {
+      const fixture = await retentionFsVm(); fixture.addArchives();
+      fixture.named.set(fixture.basePath, { ...fixture.named.get(fixture.basePath), ...change,
+        isFile: () => change.type === undefined || change.type === "file",
+        isSymbolicLink: () => change.type === "symlink", isDirectory: () => false });
+      await assert.rejects(async () => fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", { guard: () => undefined }),
+        /gosu_derivative_image_observation_archive_invalid/u, name);
+      assert.equal(fixture.closes.get(fixture.fdByPath.get(fixture.basePath)), 1, name);
+    }
+    const drift = await retentionFsVm(); drift.addArchives();
+    const record = drift.api.__probeRetainedArchiveReader(drift.basePath, "BASE", { guard: () => undefined });
+    const session = drift.api.__probeRetentionArchiveSession(record);
+    drift.named.set(drift.basePath, { ...drift.named.get(drift.basePath), size: drift.named.get(drift.basePath).size + 1n });
+    assert.throws(() => session.guard(), /gosu_derivative_image_observation_archive_invalid/u, "size drift");
+    session.close();
+  });
+
+  test("retained build proof V1 VM rejects parent replacement and unauthorized namespace changes", async () => {
+    const replacement = await retentionFsVm(); const session = replacement.api.__probeOpenRetentionDirectory(replacement.directory);
+    replacement.named.set(replacement.directory, retentionStat({ ino: 99n, mode: 0o40700n, nlink: 2n, type: "directory" }));
+    assert.throws(() => replacement.api.__probeRetentionDirectoryGuard(session, []),
+      /gosu_derivative_image_observation_stream_invalid/u);
+
+    const namespace = await retentionFsVm(); const namespaceSession = namespace.api.__probeOpenRetentionDirectory(namespace.directory);
+    namespace.setEntries(["unexpected.tar"]);
+    assert.throws(() => namespace.api.__probeRetentionDirectoryGuard(namespaceSession, []),
+      /gosu_derivative_image_observation_stream_invalid/u);
+
+    for (const [name, change] of [["owner", { uid: 0n }], ["mode", { mode: 0o40750n }],
+      ["links", { nlink: 3n }], ["symlink", { type: "symlink" }]]) {
+      const invalid = await retentionFsVm();
+      invalid.named.set(invalid.directory, { ...invalid.named.get(invalid.directory), ...change,
+        isDirectory: () => change.type === undefined, isFile: () => false, isSymbolicLink: () => change.type === "symlink" });
+      assert.throws(() => invalid.api.__probeOpenRetentionDirectory(invalid.directory),
+        /gosu_derivative_image_observation_stream_invalid/u, name);
+    }
+  });
+
+  test("retained build proof V1 VM classifies every fsync failure and closes every owner once", async () => {
+    for (const [failedRole, expectedRoles, expectedState] of [
+      ["BASE", [], "SNAPSHOT_NOT_COMMITTED"], ["CANDIDATE", ["BASE"], "PARTIAL_PAIR_SNAPSHOT"],
+      ["DIRECTORY", ["BASE", "CANDIDATE"], "SNAPSHOT_NOT_COMMITTED"],
+    ]) {
+      const fixture = await retentionFsVm(); const control = { guard: () => undefined };
+      const directorySession = fixture.api.__probeOpenRetentionDirectory(fixture.directory); fixture.addArchives();
+      const baseRecord = fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", control);
+      const candidateRecord = fixture.api.__probeRetainedArchiveReader(fixture.candidatePath, "CANDIDATE", control);
+      const baseSession = fixture.api.__probeRetentionArchiveSession(baseRecord);
+      const candidateSession = fixture.api.__probeRetentionArchiveSession(candidateRecord);
+      fixture.api.__probeRetentionDirectoryTransition(directorySession, [
+        { name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical },
+      ]);
+      const failedPath = failedRole === "BASE" ? fixture.basePath
+        : failedRole === "CANDIDATE" ? fixture.candidatePath : fixture.directory;
+      fixture.failFsyncFor(failedPath); const sealed = [];
+      let failure;
+      try {
+        baseSession.seal(control); sealed.push("BASE");
+        candidateSession.seal(control); sealed.push("CANDIDATE");
+        directorySession.seal(control);
+        assert.fail(`expected ${failedRole} fsync failure`);
+      } catch (error) { failure = error; }
+      assert.match(failure.message, /private fsync detail/u, failedRole); assert.deepEqual(sealed, expectedRoles, failedRole);
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.__probeRetentionFailureDetail(sealed, false, false))), {
+        state: expectedState, sealedRoles: expectedRoles, closeUncertain: false,
+      }, failedRole);
+      const outcome = fixture.api.__probeCloseRetentionOwners([baseSession, candidateSession, directorySession]);
+      assert.equal(outcome.closeUncertain, false, failedRole); assert.deepEqual([...fixture.closes.values()], [1, 1, 1], failedRole);
+    }
+  });
+
+  test("retained build proof V1 VM treats close failure as stability uncertainty without retry", async () => {
+    for (const failedPathName of ["BASE", "CANDIDATE", "DIRECTORY"]) {
+      const fixture = await retentionFsVm(); const control = { guard: () => undefined };
+      const directorySession = fixture.api.__probeOpenRetentionDirectory(fixture.directory); fixture.addArchives();
+      const baseRecord = fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", control);
+      const candidateRecord = fixture.api.__probeRetainedArchiveReader(fixture.candidatePath, "CANDIDATE", control);
+      const baseSession = fixture.api.__probeRetentionArchiveSession(baseRecord);
+      const candidateSession = fixture.api.__probeRetentionArchiveSession(candidateRecord);
+      fixture.failCloseFor(failedPathName === "BASE" ? fixture.basePath
+        : failedPathName === "CANDIDATE" ? fixture.candidatePath : fixture.directory);
+      const first = fixture.api.__probeCloseRetentionOwners([baseSession, candidateSession, directorySession]);
+      assert.equal(first.closeUncertain, true, failedPathName); assert.match(first.error.message, /private close detail/u);
+      const second = fixture.api.__probeCloseRetentionOwners([baseSession, candidateSession, directorySession]);
+      assert.equal(second.closeUncertain, false, failedPathName);
+      assert.deepEqual([...fixture.closes.values()], [1, 1, 1], failedPathName);
+      assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.__probeRetentionFailureDetail(["BASE", "CANDIDATE"], true, false))), {
+        state: "PAIR_STABILITY_FAILED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: true,
+      });
+    }
+  });
+
+  test("retained build proof V1 VM detects deadline expiry caused by close and still attempts every owner once", async () => {
+    const closed = new Map(); let clock = 0;
+    const api = await observationInternals({ fsValues: { closeSync(fd) {
+      closed.set(fd, (closed.get(fd) ?? 0) + 1); if (fd === 201) clock = 100;
+    } } });
+    const owners = api.__probeDescriptorOwners([201, 202, 203]);
+    const guard = () => { if (clock >= 100) throw new Error("gosu_derivative_image_observation_deadline_exceeded"); };
+    const first = api.__probeCloseRetentionOwners(owners, guard);
+    assert.equal(first.error.message, "gosu_derivative_image_observation_deadline_exceeded");
+    assert.equal(first.closeUncertain, false); assert.deepEqual([...closed.values()], [1, 1, 1]);
+    api.__probeCloseRetentionOwners(owners, () => undefined);
+    assert.deepEqual([...closed.values()], [1, 1, 1]);
+  });
+
+  test("retained build proof V1 VM detects named path replacement performed during close", async () => {
+    const fixture = await retentionFsVm(); const control = { guard: () => undefined }; fixture.addArchives();
+    const record = fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", control);
+    const session = fixture.api.__probeRetentionArchiveSession(record);
+    fixture.onClose((fd) => {
+      if (fixture.pathByFd.get(fd) === fixture.basePath) {
+        fixture.named.set(fixture.basePath, retentionStat({ ino: 99n, mode: 0o100600n,
+          size: BigInt(fixture.contents.get(fixture.basePath).length), type: "file" }));
+      }
+    });
+    const outcome = fixture.api.__probeCloseRetentionOwners([session], () => undefined);
+    assert.equal(outcome.error, undefined); assert.equal(outcome.closeUncertain, false);
+    let failure; try { session.guardNamed(); assert.fail("expected named guard failure"); } catch (error) { failure = error; }
+    assert.match(failure.message, /gosu_derivative_image_observation_archive_invalid/u);
+    assert.equal(fixture.api.__probeRetentionStabilityFailed(failure), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(fixture.api.__probeRetentionFailureDetail(["BASE", "CANDIDATE"], false, true))), {
+      state: "PAIR_STABILITY_FAILED", sealedRoles: ["BASE", "CANDIDATE"], closeUncertain: false,
+    });
+  });
+
+  test("retained build proof V1 VM preserves stability classification when named guard receives raw ENOENT", async () => {
+    const fixture = await retentionFsVm(); const control = { guard: () => undefined }; fixture.addArchives();
+    const record = fixture.api.__probeRetainedArchiveReader(fixture.basePath, "BASE", control);
+    const session = fixture.api.__probeRetentionArchiveSession(record);
+    fixture.onLstat((name) => { if (name === fixture.basePath) throw Object.assign(new Error("private missing path"), { code: "ENOENT" }); });
+    let failure; try { session.guardNamed(); assert.fail("expected ENOENT"); } catch (error) { failure = error; }
+    assert.match(failure.message, /private missing path/u);
+    assert.equal(fixture.api.__probeRetentionStabilityFailed(failure), true);
+    fixture.onLstat(() => undefined); session.close();
+  });
+
+  test("retained build proof V1 VM context-style owner failure attempts every descriptor without retry", async () => {
+    const attempts = new Map(); const api = await observationInternals({ fsValues: { closeSync(fd) {
+      attempts.set(fd, (attempts.get(fd) ?? 0) + 1); if (fd === 302) throw new Error("context close uncertain");
+    } } });
+    const owners = api.__probeDescriptorOwners([301, 302, 303, 304, 305, 306]);
+    const first = api.__probeCloseRetentionOwners(owners, () => undefined);
+    assert.equal(first.closeUncertain, true); assert.match(first.error.message, /context close uncertain/u);
+    assert.deepEqual([...attempts.values()], [1, 1, 1, 1, 1, 1]);
+    const second = api.__probeCloseRetentionOwners(owners, () => undefined);
+    assert.equal(second.closeUncertain, false); assert.deepEqual([...attempts.values()], [1, 1, 1, 1, 1, 1]);
+  });
+
+  test("retained build proof V1 VM closes deadline rollback before snapshot success", async () => {
+    const fixture = await fullInjectedWorkflow(); const originalRunner = fixture.dependencies.runner; let clock = 0;
+    fixture.dependencies.now = () => clock;
+    fixture.dependencies.runner = async (request) => {
+      const result = await originalRunner(request);
+      if (request.args.includes("buildx") && request.args.includes("build")) clock = -1;
+      return result;
+    };
+    const failure = await fixture.api.__probeRunRetained(retainedBuildProofInput(), fixture.dependencies).catch((error) => error);
+    assert.equal(failure.message, "gosu_derivative_image_observation_deadline_exceeded");
+    assert.equal(failure.phase, "BUILD"); assert.equal(failure.state, "MAY_HAVE_BEEN_BUILT");
+    assert.equal(Object.hasOwn(failure, "retention"), false); assert.equal(fixture.proofCalls.pairs.length, 0);
+  });
+
+  test("retained build proof V1 VM preserves legacy result shapes and keeps retention opt in", async () => {
+    const observation = await fullInjectedWorkflow();
+    const observed = await observation.api.__probeRun({ purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION",
+      nonce: "a".repeat(24), lease: lease() }, observation.dependencies);
+    assert.equal(Object.hasOwn(observed, "retention"), false); assert.equal(Object.hasOwn(observed, "pairProof"), false);
+
+    const proof = await fullInjectedWorkflow();
+    const proved = await proof.api.__probeRunProof(buildProofInput(), proof.dependencies);
+    assert.equal(Object.hasOwn(proved, "retention"), false);
+    assert.deepEqual(Object.keys(JSON.parse(JSON.stringify(proved))).sort(), [
+      "authority", "buildWindow", "builder", "candidateAdmission", "context", "dates", "functional", "image", "lease",
+      "nonce", "pairProof", "preflight", "profiles", "scope", "state", "vulnerabilities",
+    ]);
   });
 }
