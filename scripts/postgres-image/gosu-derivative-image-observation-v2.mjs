@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, openSync, readFileSync, readSync, realpathSync,
+  closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, openSync, readFileSync, readdirSync, readSync, realpathSync,
   statfsSync, unlinkSync, writeSync,
 } from "node:fs";
 import path from "node:path";
@@ -20,6 +20,7 @@ const GiB = 1024 ** 3;
 const DOCKER = "/usr/bin/docker";
 const PURPOSE = "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION";
 const PROOF_PURPOSE = "GOSU_DERIVATIVE_IMAGE_BUILD_PROOF_V1";
+const RETAINED_PROOF_PURPOSE = "GOSU_DERIVATIVE_IMAGE_RETAINED_BUILD_PROOF_V1";
 const BASE_REFERENCE = "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3";
 const BASE_CONFIG_ID = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
 const CONTEXT_PATH = "/home/autoworld/auto-world-private-contexts/gosu-candidate-context-v2/context.tar";
@@ -68,7 +69,10 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const ACCEPTANCE_PATH = path.join(repoRoot, ".omx", "gosu-derivative-context-private-acceptance-v1.json");
 const LOCK_PATH = path.join(repoRoot, "infra", "postgres-image", "gosu-derivative-candidate-lock-v2.json");
 const contextSessions = new WeakMap();
+const retentionArchiveSessions = new WeakMap();
 const archiveFailureDetails = new WeakMap();
+const retentionStabilityFailures = new WeakSet();
+const retentionCloseUncertainFailures = new WeakSet();
 
 const plain = (value) => value !== null && typeof value === "object" && !Array.isArray(value)
   && !types.isProxy(value) && Object.getPrototypeOf(value) === Object.prototype;
@@ -362,6 +366,120 @@ function stableSnapshot(value) {
     size: Number(value.size), uid: Number(value.uid), gid: Number(value.gid), mtimeNs: String(value.mtimeNs), ctimeNs: String(value.ctimeNs),
     birthtimeNs: String(value.birthtimeNs) });
 }
+function descriptorOwner(fd) {
+  let attempted = false;
+  return Object.freeze({ close: () => {
+    if (attempted) return;
+    attempted = true;
+    closeSync(fd);
+  } });
+}
+function closeRetentionOwners(owners, guard = () => undefined) {
+  let error; let closeUncertain = false;
+  for (const owner of owners) {
+    if (owner === undefined) continue;
+    try { guard(); } catch (guardError) { error ??= guardError; }
+    try { owner.close(); }
+    catch (closeError) { error ??= closeError; closeUncertain = true; }
+    try { guard(); } catch (guardError) { error ??= guardError; }
+  }
+  if (closeUncertain && (typeof error === "object" || typeof error === "function") && error !== null) {
+    retentionCloseUncertainFailures.add(error);
+  }
+  return Object.freeze({ error, closeUncertain });
+}
+function retentionStability(operation) {
+  try { return operation(); }
+  catch (error) {
+    if ((typeof error === "object" || typeof error === "function") && error !== null) retentionStabilityFailures.add(error);
+    throw error;
+  }
+}
+function retentionFailureDetail(sealedRoles, closeUncertain, stabilityFailed) {
+  const state = stabilityFailed || closeUncertain ? "PAIR_STABILITY_FAILED"
+    : sealedRoles.length === 1 ? "PARTIAL_PAIR_SNAPSHOT" : "SNAPSHOT_NOT_COMMITTED";
+  return freeze({ state, sealedRoles: [...sealedRoles], closeUncertain });
+}
+function retentionSnapshotRecord(buildWindow, pairProof, directory, basePhysical, candidatePhysical) {
+  return freeze({ state: "SEALED_SNAPSHOT_REVIEW_PENDING", preservation: "FUTURE_CONTROLLER_REQUIRED",
+    authority: "NOT_AUTHORIZED", admission: "NOT_AUTHORIZED", directory, buildWindow,
+    base: { name: "base-image.tar", archive: pairProof.base.archive, configId: pairProof.base.configId, physical: basePhysical },
+    candidate: { name: "candidate-image.tar", archive: pairProof.candidate.archive, configId: pairProof.candidate.configId,
+      physical: candidatePhysical } });
+}
+function openRetentionDirectorySession(directory) {
+  let fd;
+  try { fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+  catch { return retentionStability(() => fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE")); }
+  const owner = descriptorOwner(fd);
+  let initial; let current;
+  const inspect = (expectedNames, allowTransition) => retentionStability(() => {
+    const held = fstatSync(fd, { bigint: true }); const named = lstatSync(directory, { bigint: true });
+    const heldSnapshot = stableSnapshot(held); const namedSnapshot = stableSnapshot(named);
+    const entries = readdirSync(directory).sort(); const expected = expectedNames.map((entry) => typeof entry === "string" ? { name: entry } : entry);
+    const names = expected.map((entry) => entry.name).sort();
+    if (!held.isDirectory() || held.isSymbolicLink() || held.uid !== 1000n || held.gid !== 1000n || held.nlink !== 2n
+      || (held.mode & 0o7777n) !== 0o700n || !isDeepStrictEqual(heldSnapshot, namedSnapshot)
+      || realpathSync(directory) !== directory || !isDeepStrictEqual(entries, names)
+      || expected.some((entry) => !["base-image.tar.partial", "base-image.tar", "candidate-image.tar.partial", "candidate-image.tar"].includes(entry.name))) {
+      fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE");
+    }
+    for (const entry of expected) {
+      if (entry.physical === undefined) continue;
+      const physical = lstatSync(path.join(directory, entry.name), { bigint: true });
+      if (!physical.isFile() || physical.isSymbolicLink() || !isDeepStrictEqual(stableSnapshot(physical), entry.physical)) {
+        fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE");
+      }
+    }
+    if (initial === undefined) {
+      initial = heldSnapshot; current = heldSnapshot;
+    } else {
+      const invariant = (snapshot) => ({ dev: snapshot.dev, ino: snapshot.ino, mode: snapshot.mode, nlink: snapshot.nlink,
+        uid: snapshot.uid, gid: snapshot.gid, birthtimeNs: snapshot.birthtimeNs });
+      if (!isDeepStrictEqual(invariant(heldSnapshot), invariant(initial))
+        || !allowTransition && !isDeepStrictEqual(heldSnapshot, current)) {
+        fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE");
+      }
+      if (allowTransition) current = heldSnapshot;
+    }
+    return heldSnapshot;
+  });
+  const inspectNamed = (expectedNames) => retentionStability(() => {
+    const named = lstatSync(directory, { bigint: true }); const namedSnapshot = stableSnapshot(named);
+    const entries = readdirSync(directory).sort(); const expected = expectedNames.map((entry) => typeof entry === "string" ? { name: entry } : entry);
+    const names = expected.map((entry) => entry.name).sort();
+    if (!named.isDirectory() || named.isSymbolicLink() || !isDeepStrictEqual(namedSnapshot, current)
+      || realpathSync(directory) !== directory || !isDeepStrictEqual(entries, names)) {
+      fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE");
+    }
+    for (const entry of expected) {
+      if (entry.physical === undefined) continue;
+      const physical = lstatSync(path.join(directory, entry.name), { bigint: true });
+      if (!physical.isFile() || physical.isSymbolicLink() || !isDeepStrictEqual(stableSnapshot(physical), entry.physical)) {
+        fail("gosu_derivative_image_observation_stream_invalid", "OBSERVE");
+      }
+    }
+    return namedSnapshot;
+  });
+  try {
+    inspect([], false);
+    return Object.freeze({
+      guard: (expectedNames) => inspect(expectedNames, false),
+      guardNamed: inspectNamed,
+      transition: (expectedNames) => inspect(expectedNames, true),
+      snapshot: () => current,
+      seal: (control) => { inspect(["base-image.tar", "candidate-image.tar"], false);
+        control.guard(); fsyncSync(fd); control.guard(); return inspect(["base-image.tar", "candidate-image.tar"], false); },
+      close: owner.close,
+    });
+  } catch (error) {
+    const outcome = closeRetentionOwners([owner]);
+    if (outcome.closeUncertain && (typeof error === "object" || typeof error === "function") && error !== null) {
+      retentionCloseUncertainFailures.add(error);
+    }
+    throw error;
+  }
+}
 function contextAncestorSessions() {
   const paths = ["/", "/home", "/home/autoworld", "/home/autoworld/auto-world-private-contexts",
     "/home/autoworld/auto-world-private-contexts/gosu-candidate-context-v2"];
@@ -389,6 +507,14 @@ function guardContextAncestors(sessions) {
     const held = stableSnapshot(fstatSync(session.fd, { bigint: true })); const named = stableSnapshot(lstatSync(session.directory, { bigint: true }));
     if (!isDeepStrictEqual(held, session.snapshot) || !isDeepStrictEqual(named, session.snapshot)
       || realpathSync(session.directory) !== session.directory) fail("gosu_derivative_image_observation_context_invalid", "CONTEXT");
+  }
+}
+function guardNamedContextAncestors(sessions) {
+  for (const session of sessions) {
+    const named = stableSnapshot(lstatSync(session.directory, { bigint: true }));
+    if (!isDeepStrictEqual(named, session.snapshot) || realpathSync(session.directory) !== session.directory) {
+      fail("gosu_derivative_image_observation_context_invalid", "CONTEXT");
+    }
   }
 }
 function readPinnedJson(file, expected) {
@@ -438,12 +564,23 @@ function defaultContextReader(specification, control) {
     }
     const initial = stableSnapshot(before);
     const record = freeze({ buffer, identity: { bytes: buffer.length, sha256: hash(buffer) }, physical: initial });
+    const closeOnceOwners = [descriptorOwner(fd), ...ancestors.map((session) => descriptorOwner(session.fd))];
     contextSessions.set(record, Object.freeze({
       guard: () => {
         guardContextAncestors(ancestors);
         const held = stableSnapshot(fstatSync(fd, { bigint: true })); const current = stableSnapshot(lstatSync(CONTEXT_PATH, { bigint: true }));
         if (!isDeepStrictEqual(held, initial) || !isDeepStrictEqual(current, initial)) fail("gosu_derivative_image_observation_context_invalid", "CONTEXT");
-      }, close: () => { closeSync(fd); for (const session of ancestors) closeSync(session.fd); } }));
+      },
+      guardNamed: () => retentionStability(() => {
+        guardNamedContextAncestors(ancestors);
+        const current = stableSnapshot(lstatSync(CONTEXT_PATH, { bigint: true }));
+        if (!isDeepStrictEqual(current, initial) || realpathSync(CONTEXT_PATH) !== CONTEXT_PATH) {
+          fail("gosu_derivative_image_observation_context_invalid", "CONTEXT");
+        }
+      }),
+      closeAllOnce: (guard) => closeRetentionOwners(closeOnceOwners, guard),
+      close: () => { closeSync(fd); for (const session of ancestors) closeSync(session.fd); },
+    }));
     return record;
   } catch (error) {
     if (fd !== undefined) try { closeSync(fd); } catch { /* best effort */ }
@@ -579,6 +716,68 @@ function defaultArchiveReader(specification, control) {
     archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid");
   } finally { closeSync(fd); }
 }
+function defaultRetainedArchiveReader(specification, control) {
+  const role = archiveRole(specification);
+  if (!exact(specification, ["path", "role", "maximumBytes"]) || !["BASE", "CANDIDATE"].includes(specification.role)
+    || specification.maximumBytes !== ARCHIVE_LIMIT) archiveFail(role, "READ", "READ_INVALID");
+  let fd;
+  try { fd = openSync(specification.path, constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK); }
+  catch { return retentionStability(() => archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid")); }
+  const owner = descriptorOwner(fd);
+  try {
+    const [stat, named] = retentionStability(() => [fstatSync(fd, { bigint: true }), lstatSync(specification.path, { bigint: true })]);
+    const initial = stableSnapshot(stat);
+    retentionStability(() => {
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n || stat.uid !== 1000n || stat.gid !== 1000n
+        || (stat.mode & 0o7777n) !== 0o600n || !isDeepStrictEqual(initial, stableSnapshot(named))
+        || realpathSync(specification.path) !== specification.path) archiveFail(role, "READ", "READ_INVALID");
+      if (stat.size <= 0n || stat.size > BigInt(ARCHIVE_LIMIT)) archiveFail(role, "READ", "SIZE_INVALID");
+    });
+    const buffer = Buffer.allocUnsafe(Number(stat.size)); let offset = 0;
+    while (offset < buffer.length) {
+      control.guard();
+      const count = readSync(fd, buffer, offset, Math.min(MiB, buffer.length - offset), offset);
+      if (count <= 0) break;
+      offset += count;
+    }
+    control.guard();
+    const guard = () => retentionStability(() => {
+      const held = fstatSync(fd, { bigint: true }); const current = lstatSync(specification.path, { bigint: true });
+      if (!held.isFile() || held.isSymbolicLink() || held.uid !== 1000n || held.gid !== 1000n || held.nlink !== 1n
+        || (held.mode & 0o7777n) !== 0o600n || !isDeepStrictEqual(stableSnapshot(held), initial)
+        || !isDeepStrictEqual(stableSnapshot(current), initial) || realpathSync(specification.path) !== specification.path) {
+        archiveFail(role, "READ", "READ_INVALID");
+      }
+      return initial;
+    });
+    const guardNamed = () => retentionStability(() => {
+      const current = lstatSync(specification.path, { bigint: true });
+      if (!current.isFile() || current.isSymbolicLink() || !isDeepStrictEqual(stableSnapshot(current), initial)
+        || realpathSync(specification.path) !== specification.path) archiveFail(role, "READ", "READ_INVALID");
+      return initial;
+    });
+    if (offset !== buffer.length) retentionStability(() => archiveFail(role, "READ", "READ_INVALID"));
+    guard();
+    const record = freeze({ buffer, identity: { bytes: buffer.length, sha256: hash(buffer) }, physical: initial });
+    retentionArchiveSessions.set(record, Object.freeze({
+      guard,
+      guardNamed,
+      seal: (sealControl) => { guard(); sealControl.guard(); fsyncSync(fd); sealControl.guard(); return guard(); },
+      snapshot: () => initial,
+      close: owner.close,
+    }));
+    return record;
+  } catch (error) {
+    const primary = legacyCodeProjection(error) !== null ? error
+      : (() => { try { archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid"); } catch (closedError) { return closedError; } })();
+    if (retentionStabilityFailures.has(error)) retentionStabilityFailures.add(primary);
+    const outcome = closeRetentionOwners([owner]);
+    if (outcome.closeUncertain && (typeof primary === "object" || typeof primary === "function") && primary !== null) {
+      retentionCloseUncertainFailures.add(primary);
+    }
+    throw primary;
+  }
+}
 function defaultRunner(request) {
   return new Promise((resolve, reject) => {
     const outputFile = request.stdoutMode === "FILE";
@@ -708,17 +907,36 @@ function commandLines(result, pattern, phase) {
 }
 
 export async function runGosuDerivativeImageBuildObservationV2(input, dependencies = {}) {
-  return runGosuDerivativeImageBuild(input, dependencies, false);
+  return runGosuDerivativeImageBuild(input, dependencies, false, false);
 }
 
 export async function runGosuDerivativeImageBuildProofV1(input, dependencies = {}) {
-  return runGosuDerivativeImageBuild(input, dependencies, true);
+  return runGosuDerivativeImageBuild(input, dependencies, true, false);
 }
 
-async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
+export async function runGosuDerivativeImageRetainedBuildProofV1(input, dependencies = {}) {
+  return runGosuDerivativeImageBuild(input, dependencies, true, true);
+}
+
+async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled, retentionEnabled) {
   let phase = "PREFLIGHT"; let buildStarted = false; let contextSession; let deadlineTimer;
+  let retentionDirectorySession; let baseRetentionSession; let candidateRetentionSession; let contextCloseAttempted = false;
+  let retentionControl; let contextCloseUncertain = false;
+  let retentionExpectedEntries = [];
+  const sealedRoles = [];
+  const closeContextOnce = (guard) => {
+    if (contextSession === undefined) return Object.freeze({ error: undefined, closeUncertain: false });
+    if (typeof contextSession.closeAllOnce === "function") return contextSession.closeAllOnce(guard);
+    let error; let closeUncertain = false;
+    try { guard(); } catch (guardError) { error ??= guardError; }
+    try { contextSession.close(); }
+    catch (closeError) { error ??= closeError; closeUncertain = true; }
+    try { guard(); } catch (guardError) { error ??= guardError; }
+    if (closeUncertain && error !== undefined) retentionCloseUncertainFailures.add(error);
+    return Object.freeze({ error, closeUncertain });
+  };
   try {
-    const expectedPurpose = proofEnabled ? PROOF_PURPOSE : PURPOSE;
+    const expectedPurpose = retentionEnabled ? RETAINED_PROOF_PURPOSE : proofEnabled ? PROOF_PURPOSE : PURPOSE;
     if (!exact(input, ["purpose", "nonce", "lease"]) || input.purpose !== expectedPurpose || !HEX24.test(input.nonce)) {
       fail("gosu_derivative_image_observation_input_invalid", phase);
     }
@@ -738,7 +956,8 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
       || lease.deadlineAtMs - 25_000 <= startedAt) fail("gosu_derivative_image_observation_deadline_exceeded", phase);
     const deadline = lease.deadlineAtMs - 25_000;
     const runner = dependencies.runner ?? defaultRunner; const contextReader = dependencies.contextReader ?? defaultContextReader;
-    const archiveReader = dependencies.archiveReader ?? defaultArchiveReader;
+    const genuineRetention = retentionEnabled && !injected;
+    const archiveReader = dependencies.archiveReader ?? (genuineRetention ? defaultRetainedArchiveReader : defaultArchiveReader);
     const abortController = new globalThis.AbortController();
     deadlineTimer = setTimeout(() => abortController.abort(), Math.max(1, deadline - startedAt));
     const remaining = () => { const value = deadline - now(); if (abortController.signal.aborted || !Number.isFinite(value) || value <= 0) fail("gosu_derivative_image_observation_deadline_exceeded", phase); return value; };
@@ -746,6 +965,8 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
     const control = Object.freeze({ guard: () => { remaining(); }, signal: abortController.signal,
       maximumExpanded: () => { remaining(); if (expandedRemaining <= 0) fail("gosu_derivative_image_observation_archive_invalid", phase); return Math.min(GiB, expandedRemaining); },
       consumeExpanded: (bytes) => { remaining(); if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > expandedRemaining) fail("gosu_derivative_image_observation_archive_invalid", phase); expandedRemaining -= bytes; } });
+    retentionControl = control;
+    if (genuineRetention) retentionDirectorySession = openRetentionDirectorySession(lease.outputDirectory);
     const env = freeze({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC", HOME: lease.dockerConfig,
       DOCKER_CONFIG: lease.dockerConfig, BUILDX_CONFIG: lease.buildxConfig });
     const prefix = ["--config", lease.dockerConfig, "--context", lease.contextName];
@@ -827,8 +1048,13 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
     const baseSubject = freeze({ role: "BASE", reference: BASE_REFERENCE, imageId: baseInspect.Id, configId: baseInspect.Id,
       platform: { os: "linux", architecture: "amd64" } });
     const basePartial = path.join(lease.outputDirectory, "base-image.tar.partial"); const baseFinal = path.join(lease.outputDirectory, "base-image.tar");
+    retentionDirectorySession?.guard([]);
     const baseSave = await command("SAVE_BASE", ["image", "save", "--platform", "linux/amd64", BASE_REFERENCE], 90_000, { stdoutPath: basePartial });
-    if (!runnerInjected) promoteNoReplace(basePartial, baseFinal, baseSave.outputPhysical);
+    retentionDirectorySession?.transition([{ name: "base-image.tar.partial", physical: baseSave.outputPhysical }]);
+    if (genuineRetention) retentionExpectedEntries = [{ name: "base-image.tar.partial", physical: baseSave.outputPhysical }];
+    const basePromotion = !runnerInjected ? promoteNoReplace(basePartial, baseFinal, baseSave.outputPhysical) : undefined;
+    retentionDirectorySession?.transition([{ name: "base-image.tar", physical: basePromotion.physical }]);
+    if (genuineRetention) retentionExpectedEntries = [{ name: "base-image.tar", physical: basePromotion.physical }];
     phase = "BUILD"; const candidateReference = `aw-postgres-gosu:${nonce}`; let buildWindow;
     let windowStartedAt;
     if (proofEnabled) {
@@ -865,13 +1091,25 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
       fail("gosu_derivative_image_observation_identity_invalid", "BUILD");
     }
     const candidatePartial = path.join(lease.outputDirectory, "candidate-image.tar.partial"); const candidateFinal = path.join(lease.outputDirectory, "candidate-image.tar");
+    retentionDirectorySession?.guard([{ name: "base-image.tar", physical: basePromotion.physical }]);
     const candidateSave = await command("SAVE_CANDIDATE", ["image", "save", "--platform", "linux/amd64", candidateReference], 90_000, { stdoutPath: candidatePartial });
-    if (!runnerInjected) promoteNoReplace(candidatePartial, candidateFinal, candidateSave.outputPhysical);
+    retentionDirectorySession?.transition([{ name: "base-image.tar", physical: basePromotion.physical },
+      { name: "candidate-image.tar.partial", physical: candidateSave.outputPhysical }]);
+    if (genuineRetention) retentionExpectedEntries = [{ name: "base-image.tar", physical: basePromotion.physical },
+      { name: "candidate-image.tar.partial", physical: candidateSave.outputPhysical }];
+    const candidatePromotion = !runnerInjected ? promoteNoReplace(candidatePartial, candidateFinal, candidateSave.outputPhysical) : undefined;
+    retentionDirectorySession?.transition([{ name: "base-image.tar", physical: basePromotion.physical },
+      { name: "candidate-image.tar", physical: candidatePromotion.physical }]);
+    if (genuineRetention) retentionExpectedEntries = [{ name: "base-image.tar", physical: basePromotion.physical },
+      { name: "candidate-image.tar", physical: candidatePromotion.physical }];
     phase = "OBSERVE";
     const readArchive = async (role, archivePath) => {
       try {
-        return readerRecord(await archiveReader(freeze({ path: archivePath, role, maximumBytes: ARCHIVE_LIMIT }), control),
-          { maximumBytes: ARCHIVE_LIMIT }, phase, role);
+        const rawRecord = await archiveReader(freeze({ path: archivePath, role, maximumBytes: ARCHIVE_LIMIT }), control);
+        const retentionSession = retentionArchiveSessions.get(rawRecord);
+        if (role === "BASE") baseRetentionSession = retentionSession;
+        if (role === "CANDIDATE") candidateRetentionSession = retentionSession;
+        return readerRecord(rawRecord, { maximumBytes: ARCHIVE_LIMIT }, phase, role);
       } catch (error) {
         if (archiveFailureDetails.has(error) || legacyCodeProjection(error) !== null) throw error;
         archiveFail(role, "READ", "READ_INVALID", "gosu_derivative_image_observation_input_invalid");
@@ -891,18 +1129,47 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
         try { return await openGosuDerivativeDockerSaveV1(archive, subject); }
         catch { fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
       };
-      control.guard();
+      retentionDirectorySession?.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      baseRetentionSession?.guard(); candidateRetentionSession?.guard(); control.guard();
       base = await openSave(baseArchive, freeze({ role: "BASE", archive: baseSave.outputIdentity, configId: baseSubject.configId }));
       control.guard();
       candidate = await openSave(candidateArchive,
         freeze({ role: "CANDIDATE", archive: candidateSave.outputIdentity, configId: candidateSubject.configId }));
-      control.guard();
+      control.guard(); baseRetentionSession?.guard(); candidateRetentionSession?.guard();
+      retentionDirectorySession?.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
       try { pairProof = proveGosuDerivativeImagePairV1(lockHandle, { baseSave: base, candidateSave: candidate, buildWindow }); }
       catch { fail("gosu_derivative_image_observation_archive_invalid", "OBSERVE"); }
-      control.guard();
+      control.guard(); baseRetentionSession?.guard(); candidateRetentionSession?.guard();
+      retentionDirectorySession?.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
     } else {
       base = await inspectSave(baseArchive, baseSubject, control);
       candidate = await inspectSave(candidateArchive, candidateSubject, control);
+    }
+    let retention;
+    if (genuineRetention) {
+      baseRetentionSession.guard(); candidateRetentionSession.guard();
+      retentionDirectorySession.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      baseRetentionSession.seal(control); sealedRoles.push("BASE");
+      baseRetentionSession.guard(); candidateRetentionSession.guard();
+      retentionDirectorySession.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      candidateRetentionSession.seal(control); sealedRoles.push("CANDIDATE");
+      baseRetentionSession.guard(); candidateRetentionSession.guard();
+      retentionDirectorySession.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      retentionDirectorySession.seal(control);
+      baseRetentionSession.guard(); candidateRetentionSession.guard();
+      const directory = retentionDirectorySession.guard([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      retention = retentionSnapshotRecord(buildWindow, pairProof, directory, baseRetentionSession.snapshot(),
+        candidateRetentionSession.snapshot());
+    } else if (retentionEnabled) {
+      retention = freeze({ state: "SIMULATED_NOT_RETAINED", preservation: "NOT_ESTABLISHED",
+        authority: "NOT_AUTHORIZED", admission: "NOT_ESTABLISHED" });
     }
     phase = "FINAL";
     const operational = { state: "IMAGE_BUILD_FORMAT_OBSERVED_REVIEW_PENDING", authority: "NOT_AUTHORIZED", image: "BUILT_UNVALIDATED",
@@ -913,17 +1180,63 @@ async function runGosuDerivativeImageBuild(input, dependencies, proofEnabled) {
       candidateAdmission: "NOT_AUTHORIZED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
     const proofSimulated = { state: "PAIR_PROOF_SIMULATION", scope: "CONDITIONAL_PAIR_PROOF_ONLY", authority: "NOT_AUTHORIZED",
       image: "NOT_ESTABLISHED", candidateAdmission: "NOT_ESTABLISHED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
-    const result = proofEnabled ? freeze({ ...(injected ? proofSimulated : proofOperational),
+    const retentionOperational = { state: "IMAGE_PAIR_RETENTION_SNAPSHOT_OBSERVED_REVIEW_PENDING", authority: "NOT_AUTHORIZED",
+      image: "BUILT_UNVALIDATED", candidateAdmission: "NOT_AUTHORIZED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
+    const retentionSimulated = { state: "RETAINED_PAIR_PROOF_SIMULATION", scope: "CONDITIONAL_PAIR_PROOF_ONLY", authority: "NOT_AUTHORIZED",
+      image: "NOT_ESTABLISHED", candidateAdmission: "NOT_ESTABLISHED", functional: "NOT_ESTABLISHED", vulnerabilities: "NOT_ESTABLISHED" };
+    const result = retentionEnabled ? freeze({ ...(injected ? retentionSimulated : retentionOperational),
+      nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
+      preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, buildWindow, pairProof, retention, dates: null })
+      : proofEnabled ? freeze({ ...(injected ? proofSimulated : proofOperational),
       nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
       preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, buildWindow, pairProof, dates: null })
       : freeze({ ...(injected ? simulated : operational),
         nonce, lease: { daemonId: lease.daemonId, pid: lease.pid, startTicks: lease.startTicks }, builder, profiles,
         preflight: acceptedPreflight, context: { ...contextObservation, physical: contextRecord.physical }, base, candidate, dates: null });
-    contextSession?.close(); clearTimeout(deadlineTimer); return result;
+    if (retentionEnabled) {
+      const closeOutcome = closeRetentionOwners([baseRetentionSession, candidateRetentionSession, retentionDirectorySession], control.guard);
+      if (closeOutcome.error !== undefined) throw closeOutcome.error;
+      baseRetentionSession?.guardNamed(); candidateRetentionSession?.guardNamed();
+      retentionDirectorySession?.guardNamed([{ name: "base-image.tar", physical: baseRecord.physical },
+        { name: "candidate-image.tar", physical: candidateRecord.physical }]);
+      control.guard();
+      contextCloseAttempted = true;
+      const contextCloseOutcome = closeContextOnce(control.guard);
+      contextCloseUncertain ||= contextCloseOutcome.closeUncertain;
+      if (contextCloseOutcome.error !== undefined) throw contextCloseOutcome.error;
+      contextSession?.guardNamed?.();
+      baseRetentionSession?.guardNamed(); candidateRetentionSession?.guardNamed();
+      retentionDirectorySession?.guardNamed(retentionExpectedEntries); control.guard();
+    } else contextSession?.close();
+    clearTimeout(deadlineTimer); return result;
   } catch (error) {
     clearTimeout(deadlineTimer);
-    try { contextSession?.close(); } catch { /* Retain the primary closed diagnostic. */ }
-    if (buildStarted) { const retained = closed(error, phase); retained.state = "MAY_HAVE_BEEN_BUILT"; throw retained; }
-    throw closed(error, phase);
+    let closeUncertain = contextCloseUncertain || retentionCloseUncertainFailures.has(error);
+    let stabilityFailed = retentionStabilityFailures.has(error);
+    if (retentionEnabled) {
+      const closeGuard = retentionControl?.guard ?? (() => undefined);
+      const closeOutcome = closeRetentionOwners([baseRetentionSession, candidateRetentionSession, retentionDirectorySession], closeGuard);
+      closeUncertain ||= closeOutcome.closeUncertain;
+      try { baseRetentionSession?.guardNamed(); } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      try { candidateRetentionSession?.guardNamed(); } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      try {
+        retentionDirectorySession?.guardNamed(retentionExpectedEntries);
+      } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      if (!contextCloseAttempted) {
+        const contextCloseOutcome = closeContextOnce(closeGuard);
+        contextCloseUncertain ||= contextCloseOutcome.closeUncertain;
+        closeUncertain ||= contextCloseUncertain;
+      }
+      try { contextSession?.guardNamed?.(); } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      try { baseRetentionSession?.guardNamed(); } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      try { candidateRetentionSession?.guardNamed(); } catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+      try { retentionDirectorySession?.guardNamed(retentionExpectedEntries); }
+      catch (guardError) { stabilityFailed ||= retentionStabilityFailures.has(guardError); }
+    } else try { contextSession?.close(); } catch { /* Retain the primary closed diagnostic. */ }
+    const retained = closed(error, phase);
+    if (buildStarted) retained.state = "MAY_HAVE_BEEN_BUILT";
+    if (retentionEnabled) retained.retentionFailure = retentionFailureDetail(sealedRoles, closeUncertain,
+      stabilityFailed || retentionCloseUncertainFailures.has(error));
+    throw retained;
   }
 }
