@@ -202,3 +202,10 @@ PR182 exact-head/main CI passed. Independently accepted current observations now
 ## 2026-10-20 — fresh-build conditional proof bridge
 
 The [approved B1b bridge](../plans/TASK-0005A-gosu-build-proof-v1.md) connects a newly recorded build window and the same authenticated saved buffers to the delivered pure proof. [Source evidence](../../docs/validation/TASK-0005A-gosu-build-proof-v1.md) tracks compatibility, tests, reviews and delivery separately from a later one-shot native operation. Existing consumed controls and observations are preserved. TASK-0005A/0005 remain IN_PROGRESS; admission/currentEvidence and null support dates are unchanged.
+
+
+## 2026-10-21 — actual B1b V2 pair proof accepted
+
+[PR185 source and actual checkpoint](../../docs/validation/TASK-0005A-gosu-build-proof-v1.md#2026-10-21--actual-b1b-v2-build-pair-proof-accepted) now distinguish successful source delivery from the one-shot real build. Architect then distinct Security accept `PASS_CLEAR_BUILD_PAIR_PROOF_ONLY`: fourteen settled captures, no pending native owner, stopped daemon and no cleanup uncertainty; ten base/twelve candidate layers, `proofValidated:true`, `BASE_AND_CANDIDATE`. The original failed V1 is preserved; V2 actors/claims/controls/outputs are consumed immutable and are not replayed.
+
+The candidate configuration ID is not a registry manifest digest. The new subject remains BUILT_UNVALIDATED/NOT_AUTHORIZED, with registry identity, function, CVEs, publication, runtime/restore, remaining evidence and admission still open. A separately reviewed retention/publication contract comes next; existing archive creation does not establish a reusable accepted publication package. TASK-0005A/0005 stay IN_PROGRESS, supported TASK-0006/0104-0106 blocked, currentEvidence unchanged and derivative dates null. The agreed one-year support with continuous security controls and at least365 further archive days starts only at separately reviewed activation.
