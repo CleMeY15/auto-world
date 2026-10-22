@@ -168,6 +168,7 @@ test("official links are explicit, private handoffs with no automatic external a
     session: Object.keys(sessionStorage),
   }));
   expect(storage).toEqual({ cacheKeys: [], indexedDatabases: [], local: [], session: [] });
+  expect(await context.cookies()).toEqual([]);
 
   await openInterceptedOfficialPage(context, page, "#registration-simulator", SIMULATOR_URL);
   expect(page.url()).toBe("http://127.0.0.1:3107/carte-grise");
