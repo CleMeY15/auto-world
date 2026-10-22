@@ -79,7 +79,7 @@
 - Saved heading: Mes listes. Initial Éléments enregistrés fragmented a word at200% with wider font metrics; the shorter title preserves hierarchy and the no-fragmentation guard. Persistent disclosure: Recherches et favoris conservés uniquement dans ce navigateur. Aucun compte ni alerte n’est créé. Distinguish enregistré sur cet appareil from conservé pour cette session; clearing browser data loses local records.
 
 ## Implementation constraints
-- Framework/styling system: TASK-0007 implements Next.js 16.3.8 / React 19.3.0 / TypeScript 5.9.2 on the pinned workspace toolchain. Server-rendered document/page plus one ephemeral client island; CSS handles initial system appearance without storage reads or hydration effects. The only layout effect restores focus after a user-triggered state replacement. No second UI framework.
+- Framework/styling system: the TASK-0007 foundation uses Next.js 16.4.2 / React 19.3.0 / TypeScript 5.9.2 on the pinned workspace toolchain after [2026-10-22 security maintenance](docs/validation/runtime-security-2026-10-22.md). Server-rendered document/page plus one ephemeral client island; CSS handles initial system appearance without storage reads or hydration effects. The only layout effect restores focus after a user-triggered state replacement. No second UI framework.
 - Design-token constraints: establish semantic tokens in a shared boundary; do not create an additional UI framework or add dependencies without a reviewed need.
 - Performance constraints: search p95 under 500 ms outside generation, stable layout, responsive input and no LLM in the deterministic path; measure rather than infer.
 - Compatibility constraints: public DTOs are separate from internal VIN/policy/raw contracts; synthetic composition is dev/test only.

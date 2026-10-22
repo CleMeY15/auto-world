@@ -4,6 +4,8 @@ Status: DONE_ON_MAIN in [PR152](https://github.com/CleMeY15/auto-world/pull/152)
 
 ## Scope and entrypoint
 
+Runtime maintenance, 2026-10-22: Next16.4.2 supersedes the historical16.3.8 references below to address GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr and GHSA-p3m5-59mp-jv5r. No proxy, origin, forwarded-header, disabled-demo or UI contract changes. [Maintenance evidence](../validation/runtime-security-2026-10-22.md) records fresh runtime/CSS/browser validation separately from earlier results.
+
 The existing static `/` component preview stays intact. The consumer demo lives at `/demo`, reached by an explicit local URL. A server-only runtime flag `AUTO_WORLD_DEMO=1` enables Search/Results/Detail/Saved and the proxy. There is no public environment URL or build-inlined flag. The dynamic Next page reads the flag after `connection()`. Disabling it leaves a disclosed Saved-only recovery surface on `/demo`, with local IDs removable/clearable and no API fetch. Proxy routes fail closed with404 when disabled. Bundles contain public UI/contracts only, never fixtures/SDK/source rights/raw payloads. Production-built web UI tests use a separate explicit development/test API process.
 
 ## Protocol and read authority
