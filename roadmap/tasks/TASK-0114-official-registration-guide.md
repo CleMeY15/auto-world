@@ -1,6 +1,6 @@
 # TASK-0114 — Accès guidé au simulateur officiel de carte grise
 
-Status: IN_PROGRESS, 2026-10-22. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE; DoR task/ADR/DESIGN committed before application code.
+Status: IN_PROGRESS, 2026-10-22. The static guide is implemented with14/14 targeted browser tests and independent code/architecture/pixel approval on the initial runtime. Final validation/delivery waits for the isolated [runtime security prerequisite PR189](https://github.com/CleMeY15/auto-world/pull/189), then full regression on the corrected runtime. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE; DoR task/ADR/DESIGN committed before application code. [Validation record](../../docs/validation/TASK-0114.md).
 
 ## Goal and dependencies
 Help a shopper estimate the registration cost of a vehicle already registered in France through the existing official simulator, as explicitly requested on 2026-10-22. This task delivers preparation and outbound navigation, not a French Registration Engine.
