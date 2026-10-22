@@ -1,11 +1,13 @@
 # TASK-0114 — Accès guidé au simulateur officiel de carte grise
 
-Status: IN_PROGRESS, 2026-10-22. The static guide is implemented with14/14 targeted browser tests and independent code/architecture/pixel approval on the initial runtime. Final validation/delivery waits for the isolated [runtime security prerequisite PR189](https://github.com/CleMeY15/auto-world/pull/189), then full regression on the corrected runtime. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE; DoR task/ADR/DESIGN committed before application code. [Validation record](../../docs/validation/TASK-0114.md).
+Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-10-22. The static guide passes fresh full gates and375 browser tests/7 pre-existing exclusions/zero failures on the corrected runtime, with independent architecture CLEAR and actual-pixel APPROVE. The isolated [runtime security prerequisite PR189 is accepted on main](https://github.com/CleMeY15/auto-world/pull/189#issuecomment-6351380809) and integrated. TASK-0114's own exact-head/main delivery remains separate and must be recorded in its final PR checkpoint before Done. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE; DoR task/ADR/DESIGN committed before application code. [Validation record](../../docs/validation/TASK-0114.md).
 
 ## Goal and dependencies
 Help a shopper estimate the registration cost of a vehicle already registered in France through the existing official simulator, as explicitly requested on 2026-10-22. This task delivers preparation and outbound navigation, not a French Registration Engine.
 
 Accepted prerequisites: TASK-0007 shared UI foundation; TASK-0010 readiness guidance ([PR164](https://github.com/CleMeY15/auto-world/pull/164), source CI38437843829/main CI38439264721 SUCCESS); TASK-0113 product closure ([checkpoint](https://github.com/CleMeY15/auto-world/pull/184#issuecomment-6301516770)). Branch `codex/task-0114-official-registration-guide` starts at accepted main `81e9aee793820f543a12f27e4d5ba42d702f4cc8`, main CI39538031586 SUCCESS.
+
+Runtime prerequisite PR189 was accepted at main `2e4089e34a661f8d34bb049ae7b713adeb16d42b`, source CI39849851114/main CI39852524666 SUCCESS. Product integration `2f38ee6a3c178bc470f02333353fb2eabfec17b6` retains the accepted Next16.4.2/Fastify5.12.7 manifests and lockfile unchanged.
 
 Contracts: AGENTS, ROADMAP, [DESIGN](../../DESIGN.md), [PRODUCT_UX](../../docs/PRODUCT_UX.md), [DoD](../../docs/DEFINITION_OF_DONE.md), Vehicle Intelligence, Strategic Moats, security/legal and [ADR-0024](../../docs/decisions/ADR-0024-official-registration-guide.md). No new public/data contract.
 

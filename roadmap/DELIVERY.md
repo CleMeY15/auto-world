@@ -1,5 +1,11 @@
 # Auto World delivery ledger
 
+## Product checkpoint — TASK-0114 LOCAL_VALIDATED / DELIVERY_PENDING, 2026-10-22
+
+[TASK-0114](tasks/TASK-0114-official-registration-guide.md) reuses the official Service Public registration simulator through a static preparation page and explicit private outbound navigation. No fiscal engine, data collection, iframe, API or source admission is introduced. [The local validation record](../docs/validation/TASK-0114.md) binds the reviewed plan, accepted [runtime prerequisite PR189](https://github.com/CleMeY15/auto-world/pull/189#issuecomment-6351380809), full uncached gates,375 browser passes/7 existing exclusions/zero failures, performance measurements and independent actual-pixel approval.
+
+This is a frozen pre-delivery checkpoint, not Done. The task PR must record exact-source CI, protected merge, identical reviewed tree and successful merged-main CI before final acceptance. TASK0005/0005A and TASK0104–0106, infrastructure ownership and earlier checkpoints below remain unchanged.
+
 ## Product checkpoint — TASK-0113 DONE_ON_MAIN, 2026-10-20
 
 Recorded on 2026-10-21 from the accepted [PR184 delivery checkpoint](https://github.com/CleMeY15/auto-world/pull/184#issuecomment-6301516770). [TASK-0113](tasks/TASK-0113-synthetic-comparison-links.md) delivers explicit local links for ordered comparisons of 2–3 synthetic publications, with explicit current-detail loading, full compatible-batch acceptance and separate per-column reading dates, availability and provenance. No frozen values, real vehicle identity or hosted/cross-device sharing is implied.
