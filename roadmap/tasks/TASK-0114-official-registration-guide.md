@@ -1,6 +1,6 @@
 # TASK-0114 — Accès guidé au simulateur officiel de carte grise
 
-Status: READY, 2026-10-22. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE before execution.
+Status: IN_PROGRESS, 2026-10-22. Priority P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel UX reviewers. Architect APPROVE then distinct Critic APPROVE; DoR task/ADR/DESIGN committed before application code.
 
 ## Goal and dependencies
 Help a shopper estimate the registration cost of a vehicle already registered in France through the existing official simulator, as explicitly requested on 2026-10-22. This task delivers preparation and outbound navigation, not a French Registration Engine.

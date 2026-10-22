@@ -9,6 +9,8 @@ Within the existing independent product lane, [TASK-0114](../../roadmap/tasks/TA
 
 No automatic external fetch, prefetch, preconnect, DNS prefetch, ping, iframe, proxy or telemetry. Fixed bare URLs; no query parameters, fragments, data prefill, referrer or opener. No input, storage, returned result, network health probe or automatic retry. Opening is not proof of successful official calculation. No source-registry admission is implied by a hyperlink.
 
+These are application controls, not an OS/browser-wide network guarantee. The route also returns `X-DNS-Prefetch-Control: off` to disable speculative DNS resolution in supporting browsers; this nonstandard header does not control every browser, extension or network service. Tests assert the delivered header and absence of application HTTP requests/resource hints, not packet-level DNS silence. References: [MDN header semantics](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-DNS-Prefetch-Control), [Next.js route headers](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers), checked2026-10-22.
+
 ## Reviewed source evidence
 Retrieved 2026-10-22:
 - [DILA cost guidance](https://www.service-public.gouv.fr/particuliers/vosdroits/F19211), page verified 2026-09-08, directly links the official simulator.

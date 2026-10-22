@@ -8,4 +8,10 @@ export default {
   reactStrictMode: true,
   outputFileTracingRoot: root,
   turbopack: { root },
+  async headers() {
+    return [{
+      source: "/carte-grise",
+      headers: [{ key: "X-DNS-Prefetch-Control", value: "off" }],
+    }];
+  },
 };
