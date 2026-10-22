@@ -6,7 +6,7 @@ const root = process.cwd();
 const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 assert.deepEqual(manifest.files, ["dist"]);
 assert.deepEqual(Object.keys(manifest.exports), ["."]);
-assert.equal(manifest.dependencies.fastify, "5.12.5");
+assert.equal(manifest.dependencies.fastify, "5.12.7");
 assert.equal(manifest.devDependencies["@types/node"], "22.20.2");
 assert.equal(manifest.dependencies["@auto-world/connector-sdk"], undefined);
 assert.equal(manifest.dependencies["@auto-world/synthetic-connector"], undefined);

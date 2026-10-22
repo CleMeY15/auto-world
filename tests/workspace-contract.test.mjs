@@ -81,7 +81,7 @@ test("declares every architecture boundary as a private workspace package", () =
       assert.match(manifest.scripts.lint, /^eslint src demo scripts test/u);
       assert.match(manifest.scripts.typecheck, /tsconfig.test.json --noEmit/u);
       assert.match(manifest.scripts.test, /--conditions=auto-world-demo --test/u);
-      assert.equal(manifest.dependencies.fastify, "5.12.5");
+      assert.equal(manifest.dependencies.fastify, "5.12.7");
       assert.equal(manifest.devDependencies["@types/node"], "22.20.2");
       assert.deepEqual(manifest.files, ["dist"]);
       assert.deepEqual(Object.keys(manifest.exports), ["."]);
