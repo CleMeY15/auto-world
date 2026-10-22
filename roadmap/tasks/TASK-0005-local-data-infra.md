@@ -118,3 +118,8 @@ TASK-0005 remains IN_PROGRESS. The new configuration ID does not establish a reg
 ## 2026-10-21 — source preparation for a revérifiable image snapshot
 
 PR186 accepted-build-pair documentation is delivered with exact-head/main CI SUCCESS. The [next source-only snapshot increment](../../docs/validation/TASK-0005A-gosu-retained-build-proof-v1.md) prepares continuity of archive/directory identities through a future fresh proof and seal; its FUTURE_CONTROLLER_REQUIRED boundary leaves actual preservation/publication and image admission unestablished. Existing V2 outputs are not reopened or replayed. TASK-0005 remains IN_PROGRESS: fresh same-subject security/SBOM, runtime/restore, evidence/attestation/second copy and admission still precede integrated PostgreSQL/OpenSearch/Redis/S3-compatible readiness, persistence, migrations and restoration. Supported TASK-0006/0104-0106, currentEvidence and null derivative support dates remain unchanged.
+
+
+## 2026-10-22 — Gosu retained-pair controller source preparation
+
+The [bounded approved controller plan](../plans/TASK-0005A-gosu-retained-pair-native-controller-v1.md) and its [validation](../../docs/validation/TASK-0005A-gosu-retained-pair-native-controller-v1.md) prepare one future authenticated retention path after daemon stop. Source implementation/delivery are in progress; this is neither image admission nor four-service foundation acceptance. Existing source modules and consumed evidence remain unchanged. TASK-0005 and TASK-0005A remain IN_PROGRESS, TASK-0006 and dependent supported infrastructure paths remain blocked, currentEvidence is unchanged and derivative dates remain null.

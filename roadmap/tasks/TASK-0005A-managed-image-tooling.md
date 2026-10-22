@@ -214,3 +214,8 @@ The candidate configuration ID is not a registry manifest digest. The new subjec
 ## 2026-10-21 — fresh pair retention snapshot source increment
 
 After PR186 protected delivery and successful exact-head/main CI, the [approved snapshot plan](../plans/TASK-0005A-gosu-retained-build-proof-v1.md) prepares a new versioned opt-in source path with held archive/directory sessions through proof, seal and unique releases. [Validation](../../docs/validation/TASK-0005A-gosu-retained-build-proof-v1.md) separates source/VM/filesystem checks from later authentic native evidence. The snapshot requires a future controller preservation receipt; it does not establish durable retention, publication, function, CVEs, registry identity or admission. Existing consumed V2 artifacts remain immutable and are not reopened. TASK-0005A/0005 stay IN_PROGRESS, supported downstream dependencies blocked, currentEvidence unchanged and derivative dates null.
+
+
+## 2026-10-22 — retained-pair controller source preparation
+
+The [approved source plan](../plans/TASK-0005A-gosu-retained-pair-native-controller-v1.md) adds the root/client controller boundary needed after the delivered PR188 retention snapshot. [Validation and delivery](../../docs/validation/TASK-0005A-gosu-retained-pair-native-controller-v1.md) remain in progress and separate protocol/filesystem tests from any future authenticated private retention operation. The unchanged daemon and producer are reused. No image is admitted, no registry digest or functional/CVE result is established, currentEvidence remains unchanged and derivative activation/support/archive dates remain null. TASK-0005A/0005 stay IN_PROGRESS and supported downstream dependencies remain blocked.
