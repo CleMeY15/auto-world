@@ -21,6 +21,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Plans under implementation
 
+- [ADR-0024 — Official registration simulator handoff](ADR-0024-official-registration-guide.md): TASK-0114 static preparation page and explicit external navigation only; no fiscal engine, data transfer or infrastructure admission.
+
 - [ADR-0019 — Fiscal-rule versioning readiness](ADR-0019-fiscal-rule-versioning-readiness.md): TASK-0010 documentation-only readiness gate. No fiscal API/schema, official dataset, calculator or runtime implementation; future consumer/source/time decisions remain required before executable work is READY.
 
 - [ADR-0014 — Loopback synthetic search API V1](ADR-0014-demo-search-api.md): TASK-0102 including real HTTP correction delivered in PR153/main52fdbefc, exact final-head/main CI successful; original PR150 evidence preserved.

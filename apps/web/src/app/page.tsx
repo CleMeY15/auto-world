@@ -17,7 +17,10 @@ export default function HomePage() {
         </div>
         <FoundationPreview />
       </main>
-      <footer className="site-footer site-container">Auto World · Choisir en confiance.</footer>
+      <footer className="site-footer site-container">
+        Auto World · Choisir en confiance.
+        <nav aria-label="Outils"><a className="site-nav" href="/carte-grise">Carte grise</a></nav>
+      </footer>
     </>
   );
 }

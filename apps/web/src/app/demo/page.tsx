@@ -20,7 +20,10 @@ export default async function DemoPage() {
         <span className="demo-header-label">Démonstration locale</span>
       </header>
       <DemoApp enabled={enabled} />
-      <footer className="demo-footer demo-shell">Auto World · Données synthétiques uniquement.</footer>
+      <footer className="demo-footer demo-shell">
+        Auto World · Données synthétiques uniquement.
+        <nav aria-label="Outils"><a className="site-nav" href="/carte-grise">Carte grise</a></nav>
+      </footer>
     </>
   );
 }
