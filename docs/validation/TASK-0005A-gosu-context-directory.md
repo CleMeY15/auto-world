@@ -30,10 +30,12 @@ Initial local quality snapshot on the accepted base preceding the shared depende
 | Repository tests | Passed, including 28 workspace tasks |
 | Build | Passed |
 | Secret scan | Passed |
-| Browser tests | Did not start: a fixed loopback test port was occupied by another local test session |
+| Browser tests | First gate did not start because a fixed loopback port was occupied; after its owning session released the port, the unchanged suite passed 375 tests with 7 existing exclusions |
 | Dependency audit | Initial certificate validation error; retry using system certificates with verification enabled found the existing transitive Zod HIGH advisory below |
 
-The dependency finding is [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), affecting the existing ESLint React-hooks dependency's Zod 4.6.5. The shared 4.6.6 correction is being delivered separately in [PR194](https://github.com/CleMeY15/auto-world/pull/194); this focused fix does not edit the lockfile or waive the audit. Final validation must use the accepted shared correction.
+The dependency finding is [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), affecting the existing ESLint React-hooks dependency's Zod 4.6.5. The exact shared 4.6.6 correction was delivered separately in [PR195](https://github.com/CleMeY15/auto-world/pull/195), together with the deterministic Seaweed test repair. Its [source CI](https://github.com/CleMeY15/auto-world/actions/runs/40035982395) and [merged-main CI](https://github.com/CleMeY15/auto-world/actions/runs/40037876520) both passed, with the reviewed source tree preserved at merge `c99c75eb8623cf28cdaef63e41bdb0f7e3d32447`. This focused permissions fix does not edit the lockfile relative to that accepted base or waive the audit.
+
+After integrating that accepted base, the daemon and controller suites pass 106/106 again. Both syntax checks, focused lint and a fresh dependency audit pass; the audit reports no known vulnerabilities. The daemon/test identities remain exactly those approved by the implementation review. The integration matrix SHA256 is `467cd8b449aa175e9f267d2dd439a0670e9c153338440f6d106a981406f29a85`. The original failed gate attempts remain preserved. These checks exercise simulated daemon boundaries; no new Docker or Native operation was executed.
 
 This is a pre-delivery snapshot. Remaining checks, exact final-head CI and protected merged-main CI must pass before acceptance; the final PR delivery checkpoint governs that acceptance. Local passing tests alone do not establish delivery.
 
