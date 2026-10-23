@@ -1,6 +1,6 @@
 # TASK-0005A — Private Docker context directory
 
-Status: SOURCE_FIX_PLANNED / VALIDATION_PENDING. TASK-0005A and TASK-0005 remain IN_PROGRESS. This source increment does not establish image admission, archive validity, worker completion or daemon cleanup.
+Status: SOURCE_IMPLEMENTATION_REVIEWED / DELIVERY_PENDING. TASK-0005A and TASK-0005 remain IN_PROGRESS. This source increment does not establish image admission, archive validity, worker completion or daemon cleanup.
 
 ## Problem and intended behavior
 
@@ -18,7 +18,24 @@ Before changing the implementation, reproduce the missing-parent failure through
 
 Exercise the real lease's transition from EMPTY to BASE_AND_CANDIDATE with realistic image inspections, exact references and empty container/volume lists. Keep rejection coverage for changed permissions, wrong ownership, symlink substitution and missing image references. These tests simulate system boundaries; they do not execute Docker or a native image build.
 
-Validation results, independent implementation review and exact final-head/main CI evidence will be recorded after implementation. Local passing tests alone do not establish delivery.
+The regression was observed before the production change: 16 tests, 15 passing and the MkdirAll scenario failing with the existing `files_changed` guard. With the focused directory precreation, the daemon suite passes 16/16 and the controller suite passes 90/90 under the pinned Node 22.23.2 VM test lane. Both syntax checks, targeted ESLint and whitespace checks pass.
+
+The tests model the context parent's creation, image list/inspection responses and hostile filesystem changes. They do not execute the Docker CLI, a Linux daemon or archive validation. Independent implementation review approves the three-file source increment and confirms the RED, daemon/controller tests, syntax and targeted lint results.
+
+Initial local quality snapshot on the accepted base preceding the shared dependency fix:
+
+| Gate | Observed result |
+| --- | --- |
+| Lint and typecheck | Passed |
+| Repository tests | Passed, including 28 workspace tasks |
+| Build | Passed |
+| Secret scan | Passed |
+| Browser tests | Did not start: a fixed loopback test port was occupied by another local test session |
+| Dependency audit | Initial certificate validation error; retry using system certificates with verification enabled found the existing transitive Zod HIGH advisory below |
+
+The dependency finding is [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), affecting the existing ESLint React-hooks dependency's Zod 4.6.5. The shared 4.6.6 correction is being delivered separately in [PR194](https://github.com/CleMeY15/auto-world/pull/194); this focused fix does not edit the lockfile or waive the audit. Final validation must use the accepted shared correction.
+
+This is a pre-delivery snapshot. Remaining checks, exact final-head CI and protected merged-main CI must pass before acceptance; the final PR delivery checkpoint governs that acceptance. Local passing tests alone do not establish delivery.
 
 ## Operations and rollback
 

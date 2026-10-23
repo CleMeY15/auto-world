@@ -114,7 +114,8 @@ if (typeof vm.SourceTextModule !== "function") {
     const root = "/var/tmp/aw-cl-ABC123"; let inode = 10n; let descriptor = 100; let clock = 0; let realmArray;
     const records = new Map(); const handles = new Map(); const helperCalls = []; const transportCalls = [];
     const add = (name, kind, uid, gid, permissions, data = Buffer.alloc(0), size = data.length) => {
-      records.set(name, { name, kind, uid, gid, mode: BigInt((kind === "directory" ? 0o040000 : kind === "socket" ? 0o140000 : 0o100000) | permissions),
+      records.set(name, { name, kind, uid, gid, mode: BigInt((kind === "directory" ? 0o040000 : kind === "socket" ? 0o140000
+        : kind === "symlink" ? 0o120000 : 0o100000) | permissions),
         ino: inode++, dev: 70n, nlink: 1n, data: Buffer.from(data), size, mtimeNs: 1n, ctimeNs: 1n });
     };
     add(root, "directory", 0, 1000, 0o710);
@@ -132,7 +133,7 @@ if (typeof vm.SourceTextModule !== "function") {
     const stat = (record) => ({ dev: record.dev, ino: record.ino, uid: BigInt(record.uid), gid: BigInt(record.gid), mode: record.mode,
       nlink: record.nlink, size: BigInt(record.size), mtimeNs: record.mtimeNs, ctimeNs: record.ctimeNs,
       isFile: () => record.kind === "file", isDirectory: () => record.kind === "directory",
-      isSymbolicLink: () => false, isSocket: () => record.kind === "socket" });
+      isSymbolicLink: () => record.kind === "symlink", isSocket: () => record.kind === "socket" });
     const constants = { O_RDONLY: 0, O_WRONLY: 1, O_CREAT: 2, O_EXCL: 4, O_NOFOLLOW: 8 };
     const virtualFs = {
       constants,
@@ -142,7 +143,8 @@ if (typeof vm.SourceTextModule !== "function") {
       fstatSync(fd) { return stat(handles.get(fd)); },
       fsyncSync() {},
       lstatSync(name) { return stat(get(name)); },
-      mkdirSync(name) { if (records.has(name)) throw Object.assign(new Error("exists"), { code: "EEXIST" }); add(name, "directory", 0, 0, 0o700); },
+      mkdirSync(name, options = {}) { if (records.has(name)) throw Object.assign(new Error("exists"), { code: "EEXIST" });
+        add(name, "directory", 0, 0, options.mode ?? 0o777); },
       openSync(name, flags, mode = 0o600) {
         let record = records.get(name);
         if ((flags & constants.O_CREAT) !== 0) {
@@ -180,7 +182,7 @@ if (typeof vm.SourceTextModule !== "function") {
         return realm({ state: "STOPPED", pid: child.pid, startTicks: wrongStopTicks ? "9999" : child.startTicks, processGone: true });
       },
     };
-    const principalValue = principal(); const isolatedImages = [];
+    const principalValue = principal(); const isolatedImages = []; const isolatedInspects = new Map();
     const info = (isolated) => ({ ID: isolated ? owned.daemonId : principalValue.id, ServerVersion: "28.0.4",
       DockerRootDir: isolated ? `${root}/infra/data` : principalValue.root, Driver: "overlay2", OSType: "linux", Architecture: "x86_64",
       Containerd: { Address: principalValue.containerdAddress, Namespaces: { Containers: isolated ? `awcold-${"a".repeat(24)}` : "moby",
@@ -190,7 +192,8 @@ if (typeof vm.SourceTextModule !== "function") {
       const isolated = args[1] !== "unix:///var/run/docker.sock"; const command = args.slice(2); let stdout = Buffer.alloc(0);
       if (command[0] === "info") stdout = Buffer.from(JSON.stringify(info(isolated)));
       else if (command[0] === "image" && command[1] === "ls") stdout = Buffer.from(`${(isolated ? isolatedImages : principalValue.imageIds).join("\n")}${isolatedImages.length || !isolated ? "\n" : ""}`);
-      else if (command[0] === "image" && command[1] === "inspect") stdout = Buffer.from(JSON.stringify({ Id: command.at(-1) }));
+      else if (command[0] === "image" && command[1] === "inspect") stdout = Buffer.from(JSON.stringify(isolated
+        ? isolatedInspects.get(command.at(-1)) ?? { Id: command.at(-1) } : { Id: command.at(-1) }));
       else if (command[0] === "version") stdout = Buffer.from("28.0.4|28.0.4\n");
       if (changePrincipal && !isolated && command[0] === "image" && command[1] === "ls" && helperCalls.some(([name]) => name === "start")) {
         stdout = Buffer.from(`${principalValue.imageIds[0]}\n`);
@@ -227,9 +230,33 @@ if (typeof vm.SourceTextModule !== "function") {
     const vmInput = vm.runInContext(`JSON.parse(${JSON.stringify(JSON.stringify(input()))})`, context);
     const dependencies = realmObject({ helper: realmObject(helper), transport, env: realmObject({}), now: () => clock });
     const emptySubjects = realmArray([]); const stopEmpty = realmObject({ requireMode: "EMPTY" });
+    const contextDirectory = `${root}/client/contexts`;
+    const contextSnapshot = () => { const record = records.get(contextDirectory); return record ? Object.freeze({ kind: record.kind,
+      uid: record.uid, gid: record.gid, mode: Number(record.mode & 0o7777n), ino: record.ino }) : null; };
+    const simulateDockerMkdirAll = () => { if (!records.has(contextDirectory)) add(contextDirectory, "directory", 1000, 1000, 0o755);
+      return contextSnapshot(); };
+    const mutateContext = ({ kind = "directory", uid = 1000, gid = 1000, mode = 0o700 }) => {
+      const previous = get(contextDirectory); records.set(contextDirectory, { ...previous, kind, uid, gid,
+        mode: BigInt((kind === "directory" ? 0o040000 : kind === "symlink" ? 0o120000 : 0o100000) | mode) });
+    };
+    const baseReference = "postgres@sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3";
+    const baseId = "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537";
+    const candidateReference = `aw-postgres-gosu:${"a".repeat(24)}`; const candidateId = sha("3");
+    const pairSubjects = vm.runInContext(`JSON.parse(${JSON.stringify(JSON.stringify([
+      { role: "BASE", reference: baseReference, imageId: baseId, configId: baseId, platform: { os: "linux", architecture: "amd64" } },
+      { role: "CANDIDATE", reference: candidateReference, imageId: candidateId, configId: candidateId,
+        platform: { os: "linux", architecture: "amd64" } },
+    ]))})`, context);
+    const installPair = ({ missingReference = false } = {}) => {
+      isolatedImages.splice(0, isolatedImages.length, baseId, candidateId);
+      isolatedInspects.set(baseId, { Id: baseId, Os: "linux", Architecture: "amd64", RepoTags: [], RepoDigests: [baseReference] });
+      isolatedInspects.set(candidateId, { Id: candidateId, Os: "linux", Architecture: "amd64",
+        RepoTags: missingReference ? [] : [candidateReference], RepoDigests: [] });
+    };
     return { api: source.namespace, helper, helperCalls, transport, transportCalls, now: () => clock, setClock: (value) => { clock = value; },
       records, owned, vmInput, dependencies,
-      deepMismatches, emptySubjects, stopEmpty };
+      deepMismatches, emptySubjects, stopEmpty, pairSubjects, installPair, simulateDockerMkdirAll, contextSnapshot, mutateContext,
+      stopPair: realmObject({ requireMode: "BASE_AND_CANDIDATE" }) };
   }
 
   test("FORMAT_ONLY daemon lifecycle starts, verifies empty inventory and stops its exact owned process", async () => {
@@ -246,6 +273,36 @@ if (typeof vm.SourceTextModule !== "function") {
     const stopped = await lease.stop(fixture.stopEmpty); assert.equal(stopped.processGone, true);
     const stop = fixture.helperCalls.find(([name]) => name === "stop"); assert.equal(stop[2].pid, fixture.owned.pid);
     assert.equal(stop[2].startTicks, fixture.owned.startTicks);
+  });
+
+  test("FORMAT_ONLY Docker MkdirAll preserves the Root-owned private contexts directory across EMPTY to BASE_AND_CANDIDATE", async () => {
+    const fixture = await daemonFixture();
+    const lease = await fixture.api.startGosuDerivativeImageDaemonLease(fixture.vmInput, fixture.dependencies);
+    const empty = await lease.verifyInventory("EMPTY", fixture.emptySubjects); assert.equal(empty.state, "VERIFIED_EMPTY");
+    const beforeClient = fixture.contextSnapshot(); fixture.simulateDockerMkdirAll(); const afterClient = fixture.contextSnapshot();
+    fixture.installPair();
+    const verified = await lease.verifyInventory("BASE_AND_CANDIDATE", fixture.pairSubjects);
+    assert.equal(verified.state, "VERIFIED_BASE_AND_CANDIDATE"); assert.equal(verified.images, 2);
+    assert.deepEqual(beforeClient, afterClient); assert.equal(afterClient.kind, "directory");
+    assert.equal(afterClient.uid, 1000); assert.equal(afterClient.gid, 1000); assert.equal(afterClient.mode, 0o700);
+    const stopped = await lease.stop(fixture.stopPair); assert.equal(stopped.isolatedFinalInventory, "BASE_AND_CANDIDATE");
+  });
+
+  for (const [name, mutation] of [
+    ["mode 0755", { mode: 0o755 }],
+    ["foreign owner", { uid: 0 }],
+    ["symlink substitution", { kind: "symlink", mode: 0o777 }],
+  ]) test(`daemon guards reject contexts ${name}`, async () => {
+    const fixture = await daemonFixture(); const lease = await fixture.api.startGosuDerivativeImageDaemonLease(fixture.vmInput, fixture.dependencies);
+    fixture.simulateDockerMkdirAll(); fixture.mutateContext(mutation);
+    await assert.rejects(lease.verifyInventory("EMPTY", fixture.emptySubjects), /gosu_derivative_image_daemon_files_changed/u);
+  });
+
+  test("daemon BASE_AND_CANDIDATE inventory rejects an inspect result missing its exact candidate reference", async () => {
+    const fixture = await daemonFixture(); const lease = await fixture.api.startGosuDerivativeImageDaemonLease(fixture.vmInput, fixture.dependencies);
+    fixture.installPair({ missingReference: true });
+    await assert.rejects(lease.verifyInventory("BASE_AND_CANDIDATE", fixture.pairSubjects),
+      /gosu_derivative_image_daemon_inventory_invalid/u);
   });
 
   test("daemon stop rejects a foreign start tick instead of accepting cleanup", async () => {
