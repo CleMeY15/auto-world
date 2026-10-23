@@ -1,6 +1,6 @@
 # TASK-0115 — Guide acheteur vers le service officiel HistoVec
 
-Status: READY, 2026-10-23. P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel reviewers. Sequential Architect APPROVE then distinct Critic APPROVE. DoR/ADR/DESIGN committed before application code.
+Status: IN_PROGRESS / LINUX_VALIDATION_PENDING, updated2026-10-24 (Europe/Paris), not LOCAL_VALIDATED or Done. P1, independent product lane. Owner: application lead; bounded native executor for tests; independent architecture, code and actual-pixel reviewers. Sequential Architect APPROVE then distinct Critic APPROVE. DoR/ADR/DESIGN committed before application code in `ec290a1`. [Validation record](../../docs/validation/TASK-0115.md).
 
 ## Goal and dependencies
 
@@ -26,7 +26,13 @@ Production-build browser/HTTP tests: exact routes/entries/headers, no-JS/disable
 
 Chromium/WebKit keyboard/offline/axe WCAG2.2AA and viewport screenshots; Chromium 10 cold loads, 4xCPU, 1.6Mbps/150ms, LCP p75≤2500ms, CLS p75≤0.1, native disclosure next-frame callback≤100ms (not physical paint/production INP). Full lint/typecheck/unit/integration/build/secrets/audit and full UI regression; no new skips or weakened budgets. Independent code/architecture/privacy/pixel reviews, exact final-source CI, normal protected merge, identical tree and main CI before Done.
 
+Reviewed publication-timing amendment,2026-10-24: all18 guide cases and other local gates pass, but the full Windows suite is392 passed/7 existing skips/1 comparison-performance failure, also reproducible on clean accepted main. After bounded diagnostics, sequential Architect then distinct Critic APPROVE allow one PR with that gap explicit, not local success. Both exact-source and merged-main Linux CI must show393 passed/7 existing skips/0 failed/0 flaky or retried and all other gates green; independent Linux pixel review is required before protected merge. No test, budget, skip, focus behavior or workflow changes. Any source failure/retry blocks merge; any main failure/retry blocks Done. The final checkpoint must retain the local limitation.
+
 ## Operations, provenance and rollback
+
+### Security prerequisite discovered during validation
+
+Fresh audit reported HIGH [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) in the existing development-tool chain `eslint-plugin-react-hooks > zod4.6.5`. Dependency-expert review followed by Architect and distinct Critic APPROVE selected only the compatible transitive patch4.6.6, separately committed as `6818644`. No new dependency, manifest or runtime framework changes. Frozen install, resolved-tree check and fresh audit pass; all product gates must be rerun after this lock change. Product rollback must preserve or immediately reapply that security commit, never silently restore the vulnerable resolution through a whole-PR revert.
 
 No vehicle Observation/Provenance record is created. Dated official source references and limits live in ADR-0025. This adds honest purchase guidance, not a proprietary historical dataset. No backend workflow, migration, feature-flagged data acquisition or analytics collector applies; external completion cannot be observed and is not measured.
 
