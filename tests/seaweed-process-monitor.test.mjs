@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-import { isAllowedMonitorReason, normalizeMonitorReason, parseResourceUsageSnapshot, parseTrustedMonitorStatus, validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
+import { isAllowedMonitorReason, normalizeMonitorReason, parseResourceUsageSnapshot, parseTrustedMonitorStatus, runMonitoredCommand, validateMonitorOptions } from "../scripts/seaweed/command-monitor.mjs";
 import { processIsAbsent, runProcessMonitorSelftest } from "../scripts/seaweed/process-monitor-selftest.mjs";
 
 test("process monitor absence check distinguishes ESRCH from a live process and other errors", () => {
@@ -18,6 +18,23 @@ test("native Linux process monitor terminates the spawned descendant after timeo
   const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", RUNNER_TEMP: runnerTemp };
   try { assert.deepEqual(runProcessMonitorSelftest({ env, platform: "linux" }), { result: "PASSED" }); }
   finally { rmSync(runnerTemp, { recursive: true, force: true }); }
+});
+
+test("parent swap is complete before the monitored child starts", { skip: process.platform !== "linux" }, () => {
+  const runnerTemp = mkdtempSync(path.join(tmpdir(), "seaweed-monitor-parent-swap-order-"));
+  const env = { GITHUB_ACTIONS: "true", RUNNER_OS: "Linux", GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_RUN_ATTEMPT: "1", GITHUB_JOB: "build", RUNNER_TEMP: runnerTemp };
+  let parentSwapProbeCount = 0;
+  const runner = (command, args, options) => {
+    if (args[4] !== "parent-swap-probe") return runMonitoredCommand(command, args, options);
+    parentSwapProbeCount += 1;
+    const guardedArgs = [...args];
+    guardedArgs[3] = `( [ -L "$1" ] && [ -d "$2" ] && [ ! -L "$2" ] && [ "$(/usr/bin/readlink -- "$1")" = "$3" ] ) || exit 42; ${args[3]}`;
+    return runMonitoredCommand(command, guardedArgs, options);
+  };
+  try {
+    assert.deepEqual(runProcessMonitorSelftest({ env, platform: "linux", runner }), { result: "PASSED" });
+    assert.equal(parentSwapProbeCount, 1);
+  } finally { rmSync(runnerTemp, { recursive: true, force: true }); }
 });
 
 test("process monitor validates owned disjoint paths and fixed resource limits", () => {
