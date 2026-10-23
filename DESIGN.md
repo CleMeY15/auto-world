@@ -149,3 +149,12 @@
 - Reuse ivory/graphite/petrol semantic tokens, platform font, native links/details and shared button styling. Responsive one-column reading order; wider two-column preparation layout only when content fits. No external images, new font, dependency or client island.
 - Native help disclosure handles connection/external-service limitations with the official guidance link. Static content remains usable after disconnect; no fabricated availability status or completion message. Page works without JavaScript and independently of demo flag.
 - Validate both engines at320/390/768/1440 light/dark,200% platform/Verdana,44px/focus/keyboard/axe/reduced motion/content fit, actual screenshots, LCP/CLS and disclosure latency. Source/CI/main delivery stays separate from design approval.
+
+## TASK-0115 official history guide
+
+- Independent static `/historique-vehicule`, reached from root/demo footer « Historique du véhicule ». Preserve existing navigation, registration entry and synthetic disclosure. No listing-specific association.
+- H1 « Demander un rapport HistoVec ». Explain current certificate-holder generation, buyer request and access through the holder's shared report link. One primary « Ouvrir le site officiel HistoVec » action opens the general site, not a report. Visible/associated new-tab notice; no opener/referrer/prefill.
+- Three short steps and one native help disclosure. Explicitly distinguish administrative history from condition guarantees and separate sale checks. Auto World does not retrieve or verify a report. No input, upload, technical data panel, confidence badge or fake completion state.
+- Reuse ivory/graphite/petrol tokens, platform fonts and shared action styling. Calm one-column mobile reading order; desktop separation only when content fits. Small route-owned styles, no shared provider framework, decorative card stack or imagery.
+- Help explains connection needs and unavailable report links with a secondary official sale-guidance link. Native operation without JS/demo, local loaded content remains useful offline. No automatic external traffic or collected data.
+- Validate both engines320/390/768/1440 light/dark and200% platform/Verdana, keyboard/focus/44px/axe/reduced motion, actual pixels and existing performance budgets before acceptance. [Task](roadmap/tasks/TASK-0115-official-history-guide.md) governs delivery, not merely compilation.

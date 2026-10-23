@@ -8,6 +8,8 @@ Ce suivi consigne la livraison acceptée de TASK-0114, pas la validation d'une m
 
 Construire le moteur de recherche et d'intelligence automobile mondial le plus rapide, complet et utile à la décision : une recherche unique multi-pays/multi-sources, web+iOS+Android, langage naturel, historique véhicule, scoring d'affaires et de confiance, coût rendu/immatriculé en France, alertes et données B2B.
 
+Prochain incrément produit sélectionné le 23 octobre 2026 : [TASK-0115 — guide acheteur vers HistoVec](roadmap/tasks/TASK-0115-official-history-guide.md), READY après revues séquentielles Architect puis Critic. Une page d'orientation vers le service officiel, sans récupération de rapport ni données véhicule, conformément à [ADR-0025](docs/decisions/ADR-0025-official-history-guide.md). Ce choix ne débloque aucune tâche infrastructure ou source réelle.
+
 Le produit ne doit pas seulement aider à trouver une annonce. Il doit aider à trouver, comprendre, vérifier, comparer, importer et acheter le bon véhicule.
 
 L'expérience utilisateur doit être un avantage concurrentiel majeur : interface premium, extrêmement fluide, très épurée et simple à comprendre au premier regard, tout en restant complète pour les utilisateurs avancés. La référence est le niveau de clarté, cohérence, finition, fluidité et simplicité associé aux meilleurs produits Apple — sans copier leurs assets, branding ou écrans.
