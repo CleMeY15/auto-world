@@ -8,6 +8,8 @@ Help a buyer request the official administrative-history report from the seller/
 
 Accepted dependencies: TASK-0007 UI foundation and TASK-0114 static official-navigation delivery, [PR190 checkpoint](https://github.com/CleMeY15/auto-world/pull/190#issuecomment-6352642818) and [PR192 checkpoint](https://github.com/CleMeY15/auto-world/pull/192#issuecomment-6354006409). Base main `caa992686e87bff38d79225504b516ebb65050eb`, CI39873298126 SUCCESS. Dedicated branch `codex/task-0115-official-history-guide`.
 
+Resumption2026-10-24: integrate once the independently verified accepted main `d9a2c348f2e605fa1de1b02c9619129c292b63a1` ([PR193 checkpoint](https://github.com/CleMeY15/auto-world/pull/193#issuecomment-6378130106)), including shared prerequisites PR195/PR196. Product code/tests remain unchanged; final integrated validations and identities are required anew. This does not complete TASK-0005(A) or authorize Native execution. The [validation record](../../docs/validation/TASK-0115.md#resumption-on-the-accepted-shared-baseline2026-10-24) retains the original CI/Windows failures and the base-specific rollback boundary.
+
 Contracts: AGENTS, ROADMAP Vehicle History Gateway, [DESIGN](../../DESIGN.md), [PRODUCT_UX](../../docs/PRODUCT_UX.md), [DoD](../../docs/DEFINITION_OF_DONE.md), Vehicle Intelligence, Strategic Moats, security/legal and [ADR-0025](../../docs/decisions/ADR-0025-official-history-guide.md). No new public/data contract or source admission.
 
 ## Flow and acceptance criteria
