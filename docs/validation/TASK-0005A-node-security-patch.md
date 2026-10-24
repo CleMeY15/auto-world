@@ -1,31 +1,130 @@
-# Node.js 22.23.4 security patch — preparation and source update plan
+# Node.js 22.23.4 narrow security patch — public plan candidate V7
 
-Status: `PROPOSED_NOT_EXECUTABLE`
+Status: `RESOLVED_CANDIDATE_NOT_EXECUTABLE_PENDING_3_REVIEWS`
 
-Scope: [TASK-0005A](../../roadmap/tasks/TASK-0005A-managed-image-tooling.md), with immutable execution bindings governed by [ADR-0011](../decisions/ADR-0011-postgres-admission-runtime.md).
+Architecture accepted directions A, B, and C as resolutions to V5's open branches; that is not approval of V5 or this V7. V7 is executable only after the exact document passes Dependency -> Architect -> distinct Critic with `CLEAR` verdicts. Until then it authorizes no tool execution, download, signature operation, source edit, legacy execution, Gosu rebuild, Native action, admission, activation, or support-date change.
 
-Proposed implementation plan. No download, signature operation, tool preparation or runtime-pin edit is authorized before the ordered review gates below. It grants no Native execution, admission, activation or support-date change.
+## Goal and invariants
 
-## Goal and fixed scope
+Move the current workspace and directly affected Gosu source guards from Node.js `22.23.2` to security patch `22.23.4`, keeping `pnpm@10.15.0` unchanged.
 
-Upgrade active workspace and PostgreSQL/Gosu contracts from Node.js `22.23.2` to security patch `22.23.4`, keeping `pnpm@10.15.0` unchanged.
+No Node 24/26 migration, new production dependency, override, historical rewrite, legacy runtime installation/replay, global process mutation, image admission, Native execution, activation, or support authority. No new exclusion, skip, reduced graph, relaxed assertion, or weakened gate. TASK-0005A/TASK-0005 remain `IN_PROGRESS`; downstream complete-descendant closure is unchanged.
 
-No Node 24/26 migration, package-manager change, new production dependency, integrity/test/platform override, historical global replacement, Native/Docker/registry/admission/activation/support authority. TASK-0005A/TASK-0005 remain `IN_PROGRESS`; source delivery advances neither admission nor complete-descendant closure.
+## Delivery barriers
 
-## Current delivery boundary
+The PR193 foundation is merge `d9a2c348f2e605fa1de1b02c9619129c292b63a1`. The public implementation base must be the accepted main after PR194 delivery.
 
-The accepted base is PR193 merge `d9a2c348f2e605fa1de1b02c9619129c292b63a1`, tree `f14f21175f67bfbbd824ba25d4d4005747ee954a`. Reviewed source `7ccff31e0079f70ce0dcfc14e5345fd924c71575` passed [source CI40046726091 attempt1](https://github.com/CleMeY15/auto-world/actions/runs/40046726091); the merge passed [main CI40048170615 attempt1](https://github.com/CleMeY15/auto-world/actions/runs/40048170615). Independent final acceptance is `PASS_CONTEXT_DIRECTORY_SOURCE_DELIVERED_ON_MAIN_ONLY`, recorded in [the delivery checkpoint](https://github.com/CleMeY15/auto-world/pull/193#issuecomment-6378130106). The PR194 freeze was released after that acceptance; public Node engine changes remain held until its separate delivery.
+1. A documentation-only plan may be prepared after PR193 acceptance and coordination with PR194; it contains no runtime edit or preparation implementation.
+2. This V7 must pass Dependency, Architect, then distinct Critic.
+3. Phase 0 tool qualification may run only after all three `CLEAR` reviews and after PR194 release is coordinated.
+4. Phase 1 Node authentication/download and Phase 2 private Windows preparation require independent acceptance of Phase 0 evidence.
+5. Public runtime edits start only after PR194 is delivered and its exact accepted main SHA/tree are known.
+6. The public patch requires independent final review, exact source-head CI, normal protected merge without bypass, then exact merged-main CI.
 
-Two distinct PR194 barriers apply:
+Any material base, scope, provider, tool identity, capability, trust-envelope, or classification change invalidates downstream reviews.
 
-1. **Private Windows preparation** may start only after PR193 is accepted, release of the PR194 freeze is explicitly **coordinated**, and Dependency -> Architect -> distinct Critic have each returned `CLEAR` on the exact plan.
-2. **Public engine changes** may start only after PR194 is **delivered** and its accepted main SHA/tree are known.
+## NARROW public source scope
 
-A documentation-only plan PR may follow PR193 acceptance before PR194 delivery, but contains no engine, workflow, contract, test-pin, or preparation implementation. A material base, tool, contract, or trust-model change invalidates downstream reviews.
+### Current workspace and guidance
 
-The Windows preparer source contract is currently assessed `CLEAR`; this is not preparation or execution authority. The cryptographic profile remains conditional on the gates below.
+Update only current guidance/contracts:
 
-## Official immutable inputs
+- `.nvmrc`;
+- `package.json` Node engine;
+- `tests/workspace-contract.test.mjs`;
+- `README.md`;
+- `apps/web/README.md`;
+- `connectors/_sdk/README.md`;
+- current workspace-toolchain instruction at `roadmap/tasks/TASK-0005A-managed-image-tooling.md:132`.
+
+Move these current surfaces to Node `22.23.4`; keep every pnpm value `10.15.0`. Do not rewrite historical TASK-0005A entries that record past toolchains.
+
+### Three binary contracts plus Observation V2
+
+1. `scripts/postgres-image/gosu-retained-pair-controller-v1.mjs`: Linux path, version, bytes, SHA-256.
+2. `scripts/postgres-image/gosu-retained-pair-worker-v1.mjs`: Linux path, version, bytes, SHA-256.
+3. `scripts/postgres-image/gosu-derivative-image-daemon-v2.mjs`: Linux path, bytes, SHA-256, runtime version/path guard.
+4. `scripts/postgres-image/gosu-derivative-image-observation-v2.mjs`: runtime version changes to `v22.23.4`; add no binary path/size/hash contract.
+
+Update their four focused suites while preserving unrelated resource, import, identity, ownership, platform, and process guards.
+
+### Admission source-compatibility test — decision A
+
+`tests/postgres-image-admission-execution-closure.test.mjs` becomes `ACTIVE_PATCH` only as a current source compatibility test:
+
+- change its unique host assertion to Node `22.23.4`;
+- every real child it launches through the current `process.execPath` returns `observedNode: process.versions.node` in its bounded success result;
+- assert every such child reports exactly `22.23.4`;
+- label the test/evidence `SOURCE_COMPATIBILITY_ONLY`;
+- preserve all 74 execution-file pins, every exact size/SHA, resource/import negative, no-write assertion, sorted/unique membership check, and generation-5 source bytes unchanged.
+
+This test performs no Native action and changes no generation, policy, recipe, admission inventory, admission authority, or migration. There is no dual-runtime legacy CI lane.
+
+### Legacy Gosu diagnostics — decision B
+
+The two historical diagnostic cases in `tests/postgres-gosu-command-failure-v1.test.mjs` remain unit coverage without installing or replaying Node `22.23.2`:
+
+- load the public source through independent `vm.SourceTextModule` contexts;
+- provide a synthetic frozen `process.version === "v22.23.2"` only inside each VM context;
+- invoke the real public `TEST_ONLY.main` unchanged;
+- use a closed linker allowlist;
+- deny native Go spawning and any unexpected child/process capability;
+- label their evidence `SIMULATED_LEGACY_UNIT_ONLY`.
+
+Do not mutate global `process`, install an old runtime, run the old CLI, or claim Native/legacy execution.
+
+Add one separate current-runtime regression under real Node `22.23.4`:
+
+- create a new private three-helper copy with the relative lock deliberately absent;
+- launch one real current-Node child only;
+- require exact `runtime_invalid`, empty stdout, and exit status 1;
+- prove the runtime guard rejects before lock access or any Go/native spawn.
+
+The public V1 main/helper sources remain unchanged by this test adaptation.
+
+### Explicit exclusions and separate lanes
+
+- Do not modify `scripts/postgres-image/admission-archive-observation.mjs` or its test; that immutable admission binding requires a separately reviewed generation-6 plan.
+- Do not upgrade the three `setup-node` pins in `.github/workflows/gosu-derivative-preparation-v1.yml`. They and the V1 lock, receipt, builder, controls, and command bodies authenticate historical `actual11`.
+- Do not rebuild Gosu or execute the legacy V1 workflow.
+- A future source-build V2 is a separate reviewed plan.
+- Context V2 is outside the direct controller/worker/daemon/Observation closure. Prove these patched paths contain no direct import, dynamic import, child invocation, callback route, or external dispatch to Context V2; do not claim Context V2 absent project-wide.
+
+## Historical V1 workflow quarantine
+
+Change only orchestration required to make V1 technically dormant:
+
+- all three jobs use the exact JSON string value `"${{ false }}"` for `if`, never an ambiguous JSON boolean;
+- all three `setup-node` values remain frozen at `22.23.2`;
+- lock, builder, controls, receipts, historical command bodies, and authenticated identities remain unchanged;
+- source tests require exactly three jobs, each with exact string deny-all, unchanged frozen pins/bindings, and no alternate dispatch path;
+- reject enabled/missing/non-string conditions, changed pins/bindings, added jobs, partial quarantine, or workflow/receipt mixtures.
+
+Quarantine denies future execution; it does not replay, repair, supersede, reinterpret, or secure the historical fleet.
+
+## Exhaustive public classification
+
+Root's private V1 inventory is a historical draft with open decisions. It is not the updated actual classification for V6.
+
+The predecessor classification planned `334` occurrences across `209` public files with amended totals:
+
+- `42 ACTIVE_PATCH`, adding the admission execution-closure host entry;
+- `6 DORMANT_DENY`;
+- `100 SEPARATE_LANE`;
+- `186 FROZEN_HISTORICAL`.
+
+The 334/209 and 42/6/100/186 numbers describe only the exact reviewed predecessor d11908f42813f5c6c434e0630f174b271a5e0655, which already includes this PR initial plan. They are historical baseline measurements, not invariants of later commits. After PR194 delivery and before an engine edit, generate a new inventory from the exact accepted implementation base and publish a compact table. Derive its actual totals from that tracked public tree; account explicitly for every added, removed or moved occurrence compared with the predecessor. Each row contains repository-relative file, exact lines/occurrences, exactly one category, justification, and intended action/preservation rule.
+
+Closed categories:
+
+- `ACTIVE_PATCH`: current workspace/guidance, C/W/D/O, their focused tests, and source-only admission closure compatibility;
+- `DORMANT_DENY`: quarantined V1 workflow/test and synthetic legacy diagnostic occurrences;
+- `SEPARATE_LANE`: generation 6, source-build V2, or another reviewed future increment;
+- `FROZEN_HISTORICAL`: retained documentation, receipt, lock, builder, control, or evidence.
+
+Require exhaustive coverage of the actual inventory, no missing line, duplicate category, unknown or unjustified action. A changed count alone is not a contract violation: evidence-only document additions can be classified with their exact source binding and disclosed delta. A new runtime guard, changed execution dependency, altered frozen profile or expanded patch scope stops and requires review before source mutation. No global replacement. Classification proves public source disposition only; it does not prove the legacy fleet secured.
+
+## Official Node inputs
 
 Use only `https://nodejs.org/dist/v22.23.4/`:
 
@@ -34,136 +133,146 @@ Use only `https://nodejs.org/dist/v22.23.4/`:
 | `node-v22.23.4-win-x64.zip` | `35604229` | `cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20` |
 | `node-v22.23.4-linux-x64.tar.xz` | `31029996` | `1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce` |
 
-Pin the Node release-key repository at commit `5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b`. Authorized primary fingerprint:
+Pin Node release-key commit `5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b`. Authorized primary fingerprint:
 
 `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`
 
-Key blob URL:
+Key blob:
 
 `https://raw.githubusercontent.com/nodejs/release-keys/5b7f55f4a7e35d1176d27a6b81b0c3c3b794216b/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc`
 
 Expected key blob: `924` bytes, SHA-256 `5115095e2f8010c75da052ecb1cfb3af630e084f0f8daa93a863557b01b0f90a`.
 
-No GPG, GPGV, or Node.js 22.23.4 executable has been run. Extracted `node.exe` and Linux `bin/node` sizes/hashes remain unknown until authenticated derivation.
+No GPGV or Node `22.23.4` executable has been run under this plan. Extracted binary sizes/hashes remain unknown until authorized derivation.
 
-## Shared cryptographic result contract
+## Phase 0 — local trusted-toolchain qualification, decision C
 
-Whichever profile is selected must verify the clear-signed `SHASUMS256.txt.asc` and write the verified clear text in the same invocation. Use a dedicated machine-readable status stream. `--output` must name a nonexistent path inside a newly created caller-only exclusive directory; exclusivity applies to the directory/lease, not to pre-creating the file. Fail if the path exists before invocation, and after success require a new regular non-reparse file with stable identity, bounded size, full hash, and complete readback.
+Phase 0 starts only after three `CLEAR` reviews. Invariant:
 
-Parse status as a closed state machine:
+`NO_NODE_KEY_MANIFEST_DOWNLOAD_NO_SIGNATURE`
 
-- exit code must be zero and all streams must close completely;
-- exactly one terminal signature outcome from `GOODSIG`/`BADSIG`/`ERRSIG`/`EXPSIG`/`EXPKEYSIG`/`REVKEYSIG` is allowed, and it must be `GOODSIG`;
-- exactly one `VALIDSIG` is required, with the exact authorized primary fingerprint;
-- a second signature context is forbidden;
-- if `NEWSIG` is emitted, exactly one is allowed; require `NEWSIG` unconditionally only when the reviewed capability profile contractualizes its emission;
-- reject `BADSIG`, `ERRSIG`, `EXPSIG`, `EXPKEYSIG`, `REVKEYSIG`, `KEYREVOKED`, `NO_PUBKEY`, `FAILURE`, unknown terminal signature results, duplicates, or conflicting fingerprints;
-- assess completion only after the status stream closes. After the single `GOODSIG`/`VALIDSIG` result, allow only bounded recognized non-decision metadata belonging to that same signature context, including `TRUST_*`, `ASSERT_SIGNER`, `KEY_CONSIDERED`, and `SIG_ID`; reject any later `NEWSIG`, terminal `*SIG` outcome, `VALIDSIG`, conflicting fingerprint, error/failure, or unknown security-relevant status;
-- log `TRUST_*` as bounded non-decision metadata only; never use `--always-trust`, an always-trust model, UID trust, short/long key ID, or `GOODSIG` alone as authorization.
+It must not download the Node key, publisher snapshots, checksum manifest, or archives and must not verify a signature.
 
-Hash and fully read back the verified clear text before parsing the two exact archive records. Status text and diagnostic stderr never become signed content.
+Selected provider/trust model:
 
-## Primary profile: controlled GPG
+- provider: `EXISTING_ADMIN_MANAGED_GIT_FOR_WINDOWS`;
+- provider class: `TRUSTED_TOOLCHAIN_PROVIDER`;
+- trust basis: `LOCAL_TRUST_BASE`;
+- installed product basis: pre-existing administrator-managed Git for Windows `2.55.0.windows.3`;
+- `officialSignedBundleReproduction: NOT_ESTABLISHED`;
+- scope: local/private preparation only.
 
-Dependency review must privately pin the executable, official or signed-bundle provenance, required libraries, version, bytes, ancestors, ACL/reparse properties, and stability. Resolve by pinned absolute identity, never ambient `PATH`.
+This trust model does not claim the Git installation is officially authenticated, reproduced from an official signed bundle, uncompromised, or safe against a compromised OS/administrator. Threat exclusions are OS/admin compromise and a malicious pre-existing installation. If local identity checks are ambiguous, stop.
 
-Before use, verify all required options through capability output. Use an empty working directory, controlled environment, unique empty private home, explicit streams, and:
+Qualify the existing GPGV tool with bounded version/capability queries and exact measurements:
 
-- `--no-options`, `--batch`, `--no-tty`;
-- `--no-auto-key-retrieve`, `--no-auto-key-import`, disabled automatic key location;
-- `--disable-dirmngr`, `--no-autostart`;
-- `--exit-on-status-write-error`;
-- `--assert-signer` when the reviewed version supports it.
+- executable bytes and stable native identity;
+- complete required DLL closure hashes/identities;
+- absolute ancestor identities, owners, ACLs, types, reparse-point absence, and stability;
+- bundle/product provenance consistent with the pre-existing admin-managed installation;
+- required options/capabilities and exact invocation semantics;
+- empty controlled working directory, controlled environment/PATH, explicit keyring, and no default configuration/network/agent path;
+- pre/post stability of executable, DLLs, ancestors, owners, ACLs, and reparse properties.
 
-Reject configuration, old/default keyrings, agents, network helpers, proxies, unstable parents/libraries, unsupported options, or status shapes outside the shared contract. `TRUST_*` cannot change the verdict.
+Do not require comparison with an official or signed Git bundle. Do not convert the local trust basis into an official provenance claim.
 
-## Conditional fallback: controlled GPGV
+Retain a bounded receipt containing at least:
 
-GPGV is selectable only if Dependency pins an official distribution or officially signed bundle plus exact executable, DLL, parent, ACL/reparse, provenance, version, capability, byte, and stability identities to the same standard as GPG. Use one explicit binary keyring, disabling default keyrings; expose no configuration, network, dirmngr, or agent path.
+```text
+status=TOOL_PROFILE_READY_NO_DOWNLOAD_NO_SIGNATURE
+provider=EXISTING_ADMIN_MANAGED_GIT_FOR_WINDOWS
+providerClass=TRUSTED_TOOLCHAIN_PROVIDER
+trustBasis=LOCAL_TRUST_BASE
+officialSignedBundleReproduction=NOT_ESTABLISHED
+```
 
-Derive the binary keyring from the exact pinned armored blob using reviewed standard-library code with strict Base64 decoding and RFC 4880 CRC-24 verification. Reject extra armor blocks, malformed headers, trailing data, CRC mismatch, empty output, or unstable readback.
+An independent reviewer must accept the exact receipt before Phase 1. Any qualification-to-use drift in executable, DLL closure, ancestor, owner, ACL, reparse state, product identity, version, or capability invalidates the receipt and stops before download.
 
-GPGV must follow the shared single-invocation contract with `--status-fd 1` and the nonexistent output path inside the caller-only exclusive directory described above. GPGV does not enforce expiration or revocation for this publisher-authorization decision; therefore never call its result cryptographic proof that the key is unrevoked.
+## Phase 1 — publisher evidence, signature, and archives
 
-Immediately before use, pin commit, content SHA-256, and retrieval timestamp for both official sources:
+After Phase 0 acceptance, derive one explicit binary keyring from the exact pinned armored Node key using reviewed standard-library strict Base64 plus RFC 4880 CRC-24 validation. Use no default keyring/configuration/network/agent.
 
-- `https://github.com/nodejs/release-keys/blob/main/README.md`;
-- `https://github.com/nodejs/node/blob/main/README.md`.
+Resolve these two official moving sources to commits, then use immutable commit URLs and record commit, content SHA-256, and observation timestamp:
 
-Both snapshots must independently classify the exact primary fingerprint as currently authorized/active and not retired, and must remain consistent with the exact original armored key blob. Missing, stale, conflicting, ambiguous, or retired status stops the fallback.
+- `nodejs/release-keys` main README;
+- `nodejs/node` main README.
 
-Architect and then distinct Critic must explicitly accept this closed Node publisher-authorization semantics despite GPGV's expiration/revocation limitation. Otherwise use the approved GPG profile or stop; never weaken the fallback.
+Both immutable snapshots must identify the exact primary fingerprint as active/authorized and not retired and match the pinned armor. From the older snapshot observation through the signature decision, elapsed time is at most 15 minutes in one bounded envelope; this is not a global TTL. Stale, divergent, ambiguous, retired, or mismatched evidence denies.
 
-## Private Windows preparation
+GPGV does not enforce publisher-key expiration/revocation semantics for this decision. The three reviews must explicitly accept this closed publisher-authorization model; never claim cryptographic proof that the key is unrevoked.
 
-Run only after PR193 acceptance, coordinated PR194 release, and three ordered `CLEAR` reviews, in a new exclusive Windows workspace using existing bounded stream/hash/readback patterns.
+Verify and extract `SHASUMS256.txt.asc` in one GPGV invocation using `--status-fd 1`, the explicit keyring, and a nonexistent output path inside a new exclusive directory. Require a new stable regular non-reparse output with bounded full readback.
 
-1. Authenticate the pinned key blob, signed checksum manifest, and both exact archives with the selected profile.
-2. Require verified signed text to bind the two exact archive names to expected SHA-256 values.
-3. Read archives with bounded streams, physical EOF, exact byte count, full SHA-256, stable identity, and complete readback before extraction.
-4. Extract the Windows ZIP to a new fixed destination; reject absolute/traversal paths, duplicates, collisions, links/reparse points, unexpected types, budget overflow, or outside writes.
-5. Derive actual `node.exe` bytes/SHA-256. Run only that new controlled Windows executable with `--version`; require exactly `v22.23.4`. Do not activate Corepack or alter global `PATH`.
-6. Do not extract the whole Linux archive. With standard-library `tarfile`, require exactly one regular `node-v22.23.4-linux-x64/bin/node`; stream it to a new fixed file and prove EOF, output size, SHA-256, stable readback. Reject duplicates, non-regular/link/traversal/sparse/special ambiguity, trailing or budget violations.
-7. Treat the Linux member only as data: do not deploy, install, copy to WSL/Linux, or execute it. Linux version is validated later by source contract and CI.
-8. Retain a bounded non-secret receipt binding reviews, selected signature profile, official inputs, status verdict, archives, derived pins, Windows version, and `TOOLCHAIN_CANDIDATE_ONLY_NO_NATIVE_AUTHORITY`.
+Closed status contract:
 
-Independent receipt acceptance precedes every public engine edit.
+- exit zero and complete stream closure;
+- exactly one terminal signature outcome and it is `GOODSIG`;
+- exactly one `VALIDSIG` with the authorized primary fingerprint;
+- no second signature context;
+- if `NEWSIG` is emitted, exactly one; require it only if Phase 0 capability profiling contractualizes it;
+- reject `BADSIG`, `ERRSIG`, `EXPSIG`, `EXPKEYSIG`, `REVKEYSIG`, `KEYREVOKED`, `NO_PUBKEY`, `FAILURE`, unknown security status, duplicate/conflicting fingerprint;
+- `TRUST_*` is bounded non-decision metadata only; never use always-trust, UID/key-ID trust, or `GOODSIG` alone.
+- assess completion only after the status stream closes. After the single `GOODSIG`/`VALIDSIG` result, allow only bounded recognized non-decision metadata belonging to that same signature context, including `TRUST_*`, `ASSERT_SIGNER`, `KEY_CONSIDERED`, and `SIG_ID`; reject any later `NEWSIG`, terminal `*SIG` outcome, `VALIDSIG`, conflicting fingerprint, error/failure, or unknown security-relevant status.
 
-## Public patch after PR194 delivery
+Require verified signed text to bind the two exact archive names to expected SHA-256 values. Prove each archive URL, bytes, physical EOF, SHA-256, stable identity, and complete readback. Recheck the entire Phase 0 identity envelope before and after GPGV use.
 
-Reconfirm active inventory on accepted post-PR194 main, then update atomically:
+## Phase 2 — private Windows preparation
 
-- `.nvmrc`, `package.json`, and `tests/workspace-contract.test.mjs` to Node `22.23.4`, preserving `pnpm@10.15.0`;
-- exactly three `setup-node` values in `.github/workflows/gosu-derivative-preparation-v1.yml`;
-- four binary contracts and focused tests:
-  - retained-pair controller: Linux path, version, bytes, SHA-256;
-  - retained-pair worker: Linux path, version, bytes, SHA-256;
-  - derivative-image daemon: Linux path, bytes, SHA-256, runtime version/path guard;
-  - admission archive observer: Linux path, bytes, SHA-256;
-- Observation V2 Linux/runtime guard to `process.version === "v22.23.4"`, without adding a binary path/size/hash contract.
+Use a new exclusive Windows workspace.
 
-Use one accepted preparation receipt. Never mix new version with old path/hash or old version with new pins. Preserve unrelated guards.
+1. Extract the Windows ZIP to a new fixed destination; reject absolute/traversal paths, duplicates, collisions, links/reparse points, unexpected types, budget overflow, or outside writes.
+2. Derive actual `node.exe` bytes/SHA-256. Run only that new controlled Windows executable with `--version`; require `v22.23.4`. Do not activate Corepack or alter global `PATH`.
+3. Do not extract the whole Linux archive. With standard-library `tarfile`, require exactly one regular `node-v22.23.4-linux-x64/bin/node`; stream it to a new fixed file and prove EOF, size, SHA-256, stable readback. Reject duplicate, link, traversal, sparse/special/type, trailing, or budget ambiguity.
+4. Treat the Linux member only as data: no deployment, WSL/Linux copy, installation, or execution.
+5. Retain a bounded non-secret `TOOLCHAIN_CANDIDATE_ONLY_NO_NATIVE_AUTHORITY` receipt binding reviews, Phase 0 local trust basis, publisher evidence, signature result, archives, derived pins, and Windows version.
 
-Tests must match controls actually present:
+Independent receipt acceptance precedes public edits.
 
-- controller/worker host-guard positive and refusal behavior;
-- daemon VM fixture plus runtime version/path refusal;
-- admission observer path/size/SHA substitution rejection, without inventing a version field;
-- Observation V2 success at `v22.23.4` and explicit different-version refusal, without adding a binary pin.
+## Public implementation after PR194 delivery
 
-Search bounded active scope for residual `22.23.2`. Exclude historical docs, ADRs, retained evidence, frozen recipes, and private actor pins.
+On accepted post-PR194 main:
 
-## Verification and delivery
+1. generate and publish/review the exhaustive inventory for the exact accepted implementation base, with measured totals and a complete delta from the historical 334/209 predecessor;
+2. add exact-string deny-all quarantine to the three V1 workflow jobs while preserving frozen Node pins and historical bindings;
+3. update current workspace/guidance surfaces;
+4. update C/W/D binary contracts from one accepted Linux-member pin;
+5. update Observation V2 runtime version only;
+6. implement source-compatibility decision A in the admission closure test;
+7. implement simulated-legacy/current-runtime decision B in command-failure tests;
+8. update only the four focused C/W/D/O suites with meaningful positive/refusal cases;
+9. add C/W/D/O no-direct/dynamic-Context-V2 proof;
+10. preserve admission archive observer, setup-node pins, legacy lock/builder/controls/receipts, generation-5 source, and every frozen/separate-lane entry.
 
-Run targeted tests then all gates on one source head:
+No deliverable commit may mix old/new version, path, bytes, or hash. No global replacement.
 
-- signature-profile state-machine and fail-closed cases;
-- key armor/keyring conversion tests for the selected profile;
-- archive parser/extraction tests: duplicate, link, traversal, type, size, hash, EOF, stability;
-- workspace contract, four binary-contract suites, Observation V2 suite, meaningful negative guards;
+## Verification
+
+Run targeted checks then all gates on one source head:
+
+- Phase 0 receipt and qualification-to-use drift: executable, DLL, ancestors, owners, ACL, reparse, product identity, version, capabilities;
+- strict armor/keyring conversion, official snapshot 15-minute boundary, stale/divergent denial, closed signature status parser;
+- archive/extraction negatives: duplicate, link, traversal, type, size, hash, EOF, stability;
+- exact actual-tree inventory completeness/category totals and every disclosed delta from the historical predecessor;
+- V1 workflow exact string `"${{ false }}"`, three-job dormance, and mixed lock/receipt/builder/control/pin rejection;
+- workspace contract and current guidance consistency;
+- four focused C/W/D/O suites with negatives matching actual guards;
+- admission closure `SOURCE_COMPATIBILITY_ONLY`: current host, observed child Node, unchanged 74-pin graph/SHA/resources/import negatives/no-write/generation-5 source;
+- command-failure `SIMULATED_LEGACY_UNIT_ONLY`: isolated VM processes, linker allowlist, Go/native spawn denial, unchanged `TEST_ONLY.main`;
+- current Node private-copy regression: exact `runtime_invalid`, empty stdout, exit 1, no lock/native access;
+- C/W/D/O Context V2 no-call/dynamic-dispatch regression;
 - frozen-lockfile install with Node `22.23.4` and Corepack/pnpm `10.15.0`;
 - lint, typecheck, unit/integration tests, build, secrets, current vulnerability audit;
 - UI interactions, accessibility, representative viewports, expected-skip accounting;
-- lockfile/diff review proving no dependency, override, or policy drift.
+- lockfile/diff review proving no dependency, override, policy, historical, admission, generation, or separate-lane drift.
 
-Linux CI must prove `process.version === "v22.23.4"` and exact configured path/size/SHA matching the Windows-derived member. This is no local Linux installation or Native authority.
+Linux CI must prove Node `v22.23.4` and exact configured C/W/D path/bytes/SHA matching the Windows-derived member. This is source/contract CI, not Gosu rebuild, legacy runtime execution, Native action, or admission.
 
-Delivery requires independent final diff review, exact source-head CI success, normal protected merge with matching head/no bypass, exact merged-main CI success, and a bounded delivery record binding commit/tree, run/attempt, tests, audit, signature evidence, archives, and derived pins. Activation/support/archive dates remain `null`.
+## Delivery, rollback, and stop rules
 
-## Rollback and stop rules
+Delivery requires independent final review, exact source-head CI, protected merge with matching head/no bypass, exact merged-main CI, and a bounded record binding commit/tree, run/attempt, classification, tests, audit, quarantine, provider trust receipt, signature evidence, archives, and derived pins. Activation/support/archive dates remain `null`.
 
-Before merge, failure leaves branch unmerged and candidate inert. After merge, a defect requires reviewed revert with Native disabled. Never silently fall back to `22.23.2`, overwrite old toolchains, or delete retained material.
+Before merge, failure leaves the branch unmerged and candidates inert. After merge, a defect requires reviewed revert with Native disabled. Never silently fall back to `22.23.2`, overwrite toolchains, execute frozen workflow jobs, install old Node, or delete retained material.
 
-Stop if:
+Stop if any of the three reviews is not `CLEAR`, Phase 0/1/2 evidence is missing, local provider identity is ambiguous, qualification drifts, publisher snapshots are stale/divergent, the actual-tree inventory is incomplete or contains an unreviewed runtime/scope delta, workflow quarantine is partial, frozen material changes, admission/generation policy changes, a real guard is relaxed, an exclusion is added, a targeted/full gate fails, or exact source/main CI fails.
 
-- delivery/coordination order is incomplete;
-- any ordered review is not `CLEAR`;
-- tool provenance, capabilities, libraries, ancestors, official publisher authorization, or status semantics are ambiguous;
-- status differs from the exact single-signature contract;
-- archive URL/name/size/SHA/type/stability differs;
-- the unique Linux member is not exact and regular;
-- derived pins are missing/inconsistent or Windows version differs from `v22.23.4`;
-- a guard is relaxed, contract mixed, targeted/full gate fails, or exact source/main CI fails;
-- the diff touches historical/private/Native material or adds an unapproved dependency.
-
-Root must verify current repository/GitHub state, publish the exact plan, and obtain ordered reviews. Until then: `PROPOSED_NOT_EXECUTABLE`.
+All V5 open branches are resolved by A/B/C above. Until the exact V7 passes Dependency -> Architect -> distinct Critic and Root promotes it, it remains `RESOLVED_CANDIDATE_NOT_EXECUTABLE_PENDING_3_REVIEWS`.
