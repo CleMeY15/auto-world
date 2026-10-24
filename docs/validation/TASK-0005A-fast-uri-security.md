@@ -1,6 +1,6 @@
 # TASK-0005A — fast-uri security prerequisite
 
-Status: PLAN_REVIEWED / IMPLEMENTATION_PENDING. TASK-0005A and TASK-0005 remain IN_PROGRESS. No image admission, Native execution, activation or support date follows from this source increment.
+Status: SOURCE_IMPLEMENTATION_REVIEWED / LOCAL_GATES_PASSED / DELIVERY_PENDING. TASK-0005A and TASK-0005 remain IN_PROGRESS. No image admission, Native execution, activation or support date follows from this source increment.
 
 ## Problem and plan
 
@@ -12,11 +12,19 @@ Independent dependency review, Architect review and a distinct Critic review app
 
 ## Verification contract
 
-An ignored, retained compatibility probe will load each URI version through its actual installed parent context. It will verify the four advisory cases and legitimate URI controls, AJV relative schema references and encoded fragments, and installed Fastify validation/serialization. This is synthetic dependency compatibility evidence. The seven existing API test files separately exercise actual product behavior; current product routes use custom contract parsers without Fastify route schemas.
+The retained compatibility probe loads each URI version through its actual installed parent context. It checks the four advisory cases and legitimate URI controls, AJV relative schema references and encoded fragments, and installed Fastify validation/serialization. This is synthetic dependency compatibility evidence. The seven existing API test files separately exercise actual product behavior; current product routes use custom contract parsers without Fastify route schemas.
 
-Frozen online installation must verify downloaded bytes against the exact registry-published integrity values; a subsequent frozen offline installation must preserve that lock and reuse the verified store. No independent npm signature, attestation or publisher-provenance verification is claimed.
+Frozen online and offline installations passed with Node 22.23.2/Corepack pnpm 10.15.0 and unchanged lockfile. Their retained records are transcript-derived summaries, not original stdout captures. Installation enforces the exact registry-published tarball integrity values; no independent npm signature, attestation or publisher-provenance verification is claimed. An initial summary contained a case-only hash transcription error; the appended correction and independently checked current lock identify SHA256 `6c77deb44e33302ff4daf2cd3a80ef7971caa107556464af6584d29435aa3d5f`.
 
-Lint, typecheck, repository tests, build, Secretlint and a fresh audit must pass. The final exact source head and protected merged main must each pass the complete CI, including the unchanged browser suite. Independent implementation/delivery reviews and identical reviewed/merged trees remain required. This initial planning snapshot claims none of those later results.
+The original probe V1 observed 12 cases: four passing controls and eight security failures on the old dependencies. Its first patched run passed ten cases but failed two suffix-reparse assertions because the probe itself supplied an option that injects scheme `x`. V1 also substituted a suffix-resolution input from the approved vector. Both outcomes remain transcript-derived summaries with missing raw stdout explicitly disclosed; they are not relabeled as successful runs.
+
+After separate dependency, Architect and distinct Critic review, a new immutable V2 corrected default reparsing and restored the exact approved encoded-input resolution vector. Its single patched-only execution passed 12/12 with empty stderr, actual parent resolution paths and stable source/Node/lock pins. V2 source SHA256 is `573c19a56cc26678478b8f3dc9eb6b5e294e83859f24d7bf830d31975cab999a`; authentic stdout SHA256 is `7fbae3a69cf51ef2786b0ca74e204d39f01f642c0fe61c17fc7d16c9c6b425e5`. No old dependency reinstall or baseline replay occurred. The V1/V2 evidence is not an identical-script RED/GREEN pair.
+
+Independent implementation review approves the exact nine-line lock mutation and these evidence boundaries. A complete sequential local matrix passed lint, typecheck, repository tests, build, Secretlint and the dependency audit with stable subjects. Root tests: 2018 total, 1573 passed, 445 existing Windows/platform exclusions, zero failures. All 28 workspace tasks passed, including 50/50 actual API tests across seven files; Secretlint passed 1061 files and the audit reported no known vulnerabilities. Matrix SHA256 is `ad05e5896c1ddce1d92fffddeccda966ea93e442b6e3c35d4c40822bf643e50f`.
+
+That matrix used the unchanged lock/manifest and initial planning document; this factual documentation update follows it. The final document review and secret scan are separate checks. Earlier focused API/audit attempts reached a stale temporary shim and Node 24; their environment failures remain disclosed, and fixed-PATH runs used Node 22.23.2. The complete matrix uses the fixed toolchain with authenticated Node bytes and original per-gate logs.
+
+Browser validation is deferred to this PR's exact-head Linux CI. The final source head and protected merged main must each pass the complete CI, with identical reviewed/merged trees and independent delivery verification. This is a pre-delivery snapshot; its final PR checkpoint governs acceptance. Passing local checks alone does not establish delivery.
 
 ## Operations and rollback
 
