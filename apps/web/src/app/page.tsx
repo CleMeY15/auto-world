@@ -19,7 +19,10 @@ export default function HomePage() {
       </main>
       <footer className="site-footer site-container">
         Auto World · Choisir en confiance.
-        <nav aria-label="Outils"><a className="site-nav" href="/carte-grise">Carte grise</a></nav>
+        <nav className="site-tools" aria-label="Outils">
+          <a className="site-nav" href="/carte-grise">Carte grise</a>
+          <a className="site-nav" href="/historique-vehicule">Historique du véhicule</a>
+        </nav>
       </footer>
     </>
   );
