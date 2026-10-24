@@ -208,7 +208,7 @@ async function startLease(input, dependencies) {
   const buildxConfig = path.join(client, "buildx"); const outputDirectory = path.join(client, "output");
   const contextName = `aw-cold-${value.nonce}`;
   for (const file of [infra, endpointDir, path.join(infra, "data"), path.join(infra, "exec"), path.join(infra, "client"),
-    client, buildxConfig, outputDirectory]) {
+    client, buildxConfig, outputDirectory, path.join(client, "contexts")]) {
     mkdirSync(file, { mode: 0o700 }); const nonroot = file === client || file.startsWith(`${client}/`);
     if (nonroot) chownSync(file, 1000, 1000); dirs.set(file, directory(file, nonroot ? 1000 : 0, nonroot ? 1000 : 0, 0o700)); holdDirectory(file);
   }
