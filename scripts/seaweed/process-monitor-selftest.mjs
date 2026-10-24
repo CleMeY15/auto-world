@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSy
 import path from "node:path";
 import process from "node:process";
 import { safeBaseEnvironment } from "./build.mjs";
-import { runMonitoredCommand } from "./command-monitor.mjs";
+import { normalizeMonitorReason, runMonitoredCommand } from "./command-monitor.mjs";
 
 const MiB = 1024 ** 2;
 
@@ -157,18 +157,59 @@ export function runProcessMonitorSelftest({ env = process.env, platform = proces
     const parentSwapWork = path.join(work, "parent-swap-work"); const parentSwapOutput = path.join(work, "parent-swap-output");
     const parentSwapMoved = path.join(work, "parent-swap-output-moved"); mkdirSync(parentSwapWork); mkdirSync(parentSwapOutput);
     try {
+      const parentSwapEnvironment = path.join(work, "parent-swap.bash"); const parentSwapReadyEvent = path.join(work, "parent-swap.ready");
+      writeFileSync(parentSwapEnvironment,
+        "seaweed_expected_command='/usr/bin/setsid -- \"$command\" \"$@\" 1>&4 2>&5 3>&- 4>&- 5>&-'\n" +
+        "trap 'if [ \"${SEAWEED_MONITOR_PARENT_SWAP_ONCE:-0}\" = 1 ] && [ \"$BASH_SUBSHELL\" -eq 0 ] && [ \"$BASH_COMMAND\" = \"$seaweed_expected_command\" ]; then SEAWEED_MONITOR_PARENT_SWAP_ONCE=0; /usr/bin/mv -- \"$SEAWEED_MONITOR_PARENT_SWAP_OUTPUT\" \"$SEAWEED_MONITOR_PARENT_SWAP_MOVED\" && /usr/bin/ln -s -- \"$SEAWEED_MONITOR_PARENT_SWAP_TARGET\" \"$SEAWEED_MONITOR_PARENT_SWAP_OUTPUT\" && [ \"$(/usr/bin/readlink -- \"$SEAWEED_MONITOR_PARENT_SWAP_OUTPUT\")\" = \"$SEAWEED_MONITOR_PARENT_SWAP_TARGET\" ] && printf %s ready >\"$SEAWEED_MONITOR_PARENT_SWAP_READY\" && unset BASH_ENV SEAWEED_MONITOR_PARENT_SWAP_ONCE SEAWEED_MONITOR_PARENT_SWAP_OUTPUT SEAWEED_MONITOR_PARENT_SWAP_MOVED SEAWEED_MONITOR_PARENT_SWAP_TARGET SEAWEED_MONITOR_PARENT_SWAP_READY seaweed_expected_command || exit 43; fi' DEBUG\nset -T\n",
+        { mode: 0o600 });
+      const parentSwapFailure = (predicate, detail) => new Error(
+        `seaweed_monitor_parent_swap_selftest_failed:${predicate}${detail === undefined ? "" : `:${detail}`}`,
+      );
+      const parentSwapLstat = (target, predicate) => {
+        try { return lstatSync(target); }
+        catch { throw parentSwapFailure(predicate); }
+      };
       const parentSwapResult = runProbe("parent-swap", "/usr/bin/bash", ["--noprofile", "--norc", "-c",
-        "printf '%s\\n' \"$$\"; mv -- \"$1\" \"$2\"; ln -s -- \"$3\" \"$1\"; sleep 300", "parent-swap-probe",
-        parentSwapOutput, parentSwapMoved, sentinelDirectory], parentSwapWork, 1000, undefined, parentSwapOutput);
-      const movedInfo = lstatSync(parentSwapMoved); const movedStdout = path.join(parentSwapMoved, "parent-swap.stdout");
-      const movedStdoutInfo = lstatSync(movedStdout);
-      if (!movedInfo.isDirectory() || movedInfo.isSymbolicLink() || realpathSync(parentSwapMoved) !== path.resolve(parentSwapMoved) ||
-          !movedStdoutInfo.isFile() || movedStdoutInfo.isSymbolicLink()) throw new Error("seaweed_monitor_parent_swap_selftest_failed");
-      const parentSwapPid = Number(readFileSync(movedStdout, "utf8").trim());
-      if (parentSwapResult.monitorReason !== "seaweed_command_timeout" || parentSwapResult.groupAbsent !== true ||
-          parentSwapResult.stdout?.length !== 0 || parentSwapResult.stderr?.length !== 0 || parentSwapResult.resourceUsage !== undefined ||
-          !Number.isSafeInteger(parentSwapPid) || parentSwapPid < 2 || !processIsAbsent(parentSwapPid) || !processIsAbsent(-parentSwapPid) ||
-          !lstatSync(parentSwapOutput).isSymbolicLink()) throw new Error("seaweed_monitor_parent_swap_selftest_failed");
+        "printf '%s\\n' \"$$\"; sleep 300", "parent-swap-probe", parentSwapOutput, parentSwapMoved, sentinelDirectory],
+      parentSwapWork, 1000, undefined, parentSwapOutput, {
+        BASH_ENV: parentSwapEnvironment, SEAWEED_MONITOR_PARENT_SWAP_ONCE: "1", SEAWEED_MONITOR_PARENT_SWAP_OUTPUT: parentSwapOutput,
+        SEAWEED_MONITOR_PARENT_SWAP_MOVED: parentSwapMoved, SEAWEED_MONITOR_PARENT_SWAP_TARGET: sentinelDirectory,
+        SEAWEED_MONITOR_PARENT_SWAP_READY: parentSwapReadyEvent,
+      });
+      const movedInfo = parentSwapLstat(parentSwapMoved, "MOVED_DIRECTORY_KIND");
+      if (!movedInfo.isDirectory() || movedInfo.isSymbolicLink()) throw parentSwapFailure("MOVED_DIRECTORY_KIND");
+      let movedResolution;
+      try { movedResolution = realpathSync(parentSwapMoved); }
+      catch { throw parentSwapFailure("MOVED_DIRECTORY_RESOLUTION"); }
+      if (movedResolution !== path.resolve(parentSwapMoved)) throw parentSwapFailure("MOVED_DIRECTORY_RESOLUTION");
+      const movedStdout = path.join(parentSwapMoved, "parent-swap.stdout");
+      const movedStdoutInfo = parentSwapLstat(movedStdout, "MOVED_STDOUT_KIND");
+      if (!movedStdoutInfo.isFile() || movedStdoutInfo.isSymbolicLink()) throw parentSwapFailure("MOVED_STDOUT_KIND");
+      if (parentSwapResult.monitorReason !== "seaweed_command_timeout") {
+        throw parentSwapFailure("MONITOR_REASON", parentSwapResult.monitorReason === undefined ? "UNSET" : normalizeMonitorReason(parentSwapResult.monitorReason));
+      }
+      if (parentSwapResult.groupAbsent !== true) throw parentSwapFailure("GROUP_ABSENT");
+      if (parentSwapResult.stdout?.length !== 0) throw parentSwapFailure("STDOUT_NONEMPTY");
+      if (parentSwapResult.stderr?.length !== 0) throw parentSwapFailure("STDERR_NONEMPTY");
+      if (parentSwapResult.resourceUsage !== undefined) throw parentSwapFailure("RESOURCE_USAGE_PRESENT");
+      let parentSwapPid;
+      try { parentSwapPid = Number(readFileSync(movedStdout, "utf8").trim()); }
+      catch { throw parentSwapFailure("PID_SHAPE"); }
+      if (!Number.isSafeInteger(parentSwapPid) || parentSwapPid < 2) throw parentSwapFailure("PID_SHAPE");
+      let parentSwapProcessAbsent;
+      try { parentSwapProcessAbsent = processIsAbsent(parentSwapPid); }
+      catch { throw parentSwapFailure("PROCESS_PRESENT"); }
+      if (!parentSwapProcessAbsent) throw parentSwapFailure("PROCESS_PRESENT");
+      let parentSwapGroupAbsent;
+      try { parentSwapGroupAbsent = processIsAbsent(-parentSwapPid); }
+      catch { throw parentSwapFailure("PROCESS_GROUP_PRESENT"); }
+      if (!parentSwapGroupAbsent) throw parentSwapFailure("PROCESS_GROUP_PRESENT");
+      const parentSwapOutputInfo = parentSwapLstat(parentSwapOutput, "OUTPUT_PARENT_KIND");
+      if (!parentSwapOutputInfo.isSymbolicLink()) throw parentSwapFailure("OUTPUT_PARENT_KIND");
+      let parentSwapReady;
+      try { parentSwapReady = readFileSync(parentSwapReadyEvent, "utf8"); }
+      catch { throw parentSwapFailure("READY_EVENT"); }
+      if (parentSwapReady !== "ready") throw parentSwapFailure("READY_EVENT");
       assertSentinel();
     } finally {
       if (existsSync(parentSwapOutput) && lstatSync(parentSwapOutput).isSymbolicLink()) unlinkSync(parentSwapOutput);
