@@ -11,8 +11,16 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 2. `TASK-0002-canonical-vehicle-schema.md` — DONE; PR #4 merged at `fe82aaf`, main CI green
 3. `TASK-0003-source-registry-contract.md` — DONE; PR #5 merged and main verified at `79e6ab0`
 4. `TASK-0004-connector-sdk-contract.md` — DONE; PR #6 merged into accepted main `b9d22a2`
-5. `TASK-0005-local-data-infra.md` — IN_PROGRESS; data/native drafts unaccepted; attestation diagnostic PASS, producer retired through evidence PR; no automatic continuation
-6. `TASK-0006-first-vertical-slice-plan.md` — BLOCKED by TASK-0004 + TASK-0005
+5. `TASK-0005-local-data-infra.md` — IN_PROGRESS in the supported-infrastructure lane; image admission and four-service acceptance remain required
+6. `TASK-0006-first-vertical-slice-plan.md` — DONE on accepted `main` `198503c` through [PR #146](https://github.com/CleMeY15/auto-world/pull/146); final-head/main CI pass; [plan and downstream contracts](../plans/TASK-0006-synthetic-first-slice.md) are not a completed slice
+7. `TASK-0007-design-web-foundation.md` — DONE after independent code/UX acceptance and full exact-head CI on [PR #147](https://github.com/CleMeY15/auto-world/pull/147); final-head/main delivery record in the PR governs dependency acceptance; reusable primitives and component preview only; [evidence](../../docs/validation/TASK-0007.md)
+
+8. `TASK-0008-vehicle-taxonomy-v1.md` — DONE / implementation validated; independent APPROVE/CLEAR,36 taxonomy tests and full Linux CI38228092035; final-head/main delivery in [PR161](https://github.com/CleMeY15/auto-world/pull/161) governs downstream acceptance. Synthetic make/model contract only; [ADR-0017](../../docs/decisions/ADR-0017-vehicle-taxonomy-v1.md), [evidence](../../docs/validation/TASK-0008.md)
+
+9. `TASK-0009-observation-change-events.md` — DONE_ON_MAIN at `4f75096037f37620e5dfec7a9221b2ba4e35f236`; identical reviewed tree `7699a448b67474b049ac5919184ba7579866437a`, final CI38431216651/main CI38433291505 SUCCESS, independent delivery PASS/CLEAR. [PR162 delivery](https://github.com/CleMeY15/auto-world/pull/162#issuecomment-6150751053), [ADR-0018](../../docs/decisions/ADR-0018-observation-change-events.md), [evidence](../../docs/validation/TASK-0009.md). Closed price/mileage representation-change contract only; no broker, lifecycle or source activation.
+
+10. [TASK-0010 — Fiscal-rule versioning readiness](../tasks/TASK-0010-fiscal-rule-versioning-readiness.md) — REVIEWED; final-head/main acceptance governed by its PR delivery comment. Five-file documentation checkpoint, not a fiscal implementation. [ADR-0019](../../docs/decisions/ADR-0019-fiscal-rule-versioning-readiness.md) requires consumer/source/time evidence before any executable fiscal task becomes READY. Fiscal P0 remains open.
 
 ## Exit gate
-The first connector can be implemented without inventing schemas, source-rights semantics, retry behavior or canonical fields.
+
+The first connector can be implemented without inventing schemas, source-rights semantics, retry behavior or canonical fields. The synthetic first-slice plan can be reviewed without waiting for image admission, but EPIC-000 remains IN_PROGRESS until this original readiness condition and all applicable task gates pass; no supported connector or four-service completion is inferred from synthetic planning.

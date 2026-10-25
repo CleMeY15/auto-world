@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "baseConfigId": "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537",
+  "recipeSha256": "a7efa706b746a73de653301a76b88eac94b24f971ad74eba7e70b995201eaf4b",
+  "apkSha256": "cd51335dcbc412f28088452a2407ff13e01dce9e11718feee4beec69cf2ebcad",
+  "oldExecutable": {
+    "path": "usr/local/bin/gosu",
+    "type": "file",
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "size": 1769900,
+    "sha256": "52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0",
+    "mtime": 1789680549
+  },
+  "newExecutable": {
+    "path": "usr/bin/gosu",
+    "type": "file",
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "size": 1977120,
+    "sha256": "6d3214ab9d2f1e9ffda75ea2f6bb1f454a13a78dd70318e09eee814ce32cce03",
+    "mtime": 1788541634
+  },
+  "apkChanges": [
+    {
+      "path": "etc/apk/world",
+      "before": {
+        "path": "etc/apk/world",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 110,
+        "sha256": "232737bb10e67f47114abb911f7c246b24ea9763272c7c85c111b7c3d49052a6",
+        "mtime": 1789680692
+      },
+      "after": {
+        "path": "etc/apk/world",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 123,
+        "sha256": "b00fc6dfc13f2b412d174da56f649f72fc7cbf7cd50af340fba973a6b4b39765"
+      }
+    },
+    {
+      "path": "lib/apk/db/installed",
+      "before": {
+        "path": "lib/apk/db/installed",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 63907,
+        "sha256": "d7547813da119795e412a5d2603e049cc172f67ba4777c3446fa3bc918a4419d",
+        "mtime": 1789680692
+      },
+      "after": {
+        "path": "lib/apk/db/installed",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 64264,
+        "sha256": "6552d6b7caaa8bee8d3467521fd51147706f349353ea46cde1bf0947f8ecda16"
+      }
+    }
+  ],
+  "mtimeOnly": [
+    {
+      "entry": {
+        "path": ".dockerenv",
+        "type": "file",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "dev",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "dev/console",
+        "type": "file",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "dev/pts",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "dev/shm",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "etc",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "etc/apk",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "etc/hostname",
+        "type": "file",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "etc/hosts",
+        "type": "file",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "etc/mtab",
+        "type": "symlink",
+        "mode": 511,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "linkname": "/proc/mounts"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "etc/resolv.conf",
+        "type": "file",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "baseMtime": null,
+      "source": "container-created"
+    },
+    {
+      "entry": {
+        "path": "lib/apk/db",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "lib/apk/db/scripts.tar.gz",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 2056,
+        "sha256": "6d38f42e96d5c90c2b83996d7bd49440b63378d94a2af851cda5f919dfef54d9"
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "lib/apk/db/triggers",
+        "type": "file",
+        "mode": 420,
+        "uid": 0,
+        "gid": 0,
+        "size": 95,
+        "sha256": "dfcd919d44120ed6fc53e1d42163245fb801365990d62e55a80d343bdcd30598"
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "tmp",
+        "type": "directory",
+        "mode": 1023,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": 1789666321,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "usr/bin",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    },
+    {
+      "entry": {
+        "path": "usr/local/bin",
+        "type": "directory",
+        "mode": 493,
+        "uid": 0,
+        "gid": 0,
+        "size": 0
+      },
+      "baseMtime": 1789680692,
+      "source": "build-updated"
+    }
+  ]
+}

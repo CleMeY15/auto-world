@@ -1,0 +1,77 @@
+{
+  "name": "PostgreSQL exact private candidate remote read",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "postgres-candidate-remote-read", "cancel-in-progress": false},
+  "jobs": {
+    "read": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 100,
+      "permissions": {"contents": "read", "packages": "read"},
+      "steps": [
+        {
+          "name": "Require the first reviewed protected main dispatch",
+          "timeout-minutes": 2,
+          "shell": "bash",
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-read.yml@refs/heads/main'"
+        },
+        {
+          "name": "Require reviewed managed Docker identity and capacity",
+          "timeout-minutes": 2,
+          "shell": "bash",
+          "run": "set -euo pipefail\navailable_kib=$(df -Pk \"$RUNNER_TEMP\" | awk 'NR == 2 {print $4}')\ntest \"$available_kib\" -ge 6291456\ntest \"$(docker version --format '{{.Client.Version}}|{{.Server.Version}}')\" = '28.0.4|28.0.4'"
+        },
+        {
+          "name": "Check out reviewed protected main",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Require the exact checked-out revision",
+          "timeout-minutes": 2,
+          "shell": "bash",
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest -z \"$(git status --porcelain --untracked-files=normal)\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Read and validate the exact private PostgreSQL candidate",
+          "id": "read_candidate",
+          "timeout-minutes": 90,
+          "continue-on-error": true,
+          "env": {"GH_TOKEN": "${{ github.token }}", "GITHUB_TOKEN": "${{ github.token }}"},
+          "run": "node scripts/postgres-image/candidate-remote-read.mjs execute"
+        },
+        {
+          "name": "Remove private candidate material and validate the receipt boundary",
+          "id": "cleanup",
+          "if": "${{ always() }}",
+          "timeout-minutes": 5,
+          "continue-on-error": true,
+          "run": "node scripts/postgres-image/candidate-remote-read.mjs cleanup"
+        },
+        {
+          "name": "Retain the bounded public remote-read receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "postgres-candidate-remote-read-receipt",
+            "path": "${{ runner.temp }}/postgres-candidate-remote-read-evidence/receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce the remote read and cleanup results",
+          "if": "${{ steps.read_candidate.outcome != 'success' || steps.cleanup.outcome != 'success' }}",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}

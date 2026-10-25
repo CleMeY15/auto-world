@@ -1,0 +1,346 @@
+{
+  "kind": "POSTGRES_CANDIDATE_ATTESTATION_OUTPUT_ACCEPTANCE_V1",
+  "state": "VERIFIED_UNADMITTED",
+  "authority": "INDEPENDENTLY_ACCEPTED_LOCAL_SUPPLEMENTAL_OUTPUT_CONTROLS",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+  "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+  "execution": {
+    "recipeRevision": "ad873ea843a279eac2b674332164e72f487657b9",
+    "reviewedTree": "d25b23f3e3ac4dcb69837510ae046ca18b03da2b",
+    "sourceResources": 67,
+    "sourceBytes": 1946157,
+    "sourcePlan": {
+      "bytes": 18018,
+      "sha256": "cad13a38e131ee423c3f1d9ef40e4c1a86392e6747b1f8a3d4436b96b501b0d3"
+    },
+    "nativePlan": {
+      "bytes": 27560,
+      "sha256": "0f394552ae5af7ed293033ffcffa12cda04271ca679de7fca029c8528156ed8c"
+    },
+    "caller": {
+      "bytes": 4972,
+      "sha256": "f955689d9a73edba91da898f08511f115dd0024755c774dc5ab655f86e937e30"
+    },
+    "callerStage": {
+      "bytes": 497,
+      "sha256": "10f97c5204f01e8340a92a02e2194b24545acd7b95ce5af475059aacf410b873"
+    },
+    "supervisor": {
+      "bytes": 41235,
+      "sha256": "4ca23a6c6fb350005e4555eeefd14f4ef8320c494c9dc5fd97537db0ef6d86c8"
+    },
+    "supervisorTests": {
+      "bytes": 7069,
+      "sha256": "54ef2004643950e885b7b3f386e470e517faa1829312c70b4d1cb462c5e9ea33"
+    },
+    "supervisorStage": {
+      "bytes": 866,
+      "sha256": "44263e1015f62d23a039963e994827f14e5f0402c99c893178e97e072d83acd9"
+    },
+    "stageHelper": {
+      "bytes": 6177,
+      "sha256": "4447879fac70ed508da8e642aab2a058d139068ea51e767cde02de42eb7becd8"
+    },
+    "invocationHelper": {
+      "bytes": 15822,
+      "sha256": "24c1245b3ca5f1b4d4f5a22fd631378200097a59e230b68ee9c0173f714aebf6"
+    },
+    "importSmoke": {
+      "code": {
+        "bytes": 1946,
+        "sha256": "b3ea09b9ee3f1eadd303a2d7543d79d1185e19731e03c4304910bd24ff4d245c"
+      },
+      "receipt": {
+        "bytes": 1743,
+        "sha256": "6fec169993743f34c59f8419b01b170fcece8434b71defe980686a7c2ed3f7eb"
+      },
+      "state": "IMPORTED_CLOSED",
+      "controllerCalls": 0,
+      "verifierCalls": 0,
+      "outputsBefore": "ABSENT",
+      "captureEnforced": true
+    },
+    "actor": {
+      "uid": 1000,
+      "gid": 1000,
+      "supplementaryGroups": [],
+      "effectiveCapabilities": "0",
+      "capabilityBoundingSet": "0",
+      "noNewPrivileges": true
+    },
+    "node": {
+      "bytes": 124836408,
+      "sha256": "3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327"
+    },
+    "setpriv": {
+      "bytes": 39304,
+      "sha256": "62ec0120791f3afcfb689fed52384ec2b0accc6e118a6b9a1d6fcfa7450aaf37"
+    },
+    "process": {
+      "exitCode": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "closed": true,
+      "durationMs": 736
+    },
+    "actorStreams": [
+      {
+        "name": "actor.stdout.raw.jsonl",
+        "bytes": 638,
+        "sha256": "cf98a7eec2ce4e4d7c38feba30fefbc52a912926557be4dc57d4b38e17fe5426"
+      },
+      {
+        "name": "actor.stderr.raw.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "rootProcess": {
+      "exitCode": 0,
+      "signal": null,
+      "stdoutEOF": true,
+      "stderrEOF": true,
+      "closed": true,
+      "captureEnforced": true,
+      "stdoutCap": 1048576,
+      "stderrCap": 1048576,
+      "overflow": false,
+      "timedOut": false
+    },
+    "rootStreams": [
+      {
+        "name": "root-invocation-v3.stdout.jsonl",
+        "bytes": 415,
+        "sha256": "8dc73cedb10b60ead76aa6744d84513867b1823d8401cc794dd35b04d30f05cd"
+      },
+      {
+        "name": "root-invocation-v3.stderr.txt",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "originalAcceptance": {
+    "bytes": 4744,
+    "sha256": "d110b09c23fd70e95e6514a02b1124805265ae37a9a3363a12ec7418c40a114b",
+    "verifierOutputControls": "NOT_ESTABLISHED"
+  },
+  "artifact": {
+    "origin": "RECONSTRUCTED_FROM_REVIEWED_DESCRIPTORS",
+    "name": "subject-manifest.json",
+    "bytes": 2824,
+    "sha256": "0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+    "registryRead": "NOT_ATTEMPTED"
+  },
+  "officialVerifier": {
+    "version": "2.102.0",
+    "releasedAt": "2026-09-30",
+    "bytes": 42086560,
+    "sha256": "7469124f706944133d6a169691dd1c6c3511b12e85878d255e044e2948df4c9b",
+    "archive": {
+      "bytes": 15319960,
+      "sha256": "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386"
+    },
+    "checksums": {
+      "bytes": 1971,
+      "sha256": "afe49e9affa232faa8212aed035417166f6ade9b9470acb53d4dbd28c0504e8d"
+    },
+    "authority": "EXTERNALLY_REVIEWED_PROVISIONING_RECEIPT_BINDING"
+  },
+  "provisioningReceipt": {
+    "name": "provisioning-receipt.json",
+    "bytes": 2983,
+    "sha256": "3aeaebc2cd06ce506b057072bd592bf571fcf91ce19b61d90776367f72a068fe",
+    "authority": "EXTERNALLY_REVIEWED_CALLER_BINDING"
+  },
+  "trustedRoot": {
+    "name": "trusted_root.jsonl",
+    "bytes": 34634,
+    "sha256": "65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c",
+    "collection": {
+      "name": "collection-receipt.json",
+      "bytes": 6504,
+      "sha256": "7c785ccd596fbc5524b9b6498f2a705d1950f16fd4c6630255db0e586196a702",
+      "collectedAt": "2026-10-06T12:03:05.502031+00:00",
+      "source": "OFFICIAL_GH_2_102_PUBLIC_TUF",
+      "args": [
+        "attestation",
+        "trusted-root",
+        "--hostname",
+        "github.com"
+      ],
+      "controller": {
+        "name": "collector.py",
+        "bytes": 11719,
+        "sha256": "1ed0c565e1d0ccbb1cb9f61b44630a8c261fc6f59a8ec844f53fb5ec59e94add"
+      },
+      "authority": "EXTERNALLY_REVIEWED_PUBLIC_TUF_COLLECTION"
+    },
+    "currentness": "NOT_EVALUATED",
+    "revocation": "NOT_EVALUATED"
+  },
+  "inputs": {
+    "accessReceipt": {
+      "name": "access-receipt.json",
+      "bytes": 5457,
+      "sha256": "84f81230c30b9cbca1a4a42ef27e91c3d77610318987b3f499affda43f0d1772"
+    },
+    "predicate": {
+      "name": "predicate.json",
+      "bytes": 9949,
+      "sha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c"
+    },
+    "preSignReceipt": {
+      "name": "pre-sign-receipt.json",
+      "bytes": 837,
+      "sha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e"
+    },
+    "bundle": {
+      "name": "bundle.json",
+      "bytes": 23607,
+      "sha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1"
+    },
+    "verificationReceipt": {
+      "name": "verification-receipt.json",
+      "bytes": 37813,
+      "sha256": "a647d3ddeeb77292db9e3a35efe7a6073306d41f686bedcb1c6a68c8285ec7ce"
+    }
+  },
+  "receipt": {
+    "name": "output-controls-receipt.json",
+    "bytes": 10642,
+    "sha256": "1ee78421033ffd766dedd76f18de7b8b6c5b8d90f6cf3ec5461b3b5f6986ef92"
+  },
+  "closedRootAcknowledgement": {
+    "name": "output-controls-root-ack.json",
+    "bytes": 4639,
+    "sha256": "cb9becaf7f8bae0b34588b5e305cfe7d3c3dce3a476eaddf7bfc06181fa8d382"
+  },
+  "retainedOutputs": [
+    {
+      "name": "positive-before-identity.stdout.json",
+      "bytes": 35855,
+      "sha256": "4e516a3aeddeec53c3ad8233d0e2ff31cce77e194e743b4e63649fe58dc7cd52"
+    },
+    {
+      "name": "positive-before-workflow.stdout.json",
+      "bytes": 35885,
+      "sha256": "40cf60c2bc277622c85fe1ce82bfced671d0ecba8f88321c265d1b15f3446665"
+    },
+    {
+      "name": "positive-after-identity.stdout.json",
+      "bytes": 35855,
+      "sha256": "4e516a3aeddeec53c3ad8233d0e2ff31cce77e194e743b4e63649fe58dc7cd52"
+    },
+    {
+      "name": "positive-after-workflow.stdout.json",
+      "bytes": 35885,
+      "sha256": "40cf60c2bc277622c85fe1ce82bfced671d0ecba8f88321c265d1b15f3446665"
+    }
+  ],
+  "controls": {
+    "genuinePositiveCalls": 4,
+    "pairedPolicies": [
+      "identity",
+      "workflow"
+    ],
+    "positiveBefore": "VERIFIED",
+    "positiveAfter": "VERIFIED",
+    "outputErrors": {
+      "identity": {
+        "source": {
+          "name": "positive-before-identity.stdout.json",
+          "bytes": 35855,
+          "sha256": "4e516a3aeddeec53c3ad8233d0e2ff31cce77e194e743b4e63649fe58dc7cd52"
+        },
+        "controls": {
+          "missing": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_process_error"
+            },
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "truncated": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_result_invalid"
+            },
+            "bytes": 35853,
+            "sha256": "201db9f459939623fe6fcbcba7705ab633b87dfacfa18ba1e48b9bc2491c9d33"
+          },
+          "malformed": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_result_invalid"
+            },
+            "bytes": 35855,
+            "sha256": "fbe37c4d24ca5955a40a11cb6fee9a2c4ba399c59057a6e142d465c258ce8a5f"
+          }
+        }
+      },
+      "workflow": {
+        "source": {
+          "name": "positive-before-workflow.stdout.json",
+          "bytes": 35885,
+          "sha256": "40cf60c2bc277622c85fe1ce82bfced671d0ecba8f88321c265d1b15f3446665"
+        },
+        "controls": {
+          "missing": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_process_error"
+            },
+            "bytes": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "truncated": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_result_invalid"
+            },
+            "bytes": 35883,
+            "sha256": "724aaa1947a1ac9bf43a92fcb785c5a37d6fa8c582343f64f9c8be19079259d1"
+          },
+          "malformed": {
+            "proof": "ERROR_NOT_REJECTION",
+            "result": {
+              "status": "ERROR",
+              "code": "cli_result_invalid"
+            },
+            "bytes": 35885,
+            "sha256": "eb1ae4be1dbc5b8df7f7b91db9a77ca6410a7bd9aa61577dad0b5b8c6ba07d0b"
+          }
+        }
+      }
+    }
+  },
+  "preservation": {
+    "originalFilesUnchanged": true,
+    "executedSourceUnchanged": true,
+    "descriptorsClosed": true,
+    "failedAttempts": "PRESERVED",
+    "deletion": "NOT_ATTEMPTED"
+  },
+  "claims": {
+    "verifierOutputControls": "VERIFIED",
+    "malformedOutputs": "ERROR_NOT_REJECTION",
+    "registryRead": "NOT_ATTEMPTED",
+    "secondCompleteCopy": "NOT_ESTABLISHED",
+    "currentness": "NOT_EVALUATED",
+    "revocation": "NOT_EVALUATED",
+    "runtimePermission": "NOT_GRANTED",
+    "admission": "NOT_AUTHORIZED",
+    "supportStartedAt": null,
+    "supportEndsAt": null,
+    "archiveUntil": null
+  }
+}

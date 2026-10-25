@@ -1,0 +1,25 @@
+.history-guide-header { flex-wrap: wrap; padding-block: var(--aw-space-3); }
+.history-guide { border-top: 1px solid var(--aw-color-border); overflow-wrap: anywhere; }
+.history-guide-layout { display: grid; gap: var(--aw-space-8); padding-block: var(--aw-space-8); }
+.history-guide-intro, .history-guide-steps { min-width: 0; }
+.history-guide-intro > p { max-width: 38rem; }
+.history-guide-muted, .history-guide-handoff { color: var(--aw-color-text-muted); }
+.history-guide-primary { line-height: 1.5; max-width: 100%; text-align: center; text-decoration: none; }
+.history-guide-note { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); margin-block: var(--aw-space-2) 0; }
+.history-guide-handoff { font-size: var(--aw-font-size-small); margin-block: var(--aw-space-4) 0; }
+.history-guide-steps { border-top: 1px solid var(--aw-color-border); padding-top: var(--aw-space-8); }
+.history-guide-steps h2 { margin-bottom: var(--aw-space-4); }
+.history-guide-steps ol { margin: 0; padding-left: var(--aw-space-6); }
+.history-guide-steps li { padding-block: var(--aw-space-3); padding-left: var(--aw-space-2); }
+.history-guide-steps li::marker { color: var(--aw-color-action); font-weight: 600; }
+.history-guide-steps li p { color: var(--aw-color-text-muted); margin-block: var(--aw-space-2) 0; }
+.history-guide-support { border-top: 1px solid var(--aw-color-border); max-width: 48rem; padding-block: var(--aw-space-6); }
+.history-guide-support > p { color: var(--aw-color-text-muted); }
+.history-guide-support summary { cursor: pointer; font-weight: 600; min-height: var(--aw-size-touch); padding-block: var(--aw-space-3); }
+.history-guide-support details > p:first-of-type { margin-top: var(--aw-space-3); }
+.history-guide-help { align-items: center; display: inline-flex; min-height: var(--aw-size-touch); }
+.history-guide-support summary:focus-visible, .history-guide-help:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 3px; }
+@media (min-width: 64rem) {
+  .history-guide-layout { column-gap: 4rem; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); padding-block: 3rem; }
+  .history-guide-steps { border-left: 1px solid var(--aw-color-border); border-top: 0; padding-left: var(--aw-space-8); padding-top: 0; }
+}

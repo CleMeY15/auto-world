@@ -34,6 +34,26 @@ Version external contracts. Cursor pagination. Typed errors. Request IDs. Rate l
 
 `packages/source-registry` owns source governance and depends only on the public `packages/vehicle-schema` contract for shared identity/result types. The dependency is one-way; vehicle data does not import governance. [ADR-0002](../decisions/ADR-0002-source-registry-contract.md) defines V1 immutable policy revisions, contextual grants, structural eligibility and independent health. A future authoritative-registry port must supply authenticated current state before any connector acts; this pure package does not establish that trust boundary itself.
 
+## Vehicle taxonomy boundary
+
+`packages/vehicle-taxonomy` owns the independent [synthetic make/model release contract](../decisions/ADR-0017-vehicle-taxonomy-v1.md). Its only dependency is public vehicle-schema validation types; observations do not import taxonomy. Parsers enforce bounded shape, parent/label-attribution integrity and detached frozen output. Typed lookup uses declared version tuples, not authenticated historical lineage. No persistence, resolver, source activation or application integration is introduced.
+
+## Observation-change event boundary
+
+`packages/domain-events` implements the separate [ADR-0018](../decisions/ADR-0018-observation-change-events.md) reference contract for `price.changed` and `mileage.changed`, depending only on public vehicle-schema contracts. The parser checks a closed immutable envelope; the checker binds it to two supplied canonical listing observations. Previous/current are pair endpoints, not adjacent or authoritative latest state. Same-source chronology and exact representation inequality do not establish authentic provenance, source rights, committed storage or durable replay. No emitter, broker, store/outbox or service integration is included; the core-flow outbox statement above remains target architecture, not implemented authority. Lifecycle and other event families remain deferred.
+
+## Presentation boundary
+
+The presentation boundary is independent of acquisition and governance: [packages/design-system](../../packages/design-system/README.md) owns semantic tokens, generated scoped CSS and React primitives; `apps/web` owns the Next.js document, responsive composition and small client-only preview controls. Neither imports connectors, Source Registry, vehicle data contracts or service code. The server renders the initial page and disclosure; one client island owns ephemeral form/theme/state interactions. No external assets, telemetry collector, storage, database or search API is part of TASK-0007. Production-build traces and browser network checks enforce this boundary. Later synthetic data composition remains subject to ADR-0012 and the TASK-0101/0102 import-exclusion contract.
+
+TASK-0108 extends the later synthetic web flow with browser-local saved criteria, using the existing public V2 query/catalog DTOs and an independent versioned local key. It stores neither results nor provenance payloads, requires exact fixture/release/parent compatibility for identity restoration, and never automatically submits a restored query. These preferences are not canonical entities, a server saved-query contract, an outbox event or alert admission. Closed analytics remains non-authoritative and contains no names/criteria. Favorite storage, backend routes, shared contracts and production import exclusion are unchanged; see [task boundary](../../roadmap/tasks/TASK-0108-local-saved-searches.md).
+
 ## Executable connector boundary
 
 `connectors/_sdk` depends on both public contract packages and implements [ADR-0003](../decisions/ADR-0003-connector-sdk-contract.md) over injected authoritative-registry, lease, transactional-store and adapter ports. The SDK owns bounded decoding, provenance construction and deterministic lifecycle rules; a production store owns authenticated fenced atomicity, durable source-wide rate/circuit state, checkpoints, inventory and ledger/outbox. Raw staging precedes decoding; page commits and full finalization are separate atomic boundaries. No persistence vendor or real adapter is selected by this SDK. The [integration guide](../../connectors/_sdk/README.md) separates synthetic proof from mandatory real activation gates.
+
+## Isolated synthetic contract boundary
+
+[ADR-0013](../decisions/ADR-0013-demo-search-contract.md) freezes the TASK-0101 public demo query/result/envelope validators and read-port declaration. `packages/demo-search-contract` depends only on the public vehicle-schema types/ListingId parser and never imports governance, SDK, raw data or fixtures. Results expose only neutral publication IDs and sanitized price/mileage evidence, explicitly synthetic. The parser verifies shape/freshness, not authentic rights, committed storage or cursor continuation.
+
+`connectors/synthetic` is a demo-condition-only local composition over the accepted SDK and its single production-excluded `test-support` store. It does not implement a read port, database, HTTP service or search engine. TASK-0102 owns that later demo read-port composition and its behavior. Production import/build exclusion and blocked network-primitive tests are bounded negative proofs, not an OS security sandbox. No synthetic fixture is production Source Registry authority.

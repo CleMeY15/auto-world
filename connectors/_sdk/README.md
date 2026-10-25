@@ -17,7 +17,7 @@ pnpm --filter @auto-world/connector-sdk build
 pnpm check
 ```
 
-The direct commands rebuild both public dependencies; no pre-existing `dist` is required. `test/lifecycle.test.mjs` is a runnable synthetic integration example. `test/store.mjs` models atomic transactions, fencing, idempotent receipts and injected crashes. It is a contract-test fixture, not a production store or a durable database.
+The direct commands rebuild both public dependencies; no pre-existing `dist` is required. `test/lifecycle.test.mjs` is a runnable synthetic integration example. `test-support/store.mjs` models atomic transactions, fencing, idempotent receipts and injected crashes. The `test-support` directory is a development/test composition boundary: it rejects `NODE_ENV=production`, is not a package export, and is excluded from the package files and production build. It remains a contract-test fixture, not a production store or a durable database.
 
 ## Public integration surface
 

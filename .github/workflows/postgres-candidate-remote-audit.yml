@@ -1,0 +1,122 @@
+{
+  "name": "PostgreSQL exact private candidate remote audit",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "postgres-candidate-remote-audit", "cancel-in-progress": false},
+  "jobs": {
+    "build": {
+      "name": "Independent scanner build ${{ matrix.repeat }}",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 90,
+      "permissions": {"contents": "read"},
+      "strategy": {"fail-fast": false, "matrix": {"repeat": [1, 2]}},
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-audit.yml@refs/heads/main'"
+        },
+        {
+          "name": "Check out reviewed source without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Build corrected scanner from pinned source",
+          "run": "node scripts/scanner/build.mjs --repeat ${{ matrix.repeat }} --output \"${RUNNER_TEMP}/scanner-build-${{ matrix.repeat }}\""
+        },
+        {
+          "name": "Retain bounded public scanner build evidence",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "scanner-build-${{ matrix.repeat }}",
+            "path": "${{ runner.temp }}/scanner-build-${{ matrix.repeat }}",
+            "if-no-files-found": "warn",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    },
+    "audit": {
+      "name": "Exact PostgreSQL digest audit and cleanup",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "needs": "build",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 360,
+      "permissions": {"contents": "read", "actions": "read", "packages": "read"},
+      "steps": [
+        {
+          "name": "Require the first reviewed main dispatch",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$GITHUB_REPOSITORY\" = 'CleMeY15/auto-world'\ntest \"$RUNNER_ENVIRONMENT\" = 'github-hosted'\ntest \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'\ntest \"$GITHUB_REF\" = 'refs/heads/main'\ntest \"$GITHUB_RUN_NUMBER\" = '1'\ntest \"$GITHUB_RUN_ATTEMPT\" = '1'\ntest \"$GITHUB_WORKFLOW_REF\" = 'CleMeY15/auto-world/.github/workflows/postgres-candidate-remote-audit.yml@refs/heads/main'"
+        },
+        {
+          "name": "Require temporary capacity and managed Docker identity",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\navailable_kib=$(df -Pk \"$RUNNER_TEMP\" | awk 'NR == 2 {print $4}')\ntest \"$available_kib\" -ge 12582912\ntest \"$(docker version --format '{{.Client.Version}}|{{.Server.Version}}')\" = '28.0.4|28.0.4'"
+        },
+        {
+          "name": "Check out reviewed protected main without persisted credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Require the exact checked-out revision",
+          "timeout-minutes": 2,
+          "run": "set -euo pipefail\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest -z \"$(git status --porcelain --untracked-files=normal)\""
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Retrieve same-run independent scanner builds",
+          "uses": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+          "with": {"pattern": "scanner-build-*", "path": "${{ runner.temp }}/scanner-builds"}
+        },
+        {
+          "name": "Audit exact private digest with fresh databases",
+          "id": "scan_candidate",
+          "timeout-minutes": 270,
+          "continue-on-error": true,
+          "env": {"GH_TOKEN": "${{ github.token }}", "GITHUB_TOKEN": "${{ github.token }}"},
+          "run": "node scripts/postgres-image/candidate-remote-audit.mjs execute"
+        },
+        {
+          "name": "Confirm owned cleanup and validate public artifact boundary",
+          "id": "cleanup",
+          "if": "${{ always() }}",
+          "timeout-minutes": 5,
+          "continue-on-error": true,
+          "run": "node scripts/postgres-image/candidate-remote-audit.mjs cleanup"
+        },
+        {
+          "name": "Retain bounded public technical audit reports and receipt",
+          "if": "${{ always() && steps.cleanup.outcome == 'success' }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "postgres-candidate-remote-audit",
+            "path": "${{ runner.temp }}/postgres-candidate-remote-audit-evidence",
+            "if-no-files-found": "warn",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        },
+        {
+          "name": "Enforce audit and cleanup outcomes",
+          "if": "${{ steps.scan_candidate.outcome != 'success' || steps.cleanup.outcome != 'success' }}",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}

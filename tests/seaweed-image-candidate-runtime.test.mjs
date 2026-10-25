@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { TEST_ONLY_expectedSeaweedRuntimePersistenceProof,
-  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof, TEST_ONLY_signedSeaweedS3ProbeScript,
+  TEST_ONLY_expectedSeaweedRuntimeStrictContentionProof, TEST_ONLY_persistenceSecondReadAssertionScript,
+  TEST_ONLY_signedSeaweedS3ProbeScript,
   TEST_ONLY_verifyLocalSeaweedRuntimeProfile, TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence,
-  TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention, validateSeaweedRuntimePersistenceProof,
+  TEST_ONLY_verifyLocalSeaweedRuntimeStrictContention, isPublicSeaweedRuntimeReason,
+  validateSeaweedRuntimePersistenceProof,
   validateSeaweedRuntimeProfileProof, validateSeaweedRuntimeStrictContentionProof,
   verifyLocalSeaweedRuntimeProfile, verifyLocalSeaweedRuntimeRestartPersistence } from
   "../scripts/seaweed-image/candidate-runtime.mjs";
@@ -18,8 +21,14 @@ const runId = "35941171343";
 const recipeRevision = "b".repeat(40);
 const parent = path.resolve("runtime-test-parent");
 const dockerConfig = path.resolve("runtime-test-docker-config");
+const persistencePayload = "auto-world-restart-persistence-payload-v1";
+const persistencePayloadSha256 = createHash("sha256").update(persistencePayload).digest("hex");
+const persistenceFid = "7,0100000000";
+const persistenceMetadata = JSON.stringify({ FileSize: Buffer.byteLength(persistencePayload), Content: null,
+  chunks: [{ file_id: persistenceFid, size: Buffer.byteLength(persistencePayload),
+    fid: { volume_id: 7, file_key: 1 } }] });
 
-function fixture({ probeFailure = false, cleanupFailure = false, preexisting = false,
+function fixture({ probeFailure = false, cleanupFailure = false, cleanupFailureAfter = 1, preexisting = false,
   createMalformed = false, createThrows = false, foreignAfterCreate = false,
   probeStatus, signedStatus, signedMalformed = false,
   helperAccepted = false, unexpectedExit = false } = {}) {
@@ -31,7 +40,8 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
     if (args[0] === "container" && args[1] === "inspect") {
       if (state === undefined) return { status: 1, stdout: "", stderr: "not found\n" };
       inspectionsAfterCreate += 1;
-      const observedId = cleanupFailure && inspectionsAfterCreate > 1 ? "d".repeat(64) : containerId;
+      const observedId = cleanupFailure && inspectionsAfterCreate > cleanupFailureAfter
+        ? "d".repeat(64) : containerId;
       const observedNonce = foreignAfterCreate ? "f".repeat(48) : nonce;
       return { status: 0,
         stdout: `${observedId}|${state}|${unexpectedExit && state === "exited" ? 1 : 0}|${observedNonce}|${imageId}\n`,
@@ -57,7 +67,8 @@ function fixture({ probeFailure = false, cleanupFailure = false, preexisting = f
       nonce = label.split("=")[1];
       assert.equal(args.includes("--publish"), false); assert.equal(args.at(-2), "-c");
       assert.match(args.at(-1), /umask 077/u); assert.match(args.at(-1), /s3\.port\.iceberg=0/u);
-      assert.match(args.at(-1), /s3\.port\.lance=0/u); state = "created";
+      assert.match(args.at(-1), /s3\.port\.lance=0/u);
+      assert.doesNotMatch(args.at(-1), /-ip=127\.0\.0\.1/u); state = "created";
       if (createThrows) throw new Error("daemon response lost after creation");
       if (createMalformed) return { status: 0, stdout: "malformed\n", stderr: "" };
       return { status: 0, stdout: `${containerId}\n`, stderr: "" };
@@ -116,7 +127,8 @@ function input(extra = {}) { return { parent, dockerConfig, imageId, runId, reci
 
 function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malformedFirstCreate = false,
   foreignVolumeAfterCreate = false, foreignSecondAfterCreate = false, driftServiceProfile = false,
-  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]' } = {}) {
+  legacyInitCapAdd = false, securityOpt = '["no-new-privileges=true"]', wrongLookupLocation = false,
+  invalidSourceMetadata = false, throwSourceMetadata = false } = {}) {
   const calls = []; const states = new Map(); const ids = new Map(); const inspectCounts = new Map();
   let volumeExists = preexistingVolume; let nonce = ""; let volumeInspections = 0;
   const volumeCreatedAt = new Date().toISOString();
@@ -185,6 +197,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       } else {
         assert.ok(args.includes("--user=1000:1000")); assert.ok(args.includes("--cap-drop=ALL"));
         assert.equal(args.some((value) => value.startsWith?.("--cap-add")), false);
+        assert.match(args.at(-1), /'-ip=127\.0\.0\.1'/u);
       }
       ids.set(name, id); states.set(name, "created");
       if (malformedFirstCreate && role === "service-1") return { status: 0, stdout: "lost\n", stderr: "" };
@@ -197,6 +210,7 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
       states.set(args[2], "exited"); return { status: 0, stdout: "0\n", stderr: "" };
     }
     if (args[0] === "container" && args[1] === "exec") {
+      const script = args.at(-1);
       if (args.at(-1).includes("SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED")) {
         assert.ok(args.at(-1).includes("awk '/^Uid:/ {print $2}' /proc/1/status"));
         assert.ok(args.at(-1).includes("awk '/^Gid:/ {print $2}' /proc/1/status"));
@@ -207,8 +221,27 @@ function persistenceFixture({ preexistingVolume = false, secondStatus = 0, malfo
         assert.match(args.at(-1), /test "\$bucket" = 200 \|\| exit 63/u);
         return { status: 0, stdout: "SEAWEED_PERSISTENCE_FIRST_WRITE_VERIFIED\n", stderr: "" };
       }
-      assert.ok(args.at(-1).includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
-      assert.match(args.at(-1), /case "\$read_status" in 200\) ;; 404\) exit 65 ;; \*\) exit 69 ;; esac/u);
+      if (script.includes("AW_METADATA_V1")) {
+        if (throwSourceMetadata && args[2].endsWith("service-1")) throw new Error(`private ${persistenceFid}`);
+        if (invalidSourceMetadata && args[2].endsWith("service-1")) {
+          return { status: 0, stdout: "AW_METADATA_V1\n0\n200\n{", stderr: "" };
+        }
+        return { status: 0, stdout: `AW_METADATA_V1\n0\n200\n${persistenceMetadata}`, stderr: "" };
+      }
+      if (script.includes("AW_LOOKUP_V1")) {
+        return { status: 0, stdout: `AW_LOOKUP_V1\n0\n200\n${JSON.stringify({ volumeOrFileId: "7",
+          locations: [{ url: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080",
+            publicUrl: wrongLookupLocation ? "10.0.0.4:8080" : "127.0.0.1:8080" }] })}`, stderr: "" };
+      }
+      if (script.includes("AW_DIRECT_V1")) {
+        return { status: 0, stdout: `AW_DIRECT_V1\n0\n200\n${Buffer.byteLength(persistencePayload)}\n${persistencePayloadSha256}\n`, stderr: "" };
+      }
+      if (!script.includes("SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")) {
+        assert.ok(script.includes("awk '/^NoNewPrivs:/ {print $2}' /proc/1/status"));
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      assert.match(script,
+        /case "\$read_status" in 200\) ;; 404\) exit 65 ;; 401\|403\) exit 70 ;; 5\?\?\) exit 71 ;; \*\) exit 72 ;; esac/u);
       return secondStatus === 0
         ? { status: 0, stdout: "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n", stderr: "" }
         : { status: secondStatus, stdout: "", stderr: "" };
@@ -235,13 +268,43 @@ test("restart persistence commands parse under the Linux shell", { skip: process
   await TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker });
   const scripts = value.calls.filter((args) => args[0] === "container"
     && (args[1] === "create" || args[1] === "exec")).map((args) => args.at(-1));
-  assert.equal(scripts.length, 5);
+  assert.equal(scripts.length, 10);
   for (const script of scripts) {
     const result = spawnSync("sh", ["-n"], { input: script, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "");
   }
 });
+
+test("restart persistence second read shell classifies bounded failures and verifies the exact body",
+  { skip: process.platform !== "linux" }, () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "aw-persistence-read-"));
+    const readPath = path.join(directory, "read");
+    const harness = ["set -eu", "work=\"$1\"", "curl_rc=\"$2\"", "read_status=\"$3\"",
+      TEST_ONLY_persistenceSecondReadAssertionScript()].join("\n");
+    const run = (curlRc, readStatus, payload = "auto-world-restart-persistence-payload-v1") => {
+      writeFileSync(readPath, payload, { mode: 0o600 });
+      return spawnSync("sh", ["-c", harness, "sh", directory, String(curlRc), readStatus], { encoding: "utf8" });
+    };
+    try {
+      const success = run(0, "200");
+      assert.equal(success.status, 0, success.stderr);
+      assert.equal(success.stdout, "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED\n");
+      for (const [curlRc, readStatus, expectedStatus] of [
+        [7, "000", 69], [0, "401", 70], [0, "403", 70], [0, "500", 71], [0, "503", 71],
+        [0, "302", 72], [0, "404", 65],
+      ]) {
+        const result = run(curlRc, readStatus);
+        assert.equal(result.status, expectedStatus, result.stderr);
+        assert.equal(result.stdout, "");
+      }
+      const mismatch = run(0, "200", "changed");
+      assert.equal(mismatch.status, 66, mismatch.stderr);
+      assert.equal(mismatch.stdout, "");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
 test("signed S3 shell distinguishes accepted access from unexpected HTTP failures",
   { skip: process.platform !== "linux" }, () => {
@@ -418,10 +481,20 @@ test("a nonzero PID-1 exit blocks the proof after bounded stop", async () => {
   assert.equal(value.state, undefined);
 });
 
-test("cleanup identity drift takes priority and never removes the foreign container", async () => {
+test("runtime primary failure is preserved with cleanup identity drift and never removes the foreign container", async () => {
   const value = fixture({ probeFailure: true, cleanupFailure: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_cleanup_failed" });
+    { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE", reason: "VERSION_MISMATCH",
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
+  assert.equal(value.calls.some((args) => args[1] === "rm"), false);
+});
+
+test("runtime cleanup-only identity drift retains the cleanup diagnostic", async () => {
+  const value = fixture({ cleanupFailure: true, cleanupFailureAfter: 2 });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+      reason: "OWNERSHIP_UNCERTAIN" });
   assert.equal(value.calls.some((args) => args[1] === "rm"), false);
 });
 
@@ -446,8 +519,9 @@ for (const scenario of ["createMalformed", "createThrows"]) {
 test("an unowned name after a lost create response is preserved and blocks cleanup", async () => {
   const value = fixture({ createMalformed: true, foreignAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeProfile(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
-      reason: "OWNERSHIP_UNCERTAIN" });
+    { code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_CREATE", reason: "CREATE_ID_INVALID",
+      runtimeCleanupFailure: { code: "seaweed_candidate_runtime_cleanup_failed", phase: "RUNTIME_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
   assert.equal(value.state, "created");
   assert.equal(value.calls.some((args) => args[1] === "rm"), false);
 });
@@ -476,11 +550,24 @@ test("restart persistence uses a fresh owned nocopy volume across two distinct b
   assert.deepEqual(proof, TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision }));
   assert.equal(proof.kind, "SEAWEED_LOCAL_RUNTIME_PERSISTENCE_PROOF_V1");
   assert.equal(proof.authority, "DIAGNOSTIC_ONLY"); assert.equal(proof.candidateAuthorization, "NOT_AUTHORIZED");
-  assert.equal(proof.profileSha256, "22c4449e4307d819f8fde9fbb1c2dbf3d583b5fb066bc89153e1b4c1b3e70024");
-  assert.equal(proof.commandSha256, "db3c7b637ddf1878d0a861fe03142dbdcb4acf8a469a7a2945c24d15453e721d");
+  assert.equal(proof.profileSha256, "a226ec182826290d26e2022c19d3685135188b522d50c62987cf37f7ad2d1f1a");
+  assert.equal(proof.commandSha256, "f64736918fcdef1c08a2a66b8051aba9a4453ffcdf3b13aea0c61fbf869ea1db");
   assert.equal(proof.initializer, "ROOT_CAP_CHOWN_EMPTY_CHMOD_CHOWN_UID1000");
-  assert.equal(proof.objectPersistence, "PRESERVED_ACROSS_RESTART");
+  assert.equal(proof.objectPersistence, "ORIGINAL_FID_AND_BYTES_PRESERVED_ACROSS_RESTART");
+  assert.match(proof.persistedDataReadiness, /^V1:[0-9a-f]{64}$/u);
   assert.equal(proof.cleanup, "OWNED_CONTAINERS_AND_VOLUME_REMOVED");
+  const secondProbe = value.calls.filter((args) => args[0] === "container" && args[1] === "exec").at(-1).at(-1);
+  assert.match(secondProbe, /test "\$curl_rc" = 0 \|\| exit 69/u);
+  assert.match(secondProbe, /401\|403\) exit 70/u);
+  assert.match(secondProbe, /5\?\?\) exit 71/u);
+  assert.match(secondProbe, /\*\) exit 72/u);
+  const serviceTwoExecs = value.calls.filter((args) => args[0] === "container" && args[1] === "exec"
+    && args[2].endsWith("service-2"));
+  assert.deepEqual(serviceTwoExecs.map((args) => args.at(-1).match(
+    /AW_(METADATA|LOOKUP|DIRECT)_V1|SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED/u)?.[0] ?? "READY"),
+  ["READY", "AW_METADATA_V1", "AW_LOOKUP_V1", "AW_DIRECT_V1", "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED"]);
+  assert.equal(serviceTwoExecs.filter((args) => args.at(-1).includes(
+    "SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")).length, 1);
   assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   const firstRemoval = value.calls.findIndex((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("service-1"));
@@ -507,6 +594,51 @@ test("persistence inspect selects the data volume by destination without relying
   }
 });
 
+test("a foreign lookup location fails readiness and still cleans both services and the volume", async () => {
+  const value = persistenceFixture({ wrongLookupLocation: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+          reason: "PERSISTED_REGISTRATION_INVALID" });
+      assert.equal(JSON.stringify(error).includes("10.0.0.4"), false);
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(isPublicSeaweedRuntimeReason("PERSISTED_REGISTRATION_INVALID"), true);
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "exec"
+    && args.at(-1).includes("SEAWEED_PERSISTENCE_SECOND_READ_VERIFIED")), false);
+});
+
+test("invalid source metadata is classified before shutdown and every owned resource is cleaned", async () => {
+  const value = persistenceFixture({ invalidSourceMetadata: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
+          reason: "PERSISTED_METADATA_INVALID" });
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "create"
+    && args.includes(`aw-seaweed-persistence-${runId}-service-2`)), false);
+});
+
+test("a rejected source probe command has a fixed public reason and does not leak its private error", async () => {
+  const value = persistenceFixture({ throwSourceMetadata: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    (error) => {
+      assert.deepEqual({ code: error.code, phase: error.phase, reason: error.reason },
+        { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_ONE",
+          reason: "PERSISTED_READINESS_PROBE_INVALID" });
+      assert.equal(JSON.stringify(error).includes(persistenceFid), false);
+      return true;
+    });
+  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+});
+
 test("persistence rejects noncanonical initializer capability before start and cleans owned resources", async () => {
   const value = persistenceFixture({ legacyInitCapAdd: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(),
@@ -528,19 +660,27 @@ test("a pre-existing persistence volume fails closed without creating or removin
 for (const [status, reason] of [[65, "PERSISTED_OBJECT_MISSING"], [66, "PERSISTED_OBJECT_MISMATCH"]]) {
   test(`second service status ${status} reports ${reason} and cleans every owned resource`, async () => {
     const value = persistenceFixture({ secondStatus: status });
+    assert.equal(isPublicSeaweedRuntimeReason(reason), true);
     await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
       { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO", reason });
     assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
   });
 }
 
-test("second service transport and non-404 HTTP failures are not reported as a missing object", async () => {
-  const value = persistenceFixture({ secondStatus: 69 });
-  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
-      reason: "SECOND_READ_FAILED" });
-  assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
-});
+for (const [status, reason] of [
+  [69, "SECOND_READ_TRANSPORT_FAILURE"],
+  [70, "SECOND_READ_AUTH_FAILURE"],
+  [71, "SECOND_READ_SERVER_FAILURE"],
+  [72, "SECOND_READ_UNEXPECTED_STATUS"],
+]) {
+  assert.equal(isPublicSeaweedRuntimeReason(reason), true);
+  test(`second service status ${status} reports ${reason} without claiming a missing object`, async () => {
+    const value = persistenceFixture({ secondStatus: status });
+    await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+      { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO", reason });
+    assert.equal(value.volumeExists, false); assert.equal(value.states.size, 0);
+  });
+}
 
 test("a lost create response recovers the exactly owned container before complete cleanup", async () => {
   const value = persistenceFixture({ malformedFirstCreate: true });
@@ -572,8 +712,19 @@ test("an inspected security option drift blocks execution and cleans owned resou
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "start"), false);
 });
 
-test("volume ownership drift blocks cleanup and never removes the foreign volume", async () => {
+test("persistence primary failure is preserved with volume cleanup drift and never removes the foreign volume", async () => {
   const value = persistenceFixture({ secondStatus: 65, foreignVolumeAfterCreate: true });
+  await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
+    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+      reason: "PERSISTED_OBJECT_MISSING", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
+  assert.equal(value.volumeExists, true);
+  assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
+});
+
+test("persistence cleanup-only volume drift retains the cleanup diagnostic", async () => {
+  const value = persistenceFixture({ foreignVolumeAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
     { code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
       reason: "CLEANUP_UNCERTAIN" });
@@ -581,11 +732,13 @@ test("volume ownership drift blocks cleanup and never removes the foreign volume
   assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
 });
 
-test("container ownership drift blocks cleanup and never removes the foreign container", async () => {
+test("persistence primary failure is preserved with container cleanup drift and never removes the foreign container", async () => {
   const value = persistenceFixture({ secondStatus: 65, foreignSecondAfterCreate: true });
   await assert.rejects(TEST_ONLY_verifyLocalSeaweedRuntimeRestartPersistence(input(), { docker: value.docker }),
-    { code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
-      reason: "CLEANUP_UNCERTAIN" });
+    { code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+      reason: "PERSISTED_OBJECT_MISSING", runtimeCleanupFailure: {
+        code: "seaweed_candidate_runtime_persistence_cleanup_failed", phase: "PERSISTENCE_CLEANUP",
+        reason: "CLEANUP_UNCERTAIN" } });
   assert.equal(value.calls.some((args) => args[0] === "container" && args[1] === "rm"
     && args[2].endsWith("service-2")), false);
   assert.equal(value.calls.some((args) => args[0] === "volume" && args[1] === "rm"), false);
@@ -593,6 +746,9 @@ test("container ownership drift blocks cleanup and never removes the foreign con
 
 test("persistence proof and input validators reject mutation and platform misuse", async () => {
   const proof = TEST_ONLY_expectedSeaweedRuntimePersistenceProof({ imageId, runId, recipeRevision });
+  assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof,
+    commandSha256: "376f07f07a8ed870e5a46f708144b78269eeb9e6923c6fd94666eb43d09152bf" },
+  { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_persistence_failed" });
   assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof, cleanup: "NOT_ATTEMPTED" },
     { imageId, runId, recipeRevision }), { code: "seaweed_candidate_runtime_persistence_failed" });
   assert.throws(() => validateSeaweedRuntimePersistenceProof({ ...proof, extra: true },

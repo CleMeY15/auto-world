@@ -172,7 +172,9 @@ function fallbackPhase(code) {
 
 function publicCleanupFields(value) {
   const code = ownData(value, "code"); const phase = ownData(value, "phase");
-  if ((code === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+  if ((code === "seaweed_candidate_runtime_cleanup_failed" && phase === "RUNTIME_CLEANUP")
+    || (code === "seaweed_candidate_runtime_persistence_cleanup_failed" && phase === "PERSISTENCE_CLEANUP")
+    || (code === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
     && phase === "BACKUP_RESTORE_CLEANUP")
     || (code === "seaweed_candidate_runtime_host_loopback_cleanup_failed"
       && phase === "HOST_LOOPBACK_CLEANUP")) return { code, phase, reason: "CLEANUP_UNCERTAIN" };

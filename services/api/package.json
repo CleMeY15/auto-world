@@ -4,9 +4,31 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint src --max-warnings=0",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node ../../scripts/verify-package-build.mjs"
-  }
+    "build": "pnpm --filter @auto-world/demo-search-contract build && tsc -p tsconfig.json && node scripts/verify-production-build.mjs",
+    "lint": "eslint src demo scripts test --max-warnings=0",
+    "typecheck": "pnpm --filter @auto-world/connector-sdk build && pnpm --filter @auto-world/demo-search-contract build && tsc -p tsconfig.test.json --noEmit",
+    "test": "pnpm --filter @auto-world/connector-sdk build && pnpm run build && node --conditions=auto-world-demo --test test/*.test.mjs",
+    "demo": "node --conditions=auto-world-demo demo/server.mjs",
+    "test:performance": "node --conditions=auto-world-demo scripts/measure-fixture-performance.mjs"
+  },
+  "dependencies": {
+    "@auto-world/demo-search-contract": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
+    "fastify": "5.12.7"
+  },
+  "devDependencies": {
+    "@auto-world/connector-sdk": "workspace:*",
+    "@auto-world/synthetic-connector": "workspace:*",
+    "@types/node": "22.20.2"
+  },
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

@@ -1,0 +1,68 @@
+{
+  "kind": "POSTGRES_GOSU_DERIVATIVE_LOCK_V1",
+  "component": "auto-world-gosu/1.19-go1.26.9-r1",
+  "state": "PREPARATION_ONLY",
+  "authority": "NOT_AUTHORIZED",
+  "supportStartsAt": null,
+  "supportEndsAt": null,
+  "archiveRetainUntil": null,
+  "node": { "version": "22.23.2" },
+  "source": {
+    "module": "github.com/tianon/gosu",
+    "version": "(devel)",
+    "commit": "6456aaa0f3c854d199d0f037f068eb97515b7513",
+    "root": "gosu-6456aaa0f3c854d199d0f037f068eb97515b7513",
+    "url": "https://codeload.github.com/tianon/gosu/tar.gz/6456aaa0f3c854d199d0f037f068eb97515b7513",
+    "file": "gosu-commit.tar.gz",
+    "bytes": 17631,
+    "sha256": "33d7537d588ea49458b9509bcf4554bdf5ceacc66da71e5caa1058ea3b689c3b",
+    "observedArchive": { "entries": 27, "regularFiles": 22, "regularBytes": 50265, "largestRegularBytes": 11358, "maximumDepth": 3, "maximumPathBytes": 75 },
+    "goMod": { "bytes": 110, "sha256": "0475f1708db81d718b633faf2d9dd64695037eabdc8562125060607bcb01b2ba" },
+    "goSum": { "bytes": 318, "sha256": "2a8f3fb6adb84839bbb9999f12f1416fb86c184135aaa1c2e489b35203c08346" },
+    "license": { "bytes": 11358, "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30" },
+    "symlink": { "path": ".dockerignore", "target": ".gitignore", "targetBytes": 23, "targetSha256": "dd47fb280cd0361438fec1c5d57868984459d86652127d13a2e7e4bbe6142f6e" }
+  },
+  "compiler": {
+    "version": "go1.26.9",
+    "identity": "go version go1.26.9 linux/amd64",
+    "url": "https://go.dev/dl/go1.26.9.linux-amd64.tar.gz",
+    "file": "go-compiler.tar.gz",
+    "bytes": 66935201,
+    "sha256": "42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d",
+    "observedArchive": { "entries": 16712, "regularFiles": 15045, "directories": 1667, "regularBytes": 232610743, "expandedBytes": 232610844, "largestRegularBytes": 25787733, "maximumDepth": 15, "maximumPathBytes": 108 }
+  },
+  "goSource": {
+    "url": "https://go.dev/dl/go1.26.9.src.tar.gz",
+    "file": "go-source.tar.gz",
+    "bytes": 34162146,
+    "sha256": "9735d7dcdb65b35d3fa577f04064737c03b89cf1a2b71e6e69fe2f3c6f9fd4ca",
+    "observedArchive": { "entries": 16686, "regularFiles": 15024, "directories": 1662, "regularBytes": 145201405, "expandedBytes": 145201506, "largestRegularBytes": 3022479, "maximumDepth": 15, "maximumPathBytes": 108 },
+    "license": { "bytes": 1453, "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad" },
+    "patents": { "bytes": 1303, "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc" }
+  },
+  "modules": [
+    {
+      "id": "moby-user", "path": "github.com/moby/sys/user", "version": "v0.1.0",
+      "proxyBase": "https://proxy.golang.org/github.com/moby/sys/user/@v/v0.1.0",
+      "zip": { "file": "moby-user.zip", "bytes": 13793, "sha256": "85178932dc13b1c404c32e1b9f68fe88bf0b43e57dda39f24c45113e0bcf00ee", "h1": "h1:WmZ93f5Ux6het5iituh9x2zAG7NFY9Aqi49jjE1PaQg=", "observedArchive": { "entries": 7, "regularBytes": 42341, "largestRegularBytes": 14910 } },
+      "mod": { "file": "moby-user.mod", "bytes": 74, "sha256": "91a578705d847c83a40f0e3149724863961cef2b2d7ca4262b40cefe487eff03", "h1": "h1:fKJhFOnsCN6xZ5gSfbM6zaHGgDJMrqt9/reuj4T7MmU=" },
+      "info": { "file": "moby-user.info", "bytes": 205, "sha256": "fbd7c2599ef36388330302f30dd4a7a40808acd6b492db42e4db23129ad42a77", "cache": { "bytes": 205, "sha256": "ff3925ca40df076cf8a142585adea7062106e3601a206caa84af3b0a57d0df72" } },
+      "license": { "path": "LICENSE", "bytes": 11358, "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30" }
+    },
+    {
+      "id": "x-sys", "path": "golang.org/x/sys", "version": "v0.1.0",
+      "proxyBase": "https://proxy.golang.org/golang.org/x/sys/@v/v0.1.0",
+      "zip": { "file": "x-sys.zip", "bytes": 1861264, "sha256": "e7cbe58ed3745ba63d482fe82603119bd635f9a5dd914ed95a4c1826fdcf54a7", "h1": "h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=", "observedArchive": { "entries": 506, "regularBytes": 8794105, "largestRegularBytes": 945502 } },
+      "mod": { "file": "x-sys.mod", "bytes": 33, "sha256": "f033333096fe198f3151deed93f2deba74e50bbfe7739134045bc3b7ce4a5024", "h1": "h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=" },
+      "info": { "file": "x-sys.info", "bytes": 188, "sha256": "e93abfc8737fa1e3f7e88ab6c26cf9e8cea4c2cc5378b829664d9f7948616235", "cache": { "bytes": 188, "sha256": "9e1b3869f6fd67d974f364d46713ecc2fd8ced9fbf260ed745a83b0f21b28e8d" } },
+      "license": { "path": "LICENSE", "bytes": 1479, "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067" },
+      "patents": { "path": "PATENTS", "bytes": 1303, "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc" }
+    }
+  ],
+  "sumdb": "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8 https://sum.golang.org",
+  "build": {
+    "package": ".", "goos": "linux", "goarch": "amd64", "cgoEnabled": "0",
+    "flags": ["-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags", "-d -w -buildid="],
+    "testFlags": ["-mod=readonly", "-trimpath", "-buildvcs=false", "-json", "./..."]
+  }
+}

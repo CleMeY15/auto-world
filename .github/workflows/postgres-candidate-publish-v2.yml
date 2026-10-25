@@ -1,0 +1,51 @@
+{
+  "name": "PostgreSQL candidate first write v2",
+  "on": {"workflow_dispatch": {}},
+  "permissions": {},
+  "concurrency": {"group": "postgres-candidate-first-write", "cancel-in-progress": false},
+  "jobs": {
+    "publish": {
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 35,
+      "permissions": {"contents": "read", "packages": "write"},
+      "steps": [
+        {
+          "name": "Check out reviewed protected main",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {"persist-credentials": false}
+        },
+        {
+          "name": "Set up pinned Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {"node-version": "22.23.2", "cache": ""}
+        },
+        {
+          "name": "Build and publish the single unadmitted PostgreSQL candidate",
+          "id": "publish",
+          "timeout-minutes": 30,
+          "continue-on-error": true,
+          "env": {"GITHUB_TOKEN": "${{ github.token }}"},
+          "run": "node scripts/postgres-image/candidate-publish.mjs --output \"${RUNNER_TEMP}/postgres-candidate-publish\""
+        },
+        {
+          "name": "Retain bounded public candidate receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "postgres-candidate-publish-receipt",
+            "path": "${{ runner.temp }}/postgres-candidate-publish/receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce candidate publication result",
+          "if": "${{ steps.publish.outcome != 'success' }}",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}

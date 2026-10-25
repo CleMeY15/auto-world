@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "state": "PUBLISHED_UNADMITTED",
+  "result": "FAILED",
+  "publication": "PUBLISHED_UNADMITTED",
+  "admission": "NOT_AUTHORIZED",
+  "execution": "NOT_ATTEMPTED",
+  "forkAccessTest": "SKIPPED_BY_USER",
+  "forkIsolation": "NOT_VERIFIED",
+  "repository": "CleMeY15/auto-world",
+  "workflowPath": ".github/workflows/seaweed-candidate-publish.yml",
+  "image": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+  "sourceSha": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+  "sourceRef": "refs/heads/main",
+  "runId": "36324316631",
+  "runNumber": "1",
+  "runAttempt": "1",
+  "platform": "linux/amd64",
+  "tag": "ghcr.io/clemey15/auto-world-seaweedfs-s3:candidate-36324316631-attempt-1",
+  "retention": {
+    "policy": "SUPPORTED_LIFE_PLUS_365_DAYS",
+    "stagingDeletion": "DISABLED",
+    "secondaryPrivateCopy": "PENDING",
+    "restorationProof": "PENDING",
+    "publicArtifact": "RECEIPT_ONLY"
+  },
+  "phases": [
+    {
+      "name": "managed_tool_identity",
+      "result": "PASSED",
+      "durationMs": 273
+    },
+    {
+      "name": "checkout_identity",
+      "result": "PASSED",
+      "durationMs": 2
+    },
+    {
+      "name": "registry_login",
+      "result": "PASSED",
+      "durationMs": 169
+    },
+    {
+      "name": "candidate_materialization_and_private_copy",
+      "result": "PASSED",
+      "durationMs": 117202
+    },
+    {
+      "name": "copied_archive_revalidation",
+      "result": "PASSED",
+      "durationMs": 170
+    },
+    {
+      "name": "local_inventory_before",
+      "result": "PASSED",
+      "durationMs": 19
+    },
+    {
+      "name": "local_references_absent",
+      "result": "PASSED",
+      "durationMs": 50
+    },
+    {
+      "name": "load_private_archive",
+      "result": "PASSED",
+      "durationMs": 1548
+    },
+    {
+      "name": "exact_local_image",
+      "result": "PASSED",
+      "durationMs": 15
+    },
+    {
+      "name": "bootstrap_authorized_read_before",
+      "result": "PASSED",
+      "durationMs": 454
+    },
+    {
+      "name": "bootstrap_anonymous_read_denied",
+      "result": "PASSED",
+      "durationMs": 97
+    },
+    {
+      "name": "bootstrap_authorized_read_after",
+      "result": "PASSED",
+      "durationMs": 439
+    },
+    {
+      "name": "remote_tag_absent",
+      "result": "PASSED",
+      "durationMs": 260
+    },
+    {
+      "name": "protected_main_immediately_before_write",
+      "result": "PASSED",
+      "durationMs": 187
+    },
+    {
+      "name": "fixed_unique_candidate_tag",
+      "result": "PASSED",
+      "durationMs": 35
+    },
+    {
+      "name": "single_registry_push",
+      "result": "PASSED",
+      "durationMs": 11754
+    },
+    {
+      "name": "remote_tag_manifest",
+      "result": "PASSED",
+      "durationMs": 1
+    },
+    {
+      "name": "remote_digest_manifest",
+      "result": "PASSED",
+      "durationMs": 409
+    },
+    {
+      "name": "candidate_anonymous_digest_read_denied",
+      "result": "PASSED",
+      "durationMs": 107
+    },
+    {
+      "name": "owned_docker_cleanup",
+      "result": "FAILED",
+      "reasons": [
+        "seaweed_candidate_publish_image_cleanup_failed"
+      ],
+      "durationMs": 261
+    },
+    {
+      "name": "owned_temporary_cleanup",
+      "result": "PASSED",
+      "durationMs": 12
+    }
+  ],
+  "tools": {
+    "docker": "28.0.4|28.0.4",
+    "buildx": "github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a",
+    "serverVersion": "28.0.4",
+    "trustBoundary": "MANAGED_DOCKER_BUILDKIT"
+  },
+  "candidate": {
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "rawSize": 246512128,
+    "memberCount": 3032,
+    "archiveSha256": "09108284edd504b14b0a353a4c3964bca797dd8ec6bd9589b9f174e0be1e26f9",
+    "archiveBytes": 246525440,
+    "configSha256": "d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "configBytes": 2175,
+    "savedLayerSha256": "14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "savedLayerBytes": 246512128,
+    "originalTag": "auto-world-seaweed-s3:run-36324316631-attempt-1",
+    "serverVersion": "28.0.4"
+  },
+  "sourceProof": {
+    "sourceRunId": "35884717093",
+    "sourceCodeRevision": "6dbc6964e121e54dc5409f5e646f9ae25c01788f",
+    "sourceBinaryDigest": "sha256:45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef",
+    "baseManifestDigest": "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362",
+    "sourceArtifacts": "AUTHENTICATED_BY_REVIEWED_MATERIALIZER_POLICY"
+  },
+  "localImage": {
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "size": 244459831,
+    "repoTags": [
+      "auto-world-seaweed-s3:run-36324316631-attempt-1"
+    ],
+    "repoDigests": []
+  },
+  "bootstrap": {
+    "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a",
+    "manifestDigest": "sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a",
+    "manifestBytes": 524,
+    "anonymousRead": "AUTHORIZATION_DENIED"
+  },
+  "localTagResponse": "SUCCESS",
+  "remote": {
+    "manifestDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "manifestBytes": 529,
+    "manifestMediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "configDigest": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "configBytes": 2175,
+    "configMediaType": "application/vnd.docker.container.image.v1+json",
+    "layerDigest": "sha256:33c668b2e3a39312f6ec2a4ff03adee3a6fa81caa5faf401f50f687fd2c30319",
+    "layerBytes": 97894228,
+    "layerMediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+    "remoteLayerVerification": "PENDING_INDEPENDENT_READ"
+  },
+  "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "pushResponse": "SUCCESS",
+  "candidateAnonymousRead": "AUTHORIZATION_DENIED"
+}

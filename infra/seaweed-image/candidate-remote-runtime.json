@@ -1,0 +1,32 @@
+{
+  "kind": "SEAWEED_REMOTE_RUNTIME_POLICY_V1",
+  "authority": "REVIEWED_MAIN_POLICY",
+  "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "audit": {
+    "workflowPath": ".github/workflows/seaweed-candidate-remote-audit.yml",
+    "runId": "36325906357",
+    "runNumber": "1",
+    "runAttempt": "1",
+    "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+    "artifact": {
+      "id": 10934246908,
+      "name": "seaweed-candidate-remote-audit",
+      "bytes": 453587,
+      "digest": "sha256:dd39a83ee38a53b0a45e03fd1d04f1f2e339302985bf3e10e8f7890f185a207f"
+    },
+    "files": {
+      "receipt": {
+        "sha256": "0c34eef9f7145070cd041931b21df62f2595d69a4817ef1cb84bd080ba2a4293",
+        "bytes": 9201
+      },
+      "vulnerability": {
+        "sha256": "94e3b23bde5efcaa88efd461ac4bd1329d2d8c6222ac9cb8f5b258baff00461b",
+        "bytes": 174533
+      },
+      "cyclonedx": {
+        "sha256": "48cf7bf16832af524b4654e7ac14b1f545fd77f1487285c354606d065d706d41",
+        "bytes": 263873
+      }
+    }
+  }
+}

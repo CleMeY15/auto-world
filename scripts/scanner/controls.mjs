@@ -4,6 +4,9 @@ import path from "node:path";
 import { SCANNER_VERSION } from "./audit-policy.mjs";
 
 const MiB = 1024 ** 2;
+const COMPILER_IDENTITY = "go version go1.26.9 linux/amd64";
+const COMPILER_ARCHIVE = { sha256: "42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d", size: 66935201 };
+const REQUIRED_X_NET_VERSION = "v0.60.0";
 
 function fail(code) {
   throw new Error(code);
@@ -54,22 +57,32 @@ function validateModuleClosure(document) {
   if (new Set(identities).size !== identities.length || JSON.stringify(identities) !== JSON.stringify(sorted)) fail("scanner_module_closure_invalid");
 }
 
+function validateRequiredXNet(entries) {
+  if (!Array.isArray(entries)) fail("scanner_x_net_dependency_invalid");
+  const matches = entries.filter((entry) => entry?.path === "golang.org/x/net");
+  if (matches.length !== 1 || matches[0].version !== REQUIRED_X_NET_VERSION) fail("scanner_x_net_dependency_invalid");
+}
+
 export function validateBuildPair(left, right, expected) {
   if (!expected || !/^[a-f0-9]{40}$/u.test(expected.sourceCommit ?? "") || !/^[a-f0-9]{64}$/u.test(expected.lockSha256 ?? "") ||
       !Array.isArray(expected.moduleClosures) || expected.moduleClosures.length !== 2 || !Array.isArray(expected.buildInfos) || expected.buildInfos.length !== 2) fail("scanner_build_expectation_invalid");
   for (const receipt of [left, right]) {
     if (receipt?.schemaVersion !== 1 || receipt.state !== "diagnostic_only" || receipt.result !== "passed" ||
         receipt.scannerVersion !== SCANNER_VERSION || ![1, 2].includes(receipt.repeat) ||
+        receipt.compilerVersion !== COMPILER_IDENTITY || receipt.compilerArchive?.sha256 !== COMPILER_ARCHIVE.sha256 ||
+        receipt.compilerArchive?.size !== COMPILER_ARCHIVE.size ||
         !/^[a-f0-9]{64}$/u.test(receipt.binary?.sha256 ?? "") || !Number.isSafeInteger(receipt.binary?.size) || receipt.binary.size < 1 ||
         receipt.sourceCommit !== expected.sourceCommit || receipt.lock?.sha256 !== expected.lockSha256 ||
         !Array.isArray(receipt.phases) || receipt.phases.length < 8 || receipt.phases.some((entry) => entry.result !== "passed")) fail("scanner_build_receipt_invalid");
   }
   for (const [index, closure] of expected.moduleClosures.entries()) {
     validateModuleClosure(closure.value);
+    validateRequiredXNet(closure.value);
     const declared = [left, right][index].modules?.closure;
     if (declared?.sha256 !== closure.identity.sha256 || declared?.size !== closure.identity.size) fail("scanner_module_closure_changed");
   }
   for (const [index, buildInfo] of expected.buildInfos.entries()) {
+    validateRequiredXNet(buildInfo.value?.dependencies);
     const declared = [left, right][index].buildInfo;
     if (declared?.sha256 !== buildInfo.identity.sha256 || declared?.size !== buildInfo.identity.size) fail("scanner_build_info_changed");
   }
@@ -86,7 +99,7 @@ export function validateBuildPair(left, right, expected) {
 export function parseGoBuildInfo(bytes) {
   const text = Buffer.isBuffer(bytes) ? bytes.toString("utf8") : "";
   const lines = text.replaceAll("\r\n", "\n").split("\n");
-  const header = /^(?:.+): go(1\.26\.8)(?:-X:jsonv2)$/u.exec(lines.shift() ?? "");
+  const header = /^(?:.+): go(1\.26\.9)(?:-X:jsonv2)$/u.exec(lines.shift() ?? "");
   if (!header) fail("scanner_go_build_info_invalid");
   let main = null;
   let binaryPathSeen = false;

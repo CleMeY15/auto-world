@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "kind": "POSTGRES_REMOTE_RUNTIME_POLICY_V1",
+  "authority": "DIAGNOSTIC_ONLY",
+  "admission": "NOT_AUTHORIZED",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "sourceLock": {
+    "path": "infra/postgres-image/lock.json",
+    "sha256": "31c293b64423aa6eb241b840b6f2187b9632f9334fb60ec8e1c02be806f583c3",
+    "size": 3273
+  },
+  "audit": {
+    "repository": "CleMeY15/auto-world",
+    "workflow": ".github/workflows/postgres-candidate-remote-audit.yml",
+    "workflowId": 370821577,
+    "runId": "36673766454",
+    "runNumber": 1,
+    "attempt": 1,
+    "recipeRevision": "5186a241f9ab28add4098648aa4bc56d36b5e6dc",
+    "artifact": {
+      "id": 11079393568,
+      "name": "postgres-candidate-remote-audit",
+      "sha256": "4af33dc1223aa8264379ec201ded916cdcc39a2288859e505ecca878498c1b42",
+      "size": 1729322
+    },
+    "receipt": {
+      "sha256": "93c7a582105c7e56aaa5091a4d589cb701ecebc64a9527d8eff40d684252cfbb",
+      "size": 16477
+    },
+    "context": {
+      "root": "/home/runner/work/_temp/postgres-candidate-remote-audit-work"
+    },
+    "scanner": {
+      "version": "0.74.0-autoworld.2",
+      "sourceCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
+      "lockSha256": "7d8b09739a3d1b79e11cb12e4fbf7433aded0a5dc1bbb9104f8dd973620c1251",
+      "binary": {
+        "sha256": "1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d",
+        "size": 168288382
+      }
+    },
+    "files": [
+      {
+        "name": "audit-receipt.json",
+        "sha256": "93c7a582105c7e56aaa5091a4d589cb701ecebc64a9527d8eff40d684252cfbb",
+        "size": 16477
+      },
+      {
+        "name": "candidate-sbom.cdx.json",
+        "sha256": "ec611993dae03e0a3902f28a759ec0b209ad43ba952013b5c4ffd6575189a185",
+        "size": 76609
+      },
+      {
+        "name": "candidate-vulnerabilities.json",
+        "sha256": "9cb9a560ec4c86e00110ffb6a85849843f457f37f6e95c36f589158d20014cfd",
+        "size": 103337
+      },
+      {
+        "name": "database-evidence.json",
+        "sha256": "c44906c75f37519a5ed1caa0a9b222a07a7ed085480069d0b85f5d28737081f2",
+        "size": 2256
+      },
+      {
+        "name": "database-java-after-manifest.json",
+        "sha256": "5375f27d8aaa33b670dffc81debbfe25018fe91a43bff8db677eed55b1e75b2a",
+        "size": 624
+      },
+      {
+        "name": "database-java-before-manifest.json",
+        "sha256": "5375f27d8aaa33b670dffc81debbfe25018fe91a43bff8db677eed55b1e75b2a",
+        "size": 624
+      },
+      {
+        "name": "database-vulnerability-after-manifest.json",
+        "sha256": "4e17767bcdff14380162297f350b7d09cf7d25d3b5f81bb00e51c0e19eb6941b",
+        "size": 616
+      },
+      {
+        "name": "database-vulnerability-before-manifest.json",
+        "sha256": "4e17767bcdff14380162297f350b7d09cf7d25d3b5f81bb00e51c0e19eb6941b",
+        "size": 616
+      },
+      {
+        "name": "fixture-gomod-vulnerable-baseline.json",
+        "sha256": "104f16e5b26852d8fcaecf2e13976d59a45e7c51796a48a8e7e38f654b69d7f8",
+        "size": 418014
+      },
+      {
+        "name": "fixture-gomod-vulnerable-candidate.json",
+        "sha256": "cf8b6a3f1dc1b1e2213a0969570007266f3f96b6a20b2cef2799442e867ef96a",
+        "size": 418019
+      },
+      {
+        "name": "fixture-java-jar-clean-candidate-candidate.json",
+        "sha256": "aa7753165bb81a5580ecfbe64870579350cdd82570b9fc50b2d87ebe57a05573",
+        "size": 802
+      },
+      {
+        "name": "fixture-java-war-vulnerable-baseline.json",
+        "sha256": "01310c8cb328a2197a9e5e7627900814ab4bf78e7a992ab3a54e5ff935ec9480",
+        "size": 133259
+      },
+      {
+        "name": "fixture-java-war-vulnerable-candidate.json",
+        "sha256": "76b4a518c7ca8a55d1ca6a660ddde7f560c901b6a09845478e3e6e109a499529",
+        "size": 133257
+      },
+      {
+        "name": "scanner-self.cdx.json",
+        "sha256": "854bfbeb4ff80b33d2ed9543fae846abbda3d769a02f7fba278f02501921e182",
+        "size": 262807
+      },
+      {
+        "name": "scanner-self.json",
+        "sha256": "1a8be186ffbb538f3913d34950219c32f6a821f18883b09943ce57e02a9d54ad",
+        "size": 158280
+      },
+      {
+        "name": "scanner-version-probe.json",
+        "sha256": "96327d99248a779409ff5cff3a510d48ecf2e5175e86cdbada13e56ba8672ede",
+        "size": 1199
+      }
+    ]
+  },
+  "supportStartedAt": null,
+  "supportEndsAt": null,
+  "archiveUntil": null
+}

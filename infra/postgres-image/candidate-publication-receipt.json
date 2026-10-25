@@ -1,0 +1,611 @@
+{
+  "schemaVersion": 1,
+  "kind": "POSTGRES_GOSU_CANDIDATE_PUBLISH_V1",
+  "state": "PUBLISHED_UNADMITTED",
+  "result": "PASSED",
+  "publication": "PUBLISHED_UNADMITTED",
+  "admission": "NOT_AUTHORIZED",
+  "supportStartedAt": null,
+  "supportEndsAt": null,
+  "archiveUntil": null,
+  "repository": "CleMeY15/auto-world",
+  "sourceSha": "b93b0c76ec76abe283d66a17fa62eab7e580e679",
+  "runId": "36361670116",
+  "runNumber": "1",
+  "runAttempt": "1",
+  "packageId": 15408021,
+  "packageSettings": "NOT_VERIFIED_BY_THIS_RECEIPT",
+  "image": "ghcr.io/clemey15/auto-world-postgres-gosu",
+  "phases": [
+    {
+      "name": "checkout_and_source_closure",
+      "result": "PASSED",
+      "durationMs": 87
+    },
+    {
+      "name": "protected_main_before_credentials",
+      "result": "PASSED",
+      "durationMs": 515
+    },
+    {
+      "name": "managed_tool_identity",
+      "result": "PASSED",
+      "durationMs": 569
+    },
+    {
+      "name": "local_collision_and_inventory",
+      "result": "PASSED",
+      "durationMs": 66
+    },
+    {
+      "name": "exact_public_base_manifest",
+      "result": "PASSED",
+      "durationMs": 600
+    },
+    {
+      "name": "exact_public_base_pull",
+      "result": "PASSED",
+      "durationMs": 11307
+    },
+    {
+      "name": "fixed_offline_candidate_build",
+      "result": "PASSED",
+      "durationMs": 3373
+    },
+    {
+      "name": "base_stopped_container_export",
+      "result": "PASSED",
+      "durationMs": 2846
+    },
+    {
+      "name": "candidate_stopped_container_export",
+      "result": "PASSED",
+      "durationMs": 2853
+    },
+    {
+      "name": "filesystem_policy",
+      "result": "PASSED",
+      "durationMs": 1347
+    },
+    {
+      "name": "bounded_candidate_archive",
+      "result": "PASSED",
+      "durationMs": 1869
+    },
+    {
+      "name": "authorized_registry_login",
+      "result": "PASSED",
+      "durationMs": 609
+    },
+    {
+      "name": "private_bootstrap_auth_anonymous_auth",
+      "result": "PASSED",
+      "durationMs": 1995
+    },
+    {
+      "name": "unique_remote_tag_absent",
+      "result": "PASSED",
+      "durationMs": 552
+    },
+    {
+      "name": "candidate_remote_tag",
+      "result": "PASSED",
+      "durationMs": 36
+    },
+    {
+      "name": "protected_main_immediately_pre_push",
+      "result": "PASSED",
+      "durationMs": 360
+    },
+    {
+      "name": "single_candidate_push",
+      "result": "PASSED",
+      "durationMs": 16619
+    },
+    {
+      "name": "exact_remote_manifest",
+      "result": "PASSED",
+      "durationMs": 827
+    },
+    {
+      "name": "exact_remote_digest_roundtrip",
+      "result": "PASSED",
+      "durationMs": 1557
+    },
+    {
+      "name": "anonymous_candidate_denied",
+      "result": "PASSED",
+      "durationMs": 279
+    },
+    {
+      "name": "owned_docker_cleanup",
+      "result": "PASSED",
+      "durationMs": 737
+    },
+    {
+      "name": "owned_temporary_cleanup",
+      "result": "PASSED",
+      "durationMs": 0
+    }
+  ],
+  "code": {
+    "records": [
+      {
+        "path": ".github/workflows/postgres-candidate-publish-v4.yml",
+        "size": 2033,
+        "sha256": "f8a025eed0c56af529118f1303bbfc238e464ea1082f729b83a5434bc22ea718"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-publish.mjs",
+        "size": 43844,
+        "sha256": "aa1dd4f12358e1908a97aa9f99f8ebca31b17ae508ee5b5d43f3722f131b707d"
+      },
+      {
+        "path": "scripts/postgres-image/candidate-proof.mjs",
+        "size": 19692,
+        "sha256": "56a6e5d0732328c744a64a4dabb21f00e65ba7463c3f8bc40b019a5172e5d3e4"
+      },
+      {
+        "path": "scripts/postgres-image/diagnostic.mjs",
+        "size": 41893,
+        "sha256": "cd92c4604be47a102140c1fcee1b8c3209234f6dd0615929a0c48ef283fde716"
+      },
+      {
+        "path": "scripts/postgres-image/filesystem.mjs",
+        "size": 4456,
+        "sha256": "f01e16ea80a322eadb282822132aeea650ede3673854c544208f755dc134df26"
+      },
+      {
+        "path": "scripts/postgres-image/evidence.mjs",
+        "size": 9066,
+        "sha256": "96d53b518281ca464cb9cd13fb89b2d84e45aca9af7998816842db9ce9ec3c2f"
+      },
+      {
+        "path": "scripts/seaweed-image/archive.mjs",
+        "size": 15650,
+        "sha256": "26bfc47246469723ff496a3a527cb7c5f27020f1956b3d2ac42060cc8f65a466"
+      },
+      {
+        "path": "scripts/package-bootstrap/registry-proof.mjs",
+        "size": 21285,
+        "sha256": "d517ac8d2fa6cb400a82ba403a1ee5e3ae5effd3ccf1969fe4e7a196624ac863"
+      },
+      {
+        "path": "scripts/package-bootstrap/prepare.mjs",
+        "size": 14138,
+        "sha256": "1eb0bb0e41c3f541e919b2a2696c2cc8b0f8f8139eea2552b9bea35643573337"
+      },
+      {
+        "path": "infra/postgres-image/Dockerfile",
+        "size": 1705,
+        "sha256": "a7efa706b746a73de653301a76b88eac94b24f971ad74eba7e70b995201eaf4b"
+      },
+      {
+        "path": "infra/postgres-image/lock.json",
+        "size": 3273,
+        "sha256": "31c293b64423aa6eb241b840b6f2187b9632f9334fb60ec8e1c02be806f583c3"
+      },
+      {
+        "path": "infra/postgres-image/filesystem-policy.json",
+        "size": 6580,
+        "sha256": "ce9eaad0f33f36fa9d16e84cca743c531fba6c9e0d718f4fe0add7baa7e8fc2c"
+      },
+      {
+        "path": "infra/postgres-image/materials/gosu-1.19-r5.apk",
+        "size": 830337,
+        "sha256": "cd51335dcbc412f28088452a2407ff13e01dce9e11718feee4beec69cf2ebcad"
+      },
+      {
+        "path": "infra/postgres-image/materials/APKINDEX-v3.24-community-x86_64.tar.gz",
+        "size": 2517261,
+        "sha256": "87d288609457bab7c5dd63f13e3ebda73511adfedafebd9226dac4e55f3c69f3"
+      },
+      {
+        "path": "infra/postgres-image/materials/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+        "size": 800,
+        "sha256": "207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f"
+      },
+      {
+        "path": "infra/postgres-image/materials/APKBUILD-1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+        "size": 825,
+        "sha256": "e8ebdfafcedf25013b39055c83171936109c9ffb4c0262d8aef4139e0a481192"
+      },
+      {
+        "path": "infra/postgres-image/materials/provenance.json",
+        "size": 2836,
+        "sha256": "42c2700a73a76ffe44436143474d2edafd2a02d5890d87fff3b33eae5d0af577"
+      }
+    ]
+  },
+  "tools": {
+    "docker": "28.0.4|28.0.4",
+    "buildx": "github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a",
+    "node": "v22.23.2",
+    "trustBoundary": "GITHUB_HOSTED_MANAGED_DOCKER_CLASSIC_BUILDER",
+    "packagesWriteScope": "JOB_WIDE_STATIC_PERMISSION"
+  },
+  "localInventoryBefore": {
+    "images": 6,
+    "containers": 0,
+    "volumes": 0
+  },
+  "base": {
+    "imageId": "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537",
+    "diffIds": [
+      "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+      "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+      "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+      "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+      "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+      "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+      "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+      "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+      "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+      "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72"
+    ],
+    "manifest": {
+      "configDigest": "sha256:79bd7c99e923138f136f8009d6bffa66e21e9d4fda5c0c561b00fc9c90cfe537",
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+          "size": 3849738
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4ece9a32c307dbfc879fbd2c64ff04d734f92c3cfe543fbbfcf51f559be3952f",
+          "size": 968
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:43f9814c9a3b143548b1ebbd9d05484da68959f1b2dc5cf2228343fc7134b6fb",
+          "size": 901408
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:3333950675b238bd8da3dadabf5d301377545c089e7f436d18d16c97a1b7c1c8",
+          "size": 116
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f3b07e8a357c707bed4f36d7e89173727f890be5fbc8e1c1eb7feb6c1d9deb38",
+          "size": 112421988
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:eb805f20f0602d17dfb400aecc1cddcf941e356b9764969284c7e15d8a0710a6",
+          "size": 9999
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:7ccdb0dcae74d20ea15876b699902cff26696bbdf9e1109c97e9f7d9505444f2",
+          "size": 128
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:93a3470d5852d77008a03e87eb60177e36b5522afb5d283d96ce6e2b0a3d481d",
+          "size": 169
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:b0a0d9d2abf27214e4640bd5d31419c3788d19626acf51afcf85345d321935b7",
+          "size": 6111
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:a8a481ae6efc854716b4eb46d5f3da24edfb72ba8bfca5146c92bbef4390ed35",
+          "size": 183
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "configDigest": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+    "diffIds": [
+      "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+      "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+      "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+      "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+      "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+      "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+      "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+      "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+      "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+      "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72",
+      "sha256:d438b225a8977c23dd26527e196bdff21f4565ec24f22b931aa69aaf38a2df24",
+      "sha256:90b3a336de1c13f00f45fbf3e985e3366ad191aa9919864ac946f735d965e092"
+    ],
+    "localTag": "aw-postgres-gosu:94c2d4878c445bef8d51ff7c",
+    "remoteTag": "candidate-36361670116-attempt-1",
+    "labels": {
+      "com.auto-world.postgres-diagnostic": "94c2d4878c445bef8d51ff7c",
+      "com.auto-world.postgres-diagnostic-purpose": "gosu-correction-runtime"
+    }
+  },
+  "filesystem": {
+    "state": "VERIFIED_DIAGNOSTIC_DELTA",
+    "deleted": [
+      "usr/local/bin/gosu"
+    ],
+    "added": [
+      "usr/bin/gosu"
+    ],
+    "apkChanged": [
+      "etc/apk/world",
+      "lib/apk/db/installed"
+    ],
+    "directoryMtimeOnly": [
+      "etc",
+      "etc/apk",
+      "lib/apk/db",
+      "usr/bin",
+      "usr/local/bin"
+    ],
+    "exportMtimeOnly": [
+      ".dockerenv",
+      "dev",
+      "dev/console",
+      "dev/pts",
+      "dev/shm",
+      "etc",
+      "etc/apk",
+      "etc/hostname",
+      "etc/hosts",
+      "etc/mtab",
+      "etc/resolv.conf",
+      "lib/apk/db",
+      "lib/apk/db/scripts.tar.gz",
+      "lib/apk/db/triggers",
+      "tmp",
+      "usr/bin",
+      "usr/local/bin"
+    ],
+    "policy": {
+      "size": 6580,
+      "sha256": "ce9eaad0f33f36fa9d16e84cca743c531fba6c9e0d718f4fe0add7baa7e8fc2c"
+    },
+    "baseMembers": 3896,
+    "candidateMembers": 3896
+  },
+  "archive": {
+    "archiveSha256": "c363bce75dc3c3a5aa9dc82c720e63b6d325d10f398adefc573e305a24c84d9f",
+    "archiveBytes": 305474048,
+    "archiveMembers": 32,
+    "imageId": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+    "tag": "aw-postgres-gosu:94c2d4878c445bef8d51ff7c",
+    "configDigest": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+    "configBytes": 12499,
+    "diffIds": [
+      "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+      "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+      "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+      "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+      "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+      "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+      "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+      "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+      "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+      "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72",
+      "sha256:d438b225a8977c23dd26527e196bdff21f4565ec24f22b931aa69aaf38a2df24",
+      "sha256:90b3a336de1c13f00f45fbf3e985e3366ad191aa9919864ac946f735d965e092"
+    ],
+    "rawLayers": [
+      {
+        "digest": "sha256:74d97c428c51a828f9051a7a40a53ff1fc99e54fc30323ce36760701b0b7f711",
+        "size": 8704000,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:199b85bb67b34ec56ca3679a640cad26c482694949d478875ad803bfad29f113",
+        "size": 11264,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:1b1c5f60fe610883c371803e933d0eb9d31dfe8ae9c1a5299e2516c6757eb2d9",
+        "size": 1990144,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:507f0fcc5e5565bd8f7a584202000685ebfaa7ebda9b9d436289bc1004fb4ce8",
+        "size": 1536,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:34f5e4927b447367ecd2367ae94e56d654a30b9e244b9396ac628d5bcf90a5cf",
+        "size": 289218560,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:d006a4a663e7362cd4ae34ed8bf9a851ac9e99c359d8b1f143b1fccc0ad3e8fe",
+        "size": 66560,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:42a506b7d4dafcf6fb679a5c2e4de60153ebca613bbfad36b833053eb92cd047",
+        "size": 2048,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:149a42a2d36a8dc846e4624af2c7c2766d1cac31300c9f8392ca050d137ed217",
+        "size": 3072,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:f81d67057ca8ee3ee1f538cdb7b128e05b4e2727e1c50686633d8b5158793fe2",
+        "size": 20992,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:b69834c94476d5cb5d6561d3529668949fa3d28bd745a937bcec2f66eadebb72",
+        "size": 3072,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:d438b225a8977c23dd26527e196bdff21f4565ec24f22b931aa69aaf38a2df24",
+        "size": 3351040,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      },
+      {
+        "digest": "sha256:90b3a336de1c13f00f45fbf3e985e3366ad191aa9919864ac946f735d965e092",
+        "size": 2055168,
+        "mediaType": "application/vnd.oci.image.layer.v1.tar"
+      }
+    ],
+    "manifestDigest": "sha256:786992a08f3568ad0e7825faeb7c89e276c092f5b1bc5e5918a76138d04a6c3b",
+    "manifestBytes": 2069,
+    "compatibilityRecords": [
+      {
+        "blobDigest": "sha256:b05bb43cbdf51b1bb8f8861c6d8036a125021aa50ae79d387fc01553f09571e0",
+        "id": "53f429f4c30e4866c958265da59d0809e9e11e452fd9a33ae8dfdf6ad9c927e2",
+        "parent": null,
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:34275d9518543c3beeef5f4b9d40ec02d7e0fa73b4f65efdd0efe8198ef5d5a4",
+        "id": "72b7f438a9e9f4f268d84b71bf269d069a44b81fceb54d9304a3e9736e0dad3e",
+        "parent": "53f429f4c30e4866c958265da59d0809e9e11e452fd9a33ae8dfdf6ad9c927e2",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:96426642dec1d94431e788c8b15ef69405be92de4fc2a3c52b718a4b2007fbea",
+        "id": "915ad946d41075fe10951666508652009512299a229552736dd88082f5c6c70a",
+        "parent": "72b7f438a9e9f4f268d84b71bf269d069a44b81fceb54d9304a3e9736e0dad3e",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:9fe5f501c3faad5011b1d979c527bd43f17cfd0128fae887acbb7c476f78bbf2",
+        "id": "f0f57a8481e59a0b2e8e797f496fb9e75775403fadfdf101e489c582a1d02093",
+        "parent": "915ad946d41075fe10951666508652009512299a229552736dd88082f5c6c70a",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:db69e7ddeb960da59fec7912b3460ddc3a93ccc0cf5112ea0f2f47fc0944f6ee",
+        "id": "6bb2939fa8336d391d7bf0bcc31f48f303a55818f533fa5282b3771759bf74fd",
+        "parent": "f0f57a8481e59a0b2e8e797f496fb9e75775403fadfdf101e489c582a1d02093",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:3c3b3c384934a4a306fe422c6402e376d64f76aa979e15a0697879da65c297d7",
+        "id": "1d26782c2bc5e4d92873b7481ddde0870b31c474cc10de40c3b62e647e2ae981",
+        "parent": "6bb2939fa8336d391d7bf0bcc31f48f303a55818f533fa5282b3771759bf74fd",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:1945046d0c08fa376e9077f446722df396756ce36a69bd5c8ff2956dcd2ea1a9",
+        "id": "b2a6219d3c95eccf62ba4bc48f70dc744f8bc048df48d336452a153a21f426da",
+        "parent": "1d26782c2bc5e4d92873b7481ddde0870b31c474cc10de40c3b62e647e2ae981",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:bcc0972ab0cf1b579583d24f8cfdc91fde56bd1fa6a18f4df8ff7219fa593af2",
+        "id": "aef73f291d782e07df8486f4e03218fb4f2d8effb1d0077acd43b89f92a4f2a8",
+        "parent": "b2a6219d3c95eccf62ba4bc48f70dc744f8bc048df48d336452a153a21f426da",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:689fd3a69f6f5c414dc026bd23d243c322b2b726c0eb955e0001e98463b225bd",
+        "id": "947335e7a93557b17c1ed7e83f293b15f34f6049c7ce61e085a5c6a91a3ef64c",
+        "parent": "aef73f291d782e07df8486f4e03218fb4f2d8effb1d0077acd43b89f92a4f2a8",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:e92326682c0b3b44eb2407b1f358ab151b92e7582d2bd8eb4b23542745f68882",
+        "id": "0bb285cfe164efb900cd98e933c7d6d3568d32e9bf8ff06e56713f9b68a9e772",
+        "parent": "947335e7a93557b17c1ed7e83f293b15f34f6049c7ce61e085a5c6a91a3ef64c",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:a3ae9c85fbba6fbd637f6437c65963d211d30160d043eb2198fe11bf5c77d5c4",
+        "id": "d368c6ca3b17bf1dc1727a3871512f0bd5eb8122814408ec5f9de584734bc7fb",
+        "parent": "0bb285cfe164efb900cd98e933c7d6d3568d32e9bf8ff06e56713f9b68a9e772",
+        "rich": false
+      },
+      {
+        "blobDigest": "sha256:9898346df48073fbd26b003d3a7dfd6022c0d07f64233261af7565fba73896e7",
+        "id": "12723a26b7191a52cacca9ba563f0450d9b6dd014240b156ae221f78c5ef2f93",
+        "parent": "d368c6ca3b17bf1dc1727a3871512f0bd5eb8122814408ec5f9de584734bc7fb",
+        "rich": true
+      }
+    ],
+    "remoteLayerVerification": "NOT_ESTABLISHED_BY_DOCKER_SAVE"
+  },
+  "bootstrap": {
+    "digest": "sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408",
+    "size": 524,
+    "anonymousRead": "AUTHORIZATION_DENIED"
+  },
+  "remote": {
+    "sha256": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+    "size": 2824,
+    "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+    "configDigest": "sha256:8453b2e3ea76734a5c5df6cd8bf17799880c4ed974e2e136dbf849254f96cdda",
+    "configBytes": 12499,
+    "layers": [
+      {
+        "digest": "sha256:e2de96513ba9eb53b431787ec8a65cdde380ac4772a3e4c4b714dcfde2a102b5",
+        "size": 3849738,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:4ece9a32c307dbfc879fbd2c64ff04d734f92c3cfe543fbbfcf51f559be3952f",
+        "size": 968,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:43f9814c9a3b143548b1ebbd9d05484da68959f1b2dc5cf2228343fc7134b6fb",
+        "size": 901408,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:3333950675b238bd8da3dadabf5d301377545c089e7f436d18d16c97a1b7c1c8",
+        "size": 116,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:f3b07e8a357c707bed4f36d7e89173727f890be5fbc8e1c1eb7feb6c1d9deb38",
+        "size": 112421988,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:eb805f20f0602d17dfb400aecc1cddcf941e356b9764969284c7e15d8a0710a6",
+        "size": 9999,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:7ccdb0dcae74d20ea15876b699902cff26696bbdf9e1109c97e9f7d9505444f2",
+        "size": 128,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:93a3470d5852d77008a03e87eb60177e36b5522afb5d283d96ce6e2b0a3d481d",
+        "size": 169,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:b0a0d9d2abf27214e4640bd5d31419c3788d19626acf51afcf85345d321935b7",
+        "size": 6111,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:a8a481ae6efc854716b4eb46d5f3da24edfb72ba8bfca5146c92bbef4390ed35",
+        "size": 183,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:284f988fd1fd5d0daaaca32da2fa703a782f837491b375d40ae292e8657b93de",
+        "size": 3347181,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      },
+      {
+        "digest": "sha256:7847fa93c9720b70d2c1f588fd20592ac25a8748a43e5cc8e39b03249e15e9bb",
+        "size": 880041,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip"
+      }
+    ],
+    "baseLayerCount": 10,
+    "newLayerCount": 2,
+    "remoteLayerVerification": "PENDING_INDEPENDENT_READ"
+  },
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "pushResponse": "SUCCESS"
+}

@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } 
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { parseBuildArguments, removeOwnedBuildTree, stableModuleClosure, validateBuildLock } from "../scripts/scanner/build.mjs";
+import { parseBuildArguments, removeOwnedBuildTree, stableModuleClosure, validateBuildLock, validateCompilerIdentity } from "../scripts/scanner/build.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -54,13 +54,36 @@ test("scanner build arguments require one explicit absolute output and repeat", 
 test("scanner lock binds corrected source, compiler, patches, fixtures, baseline, and six roles", async () => {
   const lock = validateBuildLock(JSON.parse(await readFile(path.join(root, "infra/scanner/scanner-lock.json"), "utf8")));
   assert.equal(lock.scanner.sourceCommit, "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994");
-  assert.equal(lock.compiler.sha256, "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b");
-  assert.deepEqual(lock.patches.map((entry) => entry.order), [1, 2, 3]);
+  assert.deepEqual(lock.compiler, {
+    name: "go",
+    version: "1.26.9",
+    url: "https://go.dev/dl/go1.26.9.linux-amd64.tar.gz",
+    sha256: "42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d",
+    size: 66935201,
+  });
+  assert.deepEqual(lock.patches.map((entry) => entry.order), [1, 2, 3, 4]);
   assert.equal(lock.patches[2].upstreamCommit, "8c905373332df11a268a0cebc07627cc08485fee");
+  assert.deepEqual(lock.patches[3], {
+    order: 4,
+    kind: "security-refresh-x-net-0.60.0-closure",
+    path: "infra/scanner/patches/trivy-x-net-0.60.0.patch",
+    sha256: "bac277b2afc815459d978af005ecd7d19a08793098c183953e7216975c1068dd",
+    size: 7402,
+    upstreamCommit: "18ece0ce30bc35fa81fe72028bf309bb3ff3f4a5",
+  });
   assert.equal(lock.baseline.platformDigest, "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9");
   assert.deepEqual(lock.images.map((entry) => entry.role), ["postgres", "opensearch", "redis", "seaweedfs", "aws-cli", "baseline-trivy"]);
   assert.deepEqual(lock.alternatives.map((entry) => [entry.role, entry.alternativeFor, entry.manifestDigest, entry.platform.digest]), [
-    ["postgres-alpine", "postgres", "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73", "sha256:7456ef82e5f5bc43d997f4781bbd7c0d6389bff397564649a356e206ba473aee"],
-    ["redis-alpine", "redis", "sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576", "sha256:9c3ecc609a8087c0f11c494fefaf37a8f7bf9a967631d4a0da8967a9810be354"],
+    ["postgres-alpine", "postgres", "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24", "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3"],
+    ["redis-alpine", "redis", "sha256:3811787313eba226a2ef38658c6ccb91cd5e110edc89c37767de373120a0e5a0", "sha256:2d3814be5e9b06a30a0be54770b7e12052e7e79ec85271aefd34875c1f393b23"],
   ]);
+});
+
+test("scanner build refuses a substituted compiler identity before source checkout", async () => {
+  const lock = validateBuildLock(JSON.parse(await readFile(path.join(root, "infra/scanner/scanner-lock.json"), "utf8")));
+  assert.equal(validateCompilerIdentity("go version go1.26.9 linux/amd64", lock), "go version go1.26.9 linux/amd64");
+  assert.throws(() => validateCompilerIdentity("go version go1.26.8 linux/amd64", lock), /scanner_compiler_identity_invalid/u);
+  assert.throws(() => validateCompilerIdentity("go version go1.26.9 linux/arm64", lock), /scanner_compiler_identity_invalid/u);
+  const previous = JSON.parse(JSON.stringify(lock)); previous.compiler.version = "1.26.8";
+  assert.throws(() => validateBuildLock(previous), /scanner_build_lock_invalid/u);
 });

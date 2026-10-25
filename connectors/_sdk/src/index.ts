@@ -5,6 +5,7 @@ export const workspaceBoundary = {
 } as const;
 
 export { runConnector, systemScheduler } from "./engine.js";
+export { parseConnectorCheckpoint } from "./receipts.js";
 export {
   decodeJsonPage,
 } from "./json.js";

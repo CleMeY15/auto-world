@@ -1,0 +1,75 @@
+{
+  "checkedAt": "2026-09-27T18:47:30.190Z",
+  "maxAgeMsByDatabase": {
+    "vulnerability": 172800000,
+    "java": null
+  },
+  "files": [
+    {
+      "path": "/home/runner/work/_temp/aw-scanner-audit-work/cache/db/trivy.db",
+      "sha256": "4bf01c98f9af59d4ec9ab6c8f4f22740230830e8be9172970e74dcb8257cd53b",
+      "size": 1446756352,
+      "cap": 2147483648
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-scanner-audit-work/cache/db/metadata.json",
+      "sha256": "71150ec87d0698ca261d3053e054b2b01bad1a1db93e01aa0a408f4510e379fb",
+      "size": 153,
+      "cap": 8388608
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-scanner-audit-work/cache/java-db/trivy-java.db",
+      "sha256": "e99e2d1212f4f1ef8281f95ffa72b667ce3fb8d00db0c4b2ddfcc3283b87612c",
+      "size": 1537712128,
+      "cap": 2147483648
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-scanner-audit-work/cache/java-db/metadata.json",
+      "sha256": "f8ae5398d40a18bdab34b2345c1a105698ce2c31039d804b29cc09d765b25fa1",
+      "size": 153,
+      "cap": 8388608
+    }
+  ],
+  "observed": {
+    "vulnerability": {
+      "value": {
+        "Version": 2,
+        "NextUpdate": "2026-09-28T13:06:25.102527368Z",
+        "UpdatedAt": "2026-09-27T13:06:25.102527619Z",
+        "DownloadedAt": "2026-09-27T18:47:07.682330961Z"
+      },
+      "identity": {
+        "sha256": "71150ec87d0698ca261d3053e054b2b01bad1a1db93e01aa0a408f4510e379fb",
+        "size": 153
+      }
+    },
+    "java": {
+      "value": {
+        "Version": 1,
+        "NextUpdate": "2026-09-30T01:08:08.997213636Z",
+        "UpdatedAt": "2026-09-27T01:08:08.997214067Z",
+        "DownloadedAt": "2026-09-27T18:47:28.722305864Z"
+      },
+      "identity": {
+        "sha256": "f8ae5398d40a18bdab34b2345c1a105698ce2c31039d804b29cc09d765b25fa1",
+        "size": 153
+      }
+    }
+  },
+  "validation": [
+    {
+      "name": "vulnerability",
+      "result": "passed",
+      "ageMs": 20465088,
+      "maxAgeMs": 172800000,
+      "freshAt48Hours": true
+    },
+    {
+      "name": "java",
+      "result": "passed",
+      "ageMs": 63561193,
+      "maxAgeMs": null,
+      "freshAt48Hours": true
+    }
+  ]
+}

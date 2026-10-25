@@ -123,7 +123,11 @@ function isPublicRuntimeCleanupFailure(value) {
   try {
     return value !== null && typeof value === "object" && !Array.isArray(value)
       && Object.keys(value).sort().join("|") === "code|phase|reason"
-      && ((ownData(value, "code") === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
+      && ((ownData(value, "code") === "seaweed_candidate_runtime_cleanup_failed"
+        && ownData(value, "phase") === "RUNTIME_CLEANUP")
+        || (ownData(value, "code") === "seaweed_candidate_runtime_persistence_cleanup_failed"
+          && ownData(value, "phase") === "PERSISTENCE_CLEANUP")
+        || (ownData(value, "code") === "seaweed_candidate_runtime_backup_restore_cleanup_failed"
         && ownData(value, "phase") === "BACKUP_RESTORE_CLEANUP")
         || (ownData(value, "code") === "seaweed_candidate_runtime_host_loopback_cleanup_failed"
           && ownData(value, "phase") === "HOST_LOOPBACK_CLEANUP"))

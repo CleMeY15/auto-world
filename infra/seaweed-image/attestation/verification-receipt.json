@@ -1,0 +1,875 @@
+{
+  "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_RECEIPT_V1",
+  "state": "VERIFIED",
+  "authority": "OFFICIAL_GITHUB_ATTESTATION_VERIFIER",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "admission": "NOT_AUTHORIZED",
+  "verdict": "ATTESTED_UNADMITTED",
+  "repository": "CleMeY15/auto-world",
+  "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+  "sourceRef": "refs/heads/main",
+  "runId": "36339762446",
+  "runNumber": "1",
+  "runAttempt": "1",
+  "recipeRevision": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+  "subject": {
+    "name": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+    "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504"
+  },
+  "predicate": {
+    "type": "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+    "sha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+    "bytes": 5102
+  },
+  "preSignReceipt": {
+    "sha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+    "bytes": 925,
+    "runId": "36339762446"
+  },
+  "tool": {
+    "version": "2.98.0",
+    "binarySha256": "62885b97de6a0cd85e616cdd94bcda908bf5cf1018094385892b05cea3537163",
+    "binaryBytes": 41377954,
+    "helpSha256": "65e2bfd5da639a9e7a3bacc03266efe284c245005ea288041f9c305bbb6ddd51"
+  },
+  "registryAccess": {
+    "method": "ISOLATED_DOCKER_CONFIG_DEFAULT_KEYCHAIN",
+    "scope": "READ_ONLY"
+  },
+  "positiveControls": {
+    "before": {
+      "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+      "state": "VERIFIED",
+      "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+      "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+      "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+      "policy": {
+        "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+        "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+        "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+        "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+        "ref": "refs/heads/main"
+      },
+      "invocations": [
+        {
+          "mode": "identity",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--cert-identity",
+            "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--signer-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 21748,
+          "stdoutSha256": "e1000b93b89760ea663ec5408f121e1fbda973532b638b2c8561c97cb5279f79",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 2930,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        },
+        {
+          "mode": "workflow",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--signer-workflow",
+            "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--signer-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 21751,
+          "stdoutSha256": "7aae85f115e35b233d13318a729e758ca537c2682ea519fbc28d829e1ffb6a5b",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3551,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        }
+      ]
+    },
+    "after": {
+      "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+      "state": "VERIFIED",
+      "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+      "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+      "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+      "policy": {
+        "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+        "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+        "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+        "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+        "ref": "refs/heads/main"
+      },
+      "invocations": [
+        {
+          "mode": "identity",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--cert-identity",
+            "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--signer-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 21748,
+          "stdoutSha256": "e1000b93b89760ea663ec5408f121e1fbda973532b638b2c8561c97cb5279f79",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3585,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        },
+        {
+          "mode": "workflow",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--signer-workflow",
+            "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--signer-digest",
+            "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 21751,
+          "stdoutSha256": "7aae85f115e35b233d13318a729e758ca537c2682ea519fbc28d829e1ffb6a5b",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 2905,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        }
+      ]
+    }
+  },
+  "negativeControls": {
+    "wrong-subject": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a",
+          "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3226,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:2ac4a586d6b419247314e639b0ee777a549e91b6c6040ca01a218d4bb877338a",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3418,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-workflow": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+          "workflowPath": ".github/workflows/not-seaweed-candidate-attest.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/not-seaweed-candidate-attest.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2760,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/not-seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3148,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-ref": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+          "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+          "ref": "refs/heads/not-main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/not-main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/not-main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2948,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/not-main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 84,
+            "stderrSha256": "e4cdfa591431b5e3b772f44fc1a46485798fba76f1a94ec064460c7493bf4ff6",
+            "durationMs": 2988,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryRef",
+              "expected": "refs/heads/not-main",
+              "actual": "refs/heads/main"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-source": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+          "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 133,
+            "stderrSha256": "dfe536e96672177ebdf5db7a5f390790cabe3a60ed3fe272419c55e064890f5b",
+            "durationMs": 3036,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryDigest",
+              "expected": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "actual": "83d93ca2801ab2385c680e98acd12ed21f5110b9"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 133,
+            "stderrSha256": "dfe536e96672177ebdf5db7a5f390790cabe3a60ed3fe272419c55e064890f5b",
+            "durationMs": 3755,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryDigest",
+              "expected": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "actual": "83d93ca2801ab2385c680e98acd12ed21f5110b9"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-signer": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+          "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 128,
+            "stderrSha256": "e1054db4f1af069991283a21d2a79dcdfe112e98bc7dbd0d86d04224570287dc",
+            "durationMs": 2713,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "BuildSignerDigest",
+              "expected": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "actual": "83d93ca2801ab2385c680e98acd12ed21f5110b9"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 128,
+            "stderrSha256": "e1054db4f1af069991283a21d2a79dcdfe112e98bc7dbd0d86d04224570287dc",
+            "durationMs": 3045,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "BuildSignerDigest",
+              "expected": "03d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "actual": "83d93ca2801ab2385c680e98acd12ed21f5110b9"
+            }
+          }
+        ]
+      }
+    },
+    "tampered-payload": {
+      "proof": "SIGNATURE_REJECTION_PROVED",
+      "originalBundleSha256": "5017d2a24feb59dc714fc6652e9985098b47c3d2ba0bb779db7d2b3db9641f1b",
+      "tamperedBundleSha256": "c60575bb334fdc4432795a0b779288c6357bdb637ce9fece9f970125d535049a",
+      "originalPayloadSha256": "927edf073f6a5daab0c3db19e60d77ef55cb9e609fbbbe71a0962f71d9d861ac",
+      "tamperedPayloadSha256": "fbdcd5f994cdc001ce51e25f43ac807df6980c8c20865b8df8cf9c4722e43f2d",
+      "result": {
+        "kind": "SEAWEED_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+        "bundleSha256": "c60575bb334fdc4432795a0b779288c6357bdb637ce9fece9f970125d535049a",
+        "predicateSha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+        "preSignReceiptSha256": "4030f476c6030f26deba15d36cdb7b159d6fccc63ba42253b1975a8a21dd59ed",
+        "policy": {
+          "sourceSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "signerSha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+          "subjectName": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+          "subjectDigest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+          "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "tampered-payload-bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2966,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/seaweed-candidate-attest.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--signer-digest",
+              "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+              "--bundle",
+              "tampered-payload-bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2983,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "malformedInputControls": {
+    "missingBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "seaweed_candidate_attestation_input_invalid"
+      }
+    },
+    "truncatedBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "seaweed_candidate_attestation_bundle_invalid"
+      }
+    },
+    "corruptBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "seaweed_candidate_attestation_bundle_invalid"
+      }
+    }
+  }
+}

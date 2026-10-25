@@ -3,10 +3,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import test from "node:test";
 import path from "node:path";
+import scannerLock from "../infra/scanner/scanner-lock.json" with { type: "json" };
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence, fixtureScanMode, parseAuditArguments, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "../scripts/scanner/audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, parseGoBuildInfo, validateBuildPair, validateFixtureReport, validateSelfReport, validateVersionProbeReport } from "../scripts/scanner/controls.mjs";
 
-test("database freeze retains both identities and rejected metadata before failing closed", async () => {
+test("database freeze records old Java age while still rejecting stale vulnerability and invalid metadata", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "scanner-db-evidence-"));
   try {
     const cache = path.join(directory, "cache");
@@ -21,31 +22,45 @@ test("database freeze retains both identities and rejected metadata before faili
     await writeFile(path.join(cache, "java-db/trivy-java.db"), "synthetic java database");
     await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
     await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
-    await assert.rejects(databaseEvidence(cache, now, output), (error) => {
-      assert.equal(error.message, "scanner_database_metadata_invalid");
-      assert.deepEqual(error.diagnostic.databases, [
-        { name: "vulnerability", result: "passed" },
-        { name: "java", result: "failed", reason: "scanner_database_metadata_invalid", check: "database_age_exceeded" },
-      ]);
-      return true;
-    });
+    const accepted = await databaseEvidence(cache, now, output);
+    assert.ok(accepted.metadata.java.ageMs > 48 * 60 * 60 * 1000);
+    assert.equal(accepted.metadata.java.maxAgeMs, null);
+    assert.equal(accepted.metadata.java.freshAt48Hours, false);
+    assert.ok(accepted.metadata.vulnerability.ageMs < 48 * 60 * 60 * 1000);
+    assert.equal(accepted.metadata.vulnerability.freshAt48Hours, true);
     const evidenceFile = path.join(output, "database-evidence.json");
     const evidenceBytes = await readFile(evidenceFile);
     const evidence = JSON.parse(evidenceBytes);
     assert.equal(evidence.checkedAt, now.toISOString());
-    assert.equal(evidence.maxAgeMs, 48 * 60 * 60 * 1000);
+    assert.deepEqual(evidence.maxAgeMsByDatabase, {
+      vulnerability: 48 * 60 * 60 * 1000, java: null,
+    });
+    for (const name of ["vulnerability", "java"]) {
+      assert.deepEqual(evidence.validation.find((entry) => entry.name === name),
+        { name, result: "passed", ageMs: accepted.metadata[name].ageMs,
+          maxAgeMs: accepted.metadata[name].maxAgeMs, freshAt48Hours: accepted.metadata[name].freshAt48Hours });
+    }
     assert.deepEqual(evidence.observed.java.value, java);
     assert.deepEqual(evidence.observed.vulnerability.value, vulnerability);
     for (const [name, index] of [["vulnerability", 1], ["java", 3]]) {
       const [actual] = await captureFiles([{ path: evidence.files[index].path, cap: 8 * 1024 ** 2 }]);
       assert.deepEqual(evidence.observed[name].identity, { sha256: actual.sha256, size: actual.size });
     }
-    // Failure details survive, and a second call cannot overwrite prior evidence.
+    // The exact accepted metadata survives, and a second call cannot overwrite prior evidence.
     await assert.rejects(databaseEvidence(cache, now, output), { code: "EEXIST" });
     assert.deepEqual(await readFile(evidenceFile), evidenceBytes);
-    java.UpdatedAt = vulnerability.UpdatedAt;
-    await writeFile(path.join(cache, "java-db/metadata.json"), JSON.stringify(java));
-    assert.equal((await databaseEvidence(cache, now)).metadata.java.version, 1);
+    vulnerability.UpdatedAt = "2026-09-19T01:03:27Z";
+    await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
+    await assert.rejects(databaseEvidence(cache, now), (error) => {
+      assert.deepEqual(error.diagnostic.databases, [
+        { name: "vulnerability", result: "failed", reason: "scanner_database_metadata_invalid",
+          check: "database_age_exceeded" },
+        { name: "java", result: "passed", ageMs: accepted.metadata.java.ageMs,
+          maxAgeMs: null, freshAt48Hours: false },
+      ]);
+      return true;
+    });
+    vulnerability.UpdatedAt = "2026-09-23T07:19:42Z";
     vulnerability.DownloadedAt = "2026-09-24T00:00:00Z";
     java.Version = 2;
     await writeFile(path.join(cache, "db/metadata.json"), JSON.stringify(vulnerability));
@@ -61,18 +76,21 @@ test("database freeze retains both identities and rejected metadata before faili
 
 function receipt(repeat, sha = "a".repeat(64)) {
   return { schemaVersion: 1, state: "diagnostic_only", result: "passed", repeat, scannerVersion: "0.74.0-autoworld.2",
-    sourceCommit: "1".repeat(40), sourceTree: "2".repeat(40), lock: { sha256: "3".repeat(64) }, binary: { sha256: sha, size: 10 },
+    compilerVersion: `go version go${scannerLock.compiler.version} linux/amd64`, sourceCommit: "1".repeat(40), sourceTree: "2".repeat(40),
+    compilerArchive: { sha256: scannerLock.compiler.sha256, size: scannerLock.compiler.size },
+    lock: { sha256: "3".repeat(64) }, binary: { sha256: sha, size: 10 },
     modules: { before: [{ name: "go.mod", sha256: "4".repeat(64), size: 1 }], closure: { sha256: "5".repeat(64), size: 1 } }, buildInfo: { sha256: "7".repeat(64), size: 1 },
     phases: Array.from({ length: 8 }, (_, index) => ({ name: String(index), result: "passed" })) };
 }
 
 function expected() {
-  const value = [{ path: "example.test/module", version: "v1.0.0", sum: "h1:a", goModSum: "h1:b", zip: { sha256: "6".repeat(64), size: 1 } }];
+  const entry = { sum: "h1:a", goModSum: "h1:b", zip: { sha256: "6".repeat(64), size: 1 } };
+  const value = [{ ...entry, path: "example.test/module", version: "v1.0.0" }, { ...entry, path: "golang.org/x/net", version: "v0.60.0" }];
   return { sourceCommit: "1".repeat(40), lockSha256: "3".repeat(64), moduleClosures: [
     { value, identity: { sha256: "5".repeat(64), size: 1 } }, { value: JSON.parse(JSON.stringify(value)), identity: { sha256: "5".repeat(64), size: 1 } },
   ], buildInfos: [
-    { value: { normalized: true }, identity: { sha256: "7".repeat(64), size: 1 } },
-    { value: { normalized: true }, identity: { sha256: "7".repeat(64), size: 1 } },
+    { value: { dependencies: [{ path: "golang.org/x/net", version: "v0.60.0" }] }, identity: { sha256: "7".repeat(64), size: 1 } },
+    { value: { dependencies: [{ path: "golang.org/x/net", version: "v0.60.0" }] }, identity: { sha256: "7".repeat(64), size: 1 } },
   ] };
 }
 
@@ -85,6 +103,34 @@ test("independent build receipts require exact reproducibility", () => {
   assert.throws(() => validateBuildPair(receipt(1), receipt(2), changedClosure), /scanner_module_closure_changed/u);
   const changedBuildInfo = expected(); changedBuildInfo.buildInfos[1].identity.sha256 = "8".repeat(64);
   assert.throws(() => validateBuildPair(receipt(1), receipt(2), changedBuildInfo), /scanner_build_info_changed/u);
+  const oldCompiler = receipt(1); oldCompiler.compilerVersion = "go version go1.26.8 linux/amd64";
+  assert.throws(() => validateBuildPair(oldCompiler, receipt(2), expected()), /scanner_build_receipt_invalid/u);
+  const wrongCompilerArchive = receipt(1); wrongCompilerArchive.compilerArchive.sha256 = "8".repeat(64);
+  assert.throws(() => validateBuildPair(wrongCompilerArchive, receipt(2), expected()), /scanner_build_receipt_invalid/u);
+  const wrongCompilerArchiveSize = receipt(2); wrongCompilerArchiveSize.compilerArchive.size -= 1;
+  assert.throws(() => validateBuildPair(receipt(1), wrongCompilerArchiveSize, expected()), /scanner_build_receipt_invalid/u);
+});
+
+test("both authenticated closures and compiled inventories require exactly x/net v0.60.0", () => {
+  for (const index of [0, 1]) {
+    const missingClosure = expected(); missingClosure.moduleClosures[index].value = missingClosure.moduleClosures[index].value.filter((entry) => entry.path !== "golang.org/x/net");
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), missingClosure), /scanner_x_net_dependency_invalid/u);
+    const oldClosure = expected(); oldClosure.moduleClosures[index].value.find((entry) => entry.path === "golang.org/x/net").version = "v0.58.0";
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), oldClosure), /scanner_x_net_dependency_invalid/u);
+    const duplicateClosure = expected(); duplicateClosure.moduleClosures[index].value.push({
+      ...duplicateClosure.moduleClosures[index].value.at(-1), version: "v0.58.0",
+    });
+    duplicateClosure.moduleClosures[index].value.sort((left, right) =>
+      `${left.path}@${left.version}`.localeCompare(`${right.path}@${right.version}`, "en"));
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), duplicateClosure), /scanner_x_net_dependency_invalid/u);
+
+    const missingBuildInfo = expected(); missingBuildInfo.buildInfos[index].value.dependencies = [];
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), missingBuildInfo), /scanner_x_net_dependency_invalid/u);
+    const oldBuildInfo = expected(); oldBuildInfo.buildInfos[index].value.dependencies[0].version = "v0.58.0";
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), oldBuildInfo), /scanner_x_net_dependency_invalid/u);
+    const duplicateBuildInfo = expected(); duplicateBuildInfo.buildInfos[index].value.dependencies.push({ path: "golang.org/x/net", version: "v0.58.0" });
+    assert.throws(() => validateBuildPair(receipt(1), receipt(2), duplicateBuildInfo), /scanner_x_net_dependency_invalid/u);
+  }
 });
 
 test("audit arguments require distinct explicit absolute directories", () => {
@@ -101,6 +147,7 @@ test("module closure validation uses the same case ordering as independent build
   const inputs = expected();
   const entry = inputs.moduleClosures[0].value[0];
   const value = ["example.test/azure", "example.test/Big"].map((modulePath) => ({ ...entry, path: modulePath }));
+  value.push({ ...entry, path: "golang.org/x/net", version: "v0.60.0" });
   for (const closure of inputs.moduleClosures) closure.value = value;
   assert.doesNotThrow(() => validateBuildPair(receipt(1), receipt(2), inputs));
 });
@@ -138,7 +185,7 @@ test("fixture mode routing keeps Go in fs and gives candidate and baseline Java 
   for (const [id, expectedMode, target] of [
     ["gomod-vulnerable", "fs", "gomod"],
     ["java-war-vulnerable", "rootfs", "java/test.war"],
-    ["java-jar-clean-candidate", "rootfs", "java/jackson-core-2.18.8.jar"],
+    ["java-jar-clean-candidate", "rootfs", "java/jackson-core-2.18.11.jar"],
   ]) {
     const mode = fixtureScanMode({ id });
     assert.equal(mode, expectedMode);
@@ -233,23 +280,36 @@ test("known vulnerable fixture must retain its expected detection", () => {
   assert.throws(() => validateFixtureReport(fixture, report), /scanner_fixture_detection_missing/u);
 });
 
-test("clean Java fixture requires its locked package and version as well as zero findings", () => {
-  const fixture = { id: "java-jar-clean-candidate", expected: { package: "com.fasterxml.jackson.core:jackson-core", version: "2.18.8" } };
+test("clean Java fixture requires its locked package and version as well as zero findings", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../infra/scanner/materials/scanner-fixtures/manifest.json", import.meta.url)));
+  const fixture = manifest.fixtures.find((entry) => entry.id === "java-jar-clean-candidate");
+  const material = fixture.material[0];
+  const [actual] = await captureFiles([{ path: path.resolve(import.meta.dirname,
+    "../infra/scanner/materials/scanner-fixtures", material.path), cap: 1024 ** 2 }]);
+  assert.equal(actual.sha256, material.sha256);
+  assert.equal(actual.size, material.size);
+  const lock = JSON.parse(await readFile(new URL("../infra/scanner/scanner-lock.json", import.meta.url)));
+  assert.deepEqual(lock.fixtures.find((entry) => entry.path === `infra/scanner/materials/scanner-fixtures/${material.path}`), {
+    path: `infra/scanner/materials/scanner-fixtures/${material.path}`, sha256: actual.sha256, size: actual.size,
+  });
   const report = { SchemaVersion: 2, Trivy: { Version: "0.74.0-autoworld.2" }, ArtifactType: "filesystem", Results: [{
     Target: "Java", Type: "jar", Class: "lang-pkgs", Packages: [{ Name: fixture.expected.package, Version: fixture.expected.version }],
   }] };
   assert.equal(validateFixtureReport(fixture, report).packages.length, 1);
   for (const replacement of [
-    { Name: "com.example:unrelated", Version: "2.18.8" },
-    { Name: fixture.expected.package, Version: "2.15.0" },
+    { Name: "com.example:unrelated", Version: fixture.expected.version },
+    { Name: fixture.expected.package, Version: "2.18.8" },
   ]) {
     const substituted = globalThis.structuredClone(report); substituted.Results[0].Packages = [replacement];
     assert.throws(() => validateFixtureReport(fixture, substituted), /scanner_clean_fixture_inventory_missing/u);
   }
   const wrongType = globalThis.structuredClone(report); wrongType.Results[0].Type = "gomod";
   assert.throws(() => validateFixtureReport(fixture, wrongType), /scanner_clean_fixture_inventory_missing/u);
-  report.Results[0].Vulnerabilities = [{ VulnerabilityID: "CVE-X", PkgName: fixture.expected.package, InstalledVersion: fixture.expected.version }];
-  assert.throws(() => validateFixtureReport(fixture, report), /scanner_clean_fixture_has_findings/u);
+  for (const id of ["CVE-2026-89407", "CVE-2026-89425", "CVE-X"]) {
+    report.Results[0].Vulnerabilities = [{ VulnerabilityID: id, Severity: "HIGH", PkgName: fixture.expected.package,
+      InstalledVersion: fixture.expected.version }];
+    assert.throws(() => validateFixtureReport(fixture, report), /scanner_clean_fixture_has_findings/u);
+  }
 });
 
 test("same-database comparison rejects baseline detection loss", () => {
@@ -274,18 +334,19 @@ test("locked Go build information normalizes independent paths and replacements"
   const dependencies = Array.from({ length: 101 }, (_, index) => `\tdep\texample.test/module-${index}\tv1.0.${index}\th1:test`);
   dependencies.splice(2, 0, "\t=>\texample.test/replacement\tv2.0.0\th1:test");
   const body = ["\tpath\tgithub.com/aquasecurity/trivy/cmd/trivy", "\tmod\tgithub.com/aquasecurity/trivy\t(devel)\t", ...dependencies, "\tbuild\t-buildmode=exe"].join("\n");
-  const first = parseGoBuildInfo(Buffer.from(`/tmp/repeat-1/trivy: go1.26.8-X:jsonv2\n${body}\n`));
-  const second = parseGoBuildInfo(Buffer.from(`/tmp/repeat-2/trivy: go1.26.8-X:jsonv2\r\n${body.replaceAll("\n", "\r\n")}\r\n`));
+  const first = parseGoBuildInfo(Buffer.from(`/tmp/repeat-1/trivy: go1.26.9-X:jsonv2\n${body}\n`));
+  const second = parseGoBuildInfo(Buffer.from(`/tmp/repeat-2/trivy: go1.26.9-X:jsonv2\r\n${body.replaceAll("\n", "\r\n")}\r\n`));
   assert.deepEqual(first, second);
-  assert.deepEqual(first.stdlib, { path: "stdlib", version: "v1.26.8" });
+  assert.deepEqual(first.stdlib, { path: "stdlib", version: "v1.26.9" });
   assert.ok(first.dependencies.some((entry) => entry.path === "example.test/replacement" && entry.version === "v2.0.0"));
   assert.ok(!first.dependencies.some((entry) => entry.path === "example.test/module-1"));
+  assert.throws(() => parseGoBuildInfo(Buffer.from(`/tmp/repeat-1/trivy: go1.26.8-X:jsonv2\n${body}\n`)), /scanner_go_build_info_invalid/u);
 });
 
 test("self report and SBOM must contain the complete compiled Go inventory", () => {
-  const buildInventory = { stdlib: { path: "stdlib", version: "v1.26.8" }, main: { path: "github.com/aquasecurity/trivy", version: null },
+  const buildInventory = { stdlib: { path: "stdlib", version: "v1.26.9" }, main: { path: "github.com/aquasecurity/trivy", version: null },
     dependencies: [{ path: "example.test/dependency", version: "v1.2.3" }] };
-  const packages = [{ Name: "stdlib", Version: "v1.26.8" }, { Name: "github.com/aquasecurity/trivy", Version: "" }, { Name: "example.test/dependency", Version: "v1.2.3" }];
+  const packages = [{ Name: "stdlib", Version: "v1.26.9" }, { Name: "github.com/aquasecurity/trivy", Version: "" }, { Name: "example.test/dependency", Version: "v1.2.3" }];
   const report = { SchemaVersion: 2, ArtifactName: "subject", ArtifactType: "filesystem", Trivy: { Version: "0.74.0-autoworld.2" }, Results: [{ Target: "subject", Type: "gobinary", Class: "lang-pkgs", Packages: packages }] };
   const properties = [{ name: "aquasecurity:trivy:Type", value: "gobinary" }, { name: "aquasecurity:trivy:Class", value: "lang-pkgs" }];
   const sbom = { bomFormat: "CycloneDX", metadata: { component: { type: "application", name: "subject" } }, components: [
@@ -308,9 +369,9 @@ test("self report and SBOM must contain the complete compiled Go inventory", () 
 });
 
 test("self report main version is empty or tied to the locked upstream version", () => {
-  const inventory = { stdlib: { path: "stdlib", version: "v1.26.8" }, main: { path: "github.com/aquasecurity/trivy", version: null }, dependencies: [] };
+  const inventory = { stdlib: { path: "stdlib", version: "v1.26.9" }, main: { path: "github.com/aquasecurity/trivy", version: null }, dependencies: [] };
   const report = { SchemaVersion: 2, ArtifactName: "subject", ArtifactType: "filesystem", Trivy: { Version: "0.74.0-autoworld.2" }, Results: [{
-    Target: "subject", Type: "gobinary", Class: "lang-pkgs", Packages: [{ Name: "stdlib", Version: "v1.26.8" }, { Name: "github.com/aquasecurity/trivy", Version: "v9.9.9" }],
+    Target: "subject", Type: "gobinary", Class: "lang-pkgs", Packages: [{ Name: "stdlib", Version: "v1.26.9" }, { Name: "github.com/aquasecurity/trivy", Version: "v9.9.9" }],
   }] };
   const props = [{ name: "aquasecurity:trivy:Type", value: "gobinary" }, { name: "aquasecurity:trivy:Class", value: "lang-pkgs" }];
   const sbom = { bomFormat: "CycloneDX", metadata: { component: { type: "application", name: "subject" } }, components: [
@@ -321,8 +382,8 @@ test("self report main version is empty or tied to the locked upstream version",
 });
 
 test("version probe bytes and report bind the root identity and locked Trivy version", () => {
-  const lock = { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.8" } };
-  assert.equal(versionProbeBytes(lock).toString("utf8"), "module auto.world/scanner-version-probe\n\ngo 1.26.8\n\nrequire github.com/aquasecurity/trivy v0.74.0\n");
+  const lock = { scanner: { upstreamVersion: "0.74.0" }, compiler: { version: "1.26.9" } };
+  assert.equal(versionProbeBytes(lock).toString("utf8"), "module auto.world/scanner-version-probe\n\ngo 1.26.9\n\nrequire github.com/aquasecurity/trivy v0.74.0\n");
   const report = { SchemaVersion: 2, ArtifactName: "/scanner-version-probe", ArtifactType: "filesystem", Trivy: { Version: "0.74.0-autoworld.2" }, Results: [{
     Target: "go.mod", Type: "gomod", Class: "lang-pkgs", Packages: [{ Name: "auto.world/scanner-version-probe" }, { Name: "github.com/aquasecurity/trivy", Version: "v0.74.0" }],
   }] };

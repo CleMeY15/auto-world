@@ -1,0 +1,13 @@
+{
+  "id": 36339762446,
+  "run_number": 1,
+  "run_attempt": 1,
+  "event": "workflow_dispatch",
+  "path": ".github/workflows/seaweed-candidate-attest.yml",
+  "head_branch": "main",
+  "head_sha": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+  "status": "completed",
+  "conclusion": "success",
+  "created_at": "2026-09-27T18:12:06Z",
+  "updated_at": "2026-09-27T18:13:22Z"
+}

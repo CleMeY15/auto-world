@@ -1,0 +1,25 @@
+{
+  "kind": "SEAWEED_CANDIDATE_PRE_SIGN_RECEIPT_V1",
+  "state": "EVIDENCE_VERIFIED",
+  "authority": "REVIEWED_MAIN_SIGNER",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "admission": "NOT_AUTHORIZED",
+  "signing": "PENDING_OFFICIAL_ACTION",
+  "repository": "CleMeY15/auto-world",
+  "workflowPath": ".github/workflows/seaweed-candidate-attest.yml",
+  "sourceRef": "refs/heads/main",
+  "runId": "36339762446",
+  "runNumber": "1",
+  "runAttempt": "1",
+  "recipeRevision": "83d93ca2801ab2385c680e98acd12ed21f5110b9",
+  "subject": {
+    "name": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+    "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504"
+  },
+  "predicate": {
+    "type": "https://github.com/CleMeY15/auto-world/attestations/private-image-evidence/v1",
+    "sha256": "b57a5fab7e9ad40aa3209660d6eaf0d6c0ebf5004c2d2e181e56ebb075f35c5b",
+    "bytes": 5102,
+    "file": "predicate.json"
+  }
+}

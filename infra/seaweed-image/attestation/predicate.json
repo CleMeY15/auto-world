@@ -1,0 +1,147 @@
+{
+  "kind": "SEAWEED_CANDIDATE_ATTESTATION_PREDICATE_V1",
+  "state": "EVIDENCE_VERIFIED",
+  "authority": "REVIEWED_MAIN_SIGNER",
+  "subject": {
+    "name": "ghcr.io/clemey15/auto-world-seaweedfs-s3",
+    "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "platform": "linux/amd64",
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95"
+  },
+  "source": {
+    "runId": "35884717093",
+    "codeRevision": "6dbc6964e121e54dc5409f5e646f9ae25c01788f",
+    "binaryDigest": "sha256:45e99f08ca1b6f50826512368c73d9541ff9572795e0e12435bbfd46e1bbb9ef",
+    "baseManifestDigest": "sha256:f83509b0721dfd8e2e07faf76c0a899f67a8a889c89abe2fa0a5227ba1320362"
+  },
+  "publisher": {
+    "state": "PUBLISHED_UNADMITTED",
+    "result": "FAILED",
+    "runId": "36324316631",
+    "recipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+    "receipt": {
+      "sha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f",
+      "bytes": 6126
+    }
+  },
+  "audit": {
+    "state": "COMPLETE",
+    "runId": "36325906357",
+    "recipeRevision": "407d013e08630964c9c756dfe1451b0c910cef28",
+    "artifact": {
+      "id": 10934246908,
+      "name": "seaweed-candidate-remote-audit",
+      "bytes": 453587,
+      "digest": "sha256:dd39a83ee38a53b0a45e03fd1d04f1f2e339302985bf3e10e8f7890f185a207f"
+    },
+    "files": {
+      "audit-receipt.json": {
+        "sha256": "0c34eef9f7145070cd041931b21df62f2595d69a4817ef1cb84bd080ba2a4293",
+        "bytes": 9201
+      },
+      "candidate-sbom.cdx.json": {
+        "sha256": "48cf7bf16832af524b4654e7ac14b1f545fd77f1487285c354606d065d706d41",
+        "bytes": 263873
+      },
+      "candidate-vulnerabilities.json": {
+        "sha256": "94e3b23bde5efcaa88efd461ac4bd1329d2d8c6222ac9cb8f5b258baff00461b",
+        "bytes": 174533
+      },
+      "database-evidence.json": {
+        "sha256": "f36c8807b9282ee70db9942869a1ad8c29046f944c672ef3a31f35d57620f3be",
+        "bytes": 2252
+      },
+      "database-java-after-manifest.json": {
+        "sha256": "e5922bfd4ec2aafa93226148b28f8cce4df87557544ed1bbc80a5b24d218d123",
+        "bytes": 624
+      },
+      "database-java-before-manifest.json": {
+        "sha256": "e5922bfd4ec2aafa93226148b28f8cce4df87557544ed1bbc80a5b24d218d123",
+        "bytes": 624
+      },
+      "database-vulnerability-after-manifest.json": {
+        "sha256": "4567b9f40c2dc13ead24d5e314563033a890a06b21fd6cb526e7236bfd0f0a72",
+        "bytes": 616
+      },
+      "database-vulnerability-before-manifest.json": {
+        "sha256": "4567b9f40c2dc13ead24d5e314563033a890a06b21fd6cb526e7236bfd0f0a72",
+        "bytes": 616
+      }
+    },
+    "scanner": {
+      "version": "0.74.0-autoworld.2",
+      "sourceCommit": "e1fd17a0ea4a8cf24bc4b4dd7e2cfbf4bb31b994",
+      "binarySha256": "1255e0feaf879d9b34fa7b8842e4b3dca53429171b03b2576fafdee218a59e3d",
+      "lockSha256": "3bcfd01a6b85d7f45646d6139961f438d2a5decb1b80342c12dd3984bfa7da23"
+    },
+    "databases": {
+      "vulnerability": {
+        "updatedAt": "2026-09-27T13:06:25.102527619Z",
+        "maxAge": "PT48H",
+        "freshAtPreparation": true
+      },
+      "java": {
+        "updatedAt": "2026-09-27T01:08:08.997214067Z",
+        "maxAge": null
+      }
+    },
+    "findings": {
+      "count": 0,
+      "blockerCount": 0
+    }
+  },
+  "runtime": {
+    "state": "VERIFIED",
+    "runId": "36331678311",
+    "recipeRevision": "a410a8bff2247369b2d1cd43a197fed94ffec390",
+    "receipt": {
+      "sha256": "fef9fc0f71fbe27b9d1ee6fc4458234cd66654ea5791c5356cb093f8e7781d06",
+      "bytes": 12786
+    },
+    "profiles": [
+      "basic",
+      "persistence",
+      "strict",
+      "backup",
+      "hostLoopback"
+    ]
+  },
+  "localArchive": {
+    "state": "RESTORE_VERIFIED",
+    "archive": {
+      "sha256": "a0f94b5c4c4f57ed339fb50edeb909045d34ce04bd3d0b4356c85051e6ee17af",
+      "bytes": 246525440,
+      "configSha256": "d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95"
+    },
+    "retention": {
+      "runId": "1790530080479183691",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "receipt": {
+        "sha256": "4ba25ffbdbd5ad9fd1182819f5283369ddd842a722eb6b570e4eaa43a4f8a3aa",
+        "bytes": 6431
+      }
+    },
+    "restore": {
+      "runId": "1790530188451576057",
+      "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+      "receipt": {
+        "sha256": "03155ed6898a4928ef26237d2e7d99d04845cf9ff39916fa71f829e98e0d1fbc",
+        "bytes": 10510
+      },
+      "registryAccess": "NOT_ATTEMPTED"
+    }
+  },
+  "support": {
+    "durationFromActivation": "P1Y",
+    "archiveRetentionAfterSupport": "P365D",
+    "supportStartsAt": null,
+    "supportEndsAt": null,
+    "archiveRetainUntil": null,
+    "dates": "PENDING_ADMISSION_ACTIVATION",
+    "automaticDeletion": "DISABLED",
+    "continuousSecurityControls": "REQUIRED_DURING_SUPPORT"
+  },
+  "admission": "NOT_AUTHORIZED"
+}

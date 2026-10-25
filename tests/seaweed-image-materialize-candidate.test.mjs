@@ -650,6 +650,40 @@ test("host loopback and image cleanup failures stay separate and bounded", { ski
   } finally { rmSync(value.parent, { recursive: true, force: true }); }
 });
 
+test("basic and persistence retain primary and both cleanup failures through the local adapter",
+  { skip: !linux }, async () => {
+  for (const profile of [
+    { dependency: "verifyRuntime", execute: TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimeCandidate,
+      code: "seaweed_candidate_runtime_failed", phase: "RUNTIME_PROBE", reason: "READINESS_UNAVAILABLE",
+      cleanupCode: "seaweed_candidate_runtime_cleanup_failed", cleanupPhase: "RUNTIME_CLEANUP" },
+    { dependency: "verifyPersistence", execute: TEST_ONLY_materializeAndVerifyLocalSeaweedRuntimePersistenceCandidate,
+      code: "seaweed_candidate_runtime_persistence_failed", phase: "PERSISTENCE_SERVICE_TWO",
+      reason: "PERSISTED_OBJECT_MISSING", cleanupCode: "seaweed_candidate_runtime_persistence_cleanup_failed",
+      cleanupPhase: "PERSISTENCE_CLEANUP" },
+  ]) {
+    const value = scope({ imageRemoveFailure: true });
+    const runtimeCleanupFailure = { code: profile.cleanupCode, phase: profile.cleanupPhase,
+      reason: "CLEANUP_UNCERTAIN" };
+    value.injected[profile.dependency] = async () => {
+      throw Object.assign(new Error("private command output"), { code: profile.code,
+        phase: profile.phase, reason: profile.reason, durationMs: 19, runtimeCleanupFailure });
+    };
+    try {
+      await assert.rejects(profile.execute(value.inputs, value.injected), (error) => {
+        assert.equal(error.code, "seaweed_candidate_runtime_failed");
+        assert.equal(error.phase, profile.phase);
+        assert.equal(error.reason, profile.reason);
+        assert.deepEqual(error.runtimeCleanupFailure, runtimeCleanupFailure);
+        assert.equal(error.secondaryFailure?.code, "seaweed_candidate_image_cleanup_failed");
+        assert.equal(JSON.stringify(error).includes("private"), false);
+        return true;
+      });
+      assert.equal(value.imageIds.has(imageId), true);
+      assert.deepEqual(readdirSync(value.parent), []);
+    } finally { rmSync(value.parent, { recursive: true, force: true }); }
+  }
+});
+
 test("backup and both cleanup failures remain separate and bounded", { skip: !linux }, async () => {
   const value = scope({ imageRemoveFailure: true });
   value.injected.verifyBackupRestore = async () => {

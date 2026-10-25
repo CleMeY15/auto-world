@@ -4,8 +4,8 @@ import { test } from "node:test";
 import * as sdk from "@auto-world/connector-sdk";
 import {
   activeItem, adapter, copy, fakeLease, fakeTime, NOW, registry, request,
-} from "./fixtures.mjs";
-import { syntheticStore } from "./store.mjs";
+} from "../test-support/fixtures.mjs";
+import { syntheticStore } from "../test-support/store.mjs";
 
 function deferred() {
   let resolve;

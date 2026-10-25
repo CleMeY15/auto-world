@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "state": "PUBLIC_MATERIAL_SELECTION_NOT_NATIVE_APK_VERIFIED_NOT_ADMITTED",
+  "retrievedAt": "2026-09-27T19:27:06.5664371Z",
+  "sources": {
+    "alpine_signing_key": {
+      "filename": "alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub",
+      "http_etag": "\"65ed7bed6a56766f0cfcf1ea8adc3518\"",
+      "http_status": 200,
+      "sha256": "207e4696d3c05f7cb05966aee557307151f1f00217af4143c1bcaf33b8df733f",
+      "size": 800,
+      "url": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/3.24-stable/main/alpine-keys/alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub"
+    },
+    "apk": {
+      "filename": "gosu-1.19-r5.apk",
+      "http_etag": "\"6a9c8142-cab81\"",
+      "http_last_modified": "Sat, 05 Sep 2026 20:53:22 GMT",
+      "http_status": 200,
+      "sha256": "cd51335dcbc412f28088452a2407ff13e01dce9e11718feee4beec69cf2ebcad",
+      "size": 830337,
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/gosu-1.19-r5.apk"
+    },
+    "apk_v2_signature_spec": "https://wiki.alpinelinux.org/wiki/Apk_spec",
+    "apkbuild": {
+      "commit": "1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+      "filename": "APKBUILD-1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+      "http_etag": "\"4a57fd3009cc28e15a38f780aac65c4d\"",
+      "http_status": 200,
+      "sha256": "e8ebdfafcedf25013b39055c83171936109c9ffb4c0262d8aef4139e0a481192",
+      "size": 825,
+      "url": "https://gitlab.alpinelinux.org/alpine/aports/-/raw/1e1aed58b7720fcb6b1859043d543b33019d8c4f/community/gosu/APKBUILD"
+    },
+    "package_metadata_page": "https://pkgs.alpinelinux.org/package/v3.24/community/x86_64/gosu",
+    "signed_repository_index": {
+      "filename": "APKINDEX-v3.24-community-x86_64.tar.gz",
+      "http_etag": "\"6ab84bdf-26690d\"",
+      "http_last_modified": "Sat, 26 Sep 2026 22:49:03 GMT",
+      "http_status": 200,
+      "sha256": "87d288609457bab7c5dd63f13e3ebda73511adfedafebd9226dac4e55f3c69f3",
+      "size": 2517261,
+      "url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/community/x86_64/APKINDEX.tar.gz"
+    }
+  },
+  "package": {
+    "name": "gosu",
+    "version": "1.19-r5",
+    "sourceVersion": "1.19",
+    "architecture": "x86_64",
+    "buildCommit": "1e1aed58b7720fcb6b1859043d543b33019d8c4f",
+    "license": "Apache-2.0",
+    "declaredDependencies": [],
+    "installedExecutable": {
+      "path": "usr/bin/gosu",
+      "bytes": 1977120,
+      "sha256": "6d3214ab9d2f1e9ffda75ea2f6bb1f454a13a78dd70318e09eee814ce32cce03",
+      "mode": "0755",
+      "goVersion": "go1.26.8",
+      "executed": false
+    }
+  },
+  "verificationRequirement": "The diagnostic must verify the exact APK and index with native apk and the signing key from the exact base. Research parsing and SHA identities are not runtime admission."
+}

@@ -29,15 +29,17 @@ function checksumHeader(header) {
   writeString(header, 148, 8, `${checksum.toString(8).padStart(6, "0")}\0 `);
 }
 
-function makeHeader({ path, prefix = "", type = "file", content = Buffer.alloc(0), linkname = "", mode = 0o644 } = {}) {
+function makeHeader({ path, prefix = "", type = "file", content = Buffer.alloc(0), linkname = "", mode = 0o644,
+  uid = 0, gid = 0, mtime = 1_700_000_000 } = {}) {
   const header = Buffer.alloc(BLOCK);
   writeString(header, 0, 100, path);
   writeOctal(header, 100, 8, mode);
-  writeOctal(header, 108, 8, 0);
-  writeOctal(header, 116, 8, 0);
+  writeOctal(header, 108, 8, uid);
+  writeOctal(header, 116, 8, gid);
   writeOctal(header, 124, 12, type === "file" ? content.length : 0);
-  writeOctal(header, 136, 12, 1_700_000_000);
-  writeString(header, 156, 1, type === "file" ? "0" : type === "directory" ? "5" : type === "symlink" ? "2" : type);
+  writeOctal(header, 136, 12, mtime);
+  writeString(header, 156, 1, type === "file" ? "0" : type === "directory" ? "5"
+    : type === "symlink" ? "2" : type === "hardlink" ? "1" : type);
   writeString(header, 157, 100, linkname);
   writeString(header, 257, 6, "ustar\0");
   writeString(header, 263, 2, "00");
@@ -114,6 +116,74 @@ test("scanRawUstar independently verifies the complete raw archive and its DiffI
   assert.equal(result.diffId, diffId);
   assert.equal(result.members.length, fixtureEntries.length);
   assert.deepEqual(result.members.map(({ entry }) => entry), (await scan(tar)).members.map(({ entry }) => entry));
+});
+
+test("scanRawUstar accepts a bounded direct prior-file hardlink only with explicit opt-in", async () => {
+  const metadata = { mode: 0o640, uid: 70, gid: 70, mtime: 1_700_000_123 };
+  const tar = makeTar([
+    { path: "target", content: Buffer.from("content"), ...metadata },
+    { path: "alias", type: "hardlink", linkname: "target", ...metadata },
+  ]);
+  const diffId = `sha256:${hash(tar)}`;
+  await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId }), "seaweed_archive_tar_type_invalid");
+  await rejectsCode(scan(tar), "seaweed_archive_tar_type_invalid");
+  const result = await scanRawUstar({ input: Readable.from([tar]), diffId, allowHardlinks: true });
+  assert.deepEqual(result.members[1].entry, {
+    path: "alias", type: "hardlink", ...metadata, size: 0, linkname: "target",
+  });
+});
+
+test("scanRawUstar hardlink opt-in rejects unsafe, indirect, forward, missing, self and metadata-mismatched targets", async () => {
+  const target = { path: "target", content: Buffer.from("content"), mode: 0o640, uid: 70, gid: 70,
+    mtime: 1_700_000_123 };
+  const cases = [
+    [{ path: "alias", type: "hardlink", linkname: "target", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }, target],
+    [target, { path: "alias", type: "hardlink", linkname: "missing", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "alias", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [{ path: "target", type: "symlink", linkname: "file", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime },
+    { path: "alias", type: "hardlink", linkname: "target", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "first", type: "hardlink", linkname: "target", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime },
+    { path: "second", type: "hardlink", linkname: "first", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "../target", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "target", mode: 0o600, uid: target.uid,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "target", mode: target.mode, uid: 0,
+      gid: target.gid, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "target", mode: target.mode, uid: target.uid,
+      gid: 0, mtime: target.mtime }],
+    [target, { path: "alias", type: "hardlink", linkname: "target", mode: target.mode, uid: target.uid,
+      gid: target.gid, mtime: target.mtime + 1 }],
+  ];
+  for (const entries of cases) {
+    const tar = makeTar(entries);
+    await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId: `sha256:${hash(tar)}`,
+      allowHardlinks: true }), "seaweed_archive_tar_link_invalid");
+  }
+  const tar = makeTar([target]);
+  await rejectsCode(scanRawUstar({ input: Readable.from([tar]), diffId: `sha256:${hash(tar)}`,
+    allowHardlinks: "yes" }), "seaweed_archive_hardlink_option_invalid");
+
+  const nonzeroSize = makeTar([target, { path: "alias", type: "hardlink", linkname: "target", mode: target.mode,
+    uid: target.uid, gid: target.gid, mtime: target.mtime }]);
+  const hardlinkOffset = 2 * BLOCK;
+  writeOctal(nonzeroSize, hardlinkOffset + 124, 12, 1);
+  checksumHeader(nonzeroSize.subarray(hardlinkOffset, hardlinkOffset + BLOCK));
+  await rejectsCode(scanRawUstar({ input: Readable.from([nonzeroSize]), diffId: `sha256:${hash(nonzeroSize)}`,
+    allowHardlinks: true }), "seaweed_archive_tar_header_invalid");
+
+  for (const type of ["x", "g", "3", "4", "6"]) {
+    const unsupported = makeTar([{ path: "unsupported", type }]);
+    await rejectsCode(scanRawUstar({ input: Readable.from([unsupported]), diffId: `sha256:${hash(unsupported)}`,
+      allowHardlinks: true }), "seaweed_archive_tar_type_invalid");
+  }
 });
 
 test("scanRawUstar rejects truncation, trailing bytes and a wrong DiffID", async () => {

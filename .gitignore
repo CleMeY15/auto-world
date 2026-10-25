@@ -4,6 +4,10 @@ node_modules/
 dist/
 build/
 .next/
+.test-dist/
+*.tsbuildinfo
+playwright-report/
+test-results/
 coverage/
 .env
 .env.*

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { candidateInputDockerArguments, ownedContainerRun, ownedContainerRunArguments,
+import { candidateInputDockerArguments, executeCandidateAudit, ownedContainerRun, ownedContainerRunArguments,
   requireCandidateAuditContext, TEST_ONLY_executeCandidateAudit,
   validateAuditedCandidateReceipt } from "../scripts/seaweed-image/candidate-audit.mjs";
 import { captureFiles } from "../scripts/scanner/controls.mjs";
@@ -17,6 +17,8 @@ const diffId = `sha256:${"c".repeat(64)}`;
 const revision = "d".repeat(40);
 
 async function fakeAudit(mode) {
+  const postgres = mode.startsWith("postgres");
+  const remote = postgres || ["remote", "remote_false", "remote_undefined", "remote_throw"].includes(mode);
   const temp = mkdtempSync(path.join(os.tmpdir(), "aw-candidate-audit-execute-"));
   const context = { root: path.join(temp, "work"), output: path.join(temp, "evidence"),
     builds: path.join(temp, "builds"), runId: "35999999999", recipeRevision: revision,
@@ -39,6 +41,7 @@ async function fakeAudit(mode) {
     manifestEvidence: () => manifests,
     databaseEvidence: async (cache) => {
       if (mode === "stale") throw new Error("scanner_database_age_exceeded");
+      if (mode === "postgres_controls_stale" && databaseFiles) throw new Error("scanner_database_metadata_invalid");
       if (!databaseFiles) {
         databaseFiles = ["vuln.db", "vuln.json", "java.db", "java.json"].map((name) => {
           const file = path.join(cache, name);
@@ -52,7 +55,7 @@ async function fakeAudit(mode) {
       if (args[0] === "container") return Buffer.alloc(0);
       if (options.output) {
         writeFileSync(options.output, "{}");
-        if (["mutation", "mutation_masked", "mutation_cleanup_failed"].includes(mode)
+        if (["mutation", "mutation_masked", "mutation_cleanup_failed", "postgres_mutation"].includes(mode)
           && args.some((arg) => arg.endsWith("-scan-json"))) {
           appendFileSync(archiveFile, "changed");
         }
@@ -71,16 +74,19 @@ async function fakeAudit(mode) {
         archiveSha256: createHash("sha256").update(bytes).digest("hex"), archiveBytes: bytes.length,
         configSha256: "e".repeat(64), configBytes: 200,
         layerSha256: "f".repeat(64), layerBytes: 300 };
+      if (postgres) proof.diffIds = [digest, diffId];
       let callbackFailure;
       try {
         await inspect({ file: archiveFile, archiveProof: proof,
-          imageId, diffId, runId: context.runId, recipeRevision: context.recipeRevision });
+          imageId, diffId, ...(postgres ? { diffIds: proof.diffIds } : {}),
+          runId: context.runId, recipeRevision: context.recipeRevision });
       } catch (error) { callbackFailure = error; }
       finally { unlinkSync(archiveFile); }
       if (callbackFailure) {
-        if (["mutation_masked", "mutation_cleanup_failed"].includes(mode)) {
-          throw Object.assign(new Error("seaweed_candidate_inspection_failed"),
-            { code: "seaweed_candidate_inspection_failed", state: "INCOMPLETE",
+        if (["mutation_masked", "mutation_cleanup_failed", "postgres_mutation"].includes(mode)) {
+          const code = postgres ? "postgres_candidate_inspection_failed" : "seaweed_candidate_inspection_failed";
+          throw Object.assign(new Error(code),
+            { code, state: "INCOMPLETE",
               authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
               ...(mode === "mutation_cleanup_failed" ? { secondaryFailure: {
                 code: "seaweed_candidate_image_cleanup_failed", phase: "CANDIDATE_IMAGE_CLEANUP",
@@ -88,7 +94,8 @@ async function fakeAudit(mode) {
         }
         throw callbackFailure;
       }
-      return { kind: "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+      return { kind: remote ? "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" : "SEAWEED_LOCAL_CANDIDATE_RECEIPT_V1", state: "VERIFIED",
+          ...(remote ? { subject: `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}` } : {}),
           authority: "PREPARATION_ONLY", candidateAuthorization: "NOT_AUTHORIZED",
           imageExecution: "NOT_ATTEMPTED", publication: "NOT_ATTEMPTED",
           vulnerabilityAudit: "NOT_ATTEMPTED", admission: "NOT_ATTEMPTED",
@@ -97,6 +104,42 @@ async function fakeAudit(mode) {
           recipeRevision: context.recipeRevision };
     },
   };
+  if (remote) {
+    dependencies.auditKind = "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1";
+    dependencies.validateCandidateReceipt = (candidate, proof, actualContext) => {
+      assert.equal(candidate.kind, "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1");
+      assert.equal(candidate.archiveSha256, proof.archiveSha256);
+      assert.equal(candidate.archiveBytes, proof.archiveBytes);
+      assert.equal(candidate.imageId, proof.imageId);
+      assert.equal(candidate.diffId, proof.diffId);
+      assert.equal(candidate.runId, actualContext.runId);
+      assert.equal(candidate.recipeRevision, actualContext.recipeRevision);
+      if (mode === "remote_false") return false;
+      if (mode === "remote_undefined") return undefined;
+      if (mode === "remote_throw") throw new Error("seaweed_remote_receipt_rejected");
+      return true;
+    };
+  }
+  if (postgres) {
+    dependencies.auditKind = "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1";
+    dependencies.scannerControls = async () => {
+      if (mode === "postgres_controls_failed") throw new Error("scanner_self_audit_blocked");
+      return { state: "COMPLETE" };
+    };
+    dependencies.projectSnapshot = (snapshot, { artifactName }) => {
+      if (mode === "postgres_bad_projection") return { subject: null };
+      const subject = { artifactName, imageId: snapshot.imageId,
+        archiveSha256: snapshot.archiveProof.archiveSha256, tag: snapshot.archiveProof.tag,
+        configDigest: snapshot.imageId, diffIds: snapshot.diffIds };
+      return { subject, receiptSubject: { ...subject, archiveBytes: snapshot.archiveProof.archiveBytes },
+        policyInput: { archiveEvidence: subject } };
+    };
+    dependencies.evaluatePolicy = async (input) => {
+      assert.deepEqual(input.subject.diffIds, [digest, diffId]);
+      assert.deepEqual(input.archiveEvidence, input.subject);
+      return { state: "COMPLETE", findings: [], blockers: [], inventory: {} };
+    };
+  }
   let result; let error;
   try {
     try { result = await TEST_ONLY_executeCandidateAudit(context, dependencies); }
@@ -108,7 +151,7 @@ async function fakeAudit(mode) {
   } finally { rmSync(temp, { recursive: true, force: true }); }
 }
 
-test("orchestrator refuses stale databases before candidate materialization and cleans globally", async () => {
+test("orchestrator refuses stale vulnerability database before candidate materialization and cleans globally", async () => {
   const audit = await fakeAudit("stale");
   assert.equal(audit.error?.message, "scanner_database_age_exceeded");
   assert.equal(audit.receipt.state, "INCOMPLETE");
@@ -247,13 +290,13 @@ test("dispatch context refuses forks, later attempts, different workflows and ro
       GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main",
       GITHUB_REPOSITORY: "CleMeY15/auto-world",
       GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main",
-      GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision,
+      GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1", GITHUB_SHA: revision,
       GITHUB_RUN_ID: "35999999999", RUNNER_TEMP: temp };
     const host = { platform: "linux", uid: 1001, gid: 1001 };
     assert.equal(requireCandidateAuditContext(env, host).recipeRevision, revision);
     for (const change of [
       { GITHUB_REF: "refs/heads/feature" }, { GITHUB_REPOSITORY: "attacker/fork" },
-      { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_RUN_NUMBER: "2" },
+      { GITHUB_RUN_ATTEMPT: "2" }, { GITHUB_RUN_NUMBER: "1" }, { GITHUB_RUN_NUMBER: "3" },
       { GITHUB_WORKFLOW_REF: "attacker/fork/.github/workflows/seaweed-candidate-audit.yml@refs/heads/main" },
     ]) assert.throws(() => requireCandidateAuditContext({ ...env, ...change }, host),
       /seaweed_audit_context_invalid/u);
@@ -276,16 +319,107 @@ test("candidate audit receipt binds the disposed exact archive without elevating
     { imageId: digest }, { diffId: digest }, { archiveSha256: "f".repeat(64) },
     { archiveBytes: 4097 }, { runId: "1" }, { recipeRevision: "f".repeat(40) },
     { vulnerabilityAudit: "PASSED" }, { imageExecution: "VERIFIED_DIAGNOSTIC" },
-    { candidateAuthorization: "AUTHORIZED" },
+    { candidateAuthorization: "AUTHORIZED" }, { kind: "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1" },
   ]) assert.throws(() => validateAuditedCandidateReceipt({ ...receipt, ...change }, proof, context),
     /seaweed_audit_candidate_receipt_invalid/u);
+});
+
+test("remote audit provider preserves its distinct receipt and exact registry subject", async () => {
+  const audit = await fakeAudit("remote");
+  assert.equal(audit.error, undefined);
+  assert.equal(audit.receipt.kind, "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1");
+  assert.equal(audit.receipt.registrySubject, `ghcr.io/clemey15/auto-world-seaweedfs-s3@${digest}`);
+  assert.equal(audit.receipt.scannerInput, "LOCAL_DOCKER_SAVE_ARCHIVE");
+  assert.equal(audit.receipt.candidate.kind, "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1");
+  assert.equal(audit.receipt.state, "COMPLETE");
+  assert.equal(audit.receipt.authority, "DIAGNOSTIC_ONLY");
+  assert.equal(audit.archiveGone, true);
+});
+
+test("remote audit cannot use the local provider or validator by default", async () => {
+  await assert.rejects(executeCandidateAudit({}, {
+    auditKind: "SEAWEED_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+  }), /seaweed_audit_provider_invalid/u);
+  await assert.rejects(executeCandidateAudit({}, { auditKind: "UNKNOWN" }), /seaweed_audit_provider_invalid/u);
+  await assert.rejects(executeCandidateAudit({}, {
+    materialize: () => {}, validateCandidateReceipt: () => true,
+  }), /seaweed_audit_provider_invalid/u);
+});
+
+test("PostgreSQL audit retains ordered multi-layer identity and awaits its policy", async () => {
+  const audit = await fakeAudit("postgres");
+  assert.equal(audit.error, undefined);
+  assert.equal(audit.receipt.kind, "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1");
+  assert.deepEqual(audit.receipt.subject.diffIds, [digest, diffId]);
+  assert.equal(audit.receipt.subject.configDigest, imageId);
+  assert.equal(audit.receipt.scannerControls.state, "COMPLETE");
+  assert.equal(audit.receipt.admission, "NOT_AUTHORIZED");
+  assert.equal(audit.receipt.supportStartedAt, null);
+  assert.equal(audit.receipt.archiveUntil, null);
+  assert.equal(audit.archiveGone, true);
+  assert.equal(audit.workEmpty, true);
+});
+
+test("PostgreSQL audit refuses missing scanner controls and incompatible default policies", async () => {
+  const required = { auditKind: "POSTGRES_EXACT_REMOTE_CANDIDATE_AUDIT_V1",
+    materialize: () => {}, validateCandidateReceipt: () => true,
+    projectSnapshot: () => {}, inputArguments: () => {}, evaluatePolicy: () => {}, scannerControls: () => {} };
+  for (const field of ["projectSnapshot", "inputArguments", "evaluatePolicy", "scannerControls"]) {
+    await assert.rejects(executeCandidateAudit({}, { ...required, [field]: undefined }),
+      /seaweed_audit_provider_invalid/u);
+  }
+});
+
+test("failed fresh scanner controls stop before private candidate materialization", async () => {
+  const audit = await fakeAudit("postgres_controls_failed");
+  assert.equal(audit.error.message, "scanner_self_audit_blocked");
+  assert.equal(audit.receipt.state, "INCOMPLETE");
+  assert.equal(audit.materializeCalls, 0);
+  assert.equal(audit.workEmpty, true);
+});
+
+test("database freshness expiring during controls stops candidate access", async () => {
+  const audit = await fakeAudit("postgres_controls_stale");
+  assert.equal(audit.error.message, "scanner_database_metadata_invalid");
+  assert.equal(audit.receipt.state, "INCOMPLETE");
+  assert.equal(audit.materializeCalls, 0);
+  assert.equal(audit.workEmpty, true);
+});
+
+test("PostgreSQL masked callback failure preserves its diagnostic after confirmed cleanup", async () => {
+  const audit = await fakeAudit("postgres_mutation");
+  assert.equal(audit.error.message, "scanner_frozen_input_changed");
+  assert.equal(audit.receipt.state, "INCOMPLETE");
+  assert.equal(audit.archiveGone, true);
+  assert.equal(audit.workEmpty, true);
+});
+
+test("invalid multi-layer projection fails before scans and still cleans the archive", async () => {
+  const audit = await fakeAudit("postgres_bad_projection");
+  assert.equal(audit.error.message, "seaweed_audit_snapshot_projection_invalid");
+  assert.equal(audit.receipt.state, "INCOMPLETE");
+  assert.equal(audit.archiveGone, true);
+  assert.equal(audit.workEmpty, true);
+});
+
+test("unconfirmed or rejected remote receipt remains incomplete after archive cleanup", async () => {
+  for (const mode of ["remote_false", "remote_undefined", "remote_throw"]) {
+    const audit = await fakeAudit(mode);
+    assert.equal(audit.receipt.state, "INCOMPLETE");
+    assert.equal(audit.receipt.failure.code, mode === "remote_throw"
+      ? "seaweed_remote_receipt_rejected" : "seaweed_audit_candidate_receipt_invalid");
+    assert.equal(audit.archiveGone, true);
+    assert.equal(audit.workEmpty, true);
+    assert.equal(Object.hasOwn(audit.receipt, "registrySubject"), false);
+    assert.equal(Object.hasOwn(audit.receipt, "candidate"), false);
+  }
 });
 
 test("manual audit workflow is guarded, read-only and does not publish candidate layers", () => {
   const workflow = readFileSync(new URL("../.github/workflows/seaweed-candidate-audit.yml", import.meta.url), "utf8");
   assert.match(workflow, /^on:\n {2}workflow_dispatch:/mu);
   assert.match(workflow, /^permissions:\n {2}contents: read\n {2}actions: read/mu);
-  assert.equal((workflow.match(/test "\$GITHUB_RUN_NUMBER" = '1'/gu) ?? []).length, 2);
+  assert.equal((workflow.match(/test "\$GITHUB_RUN_NUMBER" = '2'/gu) ?? []).length, 2);
   assert.equal((workflow.match(/test "\$GITHUB_RUN_ATTEMPT" = '1'/gu) ?? []).length, 2);
   assert.match(workflow, /node scripts\/seaweed-image\/candidate-audit\.mjs execute/u);
   assert.match(workflow, /node scripts\/seaweed-image\/candidate-audit\.mjs cleanup/u);

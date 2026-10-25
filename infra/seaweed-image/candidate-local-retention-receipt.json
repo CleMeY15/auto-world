@@ -1,0 +1,189 @@
+{
+  "kind": "SEAWEED_LOCAL_CANDIDATE_RETENTION_RECEIPT_V1",
+  "state": "RETAINED",
+  "authority": "LOCAL_DIAGNOSTIC",
+  "origin": "LOCAL_DIAGNOSTIC",
+  "executionId": "local-1790530080479183691",
+  "githubRunId": null,
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "admission": "NOT_AUTHORIZED",
+  "signing": "NOT_ATTEMPTED",
+  "registryWrite": "NOT_ATTEMPTED",
+  "runId": "1790530080479183691",
+  "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+  "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+  "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+  "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+  "archiveProof": {
+    "kind": "SEAWEED_SAVED_CANDIDATE_PROOF_V1",
+    "authority": "PREPARATION_ONLY",
+    "candidateAuthorization": "NOT_AUTHORIZED",
+    "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "identityType": "CLASSIC_CONFIG_ID",
+    "tag": "auto-world-seaweed-s3:remote-1790530080479183691-attempt-1",
+    "serverVersion": "28.0.4",
+    "archiveSha256": "a0f94b5c4c4f57ed339fb50edeb909045d34ce04bd3d0b4356c85051e6ee17af",
+    "archiveBytes": 246525440,
+    "archiveMembers": 10,
+    "configSha256": "d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+    "configBytes": 2175,
+    "layerSha256": "14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "layerBytes": 246512128,
+    "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+    "rawSize": 246512128,
+    "memberCount": 3032
+  },
+  "remoteMaterialReceipt": {
+    "kind": "SEAWEED_REMOTE_CANDIDATE_RECEIPT_V1",
+    "state": "VERIFIED",
+    "authority": "REMOTE_READ_ONLY",
+    "candidateAuthorization": "NOT_AUTHORIZED",
+    "publication": "PUBLISHED_UNADMITTED",
+    "execution": "NOT_ATTEMPTED",
+    "registryWrite": "NOT_ATTEMPTED",
+    "runId": "1790530080479183691",
+    "recipeRevision": "f7c1d59431cb1572239d6ab87da9e6d3cc7dcc55",
+    "subject": "ghcr.io/clemey15/auto-world-seaweedfs-s3@sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+    "alias": "auto-world-seaweed-s3:remote-1790530080479183691-attempt-1",
+    "remoteManifest": {
+      "digest": "sha256:9739d848712cf40f158a9d44586b6166a0d51839eaeceebbadcad27980b1f504",
+      "bytes": 529,
+      "state": "RAW_MANIFEST_VERIFIED",
+      "config": {
+        "digest": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+        "size": 2175,
+        "mediaType": "application/vnd.docker.container.image.v1+json"
+      },
+      "layer": {
+        "digest": "sha256:33c668b2e3a39312f6ec2a4ff03adee3a6fa81caa5faf401f50f687fd2c30319",
+        "size": 97894228,
+        "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+        "compressedSizeVerification": "RECORDED_ONLY"
+      }
+    },
+    "engine": {
+      "state": "ENGINE_VERIFIED",
+      "docker": "28.0.4|28.0.4",
+      "buildx": "github.com/docker/buildx v0.37.1 0b265a9f62db554fa9aba6dd19e1bd5704bc7d8a",
+      "serverVersion": "28.0.4",
+      "pullResponse": "SUCCESS",
+      "compressedDigestVerification": "MANAGED_MOBY_PULL",
+      "compressedSizeVerification": "RECORDED_ONLY"
+    },
+    "image": {
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "platform": "linux/amd64"
+    },
+    "archive": {
+      "state": "ARCHIVE_VERIFIED",
+      "imageId": "sha256:d94adeba9e29eed4d66eb26d504ba32f351ceff78e7737a1cb1b9bcda9b32785",
+      "diffId": "sha256:14383f2ea938d9fb54669caeedd774623b93327747c350f7760f7d2c1602fa95",
+      "archiveSha256": "a0f94b5c4c4f57ed339fb50edeb909045d34ce04bd3d0b4356c85051e6ee17af",
+      "archiveBytes": 246525440,
+      "saveResponse": "SUCCESS"
+    },
+    "publisher": {
+      "result": "FAILED",
+      "runId": "36324316631",
+      "recipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "receiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f"
+    },
+    "provenance": {
+      "publisherRunId": "36324316631",
+      "publisherRecipeRevision": "c9aa67d4a7f1730070d44a41f398fd1ddf07627e",
+      "publisherReceiptSha256": "695a063450a40b1abc477b11255ad54255c89c68bc4d1609d12f6865816ccb6f",
+      "sourceRunId": "35884717093",
+      "sourceCodeRevision": "6dbc6964e121e54dc5409f5e646f9ae25c01788f"
+    },
+    "phases": [
+      {
+        "name": "managed_engine",
+        "result": "PASSED",
+        "durationMs": 40
+      },
+      {
+        "name": "registry_login",
+        "result": "PASSED",
+        "durationMs": 658
+      },
+      {
+        "name": "raw_tag_manifest",
+        "result": "PASSED",
+        "durationMs": 1031
+      },
+      {
+        "name": "anonymous_digest_denied",
+        "result": "PASSED",
+        "durationMs": 367
+      },
+      {
+        "name": "raw_digest_manifest",
+        "result": "PASSED",
+        "durationMs": 984
+      },
+      {
+        "name": "local_inventory_before",
+        "result": "PASSED",
+        "durationMs": 14
+      },
+      {
+        "name": "local_collision_check",
+        "result": "PASSED",
+        "durationMs": 41
+      },
+      {
+        "name": "exact_digest_pull",
+        "result": "PASSED",
+        "durationMs": 6777
+      },
+      {
+        "name": "simple_local_alias",
+        "result": "PASSED",
+        "durationMs": 34
+      },
+      {
+        "name": "private_docker_save",
+        "result": "PASSED",
+        "durationMs": 1253
+      },
+      {
+        "name": "full_archive_validation",
+        "result": "PASSED",
+        "durationMs": 804
+      },
+      {
+        "name": "private_archive_callback",
+        "result": "PASSED",
+        "durationMs": 986
+      },
+      {
+        "name": "owned_docker_cleanup",
+        "result": "PASSED",
+        "durationMs": 230
+      },
+      {
+        "name": "owned_temporary_cleanup",
+        "result": "PASSED",
+        "durationMs": 13
+      }
+    ]
+  },
+  "phases": [
+    {
+      "name": "private_archive_copy",
+      "result": "PASSED",
+      "durationMs": 239
+    },
+    {
+      "name": "retained_archive_validation",
+      "result": "PASSED",
+      "durationMs": 747
+    },
+    {
+      "name": "remote_cleanup",
+      "result": "PASSED",
+      "durationMs": 244
+    }
+  ]
+}

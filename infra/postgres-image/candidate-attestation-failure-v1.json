@@ -1,0 +1,58 @@
+{
+  "kind": "POSTGRES_CANDIDATE_ATTESTATION_FAILURE_V1",
+  "state": "FAILED",
+  "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+  "workflowPath": ".github/workflows/postgres-candidate-attest.yml",
+  "workflowId": 372074757,
+  "runId": "36854000922",
+  "runNumber": 1,
+  "runAttempt": 1,
+  "recipeRevision": "362ae304204e7692e99cb5e3126ffc91b9efa896",
+  "access": {
+    "jobId": 110342049185,
+    "conclusion": "failure",
+    "observedFailure": "postgres_attestation_access_cleanup_uncertain",
+    "primaryFailure": "NOT_RECORDED",
+    "manifestReadResults": "NOT_ESTABLISHED"
+  },
+  "signer": {
+    "jobId": 110342213581,
+    "conclusion": "skipped",
+    "signing": "NOT_ATTEMPTED"
+  },
+  "verifier": {
+    "jobId": 110342214910,
+    "conclusion": "skipped",
+    "verification": "NOT_ATTEMPTED"
+  },
+  "artifactCount": 0,
+  "producer": "DISABLED_BUDGET_CONSUMED",
+  "retainedPublicProofs": {
+    "runApi": {
+      "bytes": 12138,
+      "sha256": "0281a0b2d51b8737b8bf3f0811a05364fd9ccf3a616e3fef154dcc9d95281de1"
+    },
+    "jobsApi": {
+      "bytes": 4550,
+      "sha256": "f82f9ba388a5a051a90c0fb214338a7b8defe1fcec9892d05fabf1fcc3e843a1"
+    },
+    "artifactsApi": {
+      "bytes": 32,
+      "sha256": "244563f989470892c537c9a4622920af0d228ee4528f7d00c64a06d6cd95856c"
+    },
+    "collection": {
+      "bytes": 688,
+      "sha256": "6449660f2a9b73d1d9ff77d564f5290037e7fe1e697eebe1991404c5d5ddc33d"
+    },
+    "failureLog": {
+      "bytes": 1419,
+      "sha256": "ddbccda27aab6aa1db537a90e7a0ce4c457c06adf6248a7d5271375cf355bfd8"
+    }
+  },
+  "claims": {
+    "admission": "NOT_AUTHORIZED",
+    "supportStartedAt": null,
+    "supportEndsAt": null,
+    "archiveUntil": null
+  }
+}

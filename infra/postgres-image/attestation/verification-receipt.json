@@ -1,0 +1,875 @@
+{
+  "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_RECEIPT_V1",
+  "state": "VERIFIED",
+  "authority": "OFFICIAL_GITHUB_ATTESTATION_VERIFIER",
+  "candidateAuthorization": "NOT_AUTHORIZED",
+  "admission": "NOT_AUTHORIZED",
+  "verdict": "ATTESTED_UNADMITTED",
+  "repository": "CleMeY15/auto-world",
+  "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+  "sourceRef": "refs/heads/main",
+  "runId": "36858133579",
+  "runNumber": "1",
+  "runAttempt": "1",
+  "recipeRevision": "64778982b86faf17cb4ede9fd8027869049f6602",
+  "subject": {
+    "name": "ghcr.io/clemey15/auto-world-postgres-gosu",
+    "digest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93"
+  },
+  "predicate": {
+    "type": "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+    "sha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+    "bytes": 9949
+  },
+  "preSignReceipt": {
+    "sha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+    "bytes": 837,
+    "runId": "36858133579"
+  },
+  "tool": {
+    "version": "2.98.0",
+    "binarySha256": "62885b97de6a0cd85e616cdd94bcda908bf5cf1018094385892b05cea3537163",
+    "binaryBytes": 41377954,
+    "helpSha256": "65e2bfd5da639a9e7a3bacc03266efe284c245005ea288041f9c305bbb6ddd51"
+  },
+  "registryAccess": {
+    "method": "ISOLATED_DOCKER_CONFIG_DEFAULT_KEYCHAIN",
+    "scope": "READ_ONLY"
+  },
+  "positiveControls": {
+    "before": {
+      "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+      "state": "VERIFIED",
+      "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+      "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+      "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+      "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+      "policy": {
+        "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+        "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+        "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+        "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+        "ref": "refs/heads/main"
+      },
+      "invocations": [
+        {
+          "mode": "identity",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--cert-identity",
+            "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--signer-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 35850,
+          "stdoutSha256": "bc71565e97a6321143faa9ef04cd956d75613d6298a22d6d6de9f9ead23fa26d",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3536,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        },
+        {
+          "mode": "workflow",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--signer-workflow",
+            "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--signer-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 35853,
+          "stdoutSha256": "f8c9e67e697e8248345e8caeb924b7808afdaa60353a598e890f5b7132fb4a30",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3316,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        }
+      ]
+    },
+    "after": {
+      "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+      "state": "VERIFIED",
+      "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+      "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+      "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+      "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+      "policy": {
+        "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+        "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+        "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+        "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+        "ref": "refs/heads/main"
+      },
+      "invocations": [
+        {
+          "mode": "identity",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--cert-identity",
+            "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--signer-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 35850,
+          "stdoutSha256": "bc71565e97a6321143faa9ef04cd956d75613d6298a22d6d6de9f9ead23fa26d",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3136,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        },
+        {
+          "mode": "workflow",
+          "args": [
+            "attestation",
+            "verify",
+            "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+            "--repo",
+            "CleMeY15/auto-world",
+            "--hostname",
+            "github.com",
+            "--signer-workflow",
+            "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+            "--cert-oidc-issuer",
+            "https://token.actions.githubusercontent.com",
+            "--source-ref",
+            "refs/heads/main",
+            "--source-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--signer-digest",
+            "64778982b86faf17cb4ede9fd8027869049f6602",
+            "--deny-self-hosted-runners",
+            "--predicate-type",
+            "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+            "--bundle",
+            "bundle.json",
+            "--format",
+            "json"
+          ],
+          "exitCode": 0,
+          "stdoutBytes": 35853,
+          "stdoutSha256": "f8c9e67e697e8248345e8caeb924b7808afdaa60353a598e890f5b7132fb4a30",
+          "stderrBytes": 0,
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 3546,
+          "status": "VERIFIED",
+          "code": "official_verification_succeeded"
+        }
+      ]
+    }
+  },
+  "negativeControls": {
+    "wrong-subject": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408",
+          "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3361,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:9ee2f2da7187b0d0ecd3cbab83b7356f9ef032650b33604ff13e711e3462e408",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3328,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-workflow": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "workflowPath": ".github/workflows/not-postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/not-postgres-candidate-attest-v2.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 4138,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/not-postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2818,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-ref": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/not-main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/not-main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/not-main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2933,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/not-main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 84,
+            "stderrSha256": "e4cdfa591431b5e3b772f44fc1a46485798fba76f1a94ec064460c7493bf4ff6",
+            "durationMs": 3842,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryRef",
+              "expected": "refs/heads/not-main",
+              "actual": "refs/heads/main"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-source": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "04778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "04778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 133,
+            "stderrSha256": "93792af61a974f347e029f6cf93c3fb4ccc4065531576e917b5c5cc55a9c652b",
+            "durationMs": 3453,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryDigest",
+              "expected": "04778982b86faf17cb4ede9fd8027869049f6602",
+              "actual": "64778982b86faf17cb4ede9fd8027869049f6602"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "04778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 133,
+            "stderrSha256": "93792af61a974f347e029f6cf93c3fb4ccc4065531576e917b5c5cc55a9c652b",
+            "durationMs": 3085,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "SourceRepositoryDigest",
+              "expected": "04778982b86faf17cb4ede9fd8027869049f6602",
+              "actual": "64778982b86faf17cb4ede9fd8027869049f6602"
+            }
+          }
+        ]
+      }
+    },
+    "wrong-signer": {
+      "proof": "REJECTION_PROVED",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "04778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "04778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 128,
+            "stderrSha256": "7ed616fd546274f6a04505afa21b7b419d84286a98606e53a4a739e6fd560d7f",
+            "durationMs": 2740,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "BuildSignerDigest",
+              "expected": "04778982b86faf17cb4ede9fd8027869049f6602",
+              "actual": "64778982b86faf17cb4ede9fd8027869049f6602"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "04778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 128,
+            "stderrSha256": "7ed616fd546274f6a04505afa21b7b419d84286a98606e53a4a739e6fd560d7f",
+            "durationMs": 3532,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "CERTIFICATE_POLICY_MISMATCH",
+              "field": "BuildSignerDigest",
+              "expected": "04778982b86faf17cb4ede9fd8027869049f6602",
+              "actual": "64778982b86faf17cb4ede9fd8027869049f6602"
+            }
+          }
+        ]
+      }
+    },
+    "tampered-payload": {
+      "proof": "SIGNATURE_REJECTION_PROVED",
+      "originalBundleSha256": "a09432b7020435699d911da1082537290880eec2db865b4d21cdf09dc0b969d1",
+      "tamperedBundleSha256": "6233e8a62dd14a623dc51328ba1a5dbc83073a438e16fb772ac18a1fb4e29b3b",
+      "originalPayloadSha256": "b0dc6b9358b88188225a6dc7006509b6cd31d4fb71e657b51efdb0b523a817f1",
+      "tamperedPayloadSha256": "93337f373012090f42a727c37c482f9627c14d34c18869dec82521e97c5d402f",
+      "result": {
+        "kind": "POSTGRES_CANDIDATE_ATTESTATION_VERIFICATION_V1",
+        "state": "REJECTED",
+        "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+        "bundleSha256": "6233e8a62dd14a623dc51328ba1a5dbc83073a438e16fb772ac18a1fb4e29b3b",
+        "predicateSha256": "d724d03784b62b5fface2f0241e18b203fbbc5702f23bc7de8296f5ffa0d301c",
+        "preSignReceiptSha256": "983ebb489bdae61bef59ac3f389084c528fb20beecf5edd8ce4ecb46b078fe3e",
+        "policy": {
+          "sourceSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "signerSha": "64778982b86faf17cb4ede9fd8027869049f6602",
+          "subjectName": "ghcr.io/clemey15/auto-world-postgres-gosu",
+          "subjectDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+          "workflowPath": ".github/workflows/postgres-candidate-attest-v2.yml",
+          "ref": "refs/heads/main"
+        },
+        "invocations": [
+          {
+            "mode": "identity",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--cert-identity",
+              "https://github.com/CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml@refs/heads/main",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "tampered-payload-bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 2916,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          },
+          {
+            "mode": "workflow",
+            "args": [
+              "attestation",
+              "verify",
+              "oci://ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
+              "--repo",
+              "CleMeY15/auto-world",
+              "--hostname",
+              "github.com",
+              "--signer-workflow",
+              "CleMeY15/auto-world/.github/workflows/postgres-candidate-attest-v2.yml",
+              "--cert-oidc-issuer",
+              "https://token.actions.githubusercontent.com",
+              "--source-ref",
+              "refs/heads/main",
+              "--source-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--signer-digest",
+              "64778982b86faf17cb4ede9fd8027869049f6602",
+              "--deny-self-hosted-runners",
+              "--predicate-type",
+              "https://github.com/CleMeY15/auto-world/attestations/postgres-private-image-evidence/v1",
+              "--bundle",
+              "tampered-payload-bundle.json",
+              "--format",
+              "json"
+            ],
+            "exitCode": 1,
+            "stdoutBytes": 0,
+            "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stderrBytes": 45,
+            "stderrSha256": "486941643d59bcaec905305a9ad2843539956d60f735745f77a05db562cfda19",
+            "durationMs": 3039,
+            "status": "REJECTED",
+            "code": "official_policy_rejected",
+            "rejection": {
+              "kind": "SIGSTORE_VERIFICATION_FAILED"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "malformedInputControls": {
+    "missingBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "postgres_candidate_attestation_input_invalid"
+      }
+    },
+    "truncatedBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "postgres_candidate_attestation_bundle_invalid"
+      }
+    },
+    "corruptBundle": {
+      "proof": "ERROR_NOT_REJECTION",
+      "result": {
+        "state": "ERROR",
+        "code": "postgres_candidate_attestation_bundle_invalid"
+      }
+    }
+  }
+}

@@ -3,6 +3,10 @@ import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
+import { capturePersistedDataIdentity, classifyPersistedDataReadinessFailure, PERSISTED_DATA_READINESS_PROTOCOL,
+  PERSISTED_DATA_READINESS_PROTOCOL_SHA256, remainingReadinessBudget,
+  verifyPersistedDataReadiness } from "./persisted-data-readiness.mjs";
+
 const IMAGE_ID = /^sha256:[0-9a-f]{64}$/u;
 const CONTAINER_ID = /^[0-9a-f]{64}$/u;
 const REVISION = /^[0-9a-f]{40}$/u;
@@ -19,11 +23,12 @@ const ACCESS_KEY = "AWDIAGNOSTICACCESS";
 const SECRET_KEY = "aw-diagnostic-secret-not-for-production-0001";
 const PAYLOAD = "auto-world-backup-restore-payload-v1";
 const PAYLOAD_SHA256 = createHash("sha256").update(PAYLOAD).digest("hex");
+const OBJECT_PATH = "/buckets/aw-raw/backup-proof";
 const RUNTIME_CONFIG = JSON.stringify({ identities: [{ name: "auto-world-diagnostic", credentials: [{
   accessKey: ACCESS_KEY, secretKey: SECRET_KEY,
 }], actions: ["Admin:aw-raw", "Read:aw-raw", "List:aw-raw", "Write:aw-raw"] }] });
 const SERVER_COMMAND = ["server", "-dir=/data", "-master.telemetry=false", "-s3", "-s3.port=8333",
-  "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/run/aw-private/s3.json"];
+  "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/run/aw-private/s3.json", "-ip=127.0.0.1"];
 const BOOTSTRAP = `set -eu
 umask 077
 printf '%s\\n' '${RUNTIME_CONFIG}' > /run/aw-private/s3.json
@@ -77,7 +82,9 @@ test "$read_status" = 200 || exit 83
 test "$(sha256sum "$work/read" | cut -d ' ' -f 1)" = '${PAYLOAD_SHA256}' || exit 84
 printf '%s\\n' 'SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED'`;
 const RESTORED_PROBE = `set -eu
-${READY}
+command -v curl >/dev/null 2>&1 || exit 81
+curl --help all 2>/dev/null | grep -q -- '--aws-sigv4' || exit 81
+command -v sha256sum >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 81
 work=$(mktemp -d /tmp/aw-backup-restored.XXXXXXXX) || exit 81
 trap 'rm -f "$work/read"; rmdir "$work"' EXIT
 read_status=$(curl --silent --output "$work/read" --write-out '%{http_code}' --max-time 10 \\
@@ -148,13 +155,14 @@ const SERVICE_PROFILE = ["--pull=never", "--network=none", "--read-only", "--use
 
 const hash = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const PROFILE_SHA256 = hash({ initializer: INIT_PROFILE, helper: HELPER_PROFILE, service: SERVICE_PROFILE,
-  mounts: "SOURCE_RW_BACKUP_RW_THEN_BACKUP_RO_RESTORE_RW_ALL_VOLUME_NOCOPY" });
+  serverCommand: SERVER_COMMAND, mounts: "SOURCE_RW_BACKUP_RW_THEN_BACKUP_RO_RESTORE_RW_ALL_VOLUME_NOCOPY" });
 const COMMAND_SHA256 = hash([INIT_COMMAND, BOOTSTRAP, SOURCE_PROBE, BACKUP_COMMAND,
-  "RESTORE_COMMAND_BOUND_TO_ARCHIVE_SHA256_AND_BYTES", RESTORED_PROBE]);
+  "RESTORE_COMMAND_BOUND_TO_ARCHIVE_SHA256_AND_BYTES", READY, RESTORED_PROBE,
+  PERSISTED_DATA_READINESS_PROTOCOL, PERSISTED_DATA_READINESS_PROTOCOL_SHA256]);
 const PROOF_KEYS = ["kind", "state", "authority", "candidateAuthorization", "imageId", "runId",
   "recipeRevision", "profileSha256", "commandSha256", "sourceVolumeIdentity", "backupVolumeIdentity",
   "restoreVolumeIdentity", "sourceObject", "offlineBackup", "archiveSha256", "archiveBytes",
-  "sourceDisposal", "restoreIsolation", "restoredObject", "shutdown", "cleanup"];
+  "sourceDisposal", "restoreIsolation", "restoredObject", "persistedDataReadiness", "shutdown", "cleanup"];
 
 function failure(code) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", authority: "DIAGNOSTIC_ONLY",
@@ -346,7 +354,9 @@ function expectedProof({ imageId, runId, recipeRevision, archiveSha256, archiveB
     restoreVolumeIdentity: "DISTINCT_FRESH_RUN_OWNED_LOCAL_VOLUME_VERIFIED",
     sourceObject: "SIGNED_CONDITIONAL_PUT_GET_SHA256", offlineBackup: "STOPPED_SOURCE_TO_BACKUP_VOLUME",
     archiveSha256, archiveBytes, sourceDisposal: "SOURCE_CONTAINER_AND_VOLUME_ABSENT_BEFORE_RESTORE",
-    restoreIsolation: "NO_NETWORK_HELPER_TO_FRESH_VOLUME", restoredObject: "SIGNED_GET_EXACT_SHA256",
+    restoreIsolation: "NO_NETWORK_HELPER_TO_FRESH_VOLUME",
+    restoredObject: "ORIGINAL_FID_METADATA_LOOKUP_DIRECT_AND_SIGNED_GET_EXACT_SHA256",
+    persistedDataReadiness: `V1:${PERSISTED_DATA_READINESS_PROTOCOL_SHA256}`,
     shutdown: "SOURCE_AND_RESTORED_SERVICES_BOUNDED", cleanup: "OWNED_CONTAINERS_AND_VOLUMES_REMOVED" });
 }
 
@@ -515,10 +525,23 @@ async function execute(input, injected) {
     phase = "BACKUP_SOURCE_SERVICE"; reason = "SOURCE_WRITE_FAILED";
     const sourceService = await createContainer("service-source", SERVICE_PROFILE, BOOTSTRAP);
     await command(docker, ["container", "start", sourceService], options);
+    const sourceDeadline = performance.now() + 390_000;
     const source = await command(docker, ["container", "exec", sourceService, "/bin/sh", "-c", SOURCE_PROBE],
-      { ...options, timeoutMs: 390_000 }, [0, 81, 82, 83, 84, 87, 88, 127]);
+      { ...options, timeoutMs: remainingReadinessBudget(sourceDeadline,
+        PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 81, 82, 83, 84, 87, 88, 127]);
     if (source.status !== 0 || source.stdout.trim() !== "SEAWEED_BACKUP_SOURCE_WRITE_VERIFIED"
       || source.stderr.trim() !== "") throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    let sourceIdentity;
+    try {
+      sourceIdentity = await capturePersistedDataIdentity({
+        runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+        containerName: sourceService, deadline: sourceDeadline, objectPath: OBJECT_PATH,
+        expectedSize: Buffer.byteLength(PAYLOAD), options,
+      });
+    } catch (error) {
+      reason = classifyPersistedDataReadinessFailure(error) ?? "SOURCE_WRITE_FAILED";
+      throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    }
     reason = "SOURCE_STOP_FAILED";
     await stopService("service-source");
 
@@ -572,8 +595,29 @@ async function execute(input, injected) {
     phase = "BACKUP_RESTORED_SERVICE"; reason = "RESTORED_READ_FAILED";
     const restoredService = await createContainer("service-restored", SERVICE_PROFILE, BOOTSTRAP);
     await command(docker, ["container", "start", restoredService], options);
+    const restoredDeadline = performance.now() + 390_000;
+    const ready = await command(docker, ["container", "exec", restoredService, "/bin/sh", "-c", READY],
+      { ...options, timeoutMs: remainingReadinessBudget(restoredDeadline,
+        PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs) }, [0, 81, 82, 87, 88, 127]);
+    if (ready.status !== 0 || ready.stdout.trim() !== "" || ready.stderr.trim() !== "") {
+      throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    }
+    let finalReadTimeoutMs;
+    try {
+      await verifyPersistedDataReadiness({
+        runCommand: (args, commandOptions, statuses) => command(docker, args, commandOptions, statuses),
+        containerName: restoredService, deadline: restoredDeadline, objectPath: OBJECT_PATH,
+        expectedSize: Buffer.byteLength(PAYLOAD), expectedSha256: PAYLOAD_SHA256,
+        identity: sourceIdentity, options,
+      });
+      remainingReadinessBudget(restoredDeadline, PERSISTED_DATA_READINESS_PROTOCOL.finalReadReserveMs);
+      finalReadTimeoutMs = remainingReadinessBudget(restoredDeadline);
+    } catch (error) {
+      reason = classifyPersistedDataReadinessFailure(error) ?? "RESTORED_READ_FAILED";
+      throw failure("seaweed_candidate_runtime_backup_restore_failed");
+    }
     const restored = await command(docker, ["container", "exec", restoredService, "/bin/sh", "-c", RESTORED_PROBE],
-      { ...options, timeoutMs: 390_000 }, [0, 81, 82, 85, 86, 87, 88, 89, 127]);
+      { ...options, timeoutMs: finalReadTimeoutMs }, [0, 81, 85, 86, 89, 127]);
     if (restored.status !== 0) {
       reason = restored.status === 85 ? "RESTORED_OBJECT_MISSING"
         : restored.status === 86 ? "RESTORED_OBJECT_MISMATCH" : "RESTORED_READ_FAILED";
@@ -654,6 +698,6 @@ export function TEST_ONLY_expectedSeaweedRuntimeBackupRestoreProof(expected,
   return validateSeaweedRuntimeBackupRestoreProof(expectedProof({ ...expected, archiveSha256, archiveBytes }), expected);
 }
 export function TEST_ONLY_seaweedBackupRestoreScripts() {
-  return Object.freeze([INIT_COMMAND, BOOTSTRAP, SOURCE_PROBE, BACKUP_COMMAND,
+  return Object.freeze([INIT_COMMAND, BOOTSTRAP, SOURCE_PROBE, READY, BACKUP_COMMAND,
     restoreCommand("a".repeat(64), 10240), RESTORED_PROBE]);
 }

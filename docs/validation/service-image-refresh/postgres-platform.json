@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.oci.image.config.v1+json",
+    "digest": "sha256:212aeeeb8faaef6c46498d86cbec6b9344d8d9492996b174664ff82c562ab685",
+    "size": 10147
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:6b37362b3da78869050b894b799ad4df04f1f3b52774087db0d81151570244c8",
+      "size": 29830418
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:0725a8be915e7a30dc86bf6ea1a0f4cf86baab80e2cb64cd6e44c7ddf339d33f",
+      "size": 1168
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:71f55f60a7865a4db54008e869fe30a31d9f4892dc9b263f7f8937b7ac2a4cfe",
+      "size": 6443011
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:564dc3c4a6f9318ee29e1d8114629f671bb0f1f2f542752c9c6b68cfd078328c",
+      "size": 1256748
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:752819419f5083c3e506de779021ccd8665bb34bf7845ff1653157fc6b7f0fef",
+      "size": 8203817
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:8b51b92450517e64a2cf0917ae35f036e27a914dfa105c3fa287047b4f05ed37",
+      "size": 1311669
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:498b9ff7d682c138421c7942f0cda63ab65e76974d8d802a0713fa46620edc20",
+      "size": 116
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:755a851127eb2f3b84bca22392c3c49ce860f935433ccd87f53d614707f094cb",
+      "size": 3140
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:bbe7b3469b205f9cc7335abb718cec1d92950322cdecf71b36948a24cba8eab3",
+      "size": 114255852
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:73872941ba23adaea51292ee374cc100cebab858efd6334b0f049675514be537",
+      "size": 10451
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:2f9b6cf2e417d1ebca90c92e2cdc069d01b0c71ded6ce877927eb38c9caaf86a",
+      "size": 128
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:3feaebf93d15276bf6dd618d21f53f829b29119ddc6dee15736952bed7f47e97",
+      "size": 167
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:50e228e2fe6d3720a722993a7dd9e2e433febf2c987606ffc2c9ee3c57ff0fca",
+      "size": 6104
+    },
+    {
+      "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+      "digest": "sha256:bed9376b51dc85386fab78123b01d461daad0f726d49887cf105258c0743b09d",
+      "size": 185
+    }
+  ],
+  "annotations": {
+    "com.docker.official-images.bashbrew.arch": "amd64",
+    "org.opencontainers.image.base.digest": "sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+    "org.opencontainers.image.base.name": "debian:trixie-slim",
+    "org.opencontainers.image.created": "2026-09-19T00:35:55Z",
+    "org.opencontainers.image.revision": "2603e26e245e558218728ee14e0a42dcb020dc7f",
+    "org.opencontainers.image.source": "https://github.com/docker-library/postgres.git#2603e26e245e558218728ee14e0a42dcb020dc7f:17/trixie",
+    "org.opencontainers.image.url": "https://hub.docker.com/_/postgres",
+    "org.opencontainers.image.version": "17.11"
+  }
+}

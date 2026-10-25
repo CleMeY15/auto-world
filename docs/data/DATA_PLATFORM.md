@@ -1,5 +1,13 @@
 # DATA PLATFORM & SOURCE EXPANSION
 
+## Synthetic taxonomy reference data
+
+[ADR-0017](../decisions/ADR-0017-vehicle-taxonomy-v1.md) defines a bounded make/model release separate from observed vehicle facts. Every release-local primary label and alias references synthetic attribution within that release. Duplicate names across entities remain distinct; no fuzzy matching or factual/rights claim is made. Declared catalog/release/revision references prevent tuple mismatch, but do not authenticate content or historical uniqueness. Real datasets and persistent lineage require separate reviewed tasks.
+
+## Observation-change evidence
+
+[ADR-0018](../decisions/ADR-0018-observation-change-events.md) keeps price/mileage events as references to canonical observations, never a second value authority. A consistent pair has matching listing, field and source, strictly increasing provenance times and different exact value representations. Currency/unit-only differences are representation changes without conversion, economic/physical direction or plausibility claims. The checker cannot prove rights, authenticated provenance, repository membership, adjacency, latest state or history completeness; raw snapshots remain separate. No durable replay/outbox or source activation is introduced.
+
 ## Source onboarding checklist
 - Strategic value: inventory, geography, uniqueness.
 - Access path & rights.
@@ -36,3 +44,9 @@ Incremental sync continuously + periodic full reconciliation to detect missing/d
 [ADR-0003](../decisions/ADR-0003-connector-sdk-contract.md) and its [API appendix](../decisions/ADR-0003-connector-sdk-api.md) define raw-first acquisition, snapshot-bound observations, stable publication identity and append-only listing-version evidence. Mutable listing projections and active inventory are scoped by source, territory and acquisition method; historical evidence is separate. Full absence is inferred only after complete atomic finalization and only in allowed deletion modes. Incremental runs require a completed, non-stale full baseline; exact completed replay remains stable after subsequent inventory changes.
 
 Raw, normalized, PII/media and cache lifetimes are distinct obligations, capped by authorization validity. The generic SDK computes deadlines and refuses expired raw replay; production storage must enforce deletion/expiry and downstream takedown. Synthetic test fixtures prove the SDK's contract interactions, not licensed access or production durability.
+
+## TASK-0101 fixture evidence
+
+The isolated `synthetic-search-v1` corpus pins exact bytes and one source/territory/method scope. SDK raw staging, immutable observations and mutable publication projections remain distinct; contradictory values and withdrawn history are retained without resolving a VehicleEntity. A structural enabled test registry is never a source-rights approval.
+
+The public [demo V1 contract](../decisions/ADR-0013-demo-search-contract.md) excludes source/run/snapshot identities, raw hashes, VIN, seller/media and unsupported specifications. Complete/partial/stale envelopes explicitly distinguish completeness and committed-watermark freshness; an unavailable read cannot become an empty complete response. TASK-0101 validates those vectors only. TASK-0102 must prove actual watermark/scope, evidence association, active matching, deterministic ordering and opaque cursor binding against committed snapshots before exposing API reads.

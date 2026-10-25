@@ -52,14 +52,15 @@ function clock(now) {
   return value;
 }
 
-export function validateDatabaseMetadata(metadata, { now = new Date(), expectedVersion } = {}) {
+export function validateDatabaseMetadata(metadata, { now = new Date(), database } = {}) {
   const at = clock(now);
   const reject = (check) => {
     const error = new Error("scanner_database_metadata_invalid");
     error.diagnostic = { check };
     throw error;
   };
-  if (!object(metadata) || ![1, 2].includes(expectedVersion)) reject("shape_or_expected_version");
+  if (!object(metadata) || !["vulnerability", "java"].includes(database)) reject("shape_or_database");
+  const expectedVersion = database === "vulnerability" ? 2 : 1;
   const updatedAt = timestamp(metadata.UpdatedAt);
   const downloadedAt = timestamp(metadata.DownloadedAt);
   if (!Number.isFinite(updatedAt)) reject("updated_at_timestamp");
@@ -67,8 +68,11 @@ export function validateDatabaseMetadata(metadata, { now = new Date(), expectedV
   if (metadata.Version !== expectedVersion) reject("schema_version");
   if (updatedAt > downloadedAt) reject("updated_after_download");
   if (downloadedAt > at) reject("downloaded_in_future");
-  if (at - updatedAt > MAX_DATABASE_AGE_MS) reject("database_age_exceeded");
-  return { updatedAt: metadata.UpdatedAt, downloadedAt: metadata.DownloadedAt, version: metadata.Version };
+  const ageMs = at - updatedAt;
+  const maxAgeMs = database === "vulnerability" ? MAX_DATABASE_AGE_MS : null;
+  if (maxAgeMs !== null && ageMs > maxAgeMs) reject("database_age_exceeded");
+  return { updatedAt: metadata.UpdatedAt, downloadedAt: metadata.DownloadedAt,
+    version: metadata.Version, ageMs, maxAgeMs, freshAt48Hours: ageMs <= MAX_DATABASE_AGE_MS };
 }
 
 function validatePin(pin) {
