@@ -7,6 +7,7 @@ import { TextDecoder } from "node:util";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
+import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 
@@ -524,9 +525,12 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             const metadata = (await readBoundedJson(metadataFile, MiB)).value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
             command(DOCKER, ["image", "save", "--output", archive, tag]); chmodSync(archive, 0o444);
-            const frozen = await captureFiles([{ path: archive, cap: 2 * GiB }, { path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }]);
-            build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: frozen[0].sha256, archiveBytes: frozen[0].size, artifactName: `/${path.basename(archive)}` };
-            build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, frozen, subject: build.subject });
+            const frozen = await captureFiles([{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }]);
+            const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
+            await assertFilesUnchanged(frozen);
+            build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: archiveSnapshot.sha256, archiveBytes: archiveSnapshot.size,
+              archiveCapBytes: archiveSnapshot.cap, artifactName: `/${path.basename(archive)}` };
+            build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject });
           } catch (error) {
             build.reason = error.message;
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
@@ -584,13 +588,13 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const failures = [];
           const local = localImages.get(image.role);
           if (managed?.candidates.some((candidate) => candidate.role === image.role) && !local) fail("scanner_managed_image_not_built");
-          if (local) await assertFilesUnchanged(local.frozen);
           for (const format of ["json", "cyclonedx"]) {
+            if (local) { await assertFilesUnchanged(local.frozen); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
             try { command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format) : officialImageScanArguments(carrier, scanner, cache, image, format),
               { file: format === "json" ? files.json : files.sbom }); }
             catch (error) { failures.push(error); }
+            if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await assertFilesUnchanged(local.frozen); }
           }
-          if (local) await assertFilesUnchanged(local.frozen);
           if (failures.length) throw failures[0];
         },
         afterScan: async () => assertFilesUnchanged(inputs),
@@ -606,6 +610,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const local = localImages.get(image.role);
           if (local) {
             await assertFilesUnchanged(local.frozen);
+            await assertManagedArchiveUnchanged(local.archiveSnapshot);
             validateOfficialArchiveSbom(report.json, report.sbom, local.subject);
             if (image.role === "postgres" && !local.gosuEvidence) fail("scanner_gosu_source_evidence_invalid");
             const evaluated = evaluateArchiveImageReport(report.json, local.subject, new Date(), local.gosuEvidence);
