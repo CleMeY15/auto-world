@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 import { ensureRawBucket, parseCommand, runCli } from "../scripts/data-infra/cli.mjs";
 import { InfraError } from "../scripts/data-infra/runtime.mjs";
 
+const diagnostic = { executionScope: "DIAGNOSTIC_ONLY", admission: "NOT_AUTHORIZED" };
+
 test("infra CLI accepts only documented scoped commands and relevant options", () => {
   assert.equal(parseCommand(["migrate", "--direction", "down"]).direction, "down");
   assert.deepEqual(parseCommand(["stop", "--service", "redis"]).services, ["redis"]);
@@ -41,6 +43,35 @@ test("bucket initialization preserves authentication and transport failures", as
   }
 });
 
+for (const [name, health, exitCode] of [["success", [{ status: "passed" }], undefined], ["health failure", [{ status: "failed" }], 1]]) {
+  test(`CLI ${name} cannot replace the mandatory diagnostic labels`, async () => {
+    const priorExit = process.exitCode, emitted = [];
+    const result = Object.freeze({ phase: "status", health, executionScope: "SUPPORTED", admission: "AUTHORIZED" });
+    try {
+      process.exitCode = undefined;
+      await runCli(["status"], { execute: async () => result, emit: (value) => emitted.push(value) });
+      assert.deepEqual(emitted, [{ phase: "status", health, ...diagnostic }]);
+      assert.equal(process.exitCode, exitCode);
+      assert.equal(result.executionScope, "SUPPORTED");
+      assert.equal(result.admission, "AUTHORIZED");
+    } finally { process.exitCode = priorExit; }
+  });
+}
+
+for (const [name, error, code] of [["typed", new InfraError("infra_test_failure"), "infra_test_failure"], ["unexpected", new Error("private failure"), "infra_operation_failed"]]) {
+  test(`CLI ${name} failure retains its error and exit code with diagnostic labels`, async (t) => {
+    const priorExit = process.exitCode, errors = [], emitted = [];
+    t.mock.method(console, "error", (value) => errors.push(JSON.parse(value)));
+    try {
+      process.exitCode = undefined;
+      await runCli(["status"], { execute: async () => { throw error; }, emit: (value) => emitted.push(value) });
+      assert.deepEqual(errors, [{ status: "failed", code, ...diagnostic }]);
+      assert.deepEqual(emitted, []);
+      assert.equal(process.exitCode, 1);
+    } finally { process.exitCode = priorExit; }
+  });
+}
+
 test("status health failures do not overwrite the authoritative signal exit code", async () => {
   const priorExit = process.exitCode;
   try {
@@ -52,7 +83,7 @@ test("status health failures do not overwrite the authoritative signal exit code
         return { health: [{ status: "failed" }] };
       }, emit: (value) => emitted.push(value) });
       assert.equal(process.exitCode, code);
-      assert.deepEqual(emitted, [{ status: "cancelled", code: "process_cancelled" }]);
+      assert.deepEqual(emitted, [{ status: "cancelled", code: "process_cancelled", ...diagnostic }]);
     }
   } finally { process.exitCode = priorExit; }
 });
@@ -78,4 +109,5 @@ for (const [signal, expected] of [["SIGINT", 130], ["SIGTERM", 143]]) test(`spaw
   const exit = await new Promise((resolve, reject) => { child.on("error", reject); child.on("close", resolve); });
   assert.equal(exit, expected, errors);
   assert.match(output, /"status":"cancelled"/u);
+  assert.deepEqual(JSON.parse(output.trim().split("\n").at(-1)), { status: "cancelled", code: "process_cancelled", ...diagnostic });
 });

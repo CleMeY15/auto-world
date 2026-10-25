@@ -81,10 +81,12 @@ export async function runCli(args, { execute = main, emit = (value) => console.l
   try {
     const result = await withCancellation(() => execute(args), { processExit: true });
     const cancelled = [130, 143].includes(process.exitCode);
-    emit(cancelled ? { status: "cancelled", code: "process_cancelled" } : result);
+    emit({ ...(cancelled ? { status: "cancelled", code: "process_cancelled" } : result),
+      executionScope: "DIAGNOSTIC_ONLY", admission: "NOT_AUTHORIZED" });
     if (!cancelled && result.health?.some((entry) => entry.status !== "passed")) process.exitCode = 1;
   } catch (error) {
-    console.error(JSON.stringify({ status: "failed", code: error instanceof InfraError ? error.code : "infra_operation_failed" }));
+    console.error(JSON.stringify({ status: "failed", code: error instanceof InfraError ? error.code : "infra_operation_failed",
+      executionScope: "DIAGNOSTIC_ONLY", admission: "NOT_AUTHORIZED" }));
     if (!process.exitCode) process.exitCode = 1;
   }
 }
