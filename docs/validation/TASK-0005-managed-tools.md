@@ -1,6 +1,6 @@
 # TASK-0005 — Managed-tool continuation
 
-Status: IN_PROGRESS. Scanner implementation and actual Linux qualification are pending. No image admission, support activation or four-service acceptance is claimed.
+Status: IN_PROGRESS. Actual Linux scanner controls pass; three upstream image roles remain blocked by vulnerability findings. No image admission, support activation or four-service acceptance is claimed.
 
 ## Delivered and preserved
 
@@ -30,10 +30,30 @@ Registry metadata resolves five candidate tags to immutable Linux/amd64 subjects
 
 The original Go inventory is 36,605 bytes, SHA256 `c0635189c3438986aecc0b7a4ac17cf90bac00259a982e1eb594dd817758cded`, now retained as an immutable public test fixture. The [narrow measured-profile note](../decisions/ADR-0026-data-foundation-managed-tools.md) ties these raw markers to the same authenticated archive, exact extracted binary SHA, source/Go/dependency/platform tuple and unchanged qualification gates. It neither strips the marker nor authorizes future dirty builds. Source-to-binary equivalence and reproducibility remain NOT_ESTABLISHED.
 
+### Complete upstream audit, 25 October 2026
+
+[Run40196523287](https://github.com/CleMeY15/auto-world/actions/runs/40196523287), source `26508f499211166b53fd33f1b3b93d26effa7aff`, reviewed tree `0baea8e2180c117872083d0cb48bb159a6bfe17b`, passes actual official provenance/refusal controls, binary/material checks, scanner self-audit, main-version detection, vulnerable/clean fixtures and comparison with the baseline on the same captured databases. All five complete image JSON/CycloneDX pairs are collected. The job remains FAILED because the unchanged vulnerability policy rejects three subjects; this is not an acquisition, parser or missing-report failure. Original artifact12599922319 is 815,664 bytes, advertised SHA256 `5fcb13cee2e91a10fc33a8dfb50be76e5dd357d1495206386c33e95bc510d78c`.
+
+| Exact candidate in official-release.json | Blocking findings | Observed scope |
+| --- | ---: | --- |
+| PostgreSQL17.11 Alpine3.24 | 26 | gosu's Go1.24.6 stdlib: one CRITICAL and25HIGH |
+| OpenSearch3.9.0 | 123 | 52OS and71Java HIGH findings; repeated packaged dependencies count separately |
+| Redis8.10.2 Alpine3.23 | 0 | Complete report/SBOM passes this diagnostic policy |
+| SeaweedFS4.50 | 0 | Complete report/SBOM passes this diagnostic policy |
+| AWS CLI2.38.5 | 15 | Amazon Linux OS HIGH findings |
+
+All ten report identities match the receipt. Independent pure reevaluation reproduces these counts and validates each SBOM. The distinct full actual-evidence review accepts scanner qualification within the diagnostic milestone: exact provenance/source/ref/workflow, four refusal controls and paired positive, material inventory, self/fixture/comparison results,29 recorded commands without errors and20 final container-absence checks. Its verdict grants no image admission or vulnerability disposition. The original receipt is156,200bytes, SHA256 `4cdf612345586f763b3b361ce5b73f853eded63eee5842f2e0e823b45f7ba3f7`; the tested PR merge `d2029936906a17909c37503cccb63368d9a3870b` has the same reviewed source tree. DB binaries are absent from the public artifact: their recorded hashes are runtime observations, not an independent current rehash.
+
+The captured vulnerability DB was updated at12:57:48UTC and checked at13:13:17UTC, approximately15minutes old; its actual bytes are SHA256 `73431481129de1e7c742fd3eab7d2d8ec592504a641b73df8ca433479e5da47f`. The Java DB was updated at00:59:20UTC, with bytes SHA256 `96f89ba46e64eaa8a3b0c7c5220457aff8de127b5342d09e8a49615f8d605944`. Both captured registry manifests remain identical before/after acquisition, and database bytes are checked unchanged through the scans. These dated diagnostic results do not replace continuous currentness checks, source/notices retention, private access/restore or reviewed admission.
+
+[Integration40196523288](https://github.com/CleMeY15/auto-world/actions/runs/40196523288) also succeeds on this source with all17 verified lifecycle phases. Its46 records include nine failed health/readiness observations during deliberate restart/fault scenarios, followed by successful recovery. The original validation JSON is7,331bytes, SHA256 `562f26d5c20690f83038eb3b4587d115b408b75dff53a3c2170c1d2d76b5d333`; artifact12599818103 is1,100bytes, advertised SHA256 `35ab3d2c67a71745df3486a3ac2c5f072ce9d18e23c7105fbbe986b8043b758b`. It still tests the old exact Compose images and grants no admission to the newly audited or future corrected subjects.
+
+[Quality CI40196523324](https://github.com/CleMeY15/auto-world/actions/runs/40196523324) succeeds on the same exact source: lint14/14, typecheck21/21, workspace test tasks28/28 and build14/14. Root tests report2,308 total,2,249 passed,59 existing platform exclusions and zero failures. Browser checks report393 passed and seven existing exclusions. Secrets and dependency audit steps pass; the dependency audit reports no known vulnerabilities. This validates the reviewed scanner source and existing product/data code, not the rejected image subjects.
+
 ## Remaining milestones and stop conditions
 
-1. Review the new scanner implementation independently and run its actual Linux provenance/material/self-audit/fixture controls, including comparison against the baseline using identical captured databases.
-2. Collect all five complete image reports and SBOMs, even when a subject is rejected. Keep every CRITICAL and fixable HIGH blocking, unfixed HIGH subject to exact independent disposition, and the vulnerability DB at most 48 hours old. Select the smallest evidence-backed remedy for any remaining blocker.
+1. Preserve the independently accepted diagnostic scanner qualification, the two earlier failures and the current failed overall image audit. Scanner/current-database controls remain required for every final acceptance audit.
+2. Resolve the measured PostgreSQL, OpenSearch and AWS CLI blockers using the smallest maintained-tool correction, then obtain fresh complete reports/SBOMs for final exact subjects. Keep every CRITICAL and fixable HIGH blocking, unfixed HIGH subject to exact independent disposition, and the vulnerability DB at most48hours old.
 3. Admit eligible exact subjects with provenance, source/notices, retained evidence, applicable private access checks and second-copy restoration. Any shared admission replacement needs a bounded ADR-0011 amendment; no current PostgreSQL generation is bypassed here.
 4. Apply required image/admission changes to the existing Compose implementation, then pass all seventeen real lifecycle/data phases on final subjects, including restart, each dependency failure/recovery, migrations and isolated restoration.
 5. Complete quality/security checks, fresh checkout, independent final review, exact-head CI, normal protected merge and corresponding main CI. Mark TASK-0005 Done only after its applicable criteria are satisfied.
