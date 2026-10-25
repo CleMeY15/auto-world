@@ -1,0 +1,18 @@
+diff --git a/test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java b/test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java
+index f6e0e9f..4b3f6d3 100644
+--- a/test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java
++++ b/test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java
+@@ -62,0 +63 @@ import org.opensearch.repositories.fs.FsRepository;
++import org.opensearch.snapshots.SnapshotShardPaths;
+@@ -127,0 +129,2 @@ public class MockRepository extends FsRepository {
++    private final boolean skipExceptionOnSnapshotShardPathsListBlobs;
++
+@@ -191,0 +195,2 @@ public class MockRepository extends FsRepository {
++        skipExceptionOnSnapshotShardPathsListBlobs = metadata.settings()
++            .getAsBoolean("skip_exception_on_snapshot_shard_paths_list_blobs", false);
+@@ -525 +530,4 @@ public class MockRepository extends FsRepository {
+-                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);
++                if (skipExceptionOnSnapshotShardPathsListBlobs == false
++                    || path().equals(basePath().add(SnapshotShardPaths.DIR)) == false) {
++                    maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);
++                }

@@ -44,12 +44,33 @@ Actual CI must still establish compiler eligibility, Gradle/dependency checks,
 all upstream test results/counts, final runtime behavior and complete image
 audits. These inputs do not publish or admit an image or activate support.
 
+The snapshot test-source adjustment is limited to OpenSearch's mock repository
+fixture at pinned commit `4ee42a94e87f66fbf1e62a9871b1b87f91e02472`. It suppresses only the
+no-argument `listBlobs()` fault sentinel at the exact `snapshot_shard_paths`
+container when a default-false setting is enabled by
+`testSnapshotFileFailureDuringSnapshot`. Prefix listings, reads, writes, child
+paths, other paths and the fixture's default behavior retain fault injection;
+production repository code is unchanged. The original failure is retained in
+[main run 40240788182](https://github.com/CleMeY15/auto-world/actions/runs/40240788182).
+
+The build first applies the test-class patch and requires a deterministic
+single-test failure with the fixed scope-control marker while `MockRepository`
+is pristine. It then applies the separately authenticated mock-fixture patch,
+requires the same scope control plus the original failed-seed test to pass, and
+finally forces the complete selected internal-cluster suite with an ordinary
+random seed. Control XML and logs stay under `controls/`; only the final 16 XML
+reports and at least 1,735 test cases populate `junit/` and its release count.
+
 On 25 October 2026 the three initial Windows fixture executions failed before
 functional validation: Git Bash could not fork (`0xC0000142`, resource temporarily
 unavailable), and each invocation timed out. No Windows repair was attempted.
 Those three execution cases are explicitly Linux-only platform exclusions,
 new to this increment. The five contract/syntax cases execute locally. All eight
 must pass on Linux with no exclusion before implementation acceptance.
+
+The current snapshot-scope increment expands that file to ten cases. Six
+contract/syntax cases execute on Windows and four functional fixture cases keep
+the explicit Windows exclusion above; all ten must execute and pass on Linux.
 
 Run 40203365441 stopped in base preparation with exit127. Its bounded stderr
 tail does not retain the originating command-error line. The retained M1 OS

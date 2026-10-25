@@ -185,23 +185,23 @@ inventory/capacity decision, actual copy, retrieval and restoration proof.
 ## 2026-10-26 — actual merged-main OpenSearch test failure
 
 PR198's source `8b8febc0c3f4879e9a5491906bec3e0d056841d4` passed independently
-reviewed quality40238739731 and managed40238739604. Its normal protected merge
+reviewed quality 40238739731 and managed 40238739604. Its normal protected merge
 `a52884b2daa44ffd40dc3292a4677a61b6494b1b` has the same tree
-`87326c1e6a445d8553b0e4ecf5721e0cf881444f`. Main quality40240788142 passes,
+`87326c1e6a445d8553b0e4ecf5721e0cf881444f`. Main quality 40240788142 passes,
 but [main managed40240788182](https://github.com/CleMeY15/auto-world/actions/runs/40240788182)
 fails and independent actual review is REQUEST_CHANGES/HIGH. Delivery remains
 unaccepted; no subsequent private-package action is enabled.
 
-This run successfully exports all original OpenSearch text evidence. Its16JUnit
-files contain1,734cases, one failure, zero errors and48declared exclusions.
+This run successfully exports all original OpenSearch text evidence. Its 16 JUnit
+files contain 1,734 cases, one failure, zero errors and 48 declared exclusions.
 `SharedClusterSnapshotRestoreIT.testSnapshotFileFailureDuringSnapshot` fails
-native line409, expected0L/actual1L, seed
+native line 409, expected `0L`/actual `1L`, seed
 `[730D258067002B91:4C7F89EA9E3D4D8C]:0`. The runtime Dockerfile correctly refuses
-build.exit-code1; OpenSearch is not built/audited and runtime is never reached.
-No evidenceDiagnostic exists for a successful export. Public ZIP12616318808 is
-1,985,393bytes/SHA256
+`build.exit-code=1`; OpenSearch is not built/audited and runtime is never reached.
+No evidenceDiagnostic exists for a successful export. Public ZIP 12616318808 is
+1,985,393 bytes/SHA256
 `d92175d56275a019a5c6c476831f82e6209467eb8e8fc156f99ef4dbd921472c`;
-receipt127,129bytes/SHA256
+receipt 127,129 bytes/SHA256
 `84027a97df213469727ae1bd2c64a55450d674dde6fe9e44d1283d1f8beeacb0`.
 
 The original XML shows a mock IOException on the optional
@@ -213,4 +213,37 @@ The reviewed correction is limited to test fault scope, with a default-false
 exact-path/operation opt-out and deterministic coverage controls. Existing
 assertions, product behavior and fresh protected source/main acceptance remain
 mandatory. This diagnosis does not establish the cause of the different failed
-export40235439116; its cause remains unknown and its failure is preserved.
+export 40235439116; its cause remains unknown and its failure is preserved.
+
+## 2026-10-26 — prepared snapshot fault-scope correction
+
+[PR199](https://github.com/CleMeY15/auto-world/pull/199) prepares authenticated
+patches to the pinned upstream test class and mock repository only. The new
+default-false setting is omitted in the default-behavior control and enabled
+only by the original failing test and its explicit positive scope control.
+Only the exact auxiliary container's unprefixed listing bypasses synthetic
+injection; the delegate still runs. Original assertions, the 0.2 injection
+rate, product sources and all other mock paths/operations remain unchanged.
+
+The builder first requires the new scope control to fail specifically with
+`Random IOException` and a failure-counter delta of one while the mock source
+is pristine. It then patches the mock and requires the same control and the
+original failing method to pass at seed `730D258067002B91`. Their original XML,
+logs and statuses stay outside the final `junit/` tree. Task-local `--rerun`
+prevents an up-to-date test task from qualifying either control or the final
+selected internal-cluster suite. The final suite retains all 1,734 original
+cases and adds the scope control; no passing-seed substitution is used.
+
+The earlier source and failed-main XML sets have 47 and 48 skips respectively.
+The sole additional skip is `XContentParserTests.testWriteDepthOffLimit`, with
+`AssumptionViolatedException: got: <YAML>, expected: not <YAML>`. An exact skip
+count is therefore inappropriate for ordinary randomized tests. The builder
+records actual counts, identities and reasons; the conservative ceiling of
+48 skips and floor of 1,687 passes prevent loss of suite coverage. They do not
+approve new skip identities or reasons: independent review of the original
+XML remains required. The new scope test must execute and pass.
+
+Status remains `SOURCE_FIX_PREPARED / LINUX_VALIDATION_AND_DELIVERY_PENDING`.
+Prepared controls are not executed Java evidence. Fresh Linux source/main
+quality, causal controls, full suites, image audits, four runtime cases and
+cleanup require actual independent acceptance before the next registry step.

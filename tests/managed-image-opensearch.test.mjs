@@ -12,6 +12,8 @@ const recipe = readFileSync(new URL("../infra/managed-images/Dockerfile.opensear
 const build = readFileSync(path.join(directory, "build-core.sh"), "utf8");
 const inventoryScript = readFileSync(path.join(directory, "jdk-inventory.sh"), "utf8");
 const original = readFileSync(path.join(directory, "fixtures/libs.versions.toml"));
+const snapshotTestOriginal = readFileSync(path.join(directory, "fixtures/SharedClusterSnapshotRestoreIT.java"));
+const mockRepositoryOriginal = readFileSync(path.join(directory, "fixtures/MockRepository.java"));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "/bin/bash";
 const linuxExecution = { skip: process.platform !== "linux" && "Linux CI execution required; this is a new Windows platform exclusion" };
@@ -33,6 +35,17 @@ function catalogueSource(t, bytes = original) {
   mkdirSync(path.join(result, "gradle"));
   writeFileSync(path.join(result, "gradle/libs.versions.toml"), bytes);
   return result;
+}
+
+function snapshotSource(t, testBytes = snapshotTestOriginal, mockBytes = mockRepositoryOriginal) {
+  const result = temporaryDirectory(t);
+  const testPath = path.join(result, "server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java");
+  const mockPath = path.join(result, "test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java");
+  mkdirSync(path.dirname(testPath), { recursive: true });
+  mkdirSync(path.dirname(mockPath), { recursive: true });
+  writeFileSync(testPath, testBytes);
+  writeFileSync(mockPath, mockBytes);
+  return { result, testPath, mockPath };
 }
 
 function assertExplodedDistributionContract(script) {
@@ -90,6 +103,140 @@ test("foreign or already patched catalogue bytes are refused before another edit
   assert.deepEqual(readFileSync(path.join(source, "gradle/libs.versions.toml")), patched);
 });
 
+test("snapshot fault-scope patch materials are exact, narrow, and staged before the selected suite", () => {
+  assert.equal(snapshotTestOriginal.length, 113287);
+  assert.equal(sha256(snapshotTestOriginal), "e6822f420d0ccb174911dc6631af5ab74ab193c52f88d702082038ee0ec638bd");
+  assert.equal(mockRepositoryOriginal.length, 30784);
+  assert.equal(sha256(mockRepositoryOriginal), "0d768d21a752111f940cccf096552c81b14ff38f3556e8f68b3156b16aa18029");
+
+  const testPatch = readFileSync(path.join(directory, "snapshot-scope-test.patch"), "utf8");
+  const mockPatch = readFileSync(path.join(directory, "snapshot-scope-mock-repository.patch"), "utf8");
+  const testHelper = readFileSync(path.join(directory, "patch-snapshot-scope-test.sh"), "utf8");
+  const mockHelper = readFileSync(path.join(directory, "patch-snapshot-mock-repository.sh"), "utf8");
+  assert.match(testPatch, /skip_exception_on_snapshot_shard_paths_list_blobs/u);
+  assert.match(testPatch, /testSnapshotShardPathsListBlobsFaultScope/u);
+  assert.match(testPatch, /random_control_io_exception_rate", 0\.2/u);
+  assert.match(testPatch, /if \(skipSnapshotShardPathsListBlobs\)[\s\S]*\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", true\)/u);
+  assert.doesNotMatch(testPatch, /\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", skipSnapshotShardPathsListBlobs\)/u);
+  assert.match(snapshotTestOriginal.toString("utf8"), /getFailureCount\("test-repo"\), equalTo\(0L\)/u);
+  assert.doesNotMatch(testPatch, /^-\s+assertThat\(getFailureCount\("test-repo"/mu);
+  assert.match(mockPatch, /path\(\)\.equals\(basePath\(\)\.add\(SnapshotShardPaths\.DIR\)\)/u);
+  assert.match(mockRepositoryOriginal.toString("utf8"), /return super\.listBlobs\(\)/u);
+  assert.doesNotMatch(mockPatch, /listBlobsByPrefix[\s\S]*skip_exception_on_snapshot_shard_paths/u);
+  assert.deepEqual(
+    testPatch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")),
+    ['-            .put("random_control_io_exception_rate", 0.2);'],
+  );
+  assert.deepEqual(
+    mockPatch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")),
+    ["-                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);"],
+  );
+  assert.match(testHelper, /e6822f420d0ccb174911dc6631af5ab74ab193c52f88d702082038ee0ec638bd/u);
+  assert.match(testHelper, /69510fbc5d65f756f33cddd5fd9d20ae5b4983bfabfa64c06a861939da54efb5/u);
+  assert.match(mockHelper, /0d768d21a752111f940cccf096552c81b14ff38f3556e8f68b3156b16aa18029/u);
+  assert.match(mockHelper, /99cf760087f5045aaec4996a2cacb1f845964217e6dfa67759c379dbe7c0c2bb/u);
+  assert.doesNotMatch(testHelper, /^patch /mu);
+  assert.doesNotMatch(mockHelper, /^patch /mu);
+
+  const testPreparation = build.indexOf('bash /recipe/patch-snapshot-scope-test.sh "$PWD"');
+  const negativeControl = build.indexOf("/evidence/controls/unfixed/gradle.exit-code");
+  const mockPreparation = build.indexOf('bash /recipe/patch-snapshot-mock-repository.sh "$PWD"');
+  const positiveControl = build.indexOf("/evidence/controls/seeded-fixed/gradle.exit-code");
+  const selectedSuite = build.indexOf(":libs:opensearch-x-content:dependencyLicenses");
+  assert.ok(testPreparation >= 0 && testPreparation < negativeControl);
+  assert.ok(negativeControl < mockPreparation && mockPreparation < positiveControl);
+  assert.ok(positiveControl < selectedSuite);
+  assert.match(build, /730D258067002B91/u);
+  assert.match(build, /-Dtests\.locale=fr-LU/u);
+  assert.match(build, /-Dtests\.timezone=America\/Moncton/u);
+  assert.match(build, /testSnapshotFileFailureDuringSnapshot/u);
+  assert.match(build, /SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED/u);
+  assert.match(build, /failure-count-delta=1/u);
+  assert.match(build, /full_report_count.*-ne 16/u);
+  assert.match(build, /full_test_count.*-lt 1735/u);
+  assert.match(build, /full_pass_count.*-lt 1687/u);
+  assert.match(build, /full_skipped_count.*-gt 48/u);
+  assert.doesNotMatch(build, /"\$full_skipped_count" -(?:eq|lt)/u);
+  assert.match(build, /full-suite-skips\.txt/u);
+  assert.match(build, /grep -H -B 1 -A 1 '<skipped'/u);
+  assert.match(build, /full-suite-skip-reasons\.txt/u);
+  assert.match(build, /AssumptionViolatedException\|got: <\.\*>, expected:/u);
+  assert.match(build, /patch-snapshot-scope-test\.sh\.txt/u);
+  assert.match(build, /patch-snapshot-mock-repository\.sh\.txt/u);
+  assert.doesNotMatch(build, /\/evidence\/patch-snapshot-(?:scope-test|mock-repository)\.sh(?:\s|$)/u);
+  assert.match(build, /expected-failure-verified\.status/u);
+  assert.match(build, /success-verified\.status/u);
+  assert.match(build, /testSnapshotShardPathsListBlobsFaultScope.*SharedClusterSnapshotRestoreIT/u);
+  assert.match(build, /mkdir -p \/evidence\/junit \/evidence\/licenses \/evidence\/controls\/unfixed \/evidence\/controls\/seeded-fixed/u);
+  assert.match(recipe, /patch-snapshot-scope-test\.sh[\s\S]*snapshot-scope-test\.patch/u);
+  assert.match(recipe, /patch-snapshot-mock-repository\.sh[\s\S]*snapshot-scope-mock-repository\.patch/u);
+  assert.doesNotMatch(recipe, /fixtures\/SharedClusterSnapshotRestoreIT|fixtures\/MockRepository/u);
+
+});
+
+test("authenticated snapshot source patches preserve foreign and already-patched inputs", linuxExecution, (t) => {
+  const source = snapshotSource(t);
+  const testResult = runScript("patch-snapshot-scope-test.sh", [source.result]);
+  assert.equal(testResult.status, 0, `${testResult.stdout}\n${testResult.stderr}`);
+  const patchedTest = readFileSync(source.testPath);
+  assert.notDeepEqual(patchedTest, snapshotTestOriginal);
+  assert.deepEqual(readFileSync(source.mockPath), mockRepositoryOriginal);
+  assert.notEqual(runScript("patch-snapshot-scope-test.sh", [source.result]).status, 0);
+  assert.deepEqual(readFileSync(source.testPath), patchedTest);
+
+  const mockResult = runScript("patch-snapshot-mock-repository.sh", [source.result]);
+  assert.equal(mockResult.status, 0, `${mockResult.stdout}\n${mockResult.stderr}`);
+  const patchedMock = readFileSync(source.mockPath);
+  assert.notDeepEqual(patchedMock, mockRepositoryOriginal);
+  assert.deepEqual(readFileSync(source.testPath), patchedTest);
+  assert.notEqual(runScript("patch-snapshot-mock-repository.sh", [source.result]).status, 0);
+  assert.deepEqual(readFileSync(source.mockPath), patchedMock);
+
+  const foreign = snapshotSource(t, Buffer.from(snapshotTestOriginal.toString("utf8").replace("public void testEmptySnapshot", "public void testForeignSnapshot")));
+  const foreignBytes = readFileSync(foreign.testPath);
+  assert.notEqual(runScript("patch-snapshot-scope-test.sh", [foreign.result]).status, 0);
+  assert.deepEqual(readFileSync(foreign.testPath), foreignBytes);
+
+  const foreignMock = snapshotSource(t, snapshotTestOriginal, Buffer.from(mockRepositoryOriginal.toString("utf8").replace("private final AtomicLong", "private final  AtomicLong")));
+  const foreignMockBytes = readFileSync(foreignMock.mockPath);
+  assert.notEqual(runScript("patch-snapshot-mock-repository.sh", [foreignMock.result]).status, 0);
+  assert.deepEqual(readFileSync(foreignMock.mockPath), foreignMockBytes);
+
+  const gateStart = build.indexOf("full_report_count=");
+  const gateEnd = build.indexOf("if grep -Eq ':server:internalClusterTest", gateStart);
+  assert.ok(gateStart >= 0 && gateEnd > gateStart);
+  const gate = build.slice(gateStart, gateEnd);
+  const runGate = ({ firstReportTests = 235, skipped = 47, failures = 0, errors = 0, scopeSkipped = false }) => {
+    const evidence = temporaryDirectory(t);
+    const junit = path.join(evidence, "junit");
+    const scopePath = path.join(junit, "server/build/test-results/internalClusterTest/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml");
+    mkdirSync(path.dirname(scopePath), { recursive: true });
+    const scopeCase = scopeSkipped
+      ? '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"><skipped/></testcase>'
+      : '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"/>';
+    writeFileSync(scopePath, `<testsuite tests="${firstReportTests}" failures="${failures}" errors="${errors}" skipped="${skipped}">${scopeCase}</testsuite>\n`);
+    for (let index = 1; index < 16; index += 1) {
+      const report = path.join(junit, `group-${index}/nested-${index % 3}/build/test-results/test/TEST-fixture-${index}.xml`);
+      mkdirSync(path.dirname(report), { recursive: true });
+      writeFileSync(report, '<testsuite tests="100" failures="0" errors="0" skipped="0"><testcase name="fixture" classname="fixture" time="0.1"/></testsuite>\n');
+    }
+    writeFileSync(path.join(evidence, "core-build-and-tests.log"), "synthetic full-suite gate fixture\n");
+    const evidencePath = evidence.replaceAll("\\", "/");
+    const command = `build_status=0\n${gate.replaceAll("/evidence", evidencePath)}\nprintf '%s\\n' "$build_status"`;
+    const result = spawnSync(bash, ["-euo", "pipefail", "-c", command], { encoding: "utf8", timeout: 15000 });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    return Number(result.stdout.trim());
+  };
+  assert.equal(runGate({ skipped: 47 }), 0);
+  assert.equal(runGate({ skipped: 48 }), 0);
+  assert.equal(runGate({ firstReportTests: 234 }), 1);
+  assert.equal(runGate({ firstReportTests: 236, skipped: 48 }), 0);
+  assert.equal(runGate({ skipped: 49 }), 1);
+  assert.equal(runGate({ failures: 1 }), 1);
+  assert.equal(runGate({ errors: 1 }), 1);
+  assert.equal(runGate({ scopeSkipped: true }), 1);
+});
+
 test("JDK inventory preserves required fields and plugin absence rejects visible and hidden entries", linuxExecution, (t) => {
   const source = temporaryDirectory(t);
   mkdirSync(path.join(source, "bin"));
@@ -130,7 +277,7 @@ test("JDK inventory preserves required fields and plugin absence rejects visible
 });
 
 test("all preparation scripts have valid Bash syntax without building or executing candidate code", () => {
-  for (const name of ["patch-catalogue.sh", "jdk-inventory.sh", "build-core.sh"]) {
+  for (const name of ["patch-catalogue.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh"]) {
     const result = spawnSync(bash, ["-n", path.join(directory, name).replaceAll("\\", "/")], { encoding: "utf8", windowsHide: true });
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
   }
