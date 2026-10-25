@@ -102,8 +102,10 @@ and corresponding main evidence before this increment can be delivered.
 ### A — concrete prerequisites
 
 The source-review criterion above is prepared. The private second-copy
-destination remains pending user input. The measured current retained subset is
-6,729,966,067 bytes; with 25 percent working headroom it is 8,412,457,584 bytes.
+destination remains pending user input. The dated measured raw-layout subset
+from main run40221700632 is 6,729,966,067 bytes; with 25 percent working
+headroom it is 8,412,457,584 bytes. These measured sizes do not prove current
+availability, a private copy or restoration capability.
 That subtotal includes three image TARs, two uncompressed databases, one
 scanner binary and selected locked inputs/public evidence. It excludes measured
 sizes for Redis and SeaweedFS objects, builders and carrier/base blob closure,
