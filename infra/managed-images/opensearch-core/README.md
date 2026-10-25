@@ -17,6 +17,12 @@ files with `updateShas`, and keeps licence/third-party checks enabled. It retain
 Gradle statuses, original logs and JUnit XML. The targeted upstream checksum
 files are generated during CI; their new JAR bytes and success are not asserted
 in advance. Full core REST tests use the upstream `rest-api-spec` selection.
+The upstream [settings](https://github.com/opensearch-project/OpenSearch/blob/4ee42a94e87f66fbf1e62a9871b1b87f91e02472/settings.gradle#L171-L173)
+rename library projects: the four x-content task locators therefore use
+`:libs:opensearch-x-content`. The physical directory stays `libs/x-content`,
+including its `licenses` and `build/test-results/test` directories. Other selected
+projects keep their original names. JUnit evidence retains the task-specific
+directories for `test`, `yamlRestTest` and `internalClusterTest`.
 
 Target `runtime` rejects a nonzero `build.exit-code`. Target `evidence` exports
 text/XML under `opensearch/build/` and `opensearch/base/`, including failed Gradle
@@ -52,4 +58,10 @@ Toybox; the recipe's first inventory previously invoked `find`. This strongly
 supports the missing-command diagnosis without claiming the original error
 text was observed. The inventory now uses the existing GNU tar, and the strict
 empty-plugin check uses Bash globbing including hidden entries. No package was
-added. A new real CI run is still required to establish this correction.
+added.
+
+Run 40206325488 completed base preparation and exported its evidence, establishing
+the GNU tar/DNF correction. Gradle preparation then failed because the original
+`:libs:x-content:updateShas` locator did not exist. No upstream JUnit results or
+core runtime image were produced. The four library task locators now use the
+upstream's renamed project; actual Gradle/test/image success still requires CI.

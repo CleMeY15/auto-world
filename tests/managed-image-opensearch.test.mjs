@@ -42,6 +42,15 @@ function assertExplodedDistributionContract(script) {
   assert.ok(script.search(guard) < script.indexOf('"$build_status" > /evidence/build.exit-code'));
 }
 
+function assertXContentProjectContract(script) {
+  for (const task of ["updateShas", "dependencyLicenses", "thirdPartyAudit", "test"])
+    assert.ok(script.includes(`:libs:opensearch-x-content:${task}`), task);
+  assert.doesNotMatch(script, /:libs:x-content:/u);
+  assert.match(script, /^for group in libs\/x-content modules\/ingest-geoip; do$/mu);
+  assert.match(script, /^ {2}libs\/x-content\/build\/test-results\/test \\$/mu);
+  assert.doesNotMatch(script, /libs\/opensearch-x-content\//u);
+}
+
 function pluginAbsenceCommand(dockerfile) {
   const command = dockerfile.match(/shopt -s nullglob dotglob; \\\n {4}plugins=\(\/usr\/share\/opensearch\/plugins\/\*\); \\\n {4}test "\$\{#plugins\[@\]\}" -eq 0;/u)?.[0];
   assert.ok(command, "missing strict empty-plugin check including hidden entries");
@@ -162,10 +171,13 @@ test("core launch configuration and test gates preserve the selected limits and 
   assert.match(recipe, /ENTRYPOINT \["\/usr\/share\/opensearch\/bin\/opensearch"\]/u);
   assert.match(recipe, /CMD \[\]/u);
   assert.doesNotMatch(recipe, /DISABLE_INSTALL_DEMO_CONFIG|DISABLE_SECURITY_PLUGIN/u);
-  for (const task of [":libs:x-content:updateShas", ":modules:ingest-geoip:updateShas", ":libs:x-content:dependencyLicenses",
-    ":libs:x-content:thirdPartyAudit", ":modules:ingest-geoip:dependencyLicenses", ":modules:ingest-geoip:thirdPartyAudit",
-    ":libs:x-content:test", ":modules:ingest-geoip:test", ":modules:ingest-geoip:yamlRestTest", ":rest-api-spec:yamlRestTest",
+  for (const task of [":modules:ingest-geoip:updateShas", ":modules:ingest-geoip:dependencyLicenses", ":modules:ingest-geoip:thirdPartyAudit",
+    ":modules:ingest-geoip:test", ":modules:ingest-geoip:yamlRestTest", ":rest-api-spec:yamlRestTest",
     ":server:internalClusterTest", ":distribution:archives:buildNoJdkLinux", ":distribution:archives:no-jdk-linux-tar:assemble"]) assert.ok(build.includes(task), task);
+  assertXContentProjectContract(build);
+  assert.throws(() => assertXContentProjectContract(build.replaceAll(":libs:opensearch-x-content:", ":libs:x-content:")));
+  assert.throws(() => assertXContentProjectContract(build.replaceAll("libs/x-content/", "libs/opensearch-x-content/")));
+  assert.throws(() => assertXContentProjectContract(build.replace("for group in libs/x-content ", "for group in libs/opensearch-x-content ")));
   assertExplodedDistributionContract(build);
   assert.throws(() => assertExplodedDistributionContract(build.replace("    :distribution:archives:buildNoJdkLinux \\\n", "")));
   assert.throws(() => assertExplodedDistributionContract(build.replace("if [ ! -d /workspace/source/distribution/archives/no-jdk-linux-tar/build/install/opensearch-3.9.0 ]; then", "if false; then")));

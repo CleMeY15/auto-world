@@ -32,16 +32,16 @@ gradle_options=(--no-daemon --no-build-cache --max-workers=2
 # runtime explicitly rejects them; an incomplete build never becomes an image.
 preparation_status=0
 bash ./gradlew "${gradle_options[@]}" \
-  :libs:x-content:updateShas :modules:ingest-geoip:updateShas \
+  :libs:opensearch-x-content:updateShas :modules:ingest-geoip:updateShas \
   > /evidence/update-shas.log 2>&1 || preparation_status=$?
 printf '%s\n' "$preparation_status" > /evidence/preparation.exit-code
 build_status=$preparation_status
 if [ "$preparation_status" -eq 0 ]; then
   build_status=0
   bash ./gradlew "${gradle_options[@]}" --continue \
-    :libs:x-content:dependencyLicenses :libs:x-content:thirdPartyAudit \
+    :libs:opensearch-x-content:dependencyLicenses :libs:opensearch-x-content:thirdPartyAudit \
     :modules:ingest-geoip:dependencyLicenses :modules:ingest-geoip:thirdPartyAudit \
-    :libs:x-content:test :modules:ingest-geoip:test \
+    :libs:opensearch-x-content:test :modules:ingest-geoip:test \
     :modules:ingest-geoip:yamlRestTest \
     :rest-api-spec:yamlRestTest \
     :server:internalClusterTest \
