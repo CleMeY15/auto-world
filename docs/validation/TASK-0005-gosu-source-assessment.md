@@ -95,17 +95,22 @@ and corresponding main evidence before this increment can be delivered.
 
 | Stage | Expected proof | Owner | End condition |
 | --- | --- | --- | --- |
-| A — prerequisites | Bounded source/advisory verdict plus complete retention inventory, measured capacity and selected private destination | source reviewer, retention reviewer, root; user supplies destination | Current material is sufficient or precisely refused; complete destination and capacity are concrete |
+| A — prerequisites | Bounded source/advisory verdict plus complete retention inventory and measured capacity at the user-selected private destination | source reviewer, retention reviewer and root | Current material is sufficient or precisely refused; complete inventory fits the restricted destination with required working capacity |
 | B — final subjects | Approved least-privilege private package plan, exact subject retrieval, independent audit/runtime, complete private closure, then separate official signature and refusal controls | root, ordered reviewers, read-only verifier and separate signer | Exact subjects pass all pre-signing gates and their signature/private recovery evidence is accepted |
 | C — acceptance | Current final-identity evidence, complete second-copy cold restore, reviewed admission/activation, applicable seventeen phases and protected delivery | root, ordered reviewers and independent result reviewer | All task acceptance criteria and DoD pass on admitted identities; support dates start only then |
 
 ### A — concrete prerequisites
 
-The source-review criterion above is prepared. The private second-copy
-destination remains pending user input. The dated measured raw-layout subset
-from main run40221700632 is 6,729,966,067 bytes; with 25 percent working
-headroom it is 8,412,457,584 bytes. These measured sizes do not prove current
-availability, a private copy or restoration capability.
+The source-review criterion above is prepared. The user selected `C:` for the
+private second copy. A fresh restricted empty folder outside the checkout was
+prepared with Full Control granted only to the current owner, `SYSTEM` and local
+`Administrators`; 14,038,360,064 free bytes were observed at that dated check.
+The complete
+inventory, capacity decision, copy, retrieval and restoration are still
+pending. The dated measured raw-layout subset from main run40221700632 is
+6,729,966,067 bytes; with 25 percent working headroom it is 8,412,457,584 bytes.
+These measured sizes do not prove current availability, a private copy or
+restoration capability.
 That subtotal includes three image TARs, two uncompressed databases, one
 scanner binary and selected locked inputs/public evidence. It excludes measured
 sizes for Redis and SeaweedFS objects, builders and carrier/base blob closure,
@@ -138,3 +143,41 @@ archives remain retained for at least 365 further days; all dates remain null.
 PR77's delivered M2 checkpoint remains the diagnostic starting point:
 https://github.com/CleMeY15/auto-world/pull/77#issuecomment-6401763287 .
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`.
+
+## 2026-10-25 — failed changed-subject managed observation
+
+The A1 source was published for validation as `fbe5bba15210cd9ca859795f83568dc7d1ac7ffe`
+(tree `afedc20dca90c55b5ac0e909d4e88fc217e0e7de`, tested merge `7761a8ec`). Quality run
+[40235438949](https://github.com/CleMeY15/auto-world/actions/runs/40235438949)
+passed: 2,605 of 2,665 root tests with 60 explicit skips, 624 workspace tests,
+and 393 browser tests with seven existing exclusions; it had no failure, flaky
+annotation or retry.
+
+Managed run
+[40235439116](https://github.com/CleMeY15/auto-world/actions/runs/40235439116)
+remains failed. All three builds and all seven builder/role audits passed with
+zero blockers, and the PostgreSQL notice/export matched the changed source.
+OpenSearch public evidence export was refused with the existing generic
+`scanner_managed_evidence_invalid` reason. Runtime never started, so no current
+four-case result, complete 16-JUnit/1,734-case acceptance or JDK-preservation
+result exists for this run.
+
+Independent review verified 14 JSON/SBOM files, 39 text files and 26 source
+references. Public artifact `12615400842` is 1,669,225 bytes with SHA-256
+`debf1ea09872c658ef8bb1a4352403005e7b735487507ff2c210011eb4ca1726`;
+the 107,829-byte receipt SHA-256 is
+`9f4684b8de9c1532208b66ed80c8d097027fd973104b4671ef8d56e0acee1033`.
+The public artifact has no OpenSearch evidence tree, and the original generic
+reason does not recover the exact rejected guard or file. An earlier accepted
+XML measured 4,167,803 bytes, below the 4 MiB limit; size is therefore only a
+suspect and is not established as this failure's cause.
+
+The follow-up adds only a privately branded, fixed-category diagnostic to a
+failed build record. It preserves the generic refusal, every existing limit,
+validation order and the no-partial-copy rule; it publishes no raw path,
+content, token or native exception. A single managed run on independently
+reviewed final source is still required. If that run fails, its safe diagnostic
+can support a separately reviewed producer correction; no retry, raised limit
+or skipped evidence is pre-authorized. TASK-0005/0005A remain `IN_PROGRESS`.
+The user-selected restricted empty destination on `C:` still needs the complete
+inventory/capacity decision, actual copy, retrieval and restoration proof.

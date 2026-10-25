@@ -21,9 +21,23 @@ const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensea
 // Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
 const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-pkg", "jar"]);
 const fail = (code) => { throw new Error(code); };
+const managedEvidenceDiagnostics = new WeakMap();
+const refuseManagedEvidence = (guard, { relative, observed, limit } = {}) => {
+  const error = new Error("scanner_managed_evidence_invalid");
+  const diagnostic = { schemaVersion: 1, guard };
+  if (typeof relative === "string") diagnostic.pathSha256 = createHash("sha256").update(relative.replaceAll(path.sep, "/")).digest("hex");
+  if (Number.isSafeInteger(observed) && observed >= 0) diagnostic.observed = observed;
+  if (Number.isSafeInteger(limit) && limit >= 0) diagnostic.limit = limit;
+  managedEvidenceDiagnostics.set(error, Object.freeze(diagnostic));
+  throw error;
+};
 const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
 const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0,\r\n]/u.test(value);
 const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+
+export function managedEvidenceDiagnostic(error) {
+  return managedEvidenceDiagnostics.get(error);
+}
 
 export function commandFailureDiagnostic(result, { privateOutput = false } = {}) {
   if (privateOutput) return { stdoutBytes: Buffer.isBuffer(result.stdout) ? result.stdout.length : 0,
@@ -193,8 +207,10 @@ export function officialArchiveScanArguments(carrier, scanner, cache, archive, f
 }
 
 export function exportManagedTextEvidence(source, destination) {
-  if (!safePath(source) || !safePath(destination) || existsSync(destination) || realpathSync(source) !== source ||
-      realpathSync(path.dirname(destination)) !== path.dirname(destination)) fail("scanner_managed_evidence_invalid");
+  if (!safePath(source) || !safePath(destination)) refuseManagedEvidence("PATH_INVALID");
+  if (existsSync(destination)) refuseManagedEvidence("DESTINATION_OCCUPIED");
+  if (realpathSync(source) !== source) refuseManagedEvidence("SOURCE_IDENTITY");
+  if (realpathSync(path.dirname(destination)) !== path.dirname(destination)) refuseManagedEvidence("DESTINATION_PARENT_IDENTITY");
   const files = [];
   let total = 0;
   const visit = (directory) => {
@@ -202,20 +218,27 @@ export function exportManagedTextEvidence(source, destination) {
       const file = path.join(directory, entry.name);
       const relative = path.relative(source, file);
       const info = lstatSync(file);
-      if (info.isSymbolicLink() || relative.split(path.sep).some((segment) => !/^[A-Za-z0-9_.-]+$/u.test(segment) || [".", ".."].includes(segment))) fail("scanner_managed_evidence_invalid");
+      if (info.isSymbolicLink()) refuseManagedEvidence("ENTRY_SYMLINK");
+      if (relative.split(path.sep).some((segment) => !/^[A-Za-z0-9_.-]+$/u.test(segment) || [".", ".."].includes(segment))) refuseManagedEvidence("ENTRY_NAME");
       if (info.isDirectory()) { visit(file); continue; }
-      if (!info.isFile() || info.nlink !== 1 || info.size > 4 * MiB || !/(?:\.(?:txt|json|xml|tsv|log|toml|patch|properties|sha1|sha256|exit-code)|(?:^|[/._-])(?:LICENSE|PATENTS|NOTICE)|(?:^|\/)go\.(?:mod|sum)|(?:^|\/)[A-Za-z0-9_.-]+\.status)$/u.test(relative.replaceAll(path.sep, "/"))) fail("scanner_managed_evidence_invalid");
+      if (!info.isFile()) refuseManagedEvidence("ENTRY_TYPE", { relative });
+      if (info.nlink !== 1) refuseManagedEvidence("ENTRY_HARDLINK", { relative, observed: info.nlink, limit: 1 });
+      if (info.size > 4 * MiB) refuseManagedEvidence("ENTRY_BYTES", { relative, observed: info.size, limit: 4 * MiB });
+      if (!/(?:\.(?:txt|json|xml|tsv|log|toml|patch|properties|sha1|sha256|exit-code)|(?:^|[/._-])(?:LICENSE|PATENTS|NOTICE)|(?:^|\/)go\.(?:mod|sum)|(?:^|\/)[A-Za-z0-9_.-]+\.status)$/u.test(relative.replaceAll(path.sep, "/"))) refuseManagedEvidence("ENTRY_EXTENSION", { relative });
       const bytes = readFileSync(file);
       total += bytes.length;
-      if (bytes.length !== info.size || total > 64 * MiB || files.length >= 4096 || bytes.includes(0)) fail("scanner_managed_evidence_invalid");
+      if (bytes.length !== info.size) refuseManagedEvidence("READ_SIZE_CHANGED", { relative, observed: bytes.length, limit: info.size });
+      if (total > 64 * MiB) refuseManagedEvidence("TOTAL_BYTES", { relative, observed: total, limit: 64 * MiB });
+      if (files.length >= 4096) refuseManagedEvidence("FILE_COUNT", { relative, observed: files.length + 1, limit: 4096 });
+      if (bytes.includes(0)) refuseManagedEvidence("CONTENT_NUL", { relative });
       let text;
-      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { fail("scanner_managed_evidence_invalid"); }
-      if (/(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|Authorization:\s*(?:Bearer|Basic)\s+\S+)/iu.test(text)) fail("scanner_managed_evidence_invalid");
+      try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { refuseManagedEvidence("CONTENT_UTF8", { relative }); }
+      if (/(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|Authorization:\s*(?:Bearer|Basic)\s+\S+)/iu.test(text)) refuseManagedEvidence("CREDENTIAL_PATTERN", { relative });
       files.push({ relative, bytes, sha256: createHash("sha256").update(bytes).digest("hex") });
     }
   };
   visit(source);
-  if (!files.length) fail("scanner_managed_evidence_invalid");
+  if (!files.length) refuseManagedEvidence("EMPTY_SOURCE");
   mkdirSync(destination, { mode: 0o700 });
   for (const file of files) {
     const target = path.join(destination, file.relative);
@@ -617,6 +640,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             build.evidenceExport = "passed";
           } catch (error) {
             build.evidenceExport = "failed"; build.evidenceReason = error.message;
+            const diagnostic = managedEvidenceDiagnostic(error);
+            if (diagnostic) build.evidenceDiagnostic = diagnostic;
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
           }
           await assertFilesUnchanged(inputs);

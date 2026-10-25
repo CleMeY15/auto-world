@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { exportManagedTextEvidence } from "../scripts/scanner/official-audit.mjs";
+import { exportManagedTextEvidence, managedEvidenceDiagnostic } from "../scripts/scanner/official-audit.mjs";
 
 const MiB = 1024 ** 2;
 const error = /^scanner_managed_evidence_invalid$/u;
@@ -41,9 +44,17 @@ function put(directory, relative, bytes) {
 }
 
 function refuses(source, destination) {
-  assert.throws(() => exportManagedTextEvidence(source, destination), (failure) => error.test(failure.message));
+  let captured;
+  assert.throws(() => exportManagedTextEvidence(source, destination), (failure) => {
+    captured = failure;
+    return error.test(failure.message);
+  });
   assert.equal(existsSync(destination), false, "no public output is created after a validation refusal");
+  return { failure: captured, diagnostic: managedEvidenceDiagnostic(captured) };
 }
+
+const portableHash = (relative) => sha256(Buffer.from(relative.replaceAll(path.sep, "/")));
+const expectedDiagnostic = (guard, extra = {}) => Object.freeze({ schemaVersion: 1, guard, ...extra });
 
 test("managed evidence exports exact original bytes and independently computed hashes with portable relative paths", (t) => {
   const { source, destination } = fixture(t);
@@ -238,6 +249,187 @@ test("managed evidence accepts exactly 4 MiB and refuses the next byte before ex
   assert.deepEqual(exported, [{ path: "boundary.log", size: bytes.length, sha256: sha256(bytes) }]);
   assert.deepEqual(readFileSync(path.join(destination, "boundary.log")), bytes);
   writeFileSync(file, Buffer.alloc(4 * MiB + 1, 0x61));
-  refuses(source, path.join(path.dirname(destination), "oversized-public"));
+  const refused = refuses(source, path.join(path.dirname(destination), "oversized-public"));
+  assert.deepEqual(refused.diagnostic, expectedDiagnostic("ENTRY_BYTES", {
+    pathSha256: portableHash("boundary.log"), observed: 4 * MiB + 1, limit: 4 * MiB }));
+  assert.equal(Object.isFrozen(refused.diagnostic), true);
   assert.equal(statSync(file).size, 4 * MiB + 1);
+});
+
+test("managed evidence diagnostics distinguish preflight guards without exposing invalid paths", (t) => {
+  const { directory, source, destination } = fixture(t);
+  put(source, "report.txt", "valid\n");
+  let filesystemAccesses = 0;
+  t.mock.method(fs, "existsSync", () => { filesystemAccesses += 1; throw new Error("unexpected existsSync"); });
+  t.mock.method(fs, "realpathSync", () => { filesystemAccesses += 1; throw new Error("unexpected realpathSync"); });
+  syncBuiltinESMExports();
+  let invalidSyntax;
+  try {
+    assert.throws(() => exportManagedTextEvidence("relative-source", destination), (failure) => {
+      invalidSyntax = failure;
+      return error.test(failure.message);
+    });
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+  assert.equal(filesystemAccesses, 0);
+  assert.deepEqual(managedEvidenceDiagnostic(invalidSyntax), expectedDiagnostic("PATH_INVALID"));
+
+  mkdirSync(destination);
+  const diagnosticFor = (input, output) => {
+    let failure;
+    assert.throws(() => exportManagedTextEvidence(input, output), (value) => {
+      failure = value;
+      return error.test(value.message);
+    });
+    return managedEvidenceDiagnostic(failure);
+  };
+  assert.deepEqual(diagnosticFor("relative-source", destination), expectedDiagnostic("PATH_INVALID"));
+  assert.deepEqual(diagnosticFor(path.join(directory, "missing-source"), destination), expectedDiagnostic("DESTINATION_OCCUPIED"));
+  const noncanonicalSource = `${source}${path.sep}..${path.sep}${path.basename(source)}`;
+  assert.deepEqual(diagnosticFor(noncanonicalSource, path.join(directory, "missing-parent", "public")),
+    expectedDiagnostic("SOURCE_IDENTITY"));
+
+  let occupied;
+  assert.throws(() => exportManagedTextEvidence(source, destination), (failure) => {
+    occupied = failure;
+    return error.test(failure.message);
+  });
+  const occupiedDiagnostic = managedEvidenceDiagnostic(occupied);
+  assert.deepEqual(occupiedDiagnostic, expectedDiagnostic("DESTINATION_OCCUPIED"));
+  assert.equal(JSON.stringify([managedEvidenceDiagnostic(invalidSyntax), occupiedDiagnostic]).includes(directory), false);
+});
+
+test("managed evidence diagnostics distinguish source and destination-parent identities", linuxOnly, (t) => {
+  const { directory, source, destination } = fixture(t);
+  put(source, "report.txt", "valid\n");
+  const sourceAlias = path.join(directory, "source-alias");
+  symlinkSync(source, sourceAlias, "dir");
+  assert.deepEqual(refuses(sourceAlias, destination).diagnostic, expectedDiagnostic("SOURCE_IDENTITY"));
+  const publicParent = path.join(directory, "public-parent");
+  mkdirSync(publicParent);
+  const parentAlias = path.join(directory, "public-parent-alias");
+  symlinkSync(publicParent, parentAlias, "dir");
+  assert.deepEqual(refuses(source, path.join(parentAlias, "public")).diagnostic,
+    expectedDiagnostic("DESTINATION_PARENT_IDENTITY"));
+});
+
+test("managed evidence diagnostics preserve entry guard order and hash only validated portable names", linuxOnly, async (t) => {
+  const first = fixture(t);
+  const outside = put(first.directory, "outside.txt", "outside\n");
+  symlinkSync(outside, path.join(first.source, "unsafe name.txt"), "file");
+  assert.deepEqual(refuses(first.source, first.destination).diagnostic, expectedDiagnostic("ENTRY_SYMLINK"));
+
+  const second = fixture(t);
+  put(second.source, "unsafe name.txt", "text\n");
+  assert.deepEqual(refuses(second.source, second.destination).diagnostic, expectedDiagnostic("ENTRY_NAME"));
+
+  const third = fixture(t);
+  const socket = path.join(third.source, "report.txt");
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(socket, resolve);
+  });
+  try {
+    assert.equal(lstatSync(socket).isSocket(), true);
+    assert.deepEqual(refuses(third.source, third.destination).diagnostic,
+      expectedDiagnostic("ENTRY_TYPE", { pathSha256: portableHash("report.txt") }));
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("managed evidence diagnostics preserve hardlink, byte and extension predicate order", (t) => {
+  const hard = fixture(t);
+  const original = put(hard.source, "report.txt", Buffer.alloc(4 * MiB + 1, 0x61));
+  linkSync(original, path.join(hard.directory, "alias.txt"));
+  assert.deepEqual(refuses(hard.source, hard.destination).diagnostic,
+    expectedDiagnostic("ENTRY_HARDLINK", { pathSha256: portableHash("report.txt"), observed: 2, limit: 1 }));
+
+  const bytes = fixture(t);
+  put(bytes.source, "not-allowed.bin", Buffer.alloc(4 * MiB + 1, 0x61));
+  assert.deepEqual(refuses(bytes.source, bytes.destination).diagnostic,
+    expectedDiagnostic("ENTRY_BYTES", { pathSha256: portableHash("not-allowed.bin"), observed: 4 * MiB + 1, limit: 4 * MiB }));
+
+  const extension = fixture(t);
+  put(extension.source, "not-allowed.bin", "text\n");
+  assert.deepEqual(refuses(extension.source, extension.destination).diagnostic,
+    expectedDiagnostic("ENTRY_EXTENSION", { pathSha256: portableHash("not-allowed.bin") }));
+});
+
+test("managed evidence diagnostics report read-size changes without serializing native exceptions", (t) => {
+  const changed = fixture(t);
+  const changedFile = put(changed.source, "report.txt", "stable bytes\n");
+  const originalRead = fs.readFileSync;
+  t.mock.method(fs, "readFileSync", (file, ...args) => file === changedFile ? Buffer.from("short") : originalRead(file, ...args));
+  syncBuiltinESMExports();
+  try {
+    assert.deepEqual(refuses(changed.source, changed.destination).diagnostic,
+      expectedDiagnostic("READ_SIZE_CHANGED", { pathSha256: portableHash("report.txt"), observed: 5, limit: 13 }));
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+
+  const native = fixture(t);
+  const nativeFile = put(native.source, "report.txt", "stable bytes\n");
+  t.mock.method(fs, "readFileSync", (file, ...args) => {
+    if (file === nativeFile) throw new Error("PRIVATE_NATIVE_FAILURE");
+    return originalRead(file, ...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    let failure;
+    assert.throws(() => exportManagedTextEvidence(native.source, native.destination), (value) => { failure = value; return value.message === "PRIVATE_NATIVE_FAILURE"; });
+    assert.equal(managedEvidenceDiagnostic(failure), undefined);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
+test("managed evidence diagnostics retain total, count, NUL, UTF-8, credential and empty boundaries", (t) => {
+  const total = fixture(t);
+  const totalNames = Array.from({ length: 17 }, (_, index) => `part-${String(index).padStart(2, "0")}.log`);
+  for (const name of totalNames) put(total.source, name, Buffer.alloc(4 * MiB, 0x61));
+  const totalDiagnostic = refuses(total.source, total.destination).diagnostic;
+  assert.deepEqual({ ...totalDiagnostic, pathSha256: undefined }, {
+    ...expectedDiagnostic("TOTAL_BYTES", { observed: 68 * MiB, limit: 64 * MiB }), pathSha256: undefined });
+  assert.equal(new Set(totalNames.map(portableHash)).has(totalDiagnostic.pathSha256), true);
+
+  const count = fixture(t);
+  const countNames = Array.from({ length: 4097 }, (_, index) => `f-${String(index).padStart(4, "0")}.txt`);
+  for (const name of countNames) put(count.source, name, "");
+  const countDiagnostic = refuses(count.source, count.destination).diagnostic;
+  assert.deepEqual({ ...countDiagnostic, pathSha256: undefined }, {
+    ...expectedDiagnostic("FILE_COUNT", { observed: 4097, limit: 4096 }), pathSha256: undefined });
+  assert.equal(new Set(countNames.map(portableHash)).has(countDiagnostic.pathSha256), true);
+
+  const cases = [
+    ["CONTENT_NUL", Buffer.from([0x61, 0x00]), "nul.log"],
+    ["CONTENT_UTF8", Buffer.from([0xc3, 0x28]), "utf8.log"],
+    ["CREDENTIAL_PATTERN", Buffer.from(`ghp_${"a".repeat(24)}\n`), "secret.log"],
+  ];
+  for (const [guard, content, name] of cases) {
+    const item = fixture(t);
+    put(item.source, name, content);
+    assert.deepEqual(refuses(item.source, item.destination).diagnostic,
+      expectedDiagnostic(guard, { pathSha256: portableHash(name) }));
+  }
+
+  const empty = fixture(t);
+  assert.deepEqual(refuses(empty.source, empty.destination).diagnostic, expectedDiagnostic("EMPTY_SOURCE"));
+});
+
+test("managed evidence diagnostic getter ignores forged properties and returns only frozen branded records", () => {
+  let reads = 0;
+  const forged = new Proxy({ evidenceDiagnostic: { schemaVersion: 1, guard: "ENTRY_BYTES", content: "secret" } }, {
+    get() { reads += 1; throw new Error("must not inspect forged errors"); },
+    ownKeys() { reads += 1; throw new Error("must not enumerate forged errors"); },
+  });
+  assert.equal(managedEvidenceDiagnostic(forged), undefined);
+  assert.equal(reads, 0);
+  assert.equal(managedEvidenceDiagnostic(new Error("scanner_managed_evidence_invalid")), undefined);
 });
