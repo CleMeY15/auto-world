@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-import { CASE_NAMES, createRuntimeCompose, validateRuntimeInput } from "./managed-image-runtime.integration.mjs";
+import { CASE_NAMES, containerSignature, createRuntimeCompose, validateRuntimeInput } from "./managed-image-runtime.integration.mjs";
 
 const MiB = 1024 ** 2, GiB = 1024 ** 3;
 const root = path.resolve(os.tmpdir(), "aw-runtime-contract-fixture");
@@ -117,4 +117,46 @@ test("runtime service commands and raw bootstrap match actual infrastructure whi
   assert.match(core, /OPENSEARCH_PATH_CONF=\/usr\/share\/opensearch\/config/u);
   const config = source("infra/managed-images/opensearch-core/opensearch.yml");
   for (const setting of ["discovery.type: single-node", "network.host: 0.0.0.0", "path.data: /usr/share/opensearch/data", "bootstrap.memory_lock: true"]) assert.ok(config.split(/\r?\n/u).includes(setting));
+});
+
+function inspectedPostgres(restore = false, binds = false) {
+  const context = { input: fixture() }, project = { project: `aw-test-${randomUUID()}`, restore };
+  const volume = `${project.project}_postgres-data`, target = "/var/lib/postgresql/data";
+  const declaration = { Type: "volume", Source: volume, Target: target, ReadOnly: false, VolumeOptions: { NoCopy: restore } };
+  const value = { Id: "f".repeat(64), Image: context.input.roles[0].imageId, Name: `/${project.project}-postgres`, State: { Status: "running" },
+    Config: { Tty: false, OpenStdin: false, Labels: { "io.auto-world.owner": context.input.ownerToken, "com.docker.compose.project": project.project, "com.docker.compose.service": "postgres" } },
+    HostConfig: { Privileged: false, NetworkMode: `${project.project}_foundation`, ...(binds ? { Binds: [`${volume}:${target}:rw`] } : { Mounts: [declaration] }) },
+    Mounts: [{ Type: "volume", Name: volume, Source: `/var/lib/docker/volumes/${volume}/_data`, Destination: target, Driver: "local", Mode: "rw", RW: true, Propagation: "" }] };
+  return { context, project, value, volume, target, declaration };
+}
+for (const [name, restore, binds] of [["source Binds without HostConfig.Mounts", false, true], ["source Mounts", false, false], ["restore Mounts", true, false]]) {
+  test(`runtime inspection accepts exact ${name} declarations without mutating the Docker observation`, async () => {
+    const data = freeze(inspectedPostgres(restore, binds)), before = JSON.stringify(data);
+    const signature = await containerSignature(data.context, data.project, "postgres", data.value);
+    assert.deepEqual(JSON.parse(signature), [data.value.Id, data.value.Image, data.value.Mounts]); assert.equal(JSON.stringify(data), before);
+  });
+}
+for (const [name, change, restore = false, binds = false] of [
+  ["wrong declared source", (d) => { d.value.HostConfig.Mounts[0].Source = "foreign-volume"; }],
+  ["wrong declared target", (d) => { d.value.HostConfig.Mounts[0].Target = "/foreign"; }],
+  ["read-only declaration contradicting the effective mount", (d) => { d.value.HostConfig.Mounts[0].ReadOnly = true; }],
+  ["source NoCopy true", (d) => { d.value.HostConfig.Mounts[0].VolumeOptions.NoCopy = true; }],
+  ["restore NoCopy false", (d) => { d.value.HostConfig.Mounts[0].VolumeOptions.NoCopy = false; }, true],
+  ["restore missing NoCopy", (d) => { delete d.value.HostConfig.Mounts[0].VolumeOptions; }, true],
+  ["restore copy-default Binds", () => {}, true, true],
+  ["duplicate Mounts declarations", (d) => { d.value.HostConfig.Mounts.push(clone(d.declaration)); }],
+  ["ambiguous Binds plus Mounts", (d) => { d.value.HostConfig.Binds = [`${d.volume}:${d.target}:rw`]; }],
+  ["conflicting Binds plus Mounts", (d) => { d.value.HostConfig.Binds = [`foreign:${d.target}:rw`]; }],
+  ["extra declaration absent from effective mounts", (d) => { d.value.HostConfig.Mounts.push({ ...clone(d.declaration), Target: "/foreign" }); }],
+  ["wrong Binds volume", (d) => { d.value.HostConfig.Binds[0] = `foreign:${d.target}:rw`; }, false, true],
+  ["wrong Binds target", (d) => { d.value.HostConfig.Binds[0] = `${d.volume}:/foreign:rw`; }, false, true],
+  ["read-only Binds mode", (d) => { d.value.HostConfig.Binds[0] = `${d.volume}:${d.target}:ro`; }, false, true],
+  ["duplicate Binds", (d) => { d.value.HostConfig.Binds.push(d.value.HostConfig.Binds[0]); }, false, true],
+  ["substituted effective mount", (d) => { d.value.Mounts[0].Name = "foreign-volume"; }],
+  ["read-only effective mount", (d) => { d.value.Mounts[0].RW = false; }],
+  ["wrong owner label", (d) => { d.value.Config.Labels["io.auto-world.owner"] = randomUUID(); }],
+  ["wrong config image ID", (d) => { d.value.Image = imageId(4); }],
+]) test(`runtime inspection refuses ${name}`, async () => {
+  const data = inspectedPostgres(restore, binds); change(data);
+  await assert.rejects(containerSignature(data.context, data.project, "postgres", freeze(data.value)));
 });

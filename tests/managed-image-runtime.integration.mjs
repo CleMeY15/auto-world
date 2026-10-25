@@ -245,7 +245,7 @@ async function compose(context, project, args, timeoutMs = 120_000) {
   return checked(context, ["compose", "--project-name", project.project, "--project-directory", project.directory, "--file", path.join(project.directory, "compose.json"), ...args], { timeoutMs });
 }
 
-async function containerSignature(context, project, service, value, stopped = false) {
+export async function containerSignature(context, project, service, value, stopped = false) {
     const expectedImage = context.input.roles.find((item) => item.role === ROLE[service]).imageId;
     ensure(value.Config?.Labels?.["io.auto-world.owner"] === context.input.ownerToken && value.Config.Labels["com.docker.compose.project"] === project.project &&
       value.Config.Labels["com.docker.compose.service"] === service && value.Name === `/${project.project}-${service}` &&
@@ -259,9 +259,27 @@ async function containerSignature(context, project, service, value, stopped = fa
     const mounts = value.Mounts.filter((mount) => mount.Type !== "tmpfs");
     ensure(mounts.length === expected.length && expected.every((item) => mounts.some((mount) => Object.entries(item).every(([key, content]) => mount[key] === content))));
     ensure(value.Mounts.every((mount) => mount.Type !== "tmpfs" || service === "object-store" && mount.Destination === "/run/aw-private"));
-    const declared = value.HostConfig.Mounts.find((mount) => mount.Type === "volume" && mount.Target === DATA[service]);
-    ensure(declared && (project.restore || service === "object-store" ? declared.VolumeOptions?.NoCopy === true :
-      declared.VolumeOptions?.NoCopy === undefined || declared.VolumeOptions.NoCopy === false));
+    // Compose v2.38.2 uses Binds for ordinary copy-up volumes, and Mounts for
+    // NoCopy volumes. Validate every declaration against its effective mount.
+    const declarations = [], hostMounts = value.HostConfig.Mounts ?? [], hostBinds = value.HostConfig.Binds ?? [];
+    const noCopy = project.restore || service === "object-store";
+    ensure(Array.isArray(hostMounts) && Array.isArray(hostBinds));
+    for (const mount of hostMounts) {
+      const match = expected.find((item) => item.Type === mount?.Type && item.Destination === mount.Target);
+      ensure(match && mount.Source === (match.Type === "volume" ? match.Name : match.Source) &&
+        (match.RW ? mount.ReadOnly === undefined || mount.ReadOnly === false : mount.ReadOnly === true));
+      if (match.Type === "volume") ensure(noCopy ? mount.VolumeOptions?.NoCopy === true :
+        mount.VolumeOptions?.NoCopy === undefined || mount.VolumeOptions.NoCopy === false);
+      ensure(mount.VolumeOptions?.Subpath === undefined || mount.VolumeOptions.Subpath === "");
+      declarations.push(match.Destination);
+    }
+    for (const bind of hostBinds) {
+      ensure(typeof bind === "string");
+      const match = expected.find((item) => (item.Type !== "volume" || !noCopy) &&
+        bind === `${item.Type === "volume" ? item.Name : item.Source}:${item.Destination}:${item.RW ? "rw" : "ro"}`);
+      ensure(match); declarations.push(match.Destination);
+    }
+    ensure(declarations.length === expected.length && new Set(declarations).size === expected.length);
     return JSON.stringify([value.Id, value.Image, mounts.sort((left, right) => left.Destination.localeCompare(right.Destination))]);
 }
 
