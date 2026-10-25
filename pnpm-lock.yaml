@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@auto-world/source-registry':
+        specifier: workspace:*
+        version: link:packages/source-registry
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:packages/vehicle-schema
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.10.0)

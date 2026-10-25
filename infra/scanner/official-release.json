@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "state": "DIAGNOSTIC_ONLY_NOT_ADMITTED",
+  "resolvedAt": "2026-10-25T12:15:59.0675788Z",
+  "scanner": {
+    "version": "0.76.1",
+    "sourceCommit": "e713f67f7d54decdcd9b3132c9751833dcced698",
+    "archive": {
+      "name": "trivy_0.76.1_Linux-64bit.tar.gz",
+      "bytes": 52676794,
+      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+    },
+    "repository": "aquasecurity/trivy",
+    "signerWorkflow": "aquasecurity/trivy/.github/workflows/reusable-release.yaml",
+    "sourceRef": "refs/tags/v0.76.1",
+    "goVersion": "1.27.3",
+    "binarySha256": "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83",
+    "mainModuleVersion": "v0.76.1+dirty",
+    "vcsModified": true
+  },
+  "images": [
+    {
+      "role": "postgres",
+      "repository": "library/postgres",
+      "version": "17.11-alpine3.24",
+      "manifestDigest": "sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4"
+      },
+      "source": {
+        "repository": "postgres/postgres",
+        "commit": "083ac033419f690758508e08c1736089384bbee8"
+      }
+    },
+    {
+      "role": "opensearch",
+      "repository": "opensearchproject/opensearch",
+      "version": "3.9.0",
+      "manifestDigest": "sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"
+      },
+      "source": {
+        "repository": "opensearch-project/OpenSearch",
+        "commit": "4ee42a94e87f66fbf1e62a9871b1b87f91e02472"
+      }
+    },
+    {
+      "role": "redis",
+      "repository": "library/redis",
+      "version": "8.10.2-alpine3.23",
+      "manifestDigest": "sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:16b124a2d3eacd620d917ead6fd26cbf1f1d7117fa94122398971931cfe2d403"
+      },
+      "source": {
+        "repository": "redis/redis",
+        "commit": "498ecd0d6d007db11ddb3aea9428552598a78622"
+      }
+    },
+    {
+      "role": "seaweedfs",
+      "repository": "chrislusf/seaweedfs",
+      "version": "4.50",
+      "manifestDigest": "sha256:c2658820e763294a9e9de7b36c81e59b879e3459148351aee4e31a126ca64860",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:b2e51562743be5637381a82eeeee4872eb2f86994b723d25a1bbd171855fe18d"
+      },
+      "source": {
+        "repository": "seaweedfs/seaweedfs",
+        "commit": "ec8f9793502c59ce3381cc4151bfc0806afd92e8"
+      }
+    },
+    {
+      "role": "aws-cli",
+      "repository": "amazon/aws-cli",
+      "version": "2.38.5",
+      "manifestDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"
+      },
+      "source": {
+        "repository": "aws/aws-cli",
+        "commit": "31563df3204a0215ff9da3b72e4c8f8cf1b80cc6"
+      }
+    }
+  ]
+}

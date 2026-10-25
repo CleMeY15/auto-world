@@ -19,3 +19,4 @@ coverage/
 __pycache__/
 .venv/
 .pytest_cache/
+.local-data/

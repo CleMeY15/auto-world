@@ -15,6 +15,9 @@ infra/seaweed-image/candidate-remote-runtime-receipt.json -text
 infra/seaweed-image/candidate-local-retention-receipt.json -text
 infra/seaweed-image/candidate-local-restore-receipt.json -text
 .github/workflows/*.yml text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+tests/fixtures/scanner-official/** -text -whitespace
 infra/seaweed-image/attestation/** -text
 docs/validation/seaweed-attestation/** -text
 docs/validation/service-image-refresh/** -text
@@ -23,3 +26,6 @@ docs/validation/aws-cli-refresh/** -text
 infra/postgres-image/materials/** -text
 connectors/synthetic/demo/corpus/*.json -text
 tests/fixtures/gosu-public-license/** -text
+infra/managed-images/postgres/** -text
+infra/managed-images/Dockerfile* text eol=lf
+infra/managed-images/opensearch-core/fixtures/** -text

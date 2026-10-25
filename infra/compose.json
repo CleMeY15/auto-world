@@ -1,0 +1,283 @@
+{
+  "services": {
+    "postgres": {
+      "image": "postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "environment": {
+        "POSTGRES_USER": "aw_bootstrap",
+        "POSTGRES_PASSWORD": "${AW_PG_BOOTSTRAP_PASSWORD:?}",
+        "POSTGRES_DB": "autoworld",
+        "POSTGRES_INITDB_ARGS": "--encoding=UTF8 --locale=C --auth-host=scram-sha-256 --auth-local=scram-sha-256",
+        "POSTGRES_HOST_AUTH_METHOD": "scram-sha-256",
+        "AW_PG_MIGRATOR_PASSWORD": "${AW_PG_MIGRATOR_PASSWORD:?}",
+        "AW_PG_WRITER_PASSWORD": "${AW_PG_WRITER_PASSWORD:?}",
+        "AW_PG_READER_PASSWORD": "${AW_PG_READER_PASSWORD:?}"
+      },
+      "command": [
+        "postgres",
+        "-c",
+        "password_encryption=scram-sha-256"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "postgres-data",
+          "target": "/var/lib/postgresql/data"
+        },
+        {
+          "type": "bind",
+          "source": "./postgres-init.sh",
+          "target": "/docker-entrypoint-initdb.d/10-aw-init.sh",
+          "read_only": true
+        }
+      ],
+      "ports": [
+        {
+          "name": "postgres",
+          "target": 5432,
+          "published": "${AW_PG_PORT:?}",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "networks": ["foundation"],
+      "healthcheck": {
+        "test": ["CMD-SHELL", "pg_isready --username=aw_bootstrap --dbname=autoworld"],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 30,
+        "start_period": "10s"
+      },
+      "cpus": 1,
+      "mem_limit": "768m",
+      "pids_limit": 512,
+      "stop_grace_period": "30s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "opensearch": {
+      "image": "opensearchproject/opensearch@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "environment": {
+        "discovery.type": "single-node",
+        "DISABLE_INSTALL_DEMO_CONFIG": "true",
+        "DISABLE_SECURITY_PLUGIN": "true",
+        "OPENSEARCH_JAVA_OPTS": "-Xms512m -Xmx512m",
+        "bootstrap.memory_lock": "true"
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "opensearch-data",
+          "target": "/usr/share/opensearch/data"
+        }
+      ],
+      "ports": [
+        {
+          "name": "opensearch",
+          "target": 9200,
+          "published": "${AW_SEARCH_PORT:?}",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "networks": ["foundation"],
+      "healthcheck": {
+        "test": ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9200/_cluster/health >/dev/null"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 30,
+        "start_period": "30s"
+      },
+      "ulimits": {
+        "memlock": {
+          "soft": -1,
+          "hard": -1
+        },
+        "nofile": {
+          "soft": 65536,
+          "hard": 65536
+        }
+      },
+      "cpus": 1.5,
+      "mem_limit": "2g",
+      "pids_limit": 1024,
+      "stop_grace_period": "60s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "redis": {
+      "image": "redis@sha256:8df317692c59703c19ecfa90a8cb17703089f3c8e12c2bd0cd6b3c31005e69d8",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "environment": {
+        "REDISCLI_AUTH": "${AW_REDIS_PASSWORD:?}"
+      },
+      "command": [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--requirepass",
+        "${AW_REDIS_PASSWORD:?}"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "redis-data",
+          "target": "/data"
+        }
+      ],
+      "ports": [
+        {
+          "name": "redis",
+          "target": 6379,
+          "published": "${AW_REDIS_PORT:?}",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "networks": ["foundation"],
+      "healthcheck": {
+        "test": ["CMD-SHELL", "redis-cli ping | grep -q '^PONG$'"],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 30,
+        "start_period": "5s"
+      },
+      "cpus": 0.5,
+      "mem_limit": "256m",
+      "pids_limit": 256,
+      "stop_grace_period": "30s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "object-store": {
+      "image": "chrislusf/seaweedfs@sha256:fc9f76fa993ad69966ffeb2f65d0318fcae39c6f8e20cf68ef7b3a5cb97769e5",
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "entrypoint": ["/bin/sh", "/run/aw/bootstrap.sh"],
+      "tmpfs": ["/run/aw-private:rw,noexec,nosuid,size=1m,mode=0700"],
+      "command": [
+        "server",
+        "-dir=/data",
+        "-master.telemetry=false",
+        "-s3",
+        "-s3.port=8333",
+        "-s3.port.iceberg=0",
+        "-s3.port.lance=0",
+        "-s3.config=/run/aw-private/s3.json"
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "object-store-data",
+          "target": "/data",
+          "volume": { "nocopy": true }
+        },
+        {
+          "type": "bind",
+          "source": "${AW_RUNTIME_DIR:?}/s3.json",
+          "target": "/run/aw-input/s3.json",
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "./object-store-init.sh",
+          "target": "/run/aw/bootstrap.sh",
+          "read_only": true
+        }
+      ],
+      "ports": [
+        {
+          "name": "s3",
+          "target": 8333,
+          "published": "${AW_S3_PORT:?}",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "networks": ["foundation"],
+      "healthcheck": {
+        "test": ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9333/cluster/status"],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 30,
+        "start_period": "10s"
+      },
+      "cpus": 0.75,
+      "mem_limit": "768m",
+      "pids_limit": 512,
+      "stop_grace_period": "30s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    }
+  },
+  "volumes": {
+    "postgres-data": {
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "opensearch-data": {
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "redis-data": {
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    },
+    "object-store-data": {
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    }
+  },
+  "networks": {
+    "foundation": {
+      "driver": "bridge",
+      "internal": false,
+      "driver_opts": { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" },
+      "labels": {
+        "io.auto-world.owner": "${AW_OWNER_TOKEN:?}"
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+Auto World diagnostic PostgreSQL gosu derivative
+
+Component: auto-world-gosu/1.20-go1.27.3-r1
+Upstream gosu source: https://github.com/tianon/gosu
+Source commit: 29b939aa5bd4dc588af765b8248f6e39150d2565 (tag 1.20)
+Source archive SHA256: 2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51
+Compiler: Go 1.27.3, CGO_ENABLED=0, Linux/amd64
+Main Go module: github.com/tianon/gosu, truthful (devel) version
+VCS stamping: disabled; source provenance is bound by the original archive.
+Dependencies: github.com/moby/sys/user v0.4.1; golang.org/x/sys v0.1.0
+
+This is an internally compiled derivative, not the upstream release binary,
+an Alpine package or an upstream signature claim. The upstream source and
+dependency versions are unchanged. Only the compiler and build recipe differ.
+The version text retains the upstream source version 1.20 and reports the
+actual Go compiler. Binary digests are measured after the build.
+
+gosu and moby/sys/user are Apache-2.0; Go and x/sys have the accompanying BSD
+licences and PATENTS grants. No NOTICE file is present in the pinned gosu or
+moby/sys/user source trees. Preserve complete corresponding source and any
+additional linked notices in the retained evidence before later admission.
+
+Diagnostic only: no image admission, vulnerability exception, support
+activation, production authorization or reproducible-build claim is granted.

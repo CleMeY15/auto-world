@@ -77,7 +77,7 @@ Copy `.env.example` to `.env` and keep local values out of Git. The example cont
 cp .env.example .env
 ```
 
-The services are placeholders in TASK-0001, so no local data infrastructure is started by this bootstrap.
+The local/CI data foundation is being implemented in TASK-0005. Its [operations guide](infra/README.md) describes the isolated Compose stack and explicit lifecycle commands. Check the delivery ledger and validation evidence before treating a task as accepted. This foundation is not a production deployment or a ConnectorStorePort implementation.
 
 ### Isolated synthetic corpus (TASK-0101)
 
@@ -95,6 +95,8 @@ The public contract is compiled TypeScript. The isolated fixture composition fol
 ## CI
 
 Pull requests and pushes to `main` run the frozen install and each quality gate as a separate GitHub Actions step, including production-build browser interactions, accessibility and bounded mobile performance. The CI runtime is read from `.nvmrc`; the pnpm action version must stay aligned with `packageManager` in `package.json`. Next.js telemetry is disabled in CI; no application analytics collector is configured by the preview.
+
+TASK-0005 runs real-container integration in a dedicated diagnostic workflow when its infrastructure changes. Exact-image security evidence is tracked separately by the scanner workflow and remains required for final acceptance. The integration workflow uploads only sanitized health records; local credentials, database archives and raw payloads are excluded.
 
 ## First Codex instruction
 `Read AGENTS.md and ROADMAP.md. Then inspect roadmap/epics/EPIC-000-foundation.md and execute only the first READY task, respecting dependencies and Definition of Done.`

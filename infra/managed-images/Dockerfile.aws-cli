@@ -1,0 +1,61 @@
+# Diagnostic derivative: the CLI implementation and inherited runtime contract stay intact.
+FROM amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 AS aws-cli-updated
+
+RUN <<'BUILD'
+#!/bin/bash
+set -euo pipefail
+evidence=/usr/share/auto-world/managed-images/aws-cli
+mkdir -p "$evidence"
+printf '%s\n' 'amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9' > "$evidence/base-image.txt"
+printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' 'releasever=2023.12.20261026' 'repositoryGuid=762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6' > "$evidence/repository.txt"
+repo=https://cdn.amazonlinux.com/al2023/core/guids/762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6/x86_64/
+test -s /etc/pki/rpm-gpg/RPM-GPG-KEY-amazon-linux-2023
+curl --fail --location --proto '=https' --tlsv1.2 "${repo}repodata/repomd.xml" -o "$evidence/repomd.xml"
+printf '%s  %s\n' 0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5 "$evidence/repomd.xml" | sha256sum -c -
+sha256sum "$evidence/repomd.xml" > "$evidence/repomd-sha256.txt"
+
+rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n' | LC_ALL=C sort > "$evidence/rpm-before.tsv"
+find /usr/local/aws-cli -xdev -printf '%p\t%y\t%m\t%U\t%G\t%s\t%l\n' | LC_ALL=C sort > "$evidence/cli-tree-before.tsv"
+find /usr/local/aws-cli -xdev -type f -exec sha256sum '{}' + | LC_ALL=C sort > "$evidence/cli-files-before.sha256"
+stat --printf '%n\t%F\t%a\t%u\t%g\t%s\t%N\n' /usr/local/bin/aws /usr/local/bin/aws_completer > "$evidence/cli-launchers-before.tsv"
+/usr/local/bin/aws --version > "$evidence/aws-version-before.txt" 2>&1
+test "$(cut -d ' ' -f1 "$evidence/aws-version-before.txt")" = aws-cli/2.38.5
+
+# Upgrade the whole installed RPM set coherently; no package-specific downgrade or signature bypass.
+dnf --releasever=2023.12.20261026 --disablerepo='*' --enablerepo=amazonlinux \
+    --setopt=amazonlinux.mirrorlist= --setopt="amazonlinux.baseurl=$repo" \
+    --setopt=amazonlinux.gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-amazon-linux-2023 \
+    --setopt=amazonlinux.gpgcheck=1 --setopt=gpgcheck=1 --refresh --best upgrade -y \
+    2>&1 | tee "$evidence/dnf-upgrade.txt"
+dnf history info last > "$evidence/dnf-transaction.txt"
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' curl-minimal)" = '0:8.21.0-5.amzn2023.0.3'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcurl-minimal)" = '0:8.21.0-5.amzn2023.0.3'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcap)" = '0:2.73-1.amzn2023.0.8'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2)" = '0:10.40-1.amzn2023.0.5'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2-syntax)" = '0:10.40-1.amzn2023.0.5'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3)" = '0:3.9.25-1.amzn2023.0.11'
+test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3-libs)" = '0:3.9.25-1.amzn2023.0.11'
+rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n' | LC_ALL=C sort > "$evidence/rpm-after.tsv"
+find /usr/local/aws-cli -xdev -printf '%p\t%y\t%m\t%U\t%G\t%s\t%l\n' | LC_ALL=C sort > "$evidence/cli-tree-after.tsv"
+find /usr/local/aws-cli -xdev -type f -exec sha256sum '{}' + | LC_ALL=C sort > "$evidence/cli-files-after.sha256"
+stat --printf '%n\t%F\t%a\t%u\t%g\t%s\t%N\n' /usr/local/bin/aws /usr/local/bin/aws_completer > "$evidence/cli-launchers-after.tsv"
+/usr/local/bin/aws --version > "$evidence/aws-version-after.txt" 2>&1
+for inventory in cli-tree.tsv cli-files.sha256 cli-launchers.tsv aws-version.txt; do
+    prefix=${inventory%.*}
+    suffix=${inventory##*.}
+    before=$(sha256sum "$evidence/$prefix-before.$suffix")
+    after=$(sha256sum "$evidence/$prefix-after.$suffix")
+    test "${before%% *}" = "${after%% *}"
+    printf '%s\n' "$before" "$after" >> "$evidence/preservation-sha256.txt"
+done
+dnf clean all
+BUILD
+
+# Export only the text inventories; implementation, licences and notices remain in the inherited tree.
+FROM scratch AS evidence
+COPY --from=aws-cli-updated /usr/share/auto-world/managed-images/aws-cli/ /
+
+# No USER, ENTRYPOINT, CMD, WORKDIR or CLI-tree replacement: inherit the exact upstream contract.
+FROM aws-cli-updated AS runtime
+LABEL org.opencontainers.image.source="https://github.com/CleMeY15/auto-world" \
+      io.auto-world.aws-cli.authority="diagnostic-only-not-admitted"

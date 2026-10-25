@@ -1,0 +1,4 @@
+**
+!infra/
+!infra/managed-images/
+!infra/managed-images/Dockerfile.aws-cli
