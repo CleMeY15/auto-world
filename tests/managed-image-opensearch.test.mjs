@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -89,7 +89,12 @@ test("JDK inventory is location independent, observes content, and never execute
   assert.ok(initial.stdout.includes(sha256(readFileSync(path.join(source, "bin/java")))));
   const relocated = path.join(temporaryDirectory(t), "relocated");
   cpSync(source, relocated, { recursive: true });
+  const sourceMode = statSync(source).mode & 0o7777;
+  chmodSync(relocated, sourceMode);
   assert.equal(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
+  chmodSync(relocated, sourceMode ^ 0o010);
+  assert.notEqual(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
+  chmodSync(relocated, sourceMode);
   writeFileSync(path.join(relocated, "legal/NOTICE"), "changed synthetic notice\n");
   assert.notEqual(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
   rmSync(path.join(relocated, "release"));

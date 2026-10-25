@@ -58,6 +58,8 @@ Independent recipe and complete implementation reviews approve diagnostic CI onl
 
 The managed workflow exposes validated bounded technical text only. Candidate archives, database binaries, compiler binaries and raw evidence exports are excluded from public artifacts. Every managed receipt explicitly keeps `functionalRuntime=PENDING_NOT_ACCEPTED`, `milestone2Completion=NOT_ESTABLISHED` and `admission=NOT_AUTHORIZED`: this first construction/audit subset cannot establish the produced images' entrypoint/persistence, signed S3 refusals, index/search/restart/restoration or completion of the plan. Those runtime tests and the existing final acceptance gates remain pending.
 
+The first [managed run40203176808](https://github.com/CleMeY15/auto-world/actions/runs/40203176808), source `ed28135a6f69d85a1ac9a254095531b422c7d8c1`, remains FAILED before provenance or construction:92 of93 Linux tests pass, with zero exclusions. The JDK-inventory fixture copies a0700 temporary root to a0755 directory, so the unchanged permission-sensitive inventory correctly differs. The narrow fixture correction preserves the source root mode before comparison and adds an explicit mode-mutation refusal assertion; production inventory and recipe behavior stay unchanged. Fresh Linux execution is still required to verify that correction.
+
 ## Remaining milestones and stop conditions
 
 1. Preserve the independently accepted diagnostic scanner qualification, the two earlier failures and the current failed overall image audit. Scanner/current-database controls remain required for every final acceptance audit.
