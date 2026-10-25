@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 const directory = fileURLToPath(new URL("../infra/managed-images/opensearch-core/", import.meta.url));
 const recipe = readFileSync(new URL("../infra/managed-images/Dockerfile.opensearch-core", import.meta.url), "utf8");
 const build = readFileSync(path.join(directory, "build-core.sh"), "utf8");
+const inventoryScript = readFileSync(path.join(directory, "jdk-inventory.sh"), "utf8");
 const original = readFileSync(path.join(directory, "fixtures/libs.versions.toml"));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const bash = process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "/bin/bash";
@@ -39,6 +40,12 @@ function assertExplodedDistributionContract(script) {
   const guard = /if \[ ! -d \/workspace\/source\/distribution\/archives\/no-jdk-linux-tar\/build\/install\/opensearch-3\.9\.0 \]; then\n {2}printf[^\n]+\n {2}build_status=1\nfi/u;
   assert.match(script, guard);
   assert.ok(script.search(guard) < script.indexOf('"$build_status" > /evidence/build.exit-code'));
+}
+
+function pluginAbsenceCommand(dockerfile) {
+  const command = dockerfile.match(/shopt -s nullglob dotglob; \\\n {4}plugins=\(\/usr\/share\/opensearch\/plugins\/\*\); \\\n {4}test "\$\{#plugins\[@\]\}" -eq 0;/u)?.[0];
+  assert.ok(command, "missing strict empty-plugin check including hidden entries");
+  return command.replaceAll("/usr/share/opensearch/plugins", '"$1"').replaceAll(/\\\n\s*/gu, "");
 }
 
 test("the real preparation changes exactly four reviewed keys in the authenticated upstream catalogue", linuxExecution, (t) => {
@@ -74,7 +81,7 @@ test("foreign or already patched catalogue bytes are refused before another edit
   assert.deepEqual(readFileSync(path.join(source, "gradle/libs.versions.toml")), patched);
 });
 
-test("JDK inventory is location independent, observes content, and never executes the inert java fixture", linuxExecution, (t) => {
+test("JDK inventory preserves required fields and plugin absence rejects visible and hidden entries", linuxExecution, (t) => {
   const source = temporaryDirectory(t);
   mkdirSync(path.join(source, "bin"));
   mkdirSync(path.join(source, "legal"));
@@ -82,23 +89,35 @@ test("JDK inventory is location independent, observes content, and never execute
   writeFileSync(path.join(source, "legal/NOTICE"), "synthetic retained legal notice\n");
   writeFileSync(path.join(source, "bin/java"), "#!/bin/sh\nexit 99\n");
   chmodSync(path.join(source, "bin/java"), 0o755);
+  symlinkSync("legal", path.join(source, "legal-link"));
   const initial = runScript("jdk-inventory.sh", [source]);
   assert.equal(initial.status, 0, initial.stderr);
-  assert.match(initial.stdout, /JDK_METADATA_TYPE_MODE_UID_GID_PATH_LINK/u);
-  assert.match(initial.stdout, /JDK_REGULAR_FILE_SHA256/u);
-  assert.ok(initial.stdout.includes(sha256(readFileSync(path.join(source, "bin/java")))));
+  assert.match(initial.stdout, /JDK_TAR_METADATA_NUMERIC_OWNERS_MTIME_NORMALIZED/u);
+  assert.match(initial.stdout, /JDK_TREE_TAR_SHA256\n[a-f0-9]{64} {2}-\n/u);
+  assert.match(initial.stdout, /\.\/legal-link -> legal/u);
   const relocated = path.join(temporaryDirectory(t), "relocated");
-  cpSync(source, relocated, { recursive: true });
+  cpSync(source, relocated, { recursive: true, verbatimSymlinks: true });
   const sourceMode = statSync(source).mode & 0o7777;
   chmodSync(relocated, sourceMode);
+  assert.equal(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
+  utimesSync(path.join(relocated, "legal/NOTICE"), new Date("2020-01-01T00:00:00Z"), new Date("2020-01-01T00:00:00Z"));
   assert.equal(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
   chmodSync(relocated, sourceMode ^ 0o010);
   assert.notEqual(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
   chmodSync(relocated, sourceMode);
   writeFileSync(path.join(relocated, "legal/NOTICE"), "changed synthetic notice\n");
   assert.notEqual(runScript("jdk-inventory.sh", [relocated]).stdout, initial.stdout);
-  rmSync(path.join(relocated, "release"));
+  rmSync(path.join(relocated, "legal"), { recursive: true });
   assert.notEqual(runScript("jdk-inventory.sh", [relocated]).status, 0);
+  const plugins = temporaryDirectory(t);
+  const command = pluginAbsenceCommand(recipe);
+  const check = () => spawnSync(bash, ["-euo", "pipefail", "-c", command, "--", plugins], { encoding: "utf8", timeout: 15000 });
+  assert.equal(check().status, 0);
+  writeFileSync(path.join(plugins, "visible-plugin"), "synthetic");
+  assert.notEqual(check().status, 0);
+  rmSync(path.join(plugins, "visible-plugin"));
+  writeFileSync(path.join(plugins, ".hidden-plugin"), "synthetic");
+  assert.notEqual(check().status, 0);
 });
 
 test("all preparation scripts have valid Bash syntax without building or executing candidate code", () => {
@@ -157,6 +176,13 @@ test("core launch configuration and test gates preserve the selected limits and 
   assert.doesNotMatch(build, /-x (?:test|dependencyLicenses|thirdPartyAudit)|\.enabled\s*=\s*false|verification-metadata/u);
   assert.match(recipe, /test "\$\(cat \/tmp\/aw-core-build\.exit-code\)" = 0/u);
   assert.match(build, /junit-counts\.txt/u);
+  pluginAbsenceCommand(recipe);
+  assert.throws(() => pluginAbsenceCommand(recipe.replace("nullglob dotglob", "nullglob")));
+  assert.throws(() => pluginAbsenceCommand(recipe.replace('test "${#plugins[@]}" -eq 0', 'test "${#plugins[@]}" -eq 1')));
+  assert.doesNotMatch(recipe, /\bfind\b|dnf[^\n]*install[^\n]*findutils/u);
+  assert.doesNotMatch(inventoryScript, /\bfind\b|--owner=|--group=|--mode=|--dereference/u);
+  for (const option of ["--sort=name", "--format=gnu", "--numeric-owner", "--mtime=@0", "--file=-"])
+    assert.ok(inventoryScript.includes(option), option);
 });
 
 test("the evidence export excludes source trees, test binary stores and candidate archives", () => {

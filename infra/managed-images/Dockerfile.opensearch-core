@@ -69,7 +69,9 @@ RUN /bin/bash -euo pipefail -c '\
     test "$(sha256sum /managed-evidence/jdk-before.txt | cut -d " " -f 1)" = \
       "$(sha256sum /managed-evidence/jdk-restored.txt | cut -d " " -f 1)"; \
     test -d /usr/share/opensearch/modules/transport-netty4; \
-    test -z "$(find /usr/share/opensearch/plugins -mindepth 1 -maxdepth 1 -print -quit)"; \
+    shopt -s nullglob dotglob; \
+    plugins=(/usr/share/opensearch/plugins/*); \
+    test "${#plugins[@]}" -eq 0; \
     mkdir -p /usr/share/opensearch/data /usr/share/opensearch/logs; \
     chown 1000:1000 /usr/share/opensearch /usr/share/opensearch/data /usr/share/opensearch/logs /managed-evidence; \
     chmod 0755 /managed-evidence; \

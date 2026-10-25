@@ -25,7 +25,9 @@ failures before Gradle remain hard build failures visible in Buildx logs.
 
 The base's complete JDK is moved outside the replaced tree and restored without
 changing its contents, links, modes or ownership. Inventories cover those fields
-and every regular-file SHA256. The final image retains `/managed-evidence/`,
+with GNU tar's verbose text listing and SHA256 of its entire deterministic GNU
+tar stream. Only mtime is normalized to epoch zero; timestamp preservation is
+not claimed. The stream is never stored as an archive. The final image retains `/managed-evidence/`,
 including `jdk-restored.txt`, `runtime-java-version.txt` and
 `runtime-java-properties.txt`; CI can retrieve them from its newly owned image.
 The runtime target also prints the actual Java version and requires Java 21+.
@@ -42,3 +44,12 @@ unavailable), and each invocation timed out. No Windows repair was attempted.
 Those three execution cases are explicitly Linux-only platform exclusions,
 new to this increment. The five contract/syntax cases execute locally. All eight
 must pass on Linux with no exclusion before implementation acceptance.
+
+Run 40203365441 stopped in base preparation with exit127. Its bounded stderr
+tail does not retain the originating command-error line. The retained M1 OS
+inventory for this exact base includes GNU tar1.34 but no findutils, BusyBox or
+Toybox; the recipe's first inventory previously invoked `find`. This strongly
+supports the missing-command diagnosis without claiming the original error
+text was observed. The inventory now uses the existing GNU tar, and the strict
+empty-plugin check uses Bash globbing including hidden entries. No package was
+added. A new real CI run is still required to establish this correction.

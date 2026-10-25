@@ -7,6 +7,66 @@ const object = (value) => value !== null && typeof value === "object" && !Array.
 const text = (value) => typeof value === "string" && value.length <= 16_384 && value.trim().length > 0;
 const validVersion = (report, expected) => expected === VERSION && report?.Trivy?.Version === VERSION;
 
+// Measured source-built component, not a published Go-module version or admission.
+export const MANAGED_GOSU_SOURCE = Object.freeze({
+  sourceCommit: "29b939aa5bd4dc588af765b8248f6e39150d2565",
+  sourceArchiveSha256: "2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51",
+  goModSha256: "216dbdc31af7371e368b90a85837c6dcf8aa7139cb449ecceaa0526d91900c3a",
+  goSumSha256: "3f4d244f09dc5009ad68d99b2d99815f48fddf693fad8e734bbe820b315f43e7",
+  compilerVersion: "go1.27.3", buildInfoBytes: 900,
+  buildInfoSha256: "cfcd70393ff2134469c019ff50de1396dfb7e5aca4290ef0baa3217869b723f5",
+  binarySha256: "8c12961ed59dc9c662d5b5150a8f8e7ab66ef59d5796a0abdb8778b885247b8e",
+  finalInventorySha256: "0fd2f7efa537d72c8b532805ea9bff3d1cbbc38d80c8dd89516f09cb2a2efa1e",
+});
+
+function managedGosuResults(report, subject, evidence) {
+  if (!object(evidence) || Object.keys(evidence).length !== Object.keys(MANAGED_GOSU_SOURCE).length + 6 ||
+      evidence.kind !== "SOURCE_BOUND_GOSU_V1" || evidence.imageId !== subject.imageId || evidence.archiveSha256 !== subject.archiveSha256 ||
+      typeof evidence.imageId !== "string" || typeof evidence.archiveSha256 !== "string" ||
+      evidence.archiveBytes !== subject.archiveBytes || evidence.os !== "linux" || evidence.architecture !== "amd64" ||
+      subject.os !== evidence.os || subject.architecture !== evidence.architecture ||
+      Object.entries(MANAGED_GOSU_SOURCE).some(([key, value]) => evidence[key] !== value) || subject.artifactName !== "/managed-image-postgres.tar") fail("scanner_gosu_source_evidence_invalid");
+  const mainName = "github.com/tianon/gosu", target = "usr/local/bin/gosu";
+  const expected = new Map([[mainName, undefined], ["stdlib", "v1.27.3"], ["github.com/moby/sys/user", "v0.4.1"], ["golang.org/x/sys", "v0.1.0"]]);
+  if (!Array.isArray(report.Results) || report.Results.length !== 2) fail("scanner_gosu_source_inventory_invalid");
+  const go = report.Results.find((result) => result?.Target === target);
+  const os = report.Results.find((result) => result?.Class === "os-pkgs");
+  if (!go || go.Class !== "lang-pkgs" || go.Type !== "gobinary" || !os || os.Type !== "alpine" ||
+      !Array.isArray(go.Packages) || go.Packages.length !== expected.size) fail("scanner_gosu_source_inventory_invalid");
+  const names = new Set(), identifiers = new Set();
+  for (const pkg of go.Packages) {
+    if (!object(pkg) || !expected.has(pkg.Name) || names.has(pkg.Name) ||
+        (pkg.Name === mainName ? Object.hasOwn(pkg, "Version") : pkg.Version !== expected.get(pkg.Name)) ||
+        pkg.ID !== `${pkg.Name}${pkg.Version === undefined ? "" : `@${pkg.Version}`}` ||
+        pkg.Identifier?.PURL !== `pkg:golang/${pkg.ID}` || typeof pkg.Identifier?.UID !== "string" || !/^[a-f0-9]{16}$/u.test(pkg.Identifier.UID) ||
+        identifiers.has(pkg.Identifier.UID) || pkg.AnalyzedBy !== "gobinary") fail("scanner_gosu_source_inventory_invalid");
+    names.add(pkg.Name); identifiers.add(pkg.Identifier.UID);
+  }
+  const main = go.Packages.find((pkg) => pkg.Name === mainName);
+  const dependencies = go.Packages.filter((pkg) => pkg !== main);
+  if (main.Relationship !== "root" || !Array.isArray(main.DependsOn) || main.DependsOn.length !== dependencies.length ||
+      new Set(main.DependsOn).size !== dependencies.length || dependencies.some((pkg) => !main.DependsOn.includes(pkg.ID))) fail("scanner_gosu_source_inventory_invalid");
+  for (const result of report.Results) {
+    if (result.Vulnerabilities !== undefined && !Array.isArray(result.Vulnerabilities)) fail("scanner_gosu_source_inventory_invalid");
+    for (const finding of result.Vulnerabilities ?? []) {
+      if (!object(finding) || finding.PkgID !== undefined && !text(finding.PkgID) ||
+          finding.PkgIdentifier !== undefined && (!object(finding.PkgIdentifier) ||
+            Object.entries(finding.PkgIdentifier).some(([key, value]) => ["PURL", "UID"].includes(key) && !text(value)))) fail("scanner_gosu_finding_reference_invalid");
+      if (finding.PkgName === mainName || finding.PkgID === main.ID || finding.PkgID?.startsWith(`${mainName}@`) ||
+          finding.PkgIdentifier?.UID === main.Identifier.UID || finding.PkgIdentifier?.PURL === main.Identifier.PURL ||
+          finding.PkgIdentifier?.PURL?.startsWith(`${main.Identifier.PURL}@`)) fail("scanner_gosu_source_finding_blocked");
+      if (result === go) {
+        const pkg = dependencies.find((entry) => entry.Name === finding.PkgName && entry.Version === finding.InstalledVersion);
+        if (!pkg || finding.PkgID !== undefined && finding.PkgID !== pkg.ID ||
+            finding.PkgIdentifier?.UID !== undefined && finding.PkgIdentifier.UID !== pkg.Identifier.UID ||
+            finding.PkgIdentifier?.PURL !== undefined && finding.PkgIdentifier.PURL !== pkg.Identifier.PURL) fail("scanner_gosu_finding_reference_invalid");
+      }
+    }
+  }
+  return { results: report.Results.map((result) => result === go ? { ...result, Packages: dependencies } : result),
+    sourceComponents: [{ name: mainName, target, version: null, mainVersionLookup: "UNAVAILABLE", ...evidence }] };
+}
+
 // This separate profile preserves the generation-5 source bytes. It validates
 // reports; callers still authenticate the actual scanner, inputs and databases.
 function normalized(report) {
@@ -103,7 +163,7 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
 
 // Local Docker-save bytes are distinct from an authenticated registry subject.
 // The caller binds their complete hash, Buildx metadata and inspected configID.
-export function evaluateArchiveImageReport(report, subject, now = new Date()) {
+export function evaluateArchiveImageReport(report, subject, now = new Date(), gosuEvidence) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || !DIGEST.test(subject.imageId ?? "") ||
       !/^[a-f0-9]{64}$/u.test(subject.archiveSha256 ?? "") || !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1 ||
       !/^\/managed-image-(?:postgres|opensearch|aws-cli)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_archive_subject_invalid");
@@ -113,9 +173,11 @@ export function evaluateArchiveImageReport(report, subject, now = new Date()) {
       report.Metadata?.ImageConfig?.os !== "linux" || report.Metadata.ImageConfig.architecture !== "amd64") fail("scanner_archive_report_invalid");
   try { validateDatabaseMetadata({ Version: 2, UpdatedAt: report.CreatedAt, DownloadedAt: report.CreatedAt }, { now, database: "vulnerability" }); }
   catch { fail("scanner_archive_report_invalid"); }
-  const evaluated = evaluateImageResults(report.Results, { imageDigest: subject.imageId, dispositions: [], now });
+  const source = gosuEvidence === undefined ? null : managedGosuResults(report, subject, gosuEvidence);
+  const evaluated = evaluateImageResults(source?.results ?? report.Results, { imageDigest: subject.imageId, dispositions: [], now });
   const blockers = [...evaluated.blockers];
   if (report.Metadata.OS?.EOSL === true) blockers.unshift({ code: "image_os_end_of_life" });
   if (report.Metadata.OS?.EOSL !== undefined && typeof report.Metadata.OS.EOSL !== "boolean") fail("scanner_archive_report_invalid");
-  return { findings: evaluated.findings, blockers };
+  return { findings: evaluated.findings, blockers, ...(source ? { sourceComponents: source.sourceComponents,
+    rawPackageCount: evaluated.packageCount + 1, versionedPackageCount: evaluated.packageCount, sourceBoundPackageCount: 1 } : {}) };
 }

@@ -30,7 +30,22 @@ test("failed-command receipt diagnostics preserve the bounded cause while removi
   assert.ok(!JSON.stringify(diagnostic).includes(token));
   assert.ok(!JSON.stringify(diagnostic).includes(bearer));
   assert.ok(!JSON.stringify(diagnostic).includes("user:password"));
-  assert.deepEqual(commandFailureDiagnostic({ stdout: null, stderr: null }), { stdoutBytes: 0, stderrBytes: 0, stdoutTail: "", stderrTail: "" });
+  assert.deepEqual(commandFailureDiagnostic({ stdout: null, stderr: null }), { stdoutBytes: 0, stderrBytes: 0, stdoutTail: "", stderrTail: "", stderrErrors: "" });
+});
+
+test("a build's original command error survives a long echoed instruction with bounded redaction", () => {
+  const token = `github_pat_${"a".repeat(80)}`;
+  const cause = "#9 0.15 /tmp/inventory.sh: line 12: find: command not found";
+  const stderr = Buffer.from(`${cause}\nError: ${token}\n${"RUN repeated instruction\n".repeat(500)}ERROR: failed to build\n`);
+  const diagnostic = commandFailureDiagnostic({ stdout: null, stderr });
+  assert.ok(!diagnostic.stderrTail.includes(cause));
+  assert.ok(diagnostic.stderrErrors.includes(cause));
+  assert.ok(diagnostic.stderrErrors.includes("Error: [redacted]"));
+  assert.ok(!JSON.stringify(diagnostic).includes(token));
+  assert.ok(diagnostic.stderrErrors.length <= 4096);
+  const many = commandFailureDiagnostic({ stderr: Buffer.from(`Error: ${"x".repeat(600)}\n`.repeat(40)) });
+  assert.ok(many.stderrErrors.length <= 4096);
+  assert.ok(many.stderrErrors.split("\n").every((line) => line.length <= 512));
 });
 
 test("official CLI accepts exactly the three distinct absolute input/output paths", () => {

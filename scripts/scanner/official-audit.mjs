@@ -8,7 +8,7 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
-import { evaluateArchiveImageReport, evaluateImageReport, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
+import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
@@ -22,16 +22,43 @@ const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-p
 const fail = (code) => { throw new Error(code); };
 const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
 const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0,\r\n]/u.test(value);
-const digest = (value) => /^sha256:[a-f0-9]{64}$/u.test(value ?? "");
+const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
 
 export function commandFailureDiagnostic(result) {
-  const tail = (bytes) => (Buffer.isBuffer(bytes) ? bytes.toString("utf8") : "")
+  const redacted = (bytes) => (Buffer.isBuffer(bytes) ? bytes.toString("utf8") : "")
     .replaceAll(/(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})/gu, "[redacted]")
     .replaceAll(/(Authorization:\s*(?:Bearer|Basic)\s+)\S+/giu, "$1[redacted]")
-    .replaceAll(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/giu, "$1[redacted]@")
-    .slice(-4096);
+    .replaceAll(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/giu, "$1[redacted]@");
+  const stdout = redacted(result.stdout), stderr = redacted(result.stderr);
   return { stdoutBytes: result.stdout?.length ?? 0, stderrBytes: result.stderr?.length ?? 0,
-    stdoutTail: tail(result.stdout), stderrTail: tail(result.stderr) };
+    stdoutTail: stdout.slice(-4096), stderrTail: stderr.slice(-4096),
+    stderrErrors: stderr.split("\n").filter((line) => /\b(?:not found|no such file or directory|error|failed)\b/iu.test(line))
+      .slice(0, 16).map((line) => line.slice(0, 512)).join("\n").slice(0, 4096) };
+}
+
+export function bindManagedGosuEvidence(subject, proof = {}) {
+  if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" ||
+      !digest(subject.imageId) || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
+      !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1 || subject.os !== "linux" || subject.architecture !== "amd64" ||
+      proof === null || typeof proof !== "object") fail("scanner_gosu_source_evidence_invalid");
+  const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+  const pin = MANAGED_GOSU_SOURCE;
+  const files = [["buildInfo", pin.buildInfoSha256], ["goMod", pin.goModSha256], ["goSum", pin.goSumSha256], ["finalInventory", pin.finalInventorySha256]];
+  if (files.some(([key, sha]) => !Buffer.isBuffer(proof[key]) || proof[key].length > MiB || hash(proof[key]) !== sha) ||
+      proof.buildInfo.length !== pin.buildInfoBytes || !Buffer.isBuffer(proof.binaryInventory) || !Buffer.isBuffer(proof.sourceInventory) ||
+      !proof.binaryInventory.equals(Buffer.from(`${pin.binarySha256}  /out/gosu\n`)) ||
+      !proof.sourceInventory.equals(Buffer.from(`${pin.sourceArchiveSha256}  /tmp/gosu-source.tar.gz\n`))) fail("scanner_gosu_source_evidence_invalid");
+  return { kind: "SOURCE_BOUND_GOSU_V1", imageId: subject.imageId, archiveSha256: subject.archiveSha256, archiveBytes: subject.archiveBytes,
+    os: subject.os, architecture: subject.architecture, ...pin };
+}
+
+export function managedGosuHashArguments(subject) {
+  if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" || !digest(subject.imageId) ||
+      subject.os !== "linux" || subject.architecture !== "amd64" || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
+      !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1) fail("scanner_gosu_source_evidence_invalid");
+  return ["run", "--rm", "--pull=never", "--platform", "linux/amd64", "--network=none", "--read-only", "--cap-drop=ALL",
+    "--security-opt=no-new-privileges=true", "--user", "70:70", "--pids-limit", "16", "--memory", "64m", "--memory-swap", "64m", "--cpus", "1",
+    "--entrypoint", "sha256sum", subject.imageId, "/usr/local/bin/gosu"];
 }
 
 export function parseOfficialAuditArguments(argv) {
@@ -79,13 +106,15 @@ export function validateManagedImageLock(managed, official) {
         !digest(candidate.baseDigest) || candidate.baseDigest !== official?.images?.find((image) => image.role === candidate.role)?.platform?.digest) fail("scanner_managed_lock_invalid");
     seen.add(candidate.role);
   }
-  if (!keys(managed.gosu, ["version", "sourceCommit", "archiveBytes", "archiveSha256", "goModSha256", "goSumSha256"]) ||
+  if (!keys(managed.gosu, ["version", "sourceCommit", "archiveBytes", "archiveSha256", "goModSha256", "goSumSha256", "buildInfoBytes", "buildInfoSha256", "binarySha256"]) ||
       !keys(managed.opensearch, ["version", "profile", "sourceCommit", "gradleVersion", "gradleDistributionSha256", "gradleWrapperJarSha256", "jackson2", "jackson3", "runtimeJdk"]) ||
       !keys(managed.amazonLinux, ["releasever", "repositoryGuid", "repomdSha256", "primarySha256"]) ||
       managed.gosu?.sourceCommit !== "29b939aa5bd4dc588af765b8248f6e39150d2565" || managed.gosu.version !== "1.20" || managed.gosu.archiveBytes !== 18160 ||
       managed.gosu.archiveSha256 !== "2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51" ||
       managed.gosu.goModSha256 !== "216dbdc31af7371e368b90a85837c6dcf8aa7139cb449ecceaa0526d91900c3a" ||
       managed.gosu.goSumSha256 !== "3f4d244f09dc5009ad68d99b2d99815f48fddf693fad8e734bbe820b315f43e7" ||
+      managed.gosu.buildInfoBytes !== MANAGED_GOSU_SOURCE.buildInfoBytes || managed.gosu.buildInfoSha256 !== MANAGED_GOSU_SOURCE.buildInfoSha256 ||
+      managed.gosu.binarySha256 !== MANAGED_GOSU_SOURCE.binarySha256 ||
       managed.opensearch?.sourceCommit !== "4ee42a94e87f66fbf1e62a9871b1b87f91e02472" || managed.opensearch.profile !== "minimal-core-no-jdk" ||
       managed.opensearch.version !== "3.9.0" || managed.opensearch.gradleVersion !== "9.7.1" ||
       managed.opensearch.gradleDistributionSha256 !== "92c1a136d76b5017732a66d2e0a648ebff00dd3687d8bff0d0047a1bd904fdf2" ||
@@ -515,6 +544,16 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             const published = path.join(output, "managed-public-evidence");
             if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
             build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
+            if (candidate.role === "postgres" && build.result === "passed") {
+              const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });
+              const finalInventory = command(DOCKER, managedGosuHashArguments(build.subject),
+                { file: path.join(runtime, "binary-sha256.txt"), timeout: 30_000 });
+              build.gosuSourceEvidence = bindManagedGosuEvidence(build.subject, { finalInventory,
+                buildInfo: readFileSync(path.join(evidence, "build-info.txt")), binaryInventory: readFileSync(path.join(evidence, "binary-sha256.txt")),
+                sourceInventory: readFileSync(path.join(evidence, "source-sha256.txt")), goMod: readFileSync(path.join(evidence, "go.mod")), goSum: readFileSync(path.join(evidence, "go.sum")) });
+              localImages.get(candidate.role).gosuEvidence = build.gosuSourceEvidence;
+              build.runtimeGosuEvidence = exportManagedTextEvidence(runtime, path.join(published, "postgres-runtime"));
+            }
             if (candidate.role === "opensearch" && build.result === "passed") {
               const runtime = path.join(artifacts, "opensearch-runtime"); mkdirSync(runtime, { mode: 0o700 });
               for (const file of ["jdk-restored.txt", "runtime-java-version.txt", "runtime-java-properties.txt"]) {
@@ -568,7 +607,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           if (local) {
             await assertFilesUnchanged(local.frozen);
             validateOfficialArchiveSbom(report.json, report.sbom, local.subject);
-            return evaluateArchiveImageReport(report.json, local.subject, new Date());
+            if (image.role === "postgres" && !local.gosuEvidence) fail("scanner_gosu_source_evidence_invalid");
+            const evaluated = evaluateArchiveImageReport(report.json, local.subject, new Date(), local.gosuEvidence);
+            if (evaluated.sourceComponents) {
+              receipt.sourceBoundInventory = [{ role: image.role, rawPackageCount: evaluated.rawPackageCount,
+                versionedPackageCount: evaluated.versionedPackageCount, sourceBoundPackageCount: evaluated.sourceBoundPackageCount,
+                sourceComponents: evaluated.sourceComponents }];
+            }
+            return evaluated;
           }
           validateOfficialImageSbom(report.json, report.sbom, image);
           return evaluateImageReport(report.json, image, [], new Date(), { expectedScannerVersion: config.scanner.version });
