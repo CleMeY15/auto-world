@@ -1,0 +1,6 @@
+**
+!infra/
+!infra/managed-images/
+!infra/managed-images/Dockerfile.opensearch-core
+!infra/managed-images/opensearch-core/
+!infra/managed-images/opensearch-core/**

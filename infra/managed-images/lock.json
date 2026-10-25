@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "state": "DIAGNOSTIC_ONLY_NOT_ADMITTED",
+  "platform": "linux/amd64",
+  "buildTools": [
+    {
+      "role": "go-builder",
+      "repository": "library/golang",
+      "version": "1.27.3-alpine3.24",
+      "manifestDigest": "sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c",
+      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747"}
+    },
+    {
+      "role": "jdk-builder",
+      "repository": "library/eclipse-temurin",
+      "version": "25.0.4.1_1-jdk-noble",
+      "manifestDigest": "sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e",
+      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0"}
+    }
+  ],
+  "candidates": [
+    {"role": "postgres", "dockerfile": "infra/managed-images/Dockerfile.postgres", "baseDigest": "sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4"},
+    {"role": "opensearch", "dockerfile": "infra/managed-images/Dockerfile.opensearch-core", "baseDigest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"},
+    {"role": "aws-cli", "dockerfile": "infra/managed-images/Dockerfile.aws-cli", "baseDigest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"}
+  ],
+  "gosu": {
+    "version": "1.20",
+    "sourceCommit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "archiveBytes": 18160,
+    "archiveSha256": "2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51",
+    "goModSha256": "216dbdc31af7371e368b90a85837c6dcf8aa7139cb449ecceaa0526d91900c3a",
+    "goSumSha256": "3f4d244f09dc5009ad68d99b2d99815f48fddf693fad8e734bbe820b315f43e7"
+  },
+  "opensearch": {
+    "version": "3.9.0",
+    "profile": "minimal-core-no-jdk",
+    "sourceCommit": "4ee42a94e87f66fbf1e62a9871b1b87f91e02472",
+    "gradleVersion": "9.7.1",
+    "gradleDistributionSha256": "92c1a136d76b5017732a66d2e0a648ebff00dd3687d8bff0d0047a1bd904fdf2",
+    "gradleWrapperJarSha256": "7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d",
+    "jackson2": "2.22.3",
+    "jackson3": "3.2.3",
+    "runtimeJdk": "PRESERVE_EXACT_BASE_DIRECTORY_VERIFY_BEFORE_AFTER"
+  },
+  "amazonLinux": {
+    "releasever": "2023.12.20261026",
+    "repositoryGuid": "762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6",
+    "repomdSha256": "0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5",
+    "primarySha256": "ae212a8a70fae3dcce4d56e05926ca7d2c6000468879ab33759477767be6d570"
+  }
+}

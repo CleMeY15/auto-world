@@ -26,3 +26,6 @@ docs/validation/aws-cli-refresh/** -text
 infra/postgres-image/materials/** -text
 connectors/synthetic/demo/corpus/*.json -text
 tests/fixtures/gosu-public-license/** -text
+infra/managed-images/postgres/** -text
+infra/managed-images/Dockerfile* text eol=lf
+infra/managed-images/opensearch-core/fixtures/** -text

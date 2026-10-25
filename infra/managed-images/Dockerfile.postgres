@@ -1,0 +1,102 @@
+# Managed diagnostic derivative. Source and builder identities are immutable.
+FROM golang@sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747 AS gosu-build
+
+ENV GOENV=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
+    GOPRIVATE= GONOPROXY= GONOSUMDB= GOFLAGS= \
+    GOMODCACHE=/go/pkg/mod GOCACHE=/tmp/gosu-build-cache
+WORKDIR /src/gosu
+COPY infra/managed-images/postgres/ /materials/
+ADD --checksum=sha256:2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51 https://codeload.github.com/tianon/gosu/tar.gz/29b939aa5bd4dc588af765b8248f6e39150d2565 /tmp/gosu-source.tar.gz
+RUN set -eu; \
+    test "$(wc -c < /tmp/gosu-source.tar.gz)" = 18160; \
+    printf '%s  %s\n' 2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51 /tmp/gosu-source.tar.gz | sha256sum -c -; \
+    tar -xzf /tmp/gosu-source.tar.gz --strip-components=1 -C /src/gosu; \
+    cmp /materials/go.mod go.mod; \
+    cmp /materials/go.sum go.sum; \
+    test ! -e .git; \
+    test "$(go version)" = 'go version go1.27.3 linux/amd64'; \
+    mkdir -p /out/evidence/licenses; \
+    sha256sum /tmp/gosu-source.tar.gz > /out/evidence/source-sha256.txt; \
+    go version > /out/evidence/compiler-version.txt; \
+    go mod download -json all > /out/evidence/module-download.json; \
+    go mod verify > /out/evidence/module-verify.txt; \
+    go list -m -json all > /out/evidence/module-inventory.json; \
+    cmp /materials/go.mod go.mod; \
+    cmp /materials/go.sum go.sum
+
+RUN --network=none set -eu; \
+    export GOPROXY=off GOSUMDB=off; \
+    go test -mod=readonly -trimpath -buildvcs=false -json ./... > /out/evidence/upstream-go-test.json; \
+    test -z "$(find . -name '*_test.go' -print)"; \
+    printf '%s\n' 'upstream-go-test-cases=0' 'Functional validation is supplied by the separate Alpine assertions, not by this zero-test Go result.' > /out/evidence/upstream-go-test-count.txt; \
+    go build -mod=readonly -trimpath -buildvcs=false '-ldflags=-d -w -buildid=' -o /out/gosu .; \
+    go version -m /out/gosu > /out/evidence/build-info.txt; \
+    grep -Fx "$(printf '\tmod\tgithub.com/tianon/gosu\t(devel)\t')" /out/evidence/build-info.txt; \
+    grep -Fx "$(printf '\tdep\tgithub.com/moby/sys/user\tv0.4.1\th1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0=')" /out/evidence/build-info.txt; \
+    grep -Fx "$(printf '\tdep\tgolang.org/x/sys\tv0.1.0\th1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=')" /out/evidence/build-info.txt; \
+    test "$(grep -c "$(printf '^\tdep\t')" /out/evidence/build-info.txt)" = 2; \
+    grep -Fx "$(printf '\tbuild\tCGO_ENABLED=0')" /out/evidence/build-info.txt; \
+    grep -Fx "$(printf '\tbuild\tGOARCH=amd64')" /out/evidence/build-info.txt; \
+    grep -Fx "$(printf '\tbuild\tGOOS=linux')" /out/evidence/build-info.txt; \
+    if grep -q "$(printf '\tbuild\tvcs')" /out/evidence/build-info.txt; then exit 1; fi; \
+    test "$(/out/gosu --version)" = '1.20 (go1.27.3 on linux/amd64; gc)'; \
+    /out/gosu --version > /out/evidence/gosu-version.txt; \
+    sha256sum /out/gosu > /out/evidence/binary-sha256.txt; \
+    cmp /materials/go.mod go.mod; \
+    cmp /materials/go.sum go.sum; \
+    cp go.mod go.sum /out/evidence/; \
+    cmp /materials/licenses/gosu-LICENSE LICENSE; \
+    cmp /materials/licenses/moby-sys-LICENSE /go/pkg/mod/github.com/moby/sys/user@v0.4.1/LICENSE; \
+    cmp /materials/licenses/x-sys-LICENSE /go/pkg/mod/golang.org/x/sys@v0.1.0/LICENSE; \
+    cmp /materials/licenses/x-sys-PATENTS /go/pkg/mod/golang.org/x/sys@v0.1.0/PATENTS; \
+    cmp /materials/licenses/go-LICENSE /usr/local/go/LICENSE; \
+    cmp /materials/licenses/go-PATENTS /usr/local/go/PATENTS; \
+    cp /materials/licenses/gosu-LICENSE /materials/licenses/moby-sys-LICENSE \
+       /materials/licenses/x-sys-LICENSE /materials/licenses/x-sys-PATENTS \
+       /materials/licenses/go-LICENSE /materials/licenses/go-PATENTS /out/evidence/licenses/; \
+    cp /materials/DERIVATIVE-NOTICE.txt /out/evidence/
+
+FROM postgres@sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4 AS postgres-base
+
+# The deliberately insecure upstream fixtures exist only in this disposable stage.
+# Its base is the same PostgreSQL Alpine subject, not another unreviewed image.
+FROM postgres-base AS gosu-functional
+COPY --from=gosu-build --chown=0:0 --chmod=0755 /out/gosu /usr/local/bin/gosu
+COPY --chmod=0755 infra/managed-images/gosu-functional-tests.sh /usr/local/bin/gosu-functional-tests
+RUN --network=none set -eu; \
+    cut -d: -f1 /etc/group | xargs -rtn1 addgroup nobody; \
+    /usr/local/bin/gosu-functional-tests prepare; \
+    chgrp nobody /usr/local/bin/gosu; \
+    chmod +s /usr/local/bin/gosu; \
+    mkdir /evidence; \
+    chown nobody:nobody /evidence
+ENV GOSU_PLEASE_LET_ME_BE_COMPLETELY_INSECURE_I_GET_TO_KEEP_ALL_THE_PIECES="I've seen things you people wouldn't believe. Attack ships on fire off the shoulder of Orion. I watched C-beams glitter in the dark near the Tannhäuser Gate. All those moments will be lost in time, like tears in rain. Time to die."
+USER nobody
+ENV HOME=/omg/really/gosu/nowhere
+RUN --network=none /usr/local/bin/gosu-functional-tests assertions > /evidence/upstream-alpine-tests.txt
+RUN --network=none /usr/local/bin/gosu-functional-tests exec-check > /evidence/process-replacement.txt
+
+# Public export: these paths contain text reports and licence texts only.
+FROM scratch AS evidence
+COPY --from=gosu-build /out/evidence/ /
+COPY --from=gosu-functional /evidence/ /
+
+# Starting from the untouched base prevents fixture users, ENV and setuid modes
+# from entering the runtime. COPY explicitly resets binary ownership and mode.
+FROM postgres-base AS runtime
+COPY --from=gosu-functional --chown=0:0 --chmod=0755 /usr/local/bin/gosu /usr/local/bin/gosu
+COPY --from=gosu-build --chown=0:0 /out/evidence/licenses/ /usr/share/licenses/auto-world-gosu/
+COPY --from=gosu-build --chown=0:0 /out/evidence/DERIVATIVE-NOTICE.txt /usr/share/licenses/auto-world-gosu/DERIVATIVE-NOTICE.txt
+ENV GOSU_VERSION=1.20 AUTO_WORLD_GOSU_COMPONENT=auto-world-gosu/1.20-go1.27.3-r1
+LABEL org.opencontainers.image.source="https://github.com/CleMeY15/auto-world" \
+      io.auto-world.gosu.component="auto-world-gosu/1.20-go1.27.3-r1" \
+      io.auto-world.gosu.source="https://github.com/tianon/gosu/commit/29b939aa5bd4dc588af765b8248f6e39150d2565" \
+      io.auto-world.gosu.authority="diagnostic-only-not-admitted"
+RUN --network=none --mount=type=bind,from=gosu-build,source=/out/gosu,target=/tmp/expected-gosu,readonly set -eu; \
+    cmp /usr/local/bin/gosu /tmp/expected-gosu; \
+    test "$(stat -c '%u:%g:%a' /usr/local/bin/gosu)" = '0:0:755'; \
+    test -z "${GOSU_PLEASE_LET_ME_BE_COMPLETELY_INSECURE_I_GET_TO_KEEP_ALL_THE_PIECES+x}"; \
+    test "$(gosu --version)" = '1.20 (go1.27.3 on linux/amd64; gc)'; \
+    test "$(id -u postgres):$(id -g postgres)" = '70:70'; \
+    gosu postgres sh -ec 'test "$(id -u):$(id -g)" = "70:70"; test "$HOME" = /var/lib/postgresql'

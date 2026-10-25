@@ -100,3 +100,22 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
   }
   return { findings: evaluated.findings, blockers };
 }
+
+// Local Docker-save bytes are distinct from an authenticated registry subject.
+// The caller binds their complete hash, Buildx metadata and inspected configID.
+export function evaluateArchiveImageReport(report, subject, now = new Date()) {
+  if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || !DIGEST.test(subject.imageId ?? "") ||
+      !/^[a-f0-9]{64}$/u.test(subject.archiveSha256 ?? "") || !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1 ||
+      !/^\/managed-image-(?:postgres|opensearch|aws-cli)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_archive_subject_invalid");
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) fail("scanner_audit_clock_invalid");
+  if (!object(report) || !validVersion(report, VERSION) || report.SchemaVersion !== 2 || report.ArtifactType !== "container_image" ||
+      report.ArtifactName !== subject.artifactName || report.Metadata?.ImageID !== subject.imageId ||
+      report.Metadata?.ImageConfig?.os !== "linux" || report.Metadata.ImageConfig.architecture !== "amd64") fail("scanner_archive_report_invalid");
+  try { validateDatabaseMetadata({ Version: 2, UpdatedAt: report.CreatedAt, DownloadedAt: report.CreatedAt }, { now, database: "vulnerability" }); }
+  catch { fail("scanner_archive_report_invalid"); }
+  const evaluated = evaluateImageResults(report.Results, { imageDigest: subject.imageId, dispositions: [], now });
+  const blockers = [...evaluated.blockers];
+  if (report.Metadata.OS?.EOSL === true) blockers.unshift({ code: "image_os_end_of_life" });
+  if (report.Metadata.OS?.EOSL !== undefined && typeof report.Metadata.OS.EOSL !== "boolean") fail("scanner_archive_report_invalid");
+  return { findings: evaluated.findings, blockers };
+}

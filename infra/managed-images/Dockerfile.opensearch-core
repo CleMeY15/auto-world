@@ -1,0 +1,101 @@
+FROM eclipse-temurin@sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0 AS builder
+
+USER 0
+RUN mkdir -p /workspace /evidence /recipe && chown 1000:1000 /workspace /evidence
+ENV HOME=/workspace \
+    GRADLE_USER_HOME=/workspace/.gradle \
+    RUNTIME_JAVA_HOME=/opt/java/openjdk
+ADD --keep-git-dir=true --chown=1000:1000 https://github.com/opensearch-project/OpenSearch.git#4ee42a94e87f66fbf1e62a9871b1b87f91e02472 /workspace/source
+COPY infra/managed-images/opensearch-core/patch-catalogue.sh infra/managed-images/opensearch-core/build-core.sh infra/managed-images/opensearch-core/jackson.patch /recipe/
+USER 1000:1000
+RUN bash /recipe/build-core.sh
+
+FROM opensearchproject/opensearch@sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84 AS prepared-base
+USER 0
+COPY infra/managed-images/opensearch-core/jdk-inventory.sh /tmp/aw-jdk-inventory.sh
+RUN /bin/bash -euo pipefail -c '\
+    mkdir -p /managed-evidence; \
+    bash /tmp/aw-jdk-inventory.sh /usr/share/opensearch/jdk > /managed-evidence/jdk-before.txt; \
+    cp /usr/share/opensearch/jdk/release /managed-evidence/base-jdk-release.txt; \
+    rpm -qa --qf "%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}\n" | sort > /managed-evidence/rpm-before.txt; \
+    rpm -q gpg-pubkey > /managed-evidence/rpm-key-packages.txt; \
+    curl --fail --silent --show-error --proto "=https" --tlsv1.2 --connect-timeout 15 --max-time 120 \
+      https://cdn.amazonlinux.com/al2023/core/guids/762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6/x86_64/repodata/repomd.xml \
+      -o /managed-evidence/repomd.xml; \
+    printf "%s  %s\n" 0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5 /managed-evidence/repomd.xml | sha256sum --check --strict; \
+    dnf --releasever=2023.12.20261026 --disablerepo="*" --enablerepo=amazonlinux \
+      --setopt=amazonlinux.mirrorlist= \
+      --setopt=amazonlinux.baseurl=https://cdn.amazonlinux.com/al2023/core/guids/762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6/x86_64/ \
+      --setopt=amazonlinux.gpgcheck=1 --setopt=gpgcheck=1 \
+      --refresh --best upgrade -y 2>&1 | tee /managed-evidence/dnf-upgrade.log; \
+    rpm -qa --qf "%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}\n" | sort > /managed-evidence/rpm-after.txt; \
+    for package in curl-minimal libcurl-minimal libcap pcre2 pcre2-syntax python3 python3-libs \
+      openssl-libs openssl-fips-provider-latest rpm rpm-libs rpm-build-libs rpm-sign-libs python3-rpm python3-pip-wheel; do \
+      printf "%s %s\n" "$package" "$(rpm -q --qf "%{EPOCHNUM}:%{VERSION}-%{RELEASE}" "$package")"; \
+    done > /managed-evidence/required-rpm-versions.txt; \
+    printf "%s\n" \
+      "curl-minimal 0:8.21.0-5.amzn2023.0.3" "libcurl-minimal 0:8.21.0-5.amzn2023.0.3" \
+      "libcap 0:2.73-1.amzn2023.0.8" "pcre2 0:10.40-1.amzn2023.0.5" "pcre2-syntax 0:10.40-1.amzn2023.0.5" \
+      "python3 0:3.9.25-1.amzn2023.0.11" "python3-libs 0:3.9.25-1.amzn2023.0.11" \
+      "openssl-libs 1:3.5.8-1.amzn2023.0.3" "openssl-fips-provider-latest 1:3.5.8-1.amzn2023.0.3" \
+      "rpm 0:4.16.1.3-29.amzn2023.0.8" "rpm-libs 0:4.16.1.3-29.amzn2023.0.8" \
+      "rpm-build-libs 0:4.16.1.3-29.amzn2023.0.8" "rpm-sign-libs 0:4.16.1.3-29.amzn2023.0.8" \
+      "python3-rpm 0:4.16.1.3-29.amzn2023.0.8" "python3-pip-wheel 0:21.3.1-2.amzn2023.0.22" \
+      > /managed-evidence/expected-rpm-versions.txt; \
+    test "$(sha256sum /managed-evidence/required-rpm-versions.txt | cut -d " " -f 1)" = \
+      "$(sha256sum /managed-evidence/expected-rpm-versions.txt | cut -d " " -f 1)"; \
+    dnf clean all; \
+    mv /usr/share/opensearch/jdk /opt/aw-preserved-opensearch-jdk; \
+    bash /tmp/aw-jdk-inventory.sh /opt/aw-preserved-opensearch-jdk > /managed-evidence/jdk-preserved.txt; \
+    test "$(sha256sum /managed-evidence/jdk-before.txt | cut -d " " -f 1)" = \
+      "$(sha256sum /managed-evidence/jdk-preserved.txt | cut -d " " -f 1)"; \
+    rm -rf /usr/share/opensearch; \
+    mkdir -p /usr/share/opensearch; \
+    printf "%s\n" DIAGNOSTIC_ONLY_NOT_ADMITTED > /managed-evidence/state.txt'
+
+FROM prepared-base AS runtime
+LABEL org.opencontainers.image.title="Auto World OpenSearch core diagnostic" \
+    org.opencontainers.image.description="Source-built minimal core with patched Jackson and dated AL2023 updates; not admitted" \
+    org.label-schema.vendor="Auto World diagnostic derivative" \
+    io.auto-world.state="DIAGNOSTIC_ONLY_NOT_ADMITTED"
+COPY --from=builder /evidence/build.exit-code /tmp/aw-core-build.exit-code
+RUN test "$(cat /tmp/aw-core-build.exit-code)" = 0
+COPY --from=builder --chown=1000:1000 /workspace/source/distribution/archives/no-jdk-linux-tar/build/install/opensearch-3.9.0/ /usr/share/opensearch/
+COPY --chown=1000:1000 infra/managed-images/opensearch-core/opensearch.yml /usr/share/opensearch/config/opensearch.yml
+RUN /bin/bash -euo pipefail -c '\
+    test ! -e /usr/share/opensearch/jdk; \
+    mv /opt/aw-preserved-opensearch-jdk /usr/share/opensearch/jdk; \
+    bash /tmp/aw-jdk-inventory.sh /usr/share/opensearch/jdk > /managed-evidence/jdk-restored.txt; \
+    test "$(sha256sum /managed-evidence/jdk-before.txt | cut -d " " -f 1)" = \
+      "$(sha256sum /managed-evidence/jdk-restored.txt | cut -d " " -f 1)"; \
+    test -d /usr/share/opensearch/modules/transport-netty4; \
+    test -z "$(find /usr/share/opensearch/plugins -mindepth 1 -maxdepth 1 -print -quit)"; \
+    mkdir -p /usr/share/opensearch/data /usr/share/opensearch/logs; \
+    chown 1000:1000 /usr/share/opensearch /usr/share/opensearch/data /usr/share/opensearch/logs /managed-evidence; \
+    chmod 0755 /managed-evidence; \
+    rm -f /tmp/aw-jdk-inventory.sh /tmp/aw-core-build.exit-code'
+ENV JAVA_HOME=/usr/share/opensearch/jdk \
+    OPENSEARCH_JAVA_HOME=/usr/share/opensearch/jdk \
+    OPENSEARCH_PATH_CONF=/usr/share/opensearch/config \
+    OPENSEARCH_JAVA_OPTS="-Xms512m -Xmx512m" \
+    LD_LIBRARY_PATH=""
+USER 1000:1000
+WORKDIR /usr/share/opensearch
+RUN /bin/bash -euo pipefail -c '\
+    test "$(id -u)" = 1000; \
+    "$OPENSEARCH_JAVA_HOME/bin/java" --version > /managed-evidence/runtime-java-version.txt 2>&1; \
+    cat /managed-evidence/runtime-java-version.txt; \
+    "$OPENSEARCH_JAVA_HOME/bin/java" -XshowSettings:properties -version > /managed-evidence/runtime-java-properties.txt 2>&1; \
+    specification=$(grep "java.specification.version =" /managed-evidence/runtime-java-properties.txt | cut -d "=" -f 2 | tr -d " "); \
+    test "$specification" -ge 21; \
+    test -x bin/opensearch; \
+    test -w data; \
+    test -w logs'
+ENTRYPOINT ["/usr/share/opensearch/bin/opensearch"]
+CMD []
+
+# Export original diagnostic text/XML even when a captured Gradle status is
+# nonzero. Runtime performs the mandatory status gate above.
+FROM scratch AS evidence
+COPY --from=builder /evidence/ /opensearch/build/
+COPY --from=prepared-base /managed-evidence/ /opensearch/base/

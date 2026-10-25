@@ -1,0 +1,7 @@
+cluster.name: auto-world-local
+node.name: auto-world-core
+discovery.type: single-node
+network.host: 0.0.0.0
+path.data: /usr/share/opensearch/data
+path.logs: /usr/share/opensearch/logs
+bootstrap.memory_lock: true

@@ -1,0 +1,7 @@
+**
+!infra/
+!infra/managed-images/
+!infra/managed-images/Dockerfile.postgres
+!infra/managed-images/gosu-functional-tests.sh
+!infra/managed-images/postgres/
+!infra/managed-images/postgres/**

@@ -1,0 +1,108 @@
+{
+  "name": "Data foundation managed image diagnostic",
+  "on": {
+    "pull_request": {
+      "paths": [
+        ".github/workflows/data-foundation-managed.yml",
+        "infra/managed-images/**",
+        "infra/scanner/**",
+        "scripts/scanner/**",
+        "tests/scanner-official-*.test.mjs",
+        "tests/managed-image-*.test.mjs",
+        "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
+        "roadmap/plans/TASK-0005-managed-image-corrections.md"
+      ]
+    },
+    "push": {
+      "branches": [
+        "main"
+      ],
+      "paths": [
+        ".github/workflows/data-foundation-managed.yml",
+        "infra/managed-images/**",
+        "infra/scanner/**",
+        "scripts/scanner/**",
+        "tests/scanner-official-*.test.mjs",
+        "tests/managed-image-*.test.mjs",
+        "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
+        "roadmap/plans/TASK-0005-managed-image-corrections.md"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "data-foundation-managed-${{ github.ref }}",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "audit": {
+      "name": "Audit builders, construct and audit managed subjects",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 240,
+      "steps": [
+        {
+          "name": "Check out source without persistent credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Provision exact managed Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {
+            "node-version": "22.23.4",
+            "package-manager-cache": false,
+            "cache": ""
+          }
+        },
+        {
+          "name": "Run pure scanner and workflow regression tests",
+          "id": "tests",
+          "timeout-minutes": 5,
+          "shell": "bash",
+          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs"
+        },
+        {
+          "name": "Verify official scanner provenance before extraction",
+          "id": "provenance",
+          "timeout-minutes": 10,
+          "shell": "bash",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GH_DEBUG": "",
+            "GH_PROMPT_DISABLED": "1"
+          },
+          "run": "set -euo pipefail\numask 077\nroot=\"$RUNNER_TEMP/trivy-provenance\"\nmkdir -- \"$root\"\nmkdir -- \"$root/download\" \"$root/public\" \"$root/bin\" \"$root/negative\"\nconfig=\"infra/scanner/official-release.json\"\nversion=\"$(jq -er '.scanner.version' \"$config\")\"\nrepository=\"$(jq -er '.scanner.repository' \"$config\")\"\nname=\"$(jq -er '.scanner.archive.name' \"$config\")\"\nbytes=\"$(jq -er '.scanner.archive.bytes' \"$config\")\"\nsha=\"$(jq -er '.scanner.archive.sha256' \"$config\")\"\nsource=\"$(jq -er '.scanner.sourceCommit' \"$config\")\"\nsource_ref=\"$(jq -er '.scanner.sourceRef' \"$config\")\"\nworkflow=\"$(jq -er '.scanner.signerWorkflow' \"$config\")\"\n[[ \"$version\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]]\n[[ \"$repository\" == aquasecurity/trivy ]]\n[[ \"$name\" == \"trivy_\"$version\"_Linux-64bit.tar.gz\" ]]\n[[ \"$bytes\" =~ ^[1-9][0-9]*$ ]]\n[[ \"$sha\" =~ ^[a-f0-9]{64}$ ]]\n[[ \"$source\" =~ ^[a-f0-9]{40}$ ]]\n[[ \"$source_ref\" == \"refs/tags/v$version\" ]]\n[[ \"$workflow\" == aquasecurity/trivy/.github/workflows/reusable-release.yaml ]]\nidentity=\"https://github.com/$workflow@$source_ref\"\narchive=\"$root/download/$name\"\nbundle=\"$root/public/trivy.attestation.jsonl\"\n\ngh release download \"v$version\" --repo \"$repository\" --pattern \"$name\" --dir \"$root/download\"\ntest \"$(stat --printf=%s -- \"$archive\")\" = \"$bytes\"\nprintf '%s  %s\\n' \"$sha\" \"$archive\" | sha256sum --check --strict -\n(\n  cd -- \"$root/download\"\n  gh attestation download \"$archive\" --repo \"$repository\" --predicate-type https://slsa.dev/provenance/v1\n)\nmv -- \"$root/download/sha256:$sha.jsonl\" \"$bundle\"\nchmod 0400 -- \"$archive\" \"$bundle\"\ncp -- \"$config\" \"$root/public/official-release.json\"\n\nverify_identity() {\n  gh attestation verify \"$1\" --bundle \"$bundle\" --repo \"$repository\" \\\n    --cert-identity \"$4\" --cert-oidc-issuer https://token.actions.githubusercontent.com \\\n    --source-digest \"$2\" --source-ref \"$3\" --deny-self-hosted-runners --format json\n}\n\ngh attestation verify \"$archive\" --bundle \"$bundle\" --repo \"$repository\" \\\n  --signer-workflow \"$workflow\" --source-digest \"$source\" --source-ref \"$source_ref\" \\\n  --deny-self-hosted-runners --format json > \"$root/public/verification-workflow.json\"\nverify_identity \"$archive\" \"$source\" \"$source_ref\" \"$identity\" > \"$root/public/verification-identity.json\"\n\nexpect_refusal() {\n  local control=\"$1\" expected_message=\"$2\" status\n  shift 2\n  if verify_identity \"$@\" > \"$root/public/$control.stdout.txt\" 2> \"$root/public/$control.stderr.txt\"; then\n    printf '%s unexpectedly verified\\n' \"$control\" >&2\n    exit 1\n  else\n    status=$?\n  fi\n  test \"$status\" -eq 1\n  grep -Fq -- \"$expected_message\" \"$root/public/$control.stderr.txt\"\n  printf '%s\\t%s\\n' \"$control\" \"$status\" >> \"$root/public/provenance-controls.tsv\"\n}\n\ncp -- \"$archive\" \"$root/negative/changed-bytes.tar.gz\"\nchmod 0600 -- \"$root/negative/changed-bytes.tar.gz\"\nprintf '\\000' >> \"$root/negative/changed-bytes.tar.gz\"\nexpect_refusal changed-bytes 'Error: verifying with issuer' \\\n  \"$root/negative/changed-bytes.tar.gz\" \"$source\" \"$source_ref\" \"$identity\"\nexpect_refusal wrong-source 'expected SourceRepositoryDigest' \\\n  \"$archive\" 0000000000000000000000000000000000000000 \"$source_ref\" \"$identity\"\nexpect_refusal wrong-workflow 'Error: verifying with issuer' \\\n  \"$archive\" \"$source\" \"$source_ref\" \"https://github.com/aquasecurity/trivy/.github/workflows/untrusted-release.yaml@$source_ref\"\nexpect_refusal wrong-ref 'expected SourceRepositoryRef' \\\n  \"$archive\" \"$source\" refs/tags/v0.0.0 \"$identity\"\nverify_identity \"$archive\" \"$source\" \"$source_ref\" \"$identity\" > \"$root/public/verification-after-controls.json\"\n\nprintf '%s  %s\\n' \"$sha\" \"$archive\" | sha256sum --check --strict -\ntar --extract --gzip --file \"$archive\" --directory \"$root/bin\" \\\n  --no-same-owner --no-same-permissions -- trivy\ntest -f \"$root/bin/trivy\"\ntest ! -L \"$root/bin/trivy\"\ntest \"$(stat --printf=%h -- \"$root/bin/trivy\")\" = 1\nchmod 0500 -- \"$root/bin/trivy\"\nenv GOTOOLCHAIN=local go version -m \"$root/bin/trivy\" > \"$root/public/go-build-info.txt\"\nsha256sum -- \"$archive\" \"$bundle\" \"$root/bin/trivy\" > \"$root/public/received-sha256.txt\"\n{\n  node --version\n  gh --version\n  env GOTOOLCHAIN=local go version\n  docker version --format '{{json .}}'\n  docker compose version\n  docker buildx version\n} > \"$root/public/runner-tools.txt\""
+        },
+        {
+          "name": "Qualify tools, build and audit all five managed runtime roles",
+          "id": "audit",
+          "timeout-minutes": 225,
+          "shell": "bash",
+          "run": "set -euo pipefail\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node scripts/scanner/official-audit.mjs \\\n  --scanner \"${RUNNER_TEMP}/trivy-provenance/bin/trivy\" \\\n  --build-info \"${RUNNER_TEMP}/trivy-provenance/public/go-build-info.txt\" \\\n  --output \"${RUNNER_TEMP}/data-foundation-audit\" --scope managed\n"
+        },
+        {
+          "name": "Preserve public reports and provenance, including failures",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "data-foundation-managed-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/trivy-provenance/public/official-release.json\n${{ runner.temp }}/trivy-provenance/public/trivy.attestation.jsonl\n${{ runner.temp }}/trivy-provenance/public/verification-workflow.json\n${{ runner.temp }}/trivy-provenance/public/verification-identity.json\n${{ runner.temp }}/trivy-provenance/public/verification-after-controls.json\n${{ runner.temp }}/trivy-provenance/public/provenance-controls.tsv\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/go-build-info.txt\n${{ runner.temp }}/trivy-provenance/public/received-sha256.txt\n${{ runner.temp }}/trivy-provenance/public/runner-tools.txt\n${{ runner.temp }}/data-foundation-audit/official-audit-receipt.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.cdx.json\n${{ runner.temp }}/data-foundation-audit/scanner-version-probe.json\n${{ runner.temp }}/data-foundation-audit/scanner-version.txt\n${{ runner.temp }}/data-foundation-audit/go-build-info.txt\n${{ runner.temp }}/data-foundation-audit/fixture-*-official.json\n${{ runner.temp }}/data-foundation-audit/fixture-*-baseline.json\n${{ runner.temp }}/data-foundation-audit/image-*.json\n${{ runner.temp }}/data-foundation-audit/database-*-manifest.json\n${{ runner.temp }}/data-foundation-audit/database-evidence.json\n${{ runner.temp }}/data-foundation-audit/carrier-inspect.json\n${{ runner.temp }}/data-foundation-audit/docker-version.json\n${{ runner.temp }}/data-foundation-audit/buildx-version.txt\n${{ runner.temp }}/data-foundation-audit/builder-*.json\n${{ runner.temp }}/data-foundation-audit/managed-*-inspect.json\n${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce complete audit success",
+          "if": "${{ always() && steps.audit.outcome != 'success' }}",
+          "shell": "bash",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}
