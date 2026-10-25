@@ -181,3 +181,36 @@ can support a separately reviewed producer correction; no retry, raised limit
 or skipped evidence is pre-authorized. TASK-0005/0005A remain `IN_PROGRESS`.
 The user-selected restricted empty destination on `C:` still needs the complete
 inventory/capacity decision, actual copy, retrieval and restoration proof.
+
+## 2026-10-26 — actual merged-main OpenSearch test failure
+
+PR198's source `8b8febc0c3f4879e9a5491906bec3e0d056841d4` passed independently
+reviewed quality40238739731 and managed40238739604. Its normal protected merge
+`a52884b2daa44ffd40dc3292a4677a61b6494b1b` has the same tree
+`87326c1e6a445d8553b0e4ecf5721e0cf881444f`. Main quality40240788142 passes,
+but [main managed40240788182](https://github.com/CleMeY15/auto-world/actions/runs/40240788182)
+fails and independent actual review is REQUEST_CHANGES/HIGH. Delivery remains
+unaccepted; no subsequent private-package action is enabled.
+
+This run successfully exports all original OpenSearch text evidence. Its16JUnit
+files contain1,734cases, one failure, zero errors and48declared exclusions.
+`SharedClusterSnapshotRestoreIT.testSnapshotFileFailureDuringSnapshot` fails
+native line409, expected0L/actual1L, seed
+`[730D258067002B91:4C7F89EA9E3D4D8C]:0`. The runtime Dockerfile correctly refuses
+build.exit-code1; OpenSearch is not built/audited and runtime is never reached.
+No evidenceDiagnostic exists for a successful export. Public ZIP12616318808 is
+1,985,393bytes/SHA256
+`d92175d56275a019a5c6c476831f82e6209467eb8e8fc156f99ef4dbd921472c`;
+receipt127,129bytes/SHA256
+`84027a97df213469727ae1bd2c64a55450d674dde6fe9e44d1283d1f8beeacb0`.
+
+The original XML shows a mock IOException on the optional
+snapshot_shard_paths/dummy-name-list-blobs cleanup listing, followed by snapshot
+SUCCESS. The pinned product source catches that optional error; the mock's
+global counter still increments. [Upstream issue15845](https://github.com/opensearch-project/OpenSearch/issues/15845)
+tracks this test as flaky; no applicable fixed upstream commit was found.
+The reviewed correction is limited to test fault scope, with a default-false
+exact-path/operation opt-out and deterministic coverage controls. Existing
+assertions, product behavior and fresh protected source/main acceptance remain
+mandatory. This diagnosis does not establish the cause of the different failed
+export40235439116; its cause remains unknown and its failure is preserved.
