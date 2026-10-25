@@ -18,6 +18,8 @@ function moduleFields(fields) {
 
 // Parse the standard `go version -m` text, not a claim of binary provenance.
 // Archive identity and upstream attestation remain the caller's responsibility.
+// The authenticated 0.76.1 binary has this exact dirty marker; no other dirty
+// build is authorized by accepting its measured metadata here.
 export function parseOfficialGoBuildInfo(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 4 * 1024 ** 2) invalid();
   let text;
@@ -37,8 +39,8 @@ export function parseOfficialGoBuildInfo(bytes) {
       binaryPathSeen = true;
     } else if (fields[1] === "mod") {
       const module = moduleFields(fields);
-      if (main || module.path !== MAIN_PATH || !["(devel)", "v0.76.1"].includes(module.version)) invalid();
-      main = { ...module, version: module.version === "(devel)" ? null : module.version };
+      if (main || module.path !== MAIN_PATH || module.version !== "v0.76.1+dirty") invalid();
+      main = module;
     } else if (fields[1] === "dep") {
       const module = moduleFields(fields);
       if (!MODULE_VERSION.test(module.version) || module.path === MAIN_PATH || dependencies.has(module.path)) invalid();
@@ -47,27 +49,22 @@ export function parseOfficialGoBuildInfo(bytes) {
       if (fields.length !== 3) invalid();
       const match = /^([-a-zA-Z0-9_.]+)=(.*)$/u.exec(fields[2]);
       if (!match || settings.has(match[1])) invalid();
-      let value = match[2];
-      if (value.startsWith('"')) {
-        try { value = JSON.parse(value); } catch { invalid(); }
-        if (typeof value !== "string") invalid();
-      }
+      const value = match[2];
       if (["\0", "\r", "\n"].some((character) => value.includes(character))) invalid();
       settings.set(match[1], value);
     } else invalid(); // Includes all module replacements and unknown record kinds.
   }
   if (!binaryPathSeen || !main || dependencies.size < 100 || dependencies.size > 4096 ||
       dependencies.get("google.golang.org/grpc")?.version !== "v1.84.0" ||
-      dependencies.get("golang.org/x/net")?.version !== "v0.60.0") invalid();
+      dependencies.get("golang.org/x/net")?.version !== "v0.60.0" ||
+      settings.get("GOOS") !== "linux" || settings.get("GOARCH") !== "amd64" || settings.get("CGO_ENABLED") !== "0") invalid();
   const sourceSettings = [...settings.keys()].filter((key) => key === "vcs" || key.startsWith("vcs."));
-  if (sourceSettings.length) {
-    if (sourceSettings.some((key) => !["vcs", "vcs.revision", "vcs.modified", "vcs.time"].includes(key)) ||
-        settings.get("vcs") !== "git" || settings.get("vcs.revision") !== SOURCE_COMMIT ||
-        settings.get("vcs.modified") !== "false") invalid();
-    const sourceTime = settings.get("vcs.time");
-    if (sourceTime !== undefined && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(sourceTime) ||
-        !Number.isFinite(Date.parse(sourceTime)) || new Date(sourceTime).toISOString() !== sourceTime.replace("Z", ".000Z"))) invalid();
-  }
+  if (sourceSettings.some((key) => !["vcs", "vcs.revision", "vcs.modified", "vcs.time"].includes(key)) ||
+      settings.get("vcs") !== "git" || settings.get("vcs.revision") !== SOURCE_COMMIT ||
+      settings.get("vcs.modified") !== "true") invalid();
+  const sourceTime = settings.get("vcs.time");
+  if (sourceTime !== undefined && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(sourceTime) ||
+      !Number.isFinite(Date.parse(sourceTime)) || new Date(sourceTime).toISOString() !== sourceTime.replace("Z", ".000Z"))) invalid();
   return {
     stdlib: { path: "stdlib", version: "v1.27.3" }, main,
     dependencies: [...dependencies.values()].sort((left, right) => left.path.localeCompare(right.path, "en")),

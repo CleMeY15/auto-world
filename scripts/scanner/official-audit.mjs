@@ -13,6 +13,7 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
+const OFFICIAL_BINARY_SHA256 = "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83";
 const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensearchproject/opensearch"], ["redis", "library/redis"],
   ["seaweedfs", "chrislusf/seaweedfs"], ["aws-cli", "amazon/aws-cli"]]);
 // Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
@@ -48,6 +49,7 @@ export function validateOfficialReleaseConfig(config) {
   if (config?.schemaVersion !== 1 || config.scanner?.version !== "0.76.1" || config.scanner.sourceCommit !== "e713f67f7d54decdcd9b3132c9751833dcced698" ||
       config.scanner.archive?.name !== "trivy_0.76.1_Linux-64bit.tar.gz" || config.scanner.archive.bytes !== 52676794 ||
       config.scanner.archive.sha256 !== "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0" ||
+      config.scanner.binarySha256 !== OFFICIAL_BINARY_SHA256 || config.scanner.mainModuleVersion !== "v0.76.1+dirty" || config.scanner.vcsModified !== true ||
       !Array.isArray(config.images) || config.images.length !== ROLES.size) fail("scanner_official_config_invalid");
   const seen = new Set();
   for (const image of config.images) {
@@ -57,6 +59,12 @@ export function validateOfficialReleaseConfig(config) {
     seen.add(image.role);
   }
   return config;
+}
+
+export function validateOfficialScannerIdentity(identity, scannerConfig) {
+  if (scannerConfig?.binarySha256 !== OFFICIAL_BINARY_SHA256 || identity?.sha256 !== scannerConfig.binarySha256 ||
+      !Number.isSafeInteger(identity.size) || identity.size < 1) fail("scanner_official_binary_identity_invalid");
+  return identity;
 }
 
 export function officialImageScanArguments(carrier, scanner, cache, image, format = "json") {
@@ -224,6 +232,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     const config = validateOfficialReleaseConfig((await readBoundedJson(configFile, MiB)).value);
     const lock = (await readBoundedJson(lockFile, MiB)).value;
     const original = await captureFiles([{ path: inputScanner, cap: 512 * MiB }, { path: buildInfo, cap: 8 * MiB }]);
+    validateOfficialScannerIdentity(original[0], config.scanner);
     const inventory = parseOfficialGoBuildInfo(readFileSync(buildInfo));
     const subject = path.join(work, "subject"); mkdirSync(subject, { mode: 0o755 });
     const scanner = path.join(subject, "trivy"); copyFileSync(inputScanner, scanner); chmodSync(scanner, 0o555); chmodSync(subject, 0o555);

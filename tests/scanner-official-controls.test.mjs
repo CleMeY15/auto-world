@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { evaluateImageReport as evaluateHistoricalImageReport, SCANNER_VERSION } from "../scripts/scanner/audit-policy.mjs";
 import { validateSelfReport as validateHistoricalSelfReport, validateVersionProbeReport as validateHistoricalVersionProbeReport } from "../scripts/scanner/controls.mjs";
@@ -10,7 +12,8 @@ const commit = "e713f67f7d54decdcd9b3132c9751833dcced698";
 const sum = `h1:${Buffer.alloc(32).toString("base64")}`;
 const invalidBuild = /scanner_official_go_build_info_invalid/u;
 
-function buildText({ mainVersion = "(devel)", directory = "/tmp/official", count = 100, settings = [] } = {}) {
+function buildText({ mainVersion = "v0.76.1+dirty", directory = "/tmp/official", count = 100,
+  settings = ["vcs=git", `vcs.revision=${commit}`, "vcs.modified=true"] } = {}) {
   return [
     `${directory}/trivy: go1.27.3`,
     "\tpath\tgithub.com/aquasecurity/trivy/cmd/trivy",
@@ -19,6 +22,7 @@ function buildText({ mainVersion = "(devel)", directory = "/tmp/official", count
     `\tdep\tgolang.org/x/net\tv0.60.0\t${sum}`,
     ...Array.from({ length: count }, (_, index) => `\tdep\texample.test/module-${index}\tv1.0.${index}\t${sum}`),
     "\tbuild\t-buildmode=exe",
+    "\tbuild\tCGO_ENABLED=0",
     "\tbuild\tGOOS=linux",
     "\tbuild\tGOARCH=amd64",
     ...settings.map((setting) => `\tbuild\t${setting}`),
@@ -26,32 +30,48 @@ function buildText({ mainVersion = "(devel)", directory = "/tmp/official", count
   ].join("\n");
 }
 
-test("official Go inventory preserves stdlib and every dependency for both upstream main versions", () => {
-  for (const mainVersion of ["(devel)", "v0.76.1"]) {
-    const first = parseOfficialGoBuildInfo(Buffer.from(buildText({ mainVersion })));
-    const second = parseOfficialGoBuildInfo(Buffer.from(buildText({ mainVersion, directory: "/other/path" }).replaceAll("\n", "\r\n")));
-    assert.deepEqual(first, second);
-    assert.deepEqual(first.stdlib, { path: "stdlib", version: "v1.27.3" });
-    assert.deepEqual(first.main, { path: "github.com/aquasecurity/trivy", version: mainVersion === "(devel)" ? null : mainVersion, sum: "" });
-    assert.equal(first.dependencies.length, 102);
-    assert.ok(first.dependencies.every((dependency) => dependency.sum === sum));
-    assert.equal(first.dependencies.find((dependency) => dependency.path === "google.golang.org/grpc").version, "v1.84.0");
-    assert.equal(first.dependencies.find((dependency) => dependency.path === "golang.org/x/net").version, "v0.60.0");
-    assert.equal(first.settings.GOOS, "linux");
-    assert.equal(first.settings.GOARCH, "amd64");
-  }
+test("pinned real official Go output preserves the measured dirty tuple and every dependency", () => {
+  const bytes = readFileSync(new URL("./fixtures/scanner-official/trivy-0.76.1-go-build-info.txt", import.meta.url));
+  assert.equal(bytes.length, 36605);
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), "c0635189c3438986aecc0b7a4ac17cf90bac00259a982e1eb594dd817758cded");
+  const actual = parseOfficialGoBuildInfo(bytes);
+  const lines = bytes.toString("utf8").split("\n");
+  const dependencies = lines.filter((line) => line.startsWith("\tdep\t")).map((line) => {
+    const [, , path, version, sum] = line.split("\t"); return { path, version, sum };
+  }).sort((left, right) => left.path.localeCompare(right.path, "en"));
+  assert.ok(dependencies.length > 100);
+  assert.deepEqual(actual.dependencies, dependencies);
+  assert.deepEqual(actual.stdlib, { path: "stdlib", version: "v1.27.3" });
+  assert.deepEqual(actual.main, { path: "github.com/aquasecurity/trivy", version: "v0.76.1+dirty", sum: "" });
+  for (const [key, value] of [["GOOS", "linux"], ["GOARCH", "amd64"], ["CGO_ENABLED", "0"], ["vcs", "git"], ["vcs.revision", commit], ["vcs.modified", "true"]]) assert.equal(actual.settings[key], value);
+  assert.equal(actual.settings["-ldflags"], lines.find((line) => line.startsWith("\tbuild\t-ldflags=")).slice("\tbuild\t-ldflags=".length));
+  const original = bytes.toString("utf8");
+  for (const changed of [
+    original.replace(commit, "a".repeat(40)), original.replace("vcs.modified=true", "vcs.modified=false"),
+    original.replace("v0.76.1+dirty", "v0.76.1"), original.replace("v0.76.1+dirty", "(devel)"),
+    original.replace("GOOS=linux", "GOOS=windows"), original.replace("GOARCH=amd64", "GOARCH=arm64"),
+    original.replace("CGO_ENABLED=0", "CGO_ENABLED=1"), original.replace(/^\tbuild\tvcs[^\n]*\n/gmu, ""),
+    `${original}\t=>\t../local\t(devel)\t\n`,
+  ]) assert.throws(() => parseOfficialGoBuildInfo(Buffer.from(changed)), invalidBuild);
+  const first = parseOfficialGoBuildInfo(Buffer.from(buildText()));
+  const second = parseOfficialGoBuildInfo(Buffer.from(buildText({ directory: "/other/path" }).replaceAll("\n", "\r\n")));
+  assert.deepEqual(first, second);
+  assert.equal(first.dependencies.length, 102);
+  assert.ok(first.dependencies.every((dependency) => dependency.sum === sum));
 });
 
-test("available official VCS metadata must establish the expected unmodified source", () => {
-  const settings = ["vcs=git", `vcs.revision=${commit}`, "vcs.modified=false", "vcs.time=2026-10-21T12:00:00Z", '-ldflags="-s -w"'];
+test("official VCS metadata must retain the measured source and modified marker without general dirty permission", () => {
+  const settings = ["vcs=git", `vcs.revision=${commit}`, "vcs.modified=true", "vcs.time=2026-10-21T12:00:00Z", '-ldflags="-s -w"'];
   const parsed = parseOfficialGoBuildInfo(Buffer.from(buildText({ settings })));
   assert.equal(parsed.settings["vcs.revision"], commit);
-  assert.equal(parsed.settings["-ldflags"], "-s -w");
+  assert.equal(parsed.settings["-ldflags"], '"-s -w"');
   for (const changed of [
     settings.map((value) => value.replace(commit, "a".repeat(40))),
     settings.map((value) => value.replace("vcs=git", "vcs=unknown")),
-    settings.map((value) => value.replace("vcs.modified=false", "vcs.modified=true")),
+    settings.map((value) => value.replace("vcs.modified=true", "vcs.modified=false")),
     settings.filter((value) => !value.startsWith("vcs.revision=")),
+    settings.filter((value) => !value.startsWith("vcs")),
+    settings.filter((value) => !value.startsWith("vcs.modified=")),
     [...settings, `vcs.revision=${commit}`],
     [...settings, "vcs.unknown=anything"],
     [...settings, "GOOS=linux"],
@@ -64,7 +84,14 @@ test("official Go parser rejects substituted tools, roots, dependencies, replace
     original.replace("go1.27.3", "go1.27.2"),
     original.replace("go1.27.3", "go1.27.3-X:jsonv2"),
     original.replace("/cmd/trivy", "/cmd/other"),
-    original.replace("\t(devel)\t", "\tv0.76.0\t"),
+    original.replace("\tv0.76.1+dirty\t", "\tv0.76.1\t"),
+    original.replace("\tv0.76.1+dirty\t", "\t(devel)\t"),
+    original.replace("\tv0.76.1+dirty\t", "\tv0.76.2+dirty\t"),
+    original.replace("GOOS=linux", "GOOS=windows"),
+    original.replace("GOARCH=amd64", "GOARCH=arm64"),
+    original.replace("CGO_ENABLED=0", "CGO_ENABLED=1"),
+    original.replace("\tbuild\tGOOS=linux\n", ""),
+    original.replace("\tbuild\tCGO_ENABLED=0\n", ""),
     original.replace("\tv1.84.0\t", "\tv1.83.0\t"),
     original.replace("\tv0.60.0\t", "\tv0.59.0\t"),
     original.replace("\tv1.0.0\t", "\t(devel)\t"),
@@ -94,7 +121,7 @@ test("official Go text decoding and record count are bounded", () => {
 
 function selfEvidence() {
   const inventory = parseOfficialGoBuildInfo(Buffer.from(buildText()));
-  const packages = [inventory.stdlib, { path: inventory.main.path, version: "v0.76.1" }, ...inventory.dependencies]
+  const packages = [inventory.stdlib, { path: inventory.main.path, version: inventory.main.version }, ...inventory.dependencies]
     .map(({ path, version }) => ({ Name: path, Version: version }));
   const report = { SchemaVersion: 2, ArtifactName: "subject", ArtifactType: "filesystem", Trivy: { Version: "0.76.1" },
     Results: [{ Target: "subject", Type: "gobinary", Class: "lang-pkgs", Packages: packages }] };
@@ -113,19 +140,28 @@ test("official self audit uses a separate profile and preserves the immutable hi
   const accepted = validateSelfReport(report, sbom, inventory, "0.76.1", official);
   assert.equal(accepted.expectedModuleCount, 103);
   assert.equal(accepted.packages.length, 104);
+  assert.deepEqual(accepted.main, [inventory.main.path, "v0.76.1+dirty"]);
   report.Trivy.Version = SCANNER_VERSION;
-  assert.equal(validateHistoricalSelfReport(report, sbom, inventory, "0.76.1").packages.length, 104);
+  assert.throws(() => validateHistoricalSelfReport(report, sbom, inventory, "0.76.1"), /scanner_self_inventory_missing/u);
+  const legacyReport = JSON.parse(JSON.stringify(report));
+  const legacySbom = JSON.parse(JSON.stringify(sbom));
+  legacyReport.Results[0].Packages.find((entry) => entry.Name === inventory.main.path).Version = "v0.76.1";
+  legacySbom.components.find((entry) => entry.type === "library" && entry.name === inventory.main.path).version = "v0.76.1";
+  assert.equal(validateHistoricalSelfReport(legacyReport, legacySbom, inventory, "0.76.1").packages.length, 104);
   assert.throws(() => validateSelfReport(report, sbom, inventory, "0.76.1", official), /scanner_self_report_invalid/u);
 });
 
 test("official self audit keeps complete report/SBOM and vulnerability refusals", () => {
-  for (const mutation of ["missing-package", "changed-package", "missing-sbom", "finding"]) {
+  for (const mutation of ["missing-package", "changed-package", "missing-sbom", "finding", "clean-main", "empty-main", "changed-main-inventory", "clean-sbom-main", "empty-sbom-main"]) {
     const { report, sbom, inventory } = selfEvidence();
     if (mutation === "missing-package") report.Results[0].Packages.pop();
     if (mutation === "changed-package") report.Results[0].Packages[2].Version = "v9.9.9";
     if (mutation === "missing-sbom") sbom.components.pop();
     if (mutation === "finding") report.Results[0].Vulnerabilities = [{ VulnerabilityID: "CVE-2099-0001", PkgName: "stdlib", InstalledVersion: "v1.27.3" }];
-    assert.throws(() => validateSelfReport(report, sbom, inventory, "0.76.1", official), /scanner_self_(?:inventory_missing|audit_blocked)|scanner_sbom_inventory_mismatch/u);
+    if (mutation === "clean-main" || mutation === "empty-main") report.Results[0].Packages.find((entry) => entry.Name === inventory.main.path).Version = mutation === "clean-main" ? "v0.76.1" : "";
+    if (mutation === "changed-main-inventory") inventory.main.version = "v0.76.1";
+    if (mutation === "clean-sbom-main" || mutation === "empty-sbom-main") sbom.components.find((entry) => entry.type === "library" && entry.name === inventory.main.path).version = mutation === "clean-sbom-main" ? "v0.76.1" : "";
+    assert.throws(() => validateSelfReport(report, sbom, inventory, "0.76.1", official), /scanner_self_(?:inventory_missing|audit_blocked|report_invalid)|scanner_sbom_inventory_mismatch/u);
   }
 });
 

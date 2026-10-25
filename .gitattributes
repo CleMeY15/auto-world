@@ -17,6 +17,7 @@ infra/seaweed-image/candidate-local-restore-receipt.json -text
 .github/workflows/*.yml text eol=lf
 *.sh text eol=lf
 *.sql text eol=lf
+tests/fixtures/scanner-official/** -text -whitespace
 infra/seaweed-image/attestation/** -text
 docs/validation/seaweed-attestation/** -text
 docs/validation/service-image-refresh/** -text

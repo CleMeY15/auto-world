@@ -22,6 +22,14 @@ On 25 October 2026, existing `gh` 2.98.0 verified the received official Trivy 0.
 
 Registry metadata resolves five candidate tags to immutable Linux/amd64 subjects in [the new diagnostic input](../../infra/scanner/official-release.json): PostgreSQL17.11 Alpine3.24, OpenSearch3.9.0, Redis8.10.2 Alpine3.23, SeaweedFS4.50 and AWS CLI2.38.5. Index and platform JSON bytes match their registry digest headers. No layer or configuration was read during selection, and no security or build-source equivalence is inferred from tag metadata.
 
+## Actual Linux continuation
+
+[Integration run40194959748](https://github.com/CleMeY15/auto-world/actions/runs/40194959748) succeeds on source `6e6537f770e40ae3c535d6ca4e3f9694ce1fbf0b`, reviewed tree `c60af22ee4b087d7ef9a07c3ecf1633ab5c5bf13`. Its tested pull-request merge `1fa9ff6e7f87e1f10f38b6862b6985b9c09a9a0a` has the same tree. All seventeen named verification phases pass. Ten failed health observations occur during the deliberately stopped/restarted dependency scenarios; their recovery phases and overall validation pass. The original validation JSON is 7,527 bytes, SHA256 `0179b405cf6d9fbf0f1677f32a1f1b479a64c20b5418a42103e2dcd7d3ed8993`; artifact12599314437 is 1,094 bytes, advertised SHA256 `ac7dd577b9d46a7cf005df2444be4755014623a8842464e7dd391eaa90e3000d`. This remains DIAGNOSTIC_ONLY on the old exact Compose images, not admission or acceptance of the five new candidates.
+
+[Scanner run40194289850](https://github.com/CleMeY15/auto-world/actions/runs/40194289850) remains FAILED before extraction: copying the read-only archive also made the negative-control copy read-only. The independently reviewed correction makes only that new test copy writable. [Run40194959739](https://github.com/CleMeY15/auto-world/actions/runs/40194959739) then passes provenance, all four real refusal controls and inert extraction, but stops before executing the scanner because the official Go inventory contains the previously unanticipated `v0.76.1+dirty` / `vcs.modified=true` markers. Both failures and original artifacts are preserved. No scanner-fitness result or image report is inferred.
+
+The original Go inventory is 36,605 bytes, SHA256 `c0635189c3438986aecc0b7a4ac17cf90bac00259a982e1eb594dd817758cded`, now retained as an immutable public test fixture. The [narrow measured-profile note](../decisions/ADR-0026-data-foundation-managed-tools.md) ties these raw markers to the same authenticated archive, exact extracted binary SHA, source/Go/dependency/platform tuple and unchanged qualification gates. It neither strips the marker nor authorizes future dirty builds. Source-to-binary equivalence and reproducibility remain NOT_ESTABLISHED.
+
 ## Remaining milestones and stop conditions
 
 1. Review the new scanner implementation independently and run its actual Linux provenance/material/self-audit/fixture controls, including comparison against the baseline using identical captured databases.

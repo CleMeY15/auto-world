@@ -5,7 +5,7 @@ import test from "node:test";
 import { candidateDockerArguments } from "../scripts/scanner/audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
 import { auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
-  validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
+  validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -53,10 +53,27 @@ test("release config cannot omit a helper, substitute a repository or change the
     (value) => { value.scanner.version = "0.74.0"; },
     (value) => { value.scanner.sourceCommit = "f".repeat(40); },
     (value) => { value.scanner.archive.bytes--; },
+    (value) => { value.scanner.binarySha256 = "a".repeat(64); },
+    (value) => { delete value.scanner.binarySha256; },
+    (value) => { value.scanner.mainModuleVersion = "v0.76.1"; },
+    (value) => { value.scanner.mainModuleVersion = "v0.76.2+dirty"; },
+    (value) => { value.scanner.vcsModified = false; },
+    (value) => { value.scanner.vcsModified = "true"; },
   ]) {
     const changed = clone(config); mutate(changed);
     assert.throws(() => validateOfficialReleaseConfig(changed), /scanner_official_config_invalid/u);
   }
+});
+
+test("binary identity refuses changed hashes, malformed snapshots and expected-hash substitution", () => {
+  const expected = { sha256: "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83", size: 123 };
+  assert.equal(validateOfficialScannerIdentity(expected, config.scanner), expected);
+  for (const identity of [{ ...expected, sha256: "a".repeat(64) }, { ...expected, sha256: expected.sha256.toUpperCase() },
+    { ...expected, size: 0 }, { ...expected, size: NaN }, { ...expected, sha256: undefined }]) {
+    assert.throws(() => validateOfficialScannerIdentity(identity, config.scanner), /scanner_official_binary_identity_invalid/u);
+  }
+  assert.throws(() => validateOfficialScannerIdentity({ ...expected, sha256: "a".repeat(64) }, { ...config.scanner, binarySha256: "a".repeat(64) }),
+    /scanner_official_binary_identity_invalid/u);
 });
 
 test("official remote scans reuse the non-root read-only resource-bounded profile and exact platform", () => {

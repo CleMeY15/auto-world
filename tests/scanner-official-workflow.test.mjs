@@ -156,6 +156,9 @@ test("archive expectations bind the reviewed upstream release and all five candi
     signerWorkflow: "aquasecurity/trivy/.github/workflows/reusable-release.yaml",
     sourceRef: "refs/tags/v0.76.1",
     goVersion: "1.27.3",
+    binarySha256: "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83",
+    mainModuleVersion: "v0.76.1+dirty",
+    vcsModified: true,
   });
   assert.deepEqual(release.images.map((image) => image.role).sort(), ["aws-cli", "opensearch", "postgres", "redis", "seaweedfs"]);
   for (const image of release.images) {
