@@ -32,6 +32,7 @@ test("managed diagnostic failures remain failures and only validated evidence is
   assert.equal(upload.with["retention-days"], 14);
   const paths = upload.with.path.split("\n");
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
+  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json"));
   for (const file of paths) {
     assert.doesNotMatch(file, /\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
     assert.notEqual(file, "${{ runner.temp }}/data-foundation-audit/**");
@@ -39,6 +40,15 @@ test("managed diagnostic failures remain failures and only validated evidence is
   const enforce = steps.at(-1);
   assert.match(enforce.if, /steps\.audit\.outcome != 'success'/u);
   assert.match(enforce.run, /^exit 1\s*$/u);
+});
+
+test("produced-service integration triggers diagnostics but stays outside pre-build pure tests", () => {
+  const integration = "tests/managed-image-runtime.integration.mjs";
+  for (const event of ["pull_request", "push"]) assert.ok(workflow.on[event].paths.includes(integration));
+  const tests = steps.find((step) => step.id === "tests");
+  assert.ok(!tests.run.includes(integration));
+  assert.match(tests.run, /tests\/managed-image-\*\.test\.mjs/u);
+  assert.ok(!integration.endsWith(".test.mjs"));
 });
 
 test("each Buildx context denies host-private data and admits only its reviewed public inputs", () => {

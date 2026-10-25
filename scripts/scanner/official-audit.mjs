@@ -25,7 +25,9 @@ const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, 
 const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0,\r\n]/u.test(value);
 const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
 
-export function commandFailureDiagnostic(result) {
+export function commandFailureDiagnostic(result, { privateOutput = false } = {}) {
+  if (privateOutput) return { stdoutBytes: Buffer.isBuffer(result.stdout) ? result.stdout.length : 0,
+    stderrBytes: Buffer.isBuffer(result.stderr) ? result.stderr.length : 0, reason: "private_runtime_output_not_published" };
   const redacted = (bytes) => (Buffer.isBuffer(bytes) ? bytes.toString("utf8") : "")
     .replaceAll(/(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})/gu, "[redacted]")
     .replaceAll(/(Authorization:\s*(?:Bearer|Basic)\s+)\S+/giu, "$1[redacted]")
@@ -35,6 +37,51 @@ export function commandFailureDiagnostic(result) {
     stdoutTail: stdout.slice(-4096), stderrTail: stderr.slice(-4096),
     stderrErrors: stderr.split("\n").filter((line) => /\b(?:not found|no such file or directory|error|failed)\b/iu.test(line))
       .slice(0, 16).map((line) => line.slice(0, 512)).join("\n").slice(0, 4096) };
+}
+
+export function validatePreparedRuntimeImage(inspected, report) {
+  if (!Array.isArray(inspected) || inspected.length !== 1 || !digest(inspected[0]?.Id) ||
+      inspected[0].Os !== "linux" || inspected[0].Architecture !== "amd64" || inspected[0].Id !== report?.Metadata?.ImageID) {
+    fail("scanner_managed_runtime_image_invalid");
+  }
+  return inspected[0].Id;
+}
+
+export function validateManagedRuntimeResult(value, expected) {
+  const keys = (entry, names) => entry && typeof entry === "object" && !Array.isArray(entry) &&
+    Object.keys(entry).length === names.length && names.every((name) => Object.hasOwn(entry, name));
+  const caseNames = ["start-and-refusal", "sql-raw-index", "restart-persistence", "cold-canonical-restore"];
+  if (!keys(value, ["schemaVersion", "run", "roles", "cases", "cleanup"]) || value.schemaVersion !== 1 ||
+      !keys(value.run, ["sourceCommit", "runId", "attempt"]) || typeof value.run.sourceCommit !== "string" || !/^[a-f0-9]{40}$/u.test(value.run.sourceCommit) ||
+      typeof value.run.runId !== "string" || !/^[1-9][0-9]*$/u.test(value.run.runId) ||
+      typeof value.run.attempt !== "string" || !/^[1-9][0-9]*$/u.test(value.run.attempt) ||
+      !["sourceCommit", "runId", "attempt"].every((key) => typeof value.run[key] === "string" && value.run[key] === expected?.run?.[key]) ||
+      !Array.isArray(expected?.roles) || expected.roles.length !== 5 || !Array.isArray(value.roles) || value.roles.length !== 5 ||
+      !Array.isArray(value.cases) || value.cases.length !== 4 || !keys(value.cleanup, ["result"]) ||
+      !["passed", "failed"].includes(value.cleanup.result)) fail("scanner_managed_runtime_result_invalid");
+  const subjects = new Map();
+  for (const role of expected.roles) {
+    if (!ROLES.has(role?.role) || subjects.has(role.role) || !digest(role.imageId)) fail("scanner_managed_runtime_result_invalid");
+    subjects.set(role.role, role.imageId);
+  }
+  const seen = new Set();
+  for (const role of value.roles) {
+    if (!keys(role, ["role", "imageId"]) || !ROLES.has(role.role) || !digest(role.imageId) ||
+        seen.has(role.role) || subjects.get(role.role) !== role.imageId) fail("scanner_managed_runtime_result_invalid");
+    seen.add(role.role);
+  }
+  let failed = false;
+  for (const [index, item] of value.cases.entries()) {
+    if (!keys(item, ["name", "status", "code"]) || item.name !== caseNames[index] ||
+        !(failed ? item.status === "not_run" && item.code === "not_run"
+          : (item.status === "passed" && item.code === "verified") || (item.status === "failed" && item.code === "failed"))) {
+      fail("scanner_managed_runtime_result_invalid");
+    }
+    if (item.status === "failed") failed = true;
+  }
+  return { schemaVersion: 1, run: { sourceCommit: value.run.sourceCommit, runId: value.run.runId, attempt: value.run.attempt },
+    roles: value.roles.map(({ role, imageId }) => ({ role, imageId })),
+    cases: value.cases.map(({ name, status, code }) => ({ name, status, code })), cleanup: { result: value.cleanup.result } };
 }
 
 export function bindManagedGosuEvidence(subject, proof = {}) {
@@ -330,16 +377,16 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   receipt.run = Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"].map((key) => [key, process.env[key] ?? ""]));
   const owner = randomUUID();
   let cleanupUncertain = false;
-  const invoke = (executable, args, timeout) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env: environment });
+  const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
-  const command = (executable, originalArgs, { file, timeout = 10 * 60_000 } = {}) => {
+  const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
-    const result = invoke(executable, args, timeout);
+    const result = invoke(executable, args, timeout, env);
     const prefix = `command-${String(receipt.commands.length + 1).padStart(3, "0")}`;
     const record = { executable: path.basename(executable), exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
-    if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result);
+    if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput });
     receipt.commands.push(record);
     try {
       writeFileSync(file ?? path.join(output, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
@@ -629,6 +676,77 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       if (collected.rejections.length) fail("scanner_official_images_blocked");
     });
     if (managed && receipt.builds.some((build) => build.result !== "passed" || build.evidenceExport !== "passed")) fail("scanner_managed_build_incomplete");
+    await assertFilesUnchanged(inputs);
+    if (managed) await phase("produced_image_runtime", async () => {
+      const directory = path.join(work, `managed-runtime-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
+      const runtimeFile = path.join(ROOT, "tests/managed-image-runtime.integration.mjs");
+      const runtimeSources = await captureFiles([runtimeFile, path.join(ROOT, "infra/compose.json"), path.join(ROOT, "infra/object-store-init.sh"),
+        ...["runtime", "migrations", "raw-protocol", "backup", "helper-cleanup", "cancellation"].map((name) => path.join(ROOT, `scripts/data-infra/${name}.mjs`)),
+        ...["up", "down"].map((direction) => path.join(ROOT, `infra/migrations/0001-foundation.${direction}.sql`))].map((file) => ({ path: file, cap: MiB })));
+      const roles = [];
+      receipt.runtimePreparation = [];
+      for (const image of config.images) {
+        const report = receipt.reports.find((entry) => entry.role === image.role);
+        if (report?.result !== "passed" || report.findingCount !== 0 || report.blockerCount !== 0 || !Array.isArray(report.report) || report.report.length !== 2) {
+          fail("scanner_managed_runtime_prerequisite_invalid");
+        }
+        const reportFiles = [path.join(output, `image-${image.role}.json`), path.join(output, `image-${image.role}.cdx.json`)];
+        const reports = await captureFiles(reportFiles.map((file) => ({ path: file, cap: 64 * MiB })));
+        if (reports.some((file, index) => file.size !== report.report[index].size || file.sha256 !== report.report[index].sha256)) fail("scanner_frozen_input_changed");
+        const audited = (await readBoundedJson(reportFiles[0])).value;
+        const local = localImages.get(image.role);
+        let imageId, subject;
+        const evidence = [];
+        if (local) {
+          await assertManagedArchiveUnchanged(local.archiveSnapshot);
+          imageId = local.subject.imageId; subject = local.subject;
+          const build = receipt.builds.find((entry) => entry.role === image.role);
+          const groups = [{ name: image.role, files: build.publicEvidence },
+            { name: `${image.role}-runtime`, files: build.runtimeGosuEvidence ?? build.runtimeJdkEvidence ?? [] }];
+          for (const group of groups) for (const entry of group.files) {
+            evidence.push({ path: path.join(output, "managed-public-evidence", group.name, entry.path), size: entry.size, sha256: entry.sha256 });
+          }
+        } else {
+          if (!["redis", "seaweedfs"].includes(image.role)) fail("scanner_managed_runtime_prerequisite_invalid");
+          const reference = `${image.repository}@${image.platform.digest}`;
+          command(DOCKER, ["pull", "--platform", "linux/amd64", reference], { timeout: 5 * 60_000 });
+          const inspected = JSON.parse(command(DOCKER, ["image", "inspect", reference],
+            { file: path.join(directory, `${image.role}-inspect.json`) }).toString("utf8"));
+          imageId = validatePreparedRuntimeImage(inspected, audited);
+          subject = { kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform };
+          receipt.runtimePreparation.push({ role: image.role, reference, imageId });
+        }
+        if (audited?.Metadata?.ImageID !== imageId) fail("scanner_managed_runtime_image_invalid");
+        await assertFilesUnchanged(reports);
+        roles.push({ role: image.role, imageId, platform: "linux/amd64", subject,
+          reports: { json: { path: reports[0].path, size: reports[0].size, sha256: reports[0].sha256 },
+            sbom: { path: reports[1].path, size: reports[1].size, sha256: reports[1].sha256 } }, evidence });
+      }
+      const run = { sourceCommit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT };
+      const runtimeInput = { schemaVersion: 1, run, ownerToken: randomUUID(),
+        sourceInputs: [...managedInputs, ...runtimeSources].map(({ path: file, size, sha256 }) => ({ path: file, size, sha256 })), roles };
+      const inputFile = path.join(directory, "runtime-input.json"); writeJson(inputFile, runtimeInput);
+      const frozenInput = await captureFiles([{ path: inputFile, cap: MiB }]);
+      const childEnvironment = { ...environment, GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", RUNNER_TEMP: runnerTemp,
+        GITHUB_SHA: run.sourceCommit, GITHUB_RUN_ID: run.runId, GITHUB_RUN_ATTEMPT: run.attempt,
+        AW_MANAGED_RUNTIME_INPUT: inputFile, AW_MANAGED_RUNTIME_INPUT_SHA256: frozenInput[0].sha256 };
+      receipt.functionalRuntime = "FAILED_NOT_ACCEPTED";
+      let childFailure;
+      try { command(process.execPath, ["--test", runtimeFile], { file: path.join(directory, "runtime.stdout"),
+        timeout: 22 * 60_000 + 15_000, env: childEnvironment, privateOutput: true }); }
+      catch (error) { childFailure = error; }
+      if (childFailure && (receipt.commands.at(-1)?.error || receipt.commands.at(-1)?.signal)) {
+        receipt.runtimeCleanup = { result: "failed" };
+        fail("scanner_managed_runtime_termination_uncertain");
+      }
+      await assertFilesUnchanged(frozenInput); await assertFilesUnchanged(runtimeSources); await assertFilesUnchanged(inputs);
+      const result = validateManagedRuntimeResult((await readBoundedJson(path.join(directory, "runtime-result.json"), MiB)).value, runtimeInput);
+      writeJson(path.join(output, "managed-runtime-result.json"), result);
+      receipt.runtimeCases = result.cases; receipt.runtimeCleanup = result.cleanup;
+      const passed = !childFailure && result.cleanup.result === "passed" && result.cases.every((item) => item.status === "passed");
+      receipt.functionalRuntime = passed ? "VERIFIED_DIAGNOSTIC_ONLY" : "FAILED_NOT_ACCEPTED";
+      if (!passed) fail("scanner_managed_runtime_incomplete");
+    });
     await assertFilesUnchanged(inputs);
     receipt.result = "passed";
   } catch (error) {

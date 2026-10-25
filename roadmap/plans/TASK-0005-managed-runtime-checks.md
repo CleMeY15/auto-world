@@ -15,12 +15,18 @@ admission authority.
 
 ## Start condition and boundary
 
-Run 40207844218 records core preparation=0/build=0, 16 JUnit reports and inspected
+Earlier run40207844218 records core preparation=0/build=0,16 JUnit reports and inspected
 image `sha256:9134722e3f4aeada57542f0104924835e39283ad75019e05c30e97aac9306ac7`
 with Docker Size=2,489,766,323 bytes after the locator correction. Complete five-role
-eligibility is currently UNKNOWN: the 2 GiB archive-capture boundary rejects core
+eligibility was UNKNOWN: the2GiB archive-capture boundary rejects core
 before its local subject is qualified or audited; PostgreSQL/AWS results cannot
 establish the bundle. Docker Size is not the measured TAR-file bytecount.
+
+Run40211553670 subsequently passes the reviewed streamed-file correction, all
+three builds/exports, both builder audits and all five runtime/helper audits.
+The core archive measures2,503,424,000bytes. Distinct actual-evidence review
+confirms those prerequisites for that run only. The four checks are not yet
+executed; a later implementation job must establish the same eligibility afresh.
 
 Start only after the same Linux job has eligible builds/upstream tests and full
 fresh diagnostic audits for PostgreSQL, OpenSearch core, Redis, SeaweedFS and AWS
@@ -45,6 +51,21 @@ roles qualify. It requires four sequential PASS outcomes with no skip, then one
 bounded cleanup. Use Node builtins and standard Docker/Compose only; no pnpm install,
 workspace package build, new dependency, workflow or generic runtime profile.
 
+The parent creates `runtime-input.json` exclusively with mode0600 inside its new
+0700 directory. Only `AW_MANAGED_RUNTIME_INPUT` and
+`AW_MANAGED_RUNTIME_INPUT_SHA256` identify it to the child, alongside the expected
+GitHub source/run/attempt and runner directory. Its version1 envelope contains
+the run, owner token, checked-in input references and exactly five unique roles;
+each role binds its configID, Linux/amd64 platform, diagnostic subject, original
+JSON/SBOM references and public build-evidence references. References carry full
+byte sizes/SHA256 and are checked around use. No credential enters this envelope.
+The child writes only a fixed sibling `runtime-result.json`; the parent accepts
+exact run/configID bindings, the four ordered names/statuses/fixed codes and
+cleanup status, rejecting extra fields. It publishes a freshly constructed finite
+result, never the original child output. Child stdout/stderr remain private even
+on unexpected failure; receipt diagnostics expose byte counts and one fixed code.
+All four cases and cleanup must pass with a successful, closed child process.
+
 Write a small Compose JSON manifest in a new private0700 RUNNER_TEMP directory.
 Create distinct source and restore UUID projects with an unpredictable owner
 token. Both use exactly the same four service configIDs, `pull_policy: never`,
@@ -63,6 +84,13 @@ limits; omit obsolete `DISABLE_*` flags. Copy the existing AWS probes' non-root,
 read-only, cap-drop ALL, no-new-privileges, resource/time/file-size bounds, private
 input/output file binds and environment-name credential transport. Endpoints belong to the
 generated manifest, never the default runtime state.
+
+Source PostgreSQL/core/Redis retain normal initial volume population; only raw
+uses `nocopy` there. After all four restore-volume emptiness checks, prepare only
+the new core data directory's1000:1000 owner with the audited helper and CHOWN.
+Repeat the empty check in that same helper command before chown, then verify the
+owner. PostgreSQL/raw recover their preserved owners through the validated cold
+archives. No permission change to an existing, nonempty or foreign volume follows.
 
 Host binds allow only the fixed regular, non-symlink bootstrap, credential, S3
 input/output and archive files in this newly owned private directory. Copy any

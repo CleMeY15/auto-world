@@ -10,7 +10,8 @@
         "tests/scanner-official-*.test.mjs",
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
-        "roadmap/plans/TASK-0005-managed-image-corrections.md"
+        "roadmap/plans/TASK-0005-managed-image-corrections.md",
+        "tests/managed-image-runtime.integration.mjs"
       ]
     },
     "push": {
@@ -25,7 +26,8 @@
         "tests/scanner-official-*.test.mjs",
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
-        "roadmap/plans/TASK-0005-managed-image-corrections.md"
+        "roadmap/plans/TASK-0005-managed-image-corrections.md",
+        "tests/managed-image-runtime.integration.mjs"
       ]
     }
   },
@@ -90,7 +92,7 @@
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
           "with": {
             "name": "data-foundation-managed-${{ github.run_id }}-${{ github.run_attempt }}",
-            "path": "${{ runner.temp }}/trivy-provenance/public/official-release.json\n${{ runner.temp }}/trivy-provenance/public/trivy.attestation.jsonl\n${{ runner.temp }}/trivy-provenance/public/verification-workflow.json\n${{ runner.temp }}/trivy-provenance/public/verification-identity.json\n${{ runner.temp }}/trivy-provenance/public/verification-after-controls.json\n${{ runner.temp }}/trivy-provenance/public/provenance-controls.tsv\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/go-build-info.txt\n${{ runner.temp }}/trivy-provenance/public/received-sha256.txt\n${{ runner.temp }}/trivy-provenance/public/runner-tools.txt\n${{ runner.temp }}/data-foundation-audit/official-audit-receipt.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.cdx.json\n${{ runner.temp }}/data-foundation-audit/scanner-version-probe.json\n${{ runner.temp }}/data-foundation-audit/scanner-version.txt\n${{ runner.temp }}/data-foundation-audit/go-build-info.txt\n${{ runner.temp }}/data-foundation-audit/fixture-*-official.json\n${{ runner.temp }}/data-foundation-audit/fixture-*-baseline.json\n${{ runner.temp }}/data-foundation-audit/image-*.json\n${{ runner.temp }}/data-foundation-audit/database-*-manifest.json\n${{ runner.temp }}/data-foundation-audit/database-evidence.json\n${{ runner.temp }}/data-foundation-audit/carrier-inspect.json\n${{ runner.temp }}/data-foundation-audit/docker-version.json\n${{ runner.temp }}/data-foundation-audit/buildx-version.txt\n${{ runner.temp }}/data-foundation-audit/builder-*.json\n${{ runner.temp }}/data-foundation-audit/managed-*-inspect.json\n${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**",
+            "path": "${{ runner.temp }}/trivy-provenance/public/official-release.json\n${{ runner.temp }}/trivy-provenance/public/trivy.attestation.jsonl\n${{ runner.temp }}/trivy-provenance/public/verification-workflow.json\n${{ runner.temp }}/trivy-provenance/public/verification-identity.json\n${{ runner.temp }}/trivy-provenance/public/verification-after-controls.json\n${{ runner.temp }}/trivy-provenance/public/provenance-controls.tsv\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/changed-bytes.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-source.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-workflow.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stdout.txt\n${{ runner.temp }}/trivy-provenance/public/wrong-ref.stderr.txt\n${{ runner.temp }}/trivy-provenance/public/go-build-info.txt\n${{ runner.temp }}/trivy-provenance/public/received-sha256.txt\n${{ runner.temp }}/trivy-provenance/public/runner-tools.txt\n${{ runner.temp }}/data-foundation-audit/official-audit-receipt.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.json\n${{ runner.temp }}/data-foundation-audit/scanner-self.cdx.json\n${{ runner.temp }}/data-foundation-audit/scanner-version-probe.json\n${{ runner.temp }}/data-foundation-audit/scanner-version.txt\n${{ runner.temp }}/data-foundation-audit/go-build-info.txt\n${{ runner.temp }}/data-foundation-audit/fixture-*-official.json\n${{ runner.temp }}/data-foundation-audit/fixture-*-baseline.json\n${{ runner.temp }}/data-foundation-audit/image-*.json\n${{ runner.temp }}/data-foundation-audit/database-*-manifest.json\n${{ runner.temp }}/data-foundation-audit/database-evidence.json\n${{ runner.temp }}/data-foundation-audit/carrier-inspect.json\n${{ runner.temp }}/data-foundation-audit/docker-version.json\n${{ runner.temp }}/data-foundation-audit/buildx-version.txt\n${{ runner.temp }}/data-foundation-audit/builder-*.json\n${{ runner.temp }}/data-foundation-audit/managed-*-inspect.json\n${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**\n${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json",
             "if-no-files-found": "error",
             "retention-days": 14,
             "compression-level": 6
