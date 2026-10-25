@@ -4,6 +4,7 @@ USER 0
 RUN mkdir -p /workspace /evidence /recipe && chown 1000:1000 /workspace /evidence
 ENV HOME=/workspace \
     GRADLE_USER_HOME=/workspace/.gradle \
+    JAVA25_HOME=/opt/java/openjdk \
     RUNTIME_JAVA_HOME=/opt/java/openjdk
 ADD --keep-git-dir=true --chown=1000:1000 https://github.com/opensearch-project/OpenSearch.git#4ee42a94e87f66fbf1e62a9871b1b87f91e02472 /workspace/source
 COPY infra/managed-images/opensearch-core/patch-catalogue.sh infra/managed-images/opensearch-core/build-core.sh infra/managed-images/opensearch-core/jackson.patch /recipe/

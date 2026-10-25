@@ -247,3 +247,30 @@ Status remains `SOURCE_FIX_PREPARED / LINUX_VALIDATION_AND_DELIVERY_PENDING`.
 Prepared controls are not executed Java evidence. Fresh Linux source/main
 quality, causal controls, full suites, image audits, four runtime cases and
 cleanup require actual independent acceptance before the next registry step.
+
+## 2026-10-26 — first scope-control configuration failure
+
+[Managed run 40245949857](https://github.com/CleMeY15/auto-world/actions/runs/40245949857),
+attempt1, uses PR199 source `fd996f60a87cbf668da1036fe75da88c8d1b6d2f`.
+Its original public evidence exports successfully, but the pristine-mock
+control stops during Gradle configuration, before compiling or executing the
+test: `build.gradle:58` reports that `$JAVA25_HOME must be set`. The explicit
+historical reproduction property `-Druntime.java=25` exposes this requirement.
+The builder's original version output confirms Temurin25.0.4.1 at the existing
+`/opt/java/openjdk` home; Gradle preparation without that property succeeds.
+
+`controls/unfixed/gradle.exit-code=1` is accompanied by
+`expected-failure-verified.status=0` and no XML. The seeded control records
+`NOT_RUN_UNFIXED_CONTROL_INVALID`; all five final JUnit groups have zero
+reports, the suite has zero cases, and `build.exit-code=1` blocks runtime.
+Both independent actual reviews return REQUEST_CHANGES/HIGH. This is not the
+expected causal RED and provides no snapshot-test success or coverage proof.
+
+Public artifact12618972443 is 1,621,258 bytes; the received original ZIP matches
+the API SHA256
+`93612b7a58ec3831d8f7a77b874763a2292c8d63be75899afe52f0100cdbdd91`.
+The narrow correction defines builder-only `JAVA25_HOME=/opt/java/openjdk`,
+pointing to the same pinned, observed JDK. It retains `-Druntime.java=25`,
+the recorded seed, all causal controls, full suites and refusal gates. A fresh
+source execution and independent review are required; this failure remains
+preserved and no passing seed or retry substitutes for the missing proof.

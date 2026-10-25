@@ -288,6 +288,9 @@ test("the recipe pins source/build/base identities and preserves the original JD
   assert.match(recipe, /^FROM opensearchproject\/opensearch@sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84 AS prepared-base$/mu);
   assert.match(recipe, /ADD --keep-git-dir=true --chown=1000:1000 https:\/\/github\.com\/opensearch-project\/OpenSearch\.git#4ee42a94e87f66fbf1e62a9871b1b87f91e02472 /u);
   assert.doesNotMatch(recipe, /^ARG\s|apt(?:-get)? install|ADD https?:.*\.tar/mu);
+  assert.match(recipe, /^ {4}JAVA25_HOME=\/opt\/java\/openjdk \\$/mu);
+  assert.equal(recipe.match(/JAVA25_HOME=/gu)?.length, 1);
+  assert.ok(recipe.indexOf("JAVA25_HOME=/opt/java/openjdk") < recipe.indexOf(" AS prepared-base"));
   assert.match(recipe, /RUNTIME_JAVA_HOME=\/opt\/java\/openjdk/u);
   assert.match(recipe, /mv \/usr\/share\/opensearch\/jdk \/opt\/aw-preserved-opensearch-jdk/u);
   assert.match(recipe, /mv \/opt\/aw-preserved-opensearch-jdk \/usr\/share\/opensearch\/jdk/u);
