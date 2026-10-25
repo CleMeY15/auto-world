@@ -15,6 +15,14 @@ dependency versions are unchanged. Only the compiler and build recipe differ.
 The version text retains the upstream source version 1.20 and reports the
 actual Go compiler. Binary digests are measured after the build.
 
+Operational scope: use gosu only during a container ENTRYPOINT/startup to
+change from root to the intended non-privileged process user. It is not a
+general sudo replacement and must not be installed or invoked on the host,
+installed as setuid/setgid, or used with a shared parent TTY. Runtime admission
+requires TTY and open standard input to remain disabled. These restrictions do
+not claim that the host kernel disables TIOCSTI or otherwise removes the risk
+described by upstream for generic usage (CVE-2016-2779).
+
 gosu and moby/sys/user are Apache-2.0; Go and x/sys have the accompanying BSD
 licences and PATENTS grants. No NOTICE file is present in the pinned gosu or
 moby/sys/user source trees. Preserve complete corresponding source and any
