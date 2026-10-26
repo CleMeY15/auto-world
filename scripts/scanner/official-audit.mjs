@@ -98,6 +98,26 @@ export function validateManagedRuntimeResult(value, expected) {
     cases: value.cases.map(({ name, status, code }) => ({ name, status, code })), cleanup: { result: value.cleanup.result } };
 }
 
+export async function readManagedRuntimeResult(file, expected) {
+  try { return validateManagedRuntimeResult((await readBoundedJson(file, MiB)).value, expected); }
+  catch (error) {
+    if (error?.code === "ENOENT") fail("scanner_managed_runtime_result_missing");
+    throw error;
+  }
+}
+
+export async function publishManagedRuntimeResult({ resultFile, publicFile, expected, childFailed, receipt }) {
+  receipt.functionalRuntime = "FAILED_NOT_ACCEPTED";
+  receipt.milestone2Completion = "NOT_ESTABLISHED";
+  const result = await readManagedRuntimeResult(resultFile, expected);
+  writeJson(publicFile, result);
+  receipt.runtimeCases = result.cases;
+  receipt.runtimeCleanup = result.cleanup;
+  const passed = !childFailed && result.cleanup.result === "passed" && result.cases.every((item) => item.status === "passed");
+  receipt.functionalRuntime = passed ? "VERIFIED_DIAGNOSTIC_ONLY" : "FAILED_NOT_ACCEPTED";
+  return { result, passed };
+}
+
 export function bindManagedGosuEvidence(subject, proof = {}) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" ||
       !digest(subject.imageId) || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
@@ -765,11 +785,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         fail("scanner_managed_runtime_termination_uncertain");
       }
       await assertFilesUnchanged(frozenInput); await assertFilesUnchanged(runtimeSources); await assertFilesUnchanged(inputs);
-      const result = validateManagedRuntimeResult((await readBoundedJson(path.join(directory, "runtime-result.json"), MiB)).value, runtimeInput);
-      writeJson(path.join(output, "managed-runtime-result.json"), result);
-      receipt.runtimeCases = result.cases; receipt.runtimeCleanup = result.cleanup;
-      const passed = !childFailure && result.cleanup.result === "passed" && result.cases.every((item) => item.status === "passed");
-      receipt.functionalRuntime = passed ? "VERIFIED_DIAGNOSTIC_ONLY" : "FAILED_NOT_ACCEPTED";
+      const { passed } = await publishManagedRuntimeResult({ resultFile: path.join(directory, "runtime-result.json"),
+        publicFile: path.join(output, "managed-runtime-result.json"), expected: runtimeInput, childFailed: Boolean(childFailure), receipt });
       if (!passed) fail("scanner_managed_runtime_incomplete");
     });
     await assertFilesUnchanged(inputs);

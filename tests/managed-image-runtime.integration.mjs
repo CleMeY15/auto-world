@@ -27,6 +27,7 @@ const MiB = 1024 ** 2;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
+const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 const matches = (expression, value) => typeof value === "string" && expression.test(value);
 const RAW = Buffer.from('{"synthetic":true,"vehicle":"runtime-001"}\n');
 const INDEX = "aw-managed-runtime";
@@ -38,8 +39,10 @@ const safePath = (value) => typeof value === "string" && path.isAbsolute(value) 
 const inside = (parent, file) => { const relative = path.relative(parent, file); return relative && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
 const sameIdentity = (left, right) => IDENTITY.every((field) => left[field] === right[field]);
 
-function proof(value, cap) {
-  ensure(keys(value, ["path", "size", "sha256"]) && safePath(value.path) && Number.isSafeInteger(value.size) && value.size > 0 && value.size <= cap && matches(HASH, value.sha256));
+function proof(value, cap, referenceType = "default") {
+  const emptyEvidence = referenceType === "evidence" && value?.size === 0 && value?.sha256 === EMPTY_SHA256;
+  ensure(keys(value, ["path", "size", "sha256"]) && safePath(value.path) && Number.isSafeInteger(value.size) &&
+    (value.size > 0 || emptyEvidence) && value.size <= cap && matches(HASH, value.sha256));
 }
 
 export function validateRuntimeInput(value, expectedRun) {
@@ -54,7 +57,7 @@ export function validateRuntimeInput(value, expectedRun) {
     ensure(keys(item.reports, ["json", "sbom"]));
     proof(item.reports.json, 64 * MiB); proof(item.reports.sbom, 64 * MiB);
     ensure(Array.isArray(item.evidence) && item.evidence.length <= 512);
-    for (const file of item.evidence) proof(file, 4 * MiB);
+    for (const file of item.evidence) proof(file, 4 * MiB, "evidence");
     const subject = item.subject;
     if (["postgres", "opensearch", "aws-cli"].includes(item.role)) {
       ensure(item.evidence.length > 0 && keys(subject, ["kind", "imageId", "os", "architecture", "archiveSha256", "archiveBytes", "archiveCapBytes", "artifactName"]) &&
@@ -110,10 +113,12 @@ export function createRuntimeCompose(input, project, directory, credentials, opt
       driver_opts: { "com.docker.network.bridge.host_binding_ipv4": "127.0.0.1" }, labels } } };
 }
 
-async function readVerified(file, cap, expected, capture = false) {
+export async function readVerifiedRuntimeFile(file, cap, expected, referenceType = "default", capture = false) {
   ensure(safePath(file) && await fs.realpath(file) === file);
   const initial = await fs.lstat(file, { bigint: true });
-  ensure(initial.isFile() && initial.nlink === 1n && initial.uid === BigInt(process.getuid()) && initial.size > 0n && initial.size <= BigInt(cap));
+  const emptyEvidence = referenceType === "evidence" && expected?.size === 0 && expected?.sha256 === EMPTY_SHA256;
+  ensure(initial.isFile() && initial.nlink === 1n && initial.uid === BigInt(process.getuid()) &&
+    (initial.size > 0n || emptyEvidence) && initial.size <= BigInt(cap));
   if (expected) ensure(initial.size === BigInt(expected.size) && (!expected.identity || sameIdentity(initial, expected.identity)));
   const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
@@ -134,18 +139,18 @@ async function readVerified(file, cap, expected, capture = false) {
   } finally { await handle.close(); }
 }
 
-async function initialize() {
+export async function prepareRuntimeContext(runtimeEnvironment = process.env) {
   ensure(process.platform === "linux" && process.getuid() !== 0 && constants.O_NOFOLLOW && constants.O_NONBLOCK &&
-    process.env.GITHUB_ACTIONS === "true" && process.env.RUNNER_ENVIRONMENT === "github-hosted");
-  const inputFile = process.env.AW_MANAGED_RUNTIME_INPUT, hash = process.env.AW_MANAGED_RUNTIME_INPUT_SHA256;
-  ensure(safePath(inputFile) && path.basename(inputFile) === "runtime-input.json" && matches(HASH, hash) && safePath(process.env.RUNNER_TEMP));
+    runtimeEnvironment.GITHUB_ACTIONS === "true" && runtimeEnvironment.RUNNER_ENVIRONMENT === "github-hosted");
+  const inputFile = runtimeEnvironment.AW_MANAGED_RUNTIME_INPUT, hash = runtimeEnvironment.AW_MANAGED_RUNTIME_INPUT_SHA256;
+  ensure(safePath(inputFile) && path.basename(inputFile) === "runtime-input.json" && matches(HASH, hash) && safePath(runtimeEnvironment.RUNNER_TEMP));
   const parent = path.dirname(inputFile), parentInfo = await fs.lstat(parent, { bigint: true });
-  ensure(await fs.realpath(parent) === parent && inside(await fs.realpath(process.env.RUNNER_TEMP), inputFile) && parentInfo.isDirectory() &&
+  ensure(await fs.realpath(parent) === parent && inside(await fs.realpath(runtimeEnvironment.RUNNER_TEMP), inputFile) && parentInfo.isDirectory() &&
     parentInfo.uid === BigInt(process.getuid()) && (parentInfo.mode & 0o777n) === 0o700n);
-  const inputProof = await readVerified(inputFile, MiB, null, true);
+  const inputProof = await readVerifiedRuntimeFile(inputFile, MiB, null, "default", true);
   ensure(inputProof.sha256 === hash && (inputProof.identity.mode & 0o777n) === 0o600n);
   const input = validateRuntimeInput(JSON.parse(inputProof.bytes.toString("utf8")), {
-    sourceCommit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT,
+    sourceCommit: runtimeEnvironment.GITHUB_SHA, runId: runtimeEnvironment.GITHUB_RUN_ID, attempt: runtimeEnvironment.GITHUB_RUN_ATTEMPT,
   });
   await fs.access(path.join(parent, "runtime-result.json")).then(() => { throw new Error("failed"); }, (error) => ensure(error.code === "ENOENT"));
   const context = { input, inputProof, parent, parentInfo, deadline: Date.now() + 20 * 60_000, cleanupDeadline: null,
@@ -153,25 +158,30 @@ async function initialize() {
     credentials: Object.fromEntries(["postgres", "redis", "s3Access", "s3Secret"].map((name) => [name, randomBytes(32).toString("hex")])) };
   const references = new Map();
   const sources = new Set(input.sourceInputs.map((item) => item.path));
-  for (const item of [...input.sourceInputs, ...input.roles.flatMap((role) => [role.reports.json, role.reports.sbom, ...role.evidence])]) {
+  const classified = [...input.sourceInputs.map((item) => ({ item, referenceType: "source" })),
+    ...input.roles.flatMap((role) => [{ item: role.reports.json, referenceType: "report" },
+      { item: role.reports.sbom, referenceType: "report" }, ...role.evidence.map((item) => ({ item, referenceType: "evidence" }))])];
+  for (const { item, referenceType } of classified) {
     const previous = references.get(item.path);
-    ensure(!previous || previous.sha256 === item.sha256 && previous.size === item.size);
-    ensure(sources.has(item.path) ? ["infra", "scripts", "tests"].some((directory) => inside(path.join(ROOT, directory), item.path)) : inside(process.env.RUNNER_TEMP, item.path));
-    references.set(item.path, item);
+    ensure(!previous || previous.sha256 === item.sha256 && previous.size === item.size && previous.referenceType === referenceType);
+    ensure(sources.has(item.path) ? ["infra", "scripts", "tests"].some((directory) => inside(path.join(ROOT, directory), item.path)) : inside(runtimeEnvironment.RUNNER_TEMP, item.path));
+    references.set(item.path, { ...item, referenceType });
   }
-  for (const item of references.values()) context.references.push(await readVerified(item.path, 64 * MiB, item));
+  for (const item of references.values()) context.references.push({
+    ...await readVerifiedRuntimeFile(item.path, 64 * MiB, item, item.referenceType), referenceType: item.referenceType,
+  });
   const bootstrap = context.references.find((item) => item.path === path.join(ROOT, "infra/object-store-init.sh"));
   ensure(bootstrap);
-  context.bootstrap = (await readVerified(bootstrap.path, MiB, bootstrap, true)).bytes;
+  context.bootstrap = (await readVerifiedRuntimeFile(bootstrap.path, MiB, bootstrap, bootstrap.referenceType, true)).bytes;
   for (const item of input.roles) {
-    const json = JSON.parse((await readVerified(item.reports.json.path, 64 * MiB, item.reports.json, true)).bytes.toString("utf8"));
-    const sbom = JSON.parse((await readVerified(item.reports.sbom.path, 64 * MiB, item.reports.sbom, true)).bytes.toString("utf8"));
+    const json = JSON.parse((await readVerifiedRuntimeFile(item.reports.json.path, 64 * MiB, item.reports.json, "report", true)).bytes.toString("utf8"));
+    const sbom = JSON.parse((await readVerifiedRuntimeFile(item.reports.sbom.path, 64 * MiB, item.reports.sbom, "report", true)).bytes.toString("utf8"));
     ensure(json.Metadata?.ImageID === item.imageId && json.Metadata.ImageConfig?.os === "linux" && json.Metadata.ImageConfig.architecture === "amd64" &&
       sbom.bomFormat === "CycloneDX" && sbom.metadata?.component?.name === json.ArtifactName);
     ensure(item.subject.kind === "LOCAL_MANAGED_IMAGE_V1" ? json.ArtifactName === item.subject.artifactName :
       [item.subject.manifestDigest, item.subject.platform.digest].some((digest) => json.ArtifactName === `${item.subject.repository}@${digest}`));
   }
-  context.environment = Object.fromEntries(["PATH", "HOME", "TMPDIR", "DOCKER_CONFIG", "TZ", "LANG", "LC_ALL"].flatMap((name) => process.env[name] === undefined ? [] : [[name, process.env[name]]]));
+  context.environment = Object.fromEntries(["PATH", "HOME", "TMPDIR", "DOCKER_CONFIG", "TZ", "LANG", "LC_ALL"].flatMap((name) => runtimeEnvironment[name] === undefined ? [] : [[name, runtimeEnvironment[name]]]));
   context.directory = await fs.mkdtemp(path.join(parent, "runtime-")); await fs.chmod(context.directory, 0o700);
   context.directories.set(context.directory, await fs.lstat(context.directory, { bigint: true }));
   return context;
@@ -192,9 +202,9 @@ async function docker(context, args, { timeoutMs = 15_000, env = {}, input } = {
 
 async function checked(context, args, options) { const result = await docker(context, args, options); ensure(result.code === 0); return result.stdout.trim(); }
 async function inspected(context, type, name) { const values = JSON.parse(await checked(context, [type, "inspect", name])); ensure(values.length === 1); return values[0]; }
-async function verifyReferences(context) {
-  await readVerified(context.inputProof.path, MiB, context.inputProof);
-  for (const item of context.references) await readVerified(item.path, 64 * MiB, item);
+export async function verifyRuntimeReferences(context) {
+  await readVerifiedRuntimeFile(context.inputProof.path, MiB, context.inputProof);
+  for (const item of context.references) await readVerifiedRuntimeFile(item.path, 64 * MiB, item, item.referenceType);
 }
 async function verifyImages(context) {
   for (const item of context.input.roles) {
@@ -437,8 +447,8 @@ async function restoreCanonical(context) {
     await archiveHelper(context, "tar --format=ustar --numeric-owner -C /source -cf /archive.tar .",
       [`type=volume,src=${context.source.project}_${service}-data,dst=/source,readonly,volume-nocopy`, `type=bind,src=${file},dst=/archive.tar`], ["DAC_OVERRIDE"]);
     await stablePrivateFile(context, file, true); await fs.chmod(file, 0o400); context.files.set(file, await fs.lstat(file, { bigint: true }));
-    const identity = await readVerified(file, 2 * 1024 ** 3); await validateTarArchive(file, { deadlineAt: context.deadline });
-    await readVerified(file, 2 * 1024 ** 3, identity); archives.set(service, identity);
+    const identity = await readVerifiedRuntimeFile(file, 2 * 1024 ** 3); await validateTarArchive(file, { deadlineAt: context.deadline });
+    await readVerifiedRuntimeFile(file, 2 * 1024 ** 3, identity); archives.set(service, identity);
   }
   context.target = await createProject(context, true); await coldWriters(context, context.target);
   for (const service of SERVICES) await emptyVolume(context, context.target, service);
@@ -446,11 +456,11 @@ async function restoreCanonical(context) {
   await archiveHelper(context, 'shopt -s nullglob dotglob; entries=(/target/*); test "${#entries[@]}" -eq 0; chown 1000:1000 /target; test "$(stat -c %u:%g /target)" = 1000:1000',
     [`type=volume,src=${context.target.project}_opensearch-data,dst=/target,volume-nocopy`], ["CHOWN"]);
   for (const [service, archive] of archives) {
-    await coldWriters(context, context.source); await coldWriters(context, context.target); await readVerified(archive.path, 2 * 1024 ** 3, archive);
+    await coldWriters(context, context.source); await coldWriters(context, context.target); await readVerifiedRuntimeFile(archive.path, 2 * 1024 ** 3, archive);
     await validateTarArchive(archive.path, { deadlineAt: context.deadline });
     await archiveHelper(context, "tar --numeric-owner --same-owner --same-permissions --delay-directory-restore -C /target -xf /archive.tar",
       [`type=volume,src=${context.target.project}_${service}-data,dst=/target,volume-nocopy`, `type=bind,src=${archive.path},dst=/archive.tar,readonly`], ["DAC_OVERRIDE", "CHOWN", "FOWNER"]);
-    await readVerified(archive.path, 2 * 1024 ** 3, archive);
+    await readVerifiedRuntimeFile(archive.path, 2 * 1024 ** 3, archive);
   }
   for (const [service, uid] of [["postgres", 70], ["object-store", 1000]]) {
     await archiveHelper(context, `test "$(stat -c %u:%g /target)" = ${uid}:${uid}`,
@@ -556,9 +566,9 @@ async function main() {
         await test(CASE_NAMES[index], async () => {
           if (failed) throw new Error("not_run");
           try {
-            if (!context) context = await initialize();
-            ensure(!operationSignal()?.aborted); await verifyReferences(context); await verifyImages(context);
-            await CASES[index](context); await verifyImages(context); await verifyReferences(context);
+            if (!context) context = await prepareRuntimeContext();
+            ensure(!operationSignal()?.aborted); await verifyRuntimeReferences(context); await verifyImages(context);
+            await CASES[index](context); await verifyImages(context); await verifyRuntimeReferences(context);
             cases[index] = { name: CASE_NAMES[index], status: "passed", code: "verified" };
           } catch { failed = true; cases[index] = { name: CASE_NAMES[index], status: "failed", code: "failed" }; throw new Error("failed"); }
         });

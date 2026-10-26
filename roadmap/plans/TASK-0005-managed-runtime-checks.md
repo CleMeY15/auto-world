@@ -1,5 +1,7 @@
 # TASK-0005 — Four produced-image runtime checks
 
+Accepted empty-evidence consumer amendment, 26 October 2026: [the actual40372965559 failure](../../docs/validation/TASK-0005-runtime-empty-evidence.md) is a demonstrated mismatch over one legitimate empty public file, not an accepted runtime result. Actual ordered Architect/Critic approvals permit only typed role.evidence size0/canonical empty hash through initial reads and revalidation; sources/reports/input/archives remain positive. Preserve complete evidence and all identity/EOF/hash checks. Missing result remains finite non-acceptance with unknown cases/cleanup and private output withheld. This amendment preserves all four scenarios, eligibility, cleanup and final17-phase requirements.
+
 Status: ACCEPTED_FOR_CONDITIONAL_DIAGNOSTIC_IMPLEMENTATION after actual Architecture
 and distinct Critic CLEAR reviews of the9,083-byte candidate, SHA256
 `161f301eeee12a84be47d8e27746b60fffd81522ba5a70b235f70feb36da2b89`.

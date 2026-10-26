@@ -1,0 +1,1 @@
+This fixed non-executable input keeps the inert Test task eligible for execution.
