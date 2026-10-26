@@ -70,17 +70,17 @@
     {
       "role": "seaweedfs",
       "repository": "chrislusf/seaweedfs",
-      "version": "4.50",
-      "manifestDigest": "sha256:c2658820e763294a9e9de7b36c81e59b879e3459148351aee4e31a126ca64860",
+      "version": "4.51",
+      "manifestDigest": "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
       "platform": {
         "os": "linux",
         "architecture": "amd64",
         "variant": null,
-        "digest": "sha256:b2e51562743be5637381a82eeeee4872eb2f86994b723d25a1bbd171855fe18d"
+        "digest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"
       },
       "source": {
         "repository": "seaweedfs/seaweedfs",
-        "commit": "ec8f9793502c59ce3381cc4151bfc0806afd92e8"
+        "commit": "ffa87c25fdf587178b1521ad87f2a4a72a02e584"
       }
     },
     {
