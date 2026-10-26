@@ -1,5 +1,7 @@
 # TASK-0005 — SeaweedFS 4.51 diagnostic candidate
 
+Latest protected-main checkpoint: [PR199](https://github.com/CleMeY15/auto-world/pull/199) merged asce2 with independently accepted fresh quality40391239291 and managed40391238345, all four actual runtime cases/cleanup and full native1736-test OpenSearch evidence. Seaweed passes29 OS+245 Go packages with curl/libcurl8.23.0-r0, while Rust completeness remains open. [PR201's reviewed source-lock/helper increment](TASK-0005-seaweed-rust-source.md) is in implementation; its changed-source Linux proof is still required. These newer scoped results supersede the pending-runtime observations below, without supplying intrinsic Rust inventory, signer trust or admission.
+
 Superseding checkpoint: [source9c's scoped audits pass but its runtime consumer rejects legitimate empty evidence](TASK-0005-runtime-empty-evidence.md). Quality40372965590 and the scanner/build/audit parts of40372965559 are independently reviewed; runtime cases/cleanup remain unestablished. The reviewed consumer repair needs fresh changed-source/main acceptance. This does not close the Rust or admission limitations below.
 
 Status, 26 October 2026: CANDIDATE_SELECTED / FRESH_LINUX_ACCEPTANCE_PENDING. TASK-0005/0005A remain IN_PROGRESS. This record grants no publication, admission, support activation or final lifecycle acceptance.
