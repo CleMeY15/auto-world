@@ -18,10 +18,12 @@ project(':server') {
     }
 }
 
+def scopeTestProvider = project(':server').tasks.named('internalClusterTest', Test)
+
 tasks.register('autoWorldCompositeScopeFixture') {
     dependsOn gradle.includedBuild('missing-doclet').task(':autoWorldIncludedScopeProbe')
     doLast {
-        Test selected = (Test) project(':server').tasks.getByName('internalClusterTest')
+        Test selected = scopeTestProvider.get()
         assert selected.reports.junitXml.includeSystemOutLog.get() == false
         assert selected.reports.junitXml.includeSystemErrLog.get() == false
         assert !selected.state.executed

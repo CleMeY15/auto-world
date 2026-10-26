@@ -168,6 +168,17 @@ function assertCaptureInstallationContract(script) {
   assert.doesNotMatch(script, /tasks\.findByPath\(':server:internalClusterTest'\)|GradleInternal|BuildState/u);
 }
 
+function assertCompositeScopeConfigurationContract(script) {
+  const provider = script.indexOf("def scopeTestProvider = project(':server').tasks.named('internalClusterTest', Test)");
+  const task = script.indexOf("tasks.register('autoWorldCompositeScopeFixture')");
+  const actionStart = script.indexOf("    doLast {", task);
+  const actionEnd = script.indexOf("\n    }\n}", actionStart);
+  assert.ok(provider >= 0 && provider < task && task < actionStart && actionStart < actionEnd);
+  const action = script.slice(actionStart, actionEnd);
+  assert.match(action, /Test selected = scopeTestProvider\.get\(\)/u);
+  assert.doesNotMatch(action, /\bproject\s*\(|\.project\b|getByName\(/u);
+}
+
 function pluginAbsenceCommand(dockerfile) {
   const command = dockerfile.match(/shopt -s nullglob dotglob; \\\n {4}plugins=\(\/usr\/share\/opensearch\/plugins\/\*\); \\\n {4}test "\$\{#plugins\[@\]\}" -eq 0;/u)?.[0];
   assert.ok(command, "missing strict empty-plugin check including hidden entries");
@@ -409,6 +420,13 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureFixtureBuild, /includeSystemOutLog\.get\(\) == false/u);
   assert.match(outputCaptureFixtureBuild, /includeSystemErrLog\.get\(\) == false/u);
   assert.match(outputCaptureFixtureBuild, /!selected\.state\.executed/u);
+  assertCompositeScopeConfigurationContract(outputCaptureFixtureBuild);
+  assert.throws(() => assertCompositeScopeConfigurationContract(
+    outputCaptureFixtureBuild.replace(
+      "Test selected = scopeTestProvider.get()",
+      "Test selected = (Test) project(':server').tasks.getByName('internalClusterTest')",
+    ),
+  ));
   assert.match(outputCaptureIncludedBuild, /gradle\.parent != null/u);
   assert.match(outputCaptureIncludedBuild, /auto\.world\.test\.output\.phase.*full/u);
   assert.match(outputCaptureIncludedBuild, /tasks\.findByPath\(':server:internalClusterTest'\) == null/u);

@@ -660,3 +660,40 @@ the existing fault/refusal gates and authenticated Java patch outputs, without
 Java or container execution. Its wrapper is a test double, so no native Gradle
 or JSON-verifier acceptance is claimed. The real native composite and complete
 changed-source/main results still require fresh independent acceptance.
+
+## 2026-10-26 — scope assertions pass; execution-time fixture access refuses
+
+[Managed40262340464](https://github.com/CleMeY15/auto-world/actions/runs/40262340464),
+attempt 1, tests source `be2d205a01b4578ade0d3e17c5939a09614d8bab`, tree
+`67b32e598d3da35db530f9f6c88020eab7cb40ee`. Executed merge
+`ab81c6000597d3d1591d1cf25ddf7d1917b879d8` has protected-main/source parents and
+the same tree. Unique ZIP: 1,650,014 bytes/API-local SHA256
+`7b6c5e6ad2560cb0daf31505d5a23474ee02e18966f35132d0072388ca12bcb7`.
+All 41 managed-source identities match Git blobs and all 132 public originals
+match receipt identities, without extra files. Both actual reviews require changes.
+
+The included and root scope tasks execute and emit both required markers;
+the included-build lookup defect no longer occurs. The root action then causes
+Gradle9.7.1 to emit `Invocation of Task.project at execution time has been deprecated`
+at fixture `build.gradle:24`. Strict warning handling makes the process exit 1,
+recording `scope-exit/failed`; the composite probe is therefore not accepted.
+Direct, twelve manifest cases and both completion fixtures remain NOT_RUN on
+this exact source, as do RED/GREEN/full suites. No business capture, JUnit,
+OpenSearch image or runtime acceptance exists. The independent helper correctly
+refuses the missing unfixed manifest. Prior fixture successes remain historical.
+
+The final two-file repair receives actual independent source APPROVE. Fixture
+build is 1,065 bytes/SHA256 `d7dc0bda96b1b6a6bd28fb3f68a186a898e209219724b487748f7fb117e0b100`;
+Node regression is 49,794 bytes/SHA256 `998acedc8928fb36ddd7d268f1e6a9fc45858713cebf8bed8cb4a0eb066af991`.
+It resolves the typed task provider before task registration and uses only
+`provider.get()` inside the action. Existing JUnit flags, nonexecution assertion
+and markers remain unchanged. The regression rejects a mutation back to the
+exact execution-time project lookup. Node 11 cases report 7 passes/4 explicit
+Linux exclusions; syntax, ESLint, whitespace and Secretlint on 1,178 files pass.
+Capture classes, main-build
+guard, driver, Java, pins, limits and strict warning policy stay unchanged.
+Fresh native scope exit0 and complete corrected-source/main acceptance remain
+required. SeaweedFS independently retains two HIGH blockers; DB vulnerability
+age is 6,425,720 ms within 48 hours and Java DB maxAge remains null. The other
+five audit lanes pass, JDK identities agree and all 23 owned absences pass,
+without establishing unexecuted runtime cleanup. No delivery, B0 or admission.
