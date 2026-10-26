@@ -74,9 +74,10 @@ if [ "$preparation_status" -eq 0 ]; then
     && grep -Fq 'failures="1"' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && grep -Fq 'errors="0"' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && grep -Fq 'name="testSnapshotShardPathsListBlobsFaultScope"' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
-    && grep -Fq 'SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
-    && grep -Fq 'failure-count-delta=1' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+    && [ "$(grep -Fo '<failure ' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml | wc -l)" -eq 1 ] \
+    && grep -Fq '<failure message="java.lang.AssertionError: SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && ! grep -Fq 'SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNEXPECTED_CAUSE' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+    && ! grep -Fq 'index.latest' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && grep -Fq 'Random IOException' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && ! grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/controls/unfixed/gradle.log; then
     unfixed_control_ok=1
@@ -119,8 +120,8 @@ if [ "$preparation_status" -eq 0 ]; then
     printf '%s\n' "$fixed_control_ok" > /evidence/controls/seeded-fixed/success-verified.status
   fi
 
+  rm -rf server/build/test-results/internalClusterTest
   if [ "$fixed_control_ok" -eq 1 ]; then
-    rm -rf server/build/test-results/internalClusterTest
     build_status=0
     bash ./gradlew "${gradle_options[@]}" --continue \
       :libs:opensearch-x-content:dependencyLicenses :libs:opensearch-x-content:thirdPartyAudit \

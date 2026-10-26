@@ -274,3 +274,49 @@ pointing to the same pinned, observed JDK. It retains `-Druntime.java=25`,
 the recorded seed, all causal controls, full suites and refusal gates. A fresh
 source execution and independent review are required; this failure remains
 preserved and no passing seed or retry substitutes for the missing proof.
+
+## 2026-10-26 — executed control reveals teardown and RED-verifier defects
+
+[Managed run 40246886682](https://github.com/CleMeY15/auto-world/actions/runs/40246886682),
+attempt1, uses source `780fcf11aabde8bf4458d8ade55a01969c6c137f` and confirms
+that the Java-home correction permits compilation and actual test execution.
+The pristine mock triggers the intended `UNFIXED` assertion, nested exact
+`Random IOException` and counter delta1. However, that same testcase has a
+second failure from repository-consistency teardown: `Could not find
+index.latest blob for repo [scope-control-false]`. The suite's `failures=1`
+counts failed testcases, not failure elements, so the negative verifier
+incorrectly records success for this impure RED.
+
+After the mock patch, the historical snapshot method passes. The scope
+control's body passes but its raw containers still fail that teardown.
+The seeded positive phase exits1 and remains unverified. The full suite is
+not run; its existing output collection contains only the leftover seeded
+class, one report/two cases/one failure. Those are not full-suite results.
+OpenSearch construction/audit and the four runtime cases remain unestablished.
+Both actual independent reviews return REQUEST_CHANGES/HIGH.
+
+The correction uses the existing upstream empty-repository consistency
+exemption only inside the new raw-container control, with an explicit reason.
+It preserves all existing methods/assertions and every fault-matrix check.
+RED must have exactly one failure element with the exact expected assertion
+header; a second or misleading failure is refused by a real Bash regression
+fixture. Copied original control XML remains retained separately, and its
+working output is removed before final JUnit collection even when the control
+is invalid. No seed substitution, retry, policy or limit change follows.
+
+The [pinned upstream helper](https://github.com/opensearch-project/OpenSearch/blob/4ee42a94e87f66fbf1e62a9871b1b87f91e02472/test/framework/src/main/java/org/opensearch/snapshots/AbstractSnapshotIntegTestCase.java#L175-L201)
+sets an instance field, with no explicit reset. The pinned
+[runner creates a fresh instance per test method](https://github.com/randomizedtesting/randomizedtesting/blob/4dce0536a65a7c837742607c0c1b32a967e46ced/randomized-runner/src/main/java/com/carrotsearch/randomizedtesting/RandomizedRunner.java#L1532-L1582);
+this class hierarchy does not override that policy. For the new raw-container
+control only, the exemption skips repository-specific snapshot deletion,
+repository cleanup and metadata consistency verification, which require a
+snapshot repository. The control creates no snapshot metadata. Other history
+and listener after-hooks and the general cluster wipe/close still execute;
+neighboring original methods keep their own fresh consistency-check state.
+
+Public artifact12619730612 has 1,671,395 bytes and received ZIP/API SHA256
+`1cb65c0c77cfab70c385ce561937b7be09284a67e9aafc78a2b1772a5a5dc97a`.
+All 105 public evidence references and 32 Git-source identities match; all
+six available report/SBOM pairs match. Pure Linux regression tests pass
+391 cases with one existing non-Linux exclusion. These positive facts do
+not qualify the failed controls, complete suite, runtime or later source.

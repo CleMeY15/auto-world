@@ -1,5 +1,5 @@
 diff --git a/server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java b/server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java
-index 35a6b46..607678e 100644
+index 35a6b46..e851d57 100644
 --- a/server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java
 +++ b/server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java
 @@ -65,0 +66 @@ import org.opensearch.common.action.ActionFuture;
@@ -11,8 +11,10 @@ index 35a6b46..607678e 100644
 -            .put("random_control_io_exception_rate", 0.2);
 +            .put("random_control_io_exception_rate", 0.2)
 +            .put("skip_exception_on_snapshot_shard_paths_list_blobs", true);
-@@ -435,0 +440,78 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
+@@ -435,0 +440,80 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 +    public void testSnapshotShardPathsListBlobsFaultScope() throws Exception {
++        disableRepoConsistencyCheck("This test exercises raw mock blob containers without snapshot metadata");
++
 +        for (boolean skipSnapshotShardPathsListBlobs : List.of(false, true)) {
 +            final String repoName = "scope-control-" + skipSnapshotShardPathsListBlobs;
 +            final Settings.Builder repositorySettings = Settings.builder()

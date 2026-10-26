@@ -115,6 +115,7 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   const mockHelper = readFileSync(path.join(directory, "patch-snapshot-mock-repository.sh"), "utf8");
   assert.match(testPatch, /skip_exception_on_snapshot_shard_paths_list_blobs/u);
   assert.match(testPatch, /testSnapshotShardPathsListBlobsFaultScope/u);
+  assert.match(testPatch, /disableRepoConsistencyCheck\("This test exercises raw mock blob containers without snapshot metadata"\)/u);
   assert.match(testPatch, /random_control_io_exception_rate", 0\.2/u);
   assert.match(testPatch, /if \(skipSnapshotShardPathsListBlobs\)[\s\S]*\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", true\)/u);
   assert.doesNotMatch(testPatch, /\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", skipSnapshotShardPathsListBlobs\)/u);
@@ -132,7 +133,7 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
     ["-                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);"],
   );
   assert.match(testHelper, /e6822f420d0ccb174911dc6631af5ab74ab193c52f88d702082038ee0ec638bd/u);
-  assert.match(testHelper, /69510fbc5d65f756f33cddd5fd9d20ae5b4983bfabfa64c06a861939da54efb5/u);
+  assert.match(testHelper, /37515f8b9f7b550a1d0c232768d191cc297f35c24a67ed4a5709a4363071f53e/u);
   assert.match(mockHelper, /0d768d21a752111f940cccf096552c81b14ff38f3556e8f68b3156b16aa18029/u);
   assert.match(mockHelper, /99cf760087f5045aaec4996a2cacb1f845964217e6dfa67759c379dbe7c0c2bb/u);
   assert.doesNotMatch(testHelper, /^patch /mu);
@@ -146,12 +147,18 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   assert.ok(testPreparation >= 0 && testPreparation < negativeControl);
   assert.ok(negativeControl < mockPreparation && mockPreparation < positiveControl);
   assert.ok(positiveControl < selectedSuite);
+  const fixedControlCopy = build.indexOf('cp "$control_xml" /evidence/controls/seeded-fixed/');
+  const controlCleanup = build.indexOf("rm -rf server/build/test-results/internalClusterTest");
+  const fullSuiteRun = build.indexOf('bash ./gradlew "${gradle_options[@]}" --continue');
+  assert.ok(fixedControlCopy < controlCleanup && controlCleanup < fullSuiteRun);
   assert.match(build, /730D258067002B91/u);
   assert.match(build, /-Dtests\.locale=fr-LU/u);
   assert.match(build, /-Dtests\.timezone=America\/Moncton/u);
   assert.match(build, /testSnapshotFileFailureDuringSnapshot/u);
   assert.match(build, /SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED/u);
   assert.match(build, /failure-count-delta=1/u);
+  assert.match(build, /grep -Fo '<failure '/u);
+  assert.match(build, /! grep -Fq 'index\.latest'/u);
   assert.match(build, /full_report_count.*-ne 16/u);
   assert.match(build, /full_test_count.*-lt 1735/u);
   assert.match(build, /full_pass_count.*-lt 1687/u);
@@ -201,6 +208,33 @@ test("authenticated snapshot source patches preserve foreign and already-patched
   const foreignMockBytes = readFileSync(foreignMock.mockPath);
   assert.notEqual(runScript("patch-snapshot-mock-repository.sh", [foreignMock.result]).status, 0);
   assert.deepEqual(readFileSync(foreignMock.mockPath), foreignMockBytes);
+
+  const redGateStart = build.indexOf("  unfixed_control_ok=0");
+  const redGateEnd = build.indexOf("  printf '%s\\n' \"$unfixed_control_ok\"", redGateStart);
+  assert.ok(redGateStart >= 0 && redGateEnd > redGateStart);
+  const redGate = build.slice(redGateStart, redGateEnd);
+  const expectedFailureHeader = '<failure message="java.lang.AssertionError: SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">';
+  const runRedGate = (failureElements) => {
+    const evidence = temporaryDirectory(t);
+    const control = path.join(evidence, "controls/unfixed");
+    mkdirSync(control, { recursive: true });
+    writeFileSync(
+      path.join(control, "TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml"),
+      `<testsuite tests="1" failures="1" errors="0" skipped="0"><testcase name="testSnapshotShardPathsListBlobsFaultScope">${failureElements}</testcase></testsuite>\n`,
+    );
+    writeFileSync(path.join(control, "gradle.log"), "executed internal cluster test\n");
+    const command = `unfixed_status=1\n${redGate.replaceAll("/evidence", evidence.replaceAll("\\", "/"))}\nprintf '%s\\n' "$unfixed_control_ok"`;
+    const result = spawnSync(bash, ["-euo", "pipefail", "-c", command], { encoding: "utf8", timeout: 15000 });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    return Number(result.stdout.trim());
+  };
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`), 1);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>${expectedFailureHeader}Random IOException</failure>`), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNEXPECTED_CAUSE Random IOException</failure>`), 0);
+  assert.equal(
+    runRedGate('<failure message="java.lang.AssertionError: index.latest SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">Random IOException</failure>'),
+    0,
+  );
 
   const gateStart = build.indexOf("full_report_count=");
   const gateEnd = build.indexOf("if grep -Eq ':server:internalClusterTest", gateStart);

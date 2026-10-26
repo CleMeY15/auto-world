@@ -12,6 +12,8 @@ method_fragment=$(mktemp)
 trap 'rm -f "$method_fragment"' EXIT
 cat > "$method_fragment" <<'JAVA'
     public void testSnapshotShardPathsListBlobsFaultScope() throws Exception {
+        disableRepoConsistencyCheck("This test exercises raw mock blob containers without snapshot metadata");
+
         for (boolean skipSnapshotShardPathsListBlobs : List.of(false, true)) {
             final String repoName = "scope-control-" + skipSnapshotShardPathsListBlobs;
             final Settings.Builder repositorySettings = Settings.builder()
@@ -105,5 +107,5 @@ import java.io.IOException;' \
   }" \
   "$target"
 printf '%s  %s\n' \
-  69510fbc5d65f756f33cddd5fd9d20ae5b4983bfabfa64c06a861939da54efb5 \
+  37515f8b9f7b550a1d0c232768d191cc297f35c24a67ed4a5709a4363071f53e \
   "$target" | sha256sum --check --strict
