@@ -61,6 +61,22 @@ for argument in "$@"; do
   if [ "$previous" = -p ]; then project=$argument; fi
   previous=$argument
 done
+test -d "$project/build"
+test ! -L "$project/build"
+test "$(stat -c '%u' "$project/build")" -eq "$(id -u)"
+if [[ " $* " == *' autoWorldVerifyTestOutputManifest '* ]]; then
+  count=0
+  if [ -f "$project/manifest-count" ]; then count=$(cat "$project/manifest-count"); fi
+  count=$((count + 1))
+  printf '%s\\n' "$count" > "$project/manifest-count"
+  if [ "$count" -eq 1 ]; then exit 0; fi
+  printf '%s\\n' AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID
+  exit 1
+fi
+if [[ " $* " != *' autoWorldCaptureFixture '* ]]; then
+  printf '%s\\n' PARENT_READY > "$project/parent-ready.marker"
+  exit 42
+fi
 mkdir -p "$project/build/direct-cases/success"
 printf '%s\\n' AUTO_WORLD_TEST_OUTPUT_CAPTURE_FIXTURE_DIRECT_PASS > "$project/build/direct-summary.txt"
 printf '%s\\n' '{"streams":[]}' > "$project/build/direct-cases/success/manifest.json"
@@ -95,7 +111,7 @@ printf '%s\\n' MOCK_DIRECT_LOG
   const result = spawnSync("/bin/bash", [subject], {
     encoding: "utf8", env: { ...process.env, AUTO_WORLD_FAULT: fault }, timeout: 15000,
   });
-  return { evidenceRoot, result };
+  return { evidenceRoot, fixtureRoot, result };
 }
 
 function catalogueSource(t, bytes = original) {
@@ -274,6 +290,8 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCapture, /EXPECTED_UID = 1000/u);
   assert.match(outputCapture, /attributes\.fileKey\(\) == null/u);
   assert.match(outputCapture, /validateDirectoryChain[\s\S]*revalidateOwnedDirectory/u);
+  assert.match(outputCapture, /validateDirectoryChain\(parent, null\)[\s\S]*Files\.createDirectory\(outputDirectory\)/u);
+  assert.doesNotMatch(outputCapture, /Files\.createDirectories\(outputDirectory\)/u);
   assert.match(outputCapture, /BoundedJsonWriter/u);
   assert.match(outputCapture, /descriptorJsonLength/u);
   assert.match(outputCapture, /validatedRegularFileKey/u);
@@ -298,6 +316,7 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=direct/u);
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=success/u);
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=failure/u);
+  assert.match(outputCaptureVerifier, /path_absent "\$destination"[\s\S]*path_absent "\$destination\/build"[\s\S]*mkdir "\$destination\/build"[\s\S]*owned_directory "\$destination\/build"/u);
   assert.match(outputCaptureVerifier, /AUTO_WORLD_FIXTURE_EXPECTED_TASK_FAILURE/u);
   assert.match(outputCaptureVerifier, /test "\$failure_status" -ne 0/u);
   assert.match(outputCaptureVerifier, /sentinel_absent "\$fixture_root\/failure\/gradle\.log" "\$sentinel"/u);
@@ -322,11 +341,12 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.doesNotMatch(outputCaptureVerifier, /cp -R "\$manifest_capture" "\$public_root/u);
 
   if (process.platform === "linux") {
-    for (const [fault, expectedStatus, expectedExit] of [
-      ["scratch", "subcase=manifest-valid\nstatus=failed\n", 23],
-      ["summary", "subcase=direct-summary\nstatus=failed\n", 37],
+    for (const [fault, expectedStatus, expectedExit, expectedParentMarker] of [
+      ["scratch", "subcase=manifest-valid\nstatus=failed\n", 23, false],
+      ["summary", "subcase=direct-summary\nstatus=failed\n", 37, false],
+      ["success-parent", "subcase=success-exit\nstatus=failed\n", 1, true],
     ]) {
-      const { evidenceRoot, result } = runOutputDiagnosticFault(t, fault);
+      const { evidenceRoot, fixtureRoot, result } = runOutputDiagnosticFault(t, fault);
       assert.equal(result.status, expectedExit, `${fault}: ${result.stdout}\n${result.stderr}`);
       assert.equal(result.stdout, "");
       assert.equal(result.stderr, "");
@@ -335,6 +355,7 @@ test("bounded native output capture is fixed to the three internal-cluster phase
       assert.equal(existsSync(path.join(evidenceRoot, "test-output/full")), false);
       assert.equal(existsSync(path.join(publicRoot, "success/capture")), false);
       assert.equal(existsSync(path.join(publicRoot, "failure/capture")), false);
+      assert.equal(existsSync(path.join(fixtureRoot, "success/parent-ready.marker")), expectedParentMarker);
     }
   }
   assert.match(outputCaptureFixture, /two objects|findAll \{ it\.name == 'same' \}\.size\(\) == 2/u);
@@ -346,6 +367,7 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureFixture, /metadata-limit/u);
   assert.match(outputCaptureFixture, /\\u0001/u);
   assert.match(outputCaptureFixture, /ancestor-alias/u);
+  assert.match(outputCaptureFixture, /missing-parent[\s\S]*expectIntegrityFailure \{ missingParentCapture\.start\(\) \}[\s\S]*!Files\.exists\(missingParent, LinkOption\.NOFOLLOW_LINKS\)/u);
   assert.match(outputCaptureFixture, /replaced-original/u);
   assert.match(outputCaptureFixture, /stream-replaced/u);
   assert.match(outputCaptureFixture, /depth-limit/u);

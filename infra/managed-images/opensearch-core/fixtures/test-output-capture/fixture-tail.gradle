@@ -170,6 +170,14 @@ final class AutoWorldCaptureFixtureCases {
         expectIntegrityFailure { ancestorCapture.start() }
         assert !Files.exists(ancestorTarget.resolve('capture'), LinkOption.NOFOLLOW_LINKS)
 
+        Path missingParent = base.resolve('missing-parent')
+        Path missingParentOutput = missingParent.resolve('capture')
+        assert !Files.exists(missingParent, LinkOption.NOFOLLOW_LINKS)
+        AutoWorldTestOutputCapture missingParentCapture = new AutoWorldTestOutputCapture('full',
+            ':server:internalClusterTest', base, missingParentOutput)
+        expectIntegrityFailure { missingParentCapture.start() }
+        assert !Files.exists(missingParent, LinkOption.NOFOLLOW_LINKS)
+
         AutoWorldTestOutputCapture replaced = capture(base, 'replaced')
         replaced.start()
         Path replacedOriginal = base.resolve('replaced-original')

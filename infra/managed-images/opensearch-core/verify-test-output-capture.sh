@@ -147,8 +147,12 @@ record_diagnostic initialized passed
 prepare_fixture() {
   local mode=$1
   local destination="$fixture_root/$mode"
-  test ! -e "$destination"
+  path_absent "$destination"
   mkdir "$destination"
+  owned_directory "$destination"
+  path_absent "$destination/build"
+  mkdir "$destination/build"
+  owned_directory "$destination/build"
   cp "$fixture_source/settings.gradle" "$fixture_source/build.gradle" "$destination/"
   cp -R "$fixture_source/server" "$destination/"
   cat "$init_source" "$fixture_tail" > "$destination/combined.init.gradle"

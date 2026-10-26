@@ -516,3 +516,63 @@ exporter, policy, permissions and limits remain unchanged. The integration
 failure's exact cause remains UNKNOWN; one reviewed changed-source Linux
 diagnostic is required before selecting its underlying correction. SeaweedFS
 remains independently rejected, with its ownership decision separate and pending.
+
+## 2026-10-26 — original diagnostics isolate missing fixture parent
+
+[Managed40258870280](https://github.com/CleMeY15/auto-world/actions/runs/40258870280),
+attempt 1, tests source `a8113803979d50eb015b32e12458e1b76757a5fd`, tree
+`3af09a471963120f0e9e2428c3a388d589f66f4d`. Its synthetic merge has that same
+tree. The unique original ZIP is 1,655,581 bytes and matches API/local SHA256
+`4033df919dff6acc8e626dcef57e3a46be6058c1e8014ba56014b55730eb347e`.
+Independent review checks all 130 public evidence files against receipt hashes.
+
+Original diagnostics now record `success-exit/failed`, successful-Test Gradle
+exit 1 and `AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR`. Direct capture passes;
+the valid manifest passes and all eleven invalid manifest controls refuse.
+The expected-failure Test fixture explicitly remains NOT_RUN. No RED/GREEN,
+full suite, OpenSearch image or runtime acceptance follows.
+
+The generic sentinel does not expose the caught exception. Both actual reviews
+nevertheless establish the preparation defect from the authenticated source:
+`prepare_fixture` creates the project but not its `build` directory; Test actions
+are explicitly cleared, and the first fixture action starts capture below
+`build/integration-success`. Capture validates every pre-existing ancestor before
+creating its destination, so the absent parent fails acquisition. Direct mode
+separately creates its parent and is unaffected. This is a source-grounded
+diagnosis, distinguished from the unavailable original exception text.
+
+The bounded repair creates a fresh owned `build` parent in fixture setup before
+any Gradle invocation. The inert wrapper must assert this precondition rather
+than manufacture the directory, and a native negative capture case must prove
+an absent parent is still rejected without creation. The capture/validator core,
+Java patches, pins, limits and policies remain unchanged. Actual source review
+now passes; one fresh changed-source Linux run remains required, with no
+unchanged retry.
+
+The separate SeaweedFS curl/libcurl findings remain blocking. Five other audit
+lanes pass, vulnerability DB age is 3,891,715 ms within 48 hours, and Java DB has
+no maximum-age policy. JDK before/after hashes agree. Of 42 recorded commands,
+only OpenSearch construction is nonzero; all 23 owned-absence checks pass,
+without establishing runtime cleanup. Provenance and its four refusal probes
+pass. TASK-0005/0005A remain IN_PROGRESS; B0, protected source/main delivery,
+retention, admission and support activation remain open or blocked.
+
+The final caller-only repair receives actual independent source APPROVE on:
+
+- verifier shell: 15,190 bytes/SHA256 `c38bf6562bfb49e1afa7b86afb3370160498d3e49b101b6773e871b59f32ae39`;
+- native fixture tail: 20,918 bytes/SHA256 `fd8ce9a1ebf7351e712347055d2b576faf87201113dbf01c89ec9feb8df6224f`;
+- Node regression: 45,314 bytes/SHA256 `ac2e9b0f1f52d252ecc18441add2c9c34a5aea3ddee4ca453e1f65a7a427c1bd`.
+
+The root independently executes the actual regression helper under WSL using
+fresh isolated temporary roots. Corrected setup traverses direct and twelve
+manifest-orchestration cases and reaches the successful-Test wrapper, which
+checks the owned non-symlink parent before emitting its marker and fixed exit42.
+A generated old setup without the three parent-creation lines fails at the
+first invocation and cannot emit that marker. Both publish the expected failed
+step without a positive capture. This wrapper is an orchestration test double,
+not native Gradle or JSON-verifier execution. The existing original-exit 23/37
+fault tests, real Bash causal/full gates and authenticated Java patch outputs
+also pass in that isolated harness. Local Node reports 11 cases: 7 passes and
+4 explicit Linux exclusions, zero failure. Syntax, ESLint, whitespace and
+Secretlint on 1,176 files pass. The added native missing-parent case and full
+Linux acceptance remain pending; prior positive quality does not transfer.
