@@ -1,6 +1,14 @@
 # TASK-0005 — Empty public runtime evidence
 
-Status, 26 October 2026: REVIEWED_REPAIR_IN_PROGRESS / FRESH_LINUX_ACCEPTANCE_PENDING. TASK-0005/0005A remain IN_PROGRESS; no merge, B0, admission or support activation is established.
+Status, 26 October 2026: EMPTY_EVIDENCE_LINUX_REGRESSIONS_PASS / MANAGED_OPENSEARCH_CONTROL_FAILED. TASK-0005/0005A remain IN_PROGRESS; no merge, B0, admission or support activation is established.
+
+## Fresh source80ab checkpoint
+
+[Source80ab9a8](https://github.com/CleMeY15/auto-world/commit/80ab9a85613180ec5a834ca5d19fb3ae3683883d), tree `fb179bb9cc4a74a7fb59af2f5edce9d1cd2a8290`, passes independently reviewed [quality40380737935 attempt1](https://github.com/CleMeY15/auto-world/actions/runs/40380737935). Actual merge checkout `9f0c17599c912a34793ba99f4d5bdb379fe145e1` has parents maina52884b2 and source80ab, with the identical tree. Lint14/types21/test28/build14 pass; root2,622 passes/60 existing exclusions, workspaces624 passes, browser393 passes/7 existing WebKit exclusions, zero failures/flaky/retries. All three new Linux real-file reader, startup/revalidation and cross-type collision tests execute and pass without exclusion. Secretlint covers1,180 files; dependency audit reports no known vulnerability. This is source-quality acceptance only.
+
+[Managed40380737950 attempt1](https://github.com/CleMeY15/auto-world/actions/runs/40380737950) separately confirms400 pure tests,399 passes/one existing exclusion/zero failures, including those three new Linux tests. It then fails before runtime on OpenSearch's seeded-fixed native control. The scoped `testSnapshotShardPathsListBlobsFaultScope` passes, while the unchanged `testSnapshotFileFailureDuringSnapshot` fails its existing zero-counter assertion after an injected auxiliary `snapshot_shard_paths/snapshot_path_…` write is absorbed. Its original XML records two tests/one failure/zero skips or errors. Full native tests/distribution are consequently not run; absent distribution and `scanner_managed_image_not_built` are downstream effects. A separate causal review is required before changing this fault boundary. The aggregate `managed_image_builds` phase records completion of diagnostic collection, while its OpenSearch child explicitly remains failed; it does not establish successful image construction.
+
+The single retained managed original is1,704,913bytes, SHA256 `fd92b0a7917db621b67cf35834b3e82f15563ac1e62db579b17754561dd8dc5e`, containing213 safe regular entries/9,423,536 uncompressed bytes. There is no produced-runtime execution or result: four cases and runtime-owned cleanup remain unestablished, milestone2 NOT_ESTABLISHED, admission NOT_AUTHORIZED. The empty-evidence regression fix has native test proof, but no claim that a real runtime reached the repaired initialization follows. Historical9c evidence below remains separately scoped.
 
 ## Actual checkpoint and failure
 

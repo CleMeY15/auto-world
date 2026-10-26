@@ -239,14 +239,29 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   const testHelper = readFileSync(path.join(directory, "patch-snapshot-scope-test.sh"), "utf8");
   const mockHelper = readFileSync(path.join(directory, "patch-snapshot-mock-repository.sh"), "utf8");
   assert.match(testPatch, /skip_exception_on_snapshot_shard_paths_list_blobs/u);
+  assert.match(testPatch, /skip_exception_on_snapshot_shard_paths_write/u);
   assert.match(testPatch, /testSnapshotShardPathsListBlobsFaultScope/u);
+  assert.match(testPatch, /testSnapshotShardPathsAuxiliaryWriteFaultScope/u);
   assert.match(testPatch, /disableRepoConsistencyCheck\("This test exercises raw mock blob containers without snapshot metadata"\)/u);
   assert.match(testPatch, /random_control_io_exception_rate", 0\.2/u);
   assert.match(testPatch, /if \(skipSnapshotShardPathsListBlobs\)[\s\S]*\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", true\)/u);
   assert.doesNotMatch(testPatch, /\.put\("skip_exception_on_snapshot_shard_paths_list_blobs", skipSnapshotShardPathsListBlobs\)/u);
+  const listControlPatch = testPatch.slice(
+    testPatch.indexOf("testSnapshotShardPathsListBlobsFaultScope"),
+    testPatch.indexOf("testSnapshotShardPathsAuxiliaryWriteFaultScope"),
+  );
+  assert.doesNotMatch(listControlPatch, /skip_exception_on_snapshot_shard_paths_write/u);
+  const writeControlPatch = testPatch.slice(testPatch.indexOf("testSnapshotShardPathsAuxiliaryWriteFaultScope"));
+  assert.match(writeControlPatch, /List\.of\("default", "false", "true"\)/u);
+  assert.match(writeControlPatch, /if \("false"\.equals\(writeSettingMode\)\) \{[\s\S]*\.put\("skip_exception_on_snapshot_shard_paths_write", false\);[\s\S]*else if \("true"\.equals\(writeSettingMode\)\) \{[\s\S]*\.put\("skip_exception_on_snapshot_shard_paths_write", true\);/u);
+  assert.equal(writeControlPatch.match(/repositorySettings\.put\("skip_exception_on_snapshot_shard_paths_write"/gu)?.length, 2);
+  assert.match(testPatch, /writeBlob\("snapshot_path_",[\s\S]*containsString\("Random IOException"\)/u);
   assert.match(snapshotTestOriginal.toString("utf8"), /getFailureCount\("test-repo"\), equalTo\(0L\)/u);
   assert.doesNotMatch(testPatch, /^-\s+assertThat\(getFailureCount\("test-repo"/mu);
   assert.match(mockPatch, /path\(\)\.equals\(basePath\(\)\.add\(SnapshotShardPaths\.DIR\)\)/u);
+  assert.match(mockPatch, /blobName\.startsWith\("snapshot_path_"\)[\s\S]*blobName\.length\(\) > "snapshot_path_"\.length\(\)/u);
+  assert.match(mockPatch, /final boolean failAfterWrite = RandomizedContext\.current\(\)\.getRandom\(\)\.nextBoolean\(\);\n\+[ ]{16}if \(failAfterWrite && skipSnapshotShardPathsWriteException == false\)/u);
+  assert.doesNotMatch(mockPatch, /skipSnapshotShardPathsWriteException == false && RandomizedContext/u);
   assert.match(mockRepositoryOriginal.toString("utf8"), /return super\.listBlobs\(\)/u);
   assert.doesNotMatch(mockPatch, /listBlobsByPrefix[\s\S]*skip_exception_on_snapshot_shard_paths/u);
   assert.deepEqual(
@@ -255,12 +270,16 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   );
   assert.deepEqual(
     mockPatch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")),
-    ["-                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);"],
+    [
+      "-                maybeIOExceptionOrBlock(DUMMY_FILE_NAME_LIST_BLOBS);",
+      "-                maybeIOExceptionOrBlock(blobName);",
+      "-                if (RandomizedContext.current().getRandom().nextBoolean()) {",
+    ],
   );
   assert.match(testHelper, /e6822f420d0ccb174911dc6631af5ab74ab193c52f88d702082038ee0ec638bd/u);
-  assert.match(testHelper, /37515f8b9f7b550a1d0c232768d191cc297f35c24a67ed4a5709a4363071f53e/u);
+  assert.match(testHelper, /6473c23b45acb0628964b3f9b389621db94ce15fff213c54c5a3f32b6c51dc27/u);
   assert.match(mockHelper, /0d768d21a752111f940cccf096552c81b14ff38f3556e8f68b3156b16aa18029/u);
-  assert.match(mockHelper, /99cf760087f5045aaec4996a2cacb1f845964217e6dfa67759c379dbe7c0c2bb/u);
+  assert.match(mockHelper, /0ca89767bccae4080fb62302ba927f0a076e9a50c5ebf49e5984efe26396938b/u);
   assert.doesNotMatch(testHelper, /^patch /mu);
   assert.doesNotMatch(mockHelper, /^patch /mu);
 
@@ -280,13 +299,14 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   assert.match(build, /-Dtests\.locale=fr-LU/u);
   assert.match(build, /-Dtests\.timezone=America\/Moncton/u);
   assert.match(build, /testSnapshotFileFailureDuringSnapshot/u);
+  assert.match(build, /testSnapshotShardPathsAuxiliaryWriteFaultScope/u);
   assert.match(build, /SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED/u);
   assert.match(build, /failure-count-delta=1/u);
   assert.match(build, /grep -Fo '<failure '/u);
   assert.match(build, /! grep -Fq 'index\.latest'/u);
   assert.match(build, /full_report_count.*-ne 16/u);
-  assert.match(build, /full_test_count.*-lt 1735/u);
-  assert.match(build, /full_pass_count.*-lt 1687/u);
+  assert.match(build, /full_test_count.*-lt 1736/u);
+  assert.match(build, /full_pass_count.*-lt 1688/u);
   assert.match(build, /full_skipped_count.*-gt 48/u);
   assert.doesNotMatch(build, /"\$full_skipped_count" -(?:eq|lt)/u);
   assert.match(build, /full-suite-skips\.txt/u);
@@ -489,6 +509,19 @@ test("authenticated snapshot source patches preserve foreign and already-patched
   const patchedMock = readFileSync(source.mockPath);
   assert.notDeepEqual(patchedMock, mockRepositoryOriginal);
   assert.deepEqual(readFileSync(source.testPath), patchedTest);
+  assert.equal(sha256(patchedTest), "6473c23b45acb0628964b3f9b389621db94ce15fff213c54c5a3f32b6c51dc27");
+  assert.equal(sha256(patchedMock), "0ca89767bccae4080fb62302ba927f0a076e9a50c5ebf49e5984efe26396938b");
+  const patchedMockSource = patchedMock.toString("utf8");
+  const writeMethodStart = patchedMockSource.indexOf("            public void writeBlob(String blobName, InputStream inputStream");
+  const writeMethodEnd = patchedMockSource.indexOf("\n            @Override", writeMethodStart + 1);
+  assert.ok(writeMethodStart >= 0 && writeMethodEnd > writeMethodStart);
+  const writeMethod = patchedMockSource.slice(writeMethodStart, writeMethodEnd);
+  assert.equal(writeMethod.match(/nextBoolean\(\)/gu)?.length, 1);
+  assert.ok(writeMethod.indexOf("super.writeBlob(") < writeMethod.indexOf("nextBoolean()"));
+  assert.ok(writeMethod.indexOf("nextBoolean()") < writeMethod.indexOf("if (failAfterWrite && skipSnapshotShardPathsWriteException == false)"));
+  assert.match(writeMethod, /path\(\)\.equals\(basePath\(\)\.add\(SnapshotShardPaths\.DIR\)\)/u);
+  assert.match(writeMethod, /blobName\.startsWith\("snapshot_path_"\)[\s\S]*blobName\.length\(\) > "snapshot_path_"\.length\(\)/u);
+  assert.equal((writeMethod.match(/maybeIOExceptionOrBlock\(blobName\);/gu) ?? []).length, 2);
   assert.notEqual(runScript("patch-snapshot-mock-repository.sh", [source.result]).status, 0);
   assert.deepEqual(readFileSync(source.mockPath), patchedMock);
 
@@ -595,11 +628,57 @@ test("authenticated snapshot source patches preserve foreign and already-patched
     0,
   );
 
+  const fixedGateStart = build.indexOf("    fixed_control_ok=0");
+  const fixedGateEnd = build.indexOf("    printf '%s\\n' \"$fixed_control_ok\"", fixedGateStart);
+  assert.ok(fixedGateStart >= 0 && fixedGateEnd > fixedGateStart);
+  const fixedGate = build.slice(fixedGateStart, fixedGateEnd);
+  const successfulCase = (name) => `<testcase name="${name}" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"/>`;
+  const fixedNames = [
+    "testSnapshotShardPathsListBlobsFaultScope",
+    "testSnapshotShardPathsAuxiliaryWriteFaultScope",
+    "testSnapshotFileFailureDuringSnapshot",
+  ];
+  const runFixedGate = ({
+    tests = 3,
+    failures = 0,
+    errors = 0,
+    skipped = 0,
+    cases = fixedNames.map(successfulCase),
+    fixedStatus = 0,
+  } = {}) => {
+    const evidence = temporaryDirectory(t);
+    const control = path.join(evidence, "controls/seeded-fixed");
+    mkdirSync(control, { recursive: true });
+    writeFileSync(
+      path.join(control, "TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml"),
+      `<testsuite tests="${tests}" failures="${failures}" errors="${errors}" skipped="${skipped}">${cases.join("")}</testsuite>\n`,
+    );
+    writeFileSync(path.join(control, "gradle.log"), "executed internal cluster test\n");
+    const evidencePath = evidence.replaceAll("\\", "/");
+    const command = `capture_complete() { return 0; }\nfixed_status=${fixedStatus}\n${fixedGate.replaceAll("/evidence", evidencePath)}\nprintf '%s\\n' "$fixed_control_ok"`;
+    const result = spawnSync(bash, ["-euo", "pipefail", "-c", command], { encoding: "utf8", timeout: 15000 });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    return Number(result.stdout.trim());
+  };
+  assert.equal(runFixedGate(), 1);
+  assert.equal(runFixedGate({ cases: fixedNames.slice(0, 2).map(successfulCase) }), 0);
+  assert.equal(runFixedGate({ cases: [successfulCase(fixedNames[0]), successfulCase(fixedNames[0]), successfulCase(fixedNames[2])] }), 0);
+  assert.equal(runFixedGate({
+    skipped: 1,
+    cases: [successfulCase(fixedNames[0]), `<testcase name="${fixedNames[1]}" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"><skipped/></testcase>`, successfulCase(fixedNames[2])],
+  }), 0);
+  assert.equal(runFixedGate({
+    failures: 1,
+    cases: [successfulCase(fixedNames[0]), `<testcase name="${fixedNames[1]}" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"><failure/></testcase>`, successfulCase(fixedNames[2])],
+  }), 0);
+  assert.equal(runFixedGate({ tests: 2 }), 0);
+  assert.equal(runFixedGate({ fixedStatus: 1 }), 0);
+
   const gateStart = build.indexOf("full_report_count=");
   const gateEnd = build.indexOf("if grep -Eq ':server:internalClusterTest", gateStart);
   assert.ok(gateStart >= 0 && gateEnd > gateStart);
   const gate = build.slice(gateStart, gateEnd);
-  const runGate = ({ firstReportTests = 235, skipped = 47, failures = 0, errors = 0, scopeSkipped = false }) => {
+  const runGate = ({ firstReportTests = 236, skipped = 47, failures = 0, errors = 0, scopeSkipped = false, writeScopeSkipped = false }) => {
     const evidence = temporaryDirectory(t);
     const junit = path.join(evidence, "junit");
     const scopePath = path.join(junit, "server/build/test-results/internalClusterTest/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml");
@@ -607,7 +686,10 @@ test("authenticated snapshot source patches preserve foreign and already-patched
     const scopeCase = scopeSkipped
       ? '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"><skipped/></testcase>'
       : '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"/>';
-    writeFileSync(scopePath, `<testsuite tests="${firstReportTests}" failures="${failures}" errors="${errors}" skipped="${skipped}">${scopeCase}</testsuite>\n`);
+    const writeScopeCase = writeScopeSkipped
+      ? '<testcase name="testSnapshotShardPathsAuxiliaryWriteFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"><skipped/></testcase>'
+      : '<testcase name="testSnapshotShardPathsAuxiliaryWriteFaultScope" classname="org.opensearch.snapshots.SharedClusterSnapshotRestoreIT" time="0.1"/>';
+    writeFileSync(scopePath, `<testsuite tests="${firstReportTests}" failures="${failures}" errors="${errors}" skipped="${skipped}">${scopeCase}${writeScopeCase}</testsuite>\n`);
     for (let index = 1; index < 16; index += 1) {
       const report = path.join(junit, `group-${index}/nested-${index % 3}/build/test-results/test/TEST-fixture-${index}.xml`);
       mkdirSync(path.dirname(report), { recursive: true });
@@ -622,12 +704,13 @@ test("authenticated snapshot source patches preserve foreign and already-patched
   };
   assert.equal(runGate({ skipped: 47 }), 0);
   assert.equal(runGate({ skipped: 48 }), 0);
-  assert.equal(runGate({ firstReportTests: 234 }), 1);
-  assert.equal(runGate({ firstReportTests: 236, skipped: 48 }), 0);
+  assert.equal(runGate({ firstReportTests: 235 }), 1);
+  assert.equal(runGate({ firstReportTests: 237, skipped: 48 }), 0);
   assert.equal(runGate({ skipped: 49 }), 1);
   assert.equal(runGate({ failures: 1 }), 1);
   assert.equal(runGate({ errors: 1 }), 1);
   assert.equal(runGate({ scopeSkipped: true }), 1);
+  assert.equal(runGate({ writeScopeSkipped: true }), 1);
 });
 
 test("JDK inventory preserves required fields and plugin absence rejects visible and hidden entries", linuxExecution, (t) => {

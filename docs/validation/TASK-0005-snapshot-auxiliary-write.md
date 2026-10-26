@@ -1,0 +1,35 @@
+# TASK-0005 — Exact auxiliary snapshot-path write scope
+
+Status, 26 October 2026: INDEPENDENT_SOURCE_AND_TEST_REVIEW_PASS / FRESH_LINUX_PROOF_REQUIRED. TASK-0005/0005A remain IN_PROGRESS; no delivery, registry publication, runtime acceptance, admission or support activation follows.
+
+## Actual failure and source boundary
+
+[Managed40380737950 attempt1](https://github.com/CleMeY15/auto-world/actions/runs/40380737950) runs source `80ab9a85613180ec5a834ca5d19fb3ae3683883d`, tree `fb179bb9cc4a74a7fb59af2f5edce9d1cd2a8290`, through merge `9f0c17599c912a34793ba99f4d5bdb379fe145e1` (parents maina52884b2 and80ab, identical tree). The independent single-original review confirms52 repository inputs/41 managed sources exactly match. Original ZIP1,704,913bytes/SHA256 `fd92b0a7917db621b67cf35834b3e82f15563ac1e62db579b17754561dd8dc5e`,213 safe regular entries/9,423,536 uncompressed bytes. Quality40380737935 on this snapshot independently passes, as recorded in [the empty-evidence checkpoint](TASK-0005-runtime-empty-evidence.md); it does not establish managed success or transfer to changed source.
+
+The first real native acceptance failure is the seeded-fixed historical `testSnapshotFileFailureDuringSnapshot`, expected0L/actual1L. Its separate `testSnapshotShardPathsListBlobsFaultScope` passes. XML has two tests/one failure/zero errors or skips; seeded exit1/verified0. The complete native manifest records five descriptors,289 events/zero capture errors. The original descriptor0003 stdout123–144 shows `writeBlob` on exact `snapshot_shard_paths/snapshot_path_<generated-name>`: pre-write injection decision false, post-write true, `Random IOException`, then a logged/absorbed shard-path write failure and snapshot `SUCCESS`. The mock counts this auxiliary fault while the historical test interprets the global counter as snapshot/shard failure.
+
+Consequently the full selected suite and distribution are never invoked. Their absence, the later Docker COPY failure and `scanner_managed_image_not_built` are downstream effects. OpenSearch has no produced subject/audit pair. The aggregate build phase denotes completed diagnostic collection, while its OpenSearch child correctly remains failed; the subsequent five-role phase/global result refuse acceptance. No phase-schema change is necessary.
+
+The four other role audits and both builders pass within their detected coverage; SeaweedFS Rust coverage remains separately open. Runtime is not entered, four scenarios/cleanup remain unestablished, milestone2 NOT_ESTABLISHED, admission NOT_AUTHORIZED. The23 scanner-owned absence checks do not create runtime proof.
+
+## Reviewed correction
+
+Actual independent debugger confirms the cause against original streams and pristine pinned fixtures. The existing `skip_exception_on_blobs` exact-name list has no path scope and cannot safely represent generated names. Weakening the original zero assertion, lowering rate0.2, repeating unchanged source, choosing a different seed or broadly suppressing all operations is rejected.
+
+The deliberate plan SHA256 `7388e60b4393bc629fb15116d229a88feab56084628ae70a4ec21c46244876ad` receives actual Architect APPROVE then distinct Critic APPROVE. A COMPLETE handoff and final implementation plan are published/read back in [PR199](https://github.com/CleMeY15/auto-world/pull/199) before code edits. The earlier plan iteration is preserved: a naive guard could suppress `nextBoolean()` and shift the seeded test; the revised contract explicitly forbids this.
+
+Add an independent default-false mock setting only inside `writeBlob`, exact base/snapshot_shard_paths path and reserved `snapshot_path_` prefix with nonempty suffix. Suppress only both injection calls, preserve the underlying write and exactly the original single post-success random draw before the exemption decision. The historical snapshot test enables both separate settings while preserving all original assertions/rate. Other mock operations and production repository behavior remain unchanged.
+
+The dedicated native control checks absent/false/true flag states at rate1, real bytes after injection is disabled, generic/wrong-path/prefix/read/listing refusals and independent listing settings. Deterministic checks on actual patched source prove both hook guards and random-draw order; the native positive alone cannot prove the random post-hook branch. A fixture of the actual seeded gate requires exactly three successful names once each and refuses absent/duplicate/skipped/failed cases. The full suite retains16 reports, adds one test and requires minima1,736 tests/1,688 passes, zero failures/errors and at most48 independently reviewed known skips.
+
+## Verification and remaining work
+
+Implementation receives actual independent source and test PASS after closing the separately identified default-setting test gap. The one native method now runs three modes: absent key, explicit false and explicit true, with distinct repository names and the full negative operation/path matrix for each. Default omits the key; the two explicit modes set it, preserving the same one additional native testcase and test-count floors. Source guards check this configuration distinction as well as both hook guards and ordered RNG consumption.
+
+Pinned Node22.23.2 workflow-style suites pass400 tests:365 passes/35 explicit Windows exclusions/zero failures. The focused file passes11 tests,7 passes/4 explicit Linux-only exclusions. Existing WSL Bash inert checks pass syntax, authenticated patch application, exact equality of patcher and zero-fuzz readable-patch outputs, wrong/already-patched refusal without mutation, and actual seeded/full gate fixtures. No Java/Gradle/Docker/scanner runs locally. Targeted ESLint, Secretlint on1,181 files and whitespace checks pass. Native execution of those four exclusions remains required in fresh Linux CI; source and fixture success alone do not establish native acceptance.
+
+Pristine upstream fixtures/hashes stay intact. Authenticated patched SharedCluster source is SHA256 `6473c23b45acb0628964b3f9b389621db94ce15fff213c54c5a3f32b6c51dc27`, MockRepository source `0ca89767bccae4080fb62302ba927f0a076e9a50c5ebf49e5984efe26396938b`; directly coupled guards change deliberately. The scanner adapter remains SHA256 `9c6409f318a819237b3dd793751d335314346959bddb6d1151b6b21f373a1feb`. Native capture/validator, policy, locks/pins, resource limits, public caps, archive limits and Java-age rule are unchanged.
+
+Require independent source/test review, fresh quality and complete managed Linux runs on changed source, original causal/full-suite output review, all five actual role audits, four real runtime scenarios and cleanup. Normal protected merge and matching main quality/managed acceptance still precede source delivery. Final private retention/copy/restore, signing/admission/activation and17 real integration phases remain separate criteria. Support dates stay null.
+
+Rollback reverts this unadmitted test-fixture amendment and retains the original failures, outputs, data, volumes, archives and retention obligations.

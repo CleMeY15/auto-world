@@ -89,20 +89,31 @@ The snapshot test-source adjustment is limited to OpenSearch's mock repository
 fixture at pinned commit `4ee42a94e87f66fbf1e62a9871b1b87f91e02472`. It suppresses only the
 no-argument `listBlobs()` fault sentinel at the exact `snapshot_shard_paths`
 container when a default-false setting is enabled by
-`testSnapshotFileFailureDuringSnapshot`. Prefix listings, reads, writes, child
-paths, other paths and the fixture's default behavior retain fault injection;
-production repository code is unchanged. The original failure is retained in
+`testSnapshotFileFailureDuringSnapshot`. A separately reviewed amendment adds an
+independent default-false setting for `writeBlob` only: the exact same container
+and the reserved `snapshot_path_` prefix with a nonempty suffix. It exempts only
+the two injection calls around the actual write; the post-write `nextBoolean()`
+draw remains exactly once, in its original order. Prefix listings, reads,
+generic writes, other write APIs, child paths, other paths and the fixture's
+default behavior retain fault injection. Production repository code is
+unchanged. The original listing failure is retained in
 [main run 40240788182](https://github.com/CleMeY15/auto-world/actions/runs/40240788182).
+The distinct absorbed auxiliary write and original zero-counter assertion
+failure are retained in [managed40380737950](https://github.com/CleMeY15/auto-world/actions/runs/40380737950)
+and [its causal checkpoint](../../../docs/validation/TASK-0005-snapshot-auxiliary-write.md).
 
 The build first applies the test-class patch and requires a deterministic
 single-test failure with the fixed scope-control marker while `MockRepository`
 is pristine. It then applies the separately authenticated mock-fixture patch,
-requires the same scope control plus the original failed-seed test to pass, and
+requires both separate scope controls plus the original failed-seed test to pass
+(exactly three named successful cases), and
 finally forces the complete selected internal-cluster suite with an ordinary
 random seed. Control XML and logs stay under `controls/`; only the final 16 XML
-reports and at least 1,735 test cases populate `junit/` and its release count.
+reports and at least 1,736 test cases/1,688 passes populate `junit/` and its release count.
 The phase-specific natural output streams remain under `test-output/` and are
 required before any of those causal/full gates can pass.
+The auxiliary-write amendment remains unaccepted until fresh complete Linux
+source and main proof; previous successful runs do not transfer.
 
 On 25 October 2026 the three initial Windows fixture executions failed before
 functional validation: Git Bash could not fork (`0xC0000142`, resource temporarily
@@ -111,9 +122,9 @@ Those three execution cases are explicitly Linux-only platform exclusions,
 new to this increment. The five contract/syntax cases execute locally. All eight
 must pass on Linux with no exclusion before implementation acceptance.
 
-The current snapshot-scope increment expands that file to ten cases. Six
+The current snapshot-scope increment covers eleven cases. Seven
 contract/syntax cases execute on Windows and four functional fixture cases keep
-the explicit Windows exclusion above; all ten must execute and pass on Linux.
+the explicit Windows exclusion above; all eleven must execute and pass on Linux.
 
 Run 40203365441 stopped in base preparation with exit127. Its bounded stderr
 tail does not retain the originating command-error line. The retained M1 OS

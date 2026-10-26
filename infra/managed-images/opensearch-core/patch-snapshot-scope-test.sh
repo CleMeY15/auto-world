@@ -91,21 +91,115 @@ cat > "$method_fragment" <<'JAVA'
         }
     }
 
+    public void testSnapshotShardPathsAuxiliaryWriteFaultScope() throws Exception {
+        disableRepoConsistencyCheck("This test exercises raw mock blob containers without snapshot metadata");
+
+        for (String writeSettingMode : List.of("default", "false", "true")) {
+            final String repoName = "write-scope-control-" + writeSettingMode;
+            final Settings.Builder repositorySettings = Settings.builder()
+                .put("location", randomRepoPath())
+                .put("random", "snapshot-write-scope-control");
+            if ("false".equals(writeSettingMode)) {
+                repositorySettings.put("skip_exception_on_snapshot_shard_paths_write", false);
+            } else if ("true".equals(writeSettingMode)) {
+                repositorySettings.put("skip_exception_on_snapshot_shard_paths_write", true);
+            }
+            createRepository(repoName, "mock", repositorySettings);
+            final MockRepository repository = (MockRepository) internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
+                .repository(repoName);
+            final BlobContainer snapshotShardPaths = repository.blobStore()
+                .blobContainer(repository.basePath().add(SnapshotShardPaths.DIR));
+            final BlobContainer nestedSnapshotShardPaths = repository.blobStore()
+                .blobContainer(repository.basePath().add(SnapshotShardPaths.DIR).add("nested"));
+            final BlobContainer root = repository.blobStore().blobContainer(repository.basePath());
+            final BlobContainer other = repository.blobStore().blobContainer(repository.basePath().add("write-scope-control-other"));
+            final String reservedBlobName = "snapshot_path_scope-control";
+            long expectedFailures = repository.getFailureCount();
+
+            repository.setRandomControlIOExceptionRate(1.0);
+            try {
+                if ("true".equals(writeSettingMode)) {
+                    snapshotShardPaths.writeBlob(reservedBlobName, new ByteArrayInputStream(new byte[] { 1 }), 1L, true);
+                    assertThat(repository.getFailureCount(), equalTo(expectedFailures));
+                    repository.setRandomControlIOExceptionRate(0.0);
+                    try (InputStream input = snapshotShardPaths.readBlob(reservedBlobName)) {
+                        assertThat(input.read(), equalTo(1));
+                        assertThat(input.read(), equalTo(-1));
+                    } finally {
+                        repository.setRandomControlIOExceptionRate(1.0);
+                    }
+                    assertThat(repository.getFailureCount(), equalTo(expectedFailures));
+                } else {
+                    IOException exception = expectThrows(
+                        IOException.class,
+                        () -> snapshotShardPaths.writeBlob(
+                            reservedBlobName,
+                            new ByteArrayInputStream(new byte[] { 1 }),
+                            1L,
+                            true
+                        )
+                    );
+                    assertThat(exception.getMessage(), containsString("Random IOException"));
+                    assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+                }
+
+                IOException exception = expectThrows(
+                    IOException.class,
+                    () -> snapshotShardPaths.writeBlob("scope-write", new ByteArrayInputStream(new byte[] { 1 }), 1L, true)
+                );
+                assertThat(exception.getMessage(), containsString("Random IOException"));
+                assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+
+                exception = expectThrows(
+                    IOException.class,
+                    () -> snapshotShardPaths.writeBlob("snapshot_path_", new ByteArrayInputStream(new byte[] { 1 }), 1L, true)
+                );
+                assertThat(exception.getMessage(), containsString("Random IOException"));
+                assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+
+                for (BlobContainer container : List.of(nestedSnapshotShardPaths, root, other)) {
+                    exception = expectThrows(
+                        IOException.class,
+                        () -> container.writeBlob(reservedBlobName, new ByteArrayInputStream(new byte[] { 1 }), 1L, true)
+                    );
+                    assertThat(exception.getMessage(), containsString("Random IOException"));
+                    assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+                }
+
+                exception = expectThrows(IOException.class, () -> snapshotShardPaths.readBlob(reservedBlobName));
+                assertThat(exception.getMessage(), containsString("Random IOException"));
+                assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+
+                exception = expectThrows(IOException.class, () -> snapshotShardPaths.listBlobsByPrefix("snapshot_path_"));
+                assertThat(exception.getMessage(), containsString("Random IOException"));
+                assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+
+                exception = expectThrows(IOException.class, snapshotShardPaths::listBlobs);
+                assertThat(exception.getMessage(), containsString("Random IOException"));
+                assertThat(repository.getFailureCount(), equalTo(++expectedFailures));
+            } finally {
+                repository.setRandomControlIOExceptionRate(0.0);
+            }
+        }
+    }
+
     public void testDataFileFailureDuringSnapshot() throws Exception {
 JAVA
 
 sed -i \
   -e '/^import org\.opensearch\.common\.action\.ActionFuture;$/a import org.opensearch.common.blobstore.BlobContainer;' \
   -e '/^import java\.nio\.channels\.SeekableByteChannel;$/i import java.io.ByteArrayInputStream;\
-import java.io.IOException;' \
+import java.io.IOException;\
+import java.io.InputStream;' \
   -e '/^            \.put("random_control_io_exception_rate", 0\.2);$/c\
             .put("random_control_io_exception_rate", 0.2)\
-            .put("skip_exception_on_snapshot_shard_paths_list_blobs", true);' \
+            .put("skip_exception_on_snapshot_shard_paths_list_blobs", true)\
+            .put("skip_exception_on_snapshot_shard_paths_write", true);' \
   -e "/^    public void testDataFileFailureDuringSnapshot() throws Exception {/ {\
     r $method_fragment
     d
   }" \
   "$target"
 printf '%s  %s\n' \
-  37515f8b9f7b550a1d0c232768d191cc297f35c24a67ed4a5709a4363071f53e \
+  6473c23b45acb0628964b3f9b389621db94ce15fff213c54c5a3f32b6c51dc27 \
   "$target" | sha256sum --check --strict

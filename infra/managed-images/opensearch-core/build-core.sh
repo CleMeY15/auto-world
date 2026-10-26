@@ -161,6 +161,7 @@ if [ "$preparation_status" -eq 0 ] && [ "$fixture_ok" -eq 1 ]; then
       -Dauto.world.test.output.phase=seeded-fixed \
       :server:internalClusterTest --rerun \
       --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotShardPathsListBlobsFaultScope \
+      --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotShardPathsAuxiliaryWriteFaultScope \
       --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotFileFailureDuringSnapshot \
       > /evidence/controls/seeded-fixed/gradle.log 2>&1 || fixed_status=$?
     printf '%s\n' "$fixed_status" > /evidence/controls/seeded-fixed/gradle.exit-code
@@ -169,12 +170,17 @@ if [ "$preparation_status" -eq 0 ] && [ "$fixture_ok" -eq 1 ]; then
     fixed_control_ok=0
     if [ "$fixed_status" -eq 0 ] \
       && [ -f /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml ] \
-      && grep -Fq 'tests="2"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+      && grep -Fq 'tests="3"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && grep -Fq 'skipped="0"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && grep -Fq 'failures="0"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && grep -Fq 'errors="0"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
-      && grep -Fq 'name="testSnapshotShardPathsListBlobsFaultScope"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
-      && grep -Fq 'name="testSnapshotFileFailureDuringSnapshot"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+      && [ "$(grep -Fo '<testcase ' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml | wc -l)" -eq 3 ] \
+      && [ "$(grep -Fo 'name="testSnapshotShardPathsListBlobsFaultScope"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml | wc -l)" -eq 1 ] \
+      && [ "$(grep -Fo 'name="testSnapshotShardPathsAuxiliaryWriteFaultScope"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml | wc -l)" -eq 1 ] \
+      && [ "$(grep -Fo 'name="testSnapshotFileFailureDuringSnapshot"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml | wc -l)" -eq 1 ] \
+      && grep -Eq '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+      && grep -Eq '<testcase name="testSnapshotShardPathsAuxiliaryWriteFaultScope" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+      && grep -Eq '<testcase name="testSnapshotFileFailureDuringSnapshot" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && capture_complete seeded-fixed /evidence/controls/seeded-fixed/gradle.log \
       && ! grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/controls/seeded-fixed/gradle.log; then
       fixed_control_ok=1
@@ -253,11 +259,12 @@ full_scope_xml=/evidence/junit/server/build/test-results/internalClusterTest/TES
 # because XContentParserTests.testWriteDepthOffLimit drew YAML and raised its
 # explicit assumption. This conservative ceiling accepts both observed runs but
 # does not approve any new skip identity or reason; those remain review inputs.
-if [ "$full_report_count" -ne 16 ] || [ "$full_test_count" -lt 1735 ] \
+if [ "$full_report_count" -ne 16 ] || [ "$full_test_count" -lt 1736 ] \
   || [ "$full_failure_count" -ne 0 ] || [ "$full_error_count" -ne 0 ] \
-  || [ "$full_skipped_count" -gt 48 ] || [ "$full_pass_count" -lt 1687 ] \
+  || [ "$full_skipped_count" -gt 48 ] || [ "$full_pass_count" -lt 1688 ] \
   || [ ! -f "$full_scope_xml" ] \
-  || ! grep -Eq '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' "$full_scope_xml"; then
+  || ! grep -Eq '<testcase name="testSnapshotShardPathsListBlobsFaultScope" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' "$full_scope_xml" \
+  || ! grep -Eq '<testcase name="testSnapshotShardPathsAuxiliaryWriteFaultScope" classname="org\.opensearch\.snapshots\.SharedClusterSnapshotRestoreIT" time="[0-9.]+"/>' "$full_scope_xml"; then
   build_status=1
 fi
 if grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/core-build-and-tests.log; then
