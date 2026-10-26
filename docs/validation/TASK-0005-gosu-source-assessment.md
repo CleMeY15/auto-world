@@ -364,3 +364,45 @@ limits and Java test patches remain unchanged. TASK-0005/0005A remain
 IN_PROGRESS; B0 stays blocked until complete independently accepted protected
 source/main delivery. C: remains the selected restricted empty destination;
 complete inventory/capacity/copy/retrieval/restore remains unproved.
+
+## 2026-10-26 — reviewed native-output amendment before implementation
+
+V1 of the evidence amendment (13,129 bytes/SHA256
+`ad67c147bb065047c6a89474fc095ac5d1b4b416bddb24de18761e7f8aae0024`)
+received actual Architect CLEAR then distinct Critic REVISE. V2 repairs the
+four identified ambiguities and receives a fresh actual Architect CLEAR then
+distinct Critic APPROVE: 18,930 bytes/SHA256
+`3dadb7bbe12b636cc7269efdcefe79e02985f39bcbce0a03db5b41abc3c45d64`.
+Its implementation plan is recorded in PR199 before code changes.
+
+The two control XML and three full internal-cluster class reports are generated
+natively without embedded stdout/stderr; the other tasks retain their report
+configuration. Every captured Gradle message remains in a natural descriptor/
+destination stream with strict UTF-8, original newlines and hashes. The listener
+uses phase-local object identities and immutable public descriptor fields,
+preserving Gradle's actual parent/Unknown attribution without inventing origin.
+No XML rewrite, arbitrary split, encoding, truncation or reduced logging occurs.
+
+Only the exact task's end can finalize the capture, including expected RED.
+The manifest precedes atomic completion; late output/errors poison capture,
+and an independently rejected stderr sentinel prevents a marker-write failure
+from hiding behind Gradle exit1. The public afterExecute listener is deprecated
+and incompatible with configuration cache; this explicitly bounded diagnostic
+uses pinned Gradle9.7.1 and disables that cache for its three test invocations
+and inert fixture only. No compatibility with future versions is claimed.
+
+Internal state is limited before growth to 4,094 descriptors, depth64, 16KiB
+per string field, 1MiB metadata and one million events; the existing exporter
+still enforces 4MiB/file, 64MiB total and 4,096 files. Two file slots are reserved
+for the manifest and completion-or-poison marker. A natural output exceeding
+the limits refuses rather than splitting or dropping evidence. A native inert
+fixture must exercise the actual implementation and public successful/failed
+Test task hooks, byte association, budgets and error/late-output controls.
+
+Both Java patch outputs, original assertions, injection rates, seed, full-suite
+selection/counts and skip review remain unchanged. The exporter, UTF-8/NUL/
+secret checks, policies, pins, deadlines, permissions and admission contracts
+remain unchanged. No new dependency or local Java/container execution follows.
+Code review and fresh actual source/main quality, causal/full outputs, seven
+audits, four runtime cases and cleanup remain required before corrective
+delivery or B0. This review approves the plan, not any future result.
