@@ -10,6 +10,11 @@ import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJso
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
+import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
+  helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustScanArguments,
+  seaweedRustSourceFetchArguments, validateSeaweedRustControlReport, validateSeaweedRustHelperAbsence,
+  validateSeaweedRustHelperContainer, validateSeaweedRustHelperMeasurement, validateSeaweedRustLockUniverse,
+  validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock } from "./seaweed-rust-source.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
@@ -21,6 +26,31 @@ const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensea
 // Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
 const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-pkg", "jar"]);
 const fail = (code) => { throw new Error(code); };
+const SEAWEED_RUST_SUBJECT_FAILURES = Object.freeze({
+  control: new Set(["scanner_official_command_failed", "scanner_json_file_invalid", "scanner_seaweed_rust_report_invalid",
+    "scanner_seaweed_rust_inventory_mismatch", "scanner_seaweed_rust_control_blocked"]),
+  source: new Set(["scanner_official_command_failed", "scanner_json_file_invalid", "scanner_seaweed_rust_report_invalid",
+    "scanner_seaweed_rust_sbom_invalid", "scanner_seaweed_rust_inventory_mismatch"]),
+  helper: new Set(["scanner_official_command_failed", "scanner_seaweed_rust_helper_control_invalid",
+    "scanner_seaweed_rust_helper_copy_failed", "scanner_seaweed_rust_helper_container_invalid",
+    "scanner_seaweed_rust_helper_measurement_invalid"]),
+});
+const seaweedRustGlobalFailures = new WeakSet();
+export function classifySeaweedRustHelperCommandFailure({ error, record, operation }) {
+  if (!(error instanceof Error) || !["softLimitControl", "create", "inspect", "copy"].includes(operation)) throw error;
+  if (!record || record.error != null || record.signal != null) {
+    seaweedRustGlobalFailures.add(error);
+    return error;
+  }
+  if (error.message === "scanner_official_command_failed" && operation === "copy") {
+    return new Error("scanner_seaweed_rust_helper_copy_failed", { cause: error });
+  }
+  return error;
+}
+export function classifySeaweedRustSubjectFailure(error, subject) {
+  if (!(error instanceof Error) || seaweedRustGlobalFailures.has(error) || !SEAWEED_RUST_SUBJECT_FAILURES[subject]?.has(error.message)) throw error;
+  return error;
+}
 const managedEvidenceDiagnostics = new WeakMap();
 const refuseManagedEvidence = (guard, { relative, observed, limit } = {}) => {
   const error = new Error("scanner_managed_evidence_invalid");
@@ -397,6 +427,192 @@ function readOnlyTree(directory) {
   chmodSync(directory, 0o555);
 }
 
+export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imageReport, directory, limitDirectory = path.join(directory, "limit-control"),
+  name, owner, freeBytes }, operations) {
+  const operationNames = ["softLimitControl", "create", "inspect", "copy", "measure", "listHostFiles", "remove", "proveAbsent"];
+  if (!safePath(directory) || !safePath(limitDirectory) || !/^aw-seaweed-rust-[a-f0-9-]{36}$/u.test(name ?? "") || !/^[a-f0-9-]{36}$/u.test(owner ?? "") ||
+      !digest(imageId) || imageId !== metadata?.image?.configDigest || imageReport?.Metadata?.ImageID !== imageId ||
+      !Number.isSafeInteger(freeBytes) || freeBytes < seaweedRustLimits.helperFreeBytes ||
+      !operations || Object.keys(operations).length !== operationNames.length || operationNames.some((key) => typeof operations[key] !== "function")) {
+    fail("scanner_seaweed_rust_helper_arguments_invalid");
+  }
+  const journal = [];
+  let owned;
+  let primary;
+  const roleResults = new Map();
+  try {
+    const control = helperSoftLimitControlCommand({ directory: limitDirectory });
+    await operations.softLimitControl(control); journal.push({ operation: "soft_limit_control", result: "passed" });
+    const createArguments = helperContainerCreateArguments({ name, owner, imageId });
+    let response;
+    try { response = await operations.create(createArguments); journal.push({ operation: "create", result: "passed" }); }
+    catch (error) { journal.push({ operation: "create", result: "response_lost_or_failed" }); primary = error; }
+    let inspected;
+    try { inspected = await operations.inspect(name); }
+    catch { fail("scanner_seaweed_rust_helper_cleanup_uncertain"); }
+    if (!Array.isArray(inspected)) fail("scanner_seaweed_rust_helper_cleanup_uncertain");
+    try { owned = validateSeaweedRustHelperContainer({ inspected, name, owner, imageId }); }
+    catch { fail("scanner_seaweed_rust_helper_cleanup_uncertain"); }
+    if (response !== undefined && String(response).trim() !== owned.containerId) fail("scanner_seaweed_rust_helper_cleanup_uncertain");
+    if (response === undefined && primary) journal.push({ operation: "recover_owned_container_for_cleanup", result: "passed" });
+    journal.push({ operation: "inspect_created", result: "passed" });
+    if (primary) throw primary;
+    for (const role of metadata.roles) {
+      const destination = path.join(directory, path.basename(role.helper.path));
+      try {
+        const copy = helperCopyCommand({ containerName: name, sourcePath: role.helper.path, destination,
+          expectedBytes: role.helper.bytes, home: directory, temporary: directory });
+        await operations.copy(copy); journal.push({ operation: `copy_${role.role}`, result: "passed" });
+        const after = validateSeaweedRustHelperContainer({ inspected: await operations.inspect(name), name, owner, imageId });
+        if (after.containerId !== owned.containerId || JSON.stringify(after.anonymousVolumes) !== JSON.stringify(owned.anonymousVolumes)) {
+          fail("scanner_seaweed_rust_helper_container_invalid");
+        }
+        journal.push({ operation: `inspect_${role.role}`, result: "passed" });
+        const measured = await operations.measure({ role: role.role, file: destination });
+        roleResults.set(role.role, validateSeaweedRustHelperMeasurement({ role: role.role, file: destination, ...measured, metadata }));
+        journal.push({ operation: `measure_${role.role}`, result: "passed" });
+      } catch (error) {
+        const failure = classifySeaweedRustSubjectFailure(error, "helper");
+        roleResults.set(role.role, { role: role.role, result: "rejected", reason: failure.message });
+        journal.push({ operation: `collect_${role.role}`, result: "rejected", reason: failure.message });
+      }
+    }
+    const hostFiles = await operations.listHostFiles(directory);
+    const allowedFiles = new Set(metadata.roles.map((role) => path.basename(role.helper.path)));
+    const expectedFiles = metadata.roles.filter(({ role }) => roleResults.get(role)?.result === "passed")
+      .map((role) => path.basename(role.helper.path));
+    if (!Array.isArray(hostFiles) || new Set(hostFiles).size !== hostFiles.length || hostFiles.some((file) => !allowedFiles.has(file)) ||
+        expectedFiles.some((file) => !hostFiles.includes(file))) {
+      fail("scanner_seaweed_rust_helper_inventory_invalid");
+    }
+    for (const role of metadata.roles) {
+      const first = roleResults.get(role.role);
+      if (first?.result !== "passed") continue;
+      try {
+        const file = path.join(directory, path.basename(role.helper.path));
+        const measured = await operations.measure({ role: role.role, file });
+        const finalMeasurement = validateSeaweedRustHelperMeasurement({ role: role.role, file, ...measured, metadata });
+        if (JSON.stringify(finalMeasurement) !== JSON.stringify(first)) fail("scanner_seaweed_rust_helper_measurement_invalid");
+        journal.push({ operation: `revalidate_${role.role}`, result: "passed" });
+      } catch (error) {
+        const failure = classifySeaweedRustSubjectFailure(error, "helper");
+        roleResults.set(role.role, { role: role.role, result: "rejected", reason: failure.message });
+        journal.push({ operation: `revalidate_${role.role}`, result: "rejected", reason: failure.message });
+      }
+    }
+    const measurements = [...roleResults.values()];
+    if (measurements.every((item) => item.result === "passed") &&
+        measurements.reduce((sum, item) => sum + item.bytes, 0) !== seaweedRustLimits.helperCombinedBytes) {
+      fail("scanner_seaweed_rust_helper_measurement_invalid");
+    }
+    if (primary) throw primary;
+  } catch (error) { primary = error; }
+  finally {
+    if (owned) {
+      try {
+        await operations.remove(helperContainerRemoveArguments(owned.containerId)); journal.push({ operation: "remove_owned", result: "passed" });
+        const absence = await operations.proveAbsent(name, owned.anonymousVolumes);
+        if (!validateSeaweedRustHelperAbsence(absence, name, owned.anonymousVolumes)) fail("scanner_seaweed_rust_helper_cleanup_uncertain");
+        journal.push({ operation: "prove_absent", result: "passed" });
+      } catch { primary = new Error("scanner_seaweed_rust_helper_cleanup_uncertain"); }
+    }
+  }
+  if (primary) throw primary;
+  const measurements = metadata.roles.map(({ role }) => roleResults.get(role));
+  return { result: measurements.every((item) => item.result === "passed") ? "passed" : "rejected",
+    evidenceClass: "ARTIFACT_TO_IMAGE_IDENTITY", imageId, measurements, journal,
+    copiedBytes: measurements.filter((item) => item.result === "passed").reduce((sum, item) => sum + item.bytes, 0),
+    intrinsicBinaryInventory: "NOT_ESTABLISHED", sourceToBinaryEquivalence: "NOT_ESTABLISHED" };
+}
+
+export async function runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure }, operations) {
+  const operationNames = ["sourceAndHelperAudits", "producedImageRuntime"];
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt) || !operations ||
+      Object.keys(operations).length !== operationNames.length || operationNames.some((name) => typeof operations[name] !== "function") ||
+      !Array.isArray(receipt.reports) || !Array.isArray(receipt.rejections) || !Array.isArray(receipt.builds) || !Array.isArray(receipt.phases)) {
+    fail("scanner_seaweed_rust_lifecycle_invalid");
+  }
+  if (originalImageFailure != null && (originalImageFailure?.message !== "scanner_official_images_blocked" || receipt.reports.length !== 5 ||
+      receipt.rejections.length < 1 || !receipt.phases?.some((entry) => entry?.name === "five_image_audits" &&
+        entry.result === "failed" && entry.reason === "scanner_official_images_blocked"))) {
+    fail("scanner_seaweed_rust_lifecycle_invalid");
+  }
+  const sourceStart = Date.now();
+  let diagnostics;
+  try {
+    diagnostics = await operations.sourceAndHelperAudits();
+    if (!diagnostics || typeof diagnostics !== "object" || Array.isArray(diagnostics) ||
+        Object.keys(diagnostics).length !== 1 || !Object.hasOwn(diagnostics, "failure") ||
+        diagnostics.failure !== null && !(diagnostics.failure instanceof Error)) fail("scanner_seaweed_rust_lifecycle_invalid");
+  } catch (error) {
+    receipt.phases.push({ name: "seaweed_rust_source_and_helper_audits", result: "failed", reason: error.message,
+      durationMs: Date.now() - sourceStart });
+    throw error;
+  }
+  receipt.phases.push({ name: "seaweed_rust_source_and_helper_audits", result: diagnostics.failure ? "failed" : "passed",
+    ...(diagnostics.failure ? { reason: diagnostics.failure.message } : {}), durationMs: Date.now() - sourceStart });
+  let gate, gateFailure;
+  try { gate = combineSeaweedRustGate({ originalReports: receipt.reports, controls: receipt.seaweedRustControls,
+    sourceAudits: receipt.seaweedRustSourceAudits, helpers: receipt.seaweedRustHelpers, managedBuilds: receipt.builds }); }
+  catch (error) { gateFailure = error; }
+  if (originalImageFailure) throw originalImageFailure;
+  if (diagnostics.failure) throw diagnostics.failure;
+  if (gateFailure) throw gateFailure;
+  receipt.seaweedRustGate = gate;
+  return operations.producedImageRuntime();
+}
+
+export function exportSeaweedRustAuditReportPair({ directory, role, jsonFile, cyclonedxFile }) {
+  if (!safePath(directory) || !["volume", "worker"].includes(role) || !safePath(jsonFile) || !safePath(cyclonedxFile) ||
+      jsonFile === cyclonedxFile) fail("scanner_seaweed_rust_evidence_export_invalid");
+  const publishedJson = path.join(directory, `${role}.json`);
+  const publishedCyclonedx = path.join(directory, `${role}.cdx.json`);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (existsSync(publishedJson) || existsSync(publishedCyclonedx)) fail("scanner_seaweed_rust_evidence_export_invalid");
+  for (const [source, target] of [[jsonFile, publishedJson], [cyclonedxFile, publishedCyclonedx]]) {
+    const info = lstatSync(source);
+    if (!info.isFile() || info.isSymbolicLink()) fail("scanner_seaweed_rust_evidence_export_invalid");
+    copyFileSync(source, target); chmodSync(target, 0o400);
+  }
+  return { role, jsonFile: publishedJson, cyclonedxFile: publishedCyclonedx };
+}
+
+export async function auditAndPublishSeaweedRustControlReport({ control, file, directory, metadata, artifactName, now }) {
+  if (!["cargo-lock-vulnerable", "cargo-lock-clean"].includes(control) || !safePath(file) || !safePath(directory)) {
+    fail("scanner_seaweed_rust_evidence_export_invalid");
+  }
+  let result, failure, reportRead = false;
+  try {
+    const report = (await readBoundedJson(file)).value;
+    reportRead = true;
+    result = validateSeaweedRustControlReport({ control, report, metadata, artifactName, now });
+  }
+  catch (error) { failure = classifySeaweedRustSubjectFailure(error, "control"); }
+  if (reportRead) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const published = path.join(directory, `${control}.json`);
+    if (existsSync(published)) fail("scanner_seaweed_rust_evidence_export_invalid");
+    copyFileSync(file, published); chmodSync(published, 0o400);
+  }
+  return failure ? { result: null, failure } : { result, failure: null };
+}
+
+export async function auditAndPublishSeaweedRustSourceReports({ role, files, directory, metadata, artifactName, now }) {
+  if (!["volume", "worker"].includes(role) || !files || !safePath(files.json) || !safePath(files.sbom) || !safePath(directory)) {
+    fail("scanner_seaweed_rust_evidence_export_invalid");
+  }
+  let result, failure, reportsRead = false;
+  try {
+    const report = (await readBoundedJson(files.json)).value;
+    const sbom = (await readBoundedJson(files.sbom)).value;
+    reportsRead = true;
+    result = validateSeaweedRustLockUniverse({ role, report, sbom, metadata, artifactName, now });
+  }
+  catch (error) { failure = classifySeaweedRustSubjectFailure(error, "source"); }
+  if (reportsRead) exportSeaweedRustAuditReportPair({ directory, role, jsonFile: files.json, cyclonedxFile: files.sbom });
+  return failure ? { result: null, failure } : { result, failure: null };
+}
+
 export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream" }) {
   if (!["upstream", "managed"].includes(scope)) fail("scanner_official_arguments_invalid");
   if (process.platform !== "linux" || process.getuid?.() === 0 || process.env.GITHUB_ACTIONS !== "true" ||
@@ -422,7 +638,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   let cleanupUncertain = false;
   const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
-  const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false } = {}) => {
+  const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
+    expectedStdout, requireEmptyStderr = false } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
@@ -456,7 +673,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         }
       }
     }
-    if (!successful(result)) fail("scanner_official_command_failed");
+    if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
+        requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
     return result.stdout;
   };
   const phase = async (name, operation) => {
@@ -470,10 +688,12 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     const policyInputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }]);
     const config = validateOfficialReleaseConfig((await readBoundedJson(configFile, MiB)).value);
     const lock = (await readBoundedJson(lockFile, MiB)).value;
-    let managed;
+    let managed, rustMetadata, rustMetadataFile;
     let managedInputs = [];
     if (scope === "managed") {
       managed = validateManagedImageLock((await readBoundedJson(path.join(ROOT, "infra/managed-images/lock.json"), MiB)).value, config);
+      rustMetadataFile = path.join(ROOT, "infra/managed-images/seaweed-rust-source.json");
+      rustMetadata = validateSeaweedRustSourceLock((await readBoundedJson(rustMetadataFile, MiB)).value, config);
       const sourceFiles = [];
       const visit = (directory) => {
         for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -523,6 +743,11 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       carrierBytes = inspected?.[0]?.Size;
       if (inspected.length !== 1 || inspected[0].Os !== "linux" || inspected[0].Architecture !== "amd64" || !Number.isSafeInteger(carrierBytes) || carrierBytes < 1 || carrierBytes > 2 * GiB ||
           !inspected[0].RepoDigests?.includes(carrier)) fail("scanner_official_carrier_invalid");
+      if (managed) {
+        const bashVersion = command("/usr/bin/bash", ["--noprofile", "--norc", "--version"],
+          { file: path.join(output, "bash-version.txt"), timeout: 30_000 }).toString("utf8");
+        if (!/^GNU bash, version [1-9][0-9]*\.[0-9]+(?:\.[0-9]+)?/u.test(bashVersion)) fail("scanner_seaweed_rust_helper_control_invalid");
+      }
       command(DOCKER, ["version", "--format", "{{json .}}"], { file: path.join(output, "docker-version.json") });
       command(DOCKER, ["buildx", "version"], { file: path.join(output, "buildx-version.txt") });
     });
@@ -668,7 +893,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         }
       });
     }
-    await phase("five_image_audits", async () => {
+    let originalImageFailure;
+    try { await phase("five_image_audits", async () => {
       receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
         ? { role: image.role, ...localImages.get(image.role).subject }
         : { role: image.role, kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform });
@@ -719,10 +945,213 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       });
       receipt.reports = collected.reports; receipt.blockers = collected.blockers; receipt.rejections = collected.rejections;
       if (collected.rejections.length) fail("scanner_official_images_blocked");
-    });
-    if (managed && receipt.builds.some((build) => build.result !== "passed" || build.evidenceExport !== "passed")) fail("scanner_managed_build_incomplete");
-    await assertFilesUnchanged(inputs);
-    if (managed) await phase("produced_image_runtime", async () => {
+    }); } catch (error) {
+      if (error?.message !== "scanner_official_images_blocked" || cleanupUncertain) throw error;
+      originalImageFailure = error;
+    }
+    if (managed) await runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure }, {
+      sourceAndHelperAudits: async () => {
+      const sourceRoot = path.join(work, "seaweed-rust-source-inputs"); mkdirSync(sourceRoot, { mode: 0o700 });
+      for (const entry of rustMetadata.files) {
+        const destination = path.join(sourceRoot, ...entry.path.split("/"));
+        mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+        if (existsSync(destination)) fail("scanner_seaweed_rust_source_invalid");
+        const fetch = seaweedRustSourceFetchArguments(entry, destination);
+        command(fetch.command, fetch.args, { timeout: fetch.timeoutMs, requireEmptyStderr: true });
+      }
+      const prepared = prepareSeaweedRustLockViews({ metadata: rustMetadata, sourceRoot,
+        viewsRoot: path.join(work, "seaweed-rust-lock-views") });
+      const sourceInputs = await captureFiles(prepared.originals.map(({ path: file, cap }) => ({ path: file, cap })));
+      if (sourceInputs.some((entry, index) => entry.size !== prepared.originals[index].size || entry.sha256 !== prepared.originals[index].sha256)) {
+        fail("scanner_seaweed_rust_source_changed");
+      }
+      receipt.seaweedRustSources = sourceInputs.map(({ path: file, size, sha256 }) => ({
+        path: path.relative(sourceRoot, file).replaceAll(path.sep, "/"), size, sha256 }));
+      const viewByRole = new Map(prepared.views.map((entry) => [entry.role, entry]));
+      const publicRoot = path.join(work, "seaweed-rust-public"); mkdirSync(publicRoot, { mode: 0o700 });
+      const publicSources = path.join(publicRoot, "sources"); mkdirSync(publicSources, { mode: 0o700 });
+      for (const entry of rustMetadata.files) {
+        let relative = entry.path;
+        if (relative.endsWith("Cargo.lock")) relative = `${relative}.txt`;
+        else if (relative === "docker/Dockerfile.go_build") relative = `${relative}.txt`;
+        else if (relative.endsWith("container_release_unified.yml")) relative = `${relative}.txt`;
+        const destination = path.join(publicSources, ...relative.split("/"));
+        mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+        copyFileSync(path.join(sourceRoot, ...entry.path.split("/")), destination); chmodSync(destination, 0o400);
+      }
+      const publicSourceInputs = await captureFiles(rustMetadata.files.map((entry) => {
+        let relative = entry.path;
+        if (relative.endsWith("Cargo.lock") || relative === "docker/Dockerfile.go_build" || relative.endsWith("container_release_unified.yml")) {
+          relative = `${relative}.txt`;
+        }
+        return { path: path.join(publicSources, ...relative.split("/")), cap: MiB };
+      }));
+      receipt.seaweedRustPublicSources = validateSeaweedRustPublicSourceMapping({ metadata: rustMetadata,
+        originals: receipt.seaweedRustSources,
+        copies: publicSourceInputs.map(({ path: file, size, sha256 }) => ({
+          path: path.relative(publicSources, file).replaceAll(path.sep, "/"), size, sha256 })),
+      });
+      writeJson(path.join(publicRoot, "source-map.json"), receipt.seaweedRustPublicSources);
+      chmodSync(path.join(publicRoot, "source-map.json"), 0o400);
+      copyFileSync(rustMetadataFile, path.join(publicRoot, "seaweed-rust-source.json"));
+      chmodSync(path.join(publicRoot, "seaweed-rust-source.json"), 0o400);
+      receipt.seaweedRustControls = [];
+      receipt.seaweedRustSourceAudits = [];
+      receipt.seaweedRustHelpers = [];
+      const rustFailures = [];
+      const globalCheck = async () => {
+        if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
+        await databaseEvidence(cache, new Date()); await assertFilesUnchanged(inputs); await assertFilesUnchanged(sourceInputs);
+      };
+      for (const control of rustMetadata.controls) {
+        await globalCheck();
+        const view = viewByRole.get(control.role); const file = path.join(output, `seaweed-rust-${control.role}.json`);
+        let failure, result;
+        try {
+          try { command(DOCKER, seaweedRustScanArguments({ carrier, scanner, cache, view: view.path, format: "json" }), { file }); }
+          catch (error) {
+            if (receipt.commands.at(-1)?.error || receipt.commands.at(-1)?.signal || cleanupUncertain) throw error;
+            failure = classifySeaweedRustSubjectFailure(error, "control");
+          }
+          if (!failure) ({ result, failure } = await auditAndPublishSeaweedRustControlReport({ control: control.role, file,
+            directory: path.join(publicRoot, "controls"), metadata: rustMetadata, artifactName: view.artifactName, now: new Date() }));
+          if (failure) {
+            receipt.seaweedRustControls.push({ role: control.role, result: "rejected", reason: failure.message });
+            rustFailures.push(failure);
+          } else receipt.seaweedRustControls.push(result);
+        } finally { await globalCheck(); }
+      }
+      for (const role of rustMetadata.roles) {
+        await globalCheck();
+        const view = viewByRole.get(role.role);
+        const files = { json: path.join(output, `seaweed-rust-${role.role}.json`), sbom: path.join(output, `seaweed-rust-${role.role}.cdx.json`) };
+        const scanFailures = [];
+        for (const format of ["json", "cyclonedx"]) {
+          try { command(DOCKER, seaweedRustScanArguments({ carrier, scanner, cache, view: view.path, format }),
+            { file: format === "json" ? files.json : files.sbom }); }
+          catch (error) {
+            if (receipt.commands.at(-1)?.error || receipt.commands.at(-1)?.signal || cleanupUncertain) throw error;
+            scanFailures.push(classifySeaweedRustSubjectFailure(error, "source"));
+          }
+          await globalCheck();
+        }
+        let result, failure;
+        try {
+          if (scanFailures.length) failure = scanFailures[0];
+          else ({ result, failure } = await auditAndPublishSeaweedRustSourceReports({ role: role.role, files,
+            directory: path.join(publicRoot, "audits"), metadata: rustMetadata, artifactName: view.artifactName, now: new Date() }));
+          if (failure) {
+            receipt.seaweedRustSourceAudits.push({ role: role.role, result: "rejected", reason: failure.message }); rustFailures.push(failure);
+          } else {
+            receipt.seaweedRustSourceAudits.push(result);
+            if (result.result !== "passed") rustFailures.push(new Error("scanner_seaweed_rust_policy_blocked"));
+          }
+        } finally { await globalCheck(); }
+      }
+      const seaweed = config.images.find((image) => image.role === "seaweedfs");
+      const reference = `${seaweed.repository}@${seaweed.platform.digest}`;
+      command(DOCKER, ["pull", "--platform", "linux/amd64", reference], { timeout: 5 * 60_000 });
+      const inspected = JSON.parse(command(DOCKER, ["image", "inspect", reference],
+        { file: path.join(output, "seaweed-rust-image-inspect.json") }).toString("utf8"));
+      const imageReport = (await readBoundedJson(path.join(output, "image-seaweedfs.json"))).value;
+      const imageId = validatePreparedRuntimeImage(inspected, imageReport);
+      const helperRoot = path.join(work, "seaweed-rust-helper-copies"); mkdirSync(helperRoot, { mode: 0o700 });
+      const limitRoot = path.join(work, "seaweed-rust-soft-limit-control"); mkdirSync(limitRoot, { mode: 0o700 });
+      const disk = statfsSync(helperRoot); const freeBytes = disk.bavail * disk.bsize;
+      let helperReceipt, helperFailure;
+      try {
+        helperReceipt = await collectSeaweedRustHelperIdentity({ metadata: rustMetadata, imageId, imageReport, directory: helperRoot,
+          limitDirectory: limitRoot, name: `aw-seaweed-rust-${randomUUID()}`, owner, freeBytes }, {
+          softLimitControl: async (spec) => {
+            try { command(spec.command, spec.args, { timeout: spec.timeoutMs, env: spec.environment, expectedStdout: spec.expectedStdout }); }
+            catch (error) {
+              throw classifySeaweedRustHelperCommandFailure({ error, record: receipt.commands.at(-1), operation: "softLimitControl" });
+            }
+          },
+          create: async (args) => {
+            try { return command(DOCKER, args, { timeout: 30_000, requireEmptyStderr: true }).toString("utf8").trim(); }
+            catch (error) {
+              throw classifySeaweedRustHelperCommandFailure({ error, record: receipt.commands.at(-1), operation: "create" });
+            }
+          },
+          inspect: async (name) => {
+            const result = invoke(DOCKER, ["container", "inspect", name], 15_000);
+            const record = { executable: "docker", operation: "seaweed_rust_inspect_container", exitCode: result.status,
+              signal: result.signal, error: result.error?.code ?? null };
+            if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result);
+            receipt.commands.push(record);
+            if (record.error != null || record.signal != null) {
+              throw classifySeaweedRustHelperCommandFailure({ error: new Error("scanner_official_command_failed"), record, operation: "inspect" });
+            }
+            return successful(result) ? JSON.parse(result.stdout.toString("utf8")) : result;
+          },
+          copy: async (spec) => {
+            try { command(spec.command, spec.args, { timeout: spec.timeoutMs, env: spec.environment,
+              expectedStdout: spec.expectedStdout, requireEmptyStderr: true }); }
+            catch (error) {
+              throw classifySeaweedRustHelperCommandFailure({ error, record: receipt.commands.at(-1), operation: "copy" });
+            }
+          },
+          measure: async ({ file }) => {
+            const info = lstatSync(file); const [identity] = await captureFiles([{ path: file, cap: 512 * MiB }]);
+            return { info: { isFile: info.isFile(), isSymbolicLink: info.isSymbolicLink(), nlink: info.nlink, mode: info.mode & 0o777 },
+              identity: { size: identity.size, sha256: identity.sha256 } };
+          },
+          listHostFiles: async (directory) => readdirSync(directory),
+          remove: async (args) => { command(DOCKER, args, { timeout: 30_000, requireEmptyStderr: true }); },
+          proveAbsent: async (name, anonymousVolumes) => {
+            const container = invoke(DOCKER, ["container", "inspect", name], 15_000);
+            receipt.commands.push({ executable: "docker", operation: "seaweed_rust_prove_container_absent", exitCode: container.status,
+              signal: container.signal, error: container.error?.code ?? null });
+            const volumes = anonymousVolumes.map((volume) => {
+              const result = invoke(DOCKER, ["volume", "inspect", volume], 15_000);
+              receipt.commands.push({ executable: "docker", operation: "seaweed_rust_prove_volume_absent", exitCode: result.status,
+                signal: result.signal, error: result.error?.code ?? null });
+              return result;
+            });
+            return anonymousVolumes.length ? { container, volumes } : container;
+          },
+        });
+      } catch (error) {
+        if (error.message === "scanner_seaweed_rust_helper_cleanup_uncertain") { cleanupUncertain = true; throw error; }
+        if (receipt.commands.at(-1)?.error || receipt.commands.at(-1)?.signal || cleanupUncertain) throw error;
+        helperFailure = classifySeaweedRustSubjectFailure(error, "helper");
+        receipt.seaweedRustHelpers = rustMetadata.roles.map(({ role }) => ({ role, result: "rejected", reason: helperFailure.message }));
+        rustFailures.push(helperFailure);
+      }
+      if (!helperFailure) {
+        receipt.seaweedRustHelpers = helperReceipt.measurements;
+        writeJson(path.join(publicRoot, "helper-measurements.json"), helperReceipt);
+        if (helperReceipt.result === "rejected") {
+          rustFailures.push(new Error(helperReceipt.measurements.find((entry) => entry.result === "rejected").reason));
+        }
+      }
+      await globalCheck();
+      const controlEvidence = receipt.seaweedRustControls.map((entry) => entry.result === "passed" ? ({
+        role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass, packageCount: entry.inventory.pairs.length,
+        inventorySha256: entry.inventory.sha256, findingCount: entry.findingCount, blockerCount: entry.blockerCount,
+      }) : ({ role: entry.role, result: "rejected", reason: entry.reason }));
+      const sourceEvidence = receipt.seaweedRustSourceAudits.map((entry) => entry.evidenceClass ? ({
+        role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass, scope: entry.scope, lockSha256: entry.lockSha256,
+        contextImageDigest: entry.contextImageDigest, packageCount: entry.packageCount, inventorySha256: entry.inventorySha256,
+        findingCount: entry.findings.length, blockerCount: entry.blockers.length,
+      }) : ({ role: entry.role, result: "rejected", reason: entry.reason }));
+      const helperEvidence = receipt.seaweedRustHelpers.map((entry) => entry.evidenceClass ? ({
+        role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass, imageDigest: entry.imageDigest, bytes: entry.bytes,
+        sha256: entry.sha256, hostCopyMode: entry.hostCopyMode, hostCopyNlink: entry.hostCopyNlink,
+        intrinsicBinaryInventory: entry.intrinsicBinaryInventory, sourceToBinaryEquivalence: entry.sourceToBinaryEquivalence,
+      }) : ({ role: entry.role, result: "rejected", reason: entry.reason }));
+      const publicReceipt = { schemaVersion: 1, state: "diagnostic_only", admission: "NOT_AUTHORIZED", milestone2: "NOT_ESTABLISHED",
+        controls: controlEvidence, sourceAudits: sourceEvidence, helpers: helperEvidence, limitations: rustMetadata.limitations };
+      validateSeaweedRustPublicEvidence(publicReceipt, rustMetadata);
+      writeJson(path.join(publicRoot, "receipt.json"), publicReceipt);
+      const published = path.join(output, "managed-public-evidence"); if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+      receipt.seaweedRustPublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-rust-source"));
+      await assertFilesUnchanged(inputs); await assertFilesUnchanged(sourceInputs); await assertFilesUnchanged(publicSourceInputs);
+        return { failure: rustFailures[0] ?? null };
+      },
+      producedImageRuntime: async () => phase("produced_image_runtime", async () => {
+       await assertFilesUnchanged(inputs);
       const directory = path.join(work, `managed-runtime-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
       const runtimeFile = path.join(ROOT, "tests/managed-image-runtime.integration.mjs");
       const runtimeSources = await captureFiles([runtimeFile, path.join(ROOT, "infra/compose.json"), path.join(ROOT, "infra/object-store-init.sh"),
@@ -788,6 +1217,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       const { passed } = await publishManagedRuntimeResult({ resultFile: path.join(directory, "runtime-result.json"),
         publicFile: path.join(output, "managed-runtime-result.json"), expected: runtimeInput, childFailed: Boolean(childFailure), receipt });
       if (!passed) fail("scanner_managed_runtime_incomplete");
+      }),
     });
     await assertFilesUnchanged(inputs);
     receipt.result = "passed";

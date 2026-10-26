@@ -1,0 +1,66 @@
+# TASK-0005 — SeaweedFS Rust source and helper diagnostics
+
+Status: SOURCE_PREPARED / FRESH_LINUX_REQUIRED, 26 October 2026. [PR201](https://github.com/CleMeY15/auto-world/pull/201) publishes the exact implementation plan before code. TASK-0005/0005A remain IN_PROGRESS; this record grants no admission, support activation or final lifecycle acceptance.
+
+## Accepted prerequisite and remaining gap
+
+[PR199's protected-main checkpoint](https://github.com/CleMeY15/auto-world/pull/199) accepts the OpenSearch correction and four-case diagnostic on main `ce2bd210cd5f6a838e360a3ad736332d5570a5d6`, tree `188a7f72fed926af7893fbf307bfb14aed9951ce`. Fresh [quality40391239291](https://github.com/CleMeY15/auto-world/actions/runs/40391239291) and [managed40391238345](https://github.com/CleMeY15/auto-world/actions/runs/40391238345) received actual independent original-evidence reviews. Main quality has2622 root,624 workspace and393 browser successes,60 root/7 existing WebKit skips, no failure/flaky/retry. Main managed has nine successful phases, both builder audits, three builds, five scoped role audits, all four actual runtime cases and cleanup. Distinct causal review confirms16 native reports/1736 tests/1689 passes/47 known skips/zero failures or errors, exact three seeded controls and preserved JDK. These are the preceding source increment's results, not proof for changed PR201 code.
+
+The selected SeaweedFS4.51 result inventories29 OS packages and245 Go modules under `/usr/bin/weed`. It has no Cargo target or intrinsic inventory for `/usr/bin/weed-volume` and `/usr/bin/weed-worker`. Current zero findings therefore do not cover the two helpers' linked Rust dependencies. Their unsigned upstream build metadata does not establish signer trust or source-to-binary equivalence.
+
+## Reviewed contract
+
+The [exact bounded plan](../../roadmap/plans/TASK-0005-seaweed-rust-source-audit.md), SHA256 `4f1c92b946bcf51ea38f607466f352d13909e5b35a297a2d66ce3d864a005c8f`, received actual Architect APPROVE followed by distinct Critic APPROVE. Its unchanged bytes were committed in59c2d59 and published/read back in PR201 before implementation. Earlier review iterations and source observations remain preserved; approval covers this diagnostic increment only.
+
+Reuse qualified Trivy0.76.1, the same captured read-only databases, existing restricted carrier and severity/disposition policy. Do not add a Cargo compiler, scanner, dependency, runtime TOML parser, archive implementation or registry writer. Keep the frozen Go/Java controls and shared policy unchanged. Vulnerability DB age stays at most48hours; Java age stays recorded without a maximum. All CRITICAL and fixable HIGH block; no unfixed-HIGH disposition is granted here.
+
+## Independently anchored lock inventory
+
+Cargo manifests can cause this scanner's Rust analyzer to remove dependencies. `--include-dev-deps` is not a Rust guarantee. Each blocking scan therefore sees exactly one original `Cargo.lock`, with no adjacent manifest, feature selection or target reduction. Eleven exact SeaweedFS manifest/build/lock files remain separately retained and hash-bound as declared context.
+
+Expected package identities were measured directly from exact source `ffa87c25fdf587178b1521ad87f2a4a72a02e584` and independently reconstructed from the same retained original bytes. They were not derived from scanner output. Canonical data is ASCII `[name,version]` pairs sorted by name then version using code-unit comparison, compact UTF-8 JSON without BOM and with exactly one final LF. Duplicate pairs are refused. Both JSON and CycloneDX must separately match this source digest; agreement between two substituted reports is insufficient.
+
+| Source | Original SHA256 | Packages | Canonical bytes / SHA256 |
+| --- | --- | ---: | --- |
+| `seaweed-volume/Cargo.lock` | `7720ca362ce66b56f8f043e37720c3c12e0c8e008ec29d9436e2e1ce46b495f2` |498|12234 / `2cc9985b29f8de9fb6ee0228b3d6acafa7de38a8d8eb163d9ec9c3356c0f4a79`|
+| `seaweed-worker/Cargo.lock` | `a9b48631597bda1a2dd8d79f5f871764f29685ad8484fc394955ae4dd39108bb` |590|14985 / `750e245f91a9f8d26bd4958b1a06e1d72c7028545ed697e71befc7243f0d9343`|
+
+JSON requires one Cargo result and the complete expected multiset, including local/path packages. CycloneDX Cargo-library identities must match; filesystem root and Cargo.lock application components are excluded from package counts. Dependency references are checked without claiming resolved build reachability. A source change requires new independent measurement; a failed scanner report cannot supply a replacement pin.
+
+## Rust analyzer controls
+
+Exactly two additional JSON controls use upstream Trivy source `e713f67f7d54decdcd9b3132c9751833dcced698`, the same qualified scanner/database and isolated-lock profile. Both original source and canonical inventory were independently verified. Adjacent upstream manifests and other ecosystems' locks are explicitly outside this fixture profile.
+
+| Control | Exact upstream Cargo.lock | Packages | Raw SHA256 / canonical SHA256 |
+| --- | --- | ---: | --- |
+| vulnerable | `integration/testdata/fixtures/repo/trivy-ci-test/Cargo.lock` |74|`bdd6b5e1d9700326d43bf3ad586c130ac1f883d634d127f841bf7707e2350117` / `11fb06dd4a7db051a69b07a5d9d24eeff35e2e9d47398c7d662b101a8307f316`|
+| clean candidate | `integration/testdata/fixtures/repo/cargo/Cargo.lock` |10|`f8e887c771fb2cfdd969dd97469e11bca8c7cbb9d65ebcd9faaa20d96b9988a6` / `8077301894e5afb55bb49240f515989fd600588a0fd4f093b5182ba645aa8ea5`|
+
+The positive control requires `ammonia1.9.0`, HIGH, one of the exact aliases `RUSTSEC-2019-0001`, `CVE-2019-15542`, `GHSA-5hp8-35wj-m525`, and `FixedVersion=2.1.0`. [RustSec](https://rustsec.org/advisories/RUSTSEC-2019-0001.html) and [GitHub's advisory](https://github.com/advisories/GHSA-5hp8-35wj-m525) independently support that identity and corrected version. All additional findings are retained. The intentionally vulnerable data is not executed or adopted, and its expected finding is not a production-policy waiver.
+
+The clean input remains CANDIDATE_ONLY until actual qualified CI produces zero HIGH/CRITICAL findings and the exact inventory. A new database finding blocks qualification and requires independently reviewed replacement, never suppression. Controls run before the two Seaweed lock audits; a control failure blocks runtime while other diagnostic reports are still collected when integrity permits.
+
+## Host-controlled helper identity
+
+The exact upstream artifact12628181692, `rust-bins-amd64`, from run40267629397/sourceffa87 was acquired once with existing credentials and measured without extraction or execution. The private original ZIP is110541555bytes/SHA256 `d4fc8590db8484886ef9257e5d752f561667bb5e79ce4c1646c4f3d03eff8e85`; independent same-original review passes. Job/attempt association is metadata correlation. No new CI credential or artifact reacquisition follows.
+
+| Image path | Selected artifact entry | Bytes | SHA256 |
+| --- | --- | ---: | --- |
+| `/usr/bin/weed-volume` | `weed-volume-normal-amd64` |40128576|`48c7397e7d1802d9728ac7bdfcf30454cb6fb50bb0098b79e88f9b3eaeddc3e4`|
+| `/usr/bin/weed-worker` | `weed-worker-amd64` |252992824|`2f7bd0db4811d463f4fc7278d2a6a336e1adfcb54124ecc79b67dbcab0ba149b`|
+
+Use exact Seaweed platform digest `sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707` and config `sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6`. Create a uniquely owned container without starting it, copy only the two fixed files with standard Docker, then let host Node verify mode0755, regular/non-symlink single-link received files, exact size/hash and directory contents. No candidate program supplies the hash; no candidate `run`, `start` or `exec` occurs during measurement. The single-link claim concerns the host copy, not the original image inode.
+
+Each Docker copy has a child-only soft file-size limit with exact readback, a90second timeout and an inert Linux overflow control. OneGiB free disk is required before copies. Foreign collisions, lost create responses, mount masking, partial copies or uncertain ownership/cleanup cannot become success. Remove only the positively owned stopped container and its newly owned anonymous volumes, then prove absence. Standard Docker's archive handling is an explicit managed boundary; no custom TAR parser is introduced.
+
+## Collection, runtime and delivery gates
+
+Collect all five original image report pairs first; defer only their named aggregate rejection while preserving its failed phase. Global identity/database mutation or cleanup uncertainty still aborts. Then collect the two Rust controls, both production lock JSON/CycloneDX pairs and both helper identities. Each recoverable subject failure retains its siblings. The final combined gate requires all original, control, source, helper, build, evidence and cleanup prerequisites before the four runtime cases.
+
+Export only validated technical text under the existing bounded public tree. Preserve successfully produced, bounded JSON reports even when advisory or inventory validation rejects them, so the refusal remains inspectable. A source pair requires both commands and both bounded JSON reads to succeed; missing, malformed or failed-command output is not published as a valid report. Export and filesystem errors abort rather than becoming recoverable subject refusals. Exact-byte `.txt` representations of otherwise unsupported lock/build/workflow suffixes carry original-to-public path/size/hash mappings; original scan inputs retain their names. Keep4MiB/file,64MiB total and4096-entry limits. Helper binaries, ZIPs, layers and private material locations remain excluded.
+
+Local Windows verification with pinned Node22.23.2/pnpm10.15.0: the exact managed-workflow test selection has495 tests,459 passes,36 explicit platform skips and zero failures. The95 Rust tests contribute94 passes and one Linux-only soft-limit control awaiting actual Linux execution. Root ESLint and workspace lint14/14, typecheck21/21 and build14/14 pass without cache; Secretlint passes for1190 repository files. The only existing OpenSearch-test change updates its adapter SHA assertion to the reviewed new source; frozen controls and policy hashes remain unchanged. Partial-copy, malformed-report, transport-error, cleanup-uncertainty and sibling-conservation regressions exercise production helpers and keep runtime blocked on refusal. These checks establish local source behavior, not actual Cargo findings or helper identity.
+
+Fresh Linux functional controls, independent final implementation review, full source quality/managed proof, normal protected merge and corresponding main proof remain required. No current candidate scan result is claimed by this source record. Rollback reverts only this unadmitted diagnostic increment and preserves historical evidence, private original material, data and volumes.
+
+Even a complete clean lock audit and helper-byte match leave intrinsic binary inventory, source-to-binary equivalence, signer trust and admission NOT_ESTABLISHED. `advisoryCoverage=SCANNER_SUPPORTED_IDENTITIES_ONLY`; M2 remains NOT_ESTABLISHED. A maintained cargo-auditable derivative is the separately reviewed fallback if actual findings or admission completeness require it. Private publication/official signing, complete retained source/notices/evidence, verified second-copy retrieval/restore and all seventeen final lifecycle phases remain open. Support dates remain null until reviewed activation, then one year of support and at least365 additional archive days with continuous security checks.
