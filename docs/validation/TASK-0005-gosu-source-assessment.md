@@ -697,3 +697,59 @@ required. SeaweedFS independently retains two HIGH blockers; DB vulnerability
 age is 6,425,720 ms within 48 hours and Java DB maxAge remains null. The other
 five audit lanes pass, JDK identities agree and all 23 owned absences pass,
 without establishing unexecuted runtime cleanup. No delivery, B0 or admission.
+
+## 2026-10-26 — composite scope passes; fixture-tail child registration fails
+
+[Managed40263614004](https://github.com/CleMeY15/auto-world/actions/runs/40263614004),
+attempt 1, concerns source `d04f6c5df81bb21ba65acbb2b3e621df1d20a04c`, tree
+`a6f45983d9a543fe60750633f20d8e1e481510d1`. Its single received original ZIP is
+1,656,946 bytes/API-local SHA256
+`1a494ccc5f82bfe2d05f9e31732d13bd737d330f9ebb8d39381c74564359313d`.
+The executed merge has protected-main/source parents and the same exact tree;
+all 41 managed sources match Git and all 133 public originals match receipt
+identities, with no missing/extra file or hash mismatch.
+
+Native composite scope exits 0, emits both markers and has no strict-warning
+failure. Direct capture passes, including the source-bound missing-parent case;
+the valid manifest exits 0 and all eleven invalid controls exit 1 as expected.
+The successful-Test fixture then exits 1 before task execution: combined init
+line1332 maps to fixture-tail line365, whose global fixture-mode dispatch calls
+`getByPath(':server:internalClusterTest')` inside included `:missing-doclet`.
+This is separate from the already-scoped production installation. The original
+log and `success-exit/failed` status are retained. Failure fixture, RED/GREEN/full,
+business captures/JUnit and runtime remain NOT_RUN; prior completion results do
+not transfer. The independent helper refuses the missing unfixed manifest.
+
+The bounded test-only repair selects the fixture mode only for
+`gradle.parent == null`; child builds do not read or use the fixture mode and
+install neither direct nor completion fixtures. The main mandatory lookup/type remains,
+and the included build stays present in all modes to preserve this regression.
+Capture production code, driver, provider configuration, Java, pins, limits and
+warning/security policies remain unchanged. Actual source review now passes;
+actual Linux
+scope/direct/manifest/completion, causal/full, audits/runtime and protected
+source/main acceptance remain required. SeaweedFS remains separately rejected;
+TASK-0005/0005A stay IN_PROGRESS and B0/admission/activation remain blocked.
+
+Final test-only dispatch source APPROVE covers the 20,949-byte tail, SHA256
+`9f796673cf0b9bc67f5893f52f204f949041ffdee5fb0b7f240b33ecf98fc266`, and
+50,989-byte Node regression, SHA256
+`a30fcc8d2c4746f0148d779b667b829952e75bbe5be1933f3946aa4a21fe4c1a`.
+The contract rejects the old unguarded dispatch, requires one property read
+before every fixture registration and preserves the required main lookup.
+The bounded independent review also checks every combined-init/tail registration;
+no remaining fixture branch installs in a child build. Node 11 reports
+7 passes/4 explicit Linux exclusions; syntax, ESLint, whitespace and Secretlint
+on 1,178 files pass.
+
+Exact-source [quality40263614017](https://github.com/CleMeY15/auto-world/actions/runs/40263614017),
+attempt 1, is independently accepted SUCCESS for `d04f6c5`/tree `a6f45983`.
+Executed merge `437119cdc29325dce30408cf3d7887fbe3dbb648` has protected-main/source
+parents and that exact tree. Lint14/types21/test28/build14 pass; root2,615 passes/
+60 existing exclusions, workspace624 passes and browser393 passes/7 existing
+WebKit exclusions, no failure/flaky/retry. Secretlint passes 1,178 files and
+dependency audit finds no known vulnerability. Original log: 1,943,217 bytes/
+SHA256 `2297bf6083264d3664be773b6bd80c5b067dec5e39f79819c7bd369605aa958d`;
+summary: 5,325 bytes/SHA256 `582bdb97dd0e09de712b96b6d00cc84ec9f399d80b5dfa9d5e862dd1b9ce2305`.
+Only this preceding source's quality is accepted; its failed managed run,
+the new fixture dispatch correction and protected main gain no transferred result.

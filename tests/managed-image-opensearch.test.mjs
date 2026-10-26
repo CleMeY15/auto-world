@@ -179,6 +179,16 @@ function assertCompositeScopeConfigurationContract(script) {
   assert.doesNotMatch(action, /\bproject\s*\(|\.project\b|getByName\(/u);
 }
 
+function assertFixtureRootDispatchContract(script) {
+  const dispatch = script.indexOf("String fixtureMode = gradle.parent == null ? System.getProperty('auto.world.fixture.mode') : null");
+  const direct = script.indexOf("if (fixtureMode == 'direct')", dispatch);
+  const integration = script.indexOf("else if (fixtureMode == 'success' || fixtureMode == 'failure')", direct);
+  const registration = script.indexOf("gradle.rootProject.tasks.register('autoWorldCaptureFixture')", direct);
+  const mandatorySelection = script.indexOf("gradle.rootProject.tasks.getByPath(':server:internalClusterTest')", integration);
+  assert.ok(dispatch >= 0 && dispatch < direct && direct < registration && direct < integration && integration < mandatorySelection);
+  assert.equal(script.match(/System\.getProperty\('auto\.world\.fixture\.mode'\)/gu)?.length, 1);
+}
+
 function pluginAbsenceCommand(dockerfile) {
   const command = dockerfile.match(/shopt -s nullglob dotglob; \\\n {4}plugins=\(\/usr\/share\/opensearch\/plugins\/\*\); \\\n {4}test "\$\{#plugins\[@\]\}" -eq 0;/u)?.[0];
   assert.ok(command, "missing strict empty-plugin check including hidden entries");
@@ -416,6 +426,13 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureFixture, /replaced-original/u);
   assert.match(outputCaptureFixture, /stream-replaced/u);
   assert.match(outputCaptureFixture, /depth-limit/u);
+  assertFixtureRootDispatchContract(outputCaptureFixture);
+  assert.throws(() => assertFixtureRootDispatchContract(
+    outputCaptureFixture.replace(
+      "String fixtureMode = gradle.parent == null ? System.getProperty('auto.world.fixture.mode') : null",
+      "String fixtureMode = System.getProperty('auto.world.fixture.mode')",
+    ),
+  ));
   assert.match(outputCaptureFixtureBuild, /dependsOn gradle\.includedBuild\('missing-doclet'\)\.task\(':autoWorldIncludedScopeProbe'\)/u);
   assert.match(outputCaptureFixtureBuild, /includeSystemOutLog\.get\(\) == false/u);
   assert.match(outputCaptureFixtureBuild, /includeSystemErrLog\.get\(\) == false/u);

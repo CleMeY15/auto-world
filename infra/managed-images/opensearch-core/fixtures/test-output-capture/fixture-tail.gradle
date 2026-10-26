@@ -351,7 +351,7 @@ final class AutoWorldCaptureFixtureCases {
     }
 }
 
-String fixtureMode = System.getProperty('auto.world.fixture.mode')
+String fixtureMode = gradle.parent == null ? System.getProperty('auto.world.fixture.mode') : null
 if (fixtureMode == 'direct') {
     gradle.projectsEvaluated {
         gradle.rootProject.tasks.register('autoWorldCaptureFixture') {
