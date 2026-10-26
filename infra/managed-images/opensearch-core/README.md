@@ -46,7 +46,10 @@ phase gate can pass. It accepts no caller-supplied root, task or output path.
 
 Before upstream tests, `verify-test-output-capture.sh` runs the exact init source
 concatenated with an inert fixture tail through the authenticated Gradle 9.7.1
-wrapper and builder JDK. It covers direct event/lifecycle/boundary cases plus
+wrapper and builder JDK. A composite-build scope probe first proves that the init
+registers capture only in the root build while an included build without the
+selected server task sees the same valid phase and remains untouched. It then
+covers direct event/lifecycle/boundary cases plus
 actual successful and expected-failing `Test` task `afterExecute` finalization.
 The fixture has no external dependency and runs no candidate service or image.
 Only its fixed summary, original Gradle logs/statuses and two valid integration

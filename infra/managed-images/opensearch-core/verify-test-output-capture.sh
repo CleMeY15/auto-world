@@ -55,6 +55,8 @@ record_diagnostic() {
   local status=$2
   case "$subcase" in
     initialized|direct-process|direct-exit|direct-summary|direct-sentinel \
+      |scope-process|scope-exit|scope-sentinel|scope-included-marker \
+      |scope-root-marker|scope-capture-absent \
       |manifest-valid|manifest-malformed|manifest-hash|manifest-bytes \
       |manifest-totals|manifest-aggregate-events|manifest-aggregate-bytes \
       |manifest-path|manifest-missing|manifest-extra|manifest-file-count \
@@ -129,11 +131,11 @@ path_absent "$fixture_root"
 path_absent "$public_root"
 mkdir "$fixture_root" "$public_root"
 record_diagnostic initialized running
-mkdir "$public_root/direct" "$public_root/success" "$public_root/failure" "$public_root/manifest"
+mkdir "$public_root/scope" "$public_root/direct" "$public_root/success" "$public_root/failure" "$public_root/manifest"
 for manifest_case in valid malformed hash bytes totals aggregate-events aggregate-bytes path missing extra file-count symlink; do
   mkdir "$public_root/manifest/$manifest_case"
 done
-for process_directory in "$public_root/direct" "$public_root/success" "$public_root/failure" "$public_root"/manifest/*; do
+for process_directory in "$public_root/scope" "$public_root/direct" "$public_root/success" "$public_root/failure" "$public_root"/manifest/*; do
   : > "$process_directory/gradle.log"
   printf '%s\n' NOT_RUN > "$process_directory/gradle.exit-code"
 done
@@ -155,6 +157,7 @@ prepare_fixture() {
   owned_directory "$destination/build"
   cp "$fixture_source/settings.gradle" "$fixture_source/build.gradle" "$destination/"
   cp -R "$fixture_source/server" "$destination/"
+  cp -R "$fixture_source/missing-doclet" "$destination/"
   cat "$init_source" "$fixture_tail" > "$destination/combined.init.gradle"
   printf '%s  %s\n' "$(sha256sum "$init_source" | cut -d ' ' -f 1)" "$init_source" \
     > "$destination/init-source.sha256"
@@ -162,6 +165,26 @@ prepare_fixture() {
     | sha256sum | cut -d ' ' -f 1 \
     | grep -Fxq "$(sha256sum "$init_source" | cut -d ' ' -f 1)"
 }
+
+record_diagnostic scope-process running
+prepare_fixture scope
+scope_status=0
+bash "$source_root/gradlew" --no-daemon --no-build-cache --no-configuration-cache --max-workers=1 \
+  -p "$fixture_root/scope" -I "$fixture_root/scope/combined.init.gradle" \
+  -Dauto.world.test.output.phase=full autoWorldCompositeScopeFixture \
+  > "$fixture_root/scope/gradle.log" 2>&1 || scope_status=$?
+printf '%s\n' "$scope_status" > "$fixture_root/scope/gradle.exit-code"
+if publish_process "$public_root/scope" "$fixture_root/scope/gradle.log" "$fixture_root/scope/gradle.exit-code"; then
+  record_diagnostic scope-process passed
+else
+  record_diagnostic scope-process failed
+  exit 1
+fi
+run_check scope-exit test "$scope_status" -eq 0
+run_check scope-sentinel sentinel_absent "$fixture_root/scope/gradle.log" "$sentinel"
+run_check scope-included-marker sentinel_present "$fixture_root/scope/gradle.log" 'AUTO_WORLD_COMPOSITE_SCOPE_INCLUDED_PASS'
+run_check scope-root-marker sentinel_present "$fixture_root/scope/gradle.log" 'AUTO_WORLD_COMPOSITE_SCOPE_ROOT_PASS'
+run_check scope-capture-absent path_absent /evidence/test-output/full
 
 record_diagnostic direct-process running
 prepare_fixture direct
@@ -369,6 +392,7 @@ fi
 record_diagnostic summary running
 printf '%s\n' \
   'schema=auto-world-test-output-capture-fixture-v1' \
+  'composite-scope=passed capture=not-started' \
   'direct=passed' \
   'manifest-validator=passed negatives=malformed,hash,bytes,totals,aggregate-events,aggregate-bytes,path,missing,extra,file-count,symlink' \
   'successful-test-task=passed capture=complete' \

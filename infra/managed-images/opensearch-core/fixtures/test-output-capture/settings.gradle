@@ -1,2 +1,3 @@
 rootProject.name = 'auto-world-test-output-capture-fixture'
 include 'server'
+includeBuild 'missing-doclet'

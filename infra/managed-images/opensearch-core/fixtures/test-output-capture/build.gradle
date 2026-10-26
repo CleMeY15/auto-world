@@ -17,3 +17,14 @@ project(':server') {
         }
     }
 }
+
+tasks.register('autoWorldCompositeScopeFixture') {
+    dependsOn gradle.includedBuild('missing-doclet').task(':autoWorldIncludedScopeProbe')
+    doLast {
+        Test selected = (Test) project(':server').tasks.getByName('internalClusterTest')
+        assert selected.reports.junitXml.includeSystemOutLog.get() == false
+        assert selected.reports.junitXml.includeSystemErrLog.get() == false
+        assert !selected.state.executed
+        println 'AUTO_WORLD_COMPOSITE_SCOPE_ROOT_PASS'
+    }
+}

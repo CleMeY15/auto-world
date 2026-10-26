@@ -15,6 +15,8 @@ const outputCapture = readFileSync(path.join(directory, "test-output-capture.gra
 const outputCaptureVerifier = readFileSync(path.join(directory, "verify-test-output-capture.sh"), "utf8");
 const outputManifestVerifier = readFileSync(path.join(directory, "verify-test-output-manifest.gradle"), "utf8");
 const outputCaptureFixture = readFileSync(path.join(directory, "fixtures/test-output-capture/fixture-tail.gradle"), "utf8");
+const outputCaptureFixtureBuild = readFileSync(path.join(directory, "fixtures/test-output-capture/build.gradle"), "utf8");
+const outputCaptureIncludedBuild = readFileSync(path.join(directory, "fixtures/test-output-capture/missing-doclet/build.gradle"), "utf8");
 const scannerControls = readFileSync(new URL("../scripts/scanner/controls.mjs", import.meta.url));
 const scannerAuditPolicy = readFileSync(new URL("../scripts/scanner/audit-policy.mjs", import.meta.url));
 const officialAudit = readFileSync(new URL("../scripts/scanner/official-audit.mjs", import.meta.url));
@@ -45,6 +47,7 @@ function runOutputDiagnosticFault(t, fault) {
   const evidenceRoot = path.join(root, "evidence");
   const fixtureSource = path.join(recipeRoot, "test-output-capture-fixture");
   mkdirSync(path.join(fixtureSource, "server"), { recursive: true });
+  mkdirSync(path.join(fixtureSource, "missing-doclet"));
   mkdirSync(sourceRoot);
   mkdirSync(path.join(evidenceRoot, "test-output"), { recursive: true });
   writeFileSync(path.join(recipeRoot, "test-output-capture.gradle"), "init\n");
@@ -52,6 +55,8 @@ function runOutputDiagnosticFault(t, fault) {
   writeFileSync(path.join(fixtureSource, "fixture-tail.gradle"), "tail\n");
   writeFileSync(path.join(fixtureSource, "settings.gradle"), "settings\n");
   writeFileSync(path.join(fixtureSource, "build.gradle"), "build\n");
+  writeFileSync(path.join(fixtureSource, "missing-doclet/settings.gradle"), "rootProject.name = 'missing-doclet'\n");
+  writeFileSync(path.join(fixtureSource, "missing-doclet/build.gradle"), "plugins { id 'base' }\n");
 
   const mockGradle = `#!/bin/bash
 set -euo pipefail
@@ -64,6 +69,12 @@ done
 test -d "$project/build"
 test ! -L "$project/build"
 test "$(stat -c '%u' "$project/build")" -eq "$(id -u)"
+if [[ " $* " == *' autoWorldCompositeScopeFixture '* ]]; then
+  test -f "$project/missing-doclet/settings.gradle"
+  test -f "$project/missing-doclet/build.gradle"
+  printf '%s\\n' AUTO_WORLD_COMPOSITE_SCOPE_INCLUDED_PASS AUTO_WORLD_COMPOSITE_SCOPE_ROOT_PASS
+  exit 0
+fi
 if [[ " $* " == *' autoWorldVerifyTestOutputManifest '* ]]; then
   count=0
   if [ -f "$project/manifest-count" ]; then count=$(cat "$project/manifest-count"); fi
@@ -146,6 +157,15 @@ function assertXContentProjectContract(script) {
   assert.match(script, /^for group in libs\/x-content modules\/ingest-geoip; do$/mu);
   assert.match(script, /^ {2}libs\/x-content\/build\/test-results\/test \\$/mu);
   assert.doesNotMatch(script, /libs\/opensearch-x-content\//u);
+}
+
+function assertCaptureInstallationContract(script) {
+  const phaseValidation = script.indexOf("AutoWorldTestOutputCapture.acceptsPhase(autoWorldCapturePhase)");
+  const rootBuildGuard = script.indexOf("if (gradle.parent == null)");
+  const mandatorySelection = script.indexOf("gradle.rootProject.tasks.getByPath(':server:internalClusterTest')");
+  assert.ok(phaseValidation >= 0 && phaseValidation < rootBuildGuard && rootBuildGuard < mandatorySelection);
+  assert.match(script, /if \(gradle\.parent == null\) \{[\s\S]*tasks\.getByPath\(':server:internalClusterTest'\)[\s\S]*if \(!\(selected instanceof Test\)\)/u);
+  assert.doesNotMatch(script, /tasks\.findByPath\(':server:internalClusterTest'\)|GradleInternal|BuildState/u);
 }
 
 function pluginAbsenceCommand(dockerfile) {
@@ -299,6 +319,13 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.doesNotMatch(outputCapture, /groovy\.json\.JsonOutput|\.collect \{ descriptor/u);
   assert.match(outputCapture, /AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR/u);
   assert.doesNotMatch(outputCapture, /getSource\(|outputPerTestCase|Base64|GZIP|chunk/u);
+  assertCaptureInstallationContract(outputCapture);
+  assert.throws(() => assertCaptureInstallationContract(
+    outputCapture.replace("tasks.getByPath(':server:internalClusterTest')", "tasks.findByPath(':server:internalClusterTest')"),
+  ));
+  assert.throws(() => assertCaptureInstallationContract(
+    outputCapture.replace("if (!(selected instanceof Test))", "if (selected == null)"),
+  ));
 
   for (const phase of ["unfixed", "seeded-fixed", "full"])
     assert.match(build, new RegExp(`-Dauto\\.world\\.test\\.output\\.phase=${phase}`, "u"));
@@ -316,6 +343,13 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=direct/u);
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=success/u);
   assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=failure/u);
+  assert.match(outputCaptureVerifier, /-Dauto\.world\.test\.output\.phase=full autoWorldCompositeScopeFixture/u);
+  assert.match(outputCaptureVerifier, /publish_process "\$public_root\/scope"[\s\S]*run_check scope-exit/u);
+  assert.match(outputCaptureVerifier, /scope-included-marker[\s\S]*AUTO_WORLD_COMPOSITE_SCOPE_INCLUDED_PASS/u);
+  assert.match(outputCaptureVerifier, /scope-root-marker[\s\S]*AUTO_WORLD_COMPOSITE_SCOPE_ROOT_PASS/u);
+  assert.match(outputCaptureVerifier, /run_check scope-capture-absent path_absent \/evidence\/test-output\/full/u);
+  assert.ok(outputCaptureVerifier.indexOf("autoWorldCompositeScopeFixture") < outputCaptureVerifier.indexOf("autoWorldCaptureFixture"));
+  assert.match(outputCaptureVerifier, /cp -R "\$fixture_source\/missing-doclet" "\$destination\/"/u);
   assert.match(outputCaptureVerifier, /path_absent "\$destination"[\s\S]*path_absent "\$destination\/build"[\s\S]*mkdir "\$destination\/build"[\s\S]*owned_directory "\$destination\/build"/u);
   assert.match(outputCaptureVerifier, /AUTO_WORLD_FIXTURE_EXPECTED_TASK_FAILURE/u);
   assert.match(outputCaptureVerifier, /test "\$failure_status" -ne 0/u);
@@ -371,6 +405,14 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureFixture, /replaced-original/u);
   assert.match(outputCaptureFixture, /stream-replaced/u);
   assert.match(outputCaptureFixture, /depth-limit/u);
+  assert.match(outputCaptureFixtureBuild, /dependsOn gradle\.includedBuild\('missing-doclet'\)\.task\(':autoWorldIncludedScopeProbe'\)/u);
+  assert.match(outputCaptureFixtureBuild, /includeSystemOutLog\.get\(\) == false/u);
+  assert.match(outputCaptureFixtureBuild, /includeSystemErrLog\.get\(\) == false/u);
+  assert.match(outputCaptureFixtureBuild, /!selected\.state\.executed/u);
+  assert.match(outputCaptureIncludedBuild, /gradle\.parent != null/u);
+  assert.match(outputCaptureIncludedBuild, /auto\.world\.test\.output\.phase.*full/u);
+  assert.match(outputCaptureIncludedBuild, /tasks\.findByPath\(':server:internalClusterTest'\) == null/u);
+  assert.match(outputCaptureIncludedBuild, /AUTO_WORLD_COMPOSITE_SCOPE_INCLUDED_PASS/u);
 
   assert.match(outputManifestVerifier, /JsonSlurper/u);
   assert.match(outputManifestVerifier, /ROOT = Paths\.get\('\/evidence\/test-output'\)/u);

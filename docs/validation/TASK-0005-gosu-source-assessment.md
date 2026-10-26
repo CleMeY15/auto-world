@@ -576,3 +576,87 @@ also pass in that isolated harness. Local Node reports 11 cases: 7 passes and
 4 explicit Linux exclusions, zero failure. Syntax, ESLint, whitespace and
 Secretlint on 1,176 files pass. The added native missing-parent case and full
 Linux acceptance remain pending; prior positive quality does not transfer.
+
+## 2026-10-26 — native fixture passes; included-build registration fails
+
+[Managed40260470337](https://github.com/CleMeY15/auto-world/actions/runs/40260470337),
+attempt 1, tests `a5e21da461a50be946d3480e3cbd60babe28716d`, tree
+`5c9936ff8db4dbce156cfdc41b124ac207c0777e`. Executed merge
+`2f308ffe9427e527c187492e426a973284300a72` has parents protected main `a52884b`
+and source `a5e21da`, with that exact tree. Unique original ZIP: 1,660,524 bytes,
+API/local SHA256 `c197b22d9782ab3efe92e18a3b454fa59a142f11000d809f58129b9986b4a089`.
+All 141 public files match receipt identities. Both actual reviews require changes.
+
+The complete native fixture now passes: direct cases include the authenticated
+missing-parent refusal; all twelve manifest controls behave as expected;
+successful Test exits 0 and expected-failure Test exits 1, each with COMPLETE
+capture and zero capture errors/open writers. The outer fixture exits 0 and
+records `complete/passed`. This proves the previous caller-parent correction.
+
+The real RED invocation then fails configuration at init line 949:
+`Task with path ':server:internalClusterTest' not found in project ':missing-doclet'`.
+No expected RED marker or unfixed manifest exists; its verification status is 0.
+GREEN is NOT_RUN_UNFIXED_CONTROL_INVALID; full suite reports/cases are 0.
+No OpenSearch runtime image, causal/full streams, JUnit/skip result or runtime
+acceptance follows. SeaweedFS independently retains its two HIGH findings.
+The other five builder/service audit lanes pass; DB vulnerability age is
+5,079,917 ms within 48 hours, Java DB maxAge remains null, and JDK before/preserved
+identities agree. Only OpenSearch construction fails among 42 commands;
+23 owned-container absence checks do not establish unexecuted runtime cleanup.
+
+The global init also runs in included builds. A narrowly scoped registration
+guard must select the main Gradle build while retaining mandatory `getByPath`
+and `Test` type checks there. Actual research of pinned Gradle9.7.1 establishes
+the public `gradle.parent == null` selector: [public API](https://github.com/gradle/gradle/blob/92f0512e7f06d84621afba191f75e265363890cf/subprojects/core-api/src/main/java/org/gradle/api/invocation/Gradle.java#L93-L99),
+[root/parent implementation](https://github.com/gradle/gradle/blob/92f0512e7f06d84621afba191f75e265363890cf/subprojects/core/src/main/java/org/gradle/invocation/DefaultGradle.java#L164-L185),
+and [included/buildSrc ownership](https://github.com/gradle/gradle/blob/92f0512e7f06d84621afba191f75e265363890cf/subprojects/composite-builds/src/main/java/org/gradle/composite/internal/DefaultIncludedBuildRegistry.java#L181-L244).
+The non-null parent guarantee for included builds is verified at this pin,
+and requires revalidation on upgrade. No configurable production-root override,
+task-existence fallback or swallowed lookup failure is introduced. A real native
+composite configuration test must prove child exclusion and main registration;
+the existing causal/full gates must subsequently prove actual main capture.
+
+The independent ignored evidence helper is corrected to discover business
+manifests only under the exact `build/test-output/{unfixed,seeded-fixed,full}`
+root. Native fixture manifests are separate evidence and no longer falsely
+collide with `full`. Isolated discovery regressions pass, while this same actual
+artifact still correctly refuses `missing capture manifest for unfixed`.
+No missing capture is waived. TASK-0005/0005A remain IN_PROGRESS; source/main
+acceptance, B0, complete retention, admission and activation remain pending.
+
+Exact-source [quality40260470341](https://github.com/CleMeY15/auto-world/actions/runs/40260470341),
+attempt 1, is independently accepted SUCCESS for `a5e21da`/tree `5c9936ff` and
+the same executed merge `2f308ffe`. Node22.23.2/pnpm10.15.0 gates pass: lint14,
+types21, test28 and build14; root 2,615 passes/60 existing exclusions, workspace
+624 passes, browser393 passes/7 existing WebKit exclusions, no failure/flaky/retry.
+Secretlint passes 1,176 files and dependency audit finds no known vulnerability.
+Original log: 1,943,001 bytes/SHA256 `ad136d3701ff1a86a6b0cce4e43a7538274d60295ddbd83c922ff23e44402b44`;
+summary: 5,298 bytes/SHA256 `49cfb2fceb2751c3237a110cb063499e26cc12e2fb0e560e9eecf933c58f033a`.
+This accepts only this exact source's quality, not its failed managed run,
+the next correction or protected main. The preceding `a811380` quality40258870277
+remains automatically CANCELLED during browser-dependency installation;
+browser, Secretlint and dependency audit were not run there.
+
+The final eight-file scope correction receives actual independent source
+APPROVE. The init is 39,276 bytes/SHA256
+`e99d00b81b0cf76beebcd76819d2d2d155a3b43edad2357d29045800d951c5a5`;
+its capture classes above the installation block are byte-for-byte unchanged.
+The fixture driver is 16,576 bytes/SHA256
+`10236902385e300e1e3dcbbeb90521de873a316a5878f29ac659cd18e93949cd`.
+The composite child has no server task and asserts its non-null parent and
+the same valid phase. Its dependent root probe checks both native JUnit flags
+were set to false and that the Test has not executed. Thus this lightweight
+probe proves registration scope, not task completion; actual RED/GREEN/full
+capture gates remain mandatory. Original scope log/status are retained before
+checks, and an unexpected capture directory or sentinel refuses the fixture.
+Recursive Docker/source/evidence collection includes both new child sources
+without changing the exporter. The manifest verifier, Java, `build-core.sh`, pins,
+policies and caps stay unchanged.
+
+Fresh Node reports 11 cases: 7 passes/4 explicit Linux exclusions, zero failure.
+Syntax, ESLint, whitespace and Secretlint on 1,178 files pass. The root's isolated
+WSL harness executes actual driver orchestration through scope status/markers,
+the existing fault/refusal gates and authenticated Java patch outputs, without
+Java or container execution. Its wrapper is a test double, so no native Gradle
+or JSON-verifier acceptance is claimed. The real native composite and complete
+changed-source/main results still require fresh independent acceptance.

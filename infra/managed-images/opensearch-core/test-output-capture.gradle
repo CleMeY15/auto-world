@@ -945,21 +945,23 @@ if (autoWorldCapturePhase != null) {
         System.err.println(AutoWorldTestOutputCapture.SENTINEL)
         throw new GradleException(AutoWorldTestOutputCapture.SENTINEL)
     }
-    gradle.projectsEvaluated {
-        Task selected = gradle.rootProject.tasks.getByPath(':server:internalClusterTest')
-        if (!(selected instanceof Test)) {
-            System.err.println(AutoWorldTestOutputCapture.SENTINEL)
-            throw new GradleException(AutoWorldTestOutputCapture.SENTINEL)
+    if (gradle.parent == null) {
+        gradle.projectsEvaluated {
+            Task selected = gradle.rootProject.tasks.getByPath(':server:internalClusterTest')
+            if (!(selected instanceof Test)) {
+                System.err.println(AutoWorldTestOutputCapture.SENTINEL)
+                throw new GradleException(AutoWorldTestOutputCapture.SENTINEL)
+            }
+            Test testTask = (Test) selected
+            testTask.reports.junitXml.includeSystemOutLog.set(false)
+            testTask.reports.junitXml.includeSystemErrLog.set(false)
+            AutoWorldTestOutputCapture capture = new AutoWorldTestOutputCapture(autoWorldCapturePhase,
+                ':server:internalClusterTest', Paths.get('/evidence'),
+                Paths.get('/evidence/test-output').resolve(autoWorldCapturePhase))
+            testTask.addTestListener(capture)
+            testTask.addTestOutputListener(capture)
+            testTask.doFirst { capture.start() }
+            gradle.addListener(new AutoWorldCaptureTaskListener(testTask, capture))
         }
-        Test testTask = (Test) selected
-        testTask.reports.junitXml.includeSystemOutLog.set(false)
-        testTask.reports.junitXml.includeSystemErrLog.set(false)
-        AutoWorldTestOutputCapture capture = new AutoWorldTestOutputCapture(autoWorldCapturePhase,
-            ':server:internalClusterTest', Paths.get('/evidence'),
-            Paths.get('/evidence/test-output').resolve(autoWorldCapturePhase))
-        testTask.addTestListener(capture)
-        testTask.addTestOutputListener(capture)
-        testTask.doFirst { capture.start() }
-        gradle.addListener(new AutoWorldCaptureTaskListener(testTask, capture))
     }
 }
