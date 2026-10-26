@@ -37,6 +37,67 @@ function runScript(name, args = []) {
   });
 }
 
+function runOutputDiagnosticFault(t, fault) {
+  const root = temporaryDirectory(t);
+  const sourceRoot = path.join(root, "source");
+  const fixtureRoot = path.join(root, "fixture-work");
+  const recipeRoot = path.join(root, "recipe");
+  const evidenceRoot = path.join(root, "evidence");
+  const fixtureSource = path.join(recipeRoot, "test-output-capture-fixture");
+  mkdirSync(path.join(fixtureSource, "server"), { recursive: true });
+  mkdirSync(sourceRoot);
+  mkdirSync(path.join(evidenceRoot, "test-output"), { recursive: true });
+  writeFileSync(path.join(recipeRoot, "test-output-capture.gradle"), "init\n");
+  writeFileSync(path.join(recipeRoot, "verify-test-output-manifest.gradle"), "verify\n");
+  writeFileSync(path.join(fixtureSource, "fixture-tail.gradle"), "tail\n");
+  writeFileSync(path.join(fixtureSource, "settings.gradle"), "settings\n");
+  writeFileSync(path.join(fixtureSource, "build.gradle"), "build\n");
+
+  const mockGradle = `#!/bin/bash
+set -euo pipefail
+project=
+previous=
+for argument in "$@"; do
+  if [ "$previous" = -p ]; then project=$argument; fi
+  previous=$argument
+done
+mkdir -p "$project/build/direct-cases/success"
+printf '%s\\n' AUTO_WORLD_TEST_OUTPUT_CAPTURE_FIXTURE_DIRECT_PASS > "$project/build/direct-summary.txt"
+printf '%s\\n' '{"streams":[]}' > "$project/build/direct-cases/success/manifest.json"
+: > "$project/build/direct-cases/success/descriptor-0-stdout.log"
+printf '%s\\n' COMPLETE > "$project/build/direct-cases/success/complete.status"
+printf '%s\\n' MOCK_DIRECT_LOG
+`;
+  const gradlew = path.join(sourceRoot, "gradlew");
+  writeFileSync(gradlew, mockGradle);
+  chmodSync(gradlew, 0o755);
+
+  const injectedCopy = `cp() {
+  if [ "$AUTO_WORLD_FAULT" = scratch ] && [ "$1" = -R ] && [[ "$2" == */manifest-golden/. ]]; then
+    printf '%s\\n' partial > "$3/partial"
+    return 23
+  fi
+  if [ "$AUTO_WORLD_FAULT" = summary ] && [[ "$1" == */direct-summary.txt ]]; then
+    return 37
+  fi
+  command cp "$@"
+}`;
+  const slash = (value) => value.replaceAll("\\", "/");
+  const adapted = outputCaptureVerifier
+    .replace("exec >/dev/null 2>&1", `exec >/dev/null 2>&1\n${injectedCopy}`)
+    .replaceAll("/workspace/test-output-capture-fixture", slash(fixtureRoot))
+    .replaceAll("/workspace/source", slash(sourceRoot))
+    .replaceAll("/recipe", slash(recipeRoot))
+    .replaceAll("/evidence", slash(evidenceRoot));
+  const subject = path.join(root, "verify-test-output-capture.sh");
+  writeFileSync(subject, adapted);
+  chmodSync(subject, 0o755);
+  const result = spawnSync("/bin/bash", [subject], {
+    encoding: "utf8", env: { ...process.env, AUTO_WORLD_FAULT: fault }, timeout: 15000,
+  });
+  return { evidenceRoot, result };
+}
+
 function catalogueSource(t, bytes = original) {
   const result = temporaryDirectory(t);
   mkdirSync(path.join(result, "gradle"));
@@ -190,7 +251,7 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
 
 });
 
-test("bounded native output capture is fixed to the three internal-cluster phases and preserves frozen guards", () => {
+test("bounded native output capture is fixed to the three internal-cluster phases and preserves frozen guards", (t) => {
   assert.match(outputCapture, /PHASES = Set\.of\('unfixed', 'seeded-fixed', 'full'\)/u);
   assert.match(outputCapture, /taskPath != ':server:internalClusterTest'/u);
   assert.match(outputCapture, /Paths\.get\('\/evidence\/test-output'\)\.resolve\(autoWorldCapturePhase\)/u);
@@ -241,6 +302,41 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(outputCaptureVerifier, /test "\$failure_status" -ne 0/u);
   assert.match(outputCaptureVerifier, /sentinel_absent "\$fixture_root\/failure\/gradle\.log" "\$sentinel"/u);
   assert.match(outputCaptureVerifier, /\[ "\$grep_status" -eq 1 \]/u);
+  assert.match(outputCaptureVerifier, /trap cleanup_fixture EXIT/u);
+  assert.match(outputCaptureVerifier, /local original_status=\$\?/u);
+  assert.match(outputCaptureVerifier, /"\$diagnostic_status" = running[\s\S]*record_diagnostic "\$diagnostic_subcase" failed/u);
+  assert.match(outputCaptureVerifier, /exit "\$original_status"/u);
+  assert.match(outputCaptureVerifier, /owned_directory "\$manifest_capture" \|\| return 1[\s\S]*rm -rf "\$manifest_capture"/u);
+  assert.match(outputCaptureVerifier, /case "\$subcase" in[\s\S]*success-exit[\s\S]*failure-sentinel/u);
+  assert.match(outputCaptureVerifier, /case "\$status" in\s*initialized\|running\|passed\|failed/u);
+  assert.match(outputCaptureVerifier, /exec >\/dev\/null 2>&1/u);
+  assert.match(outputCaptureVerifier, /printf '%s\\n' NOT_RUN > "\$process_directory\/gradle\.exit-code"/u);
+  assert.match(outputCaptureVerifier, /owned_directory "\$\(dirname "\$manifest_capture"\)"[\s\S]*path_absent "\$manifest_capture"/u);
+  assert.match(outputCaptureVerifier, /mkdir "\$manifest_capture"[\s\S]*owned_directory "\$manifest_capture"[\s\S]*manifest_capture_owned=1[\s\S]*cp -R "\$manifest_golden\/\." "\$manifest_capture\/"/u);
+  assert.match(outputCaptureVerifier, /publish_process "\$public_root\/success"[\s\S]*run_check success-exit/u);
+  assert.match(outputCaptureVerifier, /publish_process "\$public_root\/failure"[\s\S]*run_check failure-exit/u);
+  assert.match(outputCaptureVerifier, /publish_process "\$public_root\/manifest\/\$name"[\s\S]*if \[ "\$expected" = pass \]/u);
+  assert.match(outputCaptureVerifier, /run_check direct-sentinel[\s\S]*cp "\$fixture_root\/direct\/build\/direct-summary\.txt"/u);
+  assert.match(outputCaptureVerifier, /run_check success-sentinel[\s\S]*cp -R "\$fixture_root\/success\/build\/integration-success"/u);
+  assert.match(outputCaptureVerifier, /run_check failure-sentinel[\s\S]*cp -R "\$fixture_root\/failure\/build\/integration-failure"/u);
+  assert.doesNotMatch(outputCaptureVerifier, /cp -R "\$manifest_capture" "\$public_root/u);
+
+  if (process.platform === "linux") {
+    for (const [fault, expectedStatus, expectedExit] of [
+      ["scratch", "subcase=manifest-valid\nstatus=failed\n", 23],
+      ["summary", "subcase=direct-summary\nstatus=failed\n", 37],
+    ]) {
+      const { evidenceRoot, result } = runOutputDiagnosticFault(t, fault);
+      assert.equal(result.status, expectedExit, `${fault}: ${result.stdout}\n${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "");
+      const publicRoot = path.join(evidenceRoot, "test-output-fixture");
+      assert.equal(readFileSync(path.join(publicRoot, "last-subcase.status"), "utf8"), expectedStatus);
+      assert.equal(existsSync(path.join(evidenceRoot, "test-output/full")), false);
+      assert.equal(existsSync(path.join(publicRoot, "success/capture")), false);
+      assert.equal(existsSync(path.join(publicRoot, "failure/capture")), false);
+    }
+  }
   assert.match(outputCaptureFixture, /two objects|findAll \{ it\.name == 'same' \}\.size\(\) == 2/u);
   assert.match(outputCaptureFixture, /late-before-task/u);
   assert.match(outputCaptureFixture, /late-after-task/u);

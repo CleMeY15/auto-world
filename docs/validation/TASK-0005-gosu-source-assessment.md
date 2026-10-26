@@ -446,3 +446,73 @@ seven audits, four runtime cases and cleanup require independent acceptance,
 then normal protected merge and matching main acceptance. Earlier managed
 failures remain preserved. TASK-0005/0005A stay IN_PROGRESS; B0, complete private
 retention, admission and activation/support remain blocked or unproved.
+
+## 2026-10-26 — native integration fixture and new SeaweedFS audit blockers
+
+[Managed40256368677](https://github.com/CleMeY15/auto-world/actions/runs/40256368677),
+attempt 1, uses PR199 head `834adf65aa887571cf6cad7e27a6c82ebabe9681`, tree
+`dae0912f5faa039df57e84d085303b8e7378bf30`; its executed PR merge has the same
+tree. Original ZIP 1,635,904 bytes matches API/local SHA256
+`b03dcf616e40c16220ae23cd3d7c2cad185313ced071240ee39fe45e3fe0b6ad`.
+Receipt 134,729 bytes has SHA256
+`9bdc42feee604b32169614f957e9dded1db75adb0fc640b6b70c5e0de071242c`.
+All 149 public originals are preserved and the 39 managed-source identities
+match the reviewed source. Both actual independent verdicts require changes.
+
+Preparation succeeds. The exact fixture stdout sequence (source hash, direct
+PASS, source hash) proves that direct-capture and manifest-verifier cases
+completed and preparation reached the successful real Test-task fixture.
+That integration phase fails within the command/status/capture checks; its
+specific error is UNKNOWN because logs, exit status and partial capture are
+copied only after every assertion. The failing-task fixture is not run.
+The immediate correction preserves each fixed subcase's original diagnostics
+before an early exit; this is a source change, not an unchanged retry.
+
+Fixture exit 1 prevents RED, seeded GREEN and full suite execution. There are
+zero JUnit reports/tests and no actual control/full manifests. Build exit 1
+blocks the OpenSearch runtime image, audit and restored-JDK proof. The four
+runtime cases never run; functionalRuntime remains PENDING_NOT_ACCEPTED and
+milestone2 remains NOT_ESTABLISHED. The independent evidence helper correctly
+refuses the missing unfixed manifest. No earlier positive result transfers.
+
+Separately, the unchanged SeaweedFS 4.50 subject is rejected on two HIGH
+occurrences of CVE-2026-92392: curl and libcurl 8.22.0-r0, fixed 8.23.0-r0.
+PostgreSQL, Redis and AWS audits pass; scanner/builders are clean. This is a
+new current security finding, not a reason to relax the policy. A fixed exact
+subject still needs complete independent qualification and runtime acceptance.
+Official provenance and four negative controls pass; the vulnerability DB is
+2,062,684 ms old and Java DB maxAge remains null. Of 42 recorded commands, only
+the OpenSearch construction is nonzero. All 23 owned-absence checks pass;
+these are not proof of runtime cleanup. TASK-0005/0005A stay IN_PROGRESS and B0
+remains blocked until complete accepted corrective source/main delivery.
+
+Exact-source [quality40256368691](https://github.com/CleMeY15/auto-world/actions/runs/40256368691),
+attempt 1, is independently accepted SUCCESS. The executed merge
+`51405ca3f3927cc827c4ef936aeae0841b99548c` has parents protected main `a52884b`
+and source `834adf6`, with identical source/merge tree `dae0912`. Root tests
+report 2,615 passes/60 existing exclusions; workspace tests 624 passes and
+browser tests 393 passes/7 existing WebKit exclusions, no failure/flaky/retry.
+Lint, types, build, Secretlint on 1,176 files and dependency audit pass. This
+qualifies only this source's quality; it neither accepts the failed managed
+run nor any subsequent corrective source or matching main.
+
+## 2026-10-26 — fail-safe native fixture diagnostics prepared
+
+The narrow source correction receives actual independent APPROVE: each fixed
+fixture subcase publishes its original log and exit status before acceptance
+checks. A closed last-subcase status remains running through fallible work and
+records failed on interruption, preserving the original exit code. Only fully
+validated positive captures are copied; negative scratch is acquired before
+copying and removed on exit, including a partial copy failure. No negative
+payload tree or premature success marker is published.
+
+Actual inert WSL tests force partial-copy exit 23 and summary-copy exit 37, verify
+the exact failed subcase and original code, silent outer output, absent scratch
+and no positive capture. The real Bash RED/capture/full-suite regression gates
+and both authenticated Java patch outputs still pass. Node 11 reports 7 passes/
+4 Linux exclusions; ESLint, Bash syntax, whitespace and Secretlint on 1,176 files
+pass. Capture/manifest-validator implementation, Java, build logic, pins,
+exporter, policy, permissions and limits remain unchanged. The integration
+failure's exact cause remains UNKNOWN; one reviewed changed-source Linux
+diagnostic is required before selecting its underlying correction. SeaweedFS
+remains independently rejected, with its ownership decision separate and pending.

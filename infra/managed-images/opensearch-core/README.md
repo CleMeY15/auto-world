@@ -51,6 +51,13 @@ actual successful and expected-failing `Test` task `afterExecute` finalization.
 The fixture has no external dependency and runs no candidate service or image.
 Only its fixed summary, original Gradle logs/statuses and two valid integration
 captures are exported; negative-case directories remain private to the builder.
+Each direct, manifest-validator and integration subprocess publishes its original
+log and exit code before result checks; their fixed public locations start as
+`NOT_RUN`. A fixed-enum `last-subcase.status` records
+the last running, passed or failed guard without copying raw paths or errors into
+the outer fixture log. Partial exits remove the owned temporary negative manifest
+tree while retaining any already-validated positive capture and the original
+subprocess evidence.
 This native fixture is Linux CI evidence and is not executed by the Windows Node
 regression test. The current Windows run has 11 cases: seven pass and four
 Linux-only cases remain explicitly skipped.
