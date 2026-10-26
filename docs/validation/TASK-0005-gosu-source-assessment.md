@@ -320,3 +320,47 @@ All 105 public evidence references and 32 Git-source identities match; all
 six available report/SBOM pairs match. Pure Linux regression tests pass
 391 cases with one existing non-Linux exclusion. These positive facts do
 not qualify the failed controls, complete suite, runtime or later source.
+
+## 2026-10-26 — complete image builds and audits, refused OpenSearch evidence
+
+PR199 source `e27a693d93e73a059456854ded4fc0e437fb3ab6`, tree
+`ab2d7cd737e7d46fae86c7fb6f6acaadb9324108`, passes independently reviewed
+[quality40248715246](https://github.com/CleMeY15/auto-world/actions/runs/40248715246),
+attempt 1. Root tests report 2,614 passes/60 existing skips, workspace tests 624
+passes and browser tests 393 passes/7 existing exclusions, with no failure,
+flaky test or retry. Lint, types, build, secrets and dependency audit pass.
+These facts qualify this exact source only, not any later revision or main.
+
+[Managed40248715269](https://github.com/CleMeY15/auto-world/actions/runs/40248715269),
+attempt 1, passes all three image builds and all seven complete role/builder
+audits. The unchanged exporter then refuses one original full snapshot-class
+XML with `ENTRY_BYTES`: 4,504,501 bytes versus 4,194,304. Its portable path is
+`opensearch/build/junit/server/build/test-results/internalClusterTest/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml`,
+path SHA256 `8b3b5be37a7d8f5863a1ac31ce972d6e188c4564387b6b05d18991b73c8956dc`.
+The exporter validates the whole source before copying, so no OpenSearch
+originals are exported. Detailed RED/GREEN/full-suite acceptance is UNKNOWN;
+an aggregate build exit0 is insufficient. The four produced-image runtime
+cases never run. Both actual independent reviews require changes; there is
+no accepted milestone2, admission or retained-copy proof.
+
+The single received original public ZIP 12619214994 is 1,670,160 bytes and
+matches API/local SHA256
+`6ed2e0e8a61b7c6b11119f68358bd395e8177c233a56505ba03d6af29b93777b`.
+Its receipt is 111,266 bytes/SHA256
+`d99718b256a8c8244f0230ad0be3e38f9eff8e968d585fe9e259ec9146bf3332`.
+All 32 managed-source Git identities, 43 repository-input identities, 39 available
+public references and 14 JSON/SBOM originals match. Pure Linux regression tests
+pass 391 cases with one existing non-Linux exclusion. All seven audits have
+zero findings/blockers. The 25 owned-absence checks are not runtime-cleanup
+proof. This run establishes the specific size refusal only; older export
+failure40235439116 retains its unknown cause.
+
+A native-output amendment is under actual ordered review before implementation:
+generate compact JUnit through supported Gradle report properties and preserve
+every captured stdout/stderr event separately by natural descriptor/destination.
+No truncation, lowered logging, arbitrary chunking, raised limit, unchanged
+retry or missing-output waiver follows. The exporter, policies, resource
+limits and Java test patches remain unchanged. TASK-0005/0005A remain
+IN_PROGRESS; B0 stays blocked until complete independently accepted protected
+source/main delivery. C: remains the selected restricted empty destination;
+complete inventory/capacity/copy/retrieval/restore remains unproved.
