@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync,
+  writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -14,6 +15,7 @@ import {
   prepareSeaweedRustLockViews,
   seaweedRustScanArguments,
   seaweedRustSourceFetchArguments,
+  seaweedRustPublicSourcePath,
   validateSeaweedRustControlReport,
   validateSeaweedRustHelperAbsence,
   validateSeaweedRustHelperContainer,
@@ -25,7 +27,8 @@ import {
 } from "../scripts/scanner/seaweed-rust-source.mjs";
 import { auditAndPublishSeaweedRustControlReport, auditAndPublishSeaweedRustSourceReports,
   classifySeaweedRustHelperCommandFailure, classifySeaweedRustSubjectFailure, collectSeaweedRustHelperIdentity,
-  exportSeaweedRustAuditReportPair, runManagedSeaweedRustPostImageLifecycle } from "../scripts/scanner/official-audit.mjs";
+  deferManagedImageAuditFailure, exportSeaweedRustAuditReportPair, measureSeaweedRustHelperFile,
+  runManagedSeaweedRustPostImageLifecycle } from "../scripts/scanner/official-audit.mjs";
 
 const fixture = (name) => readFileSync(new URL(`fixtures/scanner-official/${name}`, import.meta.url));
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -37,6 +40,24 @@ const imageId = metadata.image.configDigest;
 const owner = "12345678-1234-4234-8234-123456789abc";
 const containerName = `aw-seaweed-rust-${owner}`;
 const error = /scanner_seaweed_rust_/u;
+
+test("only managed scope defers the named image rejection for further diagnostic collection", () => {
+  const rejection = new Error("scanner_official_images_blocked");
+  assert.equal(deferManagedImageAuditFailure({ scope: "managed", error: rejection, cleanupUncertain: false }), rejection);
+});
+
+for (const [label, scope, cleanupUncertain, reason] of [
+  ["upstream image rejection", "upstream", false, "scanner_official_images_blocked"],
+  ["unknown scope", "unknown", false, "scanner_official_images_blocked"],
+  ["uncertain managed cleanup", "managed", true, "scanner_official_images_blocked"],
+  ["unconfirmed managed cleanup", "managed", undefined, "scanner_official_images_blocked"],
+  ["managed integrity failure", "managed", false, "scanner_frozen_input_changed"],
+]) {
+  test(`${label} aborts instead of promoting rejected images to a successful audit`, () => {
+    const rejection = new Error(reason);
+    assert.throws(() => deferManagedImageAuditFailure({ scope, error: rejection, cleanupUncertain }), (actual) => actual === rejection);
+  });
+}
 
 const canonicalFixtures = Object.freeze([
   Object.freeze({ name: "seaweed-volume.pairs.json", bytes: 12_234, count: 498,
@@ -69,7 +90,7 @@ test("Seaweed Rust source audit exposes the complete reviewed behavior surface",
     validateSeaweedRustHelperAbsence, validateSeaweedRustHelperMeasurement, combineSeaweedRustGate,
     validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, auditAndPublishSeaweedRustControlReport,
     auditAndPublishSeaweedRustSourceReports, classifySeaweedRustHelperCommandFailure, classifySeaweedRustSubjectFailure,
-    exportSeaweedRustAuditReportPair, runManagedSeaweedRustPostImageLifecycle]) {
+    exportSeaweedRustAuditReportPair, measureSeaweedRustHelperFile, runManagedSeaweedRustPostImageLifecycle]) {
     assert.equal(typeof value, "function");
   }
 });
@@ -90,10 +111,10 @@ function sbomFor(role, pairs = pairsFor(role)) {
   const prop = (name, value) => ({ name: `aquasecurity:trivy:${name}`, value });
   const libraries = pairs.map(([name, version], index) => ({ type: "library", name, version, "bom-ref": `pkg-${index}`,
     properties: [prop("PkgType", "cargo")] }));
-  return { bomFormat: "CycloneDX", specVersion: "1.7", metadata: { component: { type: "filesystem", name: `/${role}`, "bom-ref": "root" } },
+  return { bomFormat: "CycloneDX", specVersion: "1.7", metadata: { component: { type: "application", name: `/${role}`, "bom-ref": "root" } },
     components: [{ type: "application", name: "Cargo.lock", "bom-ref": "lock", properties: [prop("Class", "lang-pkgs"), prop("Type", "cargo")] }, ...libraries],
     dependencies: [{ ref: "root", dependsOn: ["lock"] }, { ref: "lock", dependsOn: libraries.map((entry) => entry["bom-ref"]) },
-      ...libraries.map((entry) => ({ ref: entry["bom-ref"], dependsOn: [] }))] };
+      ...libraries.map((entry) => ({ ref: entry["bom-ref"] }))] };
 }
 
 test("source metadata accepts the exact reviewed lock without mutating it", () => {
@@ -244,6 +265,34 @@ test("source SBOM refuses a library with no retained dependency relation", () =>
     artifactName: "/volume", now }), /scanner_seaweed_rust_sbom_invalid/u);
 });
 
+test("pinned Trivy filesystem SBOM accepts application root and omitted empty leaf dependencies", () => {
+  const sbom = sbomFor("volume");
+  assert.equal(sbom.metadata.component.type, "application");
+  assert.equal(Object.hasOwn(sbom.dependencies.at(-1), "dependsOn"), false);
+  const result = validateSeaweedRustLockUniverse({ role: "volume", report: reportFor("volume"), sbom, metadata,
+    artifactName: "/volume", now });
+  assert.equal(result.result, "passed");
+  sbom.dependencies.at(-1).dependsOn = [];
+  assert.equal(validateSeaweedRustLockUniverse({ role: "volume", report: reportFor("volume"), sbom, metadata,
+    artifactName: "/volume", now }).result, "passed");
+});
+
+for (const type of ["filesystem", "container"]) {
+  test(`filesystem SBOM refuses a substituted ${type} metadata root`, () => {
+    const sbom = sbomFor("volume"); sbom.metadata.component.type = type;
+    assert.throws(() => validateSeaweedRustLockUniverse({ role: "volume", report: reportFor("volume"), sbom, metadata,
+      artifactName: "/volume", now }), /scanner_seaweed_rust_sbom_invalid/u);
+  });
+}
+
+for (const dependsOn of [null, {}, "foreign"]) {
+  test(`filesystem SBOM refuses malformed dependency targets ${JSON.stringify(dependsOn)}`, () => {
+    const sbom = sbomFor("volume"); sbom.dependencies.at(-1).dependsOn = dependsOn;
+    assert.throws(() => validateSeaweedRustLockUniverse({ role: "volume", report: reportFor("volume"), sbom, metadata,
+      artifactName: "/volume", now }), /scanner_seaweed_rust_sbom_invalid/u);
+  });
+}
+
 test("source SBOM rejects object-shaped component properties with the typed SBOM error", () => {
   const sbom = sbomFor("volume");
   sbom.components[0].properties = { name: "aquasecurity:trivy:Class", value: "lang-pkgs" };
@@ -337,6 +386,59 @@ for (const [label, mutate] of [
     assert.throws(() => validateSeaweedRustHelperMeasurement(changed), /scanner_seaweed_rust_helper_measurement_invalid/u);
   });
 }
+
+test("production helper measurement converts a real hardlink into the typed measurement refusal", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-rust-hardlink-"));
+  try {
+    const source = path.join(root, "source.bin");
+    const linked = path.join(root, "linked.bin");
+    writeFileSync(source, Buffer.from("inert-helper"), { flag: "wx" });
+    linkSync(source, linked);
+    assert.equal(statSync(linked).nlink, 2);
+    await assert.rejects(measureSeaweedRustHelperFile(linked), /scanner_seaweed_rust_helper_measurement_invalid/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("production helper measurement converts a real directory into the typed measurement refusal", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-rust-directory-"));
+  try {
+    const directory = path.join(root, "helper-directory");
+    mkdirSync(directory);
+    await assert.rejects(measureSeaweedRustHelperFile(directory), /scanner_seaweed_rust_helper_measurement_invalid/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("production helper measurement preserves native ENOENT without scanner normalization", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-rust-missing-"));
+  try {
+    const missing = path.join(root, "missing-helper");
+    await assert.rejects(measureSeaweedRustHelperFile(missing),
+      (failure) => failure?.code === "ENOENT" && !String(failure.message).includes("scanner_"));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("production helper measurement preserves a native argument TypeError", async () => {
+  await assert.rejects(measureSeaweedRustHelperFile(42),
+    (failure) => failure instanceof TypeError && failure.code === "ERR_INVALID_ARG_TYPE");
+});
+
+test("production helper measurement rejects a real broken symlink without reading its target",
+  { skip: process.platform === "win32" }, async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "aw-rust-symlink-"));
+    try {
+      const linked = path.join(root, "linked-helper");
+      symlinkSync("missing-target", linked);
+      await assert.rejects(measureSeaweedRustHelperFile(linked), /scanner_seaweed_rust_helper_measurement_invalid/u);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
 function helperCollectorFixture(overrides = {}) {
   const containerId = "a".repeat(64);
@@ -449,6 +551,53 @@ test("helper collector preserves and revalidates volume after a known worker cop
   assert.equal(item.events.filter((entry) => entry[0] === "measure" && entry[1] === "volume").length, 2);
   assert.equal(item.events.filter((entry) => entry[0] === "remove").length, 1);
   assert.equal(item.events.filter((entry) => entry[0] === "absent").length, 1);
+});
+
+test("helper collector uses real hardlink measurement to reject volume while preserving and revalidating worker", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-rust-collector-hardlink-"));
+  try {
+    const helpers = path.join(root, "helpers");
+    mkdirSync(helpers);
+    const volumeSource = path.join(root, "volume-source.bin");
+    writeFileSync(volumeSource, Buffer.from("inert-volume-helper"), { flag: "wx" });
+    const item = helperCollectorFixture();
+    item.input.directory = helpers;
+    item.input.limitDirectory = path.join(root, "limit-control");
+    item.operations.copy = async (command) => {
+      item.events.push(["copy", command]);
+      const destination = command.args.at(-1);
+      if (command.args.includes(metadata.roles[0].helper.path)) linkSync(volumeSource, destination);
+      else writeFileSync(destination, Buffer.from("inert-worker-helper"), { flag: "wx" });
+    };
+    item.operations.measure = async ({ role, file }) => {
+      item.events.push(["measure", role, file]);
+      if (role === "volume") return measureSeaweedRustHelperFile(file);
+      const expected = metadata.roles.find((entry) => entry.role === role);
+      return { info: { isFile: true, isSymbolicLink: false, nlink: 1, mode: 0o755 },
+        identity: { size: expected.helper.bytes, sha256: expected.helper.sha256 } };
+    };
+    item.operations.listHostFiles = async () => readdirSync(helpers);
+    const result = await collectSeaweedRustHelperIdentity(item.input, item.operations);
+    assert.deepEqual(result.measurements.map(({ role, result: status }) => [role, status]),
+      [["volume", "rejected"], ["worker", "passed"]]);
+    assert.equal(item.events.filter((entry) => entry[0] === "copy").length, 2);
+    assert.equal(item.events.filter((entry) => entry[0] === "measure" && entry[1] === "worker").length, 2);
+    assert.equal(item.events.filter((entry) => entry[0] === "remove").length, 1);
+    assert.equal(item.events.filter((entry) => entry[0] === "absent").length, 1);
+    const receipt = postImageReceipt();
+    populateRustEvidence(receipt);
+    receipt.seaweedRustHelpers = result.measurements;
+    const runtimeEvents = [];
+    const subjectFailure = new Error(result.measurements[0].reason);
+    await assert.rejects(runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure: null }, {
+      sourceAndHelperAudits: async () => ({ failure: subjectFailure }),
+      producedImageRuntime: async () => { runtimeEvents.push("runtime"); },
+    }), (failure) => failure === subjectFailure);
+    assert.deepEqual(runtimeEvents, []);
+    assert.equal(receipt.phases.at(-1).result, "failed");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("helper collector reports cleanup uncertainty when owned removal cannot be proven", async () => {
@@ -689,7 +838,8 @@ test("post-image lifecycle invokes runtime once after every original and Rust ga
 test("post-image lifecycle collects Rust sibling evidence before preserving the named original-image failure", async () => {
   const receipt = postImageReceipt({ originalBlocked: true });
   const events = [];
-  const original = new Error("scanner_official_images_blocked");
+  const original = deferManagedImageAuditFailure({ scope: "managed", cleanupUncertain: false,
+    error: new Error("scanner_official_images_blocked") });
   await assert.rejects(runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure: original }, {
     sourceAndHelperAudits: async () => {
       events.push("rust-evidence");
@@ -1068,7 +1218,8 @@ test("public evidence preserves one passed helper beside one bounded rejection w
 function publicSourceSnapshots() {
   const originals = metadata.files.map((entry) => ({ path: entry.path, size: entry.bytes, sha256: entry.sha256 }));
   const copies = metadata.files.map((entry) => ({
-    path: entry.path.endsWith("Cargo.lock") || entry.path === "docker/Dockerfile.go_build" ||
+    path: entry.path === ".github/workflows/container_release_unified.yml" ? "github/workflows/container_release_unified.yml.txt"
+      : entry.path.endsWith("Cargo.lock") || entry.path === "docker/Dockerfile.go_build" ||
       entry.path.endsWith("container_release_unified.yml") ? `${entry.path}.txt` : entry.path,
     size: entry.bytes,
     sha256: entry.sha256,
@@ -1092,4 +1243,31 @@ test("public source mapping rejects a changed public copy hash", () => {
   snapshots.copies[0].sha256 = "a".repeat(64);
   assert.throws(() => validateSeaweedRustPublicSourceMapping({ metadata, ...snapshots }),
     /scanner_seaweed_rust_public_source_invalid/u);
+});
+
+test("all thirteen source representations survive the uploader's default hidden-file exclusion", () => {
+  const publicPaths = metadata.files.map((entry) => seaweedRustPublicSourcePath(entry.path));
+  assert.equal(publicPaths.length, 13);
+  assert.equal(new Set(publicPaths).size, 13);
+  assert.equal(publicPaths.some((relative) => relative.split("/").some((segment) => segment.startsWith("."))), false);
+  assert.deepEqual(publicPaths, publicSourceSnapshots().copies.map((entry) => entry.path));
+  const mapping = validateSeaweedRustPublicSourceMapping({ metadata, ...publicSourceSnapshots() });
+  const workflow = mapping.find((entry) => entry.originalPath === ".github/workflows/container_release_unified.yml");
+  assert.deepEqual(workflow, { originalPath: ".github/workflows/container_release_unified.yml",
+    publicPath: "github/workflows/container_release_unified.yml.txt", bytes: 31251,
+    sha256: "4815d65b10e37e466e139d3cd367e409253a23fd1fd892f60735e2b5a0832cb0" });
+});
+
+test("public mapping refuses the hidden workflow representation lost by the original upload", () => {
+  const snapshots = publicSourceSnapshots();
+  const index = metadata.files.findIndex((entry) => entry.path === ".github/workflows/container_release_unified.yml");
+  snapshots.copies[index].path = ".github/workflows/container_release_unified.yml.txt";
+  assert.throws(() => validateSeaweedRustPublicSourceMapping({ metadata, ...snapshots }),
+    /scanner_seaweed_rust_public_source_invalid/u);
+});
+
+test("public source projection refuses unlisted, absolute and traversing paths", () => {
+  for (const relative of [".github/private.env", "/seaweed-volume/Cargo.lock", "../Cargo.lock"]) {
+    assert.throws(() => seaweedRustPublicSourcePath(relative), /scanner_seaweed_rust_public_source_invalid/u);
+  }
 });

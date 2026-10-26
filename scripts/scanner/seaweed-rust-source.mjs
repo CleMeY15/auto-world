@@ -109,7 +109,7 @@ function sbomProperty(component, name) {
 }
 function sbomPackages(sbom, entry, artifactName) {
   if (!object(sbom) || sbom.bomFormat !== "CycloneDX" || !/^1\.[4-7]$/u.test(sbom.specVersion ?? "") ||
-      sbom.metadata?.component?.type !== "filesystem" || sbom.metadata.component.name !== artifactName ||
+      sbom.metadata?.component?.type !== "application" || sbom.metadata.component.name !== artifactName ||
       typeof sbom.metadata.component["bom-ref"] !== "string" || !sbom.metadata.component["bom-ref"] ||
       !Array.isArray(sbom.components) || sbom.components.length !== entry.packageCount + 1 || !Array.isArray(sbom.dependencies)) {
     fail("scanner_seaweed_rust_sbom_invalid");
@@ -123,9 +123,10 @@ function sbomPackages(sbom, entry, artifactName) {
   references.add(sbom.metadata.component["bom-ref"]);
   const dependencyRefs = new Set();
   for (const dependency of sbom.dependencies) {
+    const dependsOn = dependency?.dependsOn === undefined ? [] : dependency.dependsOn;
     if (typeof dependency?.ref !== "string" || dependencyRefs.has(dependency.ref) || !references.has(dependency.ref) ||
-        !Array.isArray(dependency.dependsOn) || new Set(dependency.dependsOn).size !== dependency.dependsOn.length ||
-        dependency.dependsOn.some((reference) => typeof reference !== "string" || !references.has(reference))) fail("scanner_seaweed_rust_sbom_invalid");
+        !Array.isArray(dependsOn) || new Set(dependsOn).size !== dependsOn.length ||
+        dependsOn.some((reference) => typeof reference !== "string" || !references.has(reference))) fail("scanner_seaweed_rust_sbom_invalid");
     dependencyRefs.add(dependency.ref);
   }
   const applications = sbom.components.filter((component) => component.type === "application" &&
@@ -248,28 +249,40 @@ export function seaweedRustSourceFetchArguments(entry, destination) {
       `https://${RAW_HOST}/${entry.sourceCommit === SOURCE_COMMIT ? "seaweedfs/seaweedfs" : "aquasecurity/trivy"}/${entry.sourceCommit}/${encoded}`] };
 }
 
+export function seaweedRustPublicSourcePath(relative) {
+  if (!EXPECTED_FILES.has(relative)) fail("scanner_seaweed_rust_public_source_invalid");
+  let result = relative === ".github/workflows/container_release_unified.yml"
+    ? "github/workflows/container_release_unified.yml" : relative;
+  if (relative.endsWith("Cargo.lock") || relative === "docker/Dockerfile.go_build" ||
+      relative === ".github/workflows/container_release_unified.yml") result = `${result}.txt`;
+  if (path.isAbsolute(result) || result.split("/").some((segment) => !segment || segment.startsWith("."))) {
+    fail("scanner_seaweed_rust_public_source_invalid");
+  }
+  return result;
+}
+
 export function validateSeaweedRustPublicSourceMapping({ metadata, originals, copies }) {
   if (!Array.isArray(originals) || originals.length !== EXPECTED_FILES.size || !Array.isArray(copies) ||
       copies.length !== EXPECTED_FILES.size || !Array.isArray(metadata?.files) || metadata.files.length !== EXPECTED_FILES.size) {
     fail("scanner_seaweed_rust_public_source_invalid");
   }
   const expectedPaths = [...EXPECTED_FILES.keys()];
+  const publicPaths = new Set();
   return metadata.files.map((entry, index) => {
     const original = originals[index], copy = copies[index];
     if (!exactKeys(entry, ["path", "bytes", "sha256", "sourceCommit"])) fail("scanner_seaweed_rust_public_source_invalid");
     const expected = EXPECTED_FILES.get(entry?.path);
-    let publicPath = entry.path;
-    if (publicPath.endsWith("Cargo.lock") || publicPath === "docker/Dockerfile.go_build" ||
-        publicPath.endsWith("container_release_unified.yml")) publicPath = `${publicPath}.txt`;
+    const publicPath = seaweedRustPublicSourcePath(entry.path);
     if (!expected ||
         entry.bytes !== expected[0] || entry.sha256 !== expected[1] || entry.sourceCommit !== expected[2] ||
         !exactKeys(original, ["path", "size", "sha256"]) || !exactKeys(copy, ["path", "size", "sha256"]) ||
         typeof original.path !== "string" || typeof copy.path !== "string" || entry.path !== expectedPaths[index] ||
         path.isAbsolute(original.path) || path.isAbsolute(copy.path) ||
-        original.path !== entry.path || copy.path !== publicPath ||
+        original.path !== entry.path || copy.path !== publicPath || publicPaths.has(publicPath) ||
         original.size !== entry.bytes || copy.size !== entry.bytes || original.sha256 !== entry.sha256 || copy.sha256 !== entry.sha256) {
       fail("scanner_seaweed_rust_public_source_invalid");
     }
+    publicPaths.add(publicPath);
     return { originalPath: entry.path, publicPath, bytes: entry.bytes, sha256: entry.sha256 };
   });
 }

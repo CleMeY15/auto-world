@@ -11,7 +11,7 @@ import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
-  helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustScanArguments,
+  helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustPublicSourcePath, seaweedRustScanArguments,
   seaweedRustSourceFetchArguments, validateSeaweedRustControlReport, validateSeaweedRustHelperAbsence,
   validateSeaweedRustHelperContainer, validateSeaweedRustHelperMeasurement, validateSeaweedRustLockUniverse,
   validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock } from "./seaweed-rust-source.mjs";
@@ -26,6 +26,11 @@ const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensea
 // Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
 const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-pkg", "jar"]);
 const fail = (code) => { throw new Error(code); };
+export function deferManagedImageAuditFailure({ scope, error, cleanupUncertain }) {
+  if (scope !== "managed" || cleanupUncertain !== false || !(error instanceof Error) ||
+      error.message !== "scanner_official_images_blocked") throw error;
+  return error;
+}
 const SEAWEED_RUST_SUBJECT_FAILURES = Object.freeze({
   control: new Set(["scanner_official_command_failed", "scanner_json_file_invalid", "scanner_seaweed_rust_report_invalid",
     "scanner_seaweed_rust_inventory_mismatch", "scanner_seaweed_rust_control_blocked"]),
@@ -525,6 +530,18 @@ export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imag
     intrinsicBinaryInventory: "NOT_ESTABLISHED", sourceToBinaryEquivalence: "NOT_ESTABLISHED" };
 }
 
+export async function measureSeaweedRustHelperFile(file) {
+  const info = lstatSync(file);
+  let identity;
+  try { [identity] = await captureFiles([{ path: file, cap: 512 * MiB }]); }
+  catch (error) {
+    if (error?.message !== "scanner_snapshot_invalid") throw error;
+    fail("scanner_seaweed_rust_helper_measurement_invalid");
+  }
+  return { info: { isFile: info.isFile(), isSymbolicLink: info.isSymbolicLink(), nlink: info.nlink, mode: info.mode & 0o777 },
+    identity: { size: identity.size, sha256: identity.sha256 } };
+}
+
 export async function runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure }, operations) {
   const operationNames = ["sourceAndHelperAudits", "producedImageRuntime"];
   if (!receipt || typeof receipt !== "object" || Array.isArray(receipt) || !operations ||
@@ -946,8 +963,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       receipt.reports = collected.reports; receipt.blockers = collected.blockers; receipt.rejections = collected.rejections;
       if (collected.rejections.length) fail("scanner_official_images_blocked");
     }); } catch (error) {
-      if (error?.message !== "scanner_official_images_blocked" || cleanupUncertain) throw error;
-      originalImageFailure = error;
+      originalImageFailure = deferManagedImageAuditFailure({ scope, error, cleanupUncertain });
     }
     if (managed) await runManagedSeaweedRustPostImageLifecycle({ receipt, originalImageFailure }, {
       sourceAndHelperAudits: async () => {
@@ -971,19 +987,13 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       const publicRoot = path.join(work, "seaweed-rust-public"); mkdirSync(publicRoot, { mode: 0o700 });
       const publicSources = path.join(publicRoot, "sources"); mkdirSync(publicSources, { mode: 0o700 });
       for (const entry of rustMetadata.files) {
-        let relative = entry.path;
-        if (relative.endsWith("Cargo.lock")) relative = `${relative}.txt`;
-        else if (relative === "docker/Dockerfile.go_build") relative = `${relative}.txt`;
-        else if (relative.endsWith("container_release_unified.yml")) relative = `${relative}.txt`;
+        const relative = seaweedRustPublicSourcePath(entry.path);
         const destination = path.join(publicSources, ...relative.split("/"));
         mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
         copyFileSync(path.join(sourceRoot, ...entry.path.split("/")), destination); chmodSync(destination, 0o400);
       }
       const publicSourceInputs = await captureFiles(rustMetadata.files.map((entry) => {
-        let relative = entry.path;
-        if (relative.endsWith("Cargo.lock") || relative === "docker/Dockerfile.go_build" || relative.endsWith("container_release_unified.yml")) {
-          relative = `${relative}.txt`;
-        }
+        const relative = seaweedRustPublicSourcePath(entry.path);
         return { path: path.join(publicSources, ...relative.split("/")), cap: MiB };
       }));
       receipt.seaweedRustPublicSources = validateSeaweedRustPublicSourceMapping({ metadata: rustMetadata,
@@ -1092,11 +1102,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               throw classifySeaweedRustHelperCommandFailure({ error, record: receipt.commands.at(-1), operation: "copy" });
             }
           },
-          measure: async ({ file }) => {
-            const info = lstatSync(file); const [identity] = await captureFiles([{ path: file, cap: 512 * MiB }]);
-            return { info: { isFile: info.isFile(), isSymbolicLink: info.isSymbolicLink(), nlink: info.nlink, mode: info.mode & 0o777 },
-              identity: { size: identity.size, sha256: identity.sha256 } };
-          },
+          measure: async ({ file }) => measureSeaweedRustHelperFile(file),
           listHostFiles: async (directory) => readdirSync(directory),
           remove: async (args) => { command(DOCKER, args, { timeout: 30_000, requireEmptyStderr: true }); },
           proveAbsent: async (name, anonymousVolumes) => {
