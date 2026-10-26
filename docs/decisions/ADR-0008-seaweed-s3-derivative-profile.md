@@ -40,6 +40,16 @@ No build mechanism is declared proven by this ADR. The implementation must selec
 
 The first [executable transformation-plan increment](../validation/TASK-0005A-SEAWEED-IMAGE-PLAN.md) prepares the specific Linux/amd64 Moby28.0.4 classic-import configuration. Its closed policy records `User` absent to present-empty, the Windows-only `ArgsEscaped:true` to absent, the exact neutral serialized fields and a new derivative label set; all six other runtime fields remain exact. Original labels stay in linked upstream provenance. These explicit structural changes preserve the selected Linux runtime semantics; they are not generic absent/empty/false equivalences. The planner constructs no archive or image and authenticates no source run. Actual source acceptance, reviewed construction and native filesystem/config/runtime proofs remain required.
 
+## Amendment — unchanged Go4.51 diagnostic profile, 2026-10-27
+
+The [fixed Go/S3 plan](../../roadmap/plans/TASK-0005-seaweed-go-s3-derivative.md) received actual Architect APPROVE/CLEAR followed by distinct Critic APPROVE on its exact V2 bytes (SHA256 `b1e88e79f2c07411e97553383ae5c6ac9c949fcfaf89420684dff9a742e51990`). Its [validation checkpoint](../validation/TASK-0005-seaweed-go-s3-derivative.md) records pending execution. This amendment does not alter the historical4.47 contract or its exact-subject inventory guard.
+
+For the new diagnostic only, use SeaweedFS4.51 platform manifest `sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707`, config `sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6` and source `ffa87c25fdf587178b1521ad87f2a4a72a02e584`. Preserve the current Go executable and every upstream notice; remove only `/usr/bin/weed-volume` and `/usr/bin/weed-worker`. There is no old-Go replacement or added notice tree in this profile. Keep a companion derivative notice and full source/config/recipe evidence outside the image; complete retained source/notices closure remains mandatory before publication/admission.
+
+Reuse qualified Docker export/import, GNU tar deletion and a read-only Python standard-library inspector. Preflight the exact ten source layers conservatively before trusting merged export; reject unsupported metadata rather than implementing an OCI merger. Require empty container diff before/after export, exact survivor preservation, one new layer bound to filtered bytes, no original layer references, finite configuration changes and independently verified output/runtime. Explicit metadata changes include removal only of `moby.buildkit.cache.v0`, the named Linux representations and actual import provenance described in the locked plan.
+
+The complete PR201 original-image Rust/source/control/helper diagnostic remains unchanged and distinct. Add a separate candidate gate and report pair; an absent helper is not a passing Rust scan. Source preflight is implemented and observed first; its real refusal blocks construction and requires a separately reviewed existing-tool choice. No registry write, signing capability, admission or support date follows from this plan. The existing one-year support and additional365archive-day policy begins only at actual activation.
+
 ## Supported runtime and acceptance
 
 The admitted TASK-0005 entrypoint remains the fixed server profile:
