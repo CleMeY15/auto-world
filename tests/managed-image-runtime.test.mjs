@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-import { CASE_NAMES, containerSignature, createRuntimeCompose, validateRuntimeInput } from "./managed-image-runtime.integration.mjs";
+import { fileURLToPath } from "node:url";
+import { CASE_NAMES, containerSignature, createRuntimeCompose, prepareRuntimeContext, readVerifiedRuntimeFile,
+  validateRuntimeInput, verifyRuntimeReferences } from "./managed-image-runtime.integration.mjs";
 
 const MiB = 1024 ** 2, GiB = 1024 ** 3;
 const root = path.resolve(os.tmpdir(), "aw-runtime-contract-fixture");
 const run = { sourceCommit: "a".repeat(40), runId: "90001", attempt: "2" };
 const hash = "b".repeat(64), imageId = (index) => `sha256:${String(index + 1).repeat(64)}`;
+const emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 const proof = (name, size = 1) => ({ path: path.join(root, name), size, sha256: hash });
 const credentials = { postgres: "1".repeat(64), redis: "2".repeat(64), s3Access: "3".repeat(64), s3Secret: "4".repeat(64) };
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -28,6 +32,36 @@ function fixture() {
     })) };
 }
 
+const linuxNonRoot = process.platform === "linux" && typeof process.getuid === "function" && process.getuid() !== 0;
+const bytesHash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+async function writeProof(file, bytes) {
+  await fs.writeFile(file, bytes, { flag: "wx", mode: 0o600 });
+  return { path: file, size: bytes.length, sha256: bytesHash(bytes) };
+}
+async function startupFixture(directory, mutate = () => {}) {
+  const value = fixture();
+  const bootstrap = fileURLToPath(new URL("../infra/object-store-init.sh", import.meta.url));
+  const bootstrapBytes = await fs.readFile(bootstrap);
+  const bootstrapProof = { path: bootstrap, size: bootstrapBytes.length, sha256: bytesHash(bootstrapBytes) };
+  value.sourceInputs = [bootstrapProof];
+  const emptyEvidence = await writeProof(path.join(directory, "test-output-fixture.log"), Buffer.alloc(0));
+  for (const role of value.roles) {
+    const artifactName = role.subject.kind === "LOCAL_MANAGED_IMAGE_V1" ? role.subject.artifactName :
+      `${role.subject.repository}@${role.subject.platform.digest}`;
+    role.reports.json = await writeProof(path.join(directory, `${role.role}.json`),
+      Buffer.from(JSON.stringify({ ArtifactName: artifactName, Metadata: { ImageID: role.imageId, ImageConfig: { os: "linux", architecture: "amd64" } } })));
+    role.reports.sbom = await writeProof(path.join(directory, `${role.role}.cdx.json`),
+      Buffer.from(JSON.stringify({ bomFormat: "CycloneDX", metadata: { component: { name: artifactName } } })));
+    role.evidence = [emptyEvidence];
+  }
+  mutate(value, { bootstrapProof, emptyEvidence });
+  const inputFile = path.join(directory, "runtime-input.json");
+  const inputProof = await writeProof(inputFile, Buffer.from(JSON.stringify(value)));
+  return { emptyEvidence, environment: { ...process.env, GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", RUNNER_TEMP: directory,
+    GITHUB_SHA: run.sourceCommit, GITHUB_RUN_ID: run.runId, GITHUB_RUN_ATTEMPT: run.attempt,
+    AW_MANAGED_RUNTIME_INPUT: inputFile, AW_MANAGED_RUNTIME_INPUT_SHA256: inputProof.sha256 } };
+}
+
 test("runtime contract import exposes four gated cases without executing or registering integration cases", () => {
   assert.deepEqual(CASE_NAMES, ["start-and-refusal", "sql-raw-index", "restart-persistence", "cold-canonical-restore"]);
   const imported = spawnSync(process.execPath, ["--input-type=module", "--eval", `await import(${JSON.stringify(new URL("./managed-image-runtime.integration.mjs", import.meta.url).href)})`],
@@ -38,6 +72,65 @@ test("runtime input accepts complete frozen synthetic proofs and exact byte caps
   const value = fixture(); value.sourceInputs[0].size = MiB;
   for (const role of value.roles) { role.reports.json.size = 64 * MiB; role.evidence[0].size = 4 * MiB; if (role.subject.archiveCapBytes) role.subject.archiveBytes = role.subject.archiveCapBytes; }
   const before = JSON.stringify(value); freeze(value); assert.equal(validateRuntimeInput(value, freeze(clone(run))), value); assert.equal(JSON.stringify(value), before);
+});
+test("runtime input accepts only the canonical empty hash for typed role evidence", () => {
+  const value = fixture(); value.roles[1].evidence[0] = { ...proof("empty-evidence.log", 0), sha256: emptyHash };
+  assert.equal(validateRuntimeInput(value, run), value);
+  for (const mutate of [
+    (changed) => { changed.roles[1].evidence[0].sha256 = hash; },
+    (changed) => { changed.roles[1].reports.json = { ...changed.roles[1].evidence[0] }; },
+    (changed) => { changed.roles[1].reports.sbom = { ...changed.roles[1].evidence[0] }; },
+    (changed) => { changed.sourceInputs[0] = { ...changed.roles[1].evidence[0] }; },
+  ]) {
+    const changed = clone(value); mutate(changed); assert.throws(() => validateRuntimeInput(changed, run));
+  }
+});
+test("runtime reader keeps canonical empty authority evidence-only across real reads", { skip: !linuxNonRoot }, async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-empty-reader-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  await fs.chmod(directory, 0o700);
+  const empty = path.join(directory, "empty.log"), emptyProof = await writeProof(empty, Buffer.alloc(0));
+  const first = await readVerifiedRuntimeFile(empty, MiB, emptyProof, "evidence");
+  assert.equal(first.size, 0); assert.equal(first.sha256, emptyHash);
+  await readVerifiedRuntimeFile(empty, MiB, { ...emptyProof, identity: first.identity }, "evidence");
+  await assert.rejects(readVerifiedRuntimeFile(empty, MiB, emptyProof));
+  await assert.rejects(readVerifiedRuntimeFile(empty, MiB, { ...emptyProof, size: 1 }, "evidence"));
+  await assert.rejects(readVerifiedRuntimeFile(empty, MiB, { ...emptyProof, sha256: hash }, "evidence"));
+
+  const nonempty = path.join(directory, "nonempty.log"), nonemptyProof = await writeProof(nonempty, Buffer.from("x"));
+  await assert.rejects(readVerifiedRuntimeFile(nonempty, MiB, { ...nonemptyProof, sha256: emptyHash }, "evidence"));
+  await assert.rejects(readVerifiedRuntimeFile(path.join(directory, "missing.log"), MiB, emptyProof, "evidence"));
+  const symbolic = path.join(directory, "symbolic.log"); await fs.symlink(empty, symbolic);
+  await assert.rejects(readVerifiedRuntimeFile(symbolic, MiB, { ...emptyProof, path: symbolic }, "evidence"));
+  const hard = path.join(directory, "hard.log"); await fs.link(empty, hard);
+  await assert.rejects(readVerifiedRuntimeFile(empty, MiB, emptyProof, "evidence"));
+  await assert.rejects(readVerifiedRuntimeFile(hard, MiB, { ...emptyProof, path: hard }, "evidence"));
+});
+test("runtime startup preparation retains typed empty evidence through deduplication and revalidation", { skip: !linuxNonRoot }, async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-empty-startup-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  await fs.chmod(directory, 0o700);
+  const { emptyEvidence, environment } = await startupFixture(directory);
+  const runtime = await prepareRuntimeContext(environment);
+  assert.deepEqual(runtime.references.filter((item) => item.path === emptyEvidence.path)
+    .map(({ size, sha256, referenceType }) => ({ size, sha256, referenceType })), [{ size: 0, sha256: emptyHash, referenceType: "evidence" }]);
+  await verifyRuntimeReferences(runtime);
+  await fs.rmdir(runtime.directory);
+});
+test("runtime startup rejects cross-type references while preserving same-type evidence deduplication", { skip: !linuxNonRoot }, async (context) => {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-reference-types-"));
+  context.after(() => fs.rm(parent, { recursive: true, force: true }));
+  await fs.chmod(parent, 0o700);
+  const collisions = [
+    (value, proofs) => { value.roles[0].reports.json = { ...proofs.bootstrapProof }; },
+    (value, proofs) => { value.roles[0].evidence = [{ ...proofs.bootstrapProof }]; },
+    (value) => { value.roles[0].evidence = [{ ...value.roles[0].reports.json }]; },
+  ];
+  for (const [index, mutate] of collisions.entries()) {
+    const directory = path.join(parent, `case-${index}`); await fs.mkdir(directory, { mode: 0o700 });
+    const { environment } = await startupFixture(directory, mutate);
+    await assert.rejects(prepareRuntimeContext(environment));
+  }
 });
 for (const [name, mutate] of [
   ["top-level array", () => []], ["unknown field", (v) => { v.privateText = "not allowed"; }],
@@ -56,7 +149,8 @@ for (const [name, mutate] of [
   ["numeric proof size string", (v) => { v.sourceInputs[0].size = "1"; }], ["source proof over cap", (v) => { v.sourceInputs[0].size = MiB + 1; }],
   ["zero proof size", (v) => { v.sourceInputs[0].size = 0; }], ["extra proof field", (v) => { v.sourceInputs[0].privateText = "not allowed"; }],
   ["report proof over cap", (v) => { v.roles[0].reports.json.size = 64 * MiB + 1; }], ["evidence proof over cap", (v) => { v.roles[0].evidence[0].size = 4 * MiB + 1; }],
-  ["archive over cap", (v) => { v.roles[0].subject.archiveBytes = 2 * GiB + 1; }], ["coerced archive hash", (v) => { v.roles[0].subject.archiveSha256 = [hash]; }],
+  ["zero archive bytes", (v) => { v.roles[0].subject.archiveBytes = 0; }], ["archive over cap", (v) => { v.roles[0].subject.archiveBytes = 2 * GiB + 1; }],
+  ["coerced archive hash", (v) => { v.roles[0].subject.archiveSha256 = [hash]; }],
 ]) test(`runtime input rejects ${name}`, () => { const value = fixture(); const replaced = mutate(value); assert.throws(() => validateRuntimeInput(replaced ?? value, run)); });
 test("runtime input requires each role's exact archive ceiling rather than an adjustable limit", () => {
   for (const index of [0, 1, 4]) for (const delta of [-1, 1]) { const value = fixture(); value.roles[index].subject.archiveCapBytes += delta; assert.throws(() => validateRuntimeInput(value, run)); }

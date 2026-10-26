@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import * as audit from "../scripts/scanner/official-audit.mjs";
@@ -53,6 +55,17 @@ function pairedReports(role = "postgres") {
   return { bound, report, sbom };
 }
 
+function runtimeExpected() {
+  return { run: { sourceCommit: "a".repeat(40), runId: "1", attempt: "1" },
+    roles: [...config.images].map(({ role }, index) => ({ role, imageId: `sha256:${String(index + 1).repeat(64)}` })) };
+}
+
+function runtimeResult(expected) {
+  return { schemaVersion: 1, run: clone(expected.run), roles: clone(expected.roles),
+    cases: ["start-and-refusal", "sql-raw-index", "restart-persistence", "cold-canonical-restore"]
+      .map((name) => ({ name, status: "passed", code: "verified" })), cleanup: { result: "passed" } };
+}
+
 test("managed CLI scope is explicit, preserves the historical default and refuses unknown or incomplete modes", () => {
   const buildInfo = path.resolve("synthetic-managed/build-info.txt"), output = path.resolve("synthetic-managed/output");
   const base = ["--scanner", scanner, "--build-info", buildInfo, "--output", output];
@@ -62,6 +75,51 @@ test("managed CLI scope is explicit, preserves the historical default and refuse
     [...base, "--scope", "managed", "--scope", "managed"], [...base.slice(0, 4), "--scope", "managed"]]) {
     assert.throws(() => audit.parseOfficialAuditArguments(args), /scanner_official_arguments_invalid/u);
   }
+});
+
+test("missing managed runtime result preserves finite non-acceptance for successful and failed children", async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-result-missing-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const expected = runtimeExpected();
+  for (const childFailed of [false, true]) {
+    const resultFile = path.join(directory, `runtime-result-${childFailed}.json`);
+    const publicFile = path.join(directory, `managed-runtime-result-${childFailed}.json`);
+    const receipt = { functionalRuntime: "PENDING_NOT_ACCEPTED", milestone2Completion: "NOT_ESTABLISHED" };
+    await assert.rejects(audit.publishManagedRuntimeResult({ resultFile, publicFile, expected, childFailed, receipt }), (error) => {
+      assert.equal(error.message, "scanner_managed_runtime_result_missing");
+      assert.equal(error.message.includes(directory), false);
+      return true;
+    });
+    assert.deepEqual(receipt, { functionalRuntime: "FAILED_NOT_ACCEPTED", milestone2Completion: "NOT_ESTABLISHED" });
+    await assert.rejects(fs.access(publicFile), { code: "ENOENT" });
+  }
+  assert.deepEqual(audit.commandFailureDiagnostic({ stdout: Buffer.from("private stdout"), stderr: Buffer.from("private stderr") }, { privateOutput: true }),
+    { stdoutBytes: 14, stderrBytes: 14, reason: "private_runtime_output_not_published" });
+});
+
+test("runtime result publisher retains valid observations and rejects invalid results before publication", async (context) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-result-publisher-"));
+  context.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const expected = runtimeExpected(), result = runtimeResult(expected);
+  for (const childFailed of [false, true]) {
+    const resultFile = path.join(directory, `runtime-result-${childFailed}.json`);
+    const publicFile = path.join(directory, `managed-runtime-result-${childFailed}.json`);
+    await fs.writeFile(resultFile, JSON.stringify(result), { flag: "wx", mode: 0o600 });
+    const receipt = {};
+    const published = await audit.publishManagedRuntimeResult({ resultFile, publicFile, expected, childFailed, receipt });
+    assert.equal(published.passed, !childFailed);
+    assert.equal(receipt.functionalRuntime, childFailed ? "FAILED_NOT_ACCEPTED" : "VERIFIED_DIAGNOSTIC_ONLY");
+    assert.equal(receipt.milestone2Completion, "NOT_ESTABLISHED");
+    assert.deepEqual(receipt.runtimeCases, result.cases); assert.deepEqual(receipt.runtimeCleanup, result.cleanup);
+    assert.deepEqual(JSON.parse(await fs.readFile(publicFile, "utf8")), result);
+  }
+  const invalidFile = path.join(directory, "runtime-result-invalid.json"), invalidPublic = path.join(directory, "managed-runtime-result-invalid.json");
+  await fs.writeFile(invalidFile, "{}", { flag: "wx", mode: 0o600 });
+  const receipt = {};
+  await assert.rejects(audit.publishManagedRuntimeResult({ resultFile: invalidFile, publicFile: invalidPublic, expected,
+    childFailed: false, receipt }), /scanner_managed_runtime_result_invalid/u);
+  assert.deepEqual(receipt, { functionalRuntime: "FAILED_NOT_ACCEPTED", milestone2Completion: "NOT_ESTABLISHED" });
+  await assert.rejects(fs.access(invalidPublic), { code: "ENOENT" });
 });
 
 test("managed lock validates the same diagnostic object and cannot omit or duplicate any builder/candidate role", () => {
