@@ -1,0 +1,965 @@
+import org.gradle.api.GradleException
+import org.gradle.api.Task
+import org.gradle.api.execution.TaskExecutionListener
+import org.gradle.api.tasks.TaskState
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.TestDescriptor
+import org.gradle.api.tasks.testing.TestListener
+import org.gradle.api.tasks.testing.TestOutputEvent
+import org.gradle.api.tasks.testing.TestOutputListener
+import org.gradle.api.tasks.testing.TestResult
+
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.channels.FileChannel
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
+
+final class AutoWorldTestOutputCapture implements TestListener, TestOutputListener {
+    static final String SENTINEL = 'AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR'
+    private static final Set<String> PHASES = Set.of('unfixed', 'seeded-fixed', 'full')
+    private static final int EXPECTED_UID = 1000
+    static final long MIB = 1024L * 1024L
+    static final long MAX_STREAM_BYTES = 4L * MIB
+    static final long MAX_TOTAL_BYTES = 64L * MIB
+    static final int MAX_DESCRIPTOR_COUNT = 4094
+    static final int MAX_STREAM_COUNT = 4093
+    static final int MAX_PARENT_DEPTH = 64
+    static final int MAX_FIELD_BYTES = 16 * 1024
+    static final int MAX_METADATA_BYTES = 1024 * 1024
+    static final long MAX_EVENTS = 1_000_000L
+    private static final String COMPLETE_TEXT = 'COMPLETE\n'
+    private static final String INVALID_TEXT = 'INVALID\n'
+
+    private final String phase
+    private final String taskPath
+    private final Path anchorDirectory
+    private final Path outputDirectory
+    private final IdentityHashMap<TestDescriptor, DescriptorRecord> descriptors = new IdentityHashMap<>()
+    private final List<DescriptorRecord> descriptorOrder = []
+    private final Map<String, StreamRecord> streams = [:]
+    private int nextDescriptorId = 0
+    private int metadataBytes = 0
+    private long eventCount = 0L
+    private long streamBytes = 0L
+    private boolean started = false
+    private boolean rootCompleted = false
+    private boolean taskCompleted = false
+    private boolean invalid = false
+    private boolean directoryOwned = false
+    private Object directoryFileKey = null
+    private final LinkedHashMap<Path, Object> ancestorFileKeys = new LinkedHashMap<>()
+
+    AutoWorldTestOutputCapture(String phase, String taskPath, Path anchorDirectory, Path outputDirectory) {
+        if (!acceptsPhase(phase) || taskPath != ':server:internalClusterTest' || anchorDirectory == null
+            || outputDirectory == null) {
+            throw new GradleException(SENTINEL)
+        }
+        this.phase = phase
+        this.taskPath = taskPath
+        this.anchorDirectory = anchorDirectory.toAbsolutePath().normalize()
+        this.outputDirectory = outputDirectory.toAbsolutePath().normalize()
+        if (this.outputDirectory == this.anchorDirectory || !this.outputDirectory.startsWith(this.anchorDirectory)) {
+            throw new GradleException(SENTINEL)
+        }
+    }
+
+    static boolean acceptsPhase(String phase) {
+        return PHASES.contains(phase)
+    }
+
+    synchronized void start() {
+        if (started || taskCompleted || invalid) {
+            throw integrityFailure()
+        }
+        try {
+            Path parent = outputDirectory.parent
+            if (parent == null || !parent.startsWith(anchorDirectory)
+                || Files.exists(outputDirectory, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException('capture destination is not fresh')
+            }
+            LinkedHashMap<Path, Object> initialKeys = validateDirectoryChain(parent, null)
+            Files.createDirectory(outputDirectory)
+            Object acquiredFileKey = validatedDirectoryFileKey(outputDirectory)
+            validateDirectoryChain(parent, initialKeys)
+            ancestorFileKeys.putAll(initialKeys)
+            directoryFileKey = acquiredFileKey
+            directoryOwned = true
+            revalidateOwnedDirectory()
+            started = true
+        } catch (Throwable ignored) {
+            throw integrityFailure()
+        }
+    }
+
+    @Override
+    synchronized void beforeSuite(TestDescriptor descriptor) {
+        lifecycleStart(descriptor, true)
+    }
+
+    @Override
+    synchronized void afterSuite(TestDescriptor descriptor, TestResult result) {
+        lifecycleFinish(descriptor, result, true)
+        if (descriptor != null && descriptor.parent == null) {
+            if (rootCompleted) {
+                throw integrityFailure()
+            }
+            rootCompleted = true
+        }
+    }
+
+    @Override
+    synchronized void beforeTest(TestDescriptor descriptor) {
+        lifecycleStart(descriptor, false)
+    }
+
+    @Override
+    synchronized void afterTest(TestDescriptor descriptor, TestResult result) {
+        lifecycleFinish(descriptor, result, false)
+    }
+
+    @Override
+    synchronized void onOutput(TestDescriptor descriptor, TestOutputEvent event) {
+        requireActive()
+        if (event == null || taskCompleted) {
+            throw integrityFailure()
+        }
+        try {
+            if (eventCount >= MAX_EVENTS) {
+                throw new IOException('event limit')
+            }
+            DescriptorRecord descriptorRecord = observeDescriptor(descriptor)
+            if (descriptorRecord.finished) {
+                throw new IOException('output after descriptor completion')
+            }
+            String destination = event.destination == TestOutputEvent.Destination.StdOut ? 'stdout'
+                : event.destination == TestOutputEvent.Destination.StdErr ? 'stderr' : null
+            if (destination == null || event.message == null) {
+                throw new IOException('output event is invalid')
+            }
+            String key = "${descriptorRecord.id}:${destination}"
+            StreamRecord stream = streams[key]
+            if (stream == null) {
+                if (streams.size() >= MAX_STREAM_COUNT) {
+                    throw new IOException('stream file limit')
+                }
+                String fileName = String.format(Locale.ROOT, 'descriptor-%04d-%s.log', descriptorRecord.id, destination)
+                Path file = outputDirectory.resolve(fileName)
+                revalidateOwnedDirectory()
+                FileChannel channel = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+                try {
+                    revalidateOwnedDirectory()
+                    Object fileKey = validatedRegularFileKey(file)
+                    stream = new StreamRecord(descriptorRecord.id, destination, fileName, fileKey, channel)
+                    streams[key] = stream
+                } catch (Throwable failure) {
+                    channel.close()
+                    throw failure
+                }
+            }
+            appendStrictUtf8(stream, event.message)
+            stream.events += 1L
+            eventCount += 1L
+        } catch (Throwable ignored) {
+            throw integrityFailure()
+        }
+    }
+
+    synchronized void finishTask() {
+        requireActive()
+        if (taskCompleted || !rootCompleted) {
+            throw integrityFailure()
+        }
+        try {
+            for (DescriptorRecord descriptor : descriptorOrder) {
+                verifyDescriptor(descriptor.instance, new IdentityHashMap<TestDescriptor, Boolean>(), 0)
+                if (descriptor.started && !descriptor.finished) {
+                    throw new IOException('open lifecycle')
+                }
+            }
+            for (StreamRecord stream : streams.values()) {
+                stream.channel.force(true)
+                stream.channel.close()
+                stream.closed = true
+                stream.sha256 = hex(stream.digest.digest())
+                validateStreamFile(stream)
+            }
+            if (streams.values().any { !it.closed }) {
+                throw new IOException('open stream')
+            }
+            taskCompleted = true
+            byte[] manifest = manifestBytes()
+            byte[] completeBytes = COMPLETE_TEXT.getBytes(StandardCharsets.UTF_8)
+            if (manifest.length > MAX_METADATA_BYTES || manifest.length > MAX_STREAM_BYTES
+                || streamBytes + manifest.length + completeBytes.length > MAX_TOTAL_BYTES) {
+                throw new IOException('manifest bound')
+            }
+            CapturedFile manifestFile = writeNewAndForce(outputDirectory.resolve('manifest.json'), manifest)
+            CapturedFile completeFile = writeCompleteAtomically()
+            validateCapturedFile(manifestFile)
+            validateCapturedFile(completeFile)
+            for (StreamRecord stream : streams.values()) {
+                validateStreamFile(stream)
+            }
+        } catch (Throwable ignored) {
+            throw integrityFailure()
+        }
+    }
+
+    private void lifecycleStart(TestDescriptor descriptor, boolean suite) {
+        requireActive()
+        if (taskCompleted || descriptor == null) {
+            throw integrityFailure()
+        }
+        try {
+            DescriptorRecord record = observeDescriptor(descriptor)
+            if (record.started || record.finished || record.composite != suite) {
+                throw new IOException('lifecycle start')
+            }
+            updateDescriptorMetadata(record, true, false, null)
+            record.started = true
+        } catch (Throwable ignored) {
+            throw integrityFailure()
+        }
+    }
+
+    private void lifecycleFinish(TestDescriptor descriptor, TestResult result, boolean suite) {
+        requireActive()
+        if (taskCompleted || descriptor == null || result == null || result.resultType == null) {
+            throw integrityFailure()
+        }
+        try {
+            DescriptorRecord record = observeDescriptor(descriptor)
+            if (!record.started || record.finished || record.composite != suite) {
+                throw new IOException('lifecycle finish')
+            }
+            updateDescriptorMetadata(record, true, true, result.resultType.name())
+            record.finished = true
+            record.resultType = result.resultType.name()
+        } catch (Throwable ignored) {
+            throw integrityFailure()
+        }
+    }
+
+    private void requireActive() {
+        if (!started || invalid) {
+            throw integrityFailure()
+        }
+    }
+
+    private DescriptorRecord observeDescriptor(TestDescriptor descriptor) {
+        if (descriptor == null) {
+            DescriptorRecord existing = descriptors[null]
+            if (existing != null) {
+                return existing
+            }
+            return insertDescriptor(null, null, 0)
+        }
+        DescriptorRecord existing = descriptors[descriptor]
+        if (existing != null) {
+            verifyDescriptor(descriptor, new IdentityHashMap<TestDescriptor, Boolean>(), 0)
+            return existing
+        }
+        return insertDescriptorTree(descriptor, new IdentityHashMap<TestDescriptor, Boolean>(), 0)
+    }
+
+    private DescriptorRecord insertDescriptorTree(TestDescriptor descriptor,
+        IdentityHashMap<TestDescriptor, Boolean> ancestry, int depth) {
+        if (descriptor == null) {
+            return observeDescriptor(null)
+        }
+        if (depth >= MAX_PARENT_DEPTH || ancestry.put(descriptor, Boolean.TRUE) != null) {
+            throw new IOException('descriptor ancestry')
+        }
+        DescriptorRecord existing = descriptors[descriptor]
+        if (existing != null) {
+            verifyDescriptor(descriptor, new IdentityHashMap<TestDescriptor, Boolean>(), 0)
+            ancestry.remove(descriptor)
+            return existing
+        }
+        TestDescriptor parent = descriptor.parent
+        DescriptorRecord parentRecord = parent == null ? null : insertDescriptorTree(parent, ancestry, depth + 1)
+        ancestry.remove(descriptor)
+        return insertDescriptor(descriptor, parentRecord, depth)
+    }
+
+    private DescriptorRecord insertDescriptor(TestDescriptor descriptor, DescriptorRecord parentRecord, int depth) {
+        if (descriptors.size() >= MAX_DESCRIPTOR_COUNT || depth >= MAX_PARENT_DEPTH) {
+            throw new IOException('descriptor limit')
+        }
+        String name = descriptor == null ? null : descriptor.name
+        String displayName = descriptor == null ? null : descriptor.displayName
+        String className = descriptor == null ? null : descriptor.className
+        boolean composite = descriptor != null && descriptor.composite
+        boundedFieldBytes(name)
+        boundedFieldBytes(displayName)
+        boundedFieldBytes(className)
+        DescriptorRecord record = new DescriptorRecord(nextDescriptorId, descriptor, parentRecord?.id,
+            name, displayName, className, composite)
+        int serializedBytes = descriptorJsonLength(record, false, false, null)
+        int addedMetadata = serializedBytes + (descriptorOrder.isEmpty() ? 0 : 1)
+        if (metadataBytes > MAX_METADATA_BYTES - addedMetadata) {
+            throw new IOException('descriptor metadata limit')
+        }
+        record.serializedBytes = serializedBytes
+        nextDescriptorId += 1
+        metadataBytes += addedMetadata
+        descriptors[descriptor] = record
+        descriptorOrder.add(record)
+        return record
+    }
+
+    private void verifyDescriptor(TestDescriptor descriptor,
+        IdentityHashMap<TestDescriptor, Boolean> ancestry, int depth) {
+        if (descriptor == null) {
+            if (descriptors[null] == null) {
+                throw new IOException('unknown unattributed descriptor')
+            }
+            return
+        }
+        if (depth >= MAX_PARENT_DEPTH || ancestry.put(descriptor, Boolean.TRUE) != null) {
+            throw new IOException('descriptor ancestry')
+        }
+        DescriptorRecord record = descriptors[descriptor]
+        if (record == null || record.name != descriptor.name || record.displayName != descriptor.displayName
+            || record.className != descriptor.className || record.composite != descriptor.composite) {
+            throw new IOException('descriptor mutation')
+        }
+        TestDescriptor parent = descriptor.parent
+        if ((parent == null ? null : descriptors[parent]?.id) != record.parentId) {
+            throw new IOException('descriptor parent mutation')
+        }
+        if (parent != null) {
+            verifyDescriptor(parent, ancestry, depth + 1)
+        }
+        ancestry.remove(descriptor)
+    }
+
+    private int boundedFieldBytes(String value) {
+        if (value == null) {
+            return 1
+        }
+        return strictUtf8Length(value, MAX_FIELD_BYTES) + 4
+    }
+
+    private void updateDescriptorMetadata(DescriptorRecord record, boolean startedValue, boolean finishedValue,
+        String resultTypeValue) {
+        int replacementBytes = descriptorJsonLength(record, startedValue, finishedValue, resultTypeValue)
+        long replacementTotal = (long) metadataBytes - record.serializedBytes + replacementBytes
+        if (replacementTotal > MAX_METADATA_BYTES) {
+            throw new IOException('descriptor metadata limit')
+        }
+        metadataBytes = (int) replacementTotal
+        record.serializedBytes = replacementBytes
+    }
+
+    private int descriptorJsonLength(DescriptorRecord record, boolean startedValue, boolean finishedValue,
+        String resultTypeValue) {
+        BoundedJsonWriter writer = new BoundedJsonWriter(MAX_METADATA_BYTES)
+        writeDescriptorJson(writer, record, startedValue, finishedValue, resultTypeValue)
+        return writer.size()
+    }
+
+    private static int strictUtf8Length(String value, int maximum) {
+        def encoder = StandardCharsets.UTF_8.newEncoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        CharBuffer input = CharBuffer.wrap(value)
+        ByteBuffer output = ByteBuffer.allocate(1024)
+        int length = 0
+        try {
+            boolean complete = false
+            while (!complete) {
+                def result = encoder.encode(input, output, true)
+                length += output.position()
+                output.clear()
+                if (length > maximum || result.isError()) {
+                    if (result.isError()) {
+                        result.throwException()
+                    }
+                    throw new CharacterCodingException()
+                }
+                complete = result.isUnderflow()
+            }
+            complete = false
+            while (!complete) {
+                def result = encoder.flush(output)
+                length += output.position()
+                output.clear()
+                if (length > maximum || result.isError()) {
+                    if (result.isError()) {
+                        result.throwException()
+                    }
+                    throw new CharacterCodingException()
+                }
+                complete = result.isUnderflow()
+            }
+            return length
+        } catch (CharacterCodingException failure) {
+            throw new IOException('invalid UTF-8 field', failure)
+        }
+    }
+
+    private void appendStrictUtf8(StreamRecord stream, String message) {
+        def encoder = StandardCharsets.UTF_8.newEncoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        CharBuffer input = CharBuffer.wrap(message)
+        ByteBuffer output = ByteBuffer.allocate(8192)
+        boolean complete = false
+        while (!complete) {
+            def result = encoder.encode(input, output, true)
+            flushEncoded(stream, output)
+            if (result.isError()) {
+                result.throwException()
+            }
+            complete = result.isUnderflow()
+        }
+        complete = false
+        while (!complete) {
+            def result = encoder.flush(output)
+            flushEncoded(stream, output)
+            if (result.isError()) {
+                result.throwException()
+            }
+            complete = result.isUnderflow()
+        }
+    }
+
+    private void flushEncoded(StreamRecord stream, ByteBuffer output) {
+        output.flip()
+        int count = output.remaining()
+        if (stream.bytes > MAX_STREAM_BYTES - count
+            || streamBytes > (MAX_TOTAL_BYTES - MAX_METADATA_BYTES
+                - COMPLETE_TEXT.getBytes(StandardCharsets.UTF_8).length) - count) {
+            throw new IOException('stream byte limit')
+        }
+        if (count > 0) {
+            ByteBuffer digestBytes = output.asReadOnlyBuffer()
+            stream.digest.update(digestBytes)
+            while (output.hasRemaining()) {
+                stream.channel.write(output)
+            }
+            stream.bytes += count
+            streamBytes += count
+        }
+        output.clear()
+    }
+
+    private byte[] manifestBytes() {
+        byte[] completeBytes = COMPLETE_TEXT.getBytes(StandardCharsets.UTF_8)
+        long predictedBytes = streamBytes + completeBytes.length
+        byte[] result = new byte[0]
+        for (int attempt = 0; attempt < 16; attempt += 1) {
+            BoundedJsonWriter writer = new BoundedJsonWriter(MAX_METADATA_BYTES)
+            writeManifestJson(writer, predictedBytes)
+            writer.ascii('\n')
+            result = writer.toByteArray()
+            long next = streamBytes + result.length + completeBytes.length
+            if (next == predictedBytes) {
+                return result
+            }
+            predictedBytes = next
+        }
+        throw new IOException('manifest size did not stabilize')
+    }
+
+    private void writeManifestJson(BoundedJsonWriter writer, long predictedBytes) {
+        writer.ascii('{"schemaVersion":1,"phase":')
+        writer.string(phase)
+        writer.ascii(',"task":')
+        writer.string(taskPath)
+        writer.ascii(',"descriptors":[')
+        for (int index = 0; index < descriptorOrder.size(); index += 1) {
+            if (index > 0) {
+                writer.ascii(',')
+            }
+            DescriptorRecord descriptor = descriptorOrder[index]
+            writeDescriptorJson(writer, descriptor, descriptor.started, descriptor.finished, descriptor.resultType)
+        }
+        writer.ascii('],"streams":[')
+        List<StreamRecord> sortedStreams = new ArrayList<>(streams.values())
+        sortedStreams.sort { left, right -> left.fileName <=> right.fileName }
+        for (int index = 0; index < sortedStreams.size(); index += 1) {
+            if (index > 0) {
+                writer.ascii(',')
+            }
+            StreamRecord stream = sortedStreams[index]
+            writer.ascii('{"descriptorId":')
+            writer.number(stream.descriptorId)
+            writer.ascii(',"destination":')
+            writer.string(stream.destination)
+            writer.ascii(',"path":')
+            writer.string(stream.fileName)
+            writer.ascii(',"events":')
+            writer.number(stream.events)
+            writer.ascii(',"bytes":')
+            writer.number(stream.bytes)
+            writer.ascii(',"sha256":')
+            writer.string(stream.sha256)
+            writer.ascii('}')
+        }
+        writer.ascii('],"totals":{"descriptors":')
+        writer.number(descriptorOrder.size())
+        writer.ascii(',"descriptorMetadataBytes":')
+        writer.number(metadataBytes)
+        writer.ascii(',"events":')
+        writer.number(eventCount)
+        writer.ascii(',"files":')
+        writer.number(streams.size() + 2)
+        writer.ascii(',"bytes":')
+        writer.number(predictedBytes)
+        writer.ascii(',"captureErrors":0,"openWriters":0}}')
+    }
+
+    private static void writeDescriptorJson(BoundedJsonWriter writer, DescriptorRecord descriptor,
+        boolean startedValue, boolean finishedValue, String resultTypeValue) {
+        writer.ascii('{"id":')
+        writer.number(descriptor.id)
+        writer.ascii(',"parentId":')
+        writer.nullableNumber(descriptor.parentId)
+        writer.ascii(',"name":')
+        writer.nullableString(descriptor.name)
+        writer.ascii(',"displayName":')
+        writer.nullableString(descriptor.displayName)
+        writer.ascii(',"className":')
+        writer.nullableString(descriptor.className)
+        writer.ascii(',"composite":')
+        writer.bool(descriptor.composite)
+        writer.ascii(',"lifecycle":')
+        writer.string(startedValue ? (finishedValue ? 'finished' : 'started') : 'output-only')
+        writer.ascii(',"resultType":')
+        writer.nullableString(resultTypeValue)
+        writer.ascii('}')
+    }
+
+    private CapturedFile writeNewAndForce(Path path, byte[] bytes) {
+        if (path.parent != outputDirectory) {
+            throw new IOException('capture file outside owned directory')
+        }
+        revalidateOwnedDirectory()
+        FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE,
+            StandardOpenOption.SYNC)
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(bytes)
+            while (buffer.hasRemaining()) {
+                channel.write(buffer)
+            }
+            channel.force(true)
+        } finally {
+            channel.close()
+        }
+        revalidateOwnedDirectory()
+        CapturedFile captured = new CapturedFile(path, validatedRegularFileKey(path), bytes.length, sha256(bytes))
+        validateCapturedFile(captured)
+        return captured
+    }
+
+    private CapturedFile writeCompleteAtomically() {
+        Path temporary = outputDirectory.resolve('.complete.status.tmp')
+        Path complete = outputDirectory.resolve('complete.status')
+        byte[] completeBytes = COMPLETE_TEXT.getBytes(StandardCharsets.UTF_8)
+        revalidateOwnedDirectory()
+        if (Files.exists(temporary, LinkOption.NOFOLLOW_LINKS) || Files.exists(complete, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException('completion destination occupied')
+        }
+        CapturedFile temporaryFile = writeNewAndForce(temporary, completeBytes)
+        revalidateOwnedDirectory()
+        Files.createLink(complete, temporary)
+        revalidateOwnedDirectory()
+        Object completeFileKey = validatedRegularFileKey(complete)
+        if (!temporaryFile.fileKey.equals(completeFileKey) || !Files.isSameFile(temporary, complete)) {
+            throw new IOException('completion hard link identity mismatch')
+        }
+        validateCapturedFile(temporaryFile)
+        Files.delete(temporary)
+        revalidateOwnedDirectory()
+        CapturedFile completeFile = new CapturedFile(complete, completeFileKey, completeBytes.length,
+            sha256(completeBytes))
+        validateCapturedFile(completeFile)
+        return completeFile
+    }
+
+    private GradleException integrityFailure() {
+        invalid = true
+        for (StreamRecord stream : streams.values()) {
+            if (!stream.closed) {
+                try {
+                    stream.channel.close()
+                    stream.closed = true
+                } catch (Throwable ignored) {
+                    // The fixed sentinel and missing completion still reject this phase.
+                }
+            }
+        }
+        System.err.println(SENTINEL)
+        if (canMutateOwnedDirectory()) {
+            try {
+                Files.deleteIfExists(outputDirectory.resolve('complete.status'))
+                Files.deleteIfExists(outputDirectory.resolve('.complete.status.tmp'))
+                Path invalidMarker = outputDirectory.resolve('capture-invalid.status')
+                if (!Files.exists(invalidMarker, LinkOption.NOFOLLOW_LINKS)) {
+                    writeNewAndForce(invalidMarker, INVALID_TEXT.getBytes(StandardCharsets.UTF_8))
+                }
+            } catch (Throwable ignored) {
+                System.err.println(SENTINEL)
+            }
+        }
+        return new GradleException(SENTINEL)
+    }
+
+    private LinkedHashMap<Path, Object> validateDirectoryChain(Path last,
+        LinkedHashMap<Path, Object> expectedKeys) {
+        if (!last.startsWith(anchorDirectory)) {
+            throw new IOException('capture chain escapes anchor')
+        }
+        LinkedHashMap<Path, Object> observed = new LinkedHashMap<>()
+        Path current = anchorDirectory
+        List<Path> directories = [current]
+        for (Path segment : anchorDirectory.relativize(last)) {
+            current = current.resolve(segment).normalize()
+            directories.add(current)
+        }
+        for (Path directory : directories) {
+            Object fileKey = validatedDirectoryFileKey(directory)
+            if (expectedKeys != null && (!expectedKeys.containsKey(directory)
+                || expectedKeys[directory] == null || !expectedKeys[directory].equals(fileKey))) {
+                throw new IOException('capture ancestor identity changed')
+            }
+            observed[directory] = fileKey
+        }
+        return observed
+    }
+
+    private static Object validatedDirectoryFileKey(Path directory) {
+        BasicFileAttributes attributes = Files.readAttributes(directory, BasicFileAttributes,
+            LinkOption.NOFOLLOW_LINKS)
+        if (!attributes.isDirectory() || attributes.isSymbolicLink() || Files.isSymbolicLink(directory)
+            || attributes.fileKey() == null) {
+            throw new IOException('capture directory identity is invalid')
+        }
+        Object uid = Files.getAttribute(directory, 'unix:uid', LinkOption.NOFOLLOW_LINKS)
+        if (!(uid instanceof Number) || ((Number) uid).intValue() != EXPECTED_UID) {
+            throw new IOException('capture directory owner is invalid')
+        }
+        Path real = directory.toRealPath(LinkOption.NOFOLLOW_LINKS)
+        if (real != directory.toAbsolutePath().normalize()) {
+            throw new IOException('capture directory real path is invalid')
+        }
+        return attributes.fileKey()
+    }
+
+    private static Object validatedRegularFileKey(Path file) {
+        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes,
+            LinkOption.NOFOLLOW_LINKS)
+        if (!attributes.isRegularFile() || attributes.isSymbolicLink() || Files.isSymbolicLink(file)
+            || attributes.fileKey() == null) {
+            throw new IOException('capture file identity is invalid')
+        }
+        Object uid = Files.getAttribute(file, 'unix:uid', LinkOption.NOFOLLOW_LINKS)
+        if (!(uid instanceof Number) || ((Number) uid).intValue() != EXPECTED_UID) {
+            throw new IOException('capture file owner is invalid')
+        }
+        return attributes.fileKey()
+    }
+
+    private static void validateCapturedFile(CapturedFile captured) {
+        Object currentKey = validatedRegularFileKey(captured.path)
+        long currentBytes = Files.size(captured.path)
+        if (!captured.fileKey.equals(currentKey) || currentBytes != captured.bytes) {
+            throw new IOException('capture file changed')
+        }
+        String currentSha256 = sha256(captured.path, captured.bytes)
+        Object finalKey = validatedRegularFileKey(captured.path)
+        if (!currentKey.equals(finalKey) || Files.size(captured.path) != captured.bytes
+            || currentSha256 != captured.sha256) {
+            throw new IOException('capture file changed')
+        }
+    }
+
+    private void validateStreamFile(StreamRecord stream) {
+        CapturedFile captured = new CapturedFile(outputDirectory.resolve(stream.fileName), stream.fileKey,
+            stream.bytes, stream.sha256)
+        validateCapturedFile(captured)
+    }
+
+    private void revalidateOwnedDirectory() {
+        if (!directoryOwned || directoryFileKey == null || ancestorFileKeys.isEmpty()) {
+            throw new IOException('capture directory is not owned')
+        }
+        Path parent = outputDirectory.parent
+        LinkedHashMap<Path, Object> observed = validateDirectoryChain(parent, ancestorFileKeys)
+        if (observed.size() != ancestorFileKeys.size()) {
+            throw new IOException('capture ancestor chain changed')
+        }
+        Object currentFileKey = validatedDirectoryFileKey(outputDirectory)
+        if (!directoryFileKey.equals(currentFileKey)) {
+            throw new IOException('capture directory identity changed')
+        }
+    }
+
+    private boolean canMutateOwnedDirectory() {
+        if (!directoryOwned) {
+            return false
+        }
+        try {
+            revalidateOwnedDirectory()
+            return true
+        } catch (Throwable ignored) {
+            return false
+        }
+    }
+
+    private static String hex(byte[] bytes) {
+        StringBuilder result = new StringBuilder(bytes.length * 2)
+        for (byte value : bytes) {
+            result.append(String.format(Locale.ROOT, '%02x', value & 0xff))
+        }
+        return result.toString()
+    }
+
+    private static String sha256(byte[] bytes) {
+        MessageDigest digest = MessageDigest.getInstance('SHA-256')
+        digest.update(bytes)
+        return hex(digest.digest())
+    }
+
+    private static String sha256(Path path, long expectedBytes) {
+        MessageDigest digest = MessageDigest.getInstance('SHA-256')
+        InputStream input = Files.newInputStream(path, StandardOpenOption.READ)
+        try {
+            byte[] buffer = new byte[8192]
+            long total = 0L
+            int read
+            while ((read = input.read(buffer)) != -1) {
+                if (total > expectedBytes - read) {
+                    throw new IOException('capture file grew while hashing')
+                }
+                digest.update(buffer, 0, read)
+                total += read
+            }
+            if (total != expectedBytes) {
+                throw new IOException('capture file shrank while hashing')
+            }
+        } finally {
+            input.close()
+        }
+        return hex(digest.digest())
+    }
+
+    private static final class BoundedJsonWriter {
+        private final int maximum
+        private final ByteArrayOutputStream output = new ByteArrayOutputStream()
+
+        BoundedJsonWriter(int maximum) {
+            this.maximum = maximum
+        }
+
+        int size() {
+            return output.size()
+        }
+
+        byte[] toByteArray() {
+            return output.toByteArray()
+        }
+
+        void ascii(String value) {
+            for (int index = 0; index < value.length(); index += 1) {
+                char current = value.charAt(index)
+                if (current > 0x7f) {
+                    throw new IOException('non-ASCII JSON token')
+                }
+                writeByte((int) current)
+            }
+        }
+
+        void number(long value) {
+            ascii(Long.toString(value))
+        }
+
+        void nullableNumber(Integer value) {
+            if (value == null) {
+                ascii('null')
+            } else {
+                number(value.longValue())
+            }
+        }
+
+        void bool(boolean value) {
+            ascii(value ? 'true' : 'false')
+        }
+
+        void nullableString(String value) {
+            if (value == null) {
+                ascii('null')
+            } else {
+                string(value)
+            }
+        }
+
+        void string(String value) {
+            ascii('"')
+            for (int index = 0; index < value.length(); index += 1) {
+                char current = value.charAt(index)
+                if (current == '"' as char) {
+                    ascii('\\"')
+                } else if (current == '\\' as char) {
+                    ascii('\\\\')
+                } else if (current < 0x20) {
+                    ascii(String.format(Locale.ROOT, '\\u%04x', (int) current))
+                } else if (Character.isHighSurrogate(current)) {
+                    if (index + 1 >= value.length() || !Character.isLowSurrogate(value.charAt(index + 1))) {
+                        throw new IOException('invalid UTF-8 JSON string')
+                    }
+                    int codePoint = Character.toCodePoint(current, value.charAt(index + 1))
+                    writeUtf8(codePoint)
+                    index += 1
+                } else if (Character.isLowSurrogate(current)) {
+                    throw new IOException('invalid UTF-8 JSON string')
+                } else {
+                    writeUtf8((int) current)
+                }
+            }
+            ascii('"')
+        }
+
+        private void writeUtf8(int codePoint) {
+            if (codePoint <= 0x7f) {
+                writeByte(codePoint)
+            } else if (codePoint <= 0x7ff) {
+                writeByte(0xc0 | (codePoint >> 6))
+                writeByte(0x80 | (codePoint & 0x3f))
+            } else if (codePoint <= 0xffff) {
+                writeByte(0xe0 | (codePoint >> 12))
+                writeByte(0x80 | ((codePoint >> 6) & 0x3f))
+                writeByte(0x80 | (codePoint & 0x3f))
+            } else {
+                writeByte(0xf0 | (codePoint >> 18))
+                writeByte(0x80 | ((codePoint >> 12) & 0x3f))
+                writeByte(0x80 | ((codePoint >> 6) & 0x3f))
+                writeByte(0x80 | (codePoint & 0x3f))
+            }
+        }
+
+        private void writeByte(int value) {
+            if (output.size() >= maximum) {
+                throw new IOException('JSON metadata limit')
+            }
+            output.write(value)
+        }
+    }
+
+    private static final class DescriptorRecord {
+        final int id
+        final TestDescriptor instance
+        final Integer parentId
+        final String name
+        final String displayName
+        final String className
+        final boolean composite
+        boolean started = false
+        boolean finished = false
+        String resultType = null
+        int serializedBytes = 0
+
+        DescriptorRecord(int id, TestDescriptor instance, Integer parentId, String name, String displayName,
+            String className, boolean composite) {
+            this.id = id
+            this.instance = instance
+            this.parentId = parentId
+            this.name = name
+            this.displayName = displayName
+            this.className = className
+            this.composite = composite
+        }
+    }
+
+    private static final class CapturedFile {
+        final Path path
+        final Object fileKey
+        final long bytes
+        final String sha256
+
+        CapturedFile(Path path, Object fileKey, long bytes, String sha256) {
+            this.path = path
+            this.fileKey = fileKey
+            this.bytes = bytes
+            this.sha256 = sha256
+        }
+    }
+
+    private static final class StreamRecord {
+        final int descriptorId
+        final String destination
+        final String fileName
+        final Object fileKey
+        final FileChannel channel
+        final MessageDigest digest = MessageDigest.getInstance('SHA-256')
+        long events = 0L
+        long bytes = 0L
+        boolean closed = false
+        String sha256 = null
+
+        StreamRecord(int descriptorId, String destination, String fileName, Object fileKey, FileChannel channel) {
+            this.descriptorId = descriptorId
+            this.destination = destination
+            this.fileName = fileName
+            this.fileKey = fileKey
+            this.channel = channel
+        }
+    }
+}
+
+final class AutoWorldCaptureTaskListener implements TaskExecutionListener {
+    private final Task target
+    private final AutoWorldTestOutputCapture capture
+
+    AutoWorldCaptureTaskListener(Task target, AutoWorldTestOutputCapture capture) {
+        this.target = target
+        this.capture = capture
+    }
+
+    @Override
+    void beforeExecute(Task task) {
+    }
+
+    @Override
+    void afterExecute(Task task, TaskState state) {
+        if (task.is(target)) {
+            capture.finishTask()
+        }
+    }
+}
+
+String autoWorldCapturePhase = System.getProperty('auto.world.test.output.phase')
+if (autoWorldCapturePhase != null) {
+    if (!AutoWorldTestOutputCapture.acceptsPhase(autoWorldCapturePhase)) {
+        System.err.println(AutoWorldTestOutputCapture.SENTINEL)
+        throw new GradleException(AutoWorldTestOutputCapture.SENTINEL)
+    }
+    gradle.projectsEvaluated {
+        Task selected = gradle.rootProject.tasks.getByPath(':server:internalClusterTest')
+        if (!(selected instanceof Test)) {
+            System.err.println(AutoWorldTestOutputCapture.SENTINEL)
+            throw new GradleException(AutoWorldTestOutputCapture.SENTINEL)
+        }
+        Test testTask = (Test) selected
+        testTask.reports.junitXml.includeSystemOutLog.set(false)
+        testTask.reports.junitXml.includeSystemErrLog.set(false)
+        AutoWorldTestOutputCapture capture = new AutoWorldTestOutputCapture(autoWorldCapturePhase,
+            ':server:internalClusterTest', Paths.get('/evidence'),
+            Paths.get('/evidence/test-output').resolve(autoWorldCapturePhase))
+        testTask.addTestListener(capture)
+        testTask.addTestOutputListener(capture)
+        testTask.doFirst { capture.start() }
+        gradle.addListener(new AutoWorldCaptureTaskListener(testTask, capture))
+    }
+}

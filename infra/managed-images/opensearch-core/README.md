@@ -14,7 +14,7 @@ under the upstream project's Apache-2.0 licence.
 
 `build-core.sh` authenticates the upstream wrapper, prepares the new checksum
 files with `updateShas`, and keeps licence/third-party checks enabled. It retains
-Gradle statuses, original logs and JUnit XML. The targeted upstream checksum
+Gradle statuses, original logs and natively generated JUnit XML. The targeted upstream checksum
 files are generated during CI; their new JAR bytes and success are not asserted
 in advance. Full core REST tests use the upstream `rest-api-spec` selection.
 The upstream [settings](https://github.com/opensearch-project/OpenSearch/blob/4ee42a94e87f66fbf1e62a9871b1b87f91e02472/settings.gradle#L171-L173)
@@ -23,6 +23,37 @@ rename library projects: the four x-content task locators therefore use
 including its `licenses` and `build/test-results/test` directories. Other selected
 projects keep their original names. JUnit evidence retains the task-specific
 directories for `test`, `yamlRestTest` and `internalClusterTest`.
+
+`test-output-capture.gradle` applies only to the three
+`:server:internalClusterTest` invocations. For that task it asks Gradle not to
+duplicate standard output/error inside JUnit XML, then preserves every public
+`TestOutputEvent` message in a separate natural descriptor/stream file. It does
+not rewrite XML, split streams or infer an origin that Gradle did not provide.
+Each `unfixed`, `seeded-fixed` and `full` phase has a fresh directory under
+`test-output/`, an indexed SHA256 manifest and an atomically published
+`complete.status`. A malformed field, lifecycle/identity inconsistency, late
+event, I/O failure, open writer or exceeded descriptor/event/file/byte bound
+removes completion, writes `capture-invalid.status` where the directory identity
+is still owned, and emits a fixed integrity sentinel. `build-core.sh` rejects
+that sentinel independently of the expected failing RED task exit. The two
+controls produce one native XML each; the full invocation produces three native
+class XML files. Other test tasks keep their existing report configuration.
+After each Gradle process, `verify-test-output-manifest.gradle` uses the same
+authenticated wrapper and its bundled `JsonSlurper` to validate the fixed
+schema and phase/task identity, exact regular-file closure, descriptor/parent
+graph, UTF-8 streams, byte/event/file totals and every stream SHA256 before the
+phase gate can pass. It accepts no caller-supplied root, task or output path.
+
+Before upstream tests, `verify-test-output-capture.sh` runs the exact init source
+concatenated with an inert fixture tail through the authenticated Gradle 9.7.1
+wrapper and builder JDK. It covers direct event/lifecycle/boundary cases plus
+actual successful and expected-failing `Test` task `afterExecute` finalization.
+The fixture has no external dependency and runs no candidate service or image.
+Only its fixed summary, original Gradle logs/statuses and two valid integration
+captures are exported; negative-case directories remain private to the builder.
+This native fixture is Linux CI evidence and is not executed by the Windows Node
+regression test. The current Windows run has 11 cases: seven pass and four
+Linux-only cases remain explicitly skipped.
 
 Target `runtime` rejects a nonzero `build.exit-code`. Target `evidence` exports
 text/XML under `opensearch/build/` and `opensearch/base/`, including failed Gradle
@@ -60,6 +91,8 @@ requires the same scope control plus the original failed-seed test to pass, and
 finally forces the complete selected internal-cluster suite with an ordinary
 random seed. Control XML and logs stay under `controls/`; only the final 16 XML
 reports and at least 1,735 test cases populate `junit/` and its release count.
+The phase-specific natural output streams remain under `test-output/` and are
+required before any of those causal/full gates can pass.
 
 On 25 October 2026 the three initial Windows fixture executions failed before
 functional validation: Git Bash could not fork (`0xC0000142`, resource temporarily

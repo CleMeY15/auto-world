@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd /workspace/source
-mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed
+mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed /evidence/test-output /evidence/test-output-validation
 printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' > /evidence/state.txt
 test "$(cat .git/HEAD)" = 4ee42a94e87f66fbf1e62a9871b1b87f91e02472
 cp .git/HEAD /evidence/source-commit.txt
@@ -26,6 +26,9 @@ cp /recipe/jackson.patch /evidence/
 bash /recipe/patch-snapshot-scope-test.sh "$PWD" > /evidence/snapshot-scope-test-preparation.txt 2>&1
 cp /recipe/patch-snapshot-scope-test.sh /evidence/patch-snapshot-scope-test.sh.txt
 cp /recipe/patch-snapshot-mock-repository.sh /evidence/patch-snapshot-mock-repository.sh.txt
+cp /recipe/test-output-capture.gradle /evidence/test-output-capture.gradle.txt
+cp /recipe/verify-test-output-capture.sh /evidence/verify-test-output-capture.sh.txt
+cp /recipe/verify-test-output-manifest.gradle /evidence/verify-test-output-manifest.gradle.txt
 cp /recipe/snapshot-scope-test.patch /recipe/snapshot-scope-mock-repository.patch /evidence/
 sha256sum \
   server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java \
@@ -35,6 +38,40 @@ sha256sum \
 gradle_options=(--no-daemon --no-build-cache --max-workers=2
   '-Dorg.gradle.jvmargs=-Xms256m -Xmx1536m -XX:MaxMetaspaceSize=512m'
   -Dtests.jvms=1 -Dtests.heap.size=512m -Dbuild.snapshot=false)
+capture_options=(--no-configuration-cache -I /recipe/test-output-capture.gradle)
+
+owned_regular_file() {
+  local file=$1
+  [ -f "$file" ] && [ ! -L "$file" ] && [ "$(stat -c '%u' "$file")" -eq "$(id -u)" ]
+}
+
+sentinel_absent() {
+  local file=$1
+  local sentinel=$2
+  local grep_status=0
+  owned_regular_file "$file" || return 1
+  grep -Fq "$sentinel" "$file" || grep_status=$?
+  [ "$grep_status" -eq 1 ]
+}
+
+capture_complete() {
+  local phase=$1
+  local invocation_log=$2
+  sentinel_absent "$invocation_log" 'AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR' || return 1
+  local validation=/evidence/test-output-validation/$phase
+  local validation_status=0
+  mkdir -p "$validation"
+  bash /workspace/source/gradlew --no-daemon --no-build-cache --no-configuration-cache --max-workers=1 \
+    -p /workspace/test-output-capture-fixture/direct \
+    -I /recipe/verify-test-output-manifest.gradle \
+    "-Dauto.world.verify.test.output.phase=$phase" autoWorldVerifyTestOutputManifest \
+    > "$validation/gradle.log" 2>&1 || validation_status=$?
+  printf '%s\n' "$validation_status" > "$validation/gradle.exit-code"
+  owned_regular_file "$validation/gradle.log" || return 1
+  owned_regular_file "$validation/gradle.exit-code" || return 1
+  test "$validation_status" -eq 0 || return 1
+  sentinel_absent "$validation/gradle.log" 'AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID' || return 1
+}
 
 # Captured nonzero statuses remain exportable by target evidence. Target
 # runtime explicitly rejects them; an incomplete build never becomes an image.
@@ -44,7 +81,32 @@ bash ./gradlew "${gradle_options[@]}" \
   > /evidence/update-shas.log 2>&1 || preparation_status=$?
 printf '%s\n' "$preparation_status" > /evidence/preparation.exit-code
 build_status=$preparation_status
+fixture_status=1
+fixture_ok=0
 if [ "$preparation_status" -eq 0 ]; then
+  fixture_status=0
+  bash /recipe/verify-test-output-capture.sh \
+    > /evidence/test-output-fixture.log 2>&1 || fixture_status=$?
+  printf '%s\n' "$fixture_status" > /evidence/test-output-fixture.exit-code
+  if [ "$fixture_status" -eq 0 ] \
+    && owned_regular_file /evidence/test-output-fixture.log \
+    && owned_regular_file /evidence/test-output-fixture.exit-code \
+    && sentinel_absent /evidence/test-output-fixture.log 'AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR' \
+    && [ -f /evidence/test-output-fixture/summary.txt ] \
+    && owned_regular_file /evidence/test-output-fixture/summary.txt \
+    && grep -Fxq 'direct=passed' /evidence/test-output-fixture/summary.txt \
+    && grep -Fxq 'manifest-validator=passed negatives=malformed,hash,bytes,totals,aggregate-events,aggregate-bytes,path,missing,extra,file-count,symlink' /evidence/test-output-fixture/summary.txt \
+    && grep -Fxq 'successful-test-task=passed capture=complete' /evidence/test-output-fixture/summary.txt \
+    && grep -Fxq 'failing-test-task=expected-failure capture=complete' /evidence/test-output-fixture/summary.txt; then
+    fixture_ok=1
+  else
+    build_status=1
+  fi
+else
+  printf '%s\n' 'NOT_RUN_PREPARATION_FAILED' > /evidence/test-output-fixture.exit-code
+  printf '%s\n' 'AUTO_WORLD_TEST_OUTPUT_CAPTURE_FIXTURE_NOT_RUN' > /evidence/test-output-fixture.log
+fi
+if [ "$preparation_status" -eq 0 ] && [ "$fixture_ok" -eq 1 ]; then
   control_xml=server/build/test-results/internalClusterTest/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml
   control_options=(
     -Dtests.seed=730D258067002B91
@@ -59,7 +121,8 @@ if [ "$preparation_status" -eq 0 ]; then
 
   rm -f "$control_xml"
   unfixed_status=0
-  bash ./gradlew "${gradle_options[@]}" "${control_options[@]}" \
+  bash ./gradlew "${gradle_options[@]}" "${capture_options[@]}" "${control_options[@]}" \
+    -Dauto.world.test.output.phase=unfixed \
     :server:internalClusterTest --rerun \
     --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotShardPathsListBlobsFaultScope \
     > /evidence/controls/unfixed/gradle.log 2>&1 || unfixed_status=$?
@@ -79,6 +142,7 @@ if [ "$preparation_status" -eq 0 ]; then
     && ! grep -Fq 'SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNEXPECTED_CAUSE' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && ! grep -Fq 'index.latest' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
     && grep -Fq 'Random IOException' /evidence/controls/unfixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+    && capture_complete unfixed /evidence/controls/unfixed/gradle.log \
     && ! grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/controls/unfixed/gradle.log; then
     unfixed_control_ok=1
   fi
@@ -93,7 +157,8 @@ if [ "$preparation_status" -eq 0 ]; then
 
     rm -f "$control_xml"
     fixed_status=0
-    bash ./gradlew "${gradle_options[@]}" "${control_options[@]}" \
+    bash ./gradlew "${gradle_options[@]}" "${capture_options[@]}" "${control_options[@]}" \
+      -Dauto.world.test.output.phase=seeded-fixed \
       :server:internalClusterTest --rerun \
       --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotShardPathsListBlobsFaultScope \
       --tests org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.testSnapshotFileFailureDuringSnapshot \
@@ -110,6 +175,7 @@ if [ "$preparation_status" -eq 0 ]; then
       && grep -Fq 'errors="0"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && grep -Fq 'name="testSnapshotShardPathsListBlobsFaultScope"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
       && grep -Fq 'name="testSnapshotFileFailureDuringSnapshot"' /evidence/controls/seeded-fixed/TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml \
+      && capture_complete seeded-fixed /evidence/controls/seeded-fixed/gradle.log \
       && ! grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/controls/seeded-fixed/gradle.log; then
       fixed_control_ok=1
     fi
@@ -123,7 +189,8 @@ if [ "$preparation_status" -eq 0 ]; then
   rm -rf server/build/test-results/internalClusterTest
   if [ "$fixed_control_ok" -eq 1 ]; then
     build_status=0
-    bash ./gradlew "${gradle_options[@]}" --continue \
+    bash ./gradlew "${gradle_options[@]}" "${capture_options[@]}" \
+      -Dauto.world.test.output.phase=full --continue \
       :libs:opensearch-x-content:dependencyLicenses :libs:opensearch-x-content:thirdPartyAudit \
       :modules:ingest-geoip:dependencyLicenses :modules:ingest-geoip:thirdPartyAudit \
       :libs:opensearch-x-content:test :modules:ingest-geoip:test \
@@ -194,6 +261,9 @@ if [ "$full_report_count" -ne 16 ] || [ "$full_test_count" -lt 1735 ] \
   build_status=1
 fi
 if grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/core-build-and-tests.log; then
+  build_status=1
+fi
+if ! capture_complete full /evidence/core-build-and-tests.log; then
   build_status=1
 fi
 if [ ! -d /workspace/source/distribution/archives/no-jdk-linux-tar/build/install/opensearch-3.9.0 ]; then

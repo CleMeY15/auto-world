@@ -406,3 +406,43 @@ remain unchanged. No new dependency or local Java/container execution follows.
 Code review and fresh actual source/main quality, causal/full outputs, seven
 audits, four runtime cases and cleanup remain required before corrective
 delivery or B0. This review approves the plan, not any future result.
+
+## 2026-10-26 — native-output source prepared and independently reviewed
+
+The implementation receives actual independent final source APPROVE after
+correcting JSON growth accounting, acquired-directory preservation, final file
+identity/hash checks, atomic no-replace completion, channel closure and log
+failure handling. A separate fixed-phase Gradle verifier uses the already
+authenticated wrapper/Groovy runtime and JsonSlurper to validate the complete
+bounded manifest and exact regular-file closure after the capture process.
+It checks schema, phase/task, descriptors/lifecycles/parents, UTF-8, stream
+bytes/hashes/events, totals, markers and absence of poisoned/temporary output.
+Budgets are enforced before growth, reading or hashing. No parser dependency,
+new execution pin, exporter change or relaxed limit is introduced.
+
+The native fixture is prepared to exercise the actual capture and verifier implementations,
+including successful/failed inert Test task hooks and malformed, missing,
+replaced, aliased or oversized evidence. Its real compilation/execution has
+not run locally and remains a required Linux CI result. The Bash regression
+fixture uses the actual producer functions and an instrumented inert external
+wrapper only to test orchestration/exit handling; it does not emulate the JSON
+verifier or claim native execution. Initial WSL checks exposed missing helper
+injection and an invalid wrapper-call expectation in excluded Linux cases;
+those regressions are corrected before any new managed run.
+
+Fresh local OpenSearch checks: 11 cases, 7 passes/4 explicit Linux exclusions,
+zero failure. Inert WSL execution passes the real RED/capture/full-suite gate
+fixtures and produces Java source hashes
+`37515f8b9f7b550a1d0c232768d191cc297f35c24a67ed4a5709a4363071f53e` and
+`99cf760087f5045aaec4996a2cacb1f845964217e6dfa67759c379dbe7c0c2bb`,
+with reapplication refused without mutation. The existing evidence/archive/
+workflow/runtime checks report 188 cases, 160 passes/28 platform exclusions,
+zero failure. ESLint, Bash syntax, whitespace checks and Secretlint on 1,176 files
+pass. Exporter/policy/workflow and Java patch inputs remain unchanged.
+
+Status is SOURCE_PREPARED / LINUX_VALIDATION_AND_DELIVERY_PENDING. Fresh exact
+source quality, actual native fixture, complete causal/full original outputs,
+seven audits, four runtime cases and cleanup require independent acceptance,
+then normal protected merge and matching main acceptance. Earlier managed
+failures remain preserved. TASK-0005/0005A stay IN_PROGRESS; B0, complete private
+retention, admission and activation/support remain blocked or unproved.

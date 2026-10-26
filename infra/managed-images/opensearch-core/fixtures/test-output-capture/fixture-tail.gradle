@@ -1,0 +1,371 @@
+final class AutoWorldCaptureFixtureCases {
+    static TestDescriptor descriptor(Map state) {
+        return [
+            getName: { -> state.name },
+            getDisplayName: { -> state.displayName },
+            getClassName: { -> state.className },
+            getClassDisplayName: { -> state.className },
+            getParent: { -> state.parent },
+            isComposite: { -> state.composite },
+            getSource: { -> null },
+        ] as TestDescriptor
+    }
+
+    static TestOutputEvent event(TestOutputEvent.Destination destination, String message) {
+        return [getDestination: { -> destination }, getMessage: { -> message }] as TestOutputEvent
+    }
+
+    static TestResult result(TestResult.ResultType type) {
+        return [
+            getResultType: { -> type },
+            getStartTime: { -> 1L },
+            getEndTime: { -> 2L },
+            getTestCount: { -> 1L },
+            getSuccessfulTestCount: { -> type == TestResult.ResultType.SUCCESS ? 1L : 0L },
+            getFailedTestCount: { -> type == TestResult.ResultType.FAILURE ? 1L : 0L },
+            getSkippedTestCount: { -> type == TestResult.ResultType.SKIPPED ? 1L : 0L },
+            getExceptions: { -> [] },
+        ] as TestResult
+    }
+
+    static AutoWorldTestOutputCapture capture(Path base, String name, String phase = 'full') {
+        return new AutoWorldTestOutputCapture(phase, ':server:internalClusterTest', base, base.resolve(name))
+    }
+
+    static String expectIntegrityFailure(Closure operation) {
+        PrintStream original = System.err
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream()
+        PrintStream intercepted = new PrintStream(bytes, true, StandardCharsets.UTF_8)
+        System.setErr(intercepted)
+        boolean failed = false
+        try {
+            operation.call()
+        } catch (GradleException failure) {
+            failed = true
+            assert failure.message == AutoWorldTestOutputCapture.SENTINEL
+        } finally {
+            intercepted.flush()
+            System.setErr(original)
+            intercepted.close()
+        }
+        assert failed
+        String emitted = bytes.toString(StandardCharsets.UTF_8)
+        assert emitted.readLines().every { it == AutoWorldTestOutputCapture.SENTINEL }
+        assert emitted.readLines().size() >= 1
+        return emitted
+    }
+
+    static void setField(Object target, String name, Object value) {
+        def field = target.class.getDeclaredField(name)
+        field.accessible = true
+        field.set(target, value)
+    }
+
+    static Object getField(Object target, String name) {
+        def field = target.class.getDeclaredField(name)
+        field.accessible = true
+        return field.get(target)
+    }
+
+    static void completeRoot(AutoWorldTestOutputCapture capture, TestDescriptor root,
+        TestResult.ResultType type = TestResult.ResultType.SUCCESS) {
+        capture.beforeSuite(root)
+        capture.afterSuite(root, result(type))
+    }
+
+    static void assertInvalid(Path directory) {
+        assert !Files.exists(directory.resolve('complete.status'), LinkOption.NOFOLLOW_LINKS)
+        assert Files.isRegularFile(directory.resolve('capture-invalid.status'), LinkOption.NOFOLLOW_LINKS)
+    }
+
+    static void run(Path base) {
+        Files.createDirectories(base)
+
+        Path success = base.resolve('success')
+        AutoWorldTestOutputCapture good = capture(base, 'success')
+        good.start()
+        Map rootState = [name: 'root', displayName: 'root "display"\\\n\u0001', className: null, parent: null, composite: true]
+        TestDescriptor root = descriptor(rootState)
+        Map suiteState = [name: 'suite', displayName: 'suite display', className: 'fixture.Suite', parent: root, composite: true]
+        TestDescriptor suite = descriptor(suiteState)
+        Map firstState = [name: 'same', displayName: 'same display', className: 'fixture.Suite', parent: suite, composite: false]
+        Map secondState = [name: 'same', displayName: 'same display', className: 'fixture.Suite', parent: suite, composite: false]
+        TestDescriptor first = descriptor(firstState)
+        TestDescriptor second = descriptor(secondState)
+        Map unknownState = [name: 'Unknown test (possible bug, please report)', displayName: 'Unknown test (possible bug, please report)',
+            className: null, parent: null, composite: false]
+        TestDescriptor unknown = descriptor(unknownState)
+        good.beforeSuite(root)
+        good.beforeSuite(suite)
+        good.beforeTest(first)
+        good.onOutput(first, event(TestOutputEvent.Destination.StdOut, 'été\r\nline two\n'))
+        good.onOutput(first, event(TestOutputEvent.Destination.StdErr, 'stderr-one\n'))
+        good.afterTest(first, result(TestResult.ResultType.SUCCESS))
+        good.beforeTest(second)
+        good.onOutput(second, event(TestOutputEvent.Destination.StdOut, 'second-object\n'))
+        good.afterTest(second, result(TestResult.ResultType.FAILURE))
+        good.onOutput(suite, event(TestOutputEvent.Destination.StdOut, 'native-parent-attribution\n'))
+        good.onOutput(unknown, event(TestOutputEvent.Destination.StdErr, 'unknown-attribution\n'))
+        good.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'unattributed\n'))
+        good.afterSuite(suite, result(TestResult.ResultType.FAILURE))
+        good.afterSuite(root, result(TestResult.ResultType.FAILURE))
+        good.finishTask()
+        assert Files.isRegularFile(success.resolve('complete.status'))
+        assert !Files.exists(success.resolve('capture-invalid.status'))
+        String manifestText = Files.readString(success.resolve('manifest.json'), StandardCharsets.UTF_8)
+        def manifest = new groovy.json.JsonSlurper().parseText(manifestText)
+        assert manifest.phase == 'full'
+        assert manifest.task == ':server:internalClusterTest'
+        assert manifest.totals.captureErrors == 0
+        assert manifest.totals.openWriters == 0
+        assert manifest.totals.events == 6
+        assert manifest.totals.files == manifest.streams.size() + 2
+        assert manifest.descriptors.find { it.name == 'root' }.displayName == rootState.displayName
+        assert manifestText.contains('\\"display\\"')
+        assert manifestText.contains('\\\\')
+        assert manifestText.contains('\\u000a')
+        assert manifestText.contains('\\u0001')
+        int descriptorsStart = manifestText.indexOf('"descriptors":[') + '"descriptors":['.length()
+        int descriptorsEnd = manifestText.indexOf('],"streams":', descriptorsStart)
+        assert manifest.totals.descriptorMetadataBytes ==
+            manifestText.substring(descriptorsStart, descriptorsEnd).getBytes(StandardCharsets.UTF_8).length
+        assert manifest.descriptors.findAll { it.name == 'same' }.size() == 2
+        assert manifest.descriptors.find { it.name == null }.lifecycle == 'output-only'
+        assert manifest.descriptors.find { it.name == 'Unknown test (possible bug, please report)' }.lifecycle == 'output-only'
+        assert manifest.streams.every { stream ->
+            byte[] original = Files.readAllBytes(success.resolve(stream.path as String))
+            stream.bytes == original.length && stream.sha256 == AutoWorldCaptureFixtureCases.sha256(original)
+        }
+        def firstDescriptor = manifest.descriptors.findAll { it.name == 'same' }.sort { it.id }[0]
+        def firstStdout = manifest.streams.find { it.descriptorId == firstDescriptor.id && it.destination == 'stdout' }
+        assert Arrays.equals(Files.readAllBytes(success.resolve(firstStdout.path as String)),
+            'été\r\nline two\n'.getBytes(StandardCharsets.UTF_8))
+
+        AutoWorldTestOutputCapture rootOnly = capture(base, 'root-without-task')
+        rootOnly.start()
+        completeRoot(rootOnly, descriptor([name: 'root', displayName: 'root', className: null, parent: null, composite: true]))
+        assert !Files.exists(base.resolve('root-without-task/complete.status'))
+
+        Path occupied = base.resolve('occupied')
+        Files.createDirectory(occupied)
+        Files.writeString(occupied.resolve('owner.txt'), 'pre-existing\n', StandardOpenOption.CREATE_NEW)
+        AutoWorldTestOutputCapture occupiedCapture = capture(base, 'occupied')
+        expectIntegrityFailure { occupiedCapture.start() }
+        assert Files.readString(occupied.resolve('owner.txt')) == 'pre-existing\n'
+        assert Files.list(occupied).withCloseable { stream -> stream.count() } == 1L
+
+        Path aliasTarget = base.resolve('alias-target')
+        Path alias = base.resolve('alias')
+        Files.createDirectory(aliasTarget)
+        Files.createSymbolicLink(alias, aliasTarget.fileName)
+        expectIntegrityFailure { capture(base, 'alias').start() }
+        assert Files.list(aliasTarget).withCloseable { stream -> stream.count() } == 0L
+
+        Path ancestorTarget = base.resolve('ancestor-target')
+        Path ancestorAlias = base.resolve('ancestor-alias')
+        Files.createDirectory(ancestorTarget)
+        Files.createSymbolicLink(ancestorAlias, ancestorTarget.fileName)
+        AutoWorldTestOutputCapture ancestorCapture = new AutoWorldTestOutputCapture('full',
+            ':server:internalClusterTest', base, ancestorAlias.resolve('capture'))
+        expectIntegrityFailure { ancestorCapture.start() }
+        assert !Files.exists(ancestorTarget.resolve('capture'), LinkOption.NOFOLLOW_LINKS)
+
+        AutoWorldTestOutputCapture replaced = capture(base, 'replaced')
+        replaced.start()
+        Path replacedOriginal = base.resolve('replaced-original')
+        Files.move(base.resolve('replaced'), replacedOriginal)
+        Files.createDirectory(base.resolve('replaced'))
+        expectIntegrityFailure { replaced.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'must-not-write')) }
+        assert Files.list(base.resolve('replaced')).withCloseable { stream -> stream.count() } == 0L
+        assert !Files.exists(base.resolve('replaced/capture-invalid.status'), LinkOption.NOFOLLOW_LINKS)
+
+        boolean invalidPhase = false
+        try {
+            capture(base, 'invalid-phase', 'other')
+        } catch (GradleException failure) {
+            invalidPhase = failure.message == AutoWorldTestOutputCapture.SENTINEL
+        }
+        assert invalidPhase
+
+        AutoWorldTestOutputCapture lifecycle = capture(base, 'lifecycle')
+        lifecycle.start()
+        TestDescriptor lifecycleTest = descriptor([name: 'test', displayName: 'test', className: 'fixture.C', parent: null, composite: false])
+        expectIntegrityFailure { lifecycle.afterTest(lifecycleTest, result(TestResult.ResultType.SUCCESS)) }
+        assertInvalid(base.resolve('lifecycle'))
+
+        AutoWorldTestOutputCapture mutation = capture(base, 'mutation')
+        mutation.start()
+        Map mutableState = [name: 'before', displayName: 'display', className: 'fixture.C', parent: null, composite: false]
+        TestDescriptor mutable = descriptor(mutableState)
+        mutation.beforeTest(mutable)
+        mutableState.name = 'after'
+        expectIntegrityFailure { mutation.onOutput(mutable, event(TestOutputEvent.Destination.StdOut, 'x')) }
+        assertInvalid(base.resolve('mutation'))
+
+        AutoWorldTestOutputCapture lateBeforeTask = capture(base, 'late-before-task')
+        lateBeforeTask.start()
+        TestDescriptor lateRoot = descriptor([name: 'root', displayName: 'root', className: null, parent: null, composite: true])
+        completeRoot(lateBeforeTask, lateRoot)
+        expectIntegrityFailure { lateBeforeTask.onOutput(lateRoot, event(TestOutputEvent.Destination.StdOut, 'late')) }
+        assertInvalid(base.resolve('late-before-task'))
+
+        AutoWorldTestOutputCapture lateAfterTask = capture(base, 'late-after-task')
+        lateAfterTask.start()
+        TestDescriptor completedRoot = descriptor([name: 'root', displayName: 'root', className: null, parent: null, composite: true])
+        completeRoot(lateAfterTask, completedRoot)
+        lateAfterTask.finishTask()
+        assert Files.exists(base.resolve('late-after-task/complete.status'))
+        expectIntegrityFailure { lateAfterTask.onOutput(completedRoot, event(TestOutputEvent.Destination.StdOut, 'late')) }
+        assertInvalid(base.resolve('late-after-task'))
+
+        AutoWorldTestOutputCapture malformed = capture(base, 'malformed')
+        malformed.start()
+        String loneSurrogate = new String([(char) 0xd800] as char[])
+        expectIntegrityFailure { malformed.onOutput(null, event(TestOutputEvent.Destination.StdOut, loneSurrogate)) }
+        assertInvalid(base.resolve('malformed'))
+
+        AutoWorldTestOutputCapture large = capture(base, 'large-stream')
+        large.start()
+        expectIntegrityFailure {
+            large.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'x'.repeat((4 * 1024 * 1024) + 1)))
+        }
+        assertInvalid(base.resolve('large-stream'))
+
+        AutoWorldTestOutputCapture ioFailure = capture(base, 'io-failure')
+        ioFailure.start()
+        ioFailure.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'first'))
+        Map streamMap = (Map) getField(ioFailure, 'streams')
+        def streamRecord = streamMap.values().first()
+        def channelField = streamRecord.class.getDeclaredField('channel')
+        channelField.accessible = true
+        ((FileChannel) channelField.get(streamRecord)).close()
+        expectIntegrityFailure { ioFailure.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'second')) }
+        assertInvalid(base.resolve('io-failure'))
+
+        AutoWorldTestOutputCapture streamReplaced = capture(base, 'stream-replaced')
+        streamReplaced.start()
+        TestDescriptor streamRoot = descriptor(
+            [name: 'root', displayName: 'root', className: null, parent: null, composite: true])
+        streamReplaced.beforeSuite(streamRoot)
+        streamReplaced.onOutput(streamRoot, event(TestOutputEvent.Destination.StdOut, 'original'))
+        Path streamDirectory = base.resolve('stream-replaced')
+        Path streamPath = Files.list(streamDirectory).withCloseable { listing -> listing.findFirst().orElseThrow() }
+        Files.delete(streamPath)
+        Files.writeString(streamPath, 'replacement', StandardOpenOption.CREATE_NEW)
+        streamReplaced.afterSuite(streamRoot, result(TestResult.ResultType.SUCCESS))
+        expectIntegrityFailure { streamReplaced.finishTask() }
+        assertInvalid(streamDirectory)
+
+        AutoWorldTestOutputCapture fieldLimit = capture(base, 'field-limit')
+        fieldLimit.start()
+        TestDescriptor hugeField = descriptor([name: 'x'.repeat((16 * 1024) + 1), displayName: 'd', className: null, parent: null, composite: false])
+        expectIntegrityFailure { fieldLimit.onOutput(hugeField, event(TestOutputEvent.Destination.StdOut, 'x')) }
+        assertInvalid(base.resolve('field-limit'))
+
+        AutoWorldTestOutputCapture metadataLimit = capture(base, 'metadata-limit')
+        metadataLimit.start()
+        setField(metadataLimit, 'metadataBytes', 1024 * 1024)
+        expectIntegrityFailure {
+            metadataLimit.onOutput(descriptor([name: 'x', displayName: 'x', className: null, parent: null, composite: false]),
+                event(TestOutputEvent.Destination.StdOut, 'x'))
+        }
+        assertInvalid(base.resolve('metadata-limit'))
+
+        AutoWorldTestOutputCapture eventLimit = capture(base, 'event-limit')
+        eventLimit.start()
+        setField(eventLimit, 'eventCount', 1_000_000L)
+        expectIntegrityFailure { eventLimit.onOutput(null, event(TestOutputEvent.Destination.StdOut, 'x')) }
+        assertInvalid(base.resolve('event-limit'))
+
+        AutoWorldTestOutputCapture descriptorLimit = capture(base, 'descriptor-limit')
+        descriptorLimit.start()
+        IdentityHashMap descriptorMap = (IdentityHashMap) getField(descriptorLimit, 'descriptors')
+        for (int index = 0; index < 4094; index += 1) {
+            descriptorMap.put(new Object(), null)
+        }
+        expectIntegrityFailure {
+            descriptorLimit.onOutput(descriptor([name: 'x', displayName: 'x', className: null, parent: null, composite: false]),
+                event(TestOutputEvent.Destination.StdOut, 'x'))
+        }
+        assertInvalid(base.resolve('descriptor-limit'))
+
+        AutoWorldTestOutputCapture depthLimit = capture(base, 'depth-limit')
+        depthLimit.start()
+        TestDescriptor parent = null
+        for (int index = 0; index < 65; index += 1) {
+            parent = descriptor([name: "depth-${index}", displayName: "depth-${index}", className: null, parent: parent, composite: true])
+        }
+        TestDescriptor tooDeep = parent
+        expectIntegrityFailure { depthLimit.onOutput(tooDeep, event(TestOutputEvent.Destination.StdOut, 'x')) }
+        assertInvalid(base.resolve('depth-limit'))
+
+        AutoWorldTestOutputCapture cyclic = capture(base, 'cyclic')
+        cyclic.start()
+        Map cycleState = [name: 'cycle', displayName: 'cycle', className: null, parent: null, composite: true]
+        TestDescriptor cycle = descriptor(cycleState)
+        cycleState.parent = cycle
+        expectIntegrityFailure { cyclic.onOutput(cycle, event(TestOutputEvent.Destination.StdOut, 'x')) }
+        assertInvalid(base.resolve('cyclic'))
+
+        AutoWorldTestOutputCapture markerFailure = capture(base, 'marker-failure')
+        markerFailure.start()
+        TestDescriptor markerRoot = descriptor([name: 'root', displayName: 'root', className: null, parent: null, composite: true])
+        completeRoot(markerFailure, markerRoot)
+        markerFailure.finishTask()
+        Path markerDirectory = base.resolve('marker-failure')
+        Set originalPermissions = Files.getPosixFilePermissions(markerDirectory, LinkOption.NOFOLLOW_LINKS)
+        Files.setPosixFilePermissions(markerDirectory,
+            java.nio.file.attribute.PosixFilePermissions.fromString('r-x------'))
+        String markerSentinel
+        try {
+            markerSentinel = expectIntegrityFailure {
+                markerFailure.onOutput(markerRoot, event(TestOutputEvent.Destination.StdOut, 'late'))
+            }
+        } finally {
+            Files.setPosixFilePermissions(markerDirectory, originalPermissions)
+        }
+        assert markerSentinel.contains(AutoWorldTestOutputCapture.SENTINEL)
+        assert Files.exists(markerDirectory.resolve('complete.status'))
+        assert !Files.exists(markerDirectory.resolve('capture-invalid.status'))
+
+        Files.writeString(base.parent.resolve('direct-summary.txt'),
+            'AUTO_WORLD_TEST_OUTPUT_CAPTURE_FIXTURE_DIRECT_PASS\n', StandardOpenOption.CREATE_NEW)
+    }
+
+    static String sha256(byte[] bytes) {
+        MessageDigest digest = MessageDigest.getInstance('SHA-256')
+        digest.update(bytes)
+        StringBuilder result = new StringBuilder(64)
+        for (byte value : digest.digest()) {
+            result.append(String.format(Locale.ROOT, '%02x', value & 0xff))
+        }
+        return result.toString()
+    }
+}
+
+String fixtureMode = System.getProperty('auto.world.fixture.mode')
+if (fixtureMode == 'direct') {
+    gradle.projectsEvaluated {
+        gradle.rootProject.tasks.register('autoWorldCaptureFixture') {
+            doLast {
+                AutoWorldCaptureFixtureCases.run(gradle.rootProject.projectDir.toPath().resolve('build/direct-cases'))
+            }
+        }
+    }
+} else if (fixtureMode == 'success' || fixtureMode == 'failure') {
+    gradle.projectsEvaluated {
+        Test fixtureTask = (Test) gradle.rootProject.tasks.getByPath(':server:internalClusterTest')
+        Path output = gradle.rootProject.projectDir.toPath().resolve("build/integration-${fixtureMode}")
+        AutoWorldTestOutputCapture fixtureCapture = new AutoWorldTestOutputCapture('full',
+            ':server:internalClusterTest', gradle.rootProject.projectDir.toPath(), output)
+        TestDescriptor fixtureRoot = AutoWorldCaptureFixtureCases.descriptor(
+            [name: 'fixture root', displayName: 'fixture root', className: null, parent: null, composite: true])
+        fixtureTask.doFirst {
+            fixtureCapture.start()
+            fixtureCapture.beforeSuite(fixtureRoot)
+            fixtureCapture.afterSuite(fixtureRoot, AutoWorldCaptureFixtureCases.result(
+                fixtureMode == 'failure' ? TestResult.ResultType.FAILURE : TestResult.ResultType.SUCCESS))
+        }
+        gradle.addListener(new AutoWorldCaptureTaskListener(fixtureTask, fixtureCapture))
+    }
+}

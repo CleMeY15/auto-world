@@ -10,6 +10,8 @@ ADD --keep-git-dir=true --chown=1000:1000 https://github.com/opensearch-project/
 COPY infra/managed-images/opensearch-core/patch-catalogue.sh infra/managed-images/opensearch-core/build-core.sh infra/managed-images/opensearch-core/jackson.patch /recipe/
 COPY infra/managed-images/opensearch-core/patch-snapshot-scope-test.sh infra/managed-images/opensearch-core/patch-snapshot-mock-repository.sh /recipe/
 COPY infra/managed-images/opensearch-core/snapshot-scope-test.patch infra/managed-images/opensearch-core/snapshot-scope-mock-repository.patch /recipe/
+COPY infra/managed-images/opensearch-core/test-output-capture.gradle infra/managed-images/opensearch-core/verify-test-output-capture.sh infra/managed-images/opensearch-core/verify-test-output-manifest.gradle /recipe/
+COPY infra/managed-images/opensearch-core/fixtures/test-output-capture/ /recipe/test-output-capture-fixture/
 USER 1000:1000
 RUN bash /recipe/build-core.sh
 

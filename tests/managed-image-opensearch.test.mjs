@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -11,6 +11,13 @@ const directory = fileURLToPath(new URL("../infra/managed-images/opensearch-core
 const recipe = readFileSync(new URL("../infra/managed-images/Dockerfile.opensearch-core", import.meta.url), "utf8");
 const build = readFileSync(path.join(directory, "build-core.sh"), "utf8");
 const inventoryScript = readFileSync(path.join(directory, "jdk-inventory.sh"), "utf8");
+const outputCapture = readFileSync(path.join(directory, "test-output-capture.gradle"), "utf8");
+const outputCaptureVerifier = readFileSync(path.join(directory, "verify-test-output-capture.sh"), "utf8");
+const outputManifestVerifier = readFileSync(path.join(directory, "verify-test-output-manifest.gradle"), "utf8");
+const outputCaptureFixture = readFileSync(path.join(directory, "fixtures/test-output-capture/fixture-tail.gradle"), "utf8");
+const scannerControls = readFileSync(new URL("../scripts/scanner/controls.mjs", import.meta.url));
+const scannerAuditPolicy = readFileSync(new URL("../scripts/scanner/audit-policy.mjs", import.meta.url));
+const officialAudit = readFileSync(new URL("../scripts/scanner/official-audit.mjs", import.meta.url));
 const original = readFileSync(path.join(directory, "fixtures/libs.versions.toml"));
 const snapshotTestOriginal = readFileSync(path.join(directory, "fixtures/SharedClusterSnapshotRestoreIT.java"));
 const mockRepositoryOriginal = readFileSync(path.join(directory, "fixtures/MockRepository.java"));
@@ -149,7 +156,7 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   assert.ok(positiveControl < selectedSuite);
   const fixedControlCopy = build.indexOf('cp "$control_xml" /evidence/controls/seeded-fixed/');
   const controlCleanup = build.indexOf("rm -rf server/build/test-results/internalClusterTest");
-  const fullSuiteRun = build.indexOf('bash ./gradlew "${gradle_options[@]}" --continue');
+  const fullSuiteRun = build.indexOf("-Dauto.world.test.output.phase=full --continue");
   assert.ok(fixedControlCopy < controlCleanup && controlCleanup < fullSuiteRun);
   assert.match(build, /730D258067002B91/u);
   assert.match(build, /-Dtests\.locale=fr-LU/u);
@@ -178,7 +185,98 @@ test("snapshot fault-scope patch materials are exact, narrow, and staged before 
   assert.match(recipe, /patch-snapshot-scope-test\.sh[\s\S]*snapshot-scope-test\.patch/u);
   assert.match(recipe, /patch-snapshot-mock-repository\.sh[\s\S]*snapshot-scope-mock-repository\.patch/u);
   assert.doesNotMatch(recipe, /fixtures\/SharedClusterSnapshotRestoreIT|fixtures\/MockRepository/u);
+  assert.match(recipe, /test-output-capture\.gradle[\s\S]*verify-test-output-capture\.sh[\s\S]*verify-test-output-manifest\.gradle/u);
+  assert.match(recipe, /fixtures\/test-output-capture\//u);
 
+});
+
+test("bounded native output capture is fixed to the three internal-cluster phases and preserves frozen guards", () => {
+  assert.match(outputCapture, /PHASES = Set\.of\('unfixed', 'seeded-fixed', 'full'\)/u);
+  assert.match(outputCapture, /taskPath != ':server:internalClusterTest'/u);
+  assert.match(outputCapture, /Paths\.get\('\/evidence\/test-output'\)\.resolve\(autoWorldCapturePhase\)/u);
+  assert.match(outputCapture, /IdentityHashMap<TestDescriptor, DescriptorRecord>/u);
+  assert.match(outputCapture, /MAX_DESCRIPTOR_COUNT = 4094/u);
+  assert.match(outputCapture, /MAX_STREAM_COUNT = 4093/u);
+  assert.match(outputCapture, /MAX_PARENT_DEPTH = 64/u);
+  assert.match(outputCapture, /MAX_FIELD_BYTES = 16 \* 1024/u);
+  assert.match(outputCapture, /MAX_METADATA_BYTES = 1024 \* 1024/u);
+  assert.match(outputCapture, /MAX_EVENTS = 1_000_000L/u);
+  assert.match(outputCapture, /MAX_STREAM_BYTES = 4L \* MIB/u);
+  assert.match(outputCapture, /MAX_TOTAL_BYTES = 64L \* MIB/u);
+  assert.match(outputCapture, /includeSystemOutLog\.set\(false\)/u);
+  assert.match(outputCapture, /includeSystemErrLog\.set\(false\)/u);
+  assert.match(outputCapture, /implements TaskExecutionListener/u);
+  assert.match(outputCapture, /void afterExecute\(Task task, TaskState state\)/u);
+  assert.match(outputCapture, /descriptorRecord\.finished/u);
+  assert.match(outputCapture, /Files\.createLink\(complete, temporary\)/u);
+  assert.doesNotMatch(outputCapture, /StandardCopyOption\.ATOMIC_MOVE/u);
+  assert.match(outputCapture, /EXPECTED_UID = 1000/u);
+  assert.match(outputCapture, /attributes\.fileKey\(\) == null/u);
+  assert.match(outputCapture, /validateDirectoryChain[\s\S]*revalidateOwnedDirectory/u);
+  assert.match(outputCapture, /BoundedJsonWriter/u);
+  assert.match(outputCapture, /descriptorJsonLength/u);
+  assert.match(outputCapture, /validatedRegularFileKey/u);
+  assert.match(outputCapture, /Files\.isSameFile\(temporary, complete\)/u);
+  assert.doesNotMatch(outputCapture, /groovy\.json\.JsonOutput|\.collect \{ descriptor/u);
+  assert.match(outputCapture, /AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR/u);
+  assert.doesNotMatch(outputCapture, /getSource\(|outputPerTestCase|Base64|GZIP|chunk/u);
+
+  for (const phase of ["unfixed", "seeded-fixed", "full"])
+    assert.match(build, new RegExp(`-Dauto\\.world\\.test\\.output\\.phase=${phase}`, "u"));
+  assert.equal(build.match(/-I \/recipe\/test-output-capture\.gradle/gu)?.length, 1);
+  assert.match(build, /capture_complete unfixed \/evidence\/controls\/unfixed\/gradle\.log/u);
+  assert.match(build, /capture_complete seeded-fixed \/evidence\/controls\/seeded-fixed\/gradle\.log/u);
+  assert.match(build, /capture_complete full \/evidence\/core-build-and-tests\.log/u);
+  assert.match(build, /test-output-capture\.gradle\.txt/u);
+  assert.match(build, /verify-test-output-capture\.sh\.txt/u);
+  assert.match(build, /verify-test-output-manifest\.gradle\.txt/u);
+  assert.match(build, /AUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR/u);
+  const preparation = build.slice(build.indexOf("bash ./gradlew"), build.indexOf("fixture_status=1"));
+  assert.doesNotMatch(preparation, /test-output-capture|auto\.world\.test\.output/u);
+
+  assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=direct/u);
+  assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=success/u);
+  assert.match(outputCaptureVerifier, /auto\.world\.fixture\.mode=failure/u);
+  assert.match(outputCaptureVerifier, /AUTO_WORLD_FIXTURE_EXPECTED_TASK_FAILURE/u);
+  assert.match(outputCaptureVerifier, /test "\$failure_status" -ne 0/u);
+  assert.match(outputCaptureVerifier, /sentinel_absent "\$fixture_root\/failure\/gradle\.log" "\$sentinel"/u);
+  assert.match(outputCaptureVerifier, /\[ "\$grep_status" -eq 1 \]/u);
+  assert.match(outputCaptureFixture, /two objects|findAll \{ it\.name == 'same' \}\.size\(\) == 2/u);
+  assert.match(outputCaptureFixture, /late-before-task/u);
+  assert.match(outputCaptureFixture, /late-after-task/u);
+  assert.match(outputCaptureFixture, /marker-failure/u);
+  assert.match(outputCaptureFixture, /descriptor-limit/u);
+  assert.match(outputCaptureFixture, /event-limit/u);
+  assert.match(outputCaptureFixture, /metadata-limit/u);
+  assert.match(outputCaptureFixture, /\\u0001/u);
+  assert.match(outputCaptureFixture, /ancestor-alias/u);
+  assert.match(outputCaptureFixture, /replaced-original/u);
+  assert.match(outputCaptureFixture, /stream-replaced/u);
+  assert.match(outputCaptureFixture, /depth-limit/u);
+
+  assert.match(outputManifestVerifier, /JsonSlurper/u);
+  assert.match(outputManifestVerifier, /ROOT = Paths\.get\('\/evidence\/test-output'\)/u);
+  assert.match(outputManifestVerifier, /:server:internalClusterTest/u);
+  assert.match(outputManifestVerifier, /AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID/u);
+  assert.match(outputManifestVerifier, /validateRegularFile/u);
+  assert.match(outputManifestVerifier, /descriptorMetadataBytes/u);
+  assert.match(outputManifestVerifier, /sha256\(streamPath, bytes\)/u);
+  assert.doesNotMatch(outputManifestVerifier, /System\.getProperty\('.*(?:root|path|task)/u);
+  assert.match(outputCaptureVerifier, /manifest-validator=passed negatives=malformed,hash,bytes,totals,aggregate-events,aggregate-bytes,path,missing,extra,file-count,symlink/u);
+  for (const scenario of ["malformed", "hash", "bytes", "totals", "aggregate-events", "aggregate-bytes", "path", "missing", "extra", "file-count", "symlink"])
+    assert.match(outputCaptureVerifier, new RegExp(`run_manifest_verifier ${scenario} fail`, "u"));
+  assert.match(build, /-I \/recipe\/verify-test-output-manifest\.gradle/u);
+  assert.match(build, /autoWorldVerifyTestOutputManifest/u);
+  assert.match(build, /owned_regular_file/u);
+  assert.match(build, /\[ "\$grep_status" -eq 1 \]/u);
+  assert.doesNotMatch(build, /! grep -Fq 'AUTO_WORLD_TEST_OUTPUT/u);
+
+  assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
+  assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
+  assert.equal(sha256(officialAudit), "9c2d7ca265db22593bb2c6bb557c673009893e531f249d6708a52b358baaf447");
+  assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
+  assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
+  assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);
 });
 
 test("authenticated snapshot source patches preserve foreign and already-patched inputs", linuxExecution, (t) => {
@@ -211,10 +309,21 @@ test("authenticated snapshot source patches preserve foreign and already-patched
 
   const redGateStart = build.indexOf("  unfixed_control_ok=0");
   const redGateEnd = build.indexOf("  printf '%s\\n' \"$unfixed_control_ok\"", redGateStart);
+  const captureCompleteStart = build.indexOf("owned_regular_file() {");
+  const captureCompleteEnd = build.indexOf("\n}\n\n# Captured", captureCompleteStart) + 2;
   assert.ok(redGateStart >= 0 && redGateEnd > redGateStart);
+  assert.ok(captureCompleteStart >= 0 && captureCompleteEnd > captureCompleteStart);
   const redGate = build.slice(redGateStart, redGateEnd);
+  const captureComplete = build.slice(captureCompleteStart, captureCompleteEnd);
   const expectedFailureHeader = '<failure message="java.lang.AssertionError: SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">';
-  const runRedGate = (failureElements) => {
+  const runRedGate = (failureElements, {
+    captureState = "valid",
+    validatorExit = 0,
+    expectValidator,
+    invocationLogState = "regular",
+    validationLogState = "regular",
+  } = {}) => {
+    assert.equal(typeof expectValidator, "boolean");
     const evidence = temporaryDirectory(t);
     const control = path.join(evidence, "controls/unfixed");
     mkdirSync(control, { recursive: true });
@@ -222,17 +331,72 @@ test("authenticated snapshot source patches preserve foreign and already-patched
       path.join(control, "TEST-org.opensearch.snapshots.SharedClusterSnapshotRestoreIT.xml"),
       `<testsuite tests="1" failures="1" errors="0" skipped="0"><testcase name="testSnapshotShardPathsListBlobsFaultScope">${failureElements}</testcase></testsuite>\n`,
     );
-    writeFileSync(path.join(control, "gradle.log"), "executed internal cluster test\n");
-    const command = `unfixed_status=1\n${redGate.replaceAll("/evidence", evidence.replaceAll("\\", "/"))}\nprintf '%s\\n' "$unfixed_control_ok"`;
+    if (invocationLogState !== "missing")
+      writeFileSync(
+        path.join(control, "gradle.log"),
+        captureState === "sentinel"
+          ? "executed internal cluster test\nAUTO_WORLD_TEST_OUTPUT_INTEGRITY_ERROR\n"
+          : "executed internal cluster test\n",
+      );
+    if (captureState !== "absent") {
+      const capture = path.join(evidence, "test-output/unfixed");
+      mkdirSync(capture, { recursive: true });
+      writeFileSync(
+        path.join(capture, "manifest.json"),
+        '{"phase":"unfixed","task":":server:internalClusterTest","totals":{"captureErrors":0,"openWriters":0}}\n',
+      );
+      writeFileSync(path.join(capture, "complete.status"), "COMPLETE\n");
+      if (captureState === "poison")
+        writeFileSync(path.join(capture, "capture-invalid.status"), "INVALID\n");
+    }
+    const evidencePath = evidence.replaceAll("\\", "/");
+    const fakeWrapper = path.join(evidence, "gradlew");
+    const wrapperArgs = path.join(evidence, "wrapper.args");
+    const validationLog = path.join(evidence, "test-output-validation/unfixed/gradle.log").replaceAll("\\", "/");
+    const validationLogMutation = validationLogState === "missing"
+      ? `rm -f '${validationLog}'\n`
+      : validationLogState === "directory"
+        ? `rm -f '${validationLog}'\nmkdir '${validationLog}'\n`
+        : "";
+    writeFileSync(fakeWrapper, `#!/bin/bash\nprintf '%s\\n' "$@" > '${wrapperArgs.replaceAll("\\", "/")}'\n${validationLogMutation}exit ${validatorExit}\n`);
+    chmodSync(fakeWrapper, 0o755);
+    const instrumentedCaptureComplete = captureComplete
+      .replaceAll("/evidence", evidencePath)
+      .replace("/workspace/source/gradlew", fakeWrapper.replaceAll("\\", "/"));
+    const command = `${instrumentedCaptureComplete}\nunfixed_status=1\n${redGate.replaceAll("/evidence", evidencePath)}\nprintf '%s\\n' "$unfixed_control_ok"`;
     const result = spawnSync(bash, ["-euo", "pipefail", "-c", command], { encoding: "utf8", timeout: 15000 });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    if (expectValidator) {
+      assert.match(readFileSync(wrapperArgs, "utf8"), /-I\n\/recipe\/verify-test-output-manifest\.gradle\n/u);
+      assert.match(readFileSync(wrapperArgs, "utf8"), /-Dauto\.world\.verify\.test\.output\.phase=unfixed/u);
+      assert.match(readFileSync(wrapperArgs, "utf8"), /autoWorldVerifyTestOutputManifest/u);
+    } else {
+      assert.equal(existsSync(wrapperArgs), false);
+    }
     return Number(result.stdout.trim());
   };
-  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`), 1);
-  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>${expectedFailureHeader}Random IOException</failure>`), 0);
-  assert.equal(runRedGate(`${expectedFailureHeader}SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNEXPECTED_CAUSE Random IOException</failure>`), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`, { expectValidator: true }), 1);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { captureState: "absent", validatorExit: 1, expectValidator: true }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { captureState: "poison", validatorExit: 1, expectValidator: true }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { captureState: "sentinel", expectValidator: false }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { invocationLogState: "missing", expectValidator: false }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { validatorExit: 1, expectValidator: true }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { validationLogState: "missing", expectValidator: true }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>`,
+    { validationLogState: "directory", expectValidator: true }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}Random IOException</failure>${expectedFailureHeader}Random IOException</failure>`,
+    { expectValidator: false }), 0);
+  assert.equal(runRedGate(`${expectedFailureHeader}SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNEXPECTED_CAUSE Random IOException</failure>`,
+    { expectValidator: false }), 0);
   assert.equal(
-    runRedGate('<failure message="java.lang.AssertionError: index.latest SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">Random IOException</failure>'),
+    runRedGate('<failure message="java.lang.AssertionError: index.latest SNAPSHOT_SHARD_PATHS_LIST_BLOBS_SCOPE_CONTROL_UNFIXED failure-count-delta=1" type="java.lang.AssertionError">Random IOException</failure>',
+      { expectValidator: false }),
     0,
   );
 
@@ -311,7 +475,7 @@ test("JDK inventory preserves required fields and plugin absence rejects visible
 });
 
 test("all preparation scripts have valid Bash syntax without building or executing candidate code", () => {
-  for (const name of ["patch-catalogue.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh"]) {
+  for (const name of ["patch-catalogue.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh", "verify-test-output-capture.sh"]) {
     const result = spawnSync(bash, ["-n", path.join(directory, name).replaceAll("\\", "/")], { encoding: "utf8", windowsHide: true });
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
   }

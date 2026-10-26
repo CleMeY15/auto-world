@@ -1,0 +1,19 @@
+plugins {
+    id 'base'
+}
+
+project(':server') {
+    apply plugin: 'java'
+
+    tasks.register('internalClusterTest', Test) {
+        actions.clear()
+        testClassesDirs = files(layout.projectDirectory.dir('fixture-input'))
+        failOnNoDiscoveredTests = false
+        outputs.upToDateWhen { false }
+        doLast {
+            if (System.getProperty('auto.world.fixture.taskFailure') == 'true') {
+                throw new GradleException('AUTO_WORLD_FIXTURE_EXPECTED_TASK_FAILURE')
+            }
+        }
+    }
+}
