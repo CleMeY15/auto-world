@@ -140,6 +140,7 @@ def moby_source_save_fixture(
     oci_manifest_mutator=None,
     manifest_mutator=None,
     outer_mutator=None,
+    config_mutator=None,
 ):
     def json_bytes(value):
         return json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii")
@@ -158,6 +159,8 @@ def moby_source_save_fixture(
         "os": "linux",
         "rootfs": {"type": "layers", "diff_ids": [f"sha256:{value}" for value in diff_ids]},
     }
+    if config_mutator is not None:
+        config_mutator(config_value)
     config_bytes = json_bytes(config_value)
     config_sha256 = hashlib.sha256(config_bytes).hexdigest()
     config_path = f"blobs/sha256/{config_sha256}"
@@ -240,6 +243,33 @@ def inspect_source_fixture_refusal(test_case, *, fixture_builder=source_save_fix
     return caught.exception
 
 
+def inspect_fixture_values(
+    archive_value,
+    config_value,
+    config_sha256,
+    diff_ids,
+    *,
+    auxiliary_profile=None,
+    finalize_hook=None,
+):
+    with tempfile.TemporaryDirectory() as directory_name:
+        directory = Path(directory_name)
+        archive = directory / "source-save.tar"
+        config = directory / "config.json"
+        archive.write_bytes(archive_value)
+        config.write_bytes(config_value)
+        archive.chmod(0o444)
+        config.chmod(0o444)
+        return inspect_source_save_fixture(
+            archive,
+            config,
+            config_sha256,
+            diff_ids,
+            finalize_hook=finalize_hook,
+            auxiliary_profile=auxiliary_profile,
+        )
+
+
 def replace_outer_entry(entries, name, replacement):
     index = next(index for index, entry in enumerate(entries) if entry[0].name == name)
     entries[index] = replacement
@@ -302,6 +332,153 @@ def auxiliary_chain_entries(*, count=10, values_mutator=None, tar_order=None, co
         "candidateBytes": sum(len(payload) for payload in payloads),
     }
     return entries, expected
+
+
+def zero_container_config():
+    return {
+        "Hostname": "",
+        "Domainname": "",
+        "User": "",
+        "AttachStdin": False,
+        "AttachStdout": False,
+        "AttachStderr": False,
+        "Tty": False,
+        "OpenStdin": False,
+        "StdinOnce": False,
+        "Env": None,
+        "Cmd": None,
+        "Image": "",
+        "Volumes": None,
+        "WorkingDir": "",
+        "Entrypoint": None,
+        "OnBuild": None,
+        "Labels": None,
+    }
+
+
+def fixed_source_runtime_config():
+    return {
+        "ArgsEscaped": True,
+        "Cmd": ["serve", "-s3"],
+        "Entrypoint": ["/bin/weed"],
+        "Env": ["FIXTURE=1"],
+        "ExposedPorts": {"8333/tcp": {}},
+        "Labels": {"false": False, "zero": 0, "true": True, "one": 1, "null": None},
+        "Volumes": {"/data": {}},
+        "WorkingDir": "/fixture",
+    }
+
+
+def fixed_auxiliary_chain(source_config, *, values_mutator=None, tar_order=None):
+    ids = [hashlib.sha256(f"fixed-auxiliary-id-{index}".encode("ascii")).hexdigest() for index in range(10)]
+    zero = zero_container_config()
+    values = []
+    for index, identifier in enumerate(ids):
+        value = {
+            "id": identifier,
+            "created": "1970-01-01T00:00:00Z",
+            "container_config": json.loads(json.dumps(zero)),
+            "os": "linux",
+        }
+        if index:
+            value["parent"] = ids[index - 1]
+        values.append(value)
+    values[-1] = {
+        "id": ids[-1],
+        "parent": ids[-2],
+        "created": source_config["created"],
+        "container_config": json.loads(json.dumps(zero)),
+        "config": {**json.loads(json.dumps(zero)), **json.loads(json.dumps(source_config["config"]))},
+        "architecture": "amd64",
+        "os": "linux",
+    }
+    if values_mutator is not None:
+        values_mutator(values)
+    payloads = [json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii") for value in values]
+    payload_sha256s = [hashlib.sha256(payload).hexdigest() for payload in payloads]
+    paths = [f"blobs/sha256/{digest}" for digest in payload_sha256s]
+    entries = [regular(path, payload) for path, payload in zip(paths, payloads, strict=True)]
+    if tar_order is not None:
+        entries = [entries[index] for index in tar_order]
+    payload_bytes = [len(payload) for payload in payloads]
+    key_set_sha256s = [canonical_test_sha256(sorted(value)) for value in values]
+    candidate_inventory = sorted(
+        (
+            {"path": path, "type": "file", "size": size, "payloadSha256": digest}
+            for path, size, digest in zip(paths, payload_bytes, payload_sha256s, strict=True)
+        ),
+        key=lambda value: value["path"],
+    )
+    ordered_records = [
+        {
+            "payloadSha256": payload_sha256s[index],
+            "bytes": payload_bytes[index],
+            "id": ids[index],
+            "parent": None if index == 0 else ids[index - 1],
+            "keySetSha256": key_set_sha256s[index],
+        }
+        for index in range(10)
+    ]
+    profile = {
+        "candidateBytes": sum(payload_bytes),
+        "candidateSetSha256": canonical_test_sha256(candidate_inventory),
+        "payloadSha256s": payload_sha256s,
+        "payloadBytes": payload_bytes,
+        "v1Ids": ids,
+        "keySetSha256s": key_set_sha256s,
+        "orderedSetSha256": canonical_test_sha256(ordered_records),
+    }
+    envelope = {
+        "schemaVersion": 1,
+        "kind": "MOBY_28_V1_AUXILIARY_FIXED_SOURCE_V1",
+        "createIdBinding": "NOT_RECOMPUTED",
+        "auxiliaryToRawLayerBinding": "NOT_INDEPENDENTLY_VERIFIED",
+        "candidateCount": 10,
+        **profile,
+        "semanticProjectionMatched": True,
+    }
+    return entries, profile, envelope
+
+
+def fixed_auxiliary_moby_fixture(
+    *,
+    values_mutator=None,
+    source_config_mutator=None,
+    auxiliary_entries_mutator=None,
+    layer_entries_mutator=None,
+    tar_order=None,
+):
+    captured = {}
+
+    def prepare_config(config):
+        config.update({
+            "created": "2026-10-27T12:34:56.123456789Z",
+            "architecture": "amd64",
+            "os": "linux",
+            "config": fixed_source_runtime_config(),
+            "history": [{"created_by": "inert fixture"}],
+        })
+        if source_config_mutator is not None:
+            source_config_mutator(config)
+        additions, profile, envelope = fixed_auxiliary_chain(
+            config,
+            values_mutator=values_mutator,
+            tar_order=tar_order,
+        )
+        captured.update(additions=additions, profile=profile, envelope=envelope)
+
+    def append_auxiliary(entries, context):
+        additions = list(captured["additions"])
+        if auxiliary_entries_mutator is not None:
+            auxiliary_entries_mutator(additions, context)
+        entries.extend(additions)
+
+    archive, config, config_sha256, diff_ids = moby_source_save_fixture(
+        config_mutator=prepare_config,
+        outer_mutator=append_auxiliary,
+        layer_entries_mutator=layer_entries_mutator,
+    )
+    return archive, config, config_sha256, diff_ids, captured["profile"], captured["envelope"]
 
 
 def append_outer_entries(additions):
@@ -576,6 +753,242 @@ class SourceSaveCliTests(unittest.TestCase):
         self.assertEqual(result["sourceEnvelope"]["layoutSha256"], hashlib.sha256(layout_bytes).hexdigest())
         self.assertEqual(result["sourceEnvelope"]["indexSha256"], hashlib.sha256(index_bytes).hexdigest())
         self.assertEqual(result["sourceEnvelope"]["ociManifestSha256"], hashlib.sha256(oci_manifest_bytes).hexdigest())
+
+    def test_fixed_auxiliary_metadata_passes_only_with_both_independent_envelopes(self):
+        archive, config, config_sha256, diff_ids, profile, expected_envelope = fixed_auxiliary_moby_fixture(
+            tar_order=[8, 1, 6, 3, 0, 9, 5, 2, 7, 4],
+        )
+        result = inspect_fixture_values(
+            archive,
+            config,
+            config_sha256,
+            diff_ids,
+            auxiliary_profile=profile,
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["auxiliaryEnvelope"], expected_envelope)
+        self.assertEqual(result["sourceEnvelope"]["kind"], "MOBY_28_OCI_COMPAT_V1")
+        self.assertEqual([layer["sha256"] for layer in result["layers"]], diff_ids)
+        self.assertNotIn("auxiliaryDiagnostic", result)
+
+    def test_fixed_profile_requires_all_auxiliary_roles_while_bare_fixture_mode_remains_explicit(self):
+        fixed = fixed_auxiliary_moby_fixture()
+        bare = moby_source_save_fixture()
+        with self.assertRaises(InspectionRefusal) as caught:
+            inspect_fixture_values(*bare, auxiliary_profile=fixed[4])
+        self.assertEqual(caught.exception.code, "save_envelope_invalid")
+        self.assertEqual(caught.exception.envelope_diagnostic["node"], "auxiliary")
+        self.assertEqual(caught.exception.envelope_diagnostic["predicate"], "cardinality")
+
+        bare_result = inspect_fixture_values(*bare)
+        self.assertEqual(bare_result["status"], "PASS")
+        self.assertNotIn("auxiliaryEnvelope", bare_result)
+
+    def test_legacy_fixture_does_not_gain_auxiliary_authority_from_a_supplied_profile(self):
+        fixed = fixed_auxiliary_moby_fixture()
+        legacy = source_save_fixture()
+        result = inspect_fixture_values(*legacy, auxiliary_profile=fixed[4])
+        self.assertEqual(result["status"], "PASS")
+        self.assertNotIn("sourceEnvelope", result)
+        self.assertNotIn("auxiliaryEnvelope", result)
+
+    def test_fixed_auxiliary_identity_pins_are_compared_after_recomputation(self):
+        archive, config, config_sha256, diff_ids, profile, _envelope = fixed_auxiliary_moby_fixture()
+
+        def different(value):
+            return ("f" if value[0] != "f" else "e") + value[1:]
+
+        mutations = (
+            ("payload-hash", lambda value: value["payloadSha256s"].__setitem__(3, different(value["payloadSha256s"][3]))),
+            ("payload-size", lambda value: (value["payloadBytes"].__setitem__(3, value["payloadBytes"][3] + 1), value.__setitem__("candidateBytes", value["candidateBytes"] + 1))),
+            ("v1-id", lambda value: value["v1Ids"].__setitem__(3, different(value["v1Ids"][3]))),
+            ("key-set", lambda value: value["keySetSha256s"].__setitem__(3, different(value["keySetSha256s"][3]))),
+            ("candidate-set", lambda value: value.__setitem__("candidateSetSha256", different(value["candidateSetSha256"]))),
+            ("ordered-set", lambda value: value.__setitem__("orderedSetSha256", different(value["orderedSetSha256"]))),
+        )
+        for label, mutate in mutations:
+            changed = json.loads(json.dumps(profile))
+            mutate(changed)
+            with self.subTest(pin=label), self.assertRaises(InspectionRefusal) as caught:
+                inspect_fixture_values(archive, config, config_sha256, diff_ids, auxiliary_profile=changed)
+            self.assertEqual(caught.exception.code, "save_envelope_invalid")
+            self.assertEqual(caught.exception.envelope_diagnostic["node"], "auxiliary")
+            self.assertNotIn("auxiliaryDiagnostic", archive_module._refusal_json(caught.exception))
+
+    def test_a_structurally_valid_alternate_profile_cannot_authorize_other_auxiliary_bytes(self):
+        original = fixed_auxiliary_moby_fixture()
+
+        def alternate_created(values):
+            values[0]["created"] = "1970-01-01T00:00:01Z"
+
+        alternate = fixed_auxiliary_moby_fixture(values_mutator=alternate_created)
+        with self.assertRaises(InspectionRefusal) as caught:
+            inspect_fixture_values(*original[:4], auxiliary_profile=alternate[4])
+        self.assertEqual(caught.exception.code, "save_envelope_invalid")
+        self.assertEqual(caught.exception.envelope_diagnostic["node"], "auxiliary")
+        self.assertEqual(caught.exception.envelope_diagnostic["predicate"], "digest")
+        self.assertEqual(caught.exception.envelope_diagnostic["ordinal"], 1)
+
+    def test_semantic_projection_rejects_typed_drift_even_when_all_fixture_pins_match(self):
+        def root_created(values):
+            values[0]["created"] = "1970-01-01T00:00:01Z"
+
+        def node_os(values):
+            values[4]["os"] = "windows"
+
+        def final_architecture(values):
+            values[-1]["architecture"] = "arm64"
+
+        def missing_zero(values):
+            values[2]["container_config"].pop("Hostname")
+
+        def optional_empty(values):
+            values[2]["comment"] = ""
+
+        def false_as_zero(values):
+            values[2]["container_config"]["AttachStdin"] = 0
+
+        def null_as_absent(values):
+            values[2]["container_config"].pop("Env")
+
+        def nested_runtime_drift(values):
+            values[-1]["config"]["Labels"]["false"] = 0
+
+        def true_as_one(values):
+            values[-1]["config"]["Labels"]["true"] = 1
+
+        def missing_port(values):
+            values[-1]["config"]["ExposedPorts"] = {}
+
+        def final_created(values):
+            values[-1]["created"] = "2026-10-27T12:34:56Z"
+
+        cases = (
+            ("root-created", root_created, "auxiliary"),
+            ("node-os", node_os, "outer"),
+            ("final-architecture", final_architecture, "auxiliary"),
+            ("missing-zero", missing_zero, "auxiliary"),
+            ("optional-empty", optional_empty, "auxiliary"),
+            ("false-as-zero", false_as_zero, "auxiliary"),
+            ("null-as-absent", null_as_absent, "auxiliary"),
+            ("nested-runtime", nested_runtime_drift, "auxiliary"),
+            ("true-as-one", true_as_one, "auxiliary"),
+            ("missing-port", missing_port, "auxiliary"),
+            ("final-created", final_created, "auxiliary"),
+        )
+        for label, mutate, expected_node in cases:
+            fixture = fixed_auxiliary_moby_fixture(values_mutator=mutate)
+            with self.subTest(case=label), self.assertRaises(InspectionRefusal) as caught:
+                inspect_fixture_values(*fixture[:4], auxiliary_profile=fixture[4])
+            self.assertEqual(caught.exception.code, "save_envelope_invalid")
+            self.assertEqual(caught.exception.envelope_diagnostic["node"], expected_node)
+            encoded = json.dumps(archive_module._refusal_json(caught.exception), separators=(",", ":"))
+            self.assertNotIn("FIXTURE", encoded)
+            self.assertNotIn("/fixture", encoded)
+
+    def test_source_projection_rejects_invalid_headers_and_runtime_shape_under_matching_pins(self):
+        def mutate_runtime(callback):
+            def mutate(config):
+                callback(config["config"])
+
+            return mutate
+
+        cases = (
+            ("created-type", lambda config: config.__setitem__("created", None), "auxiliary", "type"),
+            ("architecture", lambda config: config.__setitem__("architecture", "arm64"), "auxiliary", "type"),
+            ("os", lambda config: config.__setitem__("os", "windows"), "outer", "extra"),
+            ("argsescaped-number", mutate_runtime(lambda runtime: runtime.__setitem__("ArgsEscaped", 1)), "auxiliary", "type"),
+            ("missing-runtime", mutate_runtime(lambda runtime: runtime.pop("WorkingDir")), "auxiliary", "keys"),
+            ("extra-runtime", mutate_runtime(lambda runtime: runtime.__setitem__("Hostname", "")), "auxiliary", "keys"),
+        )
+        for label, mutate, node, predicate in cases:
+            fixture = fixed_auxiliary_moby_fixture(source_config_mutator=mutate)
+            with self.subTest(case=label), self.assertRaises(InspectionRefusal) as caught:
+                inspect_fixture_values(*fixture[:4], auxiliary_profile=fixture[4])
+            self.assertEqual(caught.exception.code, "save_envelope_invalid")
+            self.assertEqual(caught.exception.envelope_diagnostic["node"], node)
+            self.assertEqual(caught.exception.envelope_diagnostic["predicate"], predicate)
+
+    def test_fixed_profile_rejects_missing_extra_nonregular_encoded_and_aliased_auxiliary_roles(self):
+        def missing(entries, _context):
+            entries.pop()
+
+        def extra(entries, _context):
+            entries.append(regular(f"blobs/sha256/{hashlib.sha256(b'extra').hexdigest()}", b"extra"))
+
+        def nonregular(entries, _context):
+            entries[0] = directory(entries[0][0].name)
+
+        def encoded(entries, _context):
+            entries[0] = regular("blobs/sha256/%61", entries[0][1])
+
+        def aliased(entries, context):
+            entries[0] = regular(context["configPath"], entries[0][1])
+
+        for label, mutate, code in (
+            ("missing", missing, "save_envelope_invalid"),
+            ("extra", extra, "save_envelope_invalid"),
+            ("nonregular", nonregular, "save_envelope_invalid"),
+            ("encoded", encoded, "save_envelope_invalid"),
+            ("aliased", aliased, "duplicate_member"),
+        ):
+            fixture = fixed_auxiliary_moby_fixture(auxiliary_entries_mutator=mutate)
+            with self.subTest(case=label), self.assertRaises(InspectionRefusal) as caught:
+                inspect_fixture_values(*fixture[:4], auxiliary_profile=fixture[4])
+            self.assertEqual(caught.exception.code, code)
+            self.assertNotIn("auxiliaryEnvelope", archive_module._refusal_json(caught.exception))
+
+    def test_production_wrapper_always_supplies_the_fixed_profile_without_an_override_surface(self):
+        sentinel = {"status": "PASS"}
+        with mock.patch.object(archive_module, "_inspect_source_save", return_value=sentinel) as inspect_internal:
+            self.assertIs(archive_module.inspect_source_save("archive", "config"), sentinel)
+        inspect_internal.assert_called_once_with(
+            "archive",
+            "config",
+            expected_config_sha256=archive_module.SOURCE_CONFIG_SHA256,
+            expected_diff_ids=archive_module.SOURCE_DIFF_IDS,
+            auxiliary_profile=archive_module.PRODUCTION_AUXILIARY_PROFILE,
+        )
+        with self.assertRaises(TypeError):
+            archive_module.inspect_source_save("archive", "config", auxiliary_profile={})
+
+    def test_recognized_auxiliary_metadata_cannot_hide_a_hostile_raw_layer(self):
+        def escaping_symlink(index, entries):
+            return [symlink("escape", "../outside")] if index == 7 else entries
+
+        fixture = fixed_auxiliary_moby_fixture(layer_entries_mutator=escaping_symlink)
+        with self.assertRaises(InspectionRefusal) as caught:
+            inspect_fixture_values(*fixture[:4], auxiliary_profile=fixture[4])
+        self.assertEqual(caught.exception.code, "symlink_target_invalid")
+        self.assertIsNone(caught.exception.auxiliary_diagnostic)
+
+    def test_input_drift_overrides_a_complete_fixed_auxiliary_pass(self):
+        archive_value, config_value, config_sha256, diff_ids, profile, _envelope = fixed_auxiliary_moby_fixture()
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive = directory / "source-save.tar"
+            config = directory / "config.json"
+            archive.write_bytes(archive_value)
+            config.write_bytes(config_value)
+            archive.chmod(0o444)
+            config.chmod(0o444)
+
+            def mutate_archive():
+                archive.chmod(0o644)
+                with archive.open("r+b") as output:
+                    output.seek(-1, os.SEEK_END)
+                    output.write(b"!")
+
+            with self.assertRaises(InspectionIntegrityError) as caught:
+                inspect_source_save_fixture(
+                    archive,
+                    config,
+                    config_sha256,
+                    diff_ids,
+                    auxiliary_profile=profile,
+                    finalize_hook=mutate_archive,
+                )
+        self.assertEqual(caught.exception.code, "source_changed")
 
     def test_complete_auxiliary_chain_is_committed_in_parent_order_but_remains_refused(self):
         additions, expected = auxiliary_chain_entries(tar_order=list(reversed(range(10))))

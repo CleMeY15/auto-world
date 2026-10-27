@@ -26,6 +26,45 @@ const SOURCE_DIFF_IDS = Object.freeze([
   "83f90d3184f33a3dc2d8a502016cd4a129354efaaae30ef8e48046e9371ac239",
   "5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
 ]);
+const AUXILIARY_PAYLOAD_SHA256S = Object.freeze([
+  "ac6cab210f037bd9e93403f75c93cf24e4cb034fd351a830308a69573c2177a0",
+  "8ae25a9799456f4fa74752176d9faab3afb2bdaa19acfdb17d1020ca2242158f",
+  "5634af422f8e3ffb2d3647da36216ae38a3b8d6d070e742521870545297ba846",
+  "aff48665c355f8ef1905af167c09948708bce3d99fcfca95466f1f6aff574f7d",
+  "1fb6f212aa6ec2fccdb734a56f9b7c46843618d3307d98679e15f1af959d6311",
+  "95add897eca07c411a90add6274ae6e38250297841677c51cae325c66f9c4677",
+  "2f1f8cc4f16be9f98bf3ed5088b67b05dff911d3bd152e04ecf2930a131cc671",
+  "d1b9f2570b76fa6e4ed6cb92ca50ea807c09996912321352f6418bf6ced6e885",
+  "abf7a69412d0d8831e163e12ed345e06ed417b656776e531a422d314722ce3f1",
+  "28b6c23df6a546110002ee920ebfe11a3b019b0bb9080aa6e6960656a8b369e1",
+]);
+const AUXILIARY_PAYLOAD_BYTES = Object.freeze([401, 477, 477, 477, 477, 477, 477, 477, 477, 1696]);
+const AUXILIARY_V1_IDS = Object.freeze([
+  "84501546d4244ff953d0f1348c4cbff505c52410feca158483ba94e6c4085a0e",
+  "828b24ed5596a16ee150bc48f48af87bdb1182768ef5f780fbff5f4c7109778e",
+  "710b856cbf9e0085462f9a75dc6b71d87b21ad3c154291d3e9d6c3a31e09d307",
+  "af5d9ae122ce509cdcee676d0ac0554cade5de9fc05a8b20904f85fffebdf2e6",
+  "18286e36f79d2b840ca20654de566a3cd88cdafe9be1b9d6095e4643323e6117",
+  "54602df0e83d51cec83ead4fb080ada8d1cf3605ddd2bb7eb932229931c10b98",
+  "5e24ed7cb3eea1a6aa6ce501612dd5ab4f5fa82637f92e7d2a399308b911747d",
+  "ee375b6fe435c8bced094e1b2e180eb3c38cf1f64673cff3ef53ca01311a7264",
+  "697832d15c49c9996b04c1d18db6864bcc6b99f3a6528e9abb0c11788e43c1e7",
+  "051a6f184bde9edb5080b418fcc708c1b91006a45bd19c1931f9018528cdacd0",
+]);
+const AUXILIARY_KEY_SET_SHA256S = Object.freeze([
+  "0dfed3ba79fca2b9270e3c8a089c6995dd5e28eff2e16ff24e3796cf0485c891",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+  "1311ab9e6d5be812a4c48c74cbe8a4f36c69b63e57bc1adf3269199d580c097b",
+]);
+const AUXILIARY_CANDIDATE_SET_SHA256 = "3952537ce5e96cc1782f21c9dfc8ac8c000f6451a7cf399e7beeb9eb80b11a5e";
+const AUXILIARY_ORDERED_SET_SHA256 = "4ef427670dac48137a29c82eb56b679a0c42f662013b5834209a9fe96306f39a";
 const SOURCE_REFUSALS = new Set([
   "archive_empty", "archive_extension_unsupported", "archive_hidden_region", "archive_invalid", "archive_nonzero_padding", "archive_nonzero_tail",
   "archive_seek_unsupported", "archive_size_limit", "archive_size_mismatch", "archive_truncated", "arguments_invalid", "command_invalid",
@@ -171,13 +210,15 @@ export function validateSeaweedGoS3FilesystemEvidence(value) {
 
 export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
   const hasSourceEnvelope = Object.hasOwn(value ?? {}, "sourceEnvelope");
+  const hasAuxiliaryEnvelope = Object.hasOwn(value ?? {}, "auxiliaryEnvelope");
   const safeLayerPath = (candidate) => typeof candidate === "string" && candidate.length >= 11 && candidate.length <= 1024 &&
     !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..") &&
     candidate.endsWith("/layer.tar");
   if (!exactKeys(value, ["schemaVersion", "profile", "evidenceClass", "status", "sourceConfigSha256", "archive", "layers", "totals",
-    ...(hasSourceEnvelope ? ["sourceEnvelope"] : [])]) ||
+    ...(hasSourceEnvelope ? ["sourceEnvelope"] : []), ...(hasAuxiliaryEnvelope ? ["auxiliaryEnvelope"] : [])]) ||
       Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 || value.profile !== "go-s3-4.51-v1" ||
       value.evidenceClass !== "SOURCE_LAYER_PREFLIGHT" || value.status !== "PASS" || value.sourceConfigSha256 !== SOURCE_CONFIG.slice(7) ||
+      hasSourceEnvelope !== hasAuxiliaryEnvelope ||
       !exactKeys(value.archive, ["sha256", "bytes"]) || !sha256(value.archive.sha256) || !positiveInteger(value.archive.bytes) ||
       value.archive.bytes > SOURCE_ARCHIVE_LIMIT || !Array.isArray(value.layers) || value.layers.length !== 10 ||
       value.layers.some((layer, index) => !exactKeys(layer, ["ordinal", "path", "sha256", "bytes", "memberCount", "metadataSha256", "inventorySha256"]) ||
@@ -193,6 +234,7 @@ export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
     fail("scanner_seaweed_go_s3_source_preflight_refused");
   }
   if (hasSourceEnvelope) validateSeaweedGoS3SourceEnvelope(value.sourceEnvelope);
+  if (hasAuxiliaryEnvelope) validateSeaweedGoS3AuxiliaryEnvelope(value.auxiliaryEnvelope);
   return clone(value);
 }
 
@@ -206,6 +248,35 @@ export function validateSeaweedGoS3SourceEnvelope(value) {
   return clone(value);
 }
 
+export function validateSeaweedGoS3AuxiliaryEnvelope(value) {
+  const keys = ["schemaVersion", "kind", "createIdBinding", "auxiliaryToRawLayerBinding", "candidateCount", "candidateBytes",
+    "candidateSetSha256", "payloadSha256s", "payloadBytes", "v1Ids", "keySetSha256s", "orderedSetSha256",
+    "semanticProjectionMatched"];
+  const arrays = [value?.payloadSha256s, value?.payloadBytes, value?.v1Ids, value?.keySetSha256s];
+  if (!exactKeys(value, keys) || value.schemaVersion !== 1 || value.kind !== "MOBY_28_V1_AUXILIARY_FIXED_SOURCE_V1" ||
+      value.createIdBinding !== "NOT_RECOMPUTED" || value.auxiliaryToRawLayerBinding !== "NOT_INDEPENDENTLY_VERIFIED" ||
+      value.candidateCount !== 10 || value.candidateBytes !== 5913 || value.candidateSetSha256 !== AUXILIARY_CANDIDATE_SET_SHA256 ||
+      value.orderedSetSha256 !== AUXILIARY_ORDERED_SET_SHA256 || value.semanticProjectionMatched !== true ||
+      arrays.some((entries) => !Array.isArray(entries) || entries.length !== 10 || Object.keys(entries).length !== 10) ||
+      value.payloadSha256s.some((entry, index) => entry !== AUXILIARY_PAYLOAD_SHA256S[index]) ||
+      value.payloadBytes.some((entry, index) => entry !== AUXILIARY_PAYLOAD_BYTES[index]) ||
+      value.v1Ids.some((entry, index) => entry !== AUXILIARY_V1_IDS[index]) ||
+      value.keySetSha256s.some((entry, index) => entry !== AUXILIARY_KEY_SET_SHA256S[index]) ||
+      value.payloadBytes.reduce((sum, entry) => sum + entry, 0) !== value.candidateBytes) {
+    fail("scanner_seaweed_go_s3_auxiliary_envelope_invalid");
+  }
+  const candidates = value.payloadSha256s.map((payloadSha256, index) => ({ path: `blobs/sha256/${payloadSha256}`,
+    payloadSha256, size: value.payloadBytes[index], type: "file" })).sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  const candidateSetSha256 = createHash("sha256").update(JSON.stringify(candidates), "ascii").digest("hex");
+  const ordered = value.payloadSha256s.map((payloadSha256, index) => ({ bytes: value.payloadBytes[index], id: value.v1Ids[index],
+    keySetSha256: value.keySetSha256s[index], parent: index === 0 ? null : value.v1Ids[index - 1], payloadSha256 }));
+  const orderedSetSha256 = createHash("sha256").update(JSON.stringify(ordered), "ascii").digest("hex");
+  if (candidateSetSha256 !== value.candidateSetSha256 || orderedSetSha256 !== value.orderedSetSha256) {
+    fail("scanner_seaweed_go_s3_auxiliary_envelope_invalid");
+  }
+  return clone(value);
+}
+
 export function validateSeaweedGoS3EnvelopeDiagnostic(value) {
   const nullableCount = (candidate, maximum) => candidate === null || Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= maximum;
   const diagnosticKeys = ["schemaVersion", "format", "node", "predicate", "ordinal", "observedType", "memberType", "expectedDigest",
@@ -213,7 +284,7 @@ export function validateSeaweedGoS3EnvelopeDiagnostic(value) {
     "mediaTypeSha256"];
   if (!exactKeys(value, diagnosticKeys) || Buffer.byteLength(JSON.stringify(value)) > 2 * KiB || value.schemaVersion !== 1 ||
       value.format !== "MOBY_28_OCI_COMPAT_V1" ||
-      !["layout", "index", "oci-manifest", "config", "layer-source", "raw-layer", "outer"].includes(value.node) ||
+      !["layout", "index", "oci-manifest", "config", "layer-source", "raw-layer", "auxiliary", "outer"].includes(value.node) ||
       !["json", "type", "keys", "media-type", "digest", "size", "member", "cardinality", "ordinal", "extra"].includes(value.predicate) ||
       value.ordinal !== null && (!Number.isSafeInteger(value.ordinal) || value.ordinal < 1 || value.ordinal > 10) ||
       value.observedType !== null && !JSON_TAGS.has(value.observedType) ||

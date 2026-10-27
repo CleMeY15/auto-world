@@ -110,6 +110,90 @@ AUXILIARY_V1_KEYS = frozenset(
         "variant",
     )
 )
+AUXILIARY_PROFILE_KEYS = frozenset(
+    (
+        "candidateBytes",
+        "candidateSetSha256",
+        "keySetSha256s",
+        "orderedSetSha256",
+        "payloadBytes",
+        "payloadSha256s",
+        "v1Ids",
+    )
+)
+ZERO_CONTAINER_CONFIG = {
+    "Hostname": "",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": False,
+    "AttachStdout": False,
+    "AttachStderr": False,
+    "Tty": False,
+    "OpenStdin": False,
+    "StdinOnce": False,
+    "Env": None,
+    "Cmd": None,
+    "Image": "",
+    "Volumes": None,
+    "WorkingDir": "",
+    "Entrypoint": None,
+    "OnBuild": None,
+    "Labels": None,
+}
+SOURCE_RUNTIME_CONFIG_KEYS = frozenset(
+    (
+        "ArgsEscaped",
+        "Cmd",
+        "Entrypoint",
+        "Env",
+        "ExposedPorts",
+        "Labels",
+        "Volumes",
+        "WorkingDir",
+    )
+)
+PRODUCTION_AUXILIARY_PROFILE = {
+    "candidateBytes": 5913,
+    "candidateSetSha256": "3952537ce5e96cc1782f21c9dfc8ac8c000f6451a7cf399e7beeb9eb80b11a5e",
+    "payloadSha256s": (
+        "ac6cab210f037bd9e93403f75c93cf24e4cb034fd351a830308a69573c2177a0",
+        "8ae25a9799456f4fa74752176d9faab3afb2bdaa19acfdb17d1020ca2242158f",
+        "5634af422f8e3ffb2d3647da36216ae38a3b8d6d070e742521870545297ba846",
+        "aff48665c355f8ef1905af167c09948708bce3d99fcfca95466f1f6aff574f7d",
+        "1fb6f212aa6ec2fccdb734a56f9b7c46843618d3307d98679e15f1af959d6311",
+        "95add897eca07c411a90add6274ae6e38250297841677c51cae325c66f9c4677",
+        "2f1f8cc4f16be9f98bf3ed5088b67b05dff911d3bd152e04ecf2930a131cc671",
+        "d1b9f2570b76fa6e4ed6cb92ca50ea807c09996912321352f6418bf6ced6e885",
+        "abf7a69412d0d8831e163e12ed345e06ed417b656776e531a422d314722ce3f1",
+        "28b6c23df6a546110002ee920ebfe11a3b019b0bb9080aa6e6960656a8b369e1",
+    ),
+    "payloadBytes": (401, 477, 477, 477, 477, 477, 477, 477, 477, 1696),
+    "v1Ids": (
+        "84501546d4244ff953d0f1348c4cbff505c52410feca158483ba94e6c4085a0e",
+        "828b24ed5596a16ee150bc48f48af87bdb1182768ef5f780fbff5f4c7109778e",
+        "710b856cbf9e0085462f9a75dc6b71d87b21ad3c154291d3e9d6c3a31e09d307",
+        "af5d9ae122ce509cdcee676d0ac0554cade5de9fc05a8b20904f85fffebdf2e6",
+        "18286e36f79d2b840ca20654de566a3cd88cdafe9be1b9d6095e4643323e6117",
+        "54602df0e83d51cec83ead4fb080ada8d1cf3605ddd2bb7eb932229931c10b98",
+        "5e24ed7cb3eea1a6aa6ce501612dd5ab4f5fa82637f92e7d2a399308b911747d",
+        "ee375b6fe435c8bced094e1b2e180eb3c38cf1f64673cff3ef53ca01311a7264",
+        "697832d15c49c9996b04c1d18db6864bcc6b99f3a6528e9abb0c11788e43c1e7",
+        "051a6f184bde9edb5080b418fcc708c1b91006a45bd19c1931f9018528cdacd0",
+    ),
+    "keySetSha256s": (
+        "0dfed3ba79fca2b9270e3c8a089c6995dd5e28eff2e16ff24e3796cf0485c891",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+        "1311ab9e6d5be812a4c48c74cbe8a4f36c69b63e57bc1adf3269199d580c097b",
+    ),
+    "orderedSetSha256": "4ef427670dac48137a29c82eb56b679a0c42f662013b5834209a9fe96306f39a",
+}
 
 
 class InspectionRefusal(Exception):
@@ -734,27 +818,90 @@ def _build_auxiliary_diagnostic(
     return diagnostic
 
 
+def _normalize_auxiliary_profile(profile: Any) -> dict[str, Any]:
+    _require(
+        isinstance(profile, dict) and set(profile) == AUXILIARY_PROFILE_KEYS,
+        "expected_profile_invalid",
+    )
+    candidate_bytes = profile["candidateBytes"]
+    candidate_set_sha256 = profile["candidateSetSha256"]
+    ordered_set_sha256 = profile["orderedSetSha256"]
+    _require(
+        isinstance(candidate_bytes, int)
+        and not isinstance(candidate_bytes, bool)
+        and 1 <= candidate_bytes <= MAX_AUXILIARY_TOTAL_BYTES,
+        "expected_profile_invalid",
+    )
+    _require(
+        isinstance(candidate_set_sha256, str)
+        and HEX64.fullmatch(candidate_set_sha256) is not None
+        and isinstance(ordered_set_sha256, str)
+        and HEX64.fullmatch(ordered_set_sha256) is not None,
+        "expected_profile_invalid",
+    )
+
+    normalized: dict[str, Any] = {
+        "candidateBytes": candidate_bytes,
+        "candidateSetSha256": candidate_set_sha256,
+        "orderedSetSha256": ordered_set_sha256,
+    }
+    for key in ("payloadSha256s", "v1Ids", "keySetSha256s"):
+        values = profile[key]
+        _require(
+            isinstance(values, (list, tuple))
+            and len(values) == MAX_AUXILIARY_CANDIDATES
+            and all(
+                isinstance(value, str) and HEX64.fullmatch(value) is not None
+                for value in values
+            ),
+            "expected_profile_invalid",
+        )
+        normalized[key] = tuple(values)
+    payload_bytes = profile["payloadBytes"]
+    _require(
+        isinstance(payload_bytes, (list, tuple))
+        and len(payload_bytes) == MAX_AUXILIARY_CANDIDATES
+        and all(
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 1 <= value <= MAX_AUXILIARY_MEMBER_BYTES
+            for value in payload_bytes
+        )
+        and sum(payload_bytes) == candidate_bytes,
+        "expected_profile_invalid",
+    )
+    normalized["payloadBytes"] = tuple(payload_bytes)
+
+    return normalized
+
+
 def _classify_auxiliary_candidates(
     archive: tarfile.TarFile,
     candidates: list[tuple[dict[str, Any], tarfile.TarInfo]],
     config_raw: bytes,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[dict[str, Any]] | None]:
     count = len(candidates)
     if count > MAX_AUXILIARY_CANDIDATES:
-        return _build_auxiliary_diagnostic(
-            candidates,
-            classification="LIMIT_EXCEEDED",
-            first_mismatch="candidate-limit",
-            examined_count=0,
-            parent_chain_matched=None,
+        return (
+            _build_auxiliary_diagnostic(
+                candidates,
+                classification="LIMIT_EXCEEDED",
+                first_mismatch="candidate-limit",
+                examined_count=0,
+                parent_chain_matched=None,
+            ),
+            None,
         )
     if count != MAX_AUXILIARY_CANDIDATES:
-        return _build_auxiliary_diagnostic(
-            candidates,
-            classification="REFUSED",
-            first_mismatch="cardinality",
-            examined_count=0,
-            parent_chain_matched=None,
+        return (
+            _build_auxiliary_diagnostic(
+                candidates,
+                classification="REFUSED",
+                first_mismatch="cardinality",
+                examined_count=0,
+                parent_chain_matched=None,
+            ),
+            None,
         )
 
     ordered_candidates = sorted(candidates, key=lambda entry: entry[0]["path"])
@@ -764,13 +911,16 @@ def _classify_auxiliary_candidates(
         *,
         examined_count: int = 0,
         parent_chain_matched: bool | None = None,
-    ) -> dict[str, Any]:
-        return _build_auxiliary_diagnostic(
-            candidates,
-            classification="REFUSED",
-            first_mismatch=mismatch,
-            examined_count=examined_count,
-            parent_chain_matched=parent_chain_matched,
+    ) -> tuple[dict[str, Any], None]:
+        return (
+            _build_auxiliary_diagnostic(
+                candidates,
+                classification="REFUSED",
+                first_mismatch=mismatch,
+                examined_count=examined_count,
+                parent_chain_matched=parent_chain_matched,
+            ),
+            None,
         )
 
     for record, _info in ordered_candidates:
@@ -805,13 +955,13 @@ def _classify_auxiliary_candidates(
             return refused("root-type", examined_count=examined_count)
         if not set(value).issubset(AUXILIARY_V1_KEYS):
             return refused("keys", examined_count=examined_count)
-        if not (
-            required_keys.issubset(value)
-            and (value["created"] is None or isinstance(value["created"], str))
-            and isinstance(value["container_config"], dict)
+        required_values_match = (
+            (value.get("created") is None or isinstance(value.get("created"), str))
+            and isinstance(value.get("container_config"), dict)
             and isinstance(source_os, str)
-            and value["os"] == source_os
-        ):
+            and value.get("os") == source_os
+        )
+        if not required_keys.issubset(value) or not required_values_match:
             return refused("required-fields", examined_count=examined_count)
         node_id = value["id"]
         if not isinstance(node_id, str) or HEX64.fullmatch(node_id) is None:
@@ -829,6 +979,7 @@ def _classify_auxiliary_candidates(
                 "id": node_id,
                 "parent": parent,
                 "keySetSha256": _canonical_sha256(sorted(value)),
+                "value": value,
             }
         )
 
@@ -881,14 +1032,192 @@ def _classify_auxiliary_candidates(
     ordered_nodes = [roots[0]]
     while ordered_nodes[-1]["id"] in children:
         ordered_nodes.append(children[ordered_nodes[-1]["id"]][0])
-    return _build_auxiliary_diagnostic(
-        candidates,
-        classification="COMPATIBLE_UNVERIFIED",
-        first_mismatch=None,
-        examined_count=examined_count,
-        parent_chain_matched=True,
-        ordered_nodes=ordered_nodes,
+    return (
+        _build_auxiliary_diagnostic(
+            candidates,
+            classification="COMPATIBLE_UNVERIFIED",
+            first_mismatch=None,
+            examined_count=examined_count,
+            parent_chain_matched=True,
+            ordered_nodes=ordered_nodes,
+        ),
+        ordered_nodes,
     )
+
+
+def _validate_fixed_auxiliary(
+    diagnostic: dict[str, Any],
+    ordered_nodes: list[dict[str, Any]],
+    profile: dict[str, Any],
+    config_raw: bytes,
+) -> dict[str, Any]:
+    for ordinal, node in enumerate(ordered_nodes, start=1):
+        index = ordinal - 1
+        _require_envelope(
+            node["payloadSha256"] == profile["payloadSha256s"][index],
+            node="auxiliary",
+            predicate="digest",
+            ordinal=ordinal,
+            expected_digest=profile["payloadSha256s"][index],
+            actual_digest=node["payloadSha256"],
+        )
+        _require_envelope(
+            node["bytes"] == profile["payloadBytes"][index],
+            node="auxiliary",
+            predicate="size",
+            ordinal=ordinal,
+            expected_bytes=profile["payloadBytes"][index],
+            actual_bytes=node["bytes"],
+        )
+        _require_envelope(
+            node["id"] == profile["v1Ids"][index],
+            node="auxiliary",
+            predicate="ordinal",
+            ordinal=ordinal,
+            expected_digest=profile["v1Ids"][index],
+            actual_digest=node["id"],
+        )
+        _require_envelope(
+            node["keySetSha256"] == profile["keySetSha256s"][index],
+            node="auxiliary",
+            predicate="keys",
+            ordinal=ordinal,
+            expected_digest=profile["keySetSha256s"][index],
+            actual_digest=node["keySetSha256"],
+        )
+    _require_envelope(
+        diagnostic["candidateSetSha256"] == profile["candidateSetSha256"],
+        node="auxiliary",
+        predicate="digest",
+        expected_digest=profile["candidateSetSha256"],
+        actual_digest=diagnostic["candidateSetSha256"],
+        expected_bytes=profile["candidateBytes"],
+        actual_bytes=diagnostic["candidateBytes"],
+    )
+    _require_envelope(
+        diagnostic["orderedSetSha256"] == profile["orderedSetSha256"],
+        node="auxiliary",
+        predicate="ordinal",
+        expected_digest=profile["orderedSetSha256"],
+        actual_digest=diagnostic["orderedSetSha256"],
+    )
+
+    try:
+        source_config = _json_no_duplicates(
+            config_raw, "save_envelope_invalid", reject_constants=True
+        )
+    except InspectionRefusal as refusal:
+        if refusal.code == "save_envelope_invalid":
+            _raise_envelope_refusal(node="auxiliary", predicate="type")
+        raise
+    _require_envelope(
+        isinstance(source_config, dict),
+        node="auxiliary",
+        predicate="type",
+        observed=source_config,
+        observed_available=True,
+    )
+    source_headers = {"created", "architecture", "os", "config"}
+    _require_envelope(
+        source_headers.issubset(source_config),
+        node="auxiliary",
+        predicate="keys",
+        expected_digest=_canonical_sha256(sorted(source_headers)),
+        actual_digest=_canonical_sha256(
+            sorted(source_headers.intersection(source_config))
+        ),
+    )
+    runtime_config = source_config["config"]
+    _require_envelope(
+        isinstance(source_config["created"], str)
+        and source_config["architecture"] == "amd64"
+        and source_config["os"] == "linux"
+        and isinstance(runtime_config, dict),
+        node="auxiliary",
+        predicate="type",
+        expected_digest=_canonical_sha256(
+            {"created": "string", "architecture": "amd64", "os": "linux", "config": "object"}
+        ),
+        actual_digest=_canonical_sha256(
+            {
+                "created": _json_type_tag(source_config["created"]),
+                "architecture": source_config["architecture"],
+                "os": source_config["os"],
+                "config": _json_type_tag(runtime_config),
+            }
+        ),
+    )
+    _require_envelope(
+        set(runtime_config) == SOURCE_RUNTIME_CONFIG_KEYS,
+        node="auxiliary",
+        predicate="keys",
+        expected_digest=_canonical_sha256(sorted(SOURCE_RUNTIME_CONFIG_KEYS)),
+        actual_digest=_canonical_sha256(sorted(runtime_config)),
+    )
+    _require_envelope(
+        runtime_config["ArgsEscaped"] is True,
+        node="auxiliary",
+        predicate="type",
+        expected_digest=_canonical_sha256(True),
+        actual_digest=_canonical_sha256(runtime_config["ArgsEscaped"]),
+    )
+
+    final_runtime_config = dict(ZERO_CONTAINER_CONFIG)
+    final_runtime_config.update(runtime_config)
+    expected_values: list[dict[str, Any]] = []
+    for ordinal in range(1, MAX_AUXILIARY_CANDIDATES + 1):
+        expected: dict[str, Any] = {
+            "id": profile["v1Ids"][ordinal - 1],
+            "created": "1970-01-01T00:00:00Z",
+            "container_config": ZERO_CONTAINER_CONFIG,
+            "os": "linux",
+        }
+        if ordinal > 1:
+            expected["parent"] = profile["v1Ids"][ordinal - 2]
+        if ordinal == MAX_AUXILIARY_CANDIDATES:
+            expected["created"] = source_config["created"]
+            expected["config"] = final_runtime_config
+            expected["architecture"] = "amd64"
+        expected_values.append(expected)
+
+    for ordinal, (node, expected) in enumerate(
+        zip(ordered_nodes, expected_values, strict=True), start=1
+    ):
+        actual = node["value"]
+        expected_hash = _canonical_sha256(expected)
+        actual_hash = _canonical_sha256(actual)
+        _require_envelope(
+            set(actual) == set(expected),
+            node="auxiliary",
+            predicate="keys",
+            ordinal=ordinal,
+            expected_digest=expected_hash,
+            actual_digest=actual_hash,
+        )
+        _require_envelope(
+            actual_hash == expected_hash,
+            node="auxiliary",
+            predicate="type",
+            ordinal=ordinal,
+            expected_digest=expected_hash,
+            actual_digest=actual_hash,
+        )
+
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": "MOBY_28_V1_AUXILIARY_FIXED_SOURCE_V1",
+        "createIdBinding": "NOT_RECOMPUTED",
+        "auxiliaryToRawLayerBinding": "NOT_INDEPENDENTLY_VERIFIED",
+        "candidateCount": MAX_AUXILIARY_CANDIDATES,
+        "candidateBytes": profile["candidateBytes"],
+        "candidateSetSha256": profile["candidateSetSha256"],
+        "payloadSha256s": list(profile["payloadSha256s"]),
+        "payloadBytes": list(profile["payloadBytes"]),
+        "v1Ids": list(profile["v1Ids"]),
+        "keySetSha256s": list(profile["keySetSha256s"]),
+        "orderedSetSha256": profile["orderedSetSha256"],
+        "semanticProjectionMatched": True,
+    }
 
 
 def _hash_stream(stream: BinaryIO, expected_size: int) -> str:
@@ -1372,7 +1701,8 @@ def _inspect_moby28_envelope(
     config_raw: bytes,
     expected_config_sha256: str,
     expected_diff_ids: tuple[str, ...],
-) -> tuple[str, list[str], dict[str, Any]]:
+    auxiliary_profile: dict[str, Any] | None,
+) -> tuple[str, list[str], dict[str, Any], dict[str, Any] | None]:
     _require_envelope(
         len(expected_diff_ids) == 10 and len(set(expected_diff_ids)) == 10,
         node="outer",
@@ -1707,12 +2037,30 @@ def _inspect_moby28_envelope(
                 if member["type"] == "file"
                 else None,
             }
+    auxiliary_envelope: dict[str, Any] | None = None
     if first_extra is not None:
+        auxiliary_diagnostic, ordered_auxiliary_nodes = (
+            _classify_auxiliary_candidates(
+                outer_archive,
+                candidates,
+                config_raw,
+            )
+        )
+        if auxiliary_profile is None or ordered_auxiliary_nodes is None:
+            _raise_envelope_refusal(
+                auxiliary_diagnostic=auxiliary_diagnostic,
+                **first_extra,
+            )
+        auxiliary_envelope = _validate_fixed_auxiliary(
+            auxiliary_diagnostic,
+            ordered_auxiliary_nodes,
+            auxiliary_profile,
+            config_raw,
+        )
+    elif auxiliary_profile is not None:
         _raise_envelope_refusal(
-            auxiliary_diagnostic=_classify_auxiliary_candidates(
-                outer_archive, candidates, config_raw
-            ),
-            **first_extra,
+            node="auxiliary",
+            predicate="cardinality",
         )
 
     return (
@@ -1728,6 +2076,7 @@ def _inspect_moby28_envelope(
             "descriptorCount": 10,
             "rawLayerDescriptorsMatched": True,
         },
+        auxiliary_envelope,
     )
 
 
@@ -1738,9 +2087,15 @@ def _inspect_source_save(
     expected_config_sha256: str,
     expected_diff_ids: tuple[str, ...],
     finalize_hook: Any | None = None,
+    auxiliary_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _require(HEX64.fullmatch(expected_config_sha256) is not None, "expected_profile_invalid")
     _require(bool(expected_diff_ids) and all(HEX64.fullmatch(value) for value in expected_diff_ids), "expected_profile_invalid")
+    normalized_auxiliary_profile = (
+        _normalize_auxiliary_profile(auxiliary_profile)
+        if auxiliary_profile is not None
+        else None
+    )
 
     with _SecureInput(config_path, max_bytes=MAX_JSON_BYTES) as config_input:
         with _SecureInput(
@@ -1803,8 +2158,14 @@ def _inspect_source_save(
                         "save_manifest_invalid", manifest_diagnostic
                     )
                 source_envelope: dict[str, Any] | None = None
+                auxiliary_envelope: dict[str, Any] | None = None
                 if set(target) == moby28_keys:
-                    config_member, layer_paths, source_envelope = (
+                    (
+                        config_member,
+                        layer_paths,
+                        source_envelope,
+                        auxiliary_envelope,
+                    ) = (
                         _inspect_moby28_envelope(
                             outer_archive,
                             by_name,
@@ -1813,6 +2174,7 @@ def _inspect_source_save(
                             config_raw,
                             expected_config_sha256,
                             expected_diff_ids,
+                            normalized_auxiliary_profile,
                         )
                     )
                 else:
@@ -1926,6 +2288,8 @@ def _inspect_source_save(
                 }
                 if source_envelope is not None:
                     result["sourceEnvelope"] = source_envelope
+                if auxiliary_envelope is not None:
+                    result["auxiliaryEnvelope"] = auxiliary_envelope
                 return result
             finally:
                 outer_archive.close()
@@ -1941,6 +2305,7 @@ def inspect_source_save(
         config_path,
         expected_config_sha256=SOURCE_CONFIG_SHA256,
         expected_diff_ids=SOURCE_DIFF_IDS,
+        auxiliary_profile=PRODUCTION_AUXILIARY_PROFILE,
     )
 
 
@@ -1951,6 +2316,7 @@ def inspect_source_save_fixture(
     expected_diff_ids: Iterable[str],
     *,
     finalize_hook: Any | None = None,
+    auxiliary_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Test-only profile injection for small, independent inert fixtures."""
 
@@ -1963,6 +2329,7 @@ def inspect_source_save_fixture(
         expected_config_sha256=expected_config_sha256,
         expected_diff_ids=normalized_diff_ids,
         finalize_hook=finalize_hook,
+        auxiliary_profile=auxiliary_profile,
     )
 
 

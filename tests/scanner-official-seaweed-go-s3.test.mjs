@@ -13,6 +13,7 @@ import {
   seaweedGoS3SourceSaveArguments,
   seaweedGoS3SourceRefusalError,
   seaweedGoS3SourceRefusalReceipt,
+  validateSeaweedGoS3AuxiliaryEnvelope,
   validateSeaweedGoS3AuxiliaryDiagnostic,
   validateSeaweedGoS3EnvelopeDiagnostic,
   validateSeaweedGoS3Profile,
@@ -123,12 +124,64 @@ function sourceEnvelope() {
   };
 }
 
+function productionAuxiliaryEnvelope() {
+  return {
+    schemaVersion: 1,
+    kind: "MOBY_28_V1_AUXILIARY_FIXED_SOURCE_V1",
+    createIdBinding: "NOT_RECOMPUTED",
+    auxiliaryToRawLayerBinding: "NOT_INDEPENDENTLY_VERIFIED",
+    candidateCount: 10,
+    candidateBytes: 5913,
+    candidateSetSha256: "3952537ce5e96cc1782f21c9dfc8ac8c000f6451a7cf399e7beeb9eb80b11a5e",
+    payloadSha256s: [
+      "ac6cab210f037bd9e93403f75c93cf24e4cb034fd351a830308a69573c2177a0",
+      "8ae25a9799456f4fa74752176d9faab3afb2bdaa19acfdb17d1020ca2242158f",
+      "5634af422f8e3ffb2d3647da36216ae38a3b8d6d070e742521870545297ba846",
+      "aff48665c355f8ef1905af167c09948708bce3d99fcfca95466f1f6aff574f7d",
+      "1fb6f212aa6ec2fccdb734a56f9b7c46843618d3307d98679e15f1af959d6311",
+      "95add897eca07c411a90add6274ae6e38250297841677c51cae325c66f9c4677",
+      "2f1f8cc4f16be9f98bf3ed5088b67b05dff911d3bd152e04ecf2930a131cc671",
+      "d1b9f2570b76fa6e4ed6cb92ca50ea807c09996912321352f6418bf6ced6e885",
+      "abf7a69412d0d8831e163e12ed345e06ed417b656776e531a422d314722ce3f1",
+      "28b6c23df6a546110002ee920ebfe11a3b019b0bb9080aa6e6960656a8b369e1",
+    ],
+    payloadBytes: [401, 477, 477, 477, 477, 477, 477, 477, 477, 1696],
+    v1Ids: [
+      "84501546d4244ff953d0f1348c4cbff505c52410feca158483ba94e6c4085a0e",
+      "828b24ed5596a16ee150bc48f48af87bdb1182768ef5f780fbff5f4c7109778e",
+      "710b856cbf9e0085462f9a75dc6b71d87b21ad3c154291d3e9d6c3a31e09d307",
+      "af5d9ae122ce509cdcee676d0ac0554cade5de9fc05a8b20904f85fffebdf2e6",
+      "18286e36f79d2b840ca20654de566a3cd88cdafe9be1b9d6095e4643323e6117",
+      "54602df0e83d51cec83ead4fb080ada8d1cf3605ddd2bb7eb932229931c10b98",
+      "5e24ed7cb3eea1a6aa6ce501612dd5ab4f5fa82637f92e7d2a399308b911747d",
+      "ee375b6fe435c8bced094e1b2e180eb3c38cf1f64673cff3ef53ca01311a7264",
+      "697832d15c49c9996b04c1d18db6864bcc6b99f3a6528e9abb0c11788e43c1e7",
+      "051a6f184bde9edb5080b418fcc708c1b91006a45bd19c1931f9018528cdacd0",
+    ],
+    keySetSha256s: [
+      "0dfed3ba79fca2b9270e3c8a089c6995dd5e28eff2e16ff24e3796cf0485c891",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "fc28534d3d367c3b801ded20d351852b7b2a5ad4ed0c97ca2a0a745c81e5c04a",
+      "1311ab9e6d5be812a4c48c74cbe8a4f36c69b63e57bc1adf3269199d580c097b",
+    ],
+    orderedSetSha256: "4ef427670dac48137a29c82eb56b679a0c42f662013b5834209a9fe96306f39a",
+    semanticProjectionMatched: true,
+  };
+}
+
 function mobyInspection() {
   const value = inspection();
   value.layers.forEach((layer, index) => {
     layer.path = `blobs/sha256/${sourceDiffIds[index]}`;
   });
   value.sourceEnvelope = sourceEnvelope();
+  value.auxiliaryEnvelope = productionAuxiliaryEnvelope();
   return value;
 }
 
@@ -801,6 +854,7 @@ test("a Moby source envelope requires the fixed OCI layer paths and exact proof"
   assert.deepEqual(validateSeaweedGoS3SourceInspection(mobyInspection()), mobyInspection());
   for (const mutate of [
     (value) => { delete value.sourceEnvelope; },
+    (value) => { delete value.auxiliaryEnvelope; },
     (value) => { value.layers[0].path = "01/layer.tar"; },
     (value) => { value.sourceEnvelope.kind = "OCI_GENERIC_V1"; },
     (value) => { value.sourceEnvelope.manifestSha256 = "f".repeat(63); },
@@ -814,6 +868,74 @@ test("a Moby source envelope requires the fixed OCI layer paths and exact proof"
   }
 });
 
+test("the fixed auxiliary envelope verifies literal pins, dense arrays and both commitments", () => {
+  assert.deepEqual(
+    validateSeaweedGoS3AuxiliaryEnvelope(productionAuxiliaryEnvelope()),
+    productionAuxiliaryEnvelope(),
+  );
+  for (const mutate of [
+    (value) => { value.kind = "MOBY_28_V1_AUXILIARY_GENERIC_V1"; },
+    (value) => { value.createIdBinding = "RECOMPUTED"; },
+    (value) => { value.auxiliaryToRawLayerBinding = "VERIFIED"; },
+    (value) => { value.candidateBytes += 1; },
+    (value) => { value.candidateSetSha256 = "f".repeat(64); },
+    (value) => { value.payloadSha256s[3] = "f".repeat(64); },
+    (value) => { value.payloadBytes[3] += 1; },
+    (value) => { value.v1Ids[3] = "f".repeat(64); },
+    (value) => { value.keySetSha256s[3] = "f".repeat(64); },
+    (value) => { value.orderedSetSha256 = "f".repeat(64); },
+    (value) => { value.semanticProjectionMatched = false; },
+    (value) => { delete value.payloadSha256s[3]; },
+    (value) => { delete value.payloadBytes[3]; },
+    (value) => { delete value.v1Ids[3]; },
+    (value) => { delete value.keySetSha256s[3]; },
+    (value) => { value.privatePath = "C:\\private\\source-save.tar"; },
+  ]) {
+    const changed = productionAuxiliaryEnvelope();
+    mutate(changed);
+    assert.throws(
+      () => validateSeaweedGoS3AuxiliaryEnvelope(changed),
+      /scanner_seaweed_go_s3_auxiliary_envelope_invalid/u,
+    );
+  }
+});
+
+test("full inspection associates the auxiliary proof only with the Moby graph proof", () => {
+  const missing = mobyInspection();
+  delete missing.auxiliaryEnvelope;
+  assert.throws(
+    () => validateSeaweedGoS3SourceInspection(missing),
+    /scanner_seaweed_go_s3_source_preflight_refused/u,
+  );
+
+  const auxiliaryOnly = inspection();
+  auxiliaryOnly.auxiliaryEnvelope = productionAuxiliaryEnvelope();
+  assert.throws(
+    () => validateSeaweedGoS3SourceInspection(auxiliaryOnly),
+    /scanner_seaweed_go_s3_source_preflight_refused/u,
+  );
+
+  const legacy = inspection();
+  assert.deepEqual(validateSeaweedGoS3SourceInspection(legacy), legacy);
+  assert.deepEqual(validateSeaweedGoS3SourceEnvelope(sourceEnvelope()), sourceEnvelope());
+});
+
+test("PASS and refusal schemas reject auxiliary proof and diagnostic mixtures", () => {
+  const passWithDiagnostic = mobyInspection();
+  passWithDiagnostic.auxiliaryDiagnostic = compatibleAuxiliaryDiagnostic();
+  assert.throws(
+    () => validateSeaweedGoS3SourceInspection(passWithDiagnostic),
+    /scanner_seaweed_go_s3_source_preflight_refused/u,
+  );
+
+  const refusalWithProof = auxiliaryRefusal();
+  refusalWithProof.auxiliaryEnvelope = productionAuxiliaryEnvelope();
+  assert.throws(
+    () => validateSeaweedGoS3SourceRefusal(refusalWithProof),
+    /scanner_seaweed_go_s3_source_refusal_invalid/u,
+  );
+});
+
 test("a complete Moby inspection remains bound into the cleaned preflight receipt", async () => {
   const item = harness();
   item.operations.inspectSource = () => {
@@ -822,12 +944,48 @@ test("a complete Moby inspection remains bound into the cleaned preflight receip
   };
   const receipt = await runSeaweedGoS3SourcePreflight(input(), item.operations);
   assert.deepEqual(receipt.inspection.sourceEnvelope, sourceEnvelope());
+  assert.deepEqual(receipt.inspection.auxiliaryEnvelope, productionAuxiliaryEnvelope());
   assert.deepEqual(
     receipt.inspection.layers.map((layer) => layer.path),
     sourceDiffIds.map((digest) => `blobs/sha256/${digest}`),
   );
   assert.equal(receipt.archiveRemoved, true);
   assert.equal(receipt.construction, "PENDING_NOT_IMPLEMENTED");
+});
+
+test("cleanup uncertainty suppresses a complete Moby auxiliary proof", async () => {
+  const item = harness();
+  item.operations.inspectSource = () => {
+    item.events.push("inspectSource");
+    return mobyInspection();
+  };
+  item.operations.archiveAbsent = async () => {
+    item.events.push("archiveAbsent");
+    return false;
+  };
+  await assert.rejects(
+    runSeaweedGoS3SourcePreflight(input(), item.operations),
+    /scanner_seaweed_go_s3_cleanup_uncertain/u,
+  );
+});
+
+test("input drift suppresses a complete Moby auxiliary proof before cleanup", async () => {
+  const item = harness();
+  let integrityChecks = 0;
+  item.operations.inspectSource = () => {
+    item.events.push("inspectSource");
+    return mobyInspection();
+  };
+  item.operations.assertInputsUnchanged = async () => {
+    item.events.push("assertInputsUnchanged");
+    integrityChecks += 1;
+    if (integrityChecks === 3) throw new Error("injected_source_changed");
+  };
+  await assert.rejects(
+    runSeaweedGoS3SourcePreflight(input(), item.operations),
+    /injected_source_changed/u,
+  );
+  assert.deepEqual(item.events.slice(-3), ["assertInputsUnchanged", "removeOwnedArchive", "archiveAbsent"]);
 });
 
 test("synthetic fixture pins cannot substitute the fixed production source authority", () => {
@@ -845,6 +1003,11 @@ test("synthetic fixture pins cannot substitute the fixed production source autho
 
 test("envelope diagnostics reject unbounded or internally inconsistent observations", () => {
   assert.deepEqual(validateSeaweedGoS3EnvelopeDiagnostic(envelopeDiagnostic()), envelopeDiagnostic());
+  const auxiliary = envelopeDiagnostic();
+  auxiliary.node = "auxiliary";
+  auxiliary.predicate = "keys";
+  auxiliary.ordinal = 6;
+  assert.deepEqual(validateSeaweedGoS3EnvelopeDiagnostic(auxiliary), auxiliary);
   const nonUtf8MediaType = envelopeDiagnostic();
   nonUtf8MediaType.mediaTypeClass = "other";
   nonUtf8MediaType.mediaTypeSha256 = null;

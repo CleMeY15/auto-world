@@ -50,6 +50,14 @@ Reuse qualified Docker export/import, GNU tar deletion and a read-only Python st
 
 The complete PR201 original-image Rust/source/control/helper diagnostic remains unchanged and distinct. Add a separate candidate gate and report pair; an absent helper is not a passing Rust scan. Source preflight is implemented and observed first; its real refusal blocks construction and requires a separately reviewed existing-tool choice. No registry write, signing capability, admission or support date follows from this plan. The existing one-year support and additional365archive-day policy begins only at actual activation.
 
+## Amendment — fixed Moby28 auxiliary source metadata, 2026-10-27
+
+The [fixed auxiliary recognition plan](../../roadmap/plans/TASK-0005-seaweed-go-s3-moby28-fixed-auxiliary.md),18927bytes/SHA256e7a42ea2c42cc2d9bb0473e31e75f406cc917d97703587f43b128b815cd70338, received actual Architect APPROVE_CLEAR followed by distinct Critic APPROVE. Its full exact bytes were published and read back in PR202 before implementation. [Validation](../validation/TASK-0005-seaweed-go-s3-derivative.md) records the independently reviewed source510 observation and pending execution proof.
+
+The exact4.51 Moby28 source export contains ten unreferenced V1 compatibility JSON blobs in addition to its authoritative OCI/raw graph. Recognize only their complete observed pins and finite typed projection from the pinned raw source config: nine epoch objects, the final source object, and the version-specific mandatory zero fields. This is a closed metadata family, not permission to accept arbitrary unreferenced blobs or emulate Go serialization. The historical4.47 contract and exact-subject guard remain unchanged.
+
+These V1 IDs do not select source layers, their order or configuration. The exact OCI config and raw DiffIDs remain authoritative; the later filesystem export selects the exact source image ID. The separate auxiliary proof explicitly records CreateID NOT_RECOMPUTED and auxiliary-to-raw binding NOT_INDEPENDENTLY_VERIFIED. Their declared parent chain is only an ordering of metadata checks. Full conservative raw-layer inspection, input integrity and cleanup remain mandatory before source preflight passes; construction still waits for that actual prerequisite and separate execution. No registry, admission, support activation or runtime authority follows from recognizing these files.
+
 ## Supported runtime and acceptance
 
 The admitted TASK-0005 entrypoint remains the fixed server profile:
