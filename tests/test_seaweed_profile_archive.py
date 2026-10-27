@@ -126,8 +126,106 @@ def source_save_fixture(
     return archive_bytes(outer_entries), config_bytes, config_sha256, diff_ids
 
 
-def inspect_source_fixture_refusal(test_case, **fixture_options):
-    archive_value, config_value, config_sha256, diff_ids = source_save_fixture(**fixture_options)
+OCI_INDEX_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json"
+OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
+OCI_CONFIG_MEDIA_TYPE = "application/vnd.oci.image.config.v1+json"
+OCI_LAYER_MEDIA_TYPE = "application/vnd.oci.image.layer.v1.tar"
+
+
+def moby_source_save_fixture(
+    *,
+    layer_entries_mutator=None,
+    layout_mutator=None,
+    index_mutator=None,
+    oci_manifest_mutator=None,
+    manifest_mutator=None,
+    outer_mutator=None,
+):
+    def json_bytes(value):
+        return json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+
+    layer_bytes = []
+    diff_ids = []
+    for index in range(10):
+        entries = [regular(f"layer-{index}/value.txt", f"value-{index}".encode("ascii"))]
+        if layer_entries_mutator is not None:
+            entries = layer_entries_mutator(index, entries)
+        value = archive_bytes(entries)
+        layer_bytes.append(value)
+        diff_ids.append(hashlib.sha256(value).hexdigest())
+
+    config_value = {
+        "rootfs": {"type": "layers", "diff_ids": [f"sha256:{value}" for value in diff_ids]},
+    }
+    config_bytes = json_bytes(config_value)
+    config_sha256 = hashlib.sha256(config_bytes).hexdigest()
+    config_path = f"blobs/sha256/{config_sha256}"
+    layer_paths = [f"blobs/sha256/{value}" for value in diff_ids]
+    layer_descriptors = [
+        {"mediaType": OCI_LAYER_MEDIA_TYPE, "digest": f"sha256:{digest}", "size": len(payload)}
+        for digest, payload in zip(diff_ids, layer_bytes, strict=True)
+    ]
+    oci_manifest = {
+        "schemaVersion": 2,
+        "mediaType": OCI_MANIFEST_MEDIA_TYPE,
+        "config": {"mediaType": OCI_CONFIG_MEDIA_TYPE, "digest": f"sha256:{config_sha256}", "size": len(config_bytes)},
+        "layers": [dict(value) for value in layer_descriptors],
+    }
+    if oci_manifest_mutator is not None:
+        oci_manifest_mutator(oci_manifest)
+    oci_manifest_bytes = json_bytes(oci_manifest)
+    oci_manifest_sha256 = hashlib.sha256(oci_manifest_bytes).hexdigest()
+    oci_manifest_path = f"blobs/sha256/{oci_manifest_sha256}"
+    index = {
+        "schemaVersion": 2,
+        "mediaType": OCI_INDEX_MEDIA_TYPE,
+        "manifests": [{
+            "mediaType": OCI_MANIFEST_MEDIA_TYPE,
+            "digest": f"sha256:{oci_manifest_sha256}",
+            "size": len(oci_manifest_bytes),
+        }],
+    }
+    if index_mutator is not None:
+        index_mutator(index)
+    index_bytes = json_bytes(index)
+    layout = {"imageLayoutVersion": "1.0.0"}
+    if layout_mutator is not None:
+        layout_mutator(layout)
+    layout_bytes = json_bytes(layout)
+    layer_sources = {
+        f"sha256:{diff_ids[index]}": dict(layer_descriptors[index])
+        for index in reversed(range(10))
+    }
+    manifest = [{
+        "Config": config_path,
+        "LayerSources": layer_sources,
+        "Layers": list(layer_paths),
+        "RepoTags": None,
+    }]
+    if manifest_mutator is not None:
+        manifest_mutator(manifest)
+    manifest_bytes = json_bytes(manifest)
+    outer_entries = [
+        regular("manifest.json", manifest_bytes),
+        regular("oci-layout", layout_bytes),
+        regular("index.json", index_bytes),
+        regular(config_path, config_bytes),
+        regular(oci_manifest_path, oci_manifest_bytes),
+        *(regular(path, payload) for path, payload in zip(layer_paths, layer_bytes, strict=True)),
+    ]
+    context = {
+        "configPath": config_path,
+        "layerPaths": layer_paths,
+        "layerDescriptors": layer_descriptors,
+        "ociManifestPath": oci_manifest_path,
+    }
+    if outer_mutator is not None:
+        outer_mutator(outer_entries, context)
+    return archive_bytes(outer_entries), config_bytes, config_sha256, diff_ids
+
+
+def inspect_source_fixture_refusal(test_case, *, fixture_builder=source_save_fixture, **fixture_options):
+    archive_value, config_value, config_sha256, diff_ids = fixture_builder(**fixture_options)
     with tempfile.TemporaryDirectory() as directory_name:
         directory = Path(directory_name)
         archive = directory / "source-save.tar"
@@ -141,7 +239,26 @@ def inspect_source_fixture_refusal(test_case, **fixture_options):
     return caught.exception
 
 
+def replace_outer_entry(entries, name, replacement):
+    index = next(index for index, entry in enumerate(entries) if entry[0].name == name)
+    entries[index] = replacement
+
+
 class ArchiveInspectionTests(unittest.TestCase):
+    def test_strict_json_converts_integer_digit_limits_without_changing_the_legacy_global_failure(self):
+        oversized_integer = b"1" * 5000
+        with self.assertRaises(ValueError):
+            archive_module._json_no_duplicates(oversized_integer, "save_manifest_invalid")
+        assert_refusal(
+            self,
+            "save_envelope_invalid",
+            lambda: archive_module._json_no_duplicates(
+                oversized_integer,
+                "save_envelope_invalid",
+                reject_constants=True,
+            ),
+        )
+
     def test_accepts_integral_regular_directory_and_safe_symlink_metadata(self):
         result = inspect_bytes(archive_bytes([
             directory("data"),
@@ -354,6 +471,247 @@ class SourceSaveCliTests(unittest.TestCase):
         self.assertEqual(result["sourceConfigSha256"], config_sha256)
         self.assertEqual([layer["ordinal"] for layer in result["layers"]], list(range(1, 11)))
         self.assertEqual([layer["sha256"] for layer in result["layers"]], diff_ids)
+
+    def test_fixture_moby_envelope_binds_the_closed_raw_ten_layer_graph(self):
+        archive_value, config_value, config_sha256, diff_ids = moby_source_save_fixture()
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive = directory / "source-save.tar"
+            config = directory / "config.json"
+            archive.write_bytes(archive_value)
+            config.write_bytes(config_value)
+            archive.chmod(0o444)
+            config.chmod(0o444)
+            result = inspect_source_save_fixture(archive, config, config_sha256, diff_ids)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["sourceEnvelope"]["kind"], "MOBY_28_OCI_COMPAT_V1")
+        self.assertEqual(result["sourceEnvelope"]["descriptorCount"], 10)
+        self.assertEqual(result["sourceEnvelope"]["rawLayerDescriptorsMatched"], True)
+        self.assertEqual(
+            [layer["path"] for layer in result["layers"]],
+            [f"blobs/sha256/{value}" for value in diff_ids],
+        )
+        with tarfile.open(fileobj=io.BytesIO(archive_value), mode="r:") as outer:
+            members = {member.name: member for member in outer.getmembers()}
+            manifest_bytes = outer.extractfile(members["manifest.json"]).read()
+            layout_bytes = outer.extractfile(members["oci-layout"]).read()
+            index_bytes = outer.extractfile(members["index.json"]).read()
+            index = json.loads(index_bytes)
+            oci_path = f"blobs/sha256/{index['manifests'][0]['digest'][7:]}"
+            oci_manifest_bytes = outer.extractfile(members[oci_path]).read()
+        self.assertEqual(result["sourceEnvelope"]["manifestSha256"], hashlib.sha256(manifest_bytes).hexdigest())
+        self.assertEqual(result["sourceEnvelope"]["layoutSha256"], hashlib.sha256(layout_bytes).hexdigest())
+        self.assertEqual(result["sourceEnvelope"]["indexSha256"], hashlib.sha256(index_bytes).hexdigest())
+        self.assertEqual(result["sourceEnvelope"]["ociManifestSha256"], hashlib.sha256(oci_manifest_bytes).hexdigest())
+
+    def test_moby_layout_and_index_must_be_exact_duplicate_free_json(self):
+        def duplicate_layout(entries, _context):
+            replace_outer_entry(
+                entries,
+                "oci-layout",
+                regular("oci-layout", b'{"imageLayoutVersion":"1.0.0","imageLayoutVersion":"1.0.0"}'),
+            )
+
+        def array_index(entries, _context):
+            replace_outer_entry(entries, "index.json", regular("index.json", b"[]"))
+
+        cases = (
+            {"layout_mutator": lambda value: value.update(imageLayoutVersion="1.0.1")},
+            {"layout_mutator": lambda value: value.update(extra=True)},
+            {"outer_mutator": duplicate_layout},
+            {"index_mutator": lambda value: value.update(schemaVersion=True)},
+            {"index_mutator": lambda value: value.update(mediaType="application/json")},
+            {"index_mutator": lambda value: value.update(manifests=[])},
+            {"index_mutator": lambda value: value["manifests"][0].update(annotations={})},
+            {"outer_mutator": array_index},
+        )
+        for options in cases:
+            with self.subTest(options=tuple(options)):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    **options,
+                )
+                self.assertEqual(refusal.code, "save_envelope_invalid")
+                self.assertLessEqual(len(json.dumps(
+                    refusal.envelope_diagnostic,
+                    ensure_ascii=True,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("ascii")), 2048)
+
+    def test_moby_descriptors_refuse_extra_fields_bad_digests_sizes_and_encoding(self):
+        cases = (
+            lambda value: value.update(annotations={}),
+            lambda value: value["config"].update(urls=[]),
+            lambda value: value["layers"][0].update(digest="sha256:BAD"),
+            lambda value: value["layers"][0].update(size=True),
+            lambda value: value["layers"][0].update(size=2 * 1024 ** 3 + 1),
+            lambda value: value["layers"][0].update(mediaType="application/vnd.oci.image.layer.v1.tar+gzip"),
+        )
+        for mutate in cases:
+            with self.subTest(mutate=mutate):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    oci_manifest_mutator=mutate,
+                )
+                self.assertEqual(refusal.code, "save_envelope_invalid")
+                self.assertIsNotNone(refusal.envelope_diagnostic)
+
+    def test_moby_outer_graph_refuses_missing_nonregular_changed_and_extra_members(self):
+        def remove_layer(entries, context):
+            entries[:] = [entry for entry in entries if entry[0].name != context["layerPaths"][3]]
+
+        def make_layer_directory(entries, context):
+            replace_outer_entry(entries, context["layerPaths"][3], directory(context["layerPaths"][3]))
+
+        def change_layer_bytes(entries, context):
+            replace_outer_entry(entries, context["layerPaths"][3], regular(context["layerPaths"][3], b"changed"))
+
+        def change_config_bytes(entries, context):
+            replace_outer_entry(entries, context["configPath"], regular(context["configPath"], b"changed"))
+
+        def add_extra_blob(entries, _context):
+            entries.append(regular(f"blobs/sha256/{'f' * 64}", b"unreferenced"))
+
+        def add_extra_directory(entries, _context):
+            entries.append(directory("foreign"))
+
+        for mutate in (remove_layer, make_layer_directory, change_layer_bytes, change_config_bytes, add_extra_blob, add_extra_directory):
+            with self.subTest(mutate=mutate.__name__):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    outer_mutator=mutate,
+                )
+                self.assertEqual(refusal.code, "save_envelope_invalid")
+
+    def test_moby_manifest_closure_refuses_layer_order_duplicates_and_layer_source_aliases(self):
+        def swap_layers(value):
+            value[0]["Layers"][0], value[0]["Layers"][1] = value[0]["Layers"][1], value[0]["Layers"][0]
+
+        def duplicate_layer(value):
+            value[0]["Layers"][1] = value[0]["Layers"][0]
+
+        def missing_layer_source(value):
+            value[0]["LayerSources"].pop(next(iter(value[0]["LayerSources"])))
+
+        def extra_layer_source(value):
+            value[0]["LayerSources"][f"sha256:{'f' * 64}"] = {
+                "mediaType": OCI_LAYER_MEDIA_TYPE,
+                "digest": f"sha256:{'f' * 64}",
+                "size": 1,
+            }
+
+        def mismatch_layer_source(value):
+            value[0]["LayerSources"][next(iter(value[0]["LayerSources"]))]["size"] += 1
+
+        def alias_config_to_layer(value):
+            value[0]["Config"] = value[0]["Layers"][0]
+
+        for mutate in (
+            swap_layers,
+            duplicate_layer,
+            missing_layer_source,
+            extra_layer_source,
+            mismatch_layer_source,
+            alias_config_to_layer,
+        ):
+            with self.subTest(mutate=mutate.__name__):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    manifest_mutator=mutate,
+                )
+                self.assertEqual(refusal.code, "save_envelope_invalid")
+
+    def test_moby_raw_layers_keep_the_existing_conservative_tar_metadata_gate(self):
+        def add_pax(index, entries):
+            if index == 6:
+                entries[0][0].pax_headers = {"SCHILY.xattr.user.hidden": "1"}
+            return entries
+
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            layer_entries_mutator=add_pax,
+        )
+        self.assertEqual(refusal.code, "pax_unsupported")
+        self.assertEqual(refusal.layer_ordinal, 7)
+        self.assertIsNone(refusal.envelope_diagnostic)
+
+    def test_envelope_diagnostics_commit_hostile_names_without_raw_name_or_path_leakage(self):
+        private_names = [
+            f"C:\\private\\blob-{index}\nsecret-{index}"
+            for index in range(512)
+        ]
+
+        def add_unknown_descriptor_keys(value):
+            descriptor = value["layers"][0]
+            descriptor.update({name: index for index, name in enumerate(private_names)})
+
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            oci_manifest_mutator=add_unknown_descriptor_keys,
+        )
+        self.assertEqual(refusal.code, "save_envelope_invalid")
+        diagnostic = refusal.envelope_diagnostic
+        unknown_names = sorted(private_names)
+        expected = hashlib.sha256(
+            json.dumps(unknown_names, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        self.assertEqual(diagnostic["unknownKeyCount"], len(private_names))
+        self.assertEqual(diagnostic["unknownKeyNamesSha256"], expected)
+        encoded = json.dumps(diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+        self.assertLessEqual(len(encoded), 2048)
+        self.assertNotIn(b"private", encoded)
+        self.assertNotIn(b"secret", encoded)
+        self.assertNotIn(os.fspath(REPOSITORY_ROOT).encode("ascii"), encoded)
+
+    def test_non_utf8_media_type_is_categorized_without_leaking_or_hashing_the_surrogate(self):
+        def use_surrogate_media_type(value):
+            value["layers"][0]["mediaType"] = "\ud800"
+
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            oci_manifest_mutator=use_surrogate_media_type,
+        )
+        diagnostic = refusal.envelope_diagnostic
+        self.assertEqual(diagnostic["mediaTypeClass"], "other")
+        self.assertIsNone(diagnostic["mediaTypeSha256"])
+        self.assertNotIn("\\ud800", json.dumps(diagnostic, ensure_ascii=True, separators=(",", ":")))
+
+    def test_archive_drift_suppresses_an_otherwise_finite_envelope_diagnostic(self):
+        archive_value, config_value, config_sha256, diff_ids = moby_source_save_fixture(
+            layout_mutator=lambda value: value.update(imageLayoutVersion="1.0.1")
+        )
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive = directory / "source-save.tar"
+            config = directory / "config.json"
+            archive.write_bytes(archive_value)
+            config.write_bytes(config_value)
+            archive.chmod(0o444)
+            config.chmod(0o444)
+
+            def mutate_archive():
+                archive.chmod(0o644)
+                with archive.open("r+b") as output:
+                    output.seek(-1, os.SEEK_END)
+                    output.write(b"!")
+
+            with self.assertRaises(InspectionIntegrityError) as caught:
+                inspect_source_save_fixture(
+                    archive,
+                    config,
+                    config_sha256,
+                    diff_ids,
+                    finalize_hook=mutate_archive,
+                )
+            self.assertEqual(caught.exception.code, "source_changed")
 
     def test_missing_manifest_reports_outer_shape_without_changing_the_refusal(self):
         extra_entries = (
@@ -698,6 +1056,41 @@ class SourceSaveCliTests(unittest.TestCase):
                 self.assertLessEqual(len(json.dumps(output, separators=(",", ":")).encode("ascii")), 4096)
                 self.assertNotIn(secret_name, stdout.getvalue())
                 self.assertNotIn("raw-payload", stdout.getvalue())
+                self.assertNotIn(archive, stdout.getvalue())
+                self.assertNotIn(config, stdout.getvalue())
+
+    def test_cli_emits_envelope_diagnostics_only_for_the_named_uncombined_refusal(self):
+        envelope_refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            layout_mutator=lambda value: value.update(imageLayoutVersion="1.0.1"),
+        )
+        manifest_refusal = inspect_source_fixture_refusal(self, omit_manifest=True)
+        archive = os.fspath((REPOSITORY_ROOT / "private-source-save.tar").resolve())
+        config = os.fspath((REPOSITORY_ROOT / "private-source-config.json").resolve())
+        cases = (
+            (envelope_refusal, True),
+            (InspectionRefusal("archive_truncated", envelope_diagnostic=envelope_refusal.envelope_diagnostic), False),
+            (InspectionRefusal(
+                "save_envelope_invalid",
+                manifest_diagnostic=manifest_refusal.manifest_diagnostic,
+                envelope_diagnostic=envelope_refusal.envelope_diagnostic,
+            ), False),
+        )
+        for refusal, expect_diagnostic in cases:
+            with self.subTest(code=refusal.code, combined=refusal.manifest_diagnostic is not None):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with mock.patch.object(archive_module, "_activate_cli_limits", return_value=None), \
+                        mock.patch.object(archive_module, "inspect_source_save", side_effect=refusal):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        status = archive_module.main(["source-save", "--archive", archive, "--config", config])
+                self.assertEqual(status, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                output = json.loads(stdout.getvalue())
+                self.assertEqual("envelopeDiagnostic" in output, expect_diagnostic)
+                self.assertNotIn("manifestDiagnostic", output)
+                self.assertLessEqual(len(stdout.getvalue().encode("ascii")), 4096)
                 self.assertNotIn(archive, stdout.getvalue())
                 self.assertNotIn(config, stdout.getvalue())
 

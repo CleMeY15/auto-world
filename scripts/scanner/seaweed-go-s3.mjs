@@ -33,7 +33,7 @@ const SOURCE_REFUSALS = new Set([
   "input_type_invalid", "json_limit", "layer_digest_mismatch", "layer_total_size_limit", "member_limit", "member_size_limit", "mode_invalid",
   "nonfile_size", "output_limit", "owner_name_unsupported", "path_invalid", "pax_unsupported", "resource_limit", "resource_limits_unavailable",
   "save_config_mismatch", "save_config_missing", "save_config_reference_invalid", "save_layer_invalid", "save_layer_missing",
-  "save_layer_reference_invalid", "save_manifest_invalid", "save_manifest_missing", "save_metadata_invalid", "save_repo_tags_invalid", "save_unreferenced_member",
+  "save_envelope_invalid", "save_layer_reference_invalid", "save_manifest_invalid", "save_manifest_missing", "save_metadata_invalid", "save_repo_tags_invalid", "save_unreferenced_member",
   "save_repositories_invalid", "source_config_diffids_mismatch", "source_config_invalid", "source_config_mismatch",
   "sparse_unsupported", "special_type_unsupported", "symlink_target_invalid", "whiteout_invalid", "whiteout_unsupported",
 ]);
@@ -41,6 +41,8 @@ const sourceRefusalDetails = new WeakMap();
 const sourceRefusalReceipts = new WeakMap();
 const MANIFEST_KEYS = Object.freeze(["Config", "LayerSources", "Layers", "Parent", "RepoTags"]);
 const JSON_TAGS = new Set(["array", "object", "string", "number", "boolean", "null"]);
+const ENVELOPE_KEYS = Object.freeze(["annotations", "artifactType", "config", "data", "digest", "imageLayoutVersion", "layers",
+  "manifests", "mediaType", "platform", "schemaVersion", "size", "subject", "urls"]);
 const fail = (code) => { throw new Error(code); };
 const exactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
@@ -167,16 +169,19 @@ export function validateSeaweedGoS3FilesystemEvidence(value) {
 }
 
 export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
+  const hasSourceEnvelope = Object.hasOwn(value ?? {}, "sourceEnvelope");
   const safeLayerPath = (candidate) => typeof candidate === "string" && candidate.length >= 11 && candidate.length <= 1024 &&
     !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..") &&
     candidate.endsWith("/layer.tar");
-  if (!exactKeys(value, ["schemaVersion", "profile", "evidenceClass", "status", "sourceConfigSha256", "archive", "layers", "totals"]) ||
+  if (!exactKeys(value, ["schemaVersion", "profile", "evidenceClass", "status", "sourceConfigSha256", "archive", "layers", "totals",
+    ...(hasSourceEnvelope ? ["sourceEnvelope"] : [])]) ||
       Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 || value.profile !== "go-s3-4.51-v1" ||
       value.evidenceClass !== "SOURCE_LAYER_PREFLIGHT" || value.status !== "PASS" || value.sourceConfigSha256 !== SOURCE_CONFIG.slice(7) ||
       !exactKeys(value.archive, ["sha256", "bytes"]) || !sha256(value.archive.sha256) || !positiveInteger(value.archive.bytes) ||
       value.archive.bytes > SOURCE_ARCHIVE_LIMIT || !Array.isArray(value.layers) || value.layers.length !== 10 ||
       value.layers.some((layer, index) => !exactKeys(layer, ["ordinal", "path", "sha256", "bytes", "memberCount", "metadataSha256", "inventorySha256"]) ||
-        layer.ordinal !== index + 1 || !safeLayerPath(layer.path) || layer.sha256 !== SOURCE_DIFF_IDS[index] || !positiveInteger(layer.bytes) ||
+        layer.ordinal !== index + 1 || (hasSourceEnvelope ? layer.path !== `blobs/sha256/${SOURCE_DIFF_IDS[index]}` : !safeLayerPath(layer.path)) ||
+        layer.sha256 !== SOURCE_DIFF_IDS[index] || !positiveInteger(layer.bytes) ||
         !Number.isSafeInteger(layer.memberCount) || layer.memberCount < 0 || layer.memberCount > 4096 || !sha256(layer.metadataSha256) || !sha256(layer.inventorySha256)) ||
       !exactKeys(value.totals, ["layerCount", "layerBytes", "memberCount"]) || value.totals.layerCount !== 10 ||
       !positiveInteger(value.totals.layerBytes) || value.totals.layerBytes > SOURCE_ARCHIVE_LIMIT || !positiveInteger(value.totals.memberCount) ||
@@ -185,6 +190,45 @@ export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
       expected.archiveSha256 !== undefined && value.archive.sha256 !== expected.archiveSha256 ||
       expected.archiveBytes !== undefined && value.archive.bytes !== expected.archiveBytes) {
     fail("scanner_seaweed_go_s3_source_preflight_refused");
+  }
+  if (hasSourceEnvelope) validateSeaweedGoS3SourceEnvelope(value.sourceEnvelope);
+  return clone(value);
+}
+
+export function validateSeaweedGoS3SourceEnvelope(value) {
+  if (!exactKeys(value, ["schemaVersion", "kind", "manifestSha256", "layoutSha256", "indexSha256", "ociManifestSha256",
+    "descriptorCount", "rawLayerDescriptorsMatched"]) || value.schemaVersion !== 1 || value.kind !== "MOBY_28_OCI_COMPAT_V1" ||
+      !sha256(value.manifestSha256) || !sha256(value.layoutSha256) || !sha256(value.indexSha256) || !sha256(value.ociManifestSha256) ||
+      value.descriptorCount !== 10 || value.rawLayerDescriptorsMatched !== true) {
+    fail("scanner_seaweed_go_s3_source_envelope_invalid");
+  }
+  return clone(value);
+}
+
+export function validateSeaweedGoS3EnvelopeDiagnostic(value) {
+  const nullableCount = (candidate, maximum) => candidate === null || Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= maximum;
+  const diagnosticKeys = ["schemaVersion", "format", "node", "predicate", "ordinal", "observedType", "memberType", "expectedDigest",
+    "actualDigest", "expectedBytes", "actualBytes", "knownKeysPresent", "unknownKeyCount", "unknownKeyNamesSha256", "mediaTypeClass",
+    "mediaTypeSha256"];
+  if (!exactKeys(value, diagnosticKeys) || Buffer.byteLength(JSON.stringify(value)) > 2 * KiB || value.schemaVersion !== 1 ||
+      value.format !== "MOBY_28_OCI_COMPAT_V1" ||
+      !["layout", "index", "oci-manifest", "config", "layer-source", "raw-layer", "outer"].includes(value.node) ||
+      !["json", "type", "keys", "media-type", "digest", "size", "member", "cardinality", "ordinal", "extra"].includes(value.predicate) ||
+      value.ordinal !== null && (!Number.isSafeInteger(value.ordinal) || value.ordinal < 1 || value.ordinal > 10) ||
+      value.observedType !== null && !JSON_TAGS.has(value.observedType) ||
+      ![null, "file", "directory", "symlink"].includes(value.memberType) ||
+      value.expectedDigest !== null && !sha256(value.expectedDigest) || value.actualDigest !== null && !sha256(value.actualDigest) ||
+      !nullableCount(value.expectedBytes, SOURCE_ARCHIVE_LIMIT) || !nullableCount(value.actualBytes, SOURCE_ARCHIVE_LIMIT) ||
+      !Array.isArray(value.knownKeysPresent) || value.knownKeysPresent.some((entry) => !ENVELOPE_KEYS.includes(entry)) ||
+      value.knownKeysPresent.some((entry, index) => index > 0 && value.knownKeysPresent[index - 1] >= entry) ||
+      !nullableCount(value.unknownKeyCount, 4 * MiB) ||
+      value.unknownKeyNamesSha256 !== null && !sha256(value.unknownKeyNamesSha256) ||
+      (value.unknownKeyCount === null) !== (value.unknownKeyNamesSha256 === null) ||
+      ![null, "oci-index", "oci-manifest", "oci-config", "oci-tar", "other"].includes(value.mediaTypeClass) ||
+      value.mediaTypeSha256 !== null && !sha256(value.mediaTypeSha256) ||
+      value.mediaTypeClass === null && value.mediaTypeSha256 !== null ||
+      ![null, "other"].includes(value.mediaTypeClass) && value.mediaTypeSha256 === null) {
+    fail("scanner_seaweed_go_s3_envelope_diagnostic_invalid");
   }
   return clone(value);
 }
@@ -267,7 +311,9 @@ export function validateSeaweedGoS3ManifestDiagnostic(value) {
 
 export function validateSeaweedGoS3SourceRefusal(value) {
   const hasManifestDiagnostic = Object.hasOwn(value ?? {}, "manifestDiagnostic");
-  const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal", ...(hasManifestDiagnostic ? ["manifestDiagnostic"] : [])];
+  const hasEnvelopeDiagnostic = Object.hasOwn(value ?? {}, "envelopeDiagnostic");
+  const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal", ...(hasManifestDiagnostic ? ["manifestDiagnostic"] : []),
+    ...(hasEnvelopeDiagnostic ? ["envelopeDiagnostic"] : [])];
   const safeMember = (candidate) => typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 1024 &&
     !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..");
   if (!exactKeys(value, keys) || Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 ||
@@ -279,10 +325,12 @@ export function validateSeaweedGoS3SourceRefusal(value) {
       Object.hasOwn(value.refusal, "member") && !safeMember(value.refusal.member) ||
       Object.hasOwn(value.refusal, "memberSha256") && !sha256(value.refusal.memberSha256) ||
       Object.hasOwn(value.refusal, "member") && Object.hasOwn(value.refusal, "memberSha256") ||
-      hasManifestDiagnostic && !["save_manifest_missing", "save_manifest_invalid"].includes(value.refusal.code)) {
+      hasManifestDiagnostic && !["save_manifest_missing", "save_manifest_invalid"].includes(value.refusal.code) ||
+      hasEnvelopeDiagnostic && value.refusal.code !== "save_envelope_invalid" || hasManifestDiagnostic && hasEnvelopeDiagnostic) {
     fail("scanner_seaweed_go_s3_source_refusal_invalid");
   }
   if (hasManifestDiagnostic) validateSeaweedGoS3ManifestDiagnostic(value.manifestDiagnostic);
+  if (hasEnvelopeDiagnostic) validateSeaweedGoS3EnvelopeDiagnostic(value.envelopeDiagnostic);
   return clone(value);
 }
 

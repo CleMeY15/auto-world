@@ -56,6 +56,7 @@ MAX_PATH_BYTES = 1024
 MAX_JSON_BYTES = 4 * 1024**2
 MAX_OUTPUT_BYTES = 4 * 1024**2
 MAX_MANIFEST_DIAGNOSTIC_BYTES = 2 * 1024
+MAX_ENVELOPE_DIAGNOSTIC_BYTES = 2 * 1024
 CHUNK_BYTES = 1024**2
 ZERO_BLOCK_BYTES = 1024
 REMOVED_HELPERS = ("usr/bin/weed-volume", "usr/bin/weed-worker")
@@ -66,6 +67,27 @@ OCI_BLOB_MEMBER = re.compile(r"^blobs/sha256/[0-9a-f]{64}$")
 SAFE_PAX_KEYS = frozenset(("path", "linkpath", "mtime"))
 MANIFEST_KNOWN_KEYS = ("Config", "LayerSources", "Layers", "Parent", "RepoTags")
 MANIFEST_DIAGNOSTIC_CODES = frozenset(("save_manifest_missing", "save_manifest_invalid"))
+MOBY_ENVELOPE_KIND = "MOBY_28_OCI_COMPAT_V1"
+OCI_LAYOUT_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json"
+OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
+OCI_CONFIG_MEDIA_TYPE = "application/vnd.oci.image.config.v1+json"
+OCI_LAYER_MEDIA_TYPE = "application/vnd.oci.image.layer.v1.tar"
+ENVELOPE_KNOWN_KEYS = (
+    "annotations",
+    "artifactType",
+    "config",
+    "data",
+    "digest",
+    "imageLayoutVersion",
+    "layers",
+    "manifests",
+    "mediaType",
+    "platform",
+    "schemaVersion",
+    "size",
+    "subject",
+    "urls",
+)
 
 
 class InspectionRefusal(Exception):
@@ -79,6 +101,7 @@ class InspectionRefusal(Exception):
         member: str | None = None,
         member_is_safe: bool = False,
         manifest_diagnostic: dict[str, Any] | None = None,
+        envelope_diagnostic: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(code)
         self.code = code
@@ -86,6 +109,7 @@ class InspectionRefusal(Exception):
         self.member = member
         self.member_is_safe = member_is_safe
         self.manifest_diagnostic = manifest_diagnostic
+        self.envelope_diagnostic = envelope_diagnostic
 
 
 class InspectionIntegrityError(Exception):
@@ -125,7 +149,9 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _json_no_duplicates(raw: bytes, code: str) -> Any:
+def _json_no_duplicates(
+    raw: bytes, code: str, *, reject_constants: bool = False
+) -> Any:
     _require(len(raw) <= MAX_JSON_BYTES, "json_limit")
 
     def pairs(values: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -135,12 +161,24 @@ def _json_no_duplicates(raw: bytes, code: str) -> Any:
             result[key] = value
         return result
 
+    def constant(_value: str) -> None:
+        raise InspectionRefusal(code)
+
     try:
-        return json.loads(raw.decode("utf-8", "strict"), object_pairs_hook=pairs)
+        constant_option = {"parse_constant": constant} if reject_constants else {}
+        return json.loads(
+            raw.decode("utf-8", "strict"),
+            object_pairs_hook=pairs,
+            **constant_option,
+        )
     except InspectionRefusal:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise InspectionRefusal(code) from None
+    except ValueError:
+        if reject_constants:
+            raise InspectionRefusal(code) from None
+        raise
 
 
 def _json_type_tag(value: Any) -> str:
@@ -289,6 +327,314 @@ def _raise_manifest_refusal(
     code: str, diagnostic: dict[str, Any]
 ) -> None:
     raise InspectionRefusal(code, manifest_diagnostic=diagnostic)
+
+
+def _diagnostic_digest(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    if HEX64.fullmatch(value) is not None:
+        return value
+    if value.startswith("sha256:") and HEX64.fullmatch(value[7:]) is not None:
+        return value[7:]
+    return None
+
+
+def _diagnostic_bytes(value: Any) -> int | None:
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_ARCHIVE_BYTES
+    ):
+        return value
+    return None
+
+
+def _media_type_observation(value: Any) -> tuple[str | None, str | None]:
+    if not isinstance(value, str):
+        return None, None
+    classes = {
+        OCI_LAYOUT_MEDIA_TYPE: "oci-index",
+        OCI_MANIFEST_MEDIA_TYPE: "oci-manifest",
+        OCI_CONFIG_MEDIA_TYPE: "oci-config",
+        OCI_LAYER_MEDIA_TYPE: "oci-tar",
+    }
+    media_class = classes.get(value, "other")
+    try:
+        encoded = value.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        return media_class, None
+    return media_class, hashlib.sha256(encoded).hexdigest()
+
+
+def _envelope_diagnostic(
+    *,
+    node: str,
+    predicate: str,
+    ordinal: int | None = None,
+    observed: Any = None,
+    observed_available: bool = False,
+    member_type: str | None = None,
+    expected_digest: Any = None,
+    actual_digest: Any = None,
+    expected_bytes: Any = None,
+    actual_bytes: Any = None,
+    media_type: Any = None,
+) -> dict[str, Any]:
+    known_keys_present: list[str] = []
+    unknown_key_count: int | None = None
+    unknown_key_names_sha256: str | None = None
+    if observed_available and isinstance(observed, dict):
+        known_keys_present = sorted(set(observed).intersection(ENVELOPE_KNOWN_KEYS))
+        unknown_names = sorted(set(observed).difference(ENVELOPE_KNOWN_KEYS))
+        unknown_key_count = len(unknown_names)
+        unknown_key_names_sha256 = hashlib.sha256(
+            json.dumps(
+                unknown_names, ensure_ascii=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+    media_type_class, media_type_sha256 = _media_type_observation(media_type)
+    diagnostic = {
+        "schemaVersion": SCHEMA_VERSION,
+        "format": MOBY_ENVELOPE_KIND,
+        "node": node,
+        "predicate": predicate,
+        "ordinal": ordinal if isinstance(ordinal, int) and 1 <= ordinal <= 10 else None,
+        "observedType": _json_type_tag(observed) if observed_available else None,
+        "memberType": member_type if member_type in {"file", "directory", "symlink"} else None,
+        "expectedDigest": _diagnostic_digest(expected_digest),
+        "actualDigest": _diagnostic_digest(actual_digest),
+        "expectedBytes": _diagnostic_bytes(expected_bytes),
+        "actualBytes": _diagnostic_bytes(actual_bytes),
+        "knownKeysPresent": known_keys_present,
+        "unknownKeyCount": unknown_key_count,
+        "unknownKeyNamesSha256": unknown_key_names_sha256,
+        "mediaTypeClass": media_type_class,
+        "mediaTypeSha256": media_type_sha256,
+    }
+    encoded = json.dumps(
+        diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    ).encode("ascii")
+    if len(encoded) > MAX_ENVELOPE_DIAGNOSTIC_BYTES:
+        raise InspectionRefusal("internal_error")
+    return diagnostic
+
+
+def _raise_envelope_refusal(**diagnostic_values: Any) -> None:
+    raise InspectionRefusal(
+        "save_envelope_invalid",
+        envelope_diagnostic=_envelope_diagnostic(**diagnostic_values),
+    )
+
+
+def _require_envelope(
+    condition: bool, *, node: str, predicate: str, **diagnostic_values: Any
+) -> None:
+    if not condition:
+        _raise_envelope_refusal(
+            node=node, predicate=predicate, **diagnostic_values
+        )
+
+
+def _envelope_member(
+    by_name: dict[str, tuple[dict[str, Any], tarfile.TarInfo]],
+    path: str,
+    *,
+    node: str,
+    ordinal: int | None = None,
+    expected_digest: str | None = None,
+    expected_bytes: int | None = None,
+    json_member: bool = False,
+) -> tuple[dict[str, Any], tarfile.TarInfo]:
+    entry = by_name.get(path)
+    _require_envelope(
+        entry is not None,
+        node=node,
+        predicate="member",
+        ordinal=ordinal,
+        expected_digest=expected_digest,
+        expected_bytes=expected_bytes,
+    )
+    record, info = entry
+    _require_envelope(
+        record["type"] == "file",
+        node=node,
+        predicate="member",
+        ordinal=ordinal,
+        member_type=record["type"],
+        expected_digest=expected_digest,
+        actual_digest=record["payloadSha256"],
+        expected_bytes=expected_bytes,
+        actual_bytes=record["size"],
+    )
+    _require_envelope(
+        not json_member or record["size"] <= MAX_JSON_BYTES,
+        node=node,
+        predicate="size",
+        ordinal=ordinal,
+        member_type="file",
+        expected_digest=expected_digest,
+        actual_digest=record["payloadSha256"],
+        expected_bytes=expected_bytes,
+        actual_bytes=record["size"],
+    )
+    if expected_digest is not None:
+        _require_envelope(
+            record["payloadSha256"] == expected_digest,
+            node=node,
+            predicate="digest",
+            ordinal=ordinal,
+            member_type="file",
+            expected_digest=expected_digest,
+            actual_digest=record["payloadSha256"],
+            expected_bytes=expected_bytes,
+            actual_bytes=record["size"],
+        )
+    if expected_bytes is not None:
+        _require_envelope(
+            record["size"] == expected_bytes,
+            node=node,
+            predicate="size",
+            ordinal=ordinal,
+            member_type="file",
+            expected_digest=expected_digest,
+            actual_digest=record["payloadSha256"],
+            expected_bytes=expected_bytes,
+            actual_bytes=record["size"],
+        )
+    return record, info
+
+
+def _envelope_json(
+    archive: tarfile.TarFile,
+    by_name: dict[str, tuple[dict[str, Any], tarfile.TarInfo]],
+    path: str,
+    *,
+    node: str,
+    expected_digest: str | None = None,
+    expected_bytes: int | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    record, info = _envelope_member(
+        by_name,
+        path,
+        node=node,
+        expected_digest=expected_digest,
+        expected_bytes=expected_bytes,
+        json_member=True,
+    )
+    raw = _read_member(archive, info, MAX_JSON_BYTES)
+    try:
+        value = _json_no_duplicates(
+            raw, "save_envelope_invalid", reject_constants=True
+        )
+    except InspectionRefusal as refusal:
+        if refusal.code == "save_envelope_invalid":
+            _raise_envelope_refusal(
+                node=node,
+                predicate="json",
+                member_type="file",
+                expected_digest=expected_digest,
+                actual_digest=record["payloadSha256"],
+                expected_bytes=expected_bytes,
+                actual_bytes=record["size"],
+            )
+        raise
+    return value, record
+
+
+def _validate_descriptor(
+    value: Any,
+    *,
+    node: str,
+    expected_media_type: str,
+    expected_digest: str | None = None,
+    expected_bytes: int | None = None,
+    ordinal: int | None = None,
+) -> tuple[str, int]:
+    _require_envelope(
+        isinstance(value, dict),
+        node=node,
+        predicate="type",
+        ordinal=ordinal,
+        observed=value,
+        observed_available=True,
+    )
+    _require_envelope(
+        set(value) == {"mediaType", "digest", "size"},
+        node=node,
+        predicate="keys",
+        ordinal=ordinal,
+        observed=value,
+        observed_available=True,
+        media_type=value.get("mediaType"),
+    )
+    media_type = value["mediaType"]
+    _require_envelope(
+        media_type == expected_media_type,
+        node=node,
+        predicate="media-type",
+        ordinal=ordinal,
+        observed=value,
+        observed_available=True,
+        media_type=media_type,
+    )
+    digest = value["digest"]
+    digest_hex = _diagnostic_digest(digest)
+    _require_envelope(
+        isinstance(digest, str)
+        and digest.startswith("sha256:")
+        and digest_hex is not None,
+        node=node,
+        predicate="digest",
+        ordinal=ordinal,
+        observed=value,
+        observed_available=True,
+        expected_digest=expected_digest,
+        actual_digest=digest,
+        media_type=media_type,
+    )
+    if expected_digest is not None:
+        _require_envelope(
+            digest_hex == expected_digest,
+            node=node,
+            predicate="digest",
+            ordinal=ordinal,
+            observed=value,
+            observed_available=True,
+            expected_digest=expected_digest,
+            actual_digest=digest,
+            media_type=media_type,
+        )
+    size = value["size"]
+    _require_envelope(
+        isinstance(size, int)
+        and not isinstance(size, bool)
+        and 0 < size <= MAX_ARCHIVE_BYTES,
+        node=node,
+        predicate="size",
+        ordinal=ordinal,
+        observed=value,
+        observed_available=True,
+        expected_digest=expected_digest,
+        actual_digest=digest,
+        expected_bytes=expected_bytes,
+        actual_bytes=size,
+        media_type=media_type,
+    )
+    if expected_bytes is not None:
+        _require_envelope(
+            size == expected_bytes,
+            node=node,
+            predicate="size",
+            ordinal=ordinal,
+            observed=value,
+            observed_available=True,
+            expected_digest=expected_digest,
+            actual_digest=digest,
+            expected_bytes=expected_bytes,
+            actual_bytes=size,
+            media_type=media_type,
+        )
+    return digest_hex, size
 
 
 def _hash_stream(stream: BinaryIO, expected_size: int) -> str:
@@ -764,6 +1110,361 @@ def _validate_source_config(raw: bytes, expected_sha256: str, expected_diff_ids:
     _require(diff_ids == expected, "source_config_diffids_mismatch")
 
 
+def _inspect_moby28_envelope(
+    outer_archive: tarfile.TarFile,
+    by_name: dict[str, tuple[dict[str, Any], tarfile.TarInfo]],
+    manifest_record: dict[str, Any],
+    target: dict[str, Any],
+    config_raw: bytes,
+    expected_config_sha256: str,
+    expected_diff_ids: tuple[str, ...],
+) -> tuple[str, list[str], dict[str, Any]]:
+    _require_envelope(
+        len(expected_diff_ids) == 10 and len(set(expected_diff_ids)) == 10,
+        node="outer",
+        predicate="cardinality",
+    )
+    expected_config_path = f"blobs/sha256/{expected_config_sha256}"
+    expected_layer_paths = [
+        f"blobs/sha256/{diff_id}" for diff_id in expected_diff_ids
+    ]
+    _require_envelope(
+        target.get("Config") == expected_config_path,
+        node="outer",
+        predicate="digest",
+        expected_digest=expected_config_sha256,
+    )
+    _require_envelope(
+        target.get("RepoTags") is None,
+        node="outer",
+        predicate="type",
+        observed=target.get("RepoTags"),
+        observed_available="RepoTags" in target,
+    )
+    layers_value = target.get("Layers")
+    _require_envelope(
+        isinstance(layers_value, list),
+        node="outer",
+        predicate="type",
+        observed=layers_value,
+        observed_available="Layers" in target,
+    )
+    _require_envelope(
+        len(layers_value) == 10,
+        node="outer",
+        predicate="cardinality",
+        observed=layers_value,
+        observed_available=True,
+    )
+    for ordinal, (actual_path, expected_path, expected_diff_id) in enumerate(
+        zip(layers_value, expected_layer_paths, expected_diff_ids, strict=True),
+        start=1,
+    ):
+        actual_digest = (
+            actual_path.removeprefix("blobs/sha256/")
+            if isinstance(actual_path, str)
+            and actual_path.startswith("blobs/sha256/")
+            else None
+        )
+        _require_envelope(
+            actual_path == expected_path,
+            node="raw-layer",
+            predicate="ordinal",
+            ordinal=ordinal,
+            expected_digest=expected_diff_id,
+            actual_digest=actual_digest,
+        )
+
+    layer_sources = target.get("LayerSources")
+    _require_envelope(
+        isinstance(layer_sources, dict),
+        node="layer-source",
+        predicate="type",
+        observed=layer_sources,
+        observed_available="LayerSources" in target,
+    )
+    expected_source_keys = {
+        f"sha256:{diff_id}" for diff_id in expected_diff_ids
+    }
+    _require_envelope(
+        set(layer_sources) == expected_source_keys,
+        node="layer-source",
+        predicate="keys",
+        observed=layer_sources,
+        observed_available=True,
+    )
+
+    layout, layout_record = _envelope_json(
+        outer_archive, by_name, "oci-layout", node="layout"
+    )
+    _require_envelope(
+        isinstance(layout, dict),
+        node="layout",
+        predicate="type",
+        observed=layout,
+        observed_available=True,
+    )
+    _require_envelope(
+        set(layout) == {"imageLayoutVersion"},
+        node="layout",
+        predicate="keys",
+        observed=layout,
+        observed_available=True,
+    )
+    _require_envelope(
+        layout["imageLayoutVersion"] == "1.0.0",
+        node="layout",
+        predicate="type",
+        observed=layout["imageLayoutVersion"],
+        observed_available=True,
+    )
+
+    index, index_record = _envelope_json(
+        outer_archive, by_name, "index.json", node="index"
+    )
+    _require_envelope(
+        isinstance(index, dict),
+        node="index",
+        predicate="type",
+        observed=index,
+        observed_available=True,
+    )
+    _require_envelope(
+        set(index) == {"schemaVersion", "mediaType", "manifests"},
+        node="index",
+        predicate="keys",
+        observed=index,
+        observed_available=True,
+        media_type=index.get("mediaType"),
+    )
+    _require_envelope(
+        isinstance(index["schemaVersion"], int)
+        and not isinstance(index["schemaVersion"], bool)
+        and index["schemaVersion"] == 2,
+        node="index",
+        predicate="type",
+        observed=index["schemaVersion"],
+        observed_available=True,
+        media_type=index["mediaType"],
+    )
+    _require_envelope(
+        index["mediaType"] == OCI_LAYOUT_MEDIA_TYPE,
+        node="index",
+        predicate="media-type",
+        observed=index,
+        observed_available=True,
+        media_type=index["mediaType"],
+    )
+    manifests = index["manifests"]
+    _require_envelope(
+        isinstance(manifests, list),
+        node="index",
+        predicate="type",
+        observed=manifests,
+        observed_available=True,
+        media_type=index["mediaType"],
+    )
+    _require_envelope(
+        len(manifests) == 1,
+        node="index",
+        predicate="cardinality",
+        observed=manifests,
+        observed_available=True,
+        media_type=index["mediaType"],
+    )
+    oci_manifest_digest, oci_manifest_bytes = _validate_descriptor(
+        manifests[0],
+        node="oci-manifest",
+        expected_media_type=OCI_MANIFEST_MEDIA_TYPE,
+    )
+    oci_manifest_path = f"blobs/sha256/{oci_manifest_digest}"
+    oci_manifest, oci_manifest_record = _envelope_json(
+        outer_archive,
+        by_name,
+        oci_manifest_path,
+        node="oci-manifest",
+        expected_digest=oci_manifest_digest,
+        expected_bytes=oci_manifest_bytes,
+    )
+    _require_envelope(
+        isinstance(oci_manifest, dict),
+        node="oci-manifest",
+        predicate="type",
+        observed=oci_manifest,
+        observed_available=True,
+    )
+    _require_envelope(
+        set(oci_manifest) == {"schemaVersion", "mediaType", "config", "layers"},
+        node="oci-manifest",
+        predicate="keys",
+        observed=oci_manifest,
+        observed_available=True,
+        media_type=oci_manifest.get("mediaType"),
+    )
+    _require_envelope(
+        isinstance(oci_manifest["schemaVersion"], int)
+        and not isinstance(oci_manifest["schemaVersion"], bool)
+        and oci_manifest["schemaVersion"] == 2,
+        node="oci-manifest",
+        predicate="type",
+        observed=oci_manifest["schemaVersion"],
+        observed_available=True,
+        media_type=oci_manifest["mediaType"],
+    )
+    _require_envelope(
+        oci_manifest["mediaType"] == OCI_MANIFEST_MEDIA_TYPE,
+        node="oci-manifest",
+        predicate="media-type",
+        observed=oci_manifest,
+        observed_available=True,
+        media_type=oci_manifest["mediaType"],
+    )
+    _validate_descriptor(
+        oci_manifest["config"],
+        node="config",
+        expected_media_type=OCI_CONFIG_MEDIA_TYPE,
+        expected_digest=expected_config_sha256,
+        expected_bytes=len(config_raw),
+    )
+    config_record, config_info = _envelope_member(
+        by_name,
+        expected_config_path,
+        node="config",
+        expected_digest=expected_config_sha256,
+        expected_bytes=len(config_raw),
+        json_member=True,
+    )
+    saved_config = _read_member(outer_archive, config_info, MAX_JSON_BYTES)
+    _require_envelope(
+        saved_config == config_raw,
+        node="config",
+        predicate="digest",
+        member_type=config_record["type"],
+        expected_digest=expected_config_sha256,
+        actual_digest=config_record["payloadSha256"],
+        expected_bytes=len(config_raw),
+        actual_bytes=config_record["size"],
+    )
+
+    oci_layers = oci_manifest["layers"]
+    _require_envelope(
+        isinstance(oci_layers, list),
+        node="oci-manifest",
+        predicate="type",
+        observed=oci_layers,
+        observed_available=True,
+        media_type=oci_manifest["mediaType"],
+    )
+    _require_envelope(
+        len(oci_layers) == 10,
+        node="oci-manifest",
+        predicate="cardinality",
+        observed=oci_layers,
+        observed_available=True,
+        media_type=oci_manifest["mediaType"],
+    )
+    for ordinal, (expected_path, expected_diff_id, layer_descriptor) in enumerate(
+        zip(expected_layer_paths, expected_diff_ids, oci_layers, strict=True),
+        start=1,
+    ):
+        layer_record, _layer_info = _envelope_member(
+            by_name,
+            expected_path,
+            node="raw-layer",
+            ordinal=ordinal,
+            expected_digest=expected_diff_id,
+        )
+        _validate_descriptor(
+            layer_descriptor,
+            node="raw-layer",
+            expected_media_type=OCI_LAYER_MEDIA_TYPE,
+            expected_digest=expected_diff_id,
+            expected_bytes=layer_record["size"],
+            ordinal=ordinal,
+        )
+        source_descriptor = layer_sources[f"sha256:{expected_diff_id}"]
+        _validate_descriptor(
+            source_descriptor,
+            node="layer-source",
+            expected_media_type=OCI_LAYER_MEDIA_TYPE,
+            expected_digest=expected_diff_id,
+            expected_bytes=layer_record["size"],
+            ordinal=ordinal,
+        )
+        _require_envelope(
+            source_descriptor == layer_descriptor,
+            node="layer-source",
+            predicate="extra",
+            ordinal=ordinal,
+            observed=source_descriptor,
+            observed_available=True,
+            expected_digest=expected_diff_id,
+            actual_digest=source_descriptor.get("digest")
+            if isinstance(source_descriptor, dict)
+            else None,
+            expected_bytes=layer_record["size"],
+            actual_bytes=source_descriptor.get("size")
+            if isinstance(source_descriptor, dict)
+            else None,
+            media_type=source_descriptor.get("mediaType")
+            if isinstance(source_descriptor, dict)
+            else None,
+        )
+
+    role_paths = [
+        expected_config_path,
+        oci_manifest_path,
+        *expected_layer_paths,
+    ]
+    _require_envelope(
+        len(set(role_paths)) == len(role_paths),
+        node="outer",
+        predicate="extra",
+    )
+    allowed_files = {
+        "manifest.json",
+        "oci-layout",
+        "index.json",
+        *role_paths,
+    }
+    allowed_directories = {"blobs", "blobs/sha256"}
+    for record in by_name.values():
+        member = record[0]
+        if member["type"] == "directory":
+            _require_envelope(
+                member["path"] in allowed_directories,
+                node="outer",
+                predicate="extra",
+                member_type="directory",
+            )
+        else:
+            _require_envelope(
+                member["type"] == "file" and member["path"] in allowed_files,
+                node="outer",
+                predicate="extra",
+                member_type=member["type"],
+                actual_digest=member["payloadSha256"]
+                if member["type"] == "file"
+                else None,
+                actual_bytes=member["size"] if member["type"] == "file" else None,
+            )
+
+    return (
+        expected_config_path,
+        expected_layer_paths,
+        {
+            "schemaVersion": SCHEMA_VERSION,
+            "kind": MOBY_ENVELOPE_KIND,
+            "manifestSha256": manifest_record["payloadSha256"],
+            "layoutSha256": layout_record["payloadSha256"],
+            "indexSha256": index_record["payloadSha256"],
+            "ociManifestSha256": oci_manifest_record["payloadSha256"],
+            "descriptorCount": 10,
+            "rawLayerDescriptorsMatched": True,
+        },
+    )
+
+
 def _inspect_source_save(
     archive_path: str | os.PathLike[str],
     config_path: str | os.PathLike[str],
@@ -829,65 +1530,81 @@ def _inspect_source_save(
                         "save_manifest_invalid", manifest_diagnostic
                     )
                 target = manifest[0]
-                if set(target) != {"Config", "RepoTags", "Layers"}:
+                legacy_keys = {"Config", "RepoTags", "Layers"}
+                moby28_keys = {"Config", "LayerSources", "Layers", "RepoTags"}
+                if set(target) not in (legacy_keys, moby28_keys):
                     _raise_manifest_refusal(
                         "save_manifest_invalid", manifest_diagnostic
                     )
-                config_member = target.get("Config")
-                layer_paths = target.get("Layers")
-                repo_tags = target.get("RepoTags")
-                _require(isinstance(config_member, str) and CONFIG_MEMBER.fullmatch(config_member) is not None, "save_config_reference_invalid")
-                _require(
-                    isinstance(layer_paths, list)
-                    and len(layer_paths) == len(expected_diff_ids)
-                    and len(set(layer_paths)) == len(layer_paths)
-                    and all(isinstance(value, str) and LAYER_MEMBER.fullmatch(value) is not None for value in layer_paths),
-                    "save_layer_reference_invalid",
-                )
-                _require(
-                    repo_tags is None
-                    or (
-                        isinstance(repo_tags, list)
-                        and 1 <= len(repo_tags) <= 8
-                        and all(isinstance(value, str) and 0 < len(value.encode("utf-8")) <= MAX_PATH_BYTES for value in repo_tags)
-                    ),
-                    "save_repo_tags_invalid",
-                )
-                _require(config_member in by_name, "save_config_missing")
-                config_record, config_info = by_name[config_member]
-                _require(config_record["type"] == "file" and config_info.size == len(config_raw), "save_config_mismatch")
-                saved_config = _read_member(outer_archive, config_info, MAX_JSON_BYTES)
-                _require(saved_config == config_raw, "save_config_mismatch")
+                source_envelope: dict[str, Any] | None = None
+                if set(target) == moby28_keys:
+                    config_member, layer_paths, source_envelope = (
+                        _inspect_moby28_envelope(
+                            outer_archive,
+                            by_name,
+                            manifest_record,
+                            target,
+                            config_raw,
+                            expected_config_sha256,
+                            expected_diff_ids,
+                        )
+                    )
+                else:
+                    config_member = target.get("Config")
+                    layer_paths = target.get("Layers")
+                    repo_tags = target.get("RepoTags")
+                    _require(isinstance(config_member, str) and CONFIG_MEMBER.fullmatch(config_member) is not None, "save_config_reference_invalid")
+                    _require(
+                        isinstance(layer_paths, list)
+                        and len(layer_paths) == len(expected_diff_ids)
+                        and len(set(layer_paths)) == len(layer_paths)
+                        and all(isinstance(value, str) and LAYER_MEMBER.fullmatch(value) is not None for value in layer_paths),
+                        "save_layer_reference_invalid",
+                    )
+                    _require(
+                        repo_tags is None
+                        or (
+                            isinstance(repo_tags, list)
+                            and 1 <= len(repo_tags) <= 8
+                            and all(isinstance(value, str) and 0 < len(value.encode("utf-8")) <= MAX_PATH_BYTES for value in repo_tags)
+                        ),
+                        "save_repo_tags_invalid",
+                    )
+                    _require(config_member in by_name, "save_config_missing")
+                    config_record, config_info = by_name[config_member]
+                    _require(config_record["type"] == "file" and config_info.size == len(config_raw), "save_config_mismatch")
+                    saved_config = _read_member(outer_archive, config_info, MAX_JSON_BYTES)
+                    _require(saved_config == config_raw, "save_config_mismatch")
 
-                layer_directories = {path.rsplit("/", 1)[0] for path in layer_paths}
-                allowed_regular = {"manifest.json", config_member, "repositories", *layer_paths}
-                for directory in layer_directories:
-                    allowed_regular.add(f"{directory}/VERSION")
-                    allowed_regular.add(f"{directory}/json")
-                for record in outer["records"]:
-                    if record["type"] == "directory":
-                        _require(record["path"] in layer_directories, "save_unreferenced_member", member=record["path"], member_is_safe=True)
-                    else:
-                        _require(record["type"] == "file" and record["path"] in allowed_regular, "save_unreferenced_member", member=record["path"], member_is_safe=True)
-                for layer_path in layer_paths:
-                    _require(layer_path in by_name, "save_layer_missing")
-                if "repositories" in by_name:
-                    repository_record, repository_info = by_name["repositories"]
-                    _require(repository_record["type"] == "file", "save_repositories_invalid")
-                    repositories = _json_no_duplicates(_read_member(outer_archive, repository_info, MAX_JSON_BYTES), "save_repositories_invalid")
-                    _require(isinstance(repositories, dict), "save_repositories_invalid")
-                for directory in layer_directories:
-                    version_name = f"{directory}/VERSION"
-                    if version_name in by_name:
-                        version_record, version_info = by_name[version_name]
-                        _require(version_record["type"] == "file", "save_metadata_invalid")
-                        _require(_read_member(outer_archive, version_info, 64) == b"1.0", "save_metadata_invalid")
-                    json_name = f"{directory}/json"
-                    if json_name in by_name:
-                        json_record, json_info = by_name[json_name]
-                        _require(json_record["type"] == "file", "save_metadata_invalid")
-                        layer_metadata = _json_no_duplicates(_read_member(outer_archive, json_info, MAX_JSON_BYTES), "save_metadata_invalid")
-                        _require(isinstance(layer_metadata, dict), "save_metadata_invalid")
+                    layer_directories = {path.rsplit("/", 1)[0] for path in layer_paths}
+                    allowed_regular = {"manifest.json", config_member, "repositories", *layer_paths}
+                    for directory in layer_directories:
+                        allowed_regular.add(f"{directory}/VERSION")
+                        allowed_regular.add(f"{directory}/json")
+                    for record in outer["records"]:
+                        if record["type"] == "directory":
+                            _require(record["path"] in layer_directories, "save_unreferenced_member", member=record["path"], member_is_safe=True)
+                        else:
+                            _require(record["type"] == "file" and record["path"] in allowed_regular, "save_unreferenced_member", member=record["path"], member_is_safe=True)
+                    for layer_path in layer_paths:
+                        _require(layer_path in by_name, "save_layer_missing")
+                    if "repositories" in by_name:
+                        repository_record, repository_info = by_name["repositories"]
+                        _require(repository_record["type"] == "file", "save_repositories_invalid")
+                        repositories = _json_no_duplicates(_read_member(outer_archive, repository_info, MAX_JSON_BYTES), "save_repositories_invalid")
+                        _require(isinstance(repositories, dict), "save_repositories_invalid")
+                    for directory in layer_directories:
+                        version_name = f"{directory}/VERSION"
+                        if version_name in by_name:
+                            version_record, version_info = by_name[version_name]
+                            _require(version_record["type"] == "file", "save_metadata_invalid")
+                            _require(_read_member(outer_archive, version_info, 64) == b"1.0", "save_metadata_invalid")
+                        json_name = f"{directory}/json"
+                        if json_name in by_name:
+                            json_record, json_info = by_name[json_name]
+                            _require(json_record["type"] == "file", "save_metadata_invalid")
+                            layer_metadata = _json_no_duplicates(_read_member(outer_archive, json_info, MAX_JSON_BYTES), "save_metadata_invalid")
+                            _require(isinstance(layer_metadata, dict), "save_metadata_invalid")
 
                 cumulative = {"members": 0}
                 total_layer_bytes = 0
@@ -927,7 +1644,7 @@ def _inspect_source_save(
                         }
                     )
 
-                return {
+                result = {
                     "schemaVersion": SCHEMA_VERSION,
                     "profile": PROFILE,
                     "evidenceClass": EVIDENCE_CLASS,
@@ -941,6 +1658,9 @@ def _inspect_source_save(
                         "memberCount": cumulative["members"],
                     },
                 }
+                if source_envelope is not None:
+                    result["sourceEnvelope"] = source_envelope
+                return result
             finally:
                 outer_archive.close()
 
@@ -1022,6 +1742,12 @@ def _refusal_json(refusal: InspectionRefusal) -> dict[str, Any]:
         and refusal.manifest_diagnostic is not None
     ):
         result["manifestDiagnostic"] = refusal.manifest_diagnostic
+    if (
+        refusal.code == "save_envelope_invalid"
+        and refusal.envelope_diagnostic is not None
+        and refusal.manifest_diagnostic is None
+    ):
+        result["envelopeDiagnostic"] = refusal.envelope_diagnostic
     return result
 
 
