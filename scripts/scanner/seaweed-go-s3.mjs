@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 const KiB = 1024;
@@ -233,6 +234,89 @@ export function validateSeaweedGoS3EnvelopeDiagnostic(value) {
   return clone(value);
 }
 
+export function validateSeaweedGoS3AuxiliaryDiagnostic(value) {
+  const keys = ["schemaVersion", "kind", "createIdBinding", "candidateCount", "candidateBytes", "candidateSetSha256", "truncated",
+    "examinedCount", "classification", "firstMismatch", "payloadSha256s", "payloadBytes", "v1Ids", "keySetSha256s",
+    "parentChainMatched", "orderedSetSha256"];
+  const mismatches = ["cardinality", "candidate-limit", "member", "path", "digest", "size", "total-size", "json", "root-type",
+    "keys", "required-fields", "id", "parent", "duplicate-id", "root-count", "orphan", "branch", "cycle"];
+  if (!exactKeys(value, keys) || Buffer.byteLength(JSON.stringify(value)) > 8 * KiB || value.schemaVersion !== 1 ||
+      value.kind !== "MOBY_28_V1_AUXILIARY_DIAGNOSTIC" || value.createIdBinding !== "NOT_RECOMPUTED" ||
+      !Number.isSafeInteger(value.candidateCount) || value.candidateCount < 1 || value.candidateCount > 4096 ||
+      !Number.isSafeInteger(value.candidateBytes) || value.candidateBytes < 0 || value.candidateBytes > SOURCE_ARCHIVE_LIMIT ||
+      !sha256(value.candidateSetSha256) || typeof value.truncated !== "boolean" || value.truncated !== (value.candidateCount > 10) ||
+      !Number.isSafeInteger(value.examinedCount) || value.examinedCount < 0 || value.examinedCount > 10 ||
+      value.examinedCount > value.candidateCount ||
+      !["COMPATIBLE_UNVERIFIED", "REFUSED", "LIMIT_EXCEEDED"].includes(value.classification) ||
+      value.firstMismatch !== null && !mismatches.includes(value.firstMismatch) ||
+      !Array.isArray(value.payloadSha256s) || !Array.isArray(value.payloadBytes) || !Array.isArray(value.v1Ids) ||
+      !Array.isArray(value.keySetSha256s) || ![null, false, true].includes(value.parentChainMatched) ||
+      value.orderedSetSha256 !== null && !sha256(value.orderedSetSha256)) {
+    fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+  }
+  const arrays = [value.payloadSha256s, value.payloadBytes, value.v1Ids, value.keySetSha256s];
+  if (arrays.some((entries) => Object.keys(entries).length !== entries.length)) {
+    fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+  }
+  if (value.classification === "COMPATIBLE_UNVERIFIED") {
+    if (value.candidateCount !== 10 || value.candidateBytes > 262_144 || value.truncated || value.examinedCount !== 10 ||
+        value.firstMismatch !== null || value.parentChainMatched !== true || !sha256(value.orderedSetSha256) ||
+        arrays.some((entries) => entries.length !== 10) ||
+        [value.payloadSha256s, value.v1Ids, value.keySetSha256s].some((entries) => entries.some((entry) => !sha256(entry))) ||
+        value.payloadBytes.some((entry) => !Number.isSafeInteger(entry) || entry < 1 || entry > 65_536) ||
+        new Set(value.payloadSha256s).size !== 10 || new Set(value.v1Ids).size !== 10 ||
+        value.payloadBytes.reduce((sum, entry) => sum + entry, 0) !== value.candidateBytes) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+    const ordered = value.payloadSha256s.map((payloadSha256, index) => ({ bytes: value.payloadBytes[index], id: value.v1Ids[index],
+      keySetSha256: value.keySetSha256s[index], parent: index === 0 ? null : value.v1Ids[index - 1], payloadSha256 }));
+    const orderedSetSha256 = createHash("sha256").update(JSON.stringify(ordered), "ascii").digest("hex");
+    if (orderedSetSha256 !== value.orderedSetSha256) fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    return clone(value);
+  }
+  if (arrays.some((entries) => entries.length !== 0) || value.orderedSetSha256 !== null || value.firstMismatch === null) {
+    fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+  }
+  if (value.classification === "LIMIT_EXCEEDED") {
+    if (value.candidateCount <= 10 || value.firstMismatch !== "candidate-limit" || value.examinedCount !== 0 ||
+        value.parentChainMatched !== null) fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    return clone(value);
+  }
+  if (value.candidateCount < 10) {
+    if (value.firstMismatch !== "cardinality" || value.examinedCount !== 0 || value.parentChainMatched !== null) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+    return clone(value);
+  }
+  if (value.candidateCount !== 10 || ["cardinality", "candidate-limit"].includes(value.firstMismatch)) {
+    fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+  }
+  const beforeParse = ["member", "path", "digest", "size", "total-size"];
+  const duringParse = ["json", "root-type", "keys", "required-fields", "id", "parent"];
+  const chain = ["root-count", "orphan", "branch", "cycle"];
+  if (beforeParse.includes(value.firstMismatch)) {
+    if (value.examinedCount !== 0 || value.parentChainMatched !== null ||
+        value.firstMismatch === "total-size" && (value.candidateBytes <= 262_144 || value.candidateBytes > 10 * 65_536)) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+  } else if (duringParse.includes(value.firstMismatch)) {
+    if (value.examinedCount < 1 || value.parentChainMatched !== null || value.candidateBytes < 10 || value.candidateBytes > 262_144) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+  } else if (value.firstMismatch === "duplicate-id") {
+    if (value.examinedCount !== 10 || value.parentChainMatched !== null || value.candidateBytes < 10 || value.candidateBytes > 262_144) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+  } else if (chain.includes(value.firstMismatch)) {
+    if (value.examinedCount !== 10 || value.parentChainMatched !== false || value.candidateBytes < 10 || value.candidateBytes > 262_144) {
+      fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+    }
+  } else {
+    fail("scanner_seaweed_go_s3_auxiliary_diagnostic_invalid");
+  }
+  return clone(value);
+}
+
 export function validateSeaweedGoS3ManifestDiagnostic(value) {
   const nullableTag = (candidate) => candidate === null || JSON_TAGS.has(candidate);
   const nullableCount = (candidate) => candidate === null || Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= 4 * MiB;
@@ -312,8 +396,9 @@ export function validateSeaweedGoS3ManifestDiagnostic(value) {
 export function validateSeaweedGoS3SourceRefusal(value) {
   const hasManifestDiagnostic = Object.hasOwn(value ?? {}, "manifestDiagnostic");
   const hasEnvelopeDiagnostic = Object.hasOwn(value ?? {}, "envelopeDiagnostic");
+  const hasAuxiliaryDiagnostic = Object.hasOwn(value ?? {}, "auxiliaryDiagnostic");
   const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal", ...(hasManifestDiagnostic ? ["manifestDiagnostic"] : []),
-    ...(hasEnvelopeDiagnostic ? ["envelopeDiagnostic"] : [])];
+    ...(hasEnvelopeDiagnostic ? ["envelopeDiagnostic"] : []), ...(hasAuxiliaryDiagnostic ? ["auxiliaryDiagnostic"] : [])];
   const safeMember = (candidate) => typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 1024 &&
     !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..");
   if (!exactKeys(value, keys) || Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 ||
@@ -326,11 +411,18 @@ export function validateSeaweedGoS3SourceRefusal(value) {
       Object.hasOwn(value.refusal, "memberSha256") && !sha256(value.refusal.memberSha256) ||
       Object.hasOwn(value.refusal, "member") && Object.hasOwn(value.refusal, "memberSha256") ||
       hasManifestDiagnostic && !["save_manifest_missing", "save_manifest_invalid"].includes(value.refusal.code) ||
-      hasEnvelopeDiagnostic && value.refusal.code !== "save_envelope_invalid" || hasManifestDiagnostic && hasEnvelopeDiagnostic) {
+      hasEnvelopeDiagnostic && value.refusal.code !== "save_envelope_invalid" || hasManifestDiagnostic && hasEnvelopeDiagnostic ||
+      hasAuxiliaryDiagnostic && (value.refusal.code !== "save_envelope_invalid" || !hasEnvelopeDiagnostic || hasManifestDiagnostic)) {
     fail("scanner_seaweed_go_s3_source_refusal_invalid");
   }
   if (hasManifestDiagnostic) validateSeaweedGoS3ManifestDiagnostic(value.manifestDiagnostic);
   if (hasEnvelopeDiagnostic) validateSeaweedGoS3EnvelopeDiagnostic(value.envelopeDiagnostic);
+  if (hasAuxiliaryDiagnostic) {
+    if (value.envelopeDiagnostic.node !== "outer" || value.envelopeDiagnostic.predicate !== "extra") {
+      fail("scanner_seaweed_go_s3_source_refusal_invalid");
+    }
+    validateSeaweedGoS3AuxiliaryDiagnostic(value.auxiliaryDiagnostic);
+  }
   return clone(value);
 }
 

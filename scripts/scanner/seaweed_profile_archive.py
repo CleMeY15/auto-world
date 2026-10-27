@@ -57,6 +57,10 @@ MAX_JSON_BYTES = 4 * 1024**2
 MAX_OUTPUT_BYTES = 4 * 1024**2
 MAX_MANIFEST_DIAGNOSTIC_BYTES = 2 * 1024
 MAX_ENVELOPE_DIAGNOSTIC_BYTES = 2 * 1024
+MAX_AUXILIARY_DIAGNOSTIC_BYTES = 8 * 1024
+MAX_AUXILIARY_CANDIDATES = 10
+MAX_AUXILIARY_MEMBER_BYTES = 64 * 1024
+MAX_AUXILIARY_TOTAL_BYTES = 256 * 1024
 CHUNK_BYTES = 1024**2
 ZERO_BLOCK_BYTES = 1024
 REMOVED_HELPERS = ("usr/bin/weed-volume", "usr/bin/weed-worker")
@@ -68,6 +72,7 @@ SAFE_PAX_KEYS = frozenset(("path", "linkpath", "mtime"))
 MANIFEST_KNOWN_KEYS = ("Config", "LayerSources", "Layers", "Parent", "RepoTags")
 MANIFEST_DIAGNOSTIC_CODES = frozenset(("save_manifest_missing", "save_manifest_invalid"))
 MOBY_ENVELOPE_KIND = "MOBY_28_OCI_COMPAT_V1"
+AUXILIARY_DIAGNOSTIC_KIND = "MOBY_28_V1_AUXILIARY_DIAGNOSTIC"
 OCI_LAYOUT_MEDIA_TYPE = "application/vnd.oci.image.index.v1+json"
 OCI_MANIFEST_MEDIA_TYPE = "application/vnd.oci.image.manifest.v1+json"
 OCI_CONFIG_MEDIA_TYPE = "application/vnd.oci.image.config.v1+json"
@@ -88,6 +93,23 @@ ENVELOPE_KNOWN_KEYS = (
     "subject",
     "urls",
 )
+AUXILIARY_V1_KEYS = frozenset(
+    (
+        "Size",
+        "architecture",
+        "author",
+        "comment",
+        "config",
+        "container",
+        "container_config",
+        "created",
+        "docker_version",
+        "id",
+        "os",
+        "parent",
+        "variant",
+    )
+)
 
 
 class InspectionRefusal(Exception):
@@ -102,6 +124,7 @@ class InspectionRefusal(Exception):
         member_is_safe: bool = False,
         manifest_diagnostic: dict[str, Any] | None = None,
         envelope_diagnostic: dict[str, Any] | None = None,
+        auxiliary_diagnostic: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(code)
         self.code = code
@@ -110,6 +133,7 @@ class InspectionRefusal(Exception):
         self.member_is_safe = member_is_safe
         self.manifest_diagnostic = manifest_diagnostic
         self.envelope_diagnostic = envelope_diagnostic
+        self.auxiliary_diagnostic = auxiliary_diagnostic
 
 
 class InspectionIntegrityError(Exception):
@@ -419,10 +443,15 @@ def _envelope_diagnostic(
     return diagnostic
 
 
-def _raise_envelope_refusal(**diagnostic_values: Any) -> None:
+def _raise_envelope_refusal(
+    *,
+    auxiliary_diagnostic: dict[str, Any] | None = None,
+    **diagnostic_values: Any,
+) -> None:
     raise InspectionRefusal(
         "save_envelope_invalid",
         envelope_diagnostic=_envelope_diagnostic(**diagnostic_values),
+        auxiliary_diagnostic=auxiliary_diagnostic,
     )
 
 
@@ -635,6 +664,231 @@ def _validate_descriptor(
             media_type=media_type,
         )
     return digest_hex, size
+
+
+def _build_auxiliary_diagnostic(
+    candidates: list[tuple[dict[str, Any], tarfile.TarInfo]],
+    *,
+    classification: str,
+    first_mismatch: str | None,
+    examined_count: int,
+    parent_chain_matched: bool | None,
+    ordered_nodes: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    ordered_inventory = [
+        {
+            "path": record["path"],
+            "type": record["type"],
+            "size": record["size"],
+            "payloadSha256": record["payloadSha256"],
+        }
+        for record, _info in sorted(candidates, key=lambda entry: entry[0]["path"])
+    ]
+    payload_sha256s: list[str] = []
+    payload_bytes: list[int] = []
+    v1_ids: list[str] = []
+    key_set_sha256s: list[str] = []
+    ordered_set_sha256: str | None = None
+    if ordered_nodes is not None:
+        payload_sha256s = [node["payloadSha256"] for node in ordered_nodes]
+        payload_bytes = [node["bytes"] for node in ordered_nodes]
+        v1_ids = [node["id"] for node in ordered_nodes]
+        key_set_sha256s = [node["keySetSha256"] for node in ordered_nodes]
+        ordered_set_sha256 = _canonical_sha256(
+            [
+                {
+                    "payloadSha256": node["payloadSha256"],
+                    "bytes": node["bytes"],
+                    "id": node["id"],
+                    "parent": node["parent"],
+                    "keySetSha256": node["keySetSha256"],
+                }
+                for node in ordered_nodes
+            ]
+        )
+    diagnostic = {
+        "schemaVersion": SCHEMA_VERSION,
+        "kind": AUXILIARY_DIAGNOSTIC_KIND,
+        "createIdBinding": "NOT_RECOMPUTED",
+        "candidateCount": len(candidates),
+        "candidateBytes": sum(
+            record["size"] for record, _info in candidates if record["type"] == "file"
+        ),
+        "candidateSetSha256": _canonical_sha256(ordered_inventory),
+        "truncated": len(candidates) > MAX_AUXILIARY_CANDIDATES,
+        "examinedCount": examined_count,
+        "classification": classification,
+        "firstMismatch": first_mismatch,
+        "payloadSha256s": payload_sha256s,
+        "payloadBytes": payload_bytes,
+        "v1Ids": v1_ids,
+        "keySetSha256s": key_set_sha256s,
+        "parentChainMatched": parent_chain_matched,
+        "orderedSetSha256": ordered_set_sha256,
+    }
+    encoded = json.dumps(
+        diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    ).encode("ascii")
+    if len(encoded) > MAX_AUXILIARY_DIAGNOSTIC_BYTES:
+        raise InspectionRefusal("internal_error")
+    return diagnostic
+
+
+def _classify_auxiliary_candidates(
+    archive: tarfile.TarFile,
+    candidates: list[tuple[dict[str, Any], tarfile.TarInfo]],
+    config_raw: bytes,
+) -> dict[str, Any]:
+    count = len(candidates)
+    if count > MAX_AUXILIARY_CANDIDATES:
+        return _build_auxiliary_diagnostic(
+            candidates,
+            classification="LIMIT_EXCEEDED",
+            first_mismatch="candidate-limit",
+            examined_count=0,
+            parent_chain_matched=None,
+        )
+    if count != MAX_AUXILIARY_CANDIDATES:
+        return _build_auxiliary_diagnostic(
+            candidates,
+            classification="REFUSED",
+            first_mismatch="cardinality",
+            examined_count=0,
+            parent_chain_matched=None,
+        )
+
+    ordered_candidates = sorted(candidates, key=lambda entry: entry[0]["path"])
+
+    def refused(
+        mismatch: str,
+        *,
+        examined_count: int = 0,
+        parent_chain_matched: bool | None = None,
+    ) -> dict[str, Any]:
+        return _build_auxiliary_diagnostic(
+            candidates,
+            classification="REFUSED",
+            first_mismatch=mismatch,
+            examined_count=examined_count,
+            parent_chain_matched=parent_chain_matched,
+        )
+
+    for record, _info in ordered_candidates:
+        if record["type"] != "file":
+            return refused("member")
+        if OCI_BLOB_MEMBER.fullmatch(record["path"]) is None:
+            return refused("path")
+        if record["path"].rsplit("/", 1)[1] != record["payloadSha256"]:
+            return refused("digest")
+        if not 1 <= record["size"] <= MAX_AUXILIARY_MEMBER_BYTES:
+            return refused("size")
+    if sum(record["size"] for record, _info in ordered_candidates) > MAX_AUXILIARY_TOTAL_BYTES:
+        return refused("total-size")
+
+    source_config = _json_no_duplicates(config_raw, "source_config_invalid")
+    source_os = source_config.get("os") if isinstance(source_config, dict) else None
+    examined_count = 0
+    nodes: list[dict[str, Any]] = []
+    required_keys = {"id", "created", "container_config", "os"}
+    for record, info in ordered_candidates:
+        examined_count += 1
+        raw = _read_member(archive, info, MAX_AUXILIARY_MEMBER_BYTES)
+        try:
+            value = _json_no_duplicates(
+                raw, "save_envelope_invalid", reject_constants=True
+            )
+        except InspectionRefusal as refusal:
+            if refusal.code == "save_envelope_invalid":
+                return refused("json", examined_count=examined_count)
+            raise
+        if not isinstance(value, dict):
+            return refused("root-type", examined_count=examined_count)
+        if not set(value).issubset(AUXILIARY_V1_KEYS):
+            return refused("keys", examined_count=examined_count)
+        if not (
+            required_keys.issubset(value)
+            and (value["created"] is None or isinstance(value["created"], str))
+            and isinstance(value["container_config"], dict)
+            and isinstance(source_os, str)
+            and value["os"] == source_os
+        ):
+            return refused("required-fields", examined_count=examined_count)
+        node_id = value["id"]
+        if not isinstance(node_id, str) or HEX64.fullmatch(node_id) is None:
+            return refused("id", examined_count=examined_count)
+        if "parent" in value:
+            parent = value["parent"]
+            if not isinstance(parent, str) or HEX64.fullmatch(parent) is None:
+                return refused("parent", examined_count=examined_count)
+        else:
+            parent = None
+        nodes.append(
+            {
+                "payloadSha256": record["payloadSha256"],
+                "bytes": record["size"],
+                "id": node_id,
+                "parent": parent,
+                "keySetSha256": _canonical_sha256(sorted(value)),
+            }
+        )
+
+    ids = [node["id"] for node in nodes]
+    id_set = set(ids)
+    if len(id_set) != len(ids):
+        return refused("duplicate-id", examined_count=examined_count)
+    roots = [node for node in nodes if node["parent"] is None]
+    if len(roots) != 1:
+        return refused(
+            "root-count",
+            examined_count=examined_count,
+            parent_chain_matched=False,
+        )
+    if any(
+        node["parent"] is not None and node["parent"] not in id_set
+        for node in nodes
+    ):
+        return refused(
+            "orphan",
+            examined_count=examined_count,
+            parent_chain_matched=False,
+        )
+    children: dict[str, list[dict[str, Any]]] = {}
+    for node in nodes:
+        if node["parent"] is not None:
+            children.setdefault(node["parent"], []).append(node)
+    if any(len(values) > 1 for values in children.values()):
+        return refused(
+            "branch",
+            examined_count=examined_count,
+            parent_chain_matched=False,
+        )
+    nodes_by_id = {node["id"]: node for node in nodes}
+    for node in nodes:
+        seen: set[str] = set()
+        current: dict[str, Any] | None = node
+        while current is not None:
+            current_id = current["id"]
+            if current_id in seen:
+                return refused(
+                    "cycle",
+                    examined_count=examined_count,
+                    parent_chain_matched=False,
+                )
+            seen.add(current_id)
+            parent_id = current["parent"]
+            current = nodes_by_id[parent_id] if parent_id is not None else None
+
+    ordered_nodes = [roots[0]]
+    while ordered_nodes[-1]["id"] in children:
+        ordered_nodes.append(children[ordered_nodes[-1]["id"]][0])
+    return _build_auxiliary_diagnostic(
+        candidates,
+        classification="COMPATIBLE_UNVERIFIED",
+        first_mismatch=None,
+        examined_count=examined_count,
+        parent_chain_matched=True,
+        ordered_nodes=ordered_nodes,
+    )
 
 
 def _hash_stream(stream: BinaryIO, expected_size: int) -> str:
@@ -1428,26 +1682,38 @@ def _inspect_moby28_envelope(
         *role_paths,
     }
     allowed_directories = {"blobs", "blobs/sha256"}
-    for record in by_name.values():
-        member = record[0]
-        if member["type"] == "directory":
-            _require_envelope(
-                member["path"] in allowed_directories,
-                node="outer",
-                predicate="extra",
-                member_type="directory",
-            )
-        else:
-            _require_envelope(
-                member["type"] == "file" and member["path"] in allowed_files,
-                node="outer",
-                predicate="extra",
-                member_type=member["type"],
-                actual_digest=member["payloadSha256"]
+    candidates: list[tuple[dict[str, Any], tarfile.TarInfo]] = []
+    first_extra: dict[str, Any] | None = None
+    for entry in by_name.values():
+        member = entry[0]
+        allowed = (
+            member["type"] == "directory"
+            and member["path"] in allowed_directories
+        ) or (
+            member["type"] == "file" and member["path"] in allowed_files
+        )
+        if allowed:
+            continue
+        candidates.append(entry)
+        if first_extra is None:
+            first_extra = {
+                "node": "outer",
+                "predicate": "extra",
+                "member_type": member["type"],
+                "actual_digest": member["payloadSha256"]
                 if member["type"] == "file"
                 else None,
-                actual_bytes=member["size"] if member["type"] == "file" else None,
-            )
+                "actual_bytes": member["size"]
+                if member["type"] == "file"
+                else None,
+            }
+    if first_extra is not None:
+        _raise_envelope_refusal(
+            auxiliary_diagnostic=_classify_auxiliary_candidates(
+                outer_archive, candidates, config_raw
+            ),
+            **first_extra,
+        )
 
     return (
         expected_config_path,
@@ -1748,6 +2014,12 @@ def _refusal_json(refusal: InspectionRefusal) -> dict[str, Any]:
         and refusal.manifest_diagnostic is None
     ):
         result["envelopeDiagnostic"] = refusal.envelope_diagnostic
+        if (
+            refusal.auxiliary_diagnostic is not None
+            and refusal.envelope_diagnostic.get("node") == "outer"
+            and refusal.envelope_diagnostic.get("predicate") == "extra"
+        ):
+            result["auxiliaryDiagnostic"] = refusal.auxiliary_diagnostic
     return result
 
 

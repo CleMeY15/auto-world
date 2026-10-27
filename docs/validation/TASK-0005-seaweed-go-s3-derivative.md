@@ -1,8 +1,28 @@
 # TASK-0005 — SeaweedFS4.51 Go/S3 derivative validation
 
-Status: SOURCE_PREFLIGHT_REFUSED / MOBY28_COMPATIBILITY_FRESH_CI_PENDING. TASK-0005/0005A IN_PROGRESS. No construction, publication, admission, activation or support start is established.
+Status: SOURCE_PREFLIGHT_REFUSED / MOBY28_OUTER_EXTRA_UNCLASSIFIED. TASK-0005/0005A IN_PROGRESS. No construction, publication, admission, activation or support start is established.
 
-## Conditional compatibility implementation prepared
+## Auxiliary diagnostic implementation prepared
+
+The [bounded auxiliary diagnostic plan](../../roadmap/plans/TASK-0005-seaweed-go-s3-moby28-auxiliary-diagnostic.md),12854bytes/SHA256a5e61f0a0d0ccc9a9a6964403a9af31f68766134373da3fde749a0e77cc0e308, received actual Architect APPROVE_CLEAR then distinct Critic APPROVE. Its complete exact bytes were published and read back in [PR202](https://github.com/CleMeY15/auto-world/pull/202) before implementation. The immutable DRAFT header predates that approval.
+
+Implementation records at most ten candidate metadata blobs, their payload hashes/bytes, finite schema facts and one complete declared parent chain, with an8KiB cap and strict work limits. It uses the same source archive and existing qualified tools. Even a complete COMPATIBLE_UNVERIFIED chain remains SOURCE_PREFLIGHT_REFUSED/outer/extra. CreateID binding is explicitly NOT_RECOMPUTED; declared chain order is not authoritative raw-layer order. No acceptance predicate, source pin, policy, cleanup requirement or construction boundary changes. Fresh exact-source Linux evidence remains pending for this diagnostic increment.
+
+Frozen Python78568bytes/SHA2564136a0a679774eb5fd3438ae75ec543be57e563b81aa26b07ca91217ef753244; JS40970bytes/SHA25628c500c122e88592929f60d2e6c892b0dba6098ca4afb87eecc0be8f7279a91a. Integration adapter remains unchanged at99680bytes/SHA25650688961d87c2fa0b96f27c76398789ddf4e3a33866fd3d69e1fcc3f7f36b51d. Independent targeted results:69/69Python on Windows and Ubuntu24WSL,38/38Node, zero failure/skip; root independently repeats69PythonPASS in WSL. Tests use independent expected commitments and cover predicate priority, declared-chain permutation, sparse arrays, impossible size states, hostile content and integrity/cleanup dominance.
+
+Actual independent final code/spec/security review of all eight changed/new files and the unchanged adapter returns APPROVE with zero open findings. Fresh pinned Node22.23.2/pnpm10.15.0 local gates pass lint14/types21/root2626=2141PASS485explicitWindowsSKIP0FAIL/cancel/todo, workspace624PASS0SKIP0FAIL across28tasks, build14, Secretlint1202files and dependency audit clean. This source approval and the passing local gates do not replace the pending actual changed-source Linux quality, managed-source measurement and distinct Native review.
+
+## Source b5f6d19: complete quality, unclassified extra file
+
+Exact source b5f6d19fc49090dca7825fda082b729568954c52/tree249d153cbc5cba3e3f56c1afec22108667ef915f is independently reviewed. [Quality40434461486/1](https://github.com/CleMeY15/auto-world/actions/runs/40434461486) passes lint, types, root2770PASS60knownSKIP, workspace624PASS, build, browser393PASS7knownSKIP0FAIL/flaky/retry, Secretlint1201files and dependency audit. [Upstream40434461357/1](https://github.com/CleMeY15/auto-world/actions/runs/40434461357) validates provenance and report integrity and honestly rejects164fixable policy blockers (1critical,163high). The older163 count is historical.
+
+[Managed40434461371/1](https://github.com/CleMeY15/auto-world/actions/runs/40434461371) passes the nine prior phases and refuses phase10 at save_envelope_invalid/outer/extra. The first extra is a regular477-byte file with SHA2561fb6f212aa6ec2fccdb734a56f9b7c46843618d3307d98679e15f1af959d6311. Its path, role, contents and the total number of extras remain unobserved. The3031-byte refusal receipt SHA2562001064dfcd4656bc60830b50b03763037ce8a2db619dba67b83140f0d23a526 binds the536569344-byte archive SHA2569ad38731286351fde60b38fb436ed43c70ed0d1ee278e9b06eaed1572f2a5d1a, unchanged inputs and verified removal. Raw layer metadata inspection occurs after outer-envelope closure and has not run. No source-envelope PASS is established.
+
+Primary review accepts the prior source/control/helper gates,13Rustsources,7report pairs,547NodePASS1knownSKIP and60PythonPASS. A distinct review of the SAME retained original accepts Native/OpenSearch1689PASS47knownSKIP0FAIL/error/unknown, exact RED1/seeded3, captures, JDK preservation and source provenance. All three workflows check out823930483a4c4c5ae823ec752b9302f0deab1f95 with the exact source tree and ordered parents main1ba3a966/sourceb5f6d19. These diagnostic passes do not override the refusal. Evidence was acquired once; removed archives and layers must not be reacquired.
+
+An actual DependencyExpert identifies per-layer compatibility V1 JSON blobs in [pinned Moby28.0.4](https://github.com/moby/moby/blob/v28.0.4/image/tarexport/save.go#L386-L598) as a possible explanation, not an observed classification. ORAS/Skopeo do not prove strict raw-archive closure because OCI permits unreferenced blobs. Reuse of qualified tools is preferred; the next bounded diagnostic or conditional verifier requires separate actual Architect then distinct Critic review before code. No unexplained blob is accepted and no candidate construction starts before actual source preflight passes.
+
+## Historical: conditional compatibility implementation prepared
 
 Actual final independent code/spec/security review returns APPROVE with zero open findings on all eight changed files and the unchanged integration adapter. Frozen Python68685bytes/SHA256af76711f996f9921df8a51f86cef9ea914646c5b37e671e8c3e28f92a8606aee; JS34550bytes/SHA2560b3c71d28fe4037a02ca0f7eb610119dde6e7f57c5c9f0448e92905d78b0961c. Adapter99680bytes/SHA25650688961d87c2fa0b96f27c76398789ddf4e3a33866fd3d69e1fcc3f7f36b51d remains unchanged, including the OpenSearch regression anchor.
 

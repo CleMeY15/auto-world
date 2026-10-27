@@ -155,6 +155,7 @@ def moby_source_save_fixture(
         diff_ids.append(hashlib.sha256(value).hexdigest())
 
     config_value = {
+        "os": "linux",
         "rootfs": {"type": "layers", "diff_ids": [f"sha256:{value}" for value in diff_ids]},
     }
     config_bytes = json_bytes(config_value)
@@ -242,6 +243,77 @@ def inspect_source_fixture_refusal(test_case, *, fixture_builder=source_save_fix
 def replace_outer_entry(entries, name, replacement):
     index = next(index for index, entry in enumerate(entries) if entry[0].name == name)
     entries[index] = replacement
+
+
+def canonical_test_sha256(value):
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+    ).hexdigest()
+
+
+def auxiliary_chain_entries(*, count=10, values_mutator=None, tar_order=None, comment_size=0):
+    ids = [hashlib.sha256(f"declared-v1-id-{index}".encode("ascii")).hexdigest() for index in range(count)]
+    values = []
+    for index, identifier in enumerate(ids):
+        value = {
+            "id": identifier,
+            "created": f"2026-01-{index + 1:02d}T00:00:00Z",
+            "container_config": {},
+            "os": "linux",
+        }
+        if index:
+            value["parent"] = ids[index - 1]
+        if comment_size:
+            value["comment"] = "x" * comment_size
+        values.append(value)
+    if values_mutator is not None:
+        values_mutator(values)
+    payloads = [json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii") for value in values]
+    paths = [f"blobs/sha256/{hashlib.sha256(payload).hexdigest()}" for payload in payloads]
+    entries = [regular(path, payload) for path, payload in zip(paths, payloads, strict=True)]
+    if tar_order is not None:
+        entries = [entries[index] for index in tar_order]
+    payload_sha256s = [hashlib.sha256(payload).hexdigest() for payload in payloads]
+    key_set_sha256s = [canonical_test_sha256(sorted(value)) for value in values]
+    ordered_records = [
+        {
+            "payloadSha256": payload_sha256s[index],
+            "bytes": len(payloads[index]),
+            "id": values[index].get("id"),
+            "parent": values[index].get("parent"),
+            "keySetSha256": key_set_sha256s[index],
+        }
+        for index in range(count)
+    ]
+    candidate_inventory = sorted(
+        (
+            {"path": path, "type": "file", "size": len(payload), "payloadSha256": digest}
+            for path, payload, digest in zip(paths, payloads, payload_sha256s, strict=True)
+        ),
+        key=lambda value: value["path"],
+    )
+    expected = {
+        "payloadSha256s": payload_sha256s,
+        "payloadBytes": [len(payload) for payload in payloads],
+        "v1Ids": [value.get("id") for value in values],
+        "keySetSha256s": key_set_sha256s,
+        "orderedSetSha256": canonical_test_sha256(ordered_records),
+        "candidateSetSha256": canonical_test_sha256(candidate_inventory),
+        "candidateBytes": sum(len(payload) for payload in payloads),
+    }
+    return entries, expected
+
+
+def append_outer_entries(additions):
+    def append(entries, _context):
+        entries.extend(additions)
+
+    return append
+
+
+def replace_auxiliary_payload(entries, index, payload):
+    digest = hashlib.sha256(payload).hexdigest()
+    entries[index] = regular(f"blobs/sha256/{digest}", payload)
 
 
 class ArchiveInspectionTests(unittest.TestCase):
@@ -484,6 +556,7 @@ class SourceSaveCliTests(unittest.TestCase):
             config.chmod(0o444)
             result = inspect_source_save_fixture(archive, config, config_sha256, diff_ids)
         self.assertEqual(result["status"], "PASS")
+        self.assertNotIn("auxiliaryDiagnostic", result)
         self.assertEqual(result["sourceEnvelope"]["kind"], "MOBY_28_OCI_COMPAT_V1")
         self.assertEqual(result["sourceEnvelope"]["descriptorCount"], 10)
         self.assertEqual(result["sourceEnvelope"]["rawLayerDescriptorsMatched"], True)
@@ -503,6 +576,238 @@ class SourceSaveCliTests(unittest.TestCase):
         self.assertEqual(result["sourceEnvelope"]["layoutSha256"], hashlib.sha256(layout_bytes).hexdigest())
         self.assertEqual(result["sourceEnvelope"]["indexSha256"], hashlib.sha256(index_bytes).hexdigest())
         self.assertEqual(result["sourceEnvelope"]["ociManifestSha256"], hashlib.sha256(oci_manifest_bytes).hexdigest())
+
+    def test_complete_auxiliary_chain_is_committed_in_parent_order_but_remains_refused(self):
+        additions, expected = auxiliary_chain_entries(tar_order=list(reversed(range(10))))
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            outer_mutator=append_outer_entries(additions),
+        )
+        self.assertEqual(refusal.code, "save_envelope_invalid")
+        self.assertEqual(refusal.envelope_diagnostic["node"], "outer")
+        self.assertEqual(refusal.envelope_diagnostic["predicate"], "extra")
+        diagnostic = refusal.auxiliary_diagnostic
+        self.assertEqual(diagnostic["classification"], "COMPATIBLE_UNVERIFIED")
+        self.assertEqual(diagnostic["createIdBinding"], "NOT_RECOMPUTED")
+        self.assertEqual(diagnostic["candidateCount"], 10)
+        self.assertEqual(diagnostic["examinedCount"], 10)
+        self.assertEqual(diagnostic["parentChainMatched"], True)
+        self.assertEqual(diagnostic["payloadSha256s"], expected["payloadSha256s"])
+        self.assertEqual(diagnostic["payloadBytes"], expected["payloadBytes"])
+        self.assertEqual(diagnostic["v1Ids"], expected["v1Ids"])
+        self.assertEqual(diagnostic["keySetSha256s"], expected["keySetSha256s"])
+        self.assertEqual(diagnostic["orderedSetSha256"], expected["orderedSetSha256"])
+        self.assertEqual(diagnostic["candidateSetSha256"], expected["candidateSetSha256"])
+        self.assertEqual(diagnostic["candidateBytes"], expected["candidateBytes"])
+        self.assertLessEqual(len(json.dumps(
+            diagnostic,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")), 8192)
+
+    def test_auxiliary_chain_commitments_do_not_depend_on_tar_member_order(self):
+        first_entries, first_expected = auxiliary_chain_entries(tar_order=list(range(10)))
+        second_entries, second_expected = auxiliary_chain_entries(tar_order=[3, 7, 1, 9, 0, 8, 2, 6, 4, 5])
+        diagnostics = []
+        for additions in (first_entries, second_entries):
+            refusal = inspect_source_fixture_refusal(
+                self,
+                fixture_builder=moby_source_save_fixture,
+                outer_mutator=append_outer_entries(additions),
+            )
+            diagnostics.append(refusal.auxiliary_diagnostic)
+        self.assertEqual(first_expected, second_expected)
+        self.assertEqual(diagnostics[0], diagnostics[1])
+
+    def test_auxiliary_candidate_count_states_stop_before_json_reads(self):
+        for count, classification, mismatch, truncated in (
+            (1, "REFUSED", "cardinality", False),
+            (9, "REFUSED", "cardinality", False),
+            (11, "LIMIT_EXCEEDED", "candidate-limit", True),
+        ):
+            additions, _expected = auxiliary_chain_entries(count=count)
+            with self.subTest(count=count):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    outer_mutator=append_outer_entries(additions),
+                )
+                diagnostic = refusal.auxiliary_diagnostic
+                self.assertEqual(diagnostic["candidateCount"], count)
+                self.assertEqual(diagnostic["classification"], classification)
+                self.assertEqual(diagnostic["firstMismatch"], mismatch)
+                self.assertEqual(diagnostic["truncated"], truncated)
+                self.assertEqual(diagnostic["examinedCount"], 0)
+                self.assertEqual(diagnostic["payloadSha256s"], [])
+                self.assertIsNone(diagnostic["orderedSetSha256"])
+
+    def test_auxiliary_preparse_predicates_follow_member_path_digest_size_and_total_order(self):
+        cases = []
+
+        entries, _expected = auxiliary_chain_entries()
+        entries[0] = directory(entries[0][0].name)
+        cases.append(("member", entries))
+
+        entries, _expected = auxiliary_chain_entries()
+        entries[0] = regular("foreign/auxiliary.json", entries[0][1])
+        cases.append(("path", entries))
+
+        entries, _expected = auxiliary_chain_entries()
+        wrong_digest = "f" * 64
+        if entries[0][0].name.endswith(wrong_digest):
+            wrong_digest = "e" * 64
+        entries[0] = regular(f"blobs/sha256/{wrong_digest}", entries[0][1])
+        cases.append(("digest", entries))
+
+        entries, _expected = auxiliary_chain_entries()
+        empty = b""
+        entries[0] = regular(f"blobs/sha256/{hashlib.sha256(empty).hexdigest()}", empty)
+        cases.append(("size", entries))
+
+        entries, _expected = auxiliary_chain_entries()
+        oversized = b"x" * 65_537
+        entries[0] = regular(f"blobs/sha256/{hashlib.sha256(oversized).hexdigest()}", oversized)
+        cases.append(("size", entries))
+
+        entries, _expected = auxiliary_chain_entries(comment_size=30_000)
+        cases.append(("total-size", entries))
+
+        for mismatch, additions in cases:
+            with self.subTest(mismatch=mismatch, bytes=sum(entry[0].size for entry in additions)):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    outer_mutator=append_outer_entries(additions),
+                )
+                diagnostic = refusal.auxiliary_diagnostic
+                self.assertEqual(diagnostic["classification"], "REFUSED")
+                self.assertEqual(diagnostic["firstMismatch"], mismatch)
+                self.assertEqual(diagnostic["examinedCount"], 0)
+                self.assertIsNone(diagnostic["parentChainMatched"])
+                self.assertEqual(diagnostic["payloadSha256s"], [])
+
+    def test_auxiliary_json_predicates_stop_at_the_first_defined_failure(self):
+        base_entries, _expected = auxiliary_chain_entries()
+        valid_id = hashlib.sha256(b"valid-id").hexdigest()
+        valid_object = {
+            "id": valid_id,
+            "created": None,
+            "container_config": {},
+            "os": "linux",
+        }
+        payload_cases = (
+            ("json", b"\xff"),
+            ("json", b"{"),
+            ("json", b"NaN"),
+            ("json", f'{{"id":"{valid_id}","id":"{valid_id}"}}'.encode("ascii")),
+            ("root-type", b"[]"),
+            ("keys", b'{"hostSecret":"C:\\\\private\\\\source-save.tar"}'),
+            ("required-fields", json.dumps({"id": "bad"}, separators=(",", ":")).encode("ascii")),
+            (
+                "required-fields",
+                json.dumps({**valid_object, "created": 1}, separators=(",", ":")).encode("ascii"),
+            ),
+            (
+                "required-fields",
+                json.dumps({**valid_object, "container_config": []}, separators=(",", ":")).encode("ascii"),
+            ),
+            (
+                "required-fields",
+                json.dumps({**valid_object, "os": "windows"}, separators=(",", ":")).encode("ascii"),
+            ),
+            ("id", json.dumps({**valid_object, "id": "bad", "parent": "bad"}, separators=(",", ":")).encode("ascii")),
+            ("parent", json.dumps({**valid_object, "parent": None}, separators=(",", ":")).encode("ascii")),
+        )
+        for mismatch, payload in payload_cases:
+            additions = [(info, data) for info, data in base_entries]
+            replace_auxiliary_payload(additions, 4, payload)
+            failing_path = additions[4][0].name
+            expected_examined = sorted(entry[0].name for entry in additions).index(failing_path) + 1
+            with self.subTest(mismatch=mismatch, expected_examined=expected_examined):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    outer_mutator=append_outer_entries(additions),
+                )
+                diagnostic = refusal.auxiliary_diagnostic
+                self.assertEqual(diagnostic["firstMismatch"], mismatch)
+                self.assertEqual(diagnostic["examinedCount"], expected_examined)
+                self.assertIsNone(diagnostic["parentChainMatched"])
+                self.assertEqual(diagnostic["payloadSha256s"], [])
+
+        additions = [(info, data) for info, data in base_entries]
+        additions[4] = regular("foreign/not-content-addressed", b"{")
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            outer_mutator=append_outer_entries(additions),
+        )
+        self.assertEqual(refusal.auxiliary_diagnostic["firstMismatch"], "path")
+        self.assertEqual(refusal.auxiliary_diagnostic["examinedCount"], 0)
+
+    def test_auxiliary_failure_diagnostics_do_not_publish_unknown_names_values_or_paths(self):
+        secret_names = [f"C:\\private\\field-{index}\nsecret" for index in range(128)]
+
+        def add_secrets(values):
+            values[3].update({name: f"raw-value-{index}" for index, name in enumerate(secret_names)})
+
+        additions, _expected = auxiliary_chain_entries(values_mutator=add_secrets)
+        refusal = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            outer_mutator=append_outer_entries(additions),
+        )
+        diagnostic = refusal.auxiliary_diagnostic
+        encoded = json.dumps(diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+        self.assertEqual(diagnostic["firstMismatch"], "keys")
+        self.assertLessEqual(len(encoded), 8192)
+        self.assertNotIn(b"private", encoded)
+        self.assertNotIn(b"secret", encoded)
+        self.assertNotIn(b"raw-value", encoded)
+        self.assertNotIn(os.fspath(REPOSITORY_ROOT).encode("ascii"), encoded)
+
+    def test_auxiliary_chain_failures_follow_duplicate_root_orphan_branch_cycle_order(self):
+        def duplicate_id(values):
+            values[5]["id"] = values[4]["id"]
+
+        def two_roots_and_orphan(values):
+            values[5].pop("parent")
+            values[6]["parent"] = "f" * 64
+
+        def orphan(values):
+            values[5]["parent"] = "f" * 64
+
+        def branch(values):
+            values[2]["parent"] = values[0]["id"]
+
+        def disconnected_cycle(values):
+            values[8]["parent"] = values[9]["id"]
+            values[9]["parent"] = values[8]["id"]
+
+        cases = (
+            (duplicate_id, "duplicate-id", None),
+            (two_roots_and_orphan, "root-count", False),
+            (orphan, "orphan", False),
+            (branch, "branch", False),
+            (disconnected_cycle, "cycle", False),
+        )
+        for mutate, mismatch, chain_state in cases:
+            additions, _expected = auxiliary_chain_entries(values_mutator=mutate)
+            with self.subTest(mismatch=mismatch):
+                refusal = inspect_source_fixture_refusal(
+                    self,
+                    fixture_builder=moby_source_save_fixture,
+                    outer_mutator=append_outer_entries(additions),
+                )
+                diagnostic = refusal.auxiliary_diagnostic
+                self.assertEqual(diagnostic["classification"], "REFUSED")
+                self.assertEqual(diagnostic["firstMismatch"], mismatch)
+                self.assertEqual(diagnostic["examinedCount"], 10)
+                self.assertEqual(diagnostic["parentChainMatched"], chain_state)
+                self.assertEqual(diagnostic["payloadSha256s"], [])
+                self.assertIsNone(diagnostic["orderedSetSha256"])
 
     def test_moby_layout_and_index_must_be_exact_duplicate_free_json(self):
         def duplicate_layout(entries, _context):
@@ -687,6 +992,36 @@ class SourceSaveCliTests(unittest.TestCase):
     def test_archive_drift_suppresses_an_otherwise_finite_envelope_diagnostic(self):
         archive_value, config_value, config_sha256, diff_ids = moby_source_save_fixture(
             layout_mutator=lambda value: value.update(imageLayoutVersion="1.0.1")
+        )
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive = directory / "source-save.tar"
+            config = directory / "config.json"
+            archive.write_bytes(archive_value)
+            config.write_bytes(config_value)
+            archive.chmod(0o444)
+            config.chmod(0o444)
+
+            def mutate_archive():
+                archive.chmod(0o644)
+                with archive.open("r+b") as output:
+                    output.seek(-1, os.SEEK_END)
+                    output.write(b"!")
+
+            with self.assertRaises(InspectionIntegrityError) as caught:
+                inspect_source_save_fixture(
+                    archive,
+                    config,
+                    config_sha256,
+                    diff_ids,
+                    finalize_hook=mutate_archive,
+                )
+            self.assertEqual(caught.exception.code, "source_changed")
+
+    def test_archive_drift_suppresses_an_otherwise_complete_auxiliary_diagnostic(self):
+        additions, _expected = auxiliary_chain_entries()
+        archive_value, config_value, config_sha256, diff_ids = moby_source_save_fixture(
+            outer_mutator=append_outer_entries(additions)
         )
         with tempfile.TemporaryDirectory() as directory_name:
             directory = Path(directory_name)
@@ -1091,6 +1426,52 @@ class SourceSaveCliTests(unittest.TestCase):
                 self.assertEqual("envelopeDiagnostic" in output, expect_diagnostic)
                 self.assertNotIn("manifestDiagnostic", output)
                 self.assertLessEqual(len(stdout.getvalue().encode("ascii")), 4096)
+                self.assertNotIn(archive, stdout.getvalue())
+                self.assertNotIn(config, stdout.getvalue())
+
+    def test_cli_joins_auxiliary_diagnostics_only_to_outer_extra_envelope_refusals(self):
+        additions, _expected = auxiliary_chain_entries()
+        actual = inspect_source_fixture_refusal(
+            self,
+            fixture_builder=moby_source_save_fixture,
+            outer_mutator=append_outer_entries(additions),
+        )
+        wrong_node = dict(actual.envelope_diagnostic)
+        wrong_node["node"] = "raw-layer"
+        cases = (
+            (actual, True),
+            (InspectionRefusal(
+                "archive_truncated",
+                envelope_diagnostic=actual.envelope_diagnostic,
+                auxiliary_diagnostic=actual.auxiliary_diagnostic,
+            ), False),
+            (InspectionRefusal(
+                "save_envelope_invalid",
+                envelope_diagnostic=wrong_node,
+                auxiliary_diagnostic=actual.auxiliary_diagnostic,
+            ), False),
+            (InspectionRefusal(
+                "save_envelope_invalid",
+                manifest_diagnostic={"private": "manifest"},
+                envelope_diagnostic=actual.envelope_diagnostic,
+                auxiliary_diagnostic=actual.auxiliary_diagnostic,
+            ), False),
+        )
+        archive = os.fspath((REPOSITORY_ROOT / "private-source-save.tar").resolve())
+        config = os.fspath((REPOSITORY_ROOT / "private-source-config.json").resolve())
+        for refusal, expect_auxiliary in cases:
+            with self.subTest(code=refusal.code, expect_auxiliary=expect_auxiliary):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with mock.patch.object(archive_module, "_activate_cli_limits", return_value=None), \
+                        mock.patch.object(archive_module, "inspect_source_save", side_effect=refusal):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        status = archive_module.main(["source-save", "--archive", archive, "--config", config])
+                self.assertEqual(status, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                output = json.loads(stdout.getvalue())
+                self.assertEqual("auxiliaryDiagnostic" in output, expect_auxiliary)
+                self.assertEqual("sourceEnvelope" in output, False)
                 self.assertNotIn(archive, stdout.getvalue())
                 self.assertNotIn(config, stdout.getvalue())
 

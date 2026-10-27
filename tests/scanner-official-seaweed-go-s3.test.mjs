@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -12,6 +13,7 @@ import {
   seaweedGoS3SourceSaveArguments,
   seaweedGoS3SourceRefusalError,
   seaweedGoS3SourceRefusalReceipt,
+  validateSeaweedGoS3AuxiliaryDiagnostic,
   validateSeaweedGoS3EnvelopeDiagnostic,
   validateSeaweedGoS3Profile,
   validateSeaweedGoS3ManifestDiagnostic,
@@ -24,6 +26,13 @@ import {
 const GiB = 1024 ** 3;
 const MiB = 1024 ** 2;
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const auxiliaryOrderedSetSha256 = (records) => createHash("sha256").update(JSON.stringify(records.map((record) => ({
+  bytes: record.bytes,
+  id: record.id,
+  keySetSha256: record.keySetSha256,
+  parent: record.parent,
+  payloadSha256: record.payloadSha256,
+})))).digest("hex");
 const sourceImageId = "sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6";
 const archiveSha256 = "2".repeat(64);
 const profile = JSON.parse(readFileSync(new URL("../infra/managed-images/seaweed-go-s3/profile.json", import.meta.url)));
@@ -141,6 +150,94 @@ function envelopeDiagnostic() {
     unknownKeyNamesSha256: "9".repeat(64),
     mediaTypeClass: "oci-tar",
     mediaTypeSha256: "a".repeat(64),
+  };
+}
+
+function outerExtraEnvelopeDiagnostic() {
+  return {
+    schemaVersion: 1,
+    format: "MOBY_28_OCI_COMPAT_V1",
+    node: "outer",
+    predicate: "extra",
+    ordinal: null,
+    observedType: null,
+    memberType: "file",
+    expectedDigest: null,
+    actualDigest: "b".repeat(64),
+    expectedBytes: null,
+    actualBytes: 477,
+    knownKeysPresent: [],
+    unknownKeyCount: null,
+    unknownKeyNamesSha256: null,
+    mediaTypeClass: null,
+    mediaTypeSha256: null,
+  };
+}
+
+function compatibleAuxiliaryDiagnostic() {
+  const payloadSha256s = Array.from({ length: 10 }, (_, index) => `${index.toString(16)}`.repeat(64));
+  const payloadBytes = Array.from({ length: 10 }, (_, index) => 200 + index);
+  const v1Ids = Array.from({ length: 10 }, (_, index) => `${(index + 1).toString(16)}`.repeat(64));
+  const keySetSha256s = Array.from({ length: 10 }, (_, index) => `${(index + 2).toString(16)}`.repeat(64));
+  const ordered = payloadSha256s.map((payloadSha256, index) => ({
+    payloadSha256,
+    bytes: payloadBytes[index],
+    id: v1Ids[index],
+    parent: index === 0 ? null : v1Ids[index - 1],
+    keySetSha256: keySetSha256s[index],
+  }));
+  return {
+    schemaVersion: 1,
+    kind: "MOBY_28_V1_AUXILIARY_DIAGNOSTIC",
+    createIdBinding: "NOT_RECOMPUTED",
+    candidateCount: 10,
+    candidateBytes: payloadBytes.reduce((sum, value) => sum + value, 0),
+    candidateSetSha256: "c".repeat(64),
+    truncated: false,
+    examinedCount: 10,
+    classification: "COMPATIBLE_UNVERIFIED",
+    firstMismatch: null,
+    payloadSha256s,
+    payloadBytes,
+    v1Ids,
+    keySetSha256s,
+    parentChainMatched: true,
+    orderedSetSha256: auxiliaryOrderedSetSha256(ordered),
+  };
+}
+
+function failedAuxiliaryDiagnostic({
+  candidateCount = 10,
+  classification = "REFUSED",
+  firstMismatch = "json",
+  examinedCount = 1,
+  parentChainMatched = null,
+} = {}) {
+  const value = compatibleAuxiliaryDiagnostic();
+  value.candidateCount = candidateCount;
+  value.candidateBytes = 1000;
+  value.truncated = candidateCount > 10;
+  value.examinedCount = examinedCount;
+  value.classification = classification;
+  value.firstMismatch = firstMismatch;
+  value.payloadSha256s = [];
+  value.payloadBytes = [];
+  value.v1Ids = [];
+  value.keySetSha256s = [];
+  value.parentChainMatched = parentChainMatched;
+  value.orderedSetSha256 = null;
+  return value;
+}
+
+function auxiliaryRefusal() {
+  return {
+    schemaVersion: 1,
+    profile: "go-s3-4.51-v1",
+    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
+    status: "REFUSED",
+    refusal: { code: "save_envelope_invalid" },
+    envelopeDiagnostic: outerExtraEnvelopeDiagnostic(),
+    auxiliaryDiagnostic: compatibleAuxiliaryDiagnostic(),
   };
 }
 
@@ -396,14 +493,7 @@ test("a failed first removal keeps cleanup ownership fatal without retry or acce
 
 test("an input-integrity failure suppresses finite refusal evidence while still cleaning the archive", async () => {
   const item = harness();
-  const finiteError = seaweedGoS3SourceRefusalError({
-    schemaVersion: 1,
-    profile: "go-s3-4.51-v1",
-    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
-    status: "REFUSED",
-    refusal: { code: "save_envelope_invalid" },
-    envelopeDiagnostic: envelopeDiagnostic(),
-  });
+  const finiteError = seaweedGoS3SourceRefusalError(auxiliaryRefusal());
   let integrityChecks = 0;
   item.operations.inspectSource = async () => {
     item.events.push("inspectSource");
@@ -838,16 +928,132 @@ test("a verified cleanup preserves the exact bounded envelope refusal", async ()
   assert.deepEqual(seaweedGoS3SourceRefusalReceipt(caught).refusal, refusal);
 });
 
-test("cleanup uncertainty suppresses envelope diagnostics", async () => {
+test("compatible auxiliary commitments are recomputed before validation", () => {
+  assert.deepEqual(
+    validateSeaweedGoS3AuxiliaryDiagnostic(compatibleAuxiliaryDiagnostic()),
+    compatibleAuxiliaryDiagnostic(),
+  );
+  for (const mutate of [
+    (value) => { value.createIdBinding = "RECOMPUTED"; },
+    (value) => { value.candidateBytes += 1; },
+    (value) => { value.truncated = true; },
+    (value) => { value.examinedCount = 9; },
+    (value) => { value.classification = "REFUSED"; },
+    (value) => { value.firstMismatch = "json"; },
+    (value) => { value.parentChainMatched = false; },
+    (value) => { value.payloadSha256s[1] = value.payloadSha256s[0]; },
+    (value) => { value.v1Ids[1] = value.v1Ids[0]; },
+    (value) => { value.payloadBytes[0] = 0; },
+    (value) => { value.orderedSetSha256 = "f".repeat(64); },
+    (value) => { value.privatePath = "C:\\private\\source-save.tar"; },
+  ]) {
+    const changed = compatibleAuxiliaryDiagnostic();
+    mutate(changed);
+    assert.throws(
+      () => validateSeaweedGoS3AuxiliaryDiagnostic(changed),
+      /scanner_seaweed_go_s3_auxiliary_diagnostic_invalid/u,
+    );
+  }
+});
+
+test("auxiliary commitments reject sparse evidence arrays", () => {
+  const value = compatibleAuxiliaryDiagnostic();
+  delete value.keySetSha256s[3];
+  assert.throws(
+    () => validateSeaweedGoS3AuxiliaryDiagnostic(value),
+    /scanner_seaweed_go_s3_auxiliary_diagnostic_invalid/u,
+  );
+});
+
+test("auxiliary failure states retain finite count, parse and topology boundaries", () => {
+  const aggregateSizeFailure = failedAuxiliaryDiagnostic({ firstMismatch: "total-size", examinedCount: 0 });
+  aggregateSizeFailure.candidateBytes = 300_000;
+  const valid = [
+    failedAuxiliaryDiagnostic({ candidateCount: 9, firstMismatch: "cardinality", examinedCount: 0 }),
+    failedAuxiliaryDiagnostic({
+      candidateCount: 11,
+      classification: "LIMIT_EXCEEDED",
+      firstMismatch: "candidate-limit",
+      examinedCount: 0,
+    }),
+    failedAuxiliaryDiagnostic({ firstMismatch: "size", examinedCount: 0 }),
+    aggregateSizeFailure,
+    failedAuxiliaryDiagnostic({ firstMismatch: "json", examinedCount: 4 }),
+    failedAuxiliaryDiagnostic({ firstMismatch: "duplicate-id", examinedCount: 10 }),
+    failedAuxiliaryDiagnostic({ firstMismatch: "cycle", examinedCount: 10, parentChainMatched: false }),
+  ];
+  valid.forEach((value) => assert.deepEqual(validateSeaweedGoS3AuxiliaryDiagnostic(value), value));
+  for (const mutate of [
+    (value) => { value.truncated = !value.truncated; },
+    (value) => { value.examinedCount = value.candidateCount + 1; },
+    (value) => { value.payloadSha256s = ["a".repeat(64)]; },
+    (value) => { value.orderedSetSha256 = "a".repeat(64); },
+    (value) => { value.firstMismatch = "create-id"; },
+  ]) {
+    const changed = failedAuxiliaryDiagnostic({ candidateCount: 9, firstMismatch: "cardinality", examinedCount: 0 });
+    mutate(changed);
+    assert.throws(
+      () => validateSeaweedGoS3AuxiliaryDiagnostic(changed),
+      /scanner_seaweed_go_s3_auxiliary_diagnostic_invalid/u,
+    );
+  }
+});
+
+test("total-size failures reject bytes impossible for ten bounded candidates", () => {
+  const value = failedAuxiliaryDiagnostic({ firstMismatch: "total-size", examinedCount: 0 });
+  value.candidateBytes = 655_361;
+  assert.throws(
+    () => validateSeaweedGoS3AuxiliaryDiagnostic(value),
+    /scanner_seaweed_go_s3_auxiliary_diagnostic_invalid/u,
+  );
+});
+
+test("auxiliary evidence can join only an outer-extra envelope refusal", () => {
+  assert.deepEqual(validateSeaweedGoS3SourceRefusal(auxiliaryRefusal()), auxiliaryRefusal());
+  for (const mutate of [
+    (value) => { value.refusal.code = "save_manifest_invalid"; },
+    (value) => { value.envelopeDiagnostic.node = "raw-layer"; },
+    (value) => { value.envelopeDiagnostic.predicate = "member"; },
+    (value) => { value.manifestDiagnostic = missingManifestDiagnostic(); },
+    (value) => { delete value.envelopeDiagnostic; },
+  ]) {
+    const changed = auxiliaryRefusal();
+    mutate(changed);
+    assert.throws(
+      () => validateSeaweedGoS3SourceRefusal(changed),
+      /scanner_seaweed_go_s3_source_refusal_invalid/u,
+    );
+  }
+  const pass = mobyInspection();
+  pass.auxiliaryDiagnostic = compatibleAuxiliaryDiagnostic();
+  assert.throws(
+    () => validateSeaweedGoS3SourceInspection(pass),
+    /scanner_seaweed_go_s3_source_preflight_refused/u,
+  );
+});
+
+test("verified cleanup preserves compatible auxiliary evidence as a refusal without construction", async () => {
   const item = harness();
-  const finiteError = seaweedGoS3SourceRefusalError({
-    schemaVersion: 1,
-    profile: "go-s3-4.51-v1",
-    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
-    status: "REFUSED",
-    refusal: { code: "save_envelope_invalid" },
-    envelopeDiagnostic: envelopeDiagnostic(),
-  });
+  const finiteError = seaweedGoS3SourceRefusalError(auxiliaryRefusal());
+  item.operations.inspectSource = async () => {
+    item.events.push("inspectSource");
+    throw finiteError;
+  };
+  const caught = await runSeaweedGoS3SourcePreflight(input(), item.operations).then(
+    () => assert.fail("compatible auxiliary diagnostic unexpectedly passed"),
+    (error) => error,
+  );
+  const receipt = seaweedGoS3SourceRefusalReceipt(caught);
+  assert.deepEqual(receipt.refusal, auxiliaryRefusal());
+  assert.equal(receipt.state, "SOURCE_PREFLIGHT_REFUSED");
+  assert.equal(receipt.construction, "NOT_ATTEMPTED");
+  assert.equal(Object.hasOwn(receipt, "sourceEnvelope"), false);
+  assert.equal(receipt.archiveRemoved, true);
+});
+
+test("cleanup uncertainty suppresses auxiliary and envelope diagnostics", async () => {
+  const item = harness();
+  const finiteError = seaweedGoS3SourceRefusalError(auxiliaryRefusal());
   item.operations.inspectSource = async () => {
     item.events.push("inspectSource");
     throw finiteError;
