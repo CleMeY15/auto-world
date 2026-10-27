@@ -1,0 +1,339 @@
+import path from "node:path";
+
+const KiB = 1024;
+const MiB = 1024 ** 2;
+const GiB = 1024 ** 3;
+const SOURCE_ARCHIVE_LIMIT = 2 * GiB;
+const QUALIFICATION_SCRATCH = 64 * MiB;
+const PUBLIC_EVIDENCE = 64 * MiB;
+const FREE_RESERVE = GiB;
+const SOURCE_MANIFEST = "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707";
+const SOURCE_CONFIG = "sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6";
+const SOURCE_REFERENCE = `chrislusf/seaweedfs@${SOURCE_MANIFEST}`;
+const SOURCE_INDEX = "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8";
+const SOURCE_COMMIT = "ffa87c25fdf587178b1521ad87f2a4a72a02e584";
+const APPROVED_PLAN = "b1e88e79f2c07411e97553383ae5c6ac9c949fcfaf89420684dff9a742e51990";
+const SOURCE_DIFF_IDS = Object.freeze([
+  "75c137aedfb2760f88629236cb7b797630aed0c3d91d626d1d1bb694878fc2ba",
+  "14d28a8561c0323bfa76edd6bca302081ac63d3b0cb7ef45955a69e729ce0f06",
+  "5c2a12fbb0348e17e541422ab5639226008d4bfd0a133ea759470dc537cce42f",
+  "c9aac12923afabb4e0b0cd4c30c2c96f17aec00a258928880581d8861c59bcf6",
+  "18a6be0eab2649832a383d2ae3b92c11209078f4eb919717a5fbf9aabbd351fe",
+  "42664d44ed25abf36ba99eb50bd36916c7112c8b028b9ce64c4265664ba233ee",
+  "2bb9f79cd65bbdbc3eff10877e1752e8a6013f11e3d529455dd51025583b19a2",
+  "8b6ee38e2c0092bcce475079cfd98fac523f6bdb133eeae9bbab154d75d6a4ca",
+  "83f90d3184f33a3dc2d8a502016cd4a129354efaaae30ef8e48046e9371ac239",
+  "5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+]);
+const SOURCE_REFUSALS = new Set([
+  "archive_empty", "archive_extension_unsupported", "archive_hidden_region", "archive_invalid", "archive_nonzero_padding", "archive_nonzero_tail",
+  "archive_seek_unsupported", "archive_size_limit", "archive_size_mismatch", "archive_truncated", "arguments_invalid", "command_invalid",
+  "duplicate_member", "expected_profile_invalid", "fractional_mtime", "hardlink_unsupported", "identity_invalid", "input_identity_mismatch",
+  "input_link_count_invalid", "input_not_readonly", "input_open_failed", "input_owner_invalid", "input_path_invalid", "input_size_limit",
+  "input_type_invalid", "json_limit", "layer_digest_mismatch", "layer_total_size_limit", "member_limit", "member_size_limit", "mode_invalid",
+  "nonfile_size", "output_limit", "owner_name_unsupported", "path_invalid", "pax_unsupported", "resource_limit", "resource_limits_unavailable",
+  "save_config_mismatch", "save_config_missing", "save_config_reference_invalid", "save_layer_invalid", "save_layer_missing",
+  "save_layer_reference_invalid", "save_manifest_invalid", "save_manifest_missing", "save_metadata_invalid", "save_repo_tags_invalid", "save_unreferenced_member",
+  "save_repositories_invalid", "source_config_diffids_mismatch", "source_config_invalid", "source_config_mismatch",
+  "sparse_unsupported", "special_type_unsupported", "symlink_target_invalid", "whiteout_invalid", "whiteout_unsupported",
+]);
+const sourceRefusalDetails = new WeakMap();
+const sourceRefusalReceipts = new WeakMap();
+const fail = (code) => { throw new Error(code); };
+const exactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
+  Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
+const sha256 = (value) => typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+const positiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
+const absolute = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0\r\n]/u.test(value);
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+export const SEAWEED_GO_S3_SOURCE = Object.freeze({
+  repository: "chrislusf/seaweedfs",
+  reference: SOURCE_REFERENCE,
+  manifestDigest: SOURCE_MANIFEST,
+  configDigest: SOURCE_CONFIG,
+  platform: "linux/amd64",
+});
+
+export function validateSeaweedGoS3Profile(value) {
+  const helperPins = [
+    ["usr/bin/weed-volume", 40128576, "48c7397e7d1802d9728ac7bdfcf30454cb6fb50bb0098b79e88f9b3eaeddc3e4"],
+    ["usr/bin/weed-worker", 252992824, "2f7bd0db4811d463f4fc7278d2a6a336e1adfcb54124ecc79b67dbcab0ba149b"],
+  ];
+  if (!exactKeys(value, ["schemaVersion", "profile", "state", "admission", "milestone2", "source", "unsupportedHelpers", "support", "approvedPlanSha256"]) ||
+      value.schemaVersion !== 1 || value.profile !== "go-s3-4.51-v1" || value.state !== "SOURCE_PREFLIGHT_ONLY" ||
+      value.admission !== "NOT_AUTHORIZED" || value.milestone2 !== "NOT_ESTABLISHED" || value.approvedPlanSha256 !== APPROVED_PLAN ||
+      !exactKeys(value.source, ["repository", "indexDigest", "platformDigest", "configSha256", "configBytes", "os", "architecture", "commit", "diffIds"]) ||
+      value.source.repository !== "chrislusf/seaweedfs" || value.source.indexDigest !== SOURCE_INDEX || value.source.platformDigest !== SOURCE_MANIFEST ||
+      value.source.configSha256 !== SOURCE_CONFIG.slice(7) || value.source.configBytes !== 13850 || value.source.os !== "linux" ||
+      value.source.architecture !== "amd64" || value.source.commit !== SOURCE_COMMIT || !Array.isArray(value.source.diffIds) ||
+      value.source.diffIds.length !== SOURCE_DIFF_IDS.length || value.source.diffIds.some((entry, index) => entry !== `sha256:${SOURCE_DIFF_IDS[index]}`) ||
+      !Array.isArray(value.unsupportedHelpers) || value.unsupportedHelpers.length !== helperPins.length || value.unsupportedHelpers.some((entry, index) =>
+        !exactKeys(entry, ["path", "bytes", "mode", "sha256"]) || entry.path !== helperPins[index][0] || entry.bytes !== helperPins[index][1] ||
+        entry.mode !== "0755" || entry.sha256 !== helperPins[index][2]) ||
+      !exactKeys(value.support, ["durationYears", "continuousSecurityControls", "additionalArchiveDays", "startsAt", "endsAt"]) ||
+      value.support.durationYears !== 1 || value.support.continuousSecurityControls !== true || value.support.additionalArchiveDays !== 365 ||
+      value.support.startsAt !== null || value.support.endsAt !== null) fail("scanner_seaweed_go_s3_profile_invalid");
+  return clone(value);
+}
+
+export function seaweedGoS3ResourceRequirements({ sameFilesystem = false } = {}) {
+  if (typeof sameFilesystem !== "boolean") fail("scanner_seaweed_go_s3_resources_invalid");
+  const scratchTaskBytes = 4 * SOURCE_ARCHIVE_LIMIT + QUALIFICATION_SCRATCH + PUBLIC_EVIDENCE;
+  const dockerTaskBytes = 2 * SOURCE_ARCHIVE_LIMIT + QUALIFICATION_SCRATCH;
+  const reserve = (bytes) => Math.ceil(bytes * 1.25) + FREE_RESERVE;
+  return Object.freeze({
+    archiveLimitBytes: SOURCE_ARCHIVE_LIMIT,
+    qualificationScratchBytes: QUALIFICATION_SCRATCH,
+    publicEvidenceBytes: PUBLIC_EVIDENCE,
+    freeReserveBytes: FREE_RESERVE,
+    scratchTaskBytes,
+    dockerTaskBytes,
+    scratchRequiredFreeBytes: sameFilesystem ? null : reserve(scratchTaskBytes),
+    dockerRequiredFreeBytes: sameFilesystem ? null : reserve(dockerTaskBytes),
+    combinedRequiredFreeBytes: sameFilesystem ? reserve(scratchTaskBytes + dockerTaskBytes) : null,
+  });
+}
+
+export function seaweedGoS3DockerInfoArguments() {
+  return ["info", "--format", "{{json .}}"];
+}
+
+export function seaweedGoS3DockerVersionArguments() {
+  return ["version", "--format", "{{json .}}"];
+}
+
+export function seaweedGoS3PythonVersionArguments() {
+  return ["--version"];
+}
+
+export function seaweedGoS3GnuTarVersionArguments() {
+  return ["--version"];
+}
+
+export function seaweedGoS3SourceSaveArguments({ archive, imageId }) {
+  if (!absolute(archive) || !digest(imageId)) fail("scanner_seaweed_go_s3_source_save_invalid");
+  const script = [
+    "set -euo pipefail",
+    `ulimit -Sf ${SOURCE_ARCHIVE_LIMIT / KiB}`,
+    "exec /usr/bin/docker image save --output \"$1\" \"$2\"",
+  ].join("\n");
+  return Object.freeze({
+    command: "/usr/bin/bash",
+    args: ["--noprofile", "--norc", "-c", script, "aw-seaweed-go-s3-source-save", archive, imageId],
+    timeoutMs: 300_000,
+    archiveLimitBytes: SOURCE_ARCHIVE_LIMIT,
+  });
+}
+
+export function seaweedGoS3SourceInspectorArguments({ python, inspector, archive, config }) {
+  if (!absolute(python) || !absolute(inspector) || !absolute(archive) || !absolute(config)) {
+    fail("scanner_seaweed_go_s3_source_inspector_invalid");
+  }
+  return Object.freeze({ command: python,
+    args: [inspector, "source-save", "--archive", archive, "--config", config], timeoutMs: 300_000 });
+}
+
+export function validateSeaweedGoS3ToolEvidence(value) {
+  if (!exactKeys(value, ["docker", "python", "gnuTar"]) ||
+      !exactKeys(value.docker, ["clientVersion", "serverVersion", "apiVersion", "dockerRootDir", "operatingSystem", "architecture"]) ||
+      value.docker.clientVersion !== "28.0.4" || value.docker.serverVersion !== "28.0.4" || value.docker.apiVersion !== "1.48" ||
+      !absolute(value.docker.dockerRootDir) || typeof value.docker.operatingSystem !== "string" || !/linux/iu.test(value.docker.operatingSystem) ||
+      !["x86_64", "amd64"].includes(value.docker.architecture) ||
+      !exactKeys(value.python, ["version"]) || typeof value.python.version !== "string" ||
+      !/^Python (?:3\.(?:1[2-9]|[2-9][0-9])|[4-9][0-9])\.[0-9]+$/u.test(value.python.version.trim()) ||
+      !exactKeys(value.gnuTar, ["version"]) || typeof value.gnuTar.version !== "string" ||
+      !/^tar \(GNU tar\) [1-9][0-9]*\.[0-9]+/u.test(value.gnuTar.version.trim())) {
+    fail("scanner_seaweed_go_s3_tool_evidence_invalid");
+  }
+  return clone(value);
+}
+
+export function validateSeaweedGoS3FilesystemEvidence(value) {
+  if (!exactKeys(value, ["scratch", "docker"]) ||
+      [value.scratch, value.docker].some((entry) => !exactKeys(entry, ["path", "filesystemId", "freeBytes"]) ||
+        !absolute(entry.path) || typeof entry.filesystemId !== "string" || entry.filesystemId.length < 1 || entry.filesystemId.length > 256 ||
+        !positiveInteger(entry.freeBytes))) fail("scanner_seaweed_go_s3_filesystem_invalid");
+  const sameFilesystem = value.scratch.filesystemId === value.docker.filesystemId;
+  const requirements = seaweedGoS3ResourceRequirements({ sameFilesystem });
+  if (sameFilesystem ? Math.min(value.scratch.freeBytes, value.docker.freeBytes) < requirements.combinedRequiredFreeBytes
+    : value.scratch.freeBytes < requirements.scratchRequiredFreeBytes || value.docker.freeBytes < requirements.dockerRequiredFreeBytes) {
+    fail("scanner_seaweed_go_s3_disk_insufficient");
+  }
+  return { sameFilesystem, requirements, scratch: { ...value.scratch }, docker: { ...value.docker } };
+}
+
+export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
+  const safeLayerPath = (candidate) => typeof candidate === "string" && candidate.length >= 11 && candidate.length <= 1024 &&
+    !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..") &&
+    candidate.endsWith("/layer.tar");
+  if (!exactKeys(value, ["schemaVersion", "profile", "evidenceClass", "status", "sourceConfigSha256", "archive", "layers", "totals"]) ||
+      Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 || value.profile !== "go-s3-4.51-v1" ||
+      value.evidenceClass !== "SOURCE_LAYER_PREFLIGHT" || value.status !== "PASS" || value.sourceConfigSha256 !== SOURCE_CONFIG.slice(7) ||
+      !exactKeys(value.archive, ["sha256", "bytes"]) || !sha256(value.archive.sha256) || !positiveInteger(value.archive.bytes) ||
+      value.archive.bytes > SOURCE_ARCHIVE_LIMIT || !Array.isArray(value.layers) || value.layers.length !== 10 ||
+      value.layers.some((layer, index) => !exactKeys(layer, ["ordinal", "path", "sha256", "bytes", "memberCount", "metadataSha256", "inventorySha256"]) ||
+        layer.ordinal !== index + 1 || !safeLayerPath(layer.path) || layer.sha256 !== SOURCE_DIFF_IDS[index] || !positiveInteger(layer.bytes) ||
+        !Number.isSafeInteger(layer.memberCount) || layer.memberCount < 0 || layer.memberCount > 4096 || !sha256(layer.metadataSha256) || !sha256(layer.inventorySha256)) ||
+      !exactKeys(value.totals, ["layerCount", "layerBytes", "memberCount"]) || value.totals.layerCount !== 10 ||
+      !positiveInteger(value.totals.layerBytes) || value.totals.layerBytes > SOURCE_ARCHIVE_LIMIT || !positiveInteger(value.totals.memberCount) ||
+      value.totals.memberCount > 32768 || value.totals.layerBytes !== value.layers.reduce((sum, layer) => sum + layer.bytes, 0) ||
+      value.totals.memberCount !== value.layers.reduce((sum, layer) => sum + layer.memberCount, 0) ||
+      expected.archiveSha256 !== undefined && value.archive.sha256 !== expected.archiveSha256 ||
+      expected.archiveBytes !== undefined && value.archive.bytes !== expected.archiveBytes) {
+    fail("scanner_seaweed_go_s3_source_preflight_refused");
+  }
+  return clone(value);
+}
+
+export function validateSeaweedGoS3SourceRefusal(value) {
+  const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal"];
+  const safeMember = (candidate) => typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 1024 &&
+    !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..");
+  if (!exactKeys(value, keys) || Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 ||
+      value.profile !== "go-s3-4.51-v1" || value.evidenceClass !== "SOURCE_LAYER_PREFLIGHT" || value.status !== "REFUSED" ||
+      !value.refusal || typeof value.refusal !== "object" || Array.isArray(value.refusal) ||
+      !SOURCE_REFUSALS.has(value.refusal.code) ||
+      Object.keys(value.refusal).some((key) => !["code", "layerOrdinal", "member", "memberSha256"].includes(key)) ||
+      Object.hasOwn(value.refusal, "layerOrdinal") && (!Number.isSafeInteger(value.refusal.layerOrdinal) || value.refusal.layerOrdinal < 1 || value.refusal.layerOrdinal > 10) ||
+      Object.hasOwn(value.refusal, "member") && !safeMember(value.refusal.member) ||
+      Object.hasOwn(value.refusal, "memberSha256") && !sha256(value.refusal.memberSha256) ||
+      Object.hasOwn(value.refusal, "member") && Object.hasOwn(value.refusal, "memberSha256")) {
+    fail("scanner_seaweed_go_s3_source_refusal_invalid");
+  }
+  return clone(value);
+}
+
+export function seaweedGoS3SourceRefusalError(value) {
+  const error = new Error("scanner_seaweed_go_s3_source_preflight_refused");
+  sourceRefusalDetails.set(error, validateSeaweedGoS3SourceRefusal(value));
+  return error;
+}
+
+export function seaweedGoS3SourceRefusalReceipt(error) {
+  const receipt = sourceRefusalReceipts.get(error);
+  return receipt ? clone(receipt) : null;
+}
+
+export function validateSeaweedGoS3SourceRefusalReceipt(value) {
+  if (!exactKeys(value, ["schemaVersion", "kind", "state", "authority", "construction", "source", "tools", "resources", "archive", "refusal", "sourceUnchanged", "archiveRemoved"]) ||
+      value.schemaVersion !== 1 || value.kind !== "SEAWEED_GO_S3_SOURCE_PREFLIGHT_V1" || value.state !== "SOURCE_PREFLIGHT_REFUSED" ||
+      value.authority !== "DIAGNOSTIC_ONLY_NOT_ADMITTED" || value.construction !== "NOT_ATTEMPTED" ||
+      !exactKeys(value.source, ["reference", "imageId", "manifestDigest", "configDigest", "platform"]) ||
+      value.source.reference !== SOURCE_REFERENCE || value.source.imageId !== SOURCE_CONFIG || value.source.manifestDigest !== SOURCE_MANIFEST ||
+      value.source.configDigest !== SOURCE_CONFIG || value.source.platform !== "linux/amd64" ||
+      !exactKeys(value.archive, ["bytes", "sha256"]) || !positiveInteger(value.archive.bytes) || value.archive.bytes > SOURCE_ARCHIVE_LIMIT ||
+      !sha256(value.archive.sha256) || value.sourceUnchanged !== true || value.archiveRemoved !== true) {
+    fail("scanner_seaweed_go_s3_source_refusal_receipt_invalid");
+  }
+  validateSeaweedGoS3ToolEvidence(value.tools);
+  if (!exactKeys(value.resources, ["sameFilesystem", "requirements", "scratch", "docker"])) {
+    fail("scanner_seaweed_go_s3_source_refusal_receipt_invalid");
+  }
+  const resourceEvidence = validateSeaweedGoS3FilesystemEvidence({ scratch: value.resources.scratch, docker: value.resources.docker });
+  if (value.resources.sameFilesystem !== resourceEvidence.sameFilesystem ||
+      JSON.stringify(value.resources.requirements) !== JSON.stringify(resourceEvidence.requirements)) {
+    fail("scanner_seaweed_go_s3_source_refusal_receipt_invalid");
+  }
+  validateSeaweedGoS3SourceRefusal(value.refusal);
+  return clone(value);
+}
+
+export function validateSeaweedGoS3SourcePreflightReceipt(value) {
+  if (!exactKeys(value, ["schemaVersion", "kind", "state", "authority", "construction", "source", "tools", "resources", "archive", "inspection", "sourceUnchanged", "archiveRemoved"]) ||
+      value.schemaVersion !== 1 || value.kind !== "SEAWEED_GO_S3_SOURCE_PREFLIGHT_V1" || value.state !== "SOURCE_PREFLIGHT_PASSED" ||
+      value.authority !== "DIAGNOSTIC_ONLY_NOT_ADMITTED" || value.construction !== "PENDING_NOT_IMPLEMENTED" ||
+      !exactKeys(value.source, ["reference", "imageId", "manifestDigest", "configDigest", "platform"]) ||
+      value.source.reference !== SOURCE_REFERENCE || value.source.imageId !== SOURCE_CONFIG || value.source.manifestDigest !== SOURCE_MANIFEST ||
+      value.source.configDigest !== SOURCE_CONFIG || value.source.platform !== "linux/amd64" ||
+      !exactKeys(value.archive, ["bytes", "sha256"]) || !positiveInteger(value.archive.bytes) || value.archive.bytes > SOURCE_ARCHIVE_LIMIT || !sha256(value.archive.sha256) ||
+      value.sourceUnchanged !== true || value.archiveRemoved !== true) fail("scanner_seaweed_go_s3_source_preflight_receipt_invalid");
+  validateSeaweedGoS3ToolEvidence(value.tools);
+  if (!exactKeys(value.resources, ["sameFilesystem", "requirements", "scratch", "docker"])) {
+    fail("scanner_seaweed_go_s3_source_preflight_receipt_invalid");
+  }
+  const resourceEvidence = validateSeaweedGoS3FilesystemEvidence({ scratch: value.resources.scratch, docker: value.resources.docker });
+  if (value.resources.sameFilesystem !== resourceEvidence.sameFilesystem ||
+      JSON.stringify(value.resources.requirements) !== JSON.stringify(resourceEvidence.requirements)) {
+    fail("scanner_seaweed_go_s3_source_preflight_receipt_invalid");
+  }
+  validateSeaweedGoS3SourceInspection(value.inspection, { archiveSha256: value.archive.sha256, archiveBytes: value.archive.bytes });
+  return clone(value);
+}
+
+export async function runSeaweedGoS3SourcePreflight(input, operations) {
+  const operationNames = ["assertInputsUnchanged", "probeTools", "statFilesystems", "saveSource", "lockArchive", "captureArchive",
+    "inspectSource", "removeOwnedArchive", "archiveAbsent"];
+  if (!exactKeys(input, ["source", "paths"]) || !exactKeys(input.source, ["reference", "imageId", "manifestDigest", "configDigest", "platform"]) ||
+      input.source.reference !== SOURCE_REFERENCE || input.source.manifestDigest !== SOURCE_MANIFEST || input.source.configDigest !== SOURCE_CONFIG ||
+      input.source.platform !== "linux/amd64" || input.source.imageId !== SOURCE_CONFIG ||
+      !exactKeys(input.paths, ["archive", "config", "inspector", "python", "scratchDirectory"]) ||
+      ["archive", "config", "inspector", "python", "scratchDirectory"].some((key) => !absolute(input.paths[key])) ||
+      input.paths.archive !== path.join(input.paths.scratchDirectory, "source-save.tar") ||
+      new Set(Object.values(input.paths)).size !== Object.keys(input.paths).length ||
+      !operations || Object.keys(operations).length !== operationNames.length || operationNames.some((name) => typeof operations[name] !== "function")) {
+    fail("scanner_seaweed_go_s3_source_preflight_invalid");
+  }
+  let archiveOwned = false, archiveRemoved = false, tools, resources, archive, inspection, refusal, refusalError;
+  try {
+    await operations.assertInputsUnchanged();
+    tools = validateSeaweedGoS3ToolEvidence(await operations.probeTools());
+    if (tools.docker.dockerRootDir === input.paths.scratchDirectory && input.paths.archive.startsWith(`${tools.docker.dockerRootDir}${path.sep}`)) {
+      fail("scanner_seaweed_go_s3_source_preflight_invalid");
+    }
+    resources = validateSeaweedGoS3FilesystemEvidence(await operations.statFilesystems({
+      scratchDirectory: input.paths.scratchDirectory, dockerRootDirectory: tools.docker.dockerRootDir,
+    }));
+    await operations.assertInputsUnchanged();
+    const recheckedResources = validateSeaweedGoS3FilesystemEvidence(await operations.statFilesystems({
+      scratchDirectory: input.paths.scratchDirectory, dockerRootDirectory: tools.docker.dockerRootDir,
+    }));
+    if (resources.sameFilesystem !== recheckedResources.sameFilesystem ||
+        resources.scratch.path !== recheckedResources.scratch.path || resources.scratch.filesystemId !== recheckedResources.scratch.filesystemId ||
+        resources.docker.path !== recheckedResources.docker.path || resources.docker.filesystemId !== recheckedResources.docker.filesystemId) {
+      fail("scanner_seaweed_go_s3_filesystem_invalid");
+    }
+    resources = validateSeaweedGoS3FilesystemEvidence({
+      scratch: { ...resources.scratch, freeBytes: Math.min(resources.scratch.freeBytes, recheckedResources.scratch.freeBytes) },
+      docker: { ...resources.docker, freeBytes: Math.min(resources.docker.freeBytes, recheckedResources.docker.freeBytes) },
+    });
+    const save = seaweedGoS3SourceSaveArguments({ archive: input.paths.archive, imageId: input.source.imageId });
+    archiveOwned = true;
+    await operations.saveSource(save);
+    await operations.lockArchive(input.paths.archive);
+    archive = await operations.captureArchive({ file: input.paths.archive, cap: SOURCE_ARCHIVE_LIMIT });
+    if (!exactKeys(archive, ["bytes", "sha256"]) || !positiveInteger(archive.bytes) || archive.bytes > SOURCE_ARCHIVE_LIMIT || !sha256(archive.sha256)) {
+      fail("scanner_seaweed_go_s3_source_archive_invalid");
+    }
+    try {
+      inspection = validateSeaweedGoS3SourceInspection(await operations.inspectSource(
+        seaweedGoS3SourceInspectorArguments({ python: input.paths.python, inspector: input.paths.inspector,
+          archive: input.paths.archive, config: input.paths.config })), { archiveBytes: archive.bytes, archiveSha256: archive.sha256 });
+    } catch (error) {
+      const detail = sourceRefusalDetails.get(error);
+      if (!detail) throw error;
+      refusal = detail;
+      refusalError = error;
+    }
+    await operations.assertInputsUnchanged();
+  } finally {
+    if (archiveOwned) {
+      await operations.removeOwnedArchive(input.paths.archive);
+      archiveRemoved = await operations.archiveAbsent(input.paths.archive);
+      if (archiveRemoved !== true) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+      archiveOwned = false;
+    }
+  }
+  if (archiveOwned) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+  if (refusalError) {
+    const receipt = validateSeaweedGoS3SourceRefusalReceipt({ schemaVersion: 1, kind: "SEAWEED_GO_S3_SOURCE_PREFLIGHT_V1",
+      state: "SOURCE_PREFLIGHT_REFUSED", authority: "DIAGNOSTIC_ONLY_NOT_ADMITTED", construction: "NOT_ATTEMPTED",
+      source: { ...input.source }, tools, resources, archive, refusal, sourceUnchanged: true, archiveRemoved });
+    sourceRefusalReceipts.set(refusalError, receipt);
+    throw refusalError;
+  }
+  return validateSeaweedGoS3SourcePreflightReceipt({ schemaVersion: 1, kind: "SEAWEED_GO_S3_SOURCE_PREFLIGHT_V1",
+    state: "SOURCE_PREFLIGHT_PASSED", authority: "DIAGNOSTIC_ONLY_NOT_ADMITTED", construction: "PENDING_NOT_IMPLEMENTED",
+    source: { ...input.source }, tools, resources, archive, inspection, sourceUnchanged: true, archiveRemoved });
+}

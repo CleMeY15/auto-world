@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "profile": "go-s3-4.51-v1",
+  "state": "SOURCE_PREFLIGHT_ONLY",
+  "admission": "NOT_AUTHORIZED",
+  "milestone2": "NOT_ESTABLISHED",
+  "source": {
+    "repository": "chrislusf/seaweedfs",
+    "indexDigest": "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
+    "platformDigest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707",
+    "configSha256": "e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6",
+    "configBytes": 13850,
+    "os": "linux",
+    "architecture": "amd64",
+    "commit": "ffa87c25fdf587178b1521ad87f2a4a72a02e584",
+    "diffIds": [
+      "sha256:75c137aedfb2760f88629236cb7b797630aed0c3d91d626d1d1bb694878fc2ba",
+      "sha256:14d28a8561c0323bfa76edd6bca302081ac63d3b0cb7ef45955a69e729ce0f06",
+      "sha256:5c2a12fbb0348e17e541422ab5639226008d4bfd0a133ea759470dc537cce42f",
+      "sha256:c9aac12923afabb4e0b0cd4c30c2c96f17aec00a258928880581d8861c59bcf6",
+      "sha256:18a6be0eab2649832a383d2ae3b92c11209078f4eb919717a5fbf9aabbd351fe",
+      "sha256:42664d44ed25abf36ba99eb50bd36916c7112c8b028b9ce64c4265664ba233ee",
+      "sha256:2bb9f79cd65bbdbc3eff10877e1752e8a6013f11e3d529455dd51025583b19a2",
+      "sha256:8b6ee38e2c0092bcce475079cfd98fac523f6bdb133eeae9bbab154d75d6a4ca",
+      "sha256:83f90d3184f33a3dc2d8a502016cd4a129354efaaae30ef8e48046e9371ac239",
+      "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+    ]
+  },
+  "unsupportedHelpers": [
+    {
+      "path": "usr/bin/weed-volume",
+      "bytes": 40128576,
+      "mode": "0755",
+      "sha256": "48c7397e7d1802d9728ac7bdfcf30454cb6fb50bb0098b79e88f9b3eaeddc3e4"
+    },
+    {
+      "path": "usr/bin/weed-worker",
+      "bytes": 252992824,
+      "mode": "0755",
+      "sha256": "2f7bd0db4811d463f4fc7278d2a6a336e1adfcb54124ecc79b67dbcab0ba149b"
+    }
+  ],
+  "support": {
+    "durationYears": 1,
+    "continuousSecurityControls": true,
+    "additionalArchiveDays": 365,
+    "startsAt": null,
+    "endsAt": null
+  },
+  "approvedPlanSha256": "b1e88e79f2c07411e97553383ae5c6ac9c949fcfaf89420684dff9a742e51990"
+}

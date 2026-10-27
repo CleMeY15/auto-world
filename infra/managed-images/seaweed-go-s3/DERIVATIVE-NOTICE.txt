@@ -1,0 +1,11 @@
+Auto World SeaweedFS Go/S3 diagnostic profile
+
+Upstream: SeaweedFS4.51, https://github.com/seaweedfs/seaweedfs
+Source revision: ffa87c25fdf587178b1521ad87f2a4a72a02e584
+Linux/amd64 platform manifest: sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707
+
+The intended derivative preserves the current upstream Go executable and existing notices, and removes only usr/bin/weed-volume and usr/bin/weed-worker. The Rust command paths are unsupported. This companion notice is kept outside the image and is not a statement of complete licence/source closure, publication, admission or activation.
+
+Current increment: read-only source-layer preflight only. No derivative has yet been constructed or accepted by this increment. Original publisher labels/config remain preserved in source-config.json as upstream evidence, not as attribution of a future Auto World image to upstream. Complete retained source/compiler/module/notices/recipe/security/runtime evidence remains required before publication and admission.
+
+Plan and rollback: roadmap/plans/TASK-0005-seaweed-go-s3-derivative.md and docs/validation/TASK-0005-seaweed-go-s3-derivative.md.

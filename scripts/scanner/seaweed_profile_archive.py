@@ -1,0 +1,892 @@
+"""Bounded, read-only inspection for the pinned SeaweedFS 4.51 Docker save.
+
+This module deliberately does not extract archives, replay OCI layers, or
+interpret whiteouts.  It proves that the exact source configuration and its
+ten ordered uncompressed layers are representable by the conservative
+export/import profile before any image transformation is attempted.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import os
+import posixpath
+import re
+import stat
+import sys
+import tarfile
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Any, BinaryIO, Iterable
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - the production command is Linux-only.
+    resource = None
+
+
+SCHEMA_VERSION = 1
+PROFILE = "go-s3-4.51-v1"
+EVIDENCE_CLASS = "SOURCE_LAYER_PREFLIGHT"
+SOURCE_CONFIG_SHA256 = "e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6"
+SOURCE_DIFF_IDS = (
+    "75c137aedfb2760f88629236cb7b797630aed0c3d91d626d1d1bb694878fc2ba",
+    "14d28a8561c0323bfa76edd6bca302081ac63d3b0cb7ef45955a69e729ce0f06",
+    "5c2a12fbb0348e17e541422ab5639226008d4bfd0a133ea759470dc537cce42f",
+    "c9aac12923afabb4e0b0cd4c30c2c96f17aec00a258928880581d8861c59bcf6",
+    "18a6be0eab2649832a383d2ae3b92c11209078f4eb919717a5fbf9aabbd351fe",
+    "42664d44ed25abf36ba99eb50bd36916c7112c8b028b9ce64c4265664ba233ee",
+    "2bb9f79cd65bbdbc3eff10877e1752e8a6013f11e3d529455dd51025583b19a2",
+    "8b6ee38e2c0092bcce475079cfd98fac523f6bdb133eeae9bbab154d75d6a4ca",
+    "83f90d3184f33a3dc2d8a502016cd4a129354efaaae30ef8e48046e9371ac239",
+    "5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+)
+
+MAX_ARCHIVE_BYTES = 2 * 1024**3
+MAX_LAYER_BYTES = 2 * 1024**3
+MAX_LAYER_TOTAL_BYTES = 2 * 1024**3
+MAX_OUTER_MEMBERS = 4096
+MAX_LAYER_MEMBERS = 4096
+MAX_TOTAL_LAYER_MEMBERS = 32768
+MAX_METADATA_BYTES = 64 * 1024
+MAX_PATH_BYTES = 1024
+MAX_JSON_BYTES = 4 * 1024**2
+MAX_OUTPUT_BYTES = 4 * 1024**2
+CHUNK_BYTES = 1024**2
+ZERO_BLOCK_BYTES = 1024
+REMOVED_HELPERS = ("usr/bin/weed-volume", "usr/bin/weed-worker")
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+CONFIG_MEMBER = re.compile(r"^[0-9a-f]{64}\.json$")
+LAYER_MEMBER = re.compile(r"^([0-9a-f]{64})/layer\.tar$")
+SAFE_PAX_KEYS = frozenset(("path", "linkpath", "mtime"))
+
+
+class InspectionRefusal(Exception):
+    """A finite, expected refusal that is safe to serialize."""
+
+    def __init__(
+        self,
+        code: str,
+        *,
+        layer_ordinal: int | None = None,
+        member: str | None = None,
+        member_is_safe: bool = False,
+    ) -> None:
+        super().__init__(code)
+        self.code = code
+        self.layer_ordinal = layer_ordinal
+        self.member = member
+        self.member_is_safe = member_is_safe
+
+
+class InspectionIntegrityError(Exception):
+    """A global input-integrity failure that can never qualify as a refusal."""
+
+    def __init__(self, code: str = "source_changed") -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, _message: str) -> None:
+        raise InspectionRefusal("arguments_invalid")
+
+
+def _require(
+    condition: bool,
+    code: str,
+    *,
+    layer_ordinal: int | None = None,
+    member: str | None = None,
+    member_is_safe: bool = False,
+) -> None:
+    if not condition:
+        raise InspectionRefusal(
+            code,
+            layer_ordinal=layer_ordinal,
+            member=member,
+            member_is_safe=member_is_safe,
+        )
+
+
+def _canonical_sha256(value: Any) -> str:
+    encoded = json.dumps(
+        value, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    ).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _json_no_duplicates(raw: bytes, code: str) -> Any:
+    _require(len(raw) <= MAX_JSON_BYTES, "json_limit")
+
+    def pairs(values: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in values:
+            _require(isinstance(key, str) and key not in result, code)
+            result[key] = value
+        return result
+
+    try:
+        return json.loads(raw.decode("utf-8", "strict"), object_pairs_hook=pairs)
+    except InspectionRefusal:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise InspectionRefusal(code) from None
+
+
+def _hash_stream(stream: BinaryIO, expected_size: int) -> str:
+    digest = hashlib.sha256()
+    remaining = expected_size
+    while remaining:
+        value = stream.read(min(CHUNK_BYTES, remaining))
+        _require(bool(value), "archive_truncated")
+        digest.update(value)
+        remaining -= len(value)
+    _require(not stream.read(1), "archive_size_mismatch")
+    return digest.hexdigest()
+
+
+def _read_stream(stream: BinaryIO, expected_size: int, limit: int) -> bytes:
+    _require(0 <= expected_size <= limit, "member_size_limit")
+    chunks: list[bytes] = []
+    remaining = expected_size
+    while remaining:
+        value = stream.read(min(CHUNK_BYTES, remaining))
+        _require(bool(value), "archive_truncated")
+        chunks.append(value)
+        remaining -= len(value)
+    _require(not stream.read(1), "archive_size_mismatch")
+    return b"".join(chunks)
+
+
+def _read_at(stream: BinaryIO, offset: int, size: int) -> bytes:
+    _require(offset >= 0 and size >= 0, "archive_invalid")
+    try:
+        previous = stream.tell()
+        stream.seek(offset)
+        value = stream.read(size)
+        stream.seek(previous)
+    except (AttributeError, OSError, ValueError):
+        raise InspectionRefusal("archive_seek_unsupported") from None
+    _require(len(value) == size, "archive_truncated")
+    return value
+
+
+def _hash_at(stream: BinaryIO, offset: int, size: int) -> str:
+    digest = hashlib.sha256()
+    remaining = size
+    cursor = offset
+    while remaining:
+        value = _read_at(stream, cursor, min(CHUNK_BYTES, remaining))
+        digest.update(value)
+        cursor += len(value)
+        remaining -= len(value)
+    return digest.hexdigest()
+
+
+def _all_zero(stream: BinaryIO, offset: int, size: int) -> bool:
+    remaining = size
+    cursor = offset
+    while remaining:
+        value = _read_at(stream, cursor, min(CHUNK_BYTES, remaining))
+        if any(value):
+            return False
+        cursor += len(value)
+        remaining -= len(value)
+    return True
+
+
+def _safe_path(value: Any, *, directory: bool, layer_ordinal: int | None) -> str:
+    if not isinstance(value, str):
+        raise InspectionRefusal("path_invalid", layer_ordinal=layer_ordinal)
+    try:
+        encoded = value.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        raise InspectionRefusal("path_invalid", layer_ordinal=layer_ordinal) from None
+    _require(
+        bool(value)
+        and len(encoded) <= MAX_PATH_BYTES
+        and "\\" not in value
+        and "//" not in value
+        and not value.startswith("/")
+        and not value.startswith("./")
+        and not re.match(r"^[A-Za-z]:", value)
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value),
+        "path_invalid",
+        layer_ordinal=layer_ordinal,
+        member=value,
+    )
+    logical = value[:-1] if directory and value.endswith("/") else value
+    _require(
+        bool(logical)
+        and all(component not in ("", ".", "..") for component in logical.split("/")),
+        "path_invalid",
+        layer_ordinal=layer_ordinal,
+        member=value,
+    )
+    return logical
+
+
+def _safe_link(value: Any, member_name: str, layer_ordinal: int | None) -> str:
+    if not isinstance(value, str):
+        raise InspectionRefusal("symlink_target_invalid", layer_ordinal=layer_ordinal)
+    try:
+        encoded = value.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        raise InspectionRefusal("symlink_target_invalid", layer_ordinal=layer_ordinal) from None
+    _require(
+        bool(value)
+        and len(encoded) <= MAX_PATH_BYTES
+        and "\\" not in value
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value),
+        "symlink_target_invalid",
+        layer_ordinal=layer_ordinal,
+        member=member_name,
+        member_is_safe=True,
+    )
+    base = "" if value.startswith("/") else posixpath.dirname(member_name)
+    resolved = posixpath.normpath(posixpath.join(base, value.lstrip("/")))
+    _require(
+        resolved not in ("", ".", "..")
+        and not resolved.startswith("../")
+        and resolved not in REMOVED_HELPERS,
+        "symlink_target_invalid",
+        layer_ordinal=layer_ordinal,
+        member=member_name,
+        member_is_safe=True,
+    )
+    return value
+
+
+def _integral_mtime(value: Any, pax_headers: dict[str, str], layer_ordinal: int | None) -> int:
+    try:
+        decimal = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise InspectionRefusal("fractional_mtime", layer_ordinal=layer_ordinal) from None
+    _require(decimal.is_finite() and decimal == decimal.to_integral_value(), "fractional_mtime", layer_ordinal=layer_ordinal)
+    if "mtime" in pax_headers:
+        try:
+            pax_mtime = Decimal(pax_headers["mtime"])
+        except (InvalidOperation, ValueError):
+            raise InspectionRefusal("fractional_mtime", layer_ordinal=layer_ordinal) from None
+        _require(
+            pax_mtime.is_finite() and pax_mtime == pax_mtime.to_integral_value(),
+            "fractional_mtime",
+            layer_ordinal=layer_ordinal,
+        )
+    return int(decimal)
+
+
+def _member_record(
+    info: tarfile.TarInfo,
+    layer_ordinal: int | None,
+    *,
+    allow_whiteouts: bool,
+) -> dict[str, Any]:
+    directory = info.isdir()
+    name = _safe_path(info.name, directory=directory, layer_ordinal=layer_ordinal)
+    _require(not info.uname and not info.gname, "owner_name_unsupported", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    _require(
+        not getattr(info, "sparse", None)
+        and not any(key.startswith("GNU.sparse") for key in info.pax_headers),
+        "sparse_unsupported",
+        layer_ordinal=layer_ordinal,
+        member=name,
+        member_is_safe=True,
+    )
+    _require(set(info.pax_headers).issubset(SAFE_PAX_KEYS), "pax_unsupported", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    _require(not info.islnk(), "hardlink_unsupported", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    _require(isinstance(info.uid, int) and 0 <= info.uid <= 2**31 - 1, "identity_invalid", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    _require(isinstance(info.gid, int) and 0 <= info.gid <= 2**31 - 1, "identity_invalid", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    _require(isinstance(info.mode, int) and 0 <= info.mode <= 0o7777, "mode_invalid", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    mtime = _integral_mtime(info.mtime, info.pax_headers, layer_ordinal)
+    components = name.split("/")
+    leaf = components[-1]
+    _require(
+        not any(component.startswith(".wh.") for component in components[:-1]),
+        "whiteout_invalid",
+        layer_ordinal=layer_ordinal,
+        member=name,
+        member_is_safe=True,
+    )
+    is_whiteout = leaf.startswith(".wh.")
+    if is_whiteout:
+        _require(allow_whiteouts, "whiteout_unsupported", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+        _require(info.isreg() and info.size == 0, "whiteout_invalid", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+        if leaf != ".wh..wh..opq":
+            removed = leaf[len(".wh."):]
+            _require(
+                bool(removed)
+                and removed not in (".", "..")
+                and not removed.startswith(".wh."),
+                "whiteout_invalid",
+                layer_ordinal=layer_ordinal,
+                member=name,
+                member_is_safe=True,
+            )
+
+    if info.isreg():
+        kind = "whiteout" if is_whiteout else "file"
+        linkname = ""
+    elif directory:
+        kind = "directory"
+        linkname = ""
+        _require(info.size == 0, "nonfile_size", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    elif info.issym():
+        kind = "symlink"
+        linkname = _safe_link(info.linkname, name, layer_ordinal)
+        _require(info.size == 0, "nonfile_size", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+    else:
+        raise InspectionRefusal(
+            "special_type_unsupported",
+            layer_ordinal=layer_ordinal,
+            member=name,
+            member_is_safe=True,
+        )
+
+    return {
+        "path": name,
+        "type": kind,
+        "mode": info.mode,
+        "uid": info.uid,
+        "gid": info.gid,
+        "mtime": mtime,
+        "size": info.size,
+        "linkname": linkname,
+        "paxKeys": sorted(info.pax_headers),
+    }
+
+
+def inspect_archive(
+    file_obj: BinaryIO,
+    *,
+    label: str = "archive",
+    max_members: int = MAX_LAYER_MEMBERS,
+    max_total_members: int | None = None,
+    cumulative: dict[str, int] | None = None,
+    layer_ordinal: int | None = None,
+) -> dict[str, Any]:
+    """Inspect one uncompressed TAR through public ``tarfile`` metadata only."""
+
+    source_layer = layer_ordinal is not None or label.startswith("source-layer")
+    allow_whiteouts = source_layer
+    try:
+        original_position = file_obj.tell()
+        file_obj.seek(0, io.SEEK_END)
+        archive_size = file_obj.tell()
+        file_obj.seek(0)
+    except (AttributeError, OSError, ValueError):
+        raise InspectionRefusal("archive_seek_unsupported", layer_ordinal=layer_ordinal) from None
+    _require(0 < archive_size <= MAX_LAYER_BYTES, "archive_size_limit", layer_ordinal=layer_ordinal)
+    _require(archive_size % tarfile.BLOCKSIZE == 0, "archive_truncated", layer_ordinal=layer_ordinal)
+
+    archive: tarfile.TarFile | None = None
+    try:
+        archive = tarfile.open(fileobj=file_obj, mode="r:", ignore_zeros=False, errorlevel=2)
+        already_counted = cumulative.get("members", 0) if cumulative is not None else 0
+        remaining_total = (
+            max_total_members - already_counted
+            if max_total_members is not None
+            else max_members
+        )
+        allowed_members = min(max_members, remaining_total)
+        _require(allowed_members >= 0, "member_limit", layer_ordinal=layer_ordinal)
+        infos: list[tarfile.TarInfo] = []
+        for info in archive:
+            _require(len(infos) < allowed_members, "member_limit", layer_ordinal=layer_ordinal)
+            infos.append(info)
+    except InspectionRefusal:
+        if archive is not None:
+            archive.close()
+        raise
+    except (tarfile.TarError, EOFError, OSError, ValueError):
+        if archive is not None:
+            archive.close()
+        raise InspectionRefusal("archive_invalid", layer_ordinal=layer_ordinal) from None
+
+    try:
+        _require(bool(infos) or source_layer, "archive_empty", layer_ordinal=layer_ordinal)
+        if cumulative is not None:
+            total = already_counted + len(infos)
+            cumulative["members"] = total
+
+        names: set[str] = set()
+        declared_types: dict[str, str] = {}
+        records: list[dict[str, Any]] = []
+        cursor = 0
+        for info in infos:
+            record = _member_record(info, layer_ordinal, allow_whiteouts=allow_whiteouts)
+            name = record["path"]
+            _require(name not in names, "duplicate_member", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+            components = name.split("/")
+            ancestors = ("/".join(components[:index]) for index in range(1, len(components)))
+            _require(
+                all(declared_types.get(ancestor, "directory") == "directory" for ancestor in ancestors),
+                "path_invalid",
+                layer_ordinal=layer_ordinal,
+                member=name,
+                member_is_safe=True,
+            )
+            if record["type"] != "directory":
+                prefix = f"{name}/"
+                _require(
+                    not any(existing.startswith(prefix) for existing in declared_types),
+                    "path_invalid",
+                    layer_ordinal=layer_ordinal,
+                    member=name,
+                    member_is_safe=True,
+                )
+            names.add(name)
+            declared_types[name] = record["type"]
+            metadata_bytes = info.offset_data - info.offset
+            _require(
+                isinstance(info.offset, int)
+                and isinstance(info.offset_data, int)
+                and isinstance(info.size, int)
+                and info.offset == cursor
+                and info.offset % tarfile.BLOCKSIZE == 0
+                and info.offset_data % tarfile.BLOCKSIZE == 0
+                and metadata_bytes == tarfile.BLOCKSIZE,
+                "archive_hidden_region",
+                layer_ordinal=layer_ordinal,
+                member=name,
+                member_is_safe=True,
+            )
+            payload_end = info.offset_data + info.size
+            raw_end = (payload_end + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE * tarfile.BLOCKSIZE
+            _require(raw_end <= archive_size, "archive_truncated", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+            _require(
+                _all_zero(file_obj, payload_end, raw_end - payload_end),
+                "archive_nonzero_padding",
+                layer_ordinal=layer_ordinal,
+                member=name,
+                member_is_safe=True,
+            )
+            record["rawSha256"] = _hash_at(file_obj, info.offset, raw_end - info.offset)
+            if info.isreg():
+                extracted = archive.extractfile(info)
+                _require(extracted is not None, "archive_invalid", layer_ordinal=layer_ordinal, member=name, member_is_safe=True)
+                with extracted:
+                    record["payloadSha256"] = _hash_stream(extracted, info.size)
+            else:
+                record["payloadSha256"] = hashlib.sha256(b"").hexdigest()
+            records.append(record)
+            cursor = raw_end
+
+        tail_bytes = archive_size - cursor
+        _require(tail_bytes >= ZERO_BLOCK_BYTES, "archive_truncated", layer_ordinal=layer_ordinal)
+        _require(_all_zero(file_obj, cursor, tail_bytes), "archive_nonzero_tail", layer_ordinal=layer_ordinal)
+        metadata_records = [
+            {key: value for key, value in record.items() if key != "payloadSha256"}
+            for record in records
+        ]
+        return {
+            "bytes": archive_size,
+            "memberCount": len(records),
+            "metadataSha256": _canonical_sha256(metadata_records),
+            "inventorySha256": _canonical_sha256(records),
+            "records": records,
+            "infos": infos,
+            "archive": archive,
+        }
+    except Exception:
+        archive.close()
+        raise
+    finally:
+        try:
+            file_obj.seek(original_position)
+        except (OSError, ValueError):
+            pass
+
+
+class _SecureInput:
+    """An absolute, immutable, owned regular file with stable identity."""
+
+    def __init__(
+        self,
+        value: str | os.PathLike[str],
+        *,
+        max_bytes: int,
+        exit_hook: Any | None = None,
+    ) -> None:
+        self.path = Path(value)
+        self.exit_hook = exit_hook
+        self.file: BinaryIO | None = None
+        _require(self.path.is_absolute(), "input_path_invalid")
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        try:
+            self.fd = os.open(self.path, flags)
+        except OSError:
+            raise InspectionRefusal("input_open_failed") from None
+        try:
+            self.before = os.fstat(self.fd)
+            path_stat = os.lstat(self.path)
+            current_uid = os.geteuid() if hasattr(os, "geteuid") else self.before.st_uid
+            _require(stat.S_ISREG(self.before.st_mode), "input_type_invalid")
+            _require(self.before.st_uid == current_uid, "input_owner_invalid")
+            _require(self.before.st_nlink == 1, "input_link_count_invalid")
+            _require(stat.S_IMODE(self.before.st_mode) & 0o222 == 0, "input_not_readonly")
+            _require(0 < self.before.st_size <= max_bytes, "input_size_limit")
+            _require(
+                (path_stat.st_dev, path_stat.st_ino, path_stat.st_size)
+                == (self.before.st_dev, self.before.st_ino, self.before.st_size),
+                "input_identity_mismatch",
+            )
+            self.file = os.fdopen(os.dup(self.fd), "rb", buffering=0)
+            try:
+                self.sha256 = _hash_stream(self.file, self.before.st_size)
+                self.file.seek(0)
+            except InspectionRefusal:
+                raise InspectionIntegrityError() from None
+        except Exception:
+            if self.file is not None:
+                self.file.close()
+            os.close(self.fd)
+            raise
+
+    @property
+    def size(self) -> int:
+        return self.before.st_size
+
+    def verify_unchanged(self) -> None:
+        try:
+            after = os.fstat(self.fd)
+            path_stat = os.lstat(self.path)
+            fields = ("st_dev", "st_ino", "st_uid", "st_gid", "st_mode", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+            if not all(getattr(after, field) == getattr(self.before, field) for field in fields):
+                raise InspectionIntegrityError()
+            if (path_stat.st_dev, path_stat.st_ino, path_stat.st_size) != (after.st_dev, after.st_ino, after.st_size):
+                raise InspectionIntegrityError()
+            if self.file is None:
+                raise InspectionIntegrityError()
+            self.file.seek(0)
+            if _hash_stream(self.file, self.size) != self.sha256:
+                raise InspectionIntegrityError()
+            self.file.seek(0)
+        except InspectionIntegrityError:
+            raise
+        except (InspectionRefusal, OSError, ValueError):
+            raise InspectionIntegrityError() from None
+
+    def close(self) -> None:
+        try:
+            if self.file is not None:
+                self.file.close()
+        finally:
+            os.close(self.fd)
+
+    def __enter__(self) -> "_SecureInput":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        try:
+            if self.exit_hook is not None:
+                hook, self.exit_hook = self.exit_hook, None
+                hook()
+            self.verify_unchanged()
+        finally:
+            self.close()
+
+
+def _read_member(archive: tarfile.TarFile, info: tarfile.TarInfo, limit: int) -> bytes:
+    extracted = archive.extractfile(info)
+    _require(extracted is not None, "archive_invalid")
+    with extracted:
+        return _read_stream(extracted, info.size, limit)
+
+
+def _validate_source_config(raw: bytes, expected_sha256: str, expected_diff_ids: tuple[str, ...]) -> None:
+    _require(hashlib.sha256(raw).hexdigest() == expected_sha256, "source_config_mismatch")
+    config = _json_no_duplicates(raw, "source_config_invalid")
+    _require(isinstance(config, dict), "source_config_invalid")
+    rootfs = config.get("rootfs")
+    _require(isinstance(rootfs, dict) and set(rootfs) == {"type", "diff_ids"}, "source_config_invalid")
+    _require(rootfs.get("type") == "layers", "source_config_invalid")
+    diff_ids = rootfs.get("diff_ids")
+    expected = [f"sha256:{value}" for value in expected_diff_ids]
+    _require(diff_ids == expected, "source_config_diffids_mismatch")
+
+
+def _inspect_source_save(
+    archive_path: str | os.PathLike[str],
+    config_path: str | os.PathLike[str],
+    *,
+    expected_config_sha256: str,
+    expected_diff_ids: tuple[str, ...],
+    finalize_hook: Any | None = None,
+) -> dict[str, Any]:
+    _require(HEX64.fullmatch(expected_config_sha256) is not None, "expected_profile_invalid")
+    _require(bool(expected_diff_ids) and all(HEX64.fullmatch(value) for value in expected_diff_ids), "expected_profile_invalid")
+
+    with _SecureInput(config_path, max_bytes=MAX_JSON_BYTES) as config_input:
+        with _SecureInput(
+            archive_path,
+            max_bytes=MAX_ARCHIVE_BYTES,
+            exit_hook=finalize_hook,
+        ) as archive_input:
+            if config_input.file is None or archive_input.file is None:
+                raise InspectionIntegrityError()
+            config_input.file.seek(0)
+            config_raw = _read_stream(config_input.file, config_input.size, MAX_JSON_BYTES)
+            _validate_source_config(config_raw, expected_config_sha256, expected_diff_ids)
+            outer = inspect_archive(
+                archive_input.file,
+                label="source-save",
+                max_members=MAX_OUTER_MEMBERS,
+            )
+            outer_archive: tarfile.TarFile = outer["archive"]
+            try:
+                by_name = {record["path"]: (record, info) for record, info in zip(outer["records"], outer["infos"], strict=True)}
+                _require("manifest.json" in by_name, "save_manifest_missing")
+                manifest_record, manifest_info = by_name["manifest.json"]
+                _require(manifest_record["type"] == "file", "save_manifest_invalid")
+                manifest = _json_no_duplicates(_read_member(outer_archive, manifest_info, MAX_JSON_BYTES), "save_manifest_invalid")
+                _require(isinstance(manifest, list) and len(manifest) == 1 and isinstance(manifest[0], dict), "save_manifest_invalid")
+                target = manifest[0]
+                _require(set(target) == {"Config", "RepoTags", "Layers"}, "save_manifest_invalid")
+                config_member = target.get("Config")
+                layer_paths = target.get("Layers")
+                repo_tags = target.get("RepoTags")
+                _require(isinstance(config_member, str) and CONFIG_MEMBER.fullmatch(config_member) is not None, "save_config_reference_invalid")
+                _require(
+                    isinstance(layer_paths, list)
+                    and len(layer_paths) == len(expected_diff_ids)
+                    and len(set(layer_paths)) == len(layer_paths)
+                    and all(isinstance(value, str) and LAYER_MEMBER.fullmatch(value) is not None for value in layer_paths),
+                    "save_layer_reference_invalid",
+                )
+                _require(
+                    repo_tags is None
+                    or (
+                        isinstance(repo_tags, list)
+                        and 1 <= len(repo_tags) <= 8
+                        and all(isinstance(value, str) and 0 < len(value.encode("utf-8")) <= MAX_PATH_BYTES for value in repo_tags)
+                    ),
+                    "save_repo_tags_invalid",
+                )
+                _require(config_member in by_name, "save_config_missing")
+                config_record, config_info = by_name[config_member]
+                _require(config_record["type"] == "file" and config_info.size == len(config_raw), "save_config_mismatch")
+                saved_config = _read_member(outer_archive, config_info, MAX_JSON_BYTES)
+                _require(saved_config == config_raw, "save_config_mismatch")
+
+                layer_directories = {path.rsplit("/", 1)[0] for path in layer_paths}
+                allowed_regular = {"manifest.json", config_member, "repositories", *layer_paths}
+                for directory in layer_directories:
+                    allowed_regular.add(f"{directory}/VERSION")
+                    allowed_regular.add(f"{directory}/json")
+                for record in outer["records"]:
+                    if record["type"] == "directory":
+                        _require(record["path"] in layer_directories, "save_unreferenced_member", member=record["path"], member_is_safe=True)
+                    else:
+                        _require(record["type"] == "file" and record["path"] in allowed_regular, "save_unreferenced_member", member=record["path"], member_is_safe=True)
+                for layer_path in layer_paths:
+                    _require(layer_path in by_name, "save_layer_missing")
+                if "repositories" in by_name:
+                    repository_record, repository_info = by_name["repositories"]
+                    _require(repository_record["type"] == "file", "save_repositories_invalid")
+                    repositories = _json_no_duplicates(_read_member(outer_archive, repository_info, MAX_JSON_BYTES), "save_repositories_invalid")
+                    _require(isinstance(repositories, dict), "save_repositories_invalid")
+                for directory in layer_directories:
+                    version_name = f"{directory}/VERSION"
+                    if version_name in by_name:
+                        version_record, version_info = by_name[version_name]
+                        _require(version_record["type"] == "file", "save_metadata_invalid")
+                        _require(_read_member(outer_archive, version_info, 64) == b"1.0", "save_metadata_invalid")
+                    json_name = f"{directory}/json"
+                    if json_name in by_name:
+                        json_record, json_info = by_name[json_name]
+                        _require(json_record["type"] == "file", "save_metadata_invalid")
+                        layer_metadata = _json_no_duplicates(_read_member(outer_archive, json_info, MAX_JSON_BYTES), "save_metadata_invalid")
+                        _require(isinstance(layer_metadata, dict), "save_metadata_invalid")
+
+                cumulative = {"members": 0}
+                total_layer_bytes = 0
+                layers: list[dict[str, Any]] = []
+                for ordinal, (layer_path, expected_diff_id) in enumerate(zip(layer_paths, expected_diff_ids, strict=True), start=1):
+                    layer_record, layer_info = by_name[layer_path]
+                    _require(layer_record["type"] == "file", "save_layer_invalid", layer_ordinal=ordinal)
+                    total_layer_bytes += layer_info.size
+                    _require(total_layer_bytes <= MAX_LAYER_TOTAL_BYTES, "layer_total_size_limit", layer_ordinal=ordinal)
+                    layer_stream = outer_archive.extractfile(layer_info)
+                    _require(layer_stream is not None, "save_layer_invalid", layer_ordinal=ordinal)
+                    with layer_stream:
+                        layer_sha256 = _hash_stream(layer_stream, layer_info.size)
+                        _require(layer_sha256 == expected_diff_id, "layer_digest_mismatch", layer_ordinal=ordinal)
+                        try:
+                            layer_stream.seek(0)
+                        except (AttributeError, OSError, ValueError):
+                            raise InspectionRefusal("archive_seek_unsupported", layer_ordinal=ordinal) from None
+                        layer = inspect_archive(
+                            layer_stream,
+                            label="source-layer",
+                            max_members=MAX_LAYER_MEMBERS,
+                            max_total_members=MAX_TOTAL_LAYER_MEMBERS,
+                            cumulative=cumulative,
+                            layer_ordinal=ordinal,
+                        )
+                        layer["archive"].close()
+                    layers.append(
+                        {
+                            "ordinal": ordinal,
+                            "path": layer_path,
+                            "sha256": layer_sha256,
+                            "bytes": layer_info.size,
+                            "memberCount": layer["memberCount"],
+                            "metadataSha256": layer["metadataSha256"],
+                            "inventorySha256": layer["inventorySha256"],
+                        }
+                    )
+
+                return {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "profile": PROFILE,
+                    "evidenceClass": EVIDENCE_CLASS,
+                    "status": "PASS",
+                    "sourceConfigSha256": expected_config_sha256,
+                    "archive": {"sha256": archive_input.sha256, "bytes": archive_input.size},
+                    "layers": layers,
+                    "totals": {
+                        "layerCount": len(layers),
+                        "layerBytes": total_layer_bytes,
+                        "memberCount": cumulative["members"],
+                    },
+                }
+            finally:
+                outer_archive.close()
+
+
+def inspect_source_save(
+    archive_path: str | os.PathLike[str], config_path: str | os.PathLike[str]
+) -> dict[str, Any]:
+    """Inspect the production profile.  Its expected identity is not overrideable."""
+
+    return _inspect_source_save(
+        archive_path,
+        config_path,
+        expected_config_sha256=SOURCE_CONFIG_SHA256,
+        expected_diff_ids=SOURCE_DIFF_IDS,
+    )
+
+
+def inspect_source_save_fixture(
+    archive_path: str | os.PathLike[str],
+    config_path: str | os.PathLike[str],
+    expected_config_sha256: str,
+    expected_diff_ids: Iterable[str],
+    *,
+    finalize_hook: Any | None = None,
+) -> dict[str, Any]:
+    """Test-only profile injection for small, independent inert fixtures."""
+
+    normalized_diff_ids = tuple(
+        value.removeprefix("sha256:") for value in expected_diff_ids
+    )
+    return _inspect_source_save(
+        archive_path,
+        config_path,
+        expected_config_sha256=expected_config_sha256,
+        expected_diff_ids=normalized_diff_ids,
+        finalize_hook=finalize_hook,
+    )
+
+
+def _activate_cli_limits() -> None:
+    _require(resource is not None, "resource_limits_unavailable")
+    try:
+        _cpu_soft, cpu_hard = resource.getrlimit(resource.RLIMIT_CPU)
+        cpu_target = 300 if cpu_hard == resource.RLIM_INFINITY else min(300, cpu_hard)
+        _require(cpu_target > 0, "resource_limits_unavailable")
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_target, cpu_hard))
+        _address_soft, address_hard = resource.getrlimit(resource.RLIMIT_AS)
+        address_target = 512 * 1024**2
+        _require(address_hard == resource.RLIM_INFINITY or address_hard >= address_target, "resource_limits_unavailable")
+        resource.setrlimit(resource.RLIMIT_AS, (address_target, address_hard))
+        _file_soft, file_hard = resource.getrlimit(resource.RLIMIT_FSIZE)
+        file_target = MAX_OUTPUT_BYTES if file_hard == resource.RLIM_INFINITY else min(MAX_OUTPUT_BYTES, file_hard)
+        _require(file_target > 0, "resource_limits_unavailable")
+        resource.setrlimit(resource.RLIMIT_FSIZE, (file_target, file_hard))
+    except (OSError, ValueError):
+        raise InspectionRefusal("resource_limits_unavailable") from None
+
+
+def _refusal_json(refusal: InspectionRefusal) -> dict[str, Any]:
+    detail: dict[str, Any] = {"code": refusal.code}
+    if refusal.layer_ordinal is not None:
+        detail["layerOrdinal"] = refusal.layer_ordinal
+    if refusal.member is not None:
+        if refusal.member_is_safe:
+            detail["member"] = refusal.member
+        else:
+            detail["memberSha256"] = hashlib.sha256(
+                refusal.member.encode("utf-8", "backslashreplace")
+            ).hexdigest()
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "profile": PROFILE,
+        "evidenceClass": EVIDENCE_CLASS,
+        "status": "REFUSED",
+        "refusal": detail,
+    }
+
+
+def _integrity_json(error: InspectionIntegrityError) -> dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "profile": PROFILE,
+        "evidenceClass": EVIDENCE_CLASS,
+        "status": "ERROR",
+        "error": {"code": error.code},
+    }
+
+
+def _emit(value: dict[str, Any]) -> None:
+    encoded = json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii") + b"\n"
+    if len(encoded) > MAX_OUTPUT_BYTES:
+        encoded = json.dumps(
+            _refusal_json(InspectionRefusal("output_limit")),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii") + b"\n"
+    binary_stdout = getattr(sys.stdout, "buffer", None)
+    if binary_stdout is not None:
+        binary_stdout.write(encoded)
+        binary_stdout.flush()
+    else:  # Supports a bounded in-memory capture without changing production bytes.
+        sys.stdout.write(encoded.decode("ascii"))
+        sys.stdout.flush()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _ArgumentParser(add_help=True)
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    source_save = subcommands.add_parser("source-save")
+    source_save.add_argument("--archive", required=True)
+    source_save.add_argument("--config", required=True)
+    try:
+        arguments = parser.parse_args(argv)
+        _activate_cli_limits()
+        if arguments.command == "source-save":
+            _emit(inspect_source_save(arguments.archive, arguments.config))
+            return 0
+        raise InspectionRefusal("command_invalid")
+    except InspectionIntegrityError as error:
+        _emit(_integrity_json(error))
+        return 3
+    except InspectionRefusal as refusal:
+        _emit(_refusal_json(refusal))
+        return 2
+    except (MemoryError, RecursionError):
+        _emit(_refusal_json(InspectionRefusal("resource_limit")))
+        return 2
+    except BaseException:
+        _emit(_refusal_json(InspectionRefusal("internal_error")))
+        return 3
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

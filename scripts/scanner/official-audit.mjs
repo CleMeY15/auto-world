@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { TextDecoder } from "node:util";
@@ -15,6 +15,9 @@ import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainer
   seaweedRustSourceFetchArguments, validateSeaweedRustControlReport, validateSeaweedRustHelperAbsence,
   validateSeaweedRustHelperContainer, validateSeaweedRustHelperMeasurement, validateSeaweedRustLockUniverse,
   validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock } from "./seaweed-rust-source.mjs";
+import { runSeaweedGoS3SourcePreflight, seaweedGoS3DockerInfoArguments, seaweedGoS3DockerVersionArguments,
+  seaweedGoS3GnuTarVersionArguments, seaweedGoS3PythonVersionArguments, validateSeaweedGoS3Profile,
+  seaweedGoS3SourceRefusalError, seaweedGoS3SourceRefusalReceipt, validateSeaweedGoS3SourceRefusal } from "./seaweed-go-s3.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
@@ -705,12 +708,15 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     const policyInputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }]);
     const config = validateOfficialReleaseConfig((await readBoundedJson(configFile, MiB)).value);
     const lock = (await readBoundedJson(lockFile, MiB)).value;
-    let managed, rustMetadata, rustMetadataFile;
+    let managed, rustMetadata, rustMetadataFile, seaweedGoS3Profile, seaweedGoS3ProfileFile, seaweedGoS3ConfigFile;
     let managedInputs = [];
     if (scope === "managed") {
       managed = validateManagedImageLock((await readBoundedJson(path.join(ROOT, "infra/managed-images/lock.json"), MiB)).value, config);
       rustMetadataFile = path.join(ROOT, "infra/managed-images/seaweed-rust-source.json");
       rustMetadata = validateSeaweedRustSourceLock((await readBoundedJson(rustMetadataFile, MiB)).value, config);
+      seaweedGoS3ProfileFile = path.join(ROOT, "infra/managed-images/seaweed-go-s3/profile.json");
+      seaweedGoS3ConfigFile = path.join(ROOT, "infra/managed-images/seaweed-go-s3/source-config.json");
+      seaweedGoS3Profile = validateSeaweedGoS3Profile((await readBoundedJson(seaweedGoS3ProfileFile, MiB)).value);
       const sourceFiles = [];
       const visit = (directory) => {
         for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -723,6 +729,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       };
       visit(path.join(ROOT, "infra/managed-images"));
       managedInputs = await captureFiles(sourceFiles);
+      const profileInput = managedInputs.find((entry) => entry.path === seaweedGoS3ProfileFile);
+      const configInput = managedInputs.find((entry) => entry.path === seaweedGoS3ConfigFile);
+      if (!profileInput || !configInput || configInput.size !== seaweedGoS3Profile.source.configBytes ||
+          configInput.sha256 !== seaweedGoS3Profile.source.configSha256) fail("scanner_seaweed_go_s3_profile_invalid");
       receipt.managedSources = managedInputs;
       const disk = statfsSync(runnerTemp);
       receipt.managedDisk = { freeBytes: disk.bavail * disk.bsize, requiredFreeBytes: 20 * GiB };
@@ -910,7 +920,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         }
       });
     }
-    let originalImageFailure;
+    let originalImageFailure, seaweedGoS3SourceImage;
     try { await phase("five_image_audits", async () => {
       receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
         ? { role: image.role, ...localImages.get(image.role).subject }
@@ -1065,6 +1075,12 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         { file: path.join(output, "seaweed-rust-image-inspect.json") }).toString("utf8"));
       const imageReport = (await readBoundedJson(path.join(output, "image-seaweedfs.json"))).value;
       const imageId = validatePreparedRuntimeImage(inspected, imageReport);
+      if (imageId !== `sha256:${seaweedGoS3Profile.source.configSha256}` || reference !==
+          `${seaweedGoS3Profile.source.repository}@${seaweedGoS3Profile.source.platformDigest}`) {
+        fail("scanner_seaweed_go_s3_profile_invalid");
+      }
+      seaweedGoS3SourceImage = { reference, imageId, manifestDigest: seaweedGoS3Profile.source.platformDigest,
+        configDigest: `sha256:${seaweedGoS3Profile.source.configSha256}`, platform: "linux/amd64" };
       const helperRoot = path.join(work, "seaweed-rust-helper-copies"); mkdirSync(helperRoot, { mode: 0o700 });
       const limitRoot = path.join(work, "seaweed-rust-soft-limit-control"); mkdirSync(limitRoot, { mode: 0o700 });
       const disk = statfsSync(helperRoot); const freeBytes = disk.bavail * disk.bsize;
@@ -1156,7 +1172,113 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       await assertFilesUnchanged(inputs); await assertFilesUnchanged(sourceInputs); await assertFilesUnchanged(publicSourceInputs);
         return { failure: rustFailures[0] ?? null };
       },
-      producedImageRuntime: async () => phase("produced_image_runtime", async () => {
+      producedImageRuntime: async () => {
+        await phase("seaweed_go_s3_source_preflight", async () => {
+          if (!seaweedGoS3SourceImage) fail("scanner_seaweed_go_s3_source_preflight_invalid");
+          const directory = path.join(work, `seaweed-go-s3-preflight-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
+          const archive = path.join(directory, "source-save.tar");
+          const frozenConfig = path.join(directory, "source-config.json");
+          copyFileSync(seaweedGoS3ConfigFile, frozenConfig); chmodSync(frozenConfig, 0o444);
+          const publicRoot = path.join(directory, "public"); mkdirSync(publicRoot, { mode: 0o700 });
+          const inspector = path.join(ROOT, "scripts/scanner/seaweed_profile_archive.py");
+          const python = "/usr/bin/python3";
+          const preflightInputs = await captureFiles([
+            { path: seaweedGoS3ProfileFile, cap: MiB }, { path: seaweedGoS3ConfigFile, cap: MiB }, { path: frozenConfig, cap: MiB },
+            { path: inspector, cap: MiB }, { path: path.join(ROOT, "scripts/scanner/seaweed-go-s3.mjs"), cap: MiB },
+            { path: import.meta.filename, cap: MiB },
+          ]);
+          if (preflightInputs[1].size !== preflightInputs[2].size || preflightInputs[1].sha256 !== preflightInputs[2].sha256) {
+            fail("scanner_seaweed_go_s3_profile_invalid");
+          }
+          const finiteToolProbe = (executable, args, operation) => {
+            const result = invoke(executable, args, 30_000);
+            const record = { executable: path.basename(executable), operation, exitCode: result.status, signal: result.signal,
+              error: result.error?.code ?? null };
+            receipt.commands.push(record);
+            if (!successful(result)) { record.diagnostic = commandFailureDiagnostic(result); fail("scanner_official_command_failed"); }
+            if ((result.stderr?.length ?? 0) > 0 && (result.stdout?.length ?? 0) > 0) fail("scanner_seaweed_go_s3_tool_evidence_invalid");
+            return Buffer.concat([result.stdout ?? Buffer.alloc(0), result.stderr ?? Buffer.alloc(0)]).toString("utf8").trim();
+          };
+          const filesystemEvidence = (directoryPath) => {
+            const resolved = realpathSync(directoryPath);
+            const identity = lstatSync(resolved);
+            const disk = statfsSync(resolved, { bigint: true });
+            const free = disk.bavail * disk.bsize;
+            if (free < 1n || free > BigInt(Number.MAX_SAFE_INTEGER)) fail("scanner_seaweed_go_s3_filesystem_invalid");
+            return { path: resolved, filesystemId: `${identity.dev}:${disk.type}`, freeBytes: Number(free) };
+          };
+          let result;
+          try {
+            result = await runSeaweedGoS3SourcePreflight({ source: seaweedGoS3SourceImage,
+              paths: { archive, config: frozenConfig, inspector, python, scratchDirectory: directory } }, {
+            assertInputsUnchanged: async () => { await assertFilesUnchanged(inputs); await assertFilesUnchanged(preflightInputs); },
+            probeTools: async () => {
+              const version = JSON.parse(command(DOCKER, seaweedGoS3DockerVersionArguments(),
+                { file: path.join(directory, "docker-version.json"), timeout: 30_000, requireEmptyStderr: true }).toString("utf8"));
+              const info = JSON.parse(command(DOCKER, seaweedGoS3DockerInfoArguments(),
+                { file: path.join(directory, "docker-info.json"), timeout: 30_000, requireEmptyStderr: true }).toString("utf8"));
+              return { docker: { clientVersion: version?.Client?.Version, serverVersion: version?.Server?.Version,
+                apiVersion: version?.Client?.ApiVersion, dockerRootDir: info?.DockerRootDir,
+                operatingSystem: info?.OSType, architecture: info?.Architecture },
+              python: { version: finiteToolProbe(python, seaweedGoS3PythonVersionArguments(), "seaweed_go_s3_python_version") },
+              gnuTar: { version: finiteToolProbe("/usr/bin/tar", seaweedGoS3GnuTarVersionArguments(), "seaweed_go_s3_gnu_tar_version") } };
+            },
+            statFilesystems: async ({ scratchDirectory, dockerRootDirectory }) => {
+              const scratch = filesystemEvidence(scratchDirectory), docker = filesystemEvidence(dockerRootDirectory);
+              return { scratch, docker };
+            },
+            saveSource: async (spec) => { command(spec.command, spec.args, { timeout: spec.timeoutMs, requireEmptyStderr: true }); },
+            lockArchive: async (file) => { chmodSync(file, 0o444); },
+            captureArchive: async ({ file, cap }) => {
+              const [captured] = await captureFiles([{ path: file, cap }]);
+              return { bytes: captured.size, sha256: captured.sha256 };
+            },
+            inspectSource: async (spec) => {
+              const reportFile = path.join(directory, "source-preflight.json");
+              try { command(spec.command, spec.args, { file: reportFile, timeout: spec.timeoutMs, requireEmptyStderr: true }); }
+              catch (error) {
+                const record = receipt.commands.at(-1);
+                if (record?.error != null || record?.signal != null || record?.exitCode !== 2 || record?.diagnostic?.stderrBytes !== 0) throw error;
+                const refusal = validateSeaweedGoS3SourceRefusal((await readBoundedJson(reportFile, 4 * MiB)).value);
+                throw seaweedGoS3SourceRefusalError(refusal);
+              }
+              return (await readBoundedJson(reportFile, 4 * MiB)).value;
+            },
+            removeOwnedArchive: async (file) => {
+              try {
+                if (!existsSync(file)) return;
+                const info = lstatSync(file);
+                if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                chmodSync(file, 0o600); unlinkSync(file);
+              } catch { fail("scanner_seaweed_go_s3_cleanup_uncertain"); }
+            },
+            archiveAbsent: async (file) => {
+              try { lstatSync(file); return false; }
+              catch (error) {
+                if (error?.code === "ENOENT") return true;
+                fail("scanner_seaweed_go_s3_cleanup_uncertain");
+              }
+            },
+            });
+          } catch (error) {
+            const refusalReceipt = seaweedGoS3SourceRefusalReceipt(error);
+            if (!refusalReceipt) throw error;
+            receipt.seaweedGoS3SourcePreflight = refusalReceipt;
+            writeJson(path.join(publicRoot, "source-preflight-refusal.json"), refusalReceipt);
+            const published = path.join(output, "managed-public-evidence");
+            if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+            receipt.seaweedGoS3PublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-go-s3"));
+            throw error;
+          }
+          receipt.seaweedGoS3SourcePreflight = result;
+          writeJson(path.join(publicRoot, "source-preflight.json"), result);
+          const published = path.join(output, "managed-public-evidence");
+          if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+          receipt.seaweedGoS3PublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-go-s3"));
+          await assertFilesUnchanged(inputs); await assertFilesUnchanged(preflightInputs);
+        });
+        await phase("seaweed_go_s3_construction", async () => fail("scanner_seaweed_go_s3_construction_pending"));
+        return phase("produced_image_runtime", async () => {
        await assertFilesUnchanged(inputs);
       const directory = path.join(work, `managed-runtime-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
       const runtimeFile = path.join(ROOT, "tests/managed-image-runtime.integration.mjs");
@@ -1223,7 +1345,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       const { passed } = await publishManagedRuntimeResult({ resultFile: path.join(directory, "runtime-result.json"),
         publicFile: path.join(output, "managed-runtime-result.json"), expected: runtimeInput, childFailed: Boolean(childFailure), receipt });
       if (!passed) fail("scanner_managed_runtime_incomplete");
-      }),
+        });
+      },
     });
     await assertFilesUnchanged(inputs);
     receipt.result = "passed";

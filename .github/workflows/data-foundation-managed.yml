@@ -11,7 +11,8 @@
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
         "roadmap/plans/TASK-0005-managed-image-corrections.md",
-        "tests/managed-image-runtime.integration.mjs"
+        "tests/managed-image-runtime.integration.mjs",
+        "tests/test_seaweed_profile_archive.py"
       ]
     },
     "push": {
@@ -27,7 +28,8 @@
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
         "roadmap/plans/TASK-0005-managed-image-corrections.md",
-        "tests/managed-image-runtime.integration.mjs"
+        "tests/managed-image-runtime.integration.mjs",
+        "tests/test_seaweed_profile_archive.py"
       ]
     }
   },
@@ -65,7 +67,7 @@
           "id": "tests",
           "timeout-minutes": 5,
           "shell": "bash",
-          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs"
+          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs\npython3 -m unittest discover -s tests -p test_seaweed_profile_archive.py"
         },
         {
           "name": "Verify official scanner provenance before extraction",
