@@ -13,6 +13,7 @@ import {
   seaweedGoS3SourceRefusalError,
   seaweedGoS3SourceRefusalReceipt,
   validateSeaweedGoS3Profile,
+  validateSeaweedGoS3ManifestDiagnostic,
   validateSeaweedGoS3SourcePreflightReceipt,
   validateSeaweedGoS3SourceRefusal,
 } from "../scripts/scanner/seaweed-go-s3.mjs";
@@ -95,6 +96,68 @@ function inspection() {
     layers,
     totals: { layerCount: 10, layerBytes: 102_400, memberCount: 10 },
   };
+}
+
+function missingManifestDiagnostic() {
+  return {
+    schemaVersion: 1,
+    outer: {
+      ociLayoutPresent: false,
+      indexJsonPresent: false,
+      repositoriesPresent: false,
+      blobsPrefixPresent: false,
+    },
+    manifest: {
+      present: false,
+      memberType: null,
+      byteCount: null,
+      sha256: null,
+      jsonState: "not-observed",
+      rootType: null,
+      recordCount: null,
+      firstRecordType: null,
+      knownKeysPresent: [],
+      knownValueTypes: { Config: null, LayerSources: null, Layers: null, Parent: null, RepoTags: null },
+      unknownKeyCount: null,
+      unknownKeyNamesSha256: null,
+      configPathCategory: null,
+      layersCount: null,
+      layerPathCounts: null,
+      repoTagsType: null,
+      repoTagsCount: null,
+      parentType: null,
+      layerSourcesType: null,
+      layerSourcesCount: null,
+    },
+  };
+}
+
+function completeManifestDiagnostic() {
+  const value = missingManifestDiagnostic();
+  value.outer = { ociLayoutPresent: true, indexJsonPresent: true, repositoriesPresent: true, blobsPrefixPresent: true };
+  value.manifest = {
+    present: true,
+    memberType: "file",
+    byteCount: 4096,
+    sha256: "7".repeat(64),
+    jsonState: "valid",
+    rootType: "array",
+    recordCount: 1,
+    firstRecordType: "object",
+    knownKeysPresent: ["Config", "LayerSources", "Layers", "Parent", "RepoTags"],
+    knownValueTypes: { Config: "string", LayerSources: "object", Layers: "array", Parent: "null", RepoTags: "array" },
+    unknownKeyCount: 2,
+    unknownKeyNamesSha256: "8".repeat(64),
+    configPathCategory: "legacy-config",
+    layersCount: 3,
+    layerPathCounts: { legacyLayer: 1, ociBlob: 1, other: 1 },
+    repoTagsType: "array",
+    repoTagsCount: 2,
+    parentType: "null",
+    layerSourcesType: "object",
+    layerSourcesCount: 2,
+  };
+  return value;
 }
 
 function harness({ sameFilesystem = false, failAt = null } = {}) {
@@ -292,7 +355,8 @@ test("an input-integrity failure suppresses finite refusal evidence while still 
     profile: "go-s3-4.51-v1",
     evidenceClass: "SOURCE_LAYER_PREFLIGHT",
     status: "REFUSED",
-    refusal: { code: "archive_hidden_region", layerOrdinal: 2 },
+    refusal: { code: "save_manifest_invalid" },
+    manifestDiagnostic: completeManifestDiagnostic(),
   });
   let integrityChecks = 0;
   item.operations.inspectSource = async () => {
@@ -479,4 +543,119 @@ test("only the reviewed finite source refusals can be recorded as profile eviden
     mutate(changed);
     assert.throws(() => validateSeaweedGoS3SourceRefusal(changed), /scanner_seaweed_go_s3_source_refusal_invalid/u);
   }
+});
+
+test("manifest diagnostics accept only the bounded missing and fully observed shapes", () => {
+  assert.deepEqual(validateSeaweedGoS3ManifestDiagnostic(missingManifestDiagnostic()), missingManifestDiagnostic());
+  assert.deepEqual(validateSeaweedGoS3ManifestDiagnostic(completeManifestDiagnostic()), completeManifestDiagnostic());
+});
+
+test("manifest diagnostics reject inconsistent commitments, observations and category totals", () => {
+  for (const mutate of [
+    (value) => { value.manifest.unknownKeyCount = null; },
+    (value) => { value.manifest.unknownKeyNamesSha256 = null; },
+    (value) => { value.manifest.knownKeysPresent.pop(); },
+    (value) => { value.manifest.firstRecordType = null; },
+    (value) => { value.manifest.recordCount = 0; },
+    (value) => { value.manifest.layersCount = null; },
+    (value) => { value.manifest.layerPathCounts = null; },
+    (value) => { value.manifest.layerPathCounts.other += 1; },
+    (value) => { value.manifest.knownValueTypes.Config = "boolean"; },
+    (value) => { value.manifest.repoTagsCount = null; },
+    (value) => { value.manifest.layerSourcesCount = null; },
+    (value) => { value.manifest.parentType = null; },
+    (value) => { value.manifest.jsonState = "invalid"; },
+    (value) => { value.manifest.unknownKeyNamesSha256 = "not-a-sha256"; },
+    (value) => { value.manifest.configPathCategory = "host-path"; },
+    (value) => { value.manifest.byteCount = 4 * MiB + 1; },
+    (value) => { value.manifest.unbounded = "raw manifest payload"; },
+  ]) {
+    const changed = completeManifestDiagnostic();
+    mutate(changed);
+    assert.throws(
+      () => validateSeaweedGoS3ManifestDiagnostic(changed),
+      /scanner_seaweed_go_s3_manifest_diagnostic_invalid/u,
+    );
+  }
+});
+
+test("manifest diagnostics are accepted only on named manifest refusals", () => {
+  for (const code of ["save_manifest_missing", "save_manifest_invalid"]) {
+    const refusal = {
+      schemaVersion: 1,
+      profile: "go-s3-4.51-v1",
+      evidenceClass: "SOURCE_LAYER_PREFLIGHT",
+      status: "REFUSED",
+      refusal: { code },
+      manifestDiagnostic: missingManifestDiagnostic(),
+    };
+    assert.deepEqual(validateSeaweedGoS3SourceRefusal(refusal), refusal);
+  }
+  const unrelated = {
+    schemaVersion: 1,
+    profile: "go-s3-4.51-v1",
+    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
+    status: "REFUSED",
+    refusal: { code: "archive_truncated" },
+    manifestDiagnostic: missingManifestDiagnostic(),
+  };
+  assert.throws(
+    () => validateSeaweedGoS3SourceRefusal(unrelated),
+    /scanner_seaweed_go_s3_source_refusal_invalid/u,
+  );
+});
+
+test("a manifest diagnostic becomes available only after verified archive removal", async () => {
+  const item = harness();
+  const finiteError = seaweedGoS3SourceRefusalError({
+    schemaVersion: 1,
+    profile: "go-s3-4.51-v1",
+    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
+    status: "REFUSED",
+    refusal: { code: "save_manifest_invalid" },
+    manifestDiagnostic: completeManifestDiagnostic(),
+  });
+  item.operations.inspectSource = async () => {
+    item.events.push("inspectSource");
+    throw finiteError;
+  };
+  item.operations.removeOwnedArchive = async () => {
+    item.events.push("removeOwnedArchive");
+    assert.equal(seaweedGoS3SourceRefusalReceipt(finiteError), null);
+  };
+  const caught = await runSeaweedGoS3SourcePreflight(input(), item.operations).then(
+    () => assert.fail("manifest refusal unexpectedly passed"),
+    (error) => error,
+  );
+  const receipt = seaweedGoS3SourceRefusalReceipt(caught);
+  assert.deepEqual(receipt.refusal.manifestDiagnostic, completeManifestDiagnostic());
+  assert.equal(receipt.archiveRemoved, true);
+  assert.equal(receipt.sourceUnchanged, true);
+});
+
+test("cleanup uncertainty suppresses a bounded manifest diagnostic receipt", async () => {
+  const item = harness();
+  const finiteError = seaweedGoS3SourceRefusalError({
+    schemaVersion: 1,
+    profile: "go-s3-4.51-v1",
+    evidenceClass: "SOURCE_LAYER_PREFLIGHT",
+    status: "REFUSED",
+    refusal: { code: "save_manifest_missing" },
+    manifestDiagnostic: missingManifestDiagnostic(),
+  });
+  item.operations.inspectSource = async () => {
+    item.events.push("inspectSource");
+    throw finiteError;
+  };
+  item.operations.archiveAbsent = async () => {
+    item.events.push("archiveAbsent");
+    return false;
+  };
+  const caught = await runSeaweedGoS3SourcePreflight(input(), item.operations).then(
+    () => assert.fail("uncertain cleanup unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_cleanup_uncertain/u);
+  assert.equal(seaweedGoS3SourceRefusalReceipt(caught), null);
+  assert.equal(seaweedGoS3SourceRefusalReceipt(finiteError), null);
 });

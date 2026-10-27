@@ -39,6 +39,8 @@ const SOURCE_REFUSALS = new Set([
 ]);
 const sourceRefusalDetails = new WeakMap();
 const sourceRefusalReceipts = new WeakMap();
+const MANIFEST_KEYS = Object.freeze(["Config", "LayerSources", "Layers", "Parent", "RepoTags"]);
+const JSON_TAGS = new Set(["array", "object", "string", "number", "boolean", "null"]);
 const fail = (code) => { throw new Error(code); };
 const exactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value) &&
   Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
@@ -187,8 +189,85 @@ export function validateSeaweedGoS3SourceInspection(value, expected = {}) {
   return clone(value);
 }
 
+export function validateSeaweedGoS3ManifestDiagnostic(value) {
+  const nullableTag = (candidate) => candidate === null || JSON_TAGS.has(candidate);
+  const nullableCount = (candidate) => candidate === null || Number.isSafeInteger(candidate) && candidate >= 0 && candidate <= 4 * MiB;
+  const manifestKeys = ["present", "memberType", "byteCount", "sha256", "jsonState", "rootType", "recordCount", "firstRecordType",
+    "knownKeysPresent", "knownValueTypes", "unknownKeyCount", "unknownKeyNamesSha256", "configPathCategory", "layersCount",
+    "layerPathCounts", "repoTagsType", "repoTagsCount", "parentType", "layerSourcesType", "layerSourcesCount"];
+  if (!exactKeys(value, ["schemaVersion", "outer", "manifest"]) || Buffer.byteLength(JSON.stringify(value)) > 2 * KiB ||
+      value.schemaVersion !== 1 || !exactKeys(value.outer, ["ociLayoutPresent", "indexJsonPresent", "repositoriesPresent", "blobsPrefixPresent"]) ||
+      Object.values(value.outer).some((entry) => typeof entry !== "boolean") || !exactKeys(value.manifest, manifestKeys)) {
+    fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+  }
+  const manifest = value.manifest;
+  if (typeof manifest.present !== "boolean" || ![null, "file", "directory", "symlink"].includes(manifest.memberType) ||
+      !nullableCount(manifest.byteCount) || manifest.byteCount !== null && manifest.byteCount > 4 * MiB ||
+      manifest.sha256 !== null && !sha256(manifest.sha256) || !["not-observed", "invalid", "valid"].includes(manifest.jsonState) ||
+      !nullableTag(manifest.rootType) || !nullableCount(manifest.recordCount) || !nullableTag(manifest.firstRecordType) ||
+      !Array.isArray(manifest.knownKeysPresent) || manifest.knownKeysPresent.some((entry) => !MANIFEST_KEYS.includes(entry)) ||
+      manifest.knownKeysPresent.some((entry, index) => index > 0 && manifest.knownKeysPresent[index - 1] >= entry) ||
+      !exactKeys(manifest.knownValueTypes, MANIFEST_KEYS) || Object.values(manifest.knownValueTypes).some((entry) => !nullableTag(entry)) ||
+      !nullableCount(manifest.unknownKeyCount) || manifest.unknownKeyNamesSha256 !== null && !sha256(manifest.unknownKeyNamesSha256) ||
+      ![null, "absent", "legacy-config", "oci-blob", "other"].includes(manifest.configPathCategory) ||
+      !nullableCount(manifest.layersCount) || manifest.layerPathCounts !== null &&
+        (!exactKeys(manifest.layerPathCounts, ["legacyLayer", "ociBlob", "other"]) ||
+          Object.values(manifest.layerPathCounts).some((entry) => !nullableCount(entry) || entry === null)) ||
+      !nullableTag(manifest.repoTagsType) || !nullableCount(manifest.repoTagsCount) || !nullableTag(manifest.parentType) ||
+      !nullableTag(manifest.layerSourcesType) || !nullableCount(manifest.layerSourcesCount)) {
+    fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+  }
+  const noRecordObservation = manifest.knownKeysPresent.length === 0 && Object.values(manifest.knownValueTypes).every((entry) => entry === null) &&
+    manifest.unknownKeyCount === null && manifest.unknownKeyNamesSha256 === null && manifest.configPathCategory === null &&
+    manifest.layersCount === null && manifest.layerPathCounts === null && manifest.repoTagsType === null && manifest.repoTagsCount === null &&
+    manifest.parentType === null && manifest.layerSourcesType === null && manifest.layerSourcesCount === null;
+  const noJsonObservation = manifest.rootType === null && manifest.recordCount === null && manifest.firstRecordType === null && noRecordObservation;
+  const readableFile = manifest.memberType === "file" && manifest.byteCount !== null && manifest.sha256 !== null;
+  if (!manifest.present && (manifest.memberType !== null || manifest.byteCount !== null || manifest.sha256 !== null ||
+        manifest.jsonState !== "not-observed" || !noJsonObservation) ||
+      manifest.present && ["directory", "symlink"].includes(manifest.memberType) &&
+        (manifest.byteCount !== null || manifest.sha256 !== null || manifest.jsonState !== "not-observed" || !noJsonObservation) ||
+      manifest.present && manifest.memberType === null ||
+      manifest.memberType === "file" && !readableFile &&
+        (manifest.byteCount !== null || manifest.sha256 !== null || manifest.jsonState !== "not-observed" || !noJsonObservation) ||
+      readableFile && manifest.jsonState === "not-observed" ||
+      manifest.jsonState === "invalid" && (!readableFile || !noJsonObservation) ||
+      manifest.jsonState === "valid" && (!readableFile || manifest.rootType === null) ||
+      manifest.jsonState !== "valid" && !noJsonObservation) {
+    fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+  }
+  if (manifest.jsonState === "valid") {
+    const arrayRoot = manifest.rootType === "array";
+    if (arrayRoot !== (manifest.recordCount !== null) ||
+        (manifest.recordCount === null || manifest.recordCount === 0) !== (manifest.firstRecordType === null)) {
+      fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+    }
+    const recordObject = arrayRoot && manifest.recordCount > 0 && manifest.firstRecordType === "object";
+    if (!recordObject && !noRecordObservation) fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+    if (recordObject) {
+      const present = new Set(manifest.knownKeysPresent);
+      const layersArray = manifest.knownValueTypes.Layers === "array";
+      if (MANIFEST_KEYS.some((key) => present.has(key) !== (manifest.knownValueTypes[key] !== null)) ||
+          manifest.unknownKeyCount === null || manifest.unknownKeyNamesSha256 === null || manifest.configPathCategory === null ||
+          (present.has("Config") ? manifest.configPathCategory === "absent" : manifest.configPathCategory !== "absent") ||
+          present.has("Config") && manifest.knownValueTypes.Config !== "string" && manifest.configPathCategory !== "other" ||
+          manifest.repoTagsType !== manifest.knownValueTypes.RepoTags ||
+          (manifest.repoTagsType === "array") !== (manifest.repoTagsCount !== null) ||
+          manifest.parentType !== manifest.knownValueTypes.Parent ||
+          manifest.layerSourcesType !== manifest.knownValueTypes.LayerSources ||
+          (["array", "object"].includes(manifest.layerSourcesType)) !== (manifest.layerSourcesCount !== null) ||
+          layersArray !== (manifest.layersCount !== null) || layersArray !== (manifest.layerPathCounts !== null) ||
+          layersArray && manifest.layersCount !== Object.values(manifest.layerPathCounts).reduce((sum, count) => sum + count, 0)) {
+        fail("scanner_seaweed_go_s3_manifest_diagnostic_invalid");
+      }
+    }
+  }
+  return clone(value);
+}
+
 export function validateSeaweedGoS3SourceRefusal(value) {
-  const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal"];
+  const hasManifestDiagnostic = Object.hasOwn(value ?? {}, "manifestDiagnostic");
+  const keys = ["schemaVersion", "profile", "evidenceClass", "status", "refusal", ...(hasManifestDiagnostic ? ["manifestDiagnostic"] : [])];
   const safeMember = (candidate) => typeof candidate === "string" && candidate.length >= 1 && candidate.length <= 1024 &&
     !candidate.startsWith("/") && !candidate.includes("\\") && !candidate.split("/").some((part) => !part || part === "." || part === "..");
   if (!exactKeys(value, keys) || Buffer.byteLength(JSON.stringify(value)) > 4 * MiB || value.schemaVersion !== 1 ||
@@ -199,9 +278,11 @@ export function validateSeaweedGoS3SourceRefusal(value) {
       Object.hasOwn(value.refusal, "layerOrdinal") && (!Number.isSafeInteger(value.refusal.layerOrdinal) || value.refusal.layerOrdinal < 1 || value.refusal.layerOrdinal > 10) ||
       Object.hasOwn(value.refusal, "member") && !safeMember(value.refusal.member) ||
       Object.hasOwn(value.refusal, "memberSha256") && !sha256(value.refusal.memberSha256) ||
-      Object.hasOwn(value.refusal, "member") && Object.hasOwn(value.refusal, "memberSha256")) {
+      Object.hasOwn(value.refusal, "member") && Object.hasOwn(value.refusal, "memberSha256") ||
+      hasManifestDiagnostic && !["save_manifest_missing", "save_manifest_invalid"].includes(value.refusal.code)) {
     fail("scanner_seaweed_go_s3_source_refusal_invalid");
   }
+  if (hasManifestDiagnostic) validateSeaweedGoS3ManifestDiagnostic(value.manifestDiagnostic);
   return clone(value);
 }
 

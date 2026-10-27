@@ -80,7 +80,16 @@ def assert_refusal(test_case, code, callback):
     test_case.assertEqual(caught.exception.code, code)
 
 
-def source_save_fixture(*, layer_mutator=None, stored_layer_mutator=None, empty_layer_index=None):
+def source_save_fixture(
+    *,
+    layer_mutator=None,
+    stored_layer_mutator=None,
+    empty_layer_index=None,
+    manifest_payload=None,
+    manifest_member_type="file",
+    omit_manifest=False,
+    extra_outer_entries=(),
+):
     layers = []
     layer_paths = []
     diff_ids = []
@@ -98,11 +107,38 @@ def source_save_fixture(*, layer_mutator=None, stored_layer_mutator=None, empty_
     config_bytes = json.dumps({"rootfs": {"type": "layers", "diff_ids": [f"sha256:{value}" for value in diff_ids]}},
                               separators=(",", ":"), sort_keys=True).encode("utf-8")
     config_sha256 = hashlib.sha256(config_bytes).hexdigest()
-    manifest_bytes = json.dumps([{"Config": f"{config_sha256}.json", "RepoTags": None, "Layers": layer_paths}],
-                                separators=(",", ":"), sort_keys=True).encode("utf-8")
-    outer_entries = [regular("manifest.json", manifest_bytes), regular(f"{config_sha256}.json", config_bytes)]
+    if manifest_payload is None:
+        manifest_payload = json.dumps(
+            [{"Config": f"{config_sha256}.json", "RepoTags": None, "Layers": layer_paths}],
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    outer_entries = [regular(f"{config_sha256}.json", config_bytes)]
+    if not omit_manifest:
+        manifest_entry = (
+            regular("manifest.json", manifest_payload)
+            if manifest_member_type == "file"
+            else directory("manifest.json")
+        )
+        outer_entries.insert(0, manifest_entry)
+    outer_entries.extend(extra_outer_entries)
     outer_entries.extend(regular(layer_path, layer_bytes) for layer_path, layer_bytes in layers)
     return archive_bytes(outer_entries), config_bytes, config_sha256, diff_ids
+
+
+def inspect_source_fixture_refusal(test_case, **fixture_options):
+    archive_value, config_value, config_sha256, diff_ids = source_save_fixture(**fixture_options)
+    with tempfile.TemporaryDirectory() as directory_name:
+        directory = Path(directory_name)
+        archive = directory / "source-save.tar"
+        config = directory / "config.json"
+        archive.write_bytes(archive_value)
+        config.write_bytes(config_value)
+        archive.chmod(0o444)
+        config.chmod(0o444)
+        with test_case.assertRaises(InspectionRefusal) as caught:
+            inspect_source_save_fixture(archive, config, config_sha256, diff_ids)
+    return caught.exception
 
 
 class ArchiveInspectionTests(unittest.TestCase):
@@ -314,9 +350,157 @@ class SourceSaveCliTests(unittest.TestCase):
             config.chmod(0o444)
             result = inspect_source_save_fixture(archive, config, config_sha256, diff_ids)
         self.assertEqual(result["status"], "PASS")
+        self.assertNotIn("manifestDiagnostic", result)
         self.assertEqual(result["sourceConfigSha256"], config_sha256)
         self.assertEqual([layer["ordinal"] for layer in result["layers"]], list(range(1, 11)))
         self.assertEqual([layer["sha256"] for layer in result["layers"]], diff_ids)
+
+    def test_missing_manifest_reports_outer_shape_without_changing_the_refusal(self):
+        extra_entries = (
+            regular("oci-layout", b"{}"),
+            regular("index.json", b"{}"),
+            regular("repositories", b"{}"),
+            regular(f"blobs/sha256/{'a' * 64}", b"opaque"),
+        )
+        refusal = inspect_source_fixture_refusal(
+            self,
+            omit_manifest=True,
+            extra_outer_entries=extra_entries,
+        )
+        self.assertEqual(refusal.code, "save_manifest_missing")
+        diagnostic = refusal.manifest_diagnostic
+        self.assertEqual(diagnostic["outer"], {
+            "ociLayoutPresent": True,
+            "indexJsonPresent": True,
+            "repositoriesPresent": True,
+            "blobsPrefixPresent": True,
+        })
+        self.assertEqual(diagnostic["manifest"]["present"], False)
+        self.assertEqual(diagnostic["manifest"]["jsonState"], "not-observed")
+
+    def test_nonfile_and_invalid_json_manifests_remain_distinct_finite_refusals(self):
+        cases = (
+            ({"manifest_member_type": "directory"}, "directory", "not-observed", None),
+            ({"manifest_payload": b"{"}, "file", "invalid", 1),
+        )
+        for options, member_type, json_state, byte_count in cases:
+            with self.subTest(member_type=member_type, json_state=json_state):
+                refusal = inspect_source_fixture_refusal(self, **options)
+                self.assertEqual(refusal.code, "save_manifest_invalid")
+                manifest = refusal.manifest_diagnostic["manifest"]
+                self.assertEqual(manifest["memberType"], member_type)
+                self.assertEqual(manifest["jsonState"], json_state)
+                self.assertEqual(manifest["byteCount"], byte_count)
+
+    def test_manifest_root_and_cardinality_observations_remain_refused(self):
+        cases = (
+            ({}, "object", None, None),
+            ([], "array", 0, None),
+            ([{}, {}], "array", 2, "object"),
+            ([None], "array", 1, "null"),
+        )
+        for value, root_type, record_count, first_type in cases:
+            with self.subTest(value=value):
+                payload = json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+                refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+                self.assertEqual(refusal.code, "save_manifest_invalid")
+                manifest = refusal.manifest_diagnostic["manifest"]
+                self.assertEqual(manifest["rootType"], root_type)
+                self.assertEqual(manifest["recordCount"], record_count)
+                self.assertEqual(manifest["firstRecordType"], first_type)
+
+    def test_extra_keys_null_types_and_path_categories_are_observed_without_acceptance(self):
+        unknown_names = ["FutureField"]
+        value = [{
+            "Config": f"blobs/sha256/{'a' * 64}",
+            "RepoTags": None,
+            "Layers": [f"{'b' * 64}/layer.tar", f"blobs/sha256/{'c' * 64}", "foreign/layer"],
+            "Parent": None,
+            "LayerSources": None,
+            unknown_names[0]: {"private": "payload"},
+        }]
+        payload = json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+        refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+        self.assertEqual(refusal.code, "save_manifest_invalid")
+        manifest = refusal.manifest_diagnostic["manifest"]
+        self.assertEqual(manifest["knownValueTypes"], {
+            "Config": "string",
+            "LayerSources": "null",
+            "Layers": "array",
+            "Parent": "null",
+            "RepoTags": "null",
+        })
+        self.assertEqual(manifest["configPathCategory"], "oci-blob")
+        self.assertEqual(manifest["layerPathCounts"], {"legacyLayer": 1, "ociBlob": 1, "other": 1})
+        self.assertEqual(manifest["unknownKeyNamesSha256"], hashlib.sha256(
+            json.dumps(unknown_names, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest())
+
+    def test_config_path_categories_distinguish_legacy_oci_and_other_references(self):
+        cases = (
+            (f"{'a' * 64}.json", "legacy-config"),
+            (f"blobs/sha256/{'b' * 64}", "oci-blob"),
+            ("private/config.json", "other"),
+        )
+        for config_reference, category in cases:
+            with self.subTest(category=category):
+                value = [{
+                    "Config": config_reference,
+                    "RepoTags": None,
+                    "Layers": [],
+                    "FutureField": True,
+                }]
+                payload = json.dumps(value, separators=(",", ":")).encode("ascii")
+                refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+                self.assertEqual(refusal.code, "save_manifest_invalid")
+                self.assertEqual(refusal.manifest_diagnostic["manifest"]["configPathCategory"], category)
+
+    def test_unknown_key_commitments_distinguish_ambiguous_and_unicode_name_sets(self):
+        name_sets = (["ab", "c", "é", "\ud800"], ["a", "bc", "é", "\ud800"])
+        commitments = []
+        for names in name_sets:
+            with self.subTest(names=names):
+                record = {name: index for index, name in enumerate(names)}
+                payload = json.dumps([record], ensure_ascii=True, separators=(",", ":")).encode("ascii")
+                refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+                manifest = refusal.manifest_diagnostic["manifest"]
+                expected = hashlib.sha256(
+                    json.dumps(sorted(names), ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+                ).hexdigest()
+                self.assertEqual(manifest["unknownKeyNamesSha256"], expected)
+                self.assertEqual(manifest["configPathCategory"], "absent")
+                encoded = json.dumps(refusal.manifest_diagnostic, ensure_ascii=True, separators=(",", ":"))
+                self.assertNotIn("\\u00e9", encoded)
+                self.assertNotIn("\\ud800", encoded)
+                commitments.append(expected)
+        self.assertNotEqual(commitments[0], commitments[1])
+
+    def test_duplicate_manifest_keys_are_invalid_without_partial_name_evidence(self):
+        refusal = inspect_source_fixture_refusal(
+            self,
+            manifest_payload=b'[{"Future":1,"Future":2}]',
+        )
+        self.assertEqual(refusal.code, "save_manifest_invalid")
+        manifest = refusal.manifest_diagnostic["manifest"]
+        self.assertEqual(manifest["jsonState"], "invalid")
+        self.assertIsNone(manifest["unknownKeyCount"])
+        self.assertIsNone(manifest["unknownKeyNamesSha256"])
+
+    def test_large_malicious_unknown_names_are_only_counted_and_committed(self):
+        private_names = [
+            f"C:\\private\\source-save-{index}.tar\nsecret-{index}"
+            for index in range(512)
+        ]
+        record = {name: {"raw": f"payload-{index}"} for index, name in enumerate(private_names)}
+        payload = json.dumps([record], ensure_ascii=True, separators=(",", ":")).encode("ascii")
+        refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+        diagnostic = refusal.manifest_diagnostic
+        encoded = json.dumps(diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii")
+        self.assertLessEqual(len(encoded), 2048)
+        self.assertEqual(diagnostic["manifest"]["unknownKeyCount"], len(private_names))
+        self.assertNotIn(b"source-save", encoded)
+        self.assertNotIn(b"payload", encoded)
+        self.assertNotIn(os.fspath(REPOSITORY_ROOT).encode("ascii"), encoded)
 
     def test_fixture_source_save_accepts_an_empty_final_layer_with_a_complete_tar_terminator(self):
         archive_value, config_value, config_sha256, diff_ids = source_save_fixture(empty_layer_index=9)
@@ -440,6 +624,33 @@ class SourceSaveCliTests(unittest.TestCase):
             archive.unlink()
             config.unlink()
 
+    def test_archive_drift_suppresses_an_otherwise_finite_manifest_diagnostic(self):
+        archive_value, config_value, config_sha256, diff_ids = source_save_fixture(manifest_payload=b"{")
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            archive = directory / "source-save.tar"
+            config = directory / "config.json"
+            archive.write_bytes(archive_value)
+            config.write_bytes(config_value)
+            archive.chmod(0o444)
+            config.chmod(0o444)
+
+            def mutate_archive():
+                archive.chmod(0o644)
+                with archive.open("r+b") as output:
+                    output.seek(-1, os.SEEK_END)
+                    output.write(b"!")
+
+            with self.assertRaises(InspectionIntegrityError) as caught:
+                inspect_source_save_fixture(
+                    archive,
+                    config,
+                    config_sha256,
+                    diff_ids,
+                    finalize_hook=mutate_archive,
+                )
+            self.assertEqual(caught.exception.code, "source_changed")
+
     def test_cli_reports_integrity_drift_as_global_error_without_private_paths_or_traceback(self):
         archive = os.fspath((REPOSITORY_ROOT / "private-source-save.tar").resolve())
         config = os.fspath((REPOSITORY_ROOT / "private-source-config.json").resolve())
@@ -461,6 +672,34 @@ class SourceSaveCliTests(unittest.TestCase):
         self.assertNotIn(archive, stdout.getvalue())
         self.assertNotIn(config, stdout.getvalue())
         self.assertNotIn("Traceback", stdout.getvalue())
+
+    def test_cli_emits_bounded_manifest_diagnostics_only_for_named_refusals(self):
+        secret_name = "C:\\private\\source-save.tar\nsecret"
+        payload = json.dumps([{secret_name: "raw-payload"}], separators=(",", ":")).encode("ascii")
+        manifest_refusal = inspect_source_fixture_refusal(self, manifest_payload=payload)
+        archive = os.fspath((REPOSITORY_ROOT / "private-source-save.tar").resolve())
+        config = os.fspath((REPOSITORY_ROOT / "private-source-config.json").resolve())
+
+        for refusal, expect_diagnostic in (
+            (manifest_refusal, True),
+            (InspectionRefusal("archive_truncated", manifest_diagnostic=manifest_refusal.manifest_diagnostic), False),
+        ):
+            with self.subTest(code=refusal.code):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with mock.patch.object(archive_module, "_activate_cli_limits", return_value=None), \
+                        mock.patch.object(archive_module, "inspect_source_save", side_effect=refusal):
+                    with redirect_stdout(stdout), redirect_stderr(stderr):
+                        status = archive_module.main(["source-save", "--archive", archive, "--config", config])
+                self.assertEqual(status, 2)
+                self.assertEqual(stderr.getvalue(), "")
+                output = json.loads(stdout.getvalue())
+                self.assertEqual("manifestDiagnostic" in output, expect_diagnostic)
+                self.assertLessEqual(len(json.dumps(output, separators=(",", ":")).encode("ascii")), 4096)
+                self.assertNotIn(secret_name, stdout.getvalue())
+                self.assertNotIn("raw-payload", stdout.getvalue())
+                self.assertNotIn(archive, stdout.getvalue())
+                self.assertNotIn(config, stdout.getvalue())
 
     def test_wrong_source_config_is_a_finite_json_refusal(self):
         with tempfile.TemporaryDirectory() as directory_name:

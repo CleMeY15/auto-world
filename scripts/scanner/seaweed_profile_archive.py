@@ -55,13 +55,17 @@ MAX_METADATA_BYTES = 64 * 1024
 MAX_PATH_BYTES = 1024
 MAX_JSON_BYTES = 4 * 1024**2
 MAX_OUTPUT_BYTES = 4 * 1024**2
+MAX_MANIFEST_DIAGNOSTIC_BYTES = 2 * 1024
 CHUNK_BYTES = 1024**2
 ZERO_BLOCK_BYTES = 1024
 REMOVED_HELPERS = ("usr/bin/weed-volume", "usr/bin/weed-worker")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 CONFIG_MEMBER = re.compile(r"^[0-9a-f]{64}\.json$")
 LAYER_MEMBER = re.compile(r"^([0-9a-f]{64})/layer\.tar$")
+OCI_BLOB_MEMBER = re.compile(r"^blobs/sha256/[0-9a-f]{64}$")
 SAFE_PAX_KEYS = frozenset(("path", "linkpath", "mtime"))
+MANIFEST_KNOWN_KEYS = ("Config", "LayerSources", "Layers", "Parent", "RepoTags")
+MANIFEST_DIAGNOSTIC_CODES = frozenset(("save_manifest_missing", "save_manifest_invalid"))
 
 
 class InspectionRefusal(Exception):
@@ -74,12 +78,14 @@ class InspectionRefusal(Exception):
         layer_ordinal: int | None = None,
         member: str | None = None,
         member_is_safe: bool = False,
+        manifest_diagnostic: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(code)
         self.code = code
         self.layer_ordinal = layer_ordinal
         self.member = member
         self.member_is_safe = member_is_safe
+        self.manifest_diagnostic = manifest_diagnostic
 
 
 class InspectionIntegrityError(Exception):
@@ -135,6 +141,154 @@ def _json_no_duplicates(raw: bytes, code: str) -> Any:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise InspectionRefusal(code) from None
+
+
+def _json_type_tag(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, (int, float)):
+        return "number"
+    raise TypeError("value is not a JSON type")
+
+
+def _manifest_path_category(value: Any, *, layer: bool = False) -> str:
+    if isinstance(value, str):
+        if layer and LAYER_MEMBER.fullmatch(value) is not None:
+            return "legacy-layer"
+        if not layer and CONFIG_MEMBER.fullmatch(value) is not None:
+            return "legacy-config"
+        if OCI_BLOB_MEMBER.fullmatch(value) is not None:
+            return "oci-blob"
+    return "other"
+
+
+def _manifest_diagnostic(
+    by_name: dict[str, tuple[dict[str, Any], tarfile.TarInfo]],
+    *,
+    json_state: str = "not-observed",
+    manifest: Any = None,
+) -> dict[str, Any]:
+    manifest_entry = by_name.get("manifest.json")
+    manifest_record = manifest_entry[0] if manifest_entry is not None else None
+    is_file = manifest_record is not None and manifest_record["type"] == "file"
+    observed_manifest = manifest if json_state == "valid" else None
+    has_first_record = isinstance(observed_manifest, list) and bool(observed_manifest)
+    first_record = (
+        observed_manifest[0]
+        if has_first_record
+        else None
+    )
+    first_object = first_record if isinstance(first_record, dict) else None
+
+    known_keys_present: list[str] = []
+    known_value_types: dict[str, str | None] = {
+        key: None for key in MANIFEST_KNOWN_KEYS
+    }
+    unknown_key_count: int | None = None
+    unknown_key_names_sha256: str | None = None
+    config_path_category: str | None = None
+    layers_count: int | None = None
+    layer_path_counts: dict[str, int] | None = None
+    repo_tags_type: str | None = None
+    repo_tags_count: int | None = None
+    parent_type: str | None = None
+    layer_sources_type: str | None = None
+    layer_sources_count: int | None = None
+
+    if first_object is not None:
+        known_keys_present = sorted(set(first_object).intersection(MANIFEST_KNOWN_KEYS))
+        for key in known_keys_present:
+            known_value_types[key] = _json_type_tag(first_object[key])
+        unknown_names = sorted(set(first_object).difference(MANIFEST_KNOWN_KEYS))
+        unknown_key_count = len(unknown_names)
+        unknown_key_names_sha256 = hashlib.sha256(
+            json.dumps(
+                unknown_names, ensure_ascii=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+
+        config_path_category = (
+            _manifest_path_category(first_object["Config"])
+            if "Config" in first_object
+            else "absent"
+        )
+        layers = first_object.get("Layers")
+        if isinstance(layers, list):
+            layers_count = len(layers)
+            layer_path_counts = {"legacyLayer": 0, "ociBlob": 0, "other": 0}
+            category_keys = {
+                "legacy-layer": "legacyLayer",
+                "oci-blob": "ociBlob",
+                "other": "other",
+            }
+            for value in layers:
+                category = _manifest_path_category(value, layer=True)
+                layer_path_counts[category_keys[category]] += 1
+
+        if "RepoTags" in first_object:
+            repo_tags = first_object["RepoTags"]
+            repo_tags_type = _json_type_tag(repo_tags)
+            if isinstance(repo_tags, list):
+                repo_tags_count = len(repo_tags)
+        if "Parent" in first_object:
+            parent_type = _json_type_tag(first_object["Parent"])
+        if "LayerSources" in first_object:
+            layer_sources = first_object["LayerSources"]
+            layer_sources_type = _json_type_tag(layer_sources)
+            if isinstance(layer_sources, (list, dict)):
+                layer_sources_count = len(layer_sources)
+
+    diagnostic = {
+        "schemaVersion": SCHEMA_VERSION,
+        "outer": {
+            "ociLayoutPresent": "oci-layout" in by_name,
+            "indexJsonPresent": "index.json" in by_name,
+            "repositoriesPresent": "repositories" in by_name,
+            "blobsPrefixPresent": any(name.startswith("blobs/") for name in by_name),
+        },
+        "manifest": {
+            "present": manifest_record is not None,
+            "memberType": manifest_record["type"] if manifest_record is not None else None,
+            "byteCount": manifest_record["size"] if is_file else None,
+            "sha256": manifest_record["payloadSha256"] if is_file else None,
+            "jsonState": json_state,
+            "rootType": _json_type_tag(observed_manifest) if json_state == "valid" else None,
+            "recordCount": len(observed_manifest) if isinstance(observed_manifest, list) else None,
+            "firstRecordType": _json_type_tag(first_record) if has_first_record else None,
+            "knownKeysPresent": known_keys_present,
+            "knownValueTypes": known_value_types,
+            "unknownKeyCount": unknown_key_count,
+            "unknownKeyNamesSha256": unknown_key_names_sha256,
+            "configPathCategory": config_path_category,
+            "layersCount": layers_count,
+            "layerPathCounts": layer_path_counts,
+            "repoTagsType": repo_tags_type,
+            "repoTagsCount": repo_tags_count,
+            "parentType": parent_type,
+            "layerSourcesType": layer_sources_type,
+            "layerSourcesCount": layer_sources_count,
+        },
+    }
+    encoded = json.dumps(
+        diagnostic, ensure_ascii=True, separators=(",", ":"), sort_keys=True
+    ).encode("ascii")
+    if len(encoded) > MAX_MANIFEST_DIAGNOSTIC_BYTES:
+        raise InspectionRefusal("internal_error")
+    return diagnostic
+
+
+def _raise_manifest_refusal(
+    code: str, diagnostic: dict[str, Any]
+) -> None:
+    raise InspectionRefusal(code, manifest_diagnostic=diagnostic)
 
 
 def _hash_stream(stream: BinaryIO, expected_size: int) -> str:
@@ -640,13 +794,45 @@ def _inspect_source_save(
             outer_archive: tarfile.TarFile = outer["archive"]
             try:
                 by_name = {record["path"]: (record, info) for record, info in zip(outer["records"], outer["infos"], strict=True)}
-                _require("manifest.json" in by_name, "save_manifest_missing")
+                if "manifest.json" not in by_name:
+                    _raise_manifest_refusal(
+                        "save_manifest_missing", _manifest_diagnostic(by_name)
+                    )
                 manifest_record, manifest_info = by_name["manifest.json"]
-                _require(manifest_record["type"] == "file", "save_manifest_invalid")
-                manifest = _json_no_duplicates(_read_member(outer_archive, manifest_info, MAX_JSON_BYTES), "save_manifest_invalid")
-                _require(isinstance(manifest, list) and len(manifest) == 1 and isinstance(manifest[0], dict), "save_manifest_invalid")
+                if manifest_record["type"] != "file":
+                    _raise_manifest_refusal(
+                        "save_manifest_invalid", _manifest_diagnostic(by_name)
+                    )
+                manifest_raw = _read_member(
+                    outer_archive, manifest_info, MAX_JSON_BYTES
+                )
+                try:
+                    manifest = _json_no_duplicates(
+                        manifest_raw, "save_manifest_invalid"
+                    )
+                except InspectionRefusal as refusal:
+                    if refusal.code == "save_manifest_invalid":
+                        _raise_manifest_refusal(
+                            "save_manifest_invalid",
+                            _manifest_diagnostic(by_name, json_state="invalid"),
+                        )
+                    raise
+                manifest_diagnostic = _manifest_diagnostic(
+                    by_name, json_state="valid", manifest=manifest
+                )
+                if not (
+                    isinstance(manifest, list)
+                    and len(manifest) == 1
+                    and isinstance(manifest[0], dict)
+                ):
+                    _raise_manifest_refusal(
+                        "save_manifest_invalid", manifest_diagnostic
+                    )
                 target = manifest[0]
-                _require(set(target) == {"Config", "RepoTags", "Layers"}, "save_manifest_invalid")
+                if set(target) != {"Config", "RepoTags", "Layers"}:
+                    _raise_manifest_refusal(
+                        "save_manifest_invalid", manifest_diagnostic
+                    )
                 config_member = target.get("Config")
                 layer_paths = target.get("Layers")
                 repo_tags = target.get("RepoTags")
@@ -824,13 +1010,19 @@ def _refusal_json(refusal: InspectionRefusal) -> dict[str, Any]:
             detail["memberSha256"] = hashlib.sha256(
                 refusal.member.encode("utf-8", "backslashreplace")
             ).hexdigest()
-    return {
+    result = {
         "schemaVersion": SCHEMA_VERSION,
         "profile": PROFILE,
         "evidenceClass": EVIDENCE_CLASS,
         "status": "REFUSED",
         "refusal": detail,
     }
+    if (
+        refusal.code in MANIFEST_DIAGNOSTIC_CODES
+        and refusal.manifest_diagnostic is not None
+    ):
+        result["manifestDiagnostic"] = refusal.manifest_diagnostic
+    return result
 
 
 def _integrity_json(error: InspectionIntegrityError) -> dict[str, Any]:
