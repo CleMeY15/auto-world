@@ -194,7 +194,7 @@ export function ownedBuildDockerArguments({ lock, source, moduleCache, buildCach
   if (officialGoRoot) args.push("-v", mount(officialGoRoot, "/usr/local/go", true));
   args.push(lock.compiler.builder.reference, "/bin/sh", "-euc", [
     "test \"$(go version)\" = 'go version go1.27.3 linux/amd64'",
-    "test \"$(go env GOENV)\" = 'off'",
+    "test \"${GOENV-}\" = off",
     "mkdir -p /tmp/home",
     "go build -mod=readonly -trimpath -buildvcs=false -ldflags='-s -w -buildid= -extldflags=-static -X github.com/aquasecurity/trivy/pkg/version/app.ver=0.76.1' -o /out/trivy ./cmd/trivy",
     "test -f /out/trivy && test ! -L /out/trivy"
@@ -579,7 +579,7 @@ function preparationScript(lock) {
     `test "$(wc -c < /src/go.mod | tr -d ' ')" = '${mod.bytes}' && test "$(sha256sum /src/go.mod | cut -d ' ' -f 1)" = '${mod.sha256}'`,
     `test "$(wc -c < /src/go.sum | tr -d ' ')" = '${sum.bytes}' && test "$(sha256sum /src/go.sum | cut -d ' ' -f 1)" = '${sum.sha256}'`,
     "seal() { stage=$1; cm_bytes=$(wc -c < /src/go.mod | tr -d ' '); cm_hash=$(sha256sum /src/go.mod | cut -d ' ' -f 1); cs_bytes=$(wc -c < /src/go.sum | tr -d ' '); cs_hash=$(sha256sum /src/go.sum | cut -d ' ' -f 1); pm_bytes=$(wc -c < /evidence/trivy.mod | tr -d ' '); pm_hash=$(sha256sum /evidence/trivy.mod | cut -d ' ' -f 1); ps_bytes=$(wc -c < /evidence/trivy.sum | tr -d ' '); ps_hash=$(sha256sum /evidence/trivy.sum | cut -d ' ' -f 1); printf '{\"stage\":\"%s\",\"canonicalMod\":{\"bytes\":%s,\"sha256\":\"%s\"},\"canonicalSum\":{\"bytes\":%s,\"sha256\":\"%s\"},\"privateMod\":{\"bytes\":%s,\"sha256\":\"%s\"},\"privateSum\":{\"bytes\":%s,\"sha256\":\"%s\"}}\\n' \"$stage\" \"$cm_bytes\" \"$cm_hash\" \"$cs_bytes\" \"$cs_hash\" \"$pm_bytes\" \"$pm_hash\" \"$ps_bytes\" \"$ps_hash\" >> /evidence/seals.jsonl; }",
-    "seal initialized", "go env -json GOTOOLCHAIN GOENV GOWORK GOFLAGS GOPROXY GOSUMDB GOPRIVATE GONOPROXY GONOSUMDB > /evidence/effective-env.json",
+    "seal initialized", "test \"${GOENV-}\" = off", "go env -json GOTOOLCHAIN GOENV GOWORK GOFLAGS GOPROXY GOSUMDB GOPRIVATE GONOPROXY GONOSUMDB > /evidence/effective-env.json",
     "GOFLAGS= go mod tidy -diff > /evidence/tidy.diff", "test ! -s /evidence/tidy.diff", "seal tidy",
     "go mod download -modfile=/evidence/trivy.mod -json all > /evidence/downloads.seq", "seal download",
     "go list -modfile=/evidence/trivy.mod -m -json all > /evidence/modules.seq", "seal modules",
@@ -647,10 +647,11 @@ function parseSeals(file) {
   try { return text.slice(0, -1).split("\n").map((line) => JSON.parse(line)); } catch { fail("scanner_owned_preparation_invalid"); }
 }
 
-function validatePreparationEnvironment(file) {
+export function validatePreparationEnvironment(file) {
   let value;
   try { value = JSON.parse(strictText(readFileSync(file))); } catch { fail("scanner_owned_preparation_invalid"); }
-  const expected = { GOENV: "off", GOFLAGS: "-mod=readonly", GONOPROXY: "", GONOSUMDB: "", GOPRIVATE: "", GOPROXY: "https://proxy.golang.org",
+  // Go reports the effective env-file path as empty when GOENV=off disables it.
+  const expected = { GOENV: "", GOFLAGS: "-mod=readonly", GONOPROXY: "", GONOSUMDB: "", GOPRIVATE: "", GOPROXY: "https://proxy.golang.org",
     GOSUMDB: "sum.golang.org", GOTOOLCHAIN: "local", GOWORK: "off" };
   if (canonicalJson(value) !== canonicalJson(expected)) fail("scanner_owned_preparation_invalid");
   return Object.freeze(expected);

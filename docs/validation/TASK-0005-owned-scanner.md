@@ -1,6 +1,6 @@
 # TASK-0005 — Auto World scanner qualification
 
-Status: MODULE_SIZE_REPAIR_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
+Status: GOENV_PROJECTION_REPAIR_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
 
 ## Cause and accepted scope
 
@@ -61,6 +61,20 @@ The new directory-identity calculation reused the 256 MiB compressed-ZIP limit f
 Real temporary-filesystem regressions accept a small ZIP with a larger, individually bounded expanded tree and reject oversized ZIPs, individual files, trees and aggregate caches. Targeted tests pass 18/18; scanner suites pass 557 with the same 35 Windows exclusions. No Trivy/go-jose suite, build A/B, owned scanner qualification, database or downstream image/SeaweedFS/Native result was reached in either failed run. A fresh source and complete Linux evidence remain required.
 
 The architecture review and distinct code review both approve this correction with zero remaining findings. Reviewed source SHA256 is `2ee1c9014bc1f08c17f2fd991bbf54b0c527d6eed5e06130a6a2681f889f5ec3`; regression-file SHA256 is `e4eb733dd14158ebf32122a97e24622759619db145c25b2d5efee1027765b843`. Fresh root tests pass 2265 with 490 unchanged environment-dependent exclusions and zero failures (2755 total); targeted ESLint, syntax, diff checks and Secretlint for 1220 files pass. The original plan, locks, source patch and compiler identities are unchanged.
+
+## Fourth Linux run: module enrichment passes, effective environment corrected
+
+Source `fe12834464176bfab07c5be07940591327362673`, tree `37d4b513328b418d18f9205ed9bce9edab61ff69`, is bound to synthetic checkout `f03fe32cf8d77a60a382ffe34dd19251502e6cf8`, with ordered parents accepted main `b8d31a3045ddb0e26b961eeb12ae173537835bd8` then fe128. [Upstream 40705768925](https://github.com/CleMeY15/auto-world/actions/runs/40705768925) and [managed 40705768796](https://github.com/CleMeY15/auto-world/actions/runs/40705768796) pass source seals, aggregate limits, expanded-module enrichment and construction-A module closure. They then fail at the canonical equality check in `validatePreparationEnvironment`, with `scanner_owned_preparation_invalid`. Upstream pure tests pass 98/98; managed pure tests pass 682 with one existing exclusion. Official provenance and four refusal controls pass, and all cleanup proves absence. Neither run reaches private-preparation validation, construction B, upstream suites, scanner builds or qualification, downstream images, SeaweedFS or Native.
+
+Retained managed originals: log 297956 bytes / SHA256 `65441d04bcdf0eff43c32cd579803ae86f574fb0008581f1a0ecab51eb2c9b1c`; ZIP 237860 bytes / `66039c97d55df4f8fb96e13c8eb22eae3bbe6cb89d436d8ae4809aa17503cb73`. Upstream originals: log 75554 bytes / `e78e166e122c8a5cbe12c1b479e6a8b322f7afbe403a07eb77b700aa8527998d`; ZIP 235114 bytes / `ab21b27c67edc5d8df88e9e091dbf011e73859bc2027d91d65acb84d038ffa99`. ZIP digests match GitHub metadata; each contains 22 safe text files. The upstream receiver's report was interrupted after acquisition/extraction; its independent finishing review verified existing files against the same ZIP without another acquisition or extraction. Its earlier operation chronology remains unproved, explicitly distinct from the verified byte identities.
+
+The actual environment object is private and absent from public evidence, so the runs do not reveal the differing field. Independent research of [Go 1.27.3 EnvFile](https://github.com/golang/go/blob/go1.27.3/src/cmd/go/internal/cfg/cfg.go) and [its environment projection](https://github.com/golang/go/blob/go1.27.3/src/cmd/go/internal/envcmd/env.go) proves a deterministic implementation mismatch: configured `GOENV=off` yields an empty effective env-file path, while the validator expected `off`. `GOWORK=off` is separately projected as `off` and remains unchanged.
+
+The reviewed repair retains configured `GOENV=off` and validates exactly nine effective keys, with only `GOENV` changed to the documented empty string. The preparation shell explicitly asserts the raw setting before capture. Initial independent code review found the same impossible `go env GOENV = off` comparison in the shared A/B build script; that check now asserts the raw setting too. Its initial REQUEST_CHANGES verdict is retained and final review returns APPROVE, zero findings. No source pin, budget, compiler, build flag, offline boundary, public schema or cleanup policy changes.
+
+Real-file regressions accept only the exact effective object and refuse old `off`, arbitrary paths, every changed/missing key, extra keys, malformed JSON and invalid UTF-8. A/B argument tests preserve configured off and forbid the old projection comparison. Targeted tests pass 19/19. Reviewed source SHA256 is `df16fecda18da5d6886974c765d82d956a9b40d00690c0ad5a2726de36efebb9`; regression-file SHA256 is `8299fafef3dcc1ac3d269a78af93132d8b9cb8759d0e9047250357e60509b9ff`. A fresh Linux source must prove the next stage; no qualification result is inferred from this correction.
+
+Final local root validation passes 2266 tests with 490 unchanged environment-dependent exclusions and zero failures (2756 total), including the scanner regressions. Targeted 19/19, ESLint, syntax and diff checks pass. Application typecheck/build/browser acceptance remains a separate Linux gate on each new source.
 
 ## Acceptance still required
 

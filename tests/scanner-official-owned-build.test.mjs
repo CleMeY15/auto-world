@@ -23,6 +23,7 @@ import {
   validateGitArchiveListing,
   validateModuleClosure,
   validatePrivatePreparation,
+  validatePreparationEnvironment,
   validatePreparationPair,
   validateOwnedOutput,
   validateOwnedScannerLock
@@ -239,6 +240,8 @@ test("preparation arguments isolate writable module files and compare semantic A
   assert.ok(args.includes("GOENV=off"));
   assert.ok(args.includes("GOTOOLCHAIN=local"));
   const script = args.at(-1);
+  assert.match(script, /export GOTOOLCHAIN=local GOENV=off GOWORK=off/u);
+  assert.ok(script.includes('test "${GOENV-}" = off\ngo env -json '));
   assert.match(script, /GOFLAGS= go mod tidy -diff/u);
   assert.doesNotMatch(script.split("go mod tidy -diff")[0], /-modfile/u);
   for (const command of ["go mod download", "go list", "go mod graph", "go mod verify"]) assert.match(script, new RegExp(`${command.replaceAll(" ", "\\s+")}[^\\n]*-modfile=/evidence/trivy\\.mod`, "u"));
@@ -255,6 +258,34 @@ test("preparation arguments isolate writable module files and compare semantic A
   assert.equal(validatePreparationPair(record, { preparation: alternate, closure: record.closure }), true);
   assert.throws(() => validatePreparationPair(record, { ...clone(), preparation: { ...validated, graph: [...validated.graph, "x@y z@v1"] } }), /scanner_owned_preparation_mismatch/u);
   assert.throws(() => validatePreparationPair(record, { ...clone(), preparation: { ...validated, semanticSumSha256: "2".repeat(64) } }), /scanner_owned_preparation_mismatch/u);
+});
+
+test("preparation environment accepts Go's disabled env-file projection and rejects configuration drift", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "owned-go-env-"));
+  const file = path.join(directory, "effective-env.json");
+  const expected = { GOENV: "", GOFLAGS: "-mod=readonly", GONOPROXY: "", GONOSUMDB: "", GOPRIVATE: "", GOPROXY: "https://proxy.golang.org",
+    GOSUMDB: "sum.golang.org", GOTOOLCHAIN: "local", GOWORK: "off" };
+  const reject = (value) => {
+    writeFileSync(file, JSON.stringify(value));
+    assert.throws(() => validatePreparationEnvironment(file), /scanner_owned_preparation_invalid/u);
+  };
+  try {
+    writeFileSync(file, JSON.stringify(expected));
+    const validated = validatePreparationEnvironment(file);
+    assert.deepEqual(validated, expected);
+    assert.ok(Object.isFrozen(validated));
+    reject({ ...expected, GOENV: "off" });
+    reject({ ...expected, GOENV: "/tmp/go/env" });
+    for (const key of Object.keys(expected)) {
+      reject({ ...expected, [key]: "changed" });
+      const missing = { ...expected }; delete missing[key]; reject(missing);
+    }
+    reject({ ...expected, EXTRA: "untrusted" });
+    for (const bytes of [Buffer.from("{"), Buffer.from([0xff])]) {
+      writeFileSync(file, bytes);
+      assert.throws(() => validatePreparationEnvironment(file), /scanner_owned_preparation_invalid/u);
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("Trivy source trees preserve only the three pinned dangling symlinks without following them", (context) => {
@@ -320,6 +351,9 @@ test("both build paths are offline and use the same canonical output", () => {
     assert.ok(args.includes("4g"));
     assert.ok(args.includes("GOAMD64=v1"));
     assert.ok(args.includes("GOWORK=off"));
+    assert.ok(args.includes("GOENV=off"));
+    assert.ok(args.at(-1).includes('test "${GOENV-}" = off'));
+    assert.doesNotMatch(args.at(-1), /go env GOENV/u);
     assert.ok(args.includes("--pull=never"));
     assert.ok(args.includes("/runner/source:/src:ro"));
     assert.ok(args.includes("/runner/out:/out"));
