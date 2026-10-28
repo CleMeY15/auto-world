@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
-  chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
-  realpathSync, rmSync, statfsSync, statSync, utimesSync, writeFileSync
+  chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync,
+  realpathSync, rmSync, statfsSync, utimesSync, writeFileSync
 } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -20,6 +20,11 @@ const LOCK_CANONICAL_SHA256 = "d8a119d9b7ea820ee54331082a7bc58847d5107a7f730bd73
 const BUILD_FLAGS = [
   "-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -buildid= -extldflags=-static -X github.com/aquasecurity/trivy/pkg/version/app.ver=0.76.1"
 ];
+const TRIVY_SOURCE_SYMLINKS = Object.freeze(new Map([
+  ["pkg/fanal/analyzer/language/golang/binary/testdata/symlink", Object.freeze({ target: "foo", gitBlobSha1: "19102815663d23f8b75a47e7a01965dcdc96468c" })],
+  ["pkg/fanal/analyzer/language/rust/binary/testdata/symlink", Object.freeze({ target: "foo", gitBlobSha1: "19102815663d23f8b75a47e7a01965dcdc96468c" })],
+  ["pkg/fanal/walker/testdata/fs/sym.txt", Object.freeze({ target: "bar", gitBlobSha1: "ba0e162e1c47469e3fe4b393a8bf8c569f302116" })],
+]));
 const fail = (code) => { throw new Error(code); };
 
 export function sha256(bytes) {
@@ -268,37 +273,55 @@ export function ownedFailureResult({ run: runValue, primary, cleanup, budget: bu
     firstFailure: primary.message.slice(0, 512), cleanup, budget: budgetValue, journal });
 }
 
-function directoryBytes(directory, cap) {
+function gitBlobSha1(bytes) {
+  return createHash("sha1").update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex");
+}
+
+function treeWalker(directory, cap, { trivySource = false } = {}, collect = false) {
+  if (!Number.isSafeInteger(cap) || cap < 1 || typeof trivySource !== "boolean") fail("scanner_owned_tree_invalid");
   let total = 0;
+  const entries = [], symlinks = new Set(), caseFolded = new Set();
   const visit = (current) => {
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
+    for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
       const item = path.join(current, entry.name);
-      if (entry.isSymbolicLink()) fail("scanner_owned_tree_invalid");
-      if (entry.isDirectory()) visit(item);
-      else if (entry.isFile()) total += statSync(item).size;
+      const relative = path.relative(directory, item).split(path.sep).join("/");
+      const info = lstatSync(item);
+      if (trivySource) {
+        const folded = relative.toLocaleLowerCase("en-US");
+        if (caseFolded.has(folded)) fail("scanner_owned_tree_invalid");
+        caseFolded.add(folded);
+      }
+      if (info.isSymbolicLink()) {
+        if (!trivySource || !entry.isSymbolicLink()) fail("scanner_owned_tree_invalid");
+        const expected = TRIVY_SOURCE_SYMLINKS.get(relative);
+        if (!expected || symlinks.has(relative)) fail("scanner_owned_tree_invalid");
+        const target = readlinkSync(item, { encoding: "utf8" });
+        const bytes = Buffer.from(target, "utf8");
+        if (target !== expected.target || gitBlobSha1(bytes) !== expected.gitBlobSha1) fail("scanner_owned_tree_invalid");
+        symlinks.add(relative); total += bytes.length;
+        if (collect) entries.push({ path: relative, type: "symlink", target, bytes: bytes.length, sha256: sha256(bytes), gitBlobSha1: expected.gitBlobSha1 });
+      } else if (info.isDirectory() && entry.isDirectory()) visit(item);
+      else if (info.isFile() && entry.isFile()) {
+        total += info.size;
+        if (collect) entries.push({ path: relative, ...fileIdentity(item, cap, { allowEmpty: true }) });
+      }
       else fail("scanner_owned_tree_invalid");
       if (total > cap) fail("scanner_owned_tree_budget_exceeded");
     }
   };
   visit(directory);
-  return total;
+  if (trivySource && (symlinks.size !== TRIVY_SOURCE_SYMLINKS.size || [...TRIVY_SOURCE_SYMLINKS.keys()].some((item) => !symlinks.has(item)))) {
+    fail("scanner_owned_tree_invalid");
+  }
+  return { total, entries };
 }
 
-function manifestTree(directory, cap) {
-  directoryBytes(directory, cap);
-  const entries = [];
-  const visit = (current) => {
-    for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
-      const item = path.join(current, entry.name);
-      const relative = path.relative(directory, item).split(path.sep).join("/");
-      if (entry.isSymbolicLink()) fail("scanner_owned_tree_invalid");
-      if (entry.isDirectory()) visit(item);
-      else if (entry.isFile()) entries.push({ path: relative, ...fileIdentity(item, cap, { allowEmpty: true }) });
-      else fail("scanner_owned_tree_invalid");
-    }
-  };
-  visit(directory);
-  return entries;
+export function directoryBytes(directory, cap, options) {
+  return treeWalker(directory, cap, options).total;
+}
+
+export function manifestTree(directory, cap, options) {
+  return treeWalker(directory, cap, options, true).entries;
 }
 
 export function validateGitArchiveListing(listingText, verboseText) {
@@ -529,7 +552,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
       const archive = path.join(privateRoot, "patched-source.tar.gz");
       run("/usr/bin/tar", ["--create", "--gzip", "--file", archive, "--exclude=.git", "--directory", source, "."], { timeoutMs: bounded(5 * 60_000), maxBytes: MiB, logFile: path.join(privateLogs, "source-archive.log") });
       const sourceArchive = fileIdentity(archive, lock.limits.sourceArchiveBytes);
-      const sourceManifest = manifestTree(source, lock.limits.sourceTreeBytes).filter((entry) => !entry.path.startsWith(".git/"));
+      const sourceManifest = manifestTree(source, lock.limits.sourceTreeBytes, { trivySource: true }).filter((entry) => !entry.path.startsWith(".git/"));
       writePublicJson(output, "source.json", { schemaVersion: 1, source: { commit: lock.scanner.sourceCommit, tree: lock.scanner.sourceTree }, archive: sourceArchive,
         patched: lock.scanner.patched, files: sourceManifest, upstreamNotices, patch: { bytes: lock.patch.bytes, sha256: lock.patch.sha256 }, notice: { bytes: lock.notice.bytes, sha256: lock.notice.sha256 } }, publicFiles, lock.limits);
 
@@ -551,8 +574,8 @@ export function buildOwnedScanner({ output, scope, budget }) {
           lock.compiler.builder.reference, "/bin/sh", "-euc", preparationScript()];
         containers.execute(prepArgs, { timeoutMs: bounded(25 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: path.join(privateLogs, `prepare-${letter}.log`) });
         validateSourcePatch(sourceCopy, lock);
-        directoryBytes(sourceCopy, lock.limits.sourceTreeBytes); directoryBytes(moduleCache, lock.limits.moduleCacheBytes); directoryBytes(buildCache, lock.limits.buildCacheBytes);
-        if (canonicalJson(manifestTree(sourceCopy, lock.limits.sourceTreeBytes)) !== canonicalJson(sourceManifest)) fail("scanner_owned_source_seal_changed");
+        directoryBytes(sourceCopy, lock.limits.sourceTreeBytes, { trivySource: true }); directoryBytes(moduleCache, lock.limits.moduleCacheBytes); directoryBytes(buildCache, lock.limits.buildCacheBytes);
+        if (canonicalJson(manifestTree(sourceCopy, lock.limits.sourceTreeBytes, { trivySource: true })) !== canonicalJson(sourceManifest)) fail("scanner_owned_source_seal_changed");
         const downloadsJson = run("/usr/bin/jq", ["-s", ".", path.join(prepEvidence, "downloads.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const modulesJson = run("/usr/bin/jq", ["-s", ".", path.join(prepEvidence, "modules.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const compiledJson = run("/usr/bin/jq", ["-s", "[.[] | select(.Module != null and .Module.Main != true) | .Module.Path] | unique", path.join(prepEvidence, "deps.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
@@ -595,7 +618,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
       const gitTree = run("/usr/bin/git", ["-C", gitDestination, "rev-parse", `${gitCommit}^{tree}`], { timeoutMs: bounded(60_000), maxBytes: MiB }).stdout.toString("utf8").trim();
       if ([gitCommit, gitBranch, gitTag].some((item) => item !== lock.fixtures.git.commit) || gitTree !== lock.fixtures.git.tree) fail("scanner_owned_git_fixture_invalid");
       const future = new Date(Date.now() + 60_000); utimesSync(rpmDestination, future, future); utimesSync(gitDestination, future, future);
-      const before = manifestTree(testCopy, lock.limits.sourceTreeBytes);
+      const before = manifestTree(testCopy, lock.limits.sourceTreeBytes, { trivySource: true });
       const rustRoot = path.join(privateRoot, "rust-controls"); mkdirSync(rustRoot, { mode: 0o755 });
       for (const [index, fixture] of lock.fixtures.rust.entries()) { const sourceFile = path.join(testCopy, fixture.path); assertIdentity(sourceFile, fixture, MiB); const destination = path.join(rustRoot, String(index + 1), "Cargo.lock"); mkdirSync(path.dirname(destination), { mode: 0o755 }); copyFileSync(sourceFile, destination); chmodSync(destination, 0o644); assertIdentity(destination, fixture, MiB); }
       const testArgs = ["run", "--rm", "--platform", "linux/amd64", "--user", runnerUser, "--network", "none", "--pull=never", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "4096", "--memory", "4g", "--memory-swap", "4g",
@@ -607,7 +630,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
       const trivyLog = path.join(privateLogs, "trivy-unit.log");
       containers.execute(testArgs, { timeoutMs: bounded(55 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: trivyLog });
       directoryBytes(path.join(privateRoot, "test-cache"), lock.limits.buildCacheBytes);
-      const after = manifestTree(testCopy, lock.limits.sourceTreeBytes);
+      const after = manifestTree(testCopy, lock.limits.sourceTreeBytes, { trivySource: true });
       const beforeMap = new Map(before.map((item) => [item.path, item]));
       const afterMap = new Map(after.map((item) => [item.path, item]));
       const allowed = [/^pkg\/module\/testdata\/(?:analyzer\/analyzer|happy\/happy|scanner\/scanner)\.wasm$/u, /^coverage\.txt$/u];

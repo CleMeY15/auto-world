@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,6 +7,8 @@ import {
   buildOwnedScanner,
   canonicalJson,
   createOwnedContainerRunner,
+  directoryBytes,
+  manifestTree,
   ownedBuildDockerArguments,
   ownedCleanupEvidence,
   ownedContainerCreateArguments,
@@ -27,6 +29,40 @@ const LOCK_PATH = path.join(ROOT, "infra/scanner/owned-scanner-lock.json");
 const PATCH_PATH = path.join(ROOT, "infra/scanner/patches/trivy-go-jose-4.1.6.patch");
 const NOTICE_PATH = path.join(ROOT, "infra/scanner/AUTO-WORLD-TRIVY-NOTICE.txt");
 const LOCK = JSON.parse(readFileSync(LOCK_PATH, "utf8"));
+
+const TRIVY_SYMLINKS = [
+  ["pkg/fanal/analyzer/language/golang/binary/testdata/symlink", "foo", "19102815663d23f8b75a47e7a01965dcdc96468c"],
+  ["pkg/fanal/analyzer/language/rust/binary/testdata/symlink", "foo", "19102815663d23f8b75a47e7a01965dcdc96468c"],
+  ["pkg/fanal/walker/testdata/fs/sym.txt", "bar", "ba0e162e1c47469e3fe4b393a8bf8c569f302116"],
+];
+
+function materializeTrivyLinkTargets(root) {
+  for (const [relative, target] of TRIVY_SYMLINKS) writeFileSync(path.resolve(path.dirname(path.join(root, ...relative.split("/"))), target), "", { flag: "wx" });
+}
+
+function trivySymlinkTree(materializeTargets = false) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-trivy-links-"));
+  try {
+    writeFileSync(path.join(root, "source.txt"), "data");
+    for (const [relative, target] of TRIVY_SYMLINKS) {
+      const link = path.join(root, ...relative.split("/")); mkdirSync(path.dirname(link), { recursive: true }); symlinkSync(target, link, "file");
+    }
+    if (materializeTargets) materializeTrivyLinkTargets(root);
+    return root;
+  } catch (error) { rmSync(root, { recursive: true, force: true }); throw error; }
+}
+
+function removeTrivySymlinkTree(root) {
+  for (const [relative, targets] of [...TRIVY_SYMLINKS.map(([item, target]) => [item, [target, "../outside"]]), ["extra-link", ["foo"]]]) {
+    const link = path.join(root, ...relative.split("/"));
+    for (const target of targets) {
+      const materialized = path.resolve(path.dirname(link), target); mkdirSync(path.dirname(materialized), { recursive: true });
+      try { writeFileSync(materialized, "", { flag: "ax" }); } catch (error) { if (error?.code !== "EEXIST") throw error; }
+    }
+    try { unlinkSync(link); } catch (error) { if (error?.code !== "ENOENT") throw error; }
+  }
+  rmSync(root, { recursive: true, force: true });
+}
 
 test("owned scanner lock freezes the exact derivative without altering the CLI version", () => {
   const lock = validateOwnedScannerLock(JSON.parse(JSON.stringify(LOCK)));
@@ -101,6 +137,58 @@ test("module closure binds downloaded bytes and the compiled subset", () => {
   assert.equal(closure.materials.length, 2);
   assert.throws(() => validateModuleClosure(downloads, modules, [], LOCK), /scanner_owned_go_jose_closure_invalid/u);
   assert.throws(() => validateModuleClosure(downloads, [...modules, { Path: "example.invalid/local", Version: "v1.0.0", Replace: { Path: ".." } }], [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
+});
+
+test("Trivy source trees preserve only the three pinned dangling symlinks without following them", (context) => {
+  let probe;
+  try { probe = trivySymlinkTree(); }
+  catch (error) {
+    if (["EPERM", "EACCES", "UNKNOWN"].includes(error?.code)) { context.skip("symbolic-link creation is unavailable on this Windows host"); return; }
+    throw error;
+  }
+  let materializeTargets = false;
+  try { manifestTree(probe, 1_024, { trivySource: true }); }
+  catch (error) {
+    if (process.platform === "win32" && ["ENOENT", "EINVAL", "UNKNOWN"].includes(error?.code)) {
+      materializeTrivyLinkTargets(probe); materializeTargets = true; manifestTree(probe, 1_024, { trivySource: true });
+    } else {
+      removeTrivySymlinkTree(probe); throw error;
+    }
+  }
+  removeTrivySymlinkTree(probe);
+  const withTree = (mutation, assertion) => {
+    const root = trivySymlinkTree(materializeTargets);
+    try { mutation?.(root); assertion(root); } finally { removeTrivySymlinkTree(root); }
+  };
+  withTree(null, (root) => {
+    assert.equal(directoryBytes(root, 13, { trivySource: true }), 13);
+    assert.throws(() => directoryBytes(root, 12, { trivySource: true }), /scanner_owned_tree_budget_exceeded/u);
+    assert.throws(() => manifestTree(root, 1_024), /scanner_owned_tree_invalid/u);
+    const links = manifestTree(root, 1_024, { trivySource: true }).filter((entry) => entry.type === "symlink");
+    assert.deepEqual(links.map(({ path: relative, target, bytes, gitBlobSha1 }) => [relative, target, bytes, gitBlobSha1]),
+      TRIVY_SYMLINKS.map(([relative, target, blob]) => [relative, target, 3, blob]));
+    assert.deepEqual(links.map((entry) => entry.sha256), [sha256(Buffer.from("foo")), sha256(Buffer.from("foo")), sha256(Buffer.from("bar"))]);
+  });
+  withTree((root) => unlinkSync(path.join(root, ...TRIVY_SYMLINKS[0][0].split("/"))),
+    (root) => assert.throws(() => manifestTree(root, 1_024, { trivySource: true }), /scanner_owned_tree_invalid/u));
+  withTree((root) => { const link = path.join(root, ...TRIVY_SYMLINKS[1][0].split("/")); unlinkSync(link); writeFileSync(link, "foo"); },
+    (root) => assert.throws(() => manifestTree(root, 1_024, { trivySource: true }), /scanner_owned_tree_invalid/u));
+  withTree((root) => { const link = path.join(root, ...TRIVY_SYMLINKS[2][0].split("/")); unlinkSync(link); symlinkSync("../outside", link, "file");
+    if (materializeTargets) writeFileSync(path.resolve(path.dirname(link), "../outside"), "", { flag: "wx" }); },
+    (root) => assert.throws(() => manifestTree(root, 1_024, { trivySource: true }), /scanner_owned_tree_invalid/u));
+  withTree((root) => { symlinkSync("foo", path.join(root, "extra-link"), "file"); if (materializeTargets) writeFileSync(path.join(root, "foo"), "", { flag: "wx" }); },
+    (root) => assert.throws(() => manifestTree(root, 1_024, { trivySource: true }), /scanner_owned_tree_invalid/u));
+  withTree(null, (root) => {
+    const before = manifestTree(root, 1_024, { trivySource: true }); writeFileSync(path.join(root, "coverage.txt"), "coverage");
+    const after = manifestTree(root, 1_024, { trivySource: true }); assert.notEqual(canonicalJson(before), canonicalJson(after));
+  });
+  withTree((root) => {
+    writeFileSync(path.join(root, "Case"), "a", { flag: "wx" });
+    try { writeFileSync(path.join(root, "case"), "b", { flag: "wx" }); } catch (error) { if (error?.code !== "EEXIST") throw error; }
+  }, (root) => {
+    if (readdirSync(root).filter((name) => name === "Case" || name === "case").length !== 2) return;
+    assert.throws(() => manifestTree(root, 1_024, { trivySource: true }), /scanner_owned_tree_invalid/u);
+  });
 });
 
 test("both build paths are offline and use the same canonical output", () => {

@@ -1,6 +1,6 @@
 # TASK-0005 — Auto World scanner qualification
 
-Status: IMPLEMENTED_LOCAL_VALIDATION_PASS_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
+Status: SOURCE_LINK_CORRECTION_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
 
 ## Cause and accepted scope
 
@@ -19,6 +19,16 @@ The user explicitly chose construction and maintenance of the bounded owned scan
 - Full plan and both verdicts were published in [draft PR202](https://github.com/CleMeY15/auto-world/pull/202) and read back exactly, 50111 characters, while HEAD remained c80 and before any implementation dispatch. Private handoff is COMPLETE; native implementation has separate build, controls and root integration owners.
 
 The network boundary forbids outbound acquisition after freezing. Loopback-only upstream httptest servers remain permitted within network-isolated containers; no new tracing tool or provider is required.
+
+## First implementation Linux evidence
+
+Source `34b8f0dcd908a0f7bd2bee450a1f7397532189fa`, tree `e7d3f96df34e99a785e0c7dac8f61c256285dfdf`, is bound to actual synthetic checkout `77857b6b89557849307a44fae6da5ddc373f0f03`, with ordered parents accepted main `1f6c2d996ee53d4e11ebfee693c7832a82490b5a` and source `34b8f0d...`. Both [upstream 40687079050/1](https://github.com/CleMeY15/auto-world/actions/runs/40687079050) and [managed 40687079052/1](https://github.com/CleMeY15/auto-world/actions/runs/40687079052) fail closed at `scanner_owned_tree_invalid` during source preparation. Upstream prerequisite tests pass 94/94; managed passes 678 with one pre-existing skip. Both official-provenance checks and all four negative controls pass. All owned, Docker and work-root cleanup receipts prove absence, with no cleanup uncertainty.
+
+The stack proves rejection of a symbolic link in the checked-out Trivy source. Absence of `source.json` locates the failure before compiler-archive acquisition, in the source manifest. The exact upstream tree contains three Git mode-120000 fixtures: `pkg/fanal/analyzer/language/golang/binary/testdata/symlink` and its Rust equivalent both target the relative text `foo` (Git blob `19102815663d23f8b75a47e7a01965dcdc96468c`); `pkg/fanal/walker/testdata/fs/sym.txt` targets `bar` (blob `ba0e162e1c47469e3fe4b393a8bf8c569f302116`). The stack cannot distinguish which deep analyzer fixture was rejected first. This is a source representation defect; it is not a scanner vulnerability result or a Go archive defect.
+
+Independent receivers each acquired and retained one original log and one original ZIP, with safe inventories before a single text extraction. Upstream log: 73148 bytes / SHA256 `ec679959167c698cf338695b1357cae5bc5f84f371e9e1fc5cf53d04bd548be5`; ZIP: 66575 bytes / `d07ebb356e23f41dc1eb4be96a0d1561664abc3e11f655cbfadd92ac3af422c9`. Managed log: 296015 bytes / `fe50ab5793e96817f256193fa7c632bb86cd1c406597b277d875fb3289c4bdc1`; ZIP: 69337 bytes / `85ca542ec9293058ab3a1b2053589e884ea55cdf61fe110d83b221665d432ed1`. Both ZIP digests match their GitHub artifact metadata. No A/B build, self/control/builder audit, downstream subject or Native result exists; each remains NOT_RUN. These failed originals are preserved and will not be rerun unchanged.
+
+The bounded correction introduces an explicit Trivy-source profile for exactly those three paths, relative target bytes and Git blob identities. It records link type/target/size/digests without following any target, requires all expected links, rejects extra/replaced/retargeted/case-colliding links and counts target bytes within the existing cap. Only the Trivy source, A/B copies and before/after test manifests select this profile; compiler, module-cache and other trees keep their generic link refusal. Independent review returned APPROVE with zero findings and 91/91 targeted tests. Fresh root tests pass 2262 with the same 490 environment-dependent skips and zero failures; scoped ESLint, syntax and diff checks pass. Reviewed build-source SHA256 is `d9a3d71268b52c8052b2fbb0988c1e1df1a30b75173ce0ca42c584bc10960a46`; regression-file SHA256 is `a2cb3d3086524faa9c0def4f389fc0a8574aef11a6e8a1c388e6adefb5320c97`. This closes the demonstrated representation defect locally; a fresh Linux run must prove the next stage.
 
 ## Acceptance still required
 
