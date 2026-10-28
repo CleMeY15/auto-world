@@ -277,10 +277,12 @@ function gitBlobSha1(bytes) {
   return createHash("sha1").update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest("hex");
 }
 
-function treeWalker(directory, cap, { trivySource = false } = {}, collect = false) {
-  if (!Number.isSafeInteger(cap) || cap < 1 || typeof trivySource !== "boolean") fail("scanner_owned_tree_invalid");
+function treeWalker(directory, cap, options = {}, collect = false) {
+  const { trivySource = false, fileBytes = cap } = options;
+  if (!Number.isSafeInteger(cap) || cap < 1 || typeof trivySource !== "boolean" || !Number.isSafeInteger(fileBytes) || fileBytes < 1 || fileBytes > cap) fail("scanner_owned_tree_invalid");
   let total = 0;
   const entries = [], symlinks = new Set(), caseFolded = new Set();
+  const addBytes = (bytes) => { total += bytes; if (total > cap) fail("scanner_owned_tree_budget_exceeded"); };
   const visit = (current) => {
     for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, "en"))) {
       const item = path.join(current, entry.name);
@@ -298,15 +300,14 @@ function treeWalker(directory, cap, { trivySource = false } = {}, collect = fals
         const target = readlinkSync(item, { encoding: "utf8" });
         const bytes = Buffer.from(target, "utf8");
         if (target !== expected.target || gitBlobSha1(bytes) !== expected.gitBlobSha1) fail("scanner_owned_tree_invalid");
-        symlinks.add(relative); total += bytes.length;
+        symlinks.add(relative); addBytes(bytes.length);
         if (collect) entries.push({ path: relative, type: "symlink", target, bytes: bytes.length, sha256: sha256(bytes), gitBlobSha1: expected.gitBlobSha1 });
       } else if (info.isDirectory() && entry.isDirectory()) visit(item);
       else if (info.isFile() && entry.isFile()) {
-        total += info.size;
-        if (collect) entries.push({ path: relative, ...fileIdentity(item, cap, { allowEmpty: true }) });
+        addBytes(info.size);
+        if (collect) entries.push({ path: relative, ...fileIdentity(item, fileBytes, { allowEmpty: true }) });
       }
       else fail("scanner_owned_tree_invalid");
-      if (total > cap) fail("scanner_owned_tree_budget_exceeded");
     }
   };
   visit(directory);
@@ -606,16 +607,17 @@ function containerCachePath(value, moduleCache) {
   return resolved;
 }
 
-function enrichDownloads(downloads, moduleCache, cap) {
+export function enrichDownloads(downloads, moduleCache, { zipBytes, moduleTreeBytes }) {
+  if (!Number.isSafeInteger(zipBytes) || zipBytes < 1 || !Number.isSafeInteger(moduleTreeBytes) || moduleTreeBytes < zipBytes) fail("scanner_owned_module_download_invalid");
   return downloads.map((entry) => {
     if (entry.Error || !entry.Zip || !entry.GoMod || !entry.Info || !entry.Dir) fail("scanner_owned_module_download_invalid");
     const directory = containerCachePath(entry.Dir, moduleCache);
     const directoryInfo = lstatSync(directory);
     if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) fail("scanner_owned_module_download_invalid");
-    const directoryManifest = manifestTree(directory, cap);
+    const directoryManifest = manifestTree(directory, moduleTreeBytes, { fileBytes: zipBytes });
     const directoryBytesValue = directoryManifest.reduce((total, item) => total + item.bytes, 0);
     return { Path: entry.Path, Version: entry.Version, Sum: entry.Sum, GoModSum: entry.GoModSum,
-      ZipIdentity: fileIdentity(containerCachePath(entry.Zip, moduleCache), cap),
+      ZipIdentity: fileIdentity(containerCachePath(entry.Zip, moduleCache), zipBytes),
       ModIdentity: fileIdentity(containerCachePath(entry.GoMod, moduleCache), 8 * MiB, { allowEmpty: true }),
       InfoIdentity: fileIdentity(containerCachePath(entry.Info, moduleCache), 8 * MiB),
       DirIdentity: { bytes: directoryBytesValue, sha256: sha256(Buffer.from(`${canonicalJson(directoryManifest)}\n`)) }, Origin: entry.Origin ?? null };
@@ -756,7 +758,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
         const modulesJson = run("/usr/bin/jq", ["-s", ".", path.join(prepEvidence, "modules.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const compiledJson = run("/usr/bin/jq", ["-s", "[.[] | select(.Module != null and .Module.Main != true) | .Module.Path] | unique", path.join(prepEvidence, "deps.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const rawDownloads = JSON.parse(downloadsJson.toString("utf8"));
-        const downloadMaterials = enrichDownloads(rawDownloads, moduleCache, 256 * MiB);
+        const downloadMaterials = enrichDownloads(rawDownloads, moduleCache, { zipBytes: 256 * MiB, moduleTreeBytes: lock.limits.moduleCacheBytes });
         const modules = JSON.parse(modulesJson.toString("utf8"));
         const closure = validateModuleClosure(downloadMaterials, modules, JSON.parse(compiledJson.toString("utf8")), lock);
         writeFileSync(path.join(evidence, `closure-${letter}.json`), `${canonicalJson(closure)}\n`, { flag: "wx", mode: 0o600 });

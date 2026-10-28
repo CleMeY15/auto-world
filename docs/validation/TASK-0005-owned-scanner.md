@@ -1,6 +1,6 @@
 # TASK-0005 — Auto World scanner qualification
 
-Status: PREPARATION_REPAIR_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
+Status: MODULE_SIZE_REPAIR_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
 
 ## Cause and accepted scope
 
@@ -51,6 +51,16 @@ Preparation records identities after each command and checks file/directory limi
 The repair plan was published and read back in PR202 before implementation. Architecture review approved this bounded separation; a subsequent ordering addendum explicitly requires semantic set comparison without a new SemVer implementation. Initial independent code review requested removal of `Origin` from the closure and correction of final preparation-size accounting. Both findings were fixed, and the final review returned APPROVE with zero findings. Reviewed source SHA256: `ed8e2cd72704b2ba9d6bc732247c9dfd2c62cadb607f5686c2d51e511ea98f7d`; regression file: `12ba579052a989ba9e8159117afd81639e3e53eaab8343aaa5df8addb3e83450`. Targeted tests pass 17/17; scanner suites pass 556 with 35 existing Windows exclusions. This establishes local repair readiness, not actual Go/Linux qualification.
 
 Fresh final root validation passes 2264 tests with the same 490 environment-dependent exclusions and zero failures (2754 total), using Node 22.23.2. Repository-script/test ESLint and Secretlint for 1220 files also pass. The unchanged application typecheck, build and browser gates passed on b6f; the next source still requires its own complete Linux quality and provider runs. The separate timeout-only [PR203](https://github.com/CleMeY15/auto-world/pull/203) is accepted on main `b8d31a3045ddb0e26b961eeb12ae173537835bd8` after both its PR and distinct [main CI](https://github.com/CleMeY15/auto-world/actions/runs/40693557500) passed.
+
+## Third Linux run: preparation passes, archive/tree limits separated
+
+Source `eb74a71b0a010813d58af282c5861c909465166b`, tree `4822f0dece7bc9ff3c557e7306801e04c839b556`, incorporates the accepted CI-capacity main. [Upstream 40702620826](https://github.com/CleMeY15/auto-world/actions/runs/40702620826) and [managed 40702620804](https://github.com/CleMeY15/auto-world/actions/runs/40702620804) both pass the preparation container, canonical source/module-file checks and the complete 4 GiB module-cache budget. They then stop at `scanner_owned_tree_budget_exceeded` while computing an expanded module-directory identity. Upstream pure tests pass 97/97; managed pure tests pass 681 with one existing exclusion. Official provenance and four refusal controls pass. Both original logs/ZIPs are retained once and owned/Docker/work cleanup is complete and certain.
+
+The new directory-identity calculation reused the 256 MiB compressed-ZIP limit for the cumulative expanded directory. The original evidence does not name the module or its exact expanded size. The reviewed correction separates those quantities: ZIP archives and individual file reads remain capped at 256 MiB; an expanded tree remains within the already checked aggregate module-cache cap of 4 GiB. Cumulative size is refused from file metadata before reading/hashing the file that would exceed it. No approved resource budget is increased.
+
+Real temporary-filesystem regressions accept a small ZIP with a larger, individually bounded expanded tree and reject oversized ZIPs, individual files, trees and aggregate caches. Targeted tests pass 18/18; scanner suites pass 557 with the same 35 Windows exclusions. No Trivy/go-jose suite, build A/B, owned scanner qualification, database or downstream image/SeaweedFS/Native result was reached in either failed run. A fresh source and complete Linux evidence remain required.
+
+The architecture review and distinct code review both approve this correction with zero remaining findings. Reviewed source SHA256 is `2ee1c9014bc1f08c17f2fd991bbf54b0c527d6eed5e06130a6a2681f889f5ec3`; regression-file SHA256 is `e4eb733dd14158ebf32122a97e24622759619db145c25b2d5efee1027765b843`. Fresh root tests pass 2265 with 490 unchanged environment-dependent exclusions and zero failures (2755 total); targeted ESLint, syntax, diff checks and Secretlint for 1220 files pass. The original plan, locks, source patch and compiler identities are unchanged.
 
 ## Acceptance still required
 

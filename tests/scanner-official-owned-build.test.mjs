@@ -8,6 +8,7 @@ import {
   canonicalJson,
   createOwnedContainerRunner,
   directoryBytes,
+  enrichDownloads,
   manifestTree,
   ownedBuildDockerArguments,
   ownedCleanupEvidence,
@@ -144,6 +145,36 @@ test("module closure binds downloaded bytes and the compiled subset", () => {
   assert.throws(() => validateModuleClosure(downloads, [...modules, { Path: "example.invalid/local", Version: "v1.0.0", Replace: { Path: ".." } }], [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
   assert.throws(() => validateModuleClosure([{ ...downloads[0], Sum: "h1:wrong" }, downloads[1]], modules, [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
   assert.throws(() => validateModuleClosure([{ ...downloads[0], GoModSum: "h1:wrong" }, downloads[1]], modules, [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
+});
+
+test("download enrichment separates ZIP, module file, module tree and aggregate cache limits", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "aw-module-cache-"));
+  try {
+    const relative = (name) => path.join(root, ...name.split("/"));
+    const zip = relative("cache/download/example.zip"); const mod = relative("cache/download/example.mod"); const info = relative("cache/download/example.info");
+    const dir = relative("example.invalid/module@v1.0.0");
+    mkdirSync(path.dirname(zip), { recursive: true }); mkdirSync(dir, { recursive: true });
+    writeFileSync(zip, "zip"); writeFileSync(mod, "mod"); writeFileSync(info, "info");
+    writeFileSync(path.join(dir, "a"), "123456"); writeFileSync(path.join(dir, "b"), "abcdef");
+    const download = [{ Path: "example.invalid/module", Version: "v1.0.0", Sum: "h1:zip", GoModSum: "h1:mod",
+      Zip: "/gomodcache/cache/download/example.zip", GoMod: "/gomodcache/cache/download/example.mod", Info: "/gomodcache/cache/download/example.info",
+      Dir: "/gomodcache/example.invalid/module@v1.0.0", Origin: { VCS: "git", Hash: "observed" } }];
+    assert.ok(directoryBytes(root, 64) > 0);
+    const enriched = enrichDownloads(download, root, { zipBytes: 8, moduleTreeBytes: 16 });
+    assert.equal(enriched[0].ZipIdentity.bytes, 3);
+    assert.equal(enriched[0].DirIdentity.bytes, 12);
+    assert.deepEqual(enriched[0].Origin, download[0].Origin);
+
+    writeFileSync(zip, "123456789");
+    assert.throws(() => enrichDownloads(download, root, { zipBytes: 8, moduleTreeBytes: 16 }), /scanner_owned_file_invalid/u);
+    writeFileSync(zip, "zip"); writeFileSync(path.join(dir, "a"), "123456789");
+    assert.throws(() => enrichDownloads(download, root, { zipBytes: 8, moduleTreeBytes: 32 }), /scanner_owned_file_invalid/u);
+    writeFileSync(path.join(dir, "a"), "123456"); writeFileSync(path.join(dir, "b"), "abcdefghijk");
+    assert.throws(() => enrichDownloads(download, root, { zipBytes: 12, moduleTreeBytes: 16 }), /scanner_owned_tree_budget_exceeded/u);
+    assert.throws(() => directoryBytes(root, 16), /scanner_owned_tree_budget_exceeded/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 function preparationFixture(reverse = false) {
