@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. TASK-0103/0107/0108/0109/0110/0111/0112 are accepted on main; TASK-0113 adds explicit local comparison links under its own [validation gates](docs/validation/TASK-0113.md).
-- Last refreshed: 2026-10-20.
+- Status: Active. Product increments through TASK-0115 are accepted on main through their delivery checkpoints. TASK-0116 improves the existing comparison under its own [validation gates](docs/validation/TASK-0116.md), without infrastructure admission.
+- Last refreshed: 2026-10-26.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -158,3 +158,11 @@
 - Reuse ivory/graphite/petrol tokens, platform fonts and shared action styling. Calm one-column mobile reading order; desktop separation only when content fits. Small route-owned styles, no shared provider framework, decorative card stack or imagery.
 - Help explains connection needs and unavailable report links with a secondary official sale-guidance link. Native operation without JS/demo, local loaded content remains useful offline. No automatic external traffic or collected data.
 - Validate both engines320/390/768/1440 light/dark and200% platform/Verdana, keyboard/focus/44px/axe/reduced motion, actual pixels and existing performance budgets before acceptance. [Task](roadmap/tasks/TASK-0115-official-history-guide.md) governs delivery, not merely compilation.
+
+## TASK-0116 comparison differences
+
+- Full factual table remains the default in local and received comparisons. One native « Différences uniquement » checkbox hides only confirmed-identical rows; explain that incomplete/non-comparable information stays visible. No secondary navigation, card stack, ranking or data conversion.
+- Use existing surface/text/focus tokens for restrained different-row emphasis, always paired with the existing text status. Keep full per-column snapshot qualification. When availability is hidden as identical, retain it in column context. Move shared authored provenance to the last visible authored row, never drop it while make/model remain visible.
+- A compact wrapping toolbar provides a 44px label target and polite visible/total criterion count. Disabled below two publications; no-difference state explains the limited comparison without implying vehicle identity. Unchecking restores every row. View state is ephemeral and resets on leaving/reopening or re-reading.
+- Preserve semantic headers and the labelled horizontal-scroll region. Two-publication tables need three readable columns, not the width reserved for four. No sticky labels that obscure values at narrow widths or enlarged text.
+- [TASK-0116](roadmap/tasks/TASK-0116-comparison-differences.md) requires both-engine viewport/theme/enlarged-text/keyboard/axe checks, actual-pixel review, no-side-effect regressions and measured responsiveness before delivery.

@@ -1,5 +1,6 @@
 import { Banner, Button } from "@auto-world/design-system/primitives";
 import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchResponseV2 } from "@auto-world/demo-search-contract";
+import { useState } from "react";
 
 import { comparisonConflicts, comparisonRows, type ComparisonEntry } from "../../demo/comparison";
 import { resolveDescription } from "../../demo/catalog";
@@ -69,10 +70,11 @@ function AuthoredMetadata({ result }: { readonly result: DemoResultV2 }) {
   );
 }
 
-function ComparisonValue({ entry, field, catalog }: {
+function ComparisonValue({ entry, field, catalog, showAuthoredMetadata }: {
   readonly entry: ComparisonEntry;
   readonly field: ComparisonField;
   readonly catalog?: DemoCatalogResponseV2;
+  readonly showAuthoredMetadata: boolean;
 }) {
   const { result } = entry;
   if (field === "availability") return <span>{availabilityLabel(result.availability)}</span>;
@@ -96,7 +98,7 @@ function ComparisonValue({ entry, field, catalog }: {
       : field === "make"
         ? description.makeLabel
         : description.modelLabel;
-  return <><span className="demo-comparison-value">{value}</span>{field === "firstRegistrationYear" ? <AuthoredMetadata result={result} /> : null}</>;
+  return <><span className="demo-comparison-value">{value}</span>{showAuthoredMetadata ? <AuthoredMetadata result={result} /> : null}</>;
 }
 
 export interface ComparisonScreenProps {
@@ -114,7 +116,12 @@ export function ComparisonTable({ entries, catalog, responses }: {
   readonly catalog?: DemoCatalogResponseV2;
   readonly responses?: readonly DemoSearchResponseV2[];
 }) {
+  const [differencesOnly, setDifferencesOnly] = useState(false);
+  const filterActive = differencesOnly && entries.length >= 2;
   const rows = comparisonRows(entries, catalog);
+  const visibleRows = filterActive ? rows.filter((row) => row.status !== "same") : rows;
+  const authoredMetadataField = visibleRows.filter((row) => row.field === "make" || row.field === "model" || row.field === "firstRegistrationYear").at(-1)?.field;
+  const availabilityHidden = !visibleRows.some((row) => row.field === "availability");
   const conflicts = entries.reduce((state, { result }) => {
     const next = comparisonConflicts(result);
     return { observations: state.observations || next.observations, descriptions: state.descriptions || next.descriptions };
@@ -123,9 +130,24 @@ export function ComparisonTable({ entries, catalog, responses }: {
   return (
     <>
       {conflicts.observations || conflicts.descriptions ? <Banner role="note" tone="warning">{conflicts.observations && conflicts.descriptions ? "Plusieurs valeurs et déclarations existent dans les historiques" : conflicts.observations ? "Plusieurs valeurs existent dans l’historique des observations" : "Plusieurs déclarations existent dans l’historique synthétique"}. Consultez le détail pour voir leurs dates et provenances séparées.</Banner> : null}
+      <div className="demo-comparison-view">
+        <label className="demo-comparison-filter">
+          <input
+            type="checkbox"
+            checked={filterActive}
+            disabled={entries.length < 2}
+            aria-describedby="demo-comparison-filter-help"
+            onChange={(event) => setDifferencesOnly(event.target.checked)}
+          />
+          <span>Différences uniquement</span>
+        </label>
+        <p className="demo-comparison-count" role="status" aria-atomic="true">{visibleRows.length} {visibleRows.length === 1 ? "critère affiché" : "critères affichés"} sur {rows.length}</p>
+        <p className="demo-comparison-filter-help" id="demo-comparison-filter-help">Les informations incomplètes ou non comparables restent visibles.</p>
+      </div>
+      {visibleRows.length === 0 ? <p>Aucune différence entre les critères renseignés. Cela ne signifie pas qu’il s’agit du même véhicule. Décochez « Différences uniquement » pour revoir toutes les valeurs.</p> : null}
       <p className="demo-comparison-hint" id="demo-comparison-hint">Sur écran étroit, faites défiler le tableau horizontalement pour consulter toutes les publications.</p>
       <div className="demo-comparison-scroll" role="region" aria-labelledby="demo-screen-title" aria-describedby="demo-comparison-hint" tabIndex={0}>
-        <table className="demo-comparison-table">
+        <table className="demo-comparison-table" data-comparison-count={entries.length}>
           <thead>
             <tr>
               <th scope="col">Caractéristique</th>
@@ -134,6 +156,7 @@ export function ComparisonTable({ entries, catalog, responses }: {
                 return (
                   <th scope="col" key={entry.result.listingId} data-comparison-slot={position} data-status={response ? "ready" : undefined}>
                     Publication {String(entry.index + 1).padStart(2, "0")}
+                    {availabilityHidden ? <span className="demo-comparison-meta demo-comparison-availability">{availabilityLabel(entry.result.availability)}</span> : null}
                     {response ? (
                       <div className="demo-comparison-meta">
                         Données arrêtées au <time dateTime={response.dataAsOf}>{formatObservationTimestamp(response.dataAsOf)}</time>.
@@ -146,10 +169,10 @@ export function ComparisonTable({ entries, catalog, responses }: {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.field} data-comparison-field={row.field}>
+            {visibleRows.map((row) => (
+              <tr key={row.field} data-comparison-field={row.field} data-comparison-status={row.status}>
                 <th scope="row"><span>{fieldLabels[row.field]}</span><span className={`demo-comparison-status demo-comparison-status-${row.status}`}>{statusLabels[row.status]}</span></th>
-                {entries.map((entry) => <td key={entry.result.listingId}><ComparisonValue entry={entry} field={row.field} catalog={catalog} /></td>)}
+                {entries.map((entry) => <td key={entry.result.listingId}><ComparisonValue entry={entry} field={row.field} catalog={catalog} showAuthoredMetadata={row.field === authoredMetadataField} /></td>)}
               </tr>
             ))}
           </tbody>
