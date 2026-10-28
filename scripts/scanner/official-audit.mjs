@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, closeSync, constants, copyFileSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, copyFileSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import process from "node:process";
@@ -10,6 +10,10 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
+import { buildOwnedScanner } from "./owned-build.mjs";
+import { createOwnedDockerCleanupRegistry, validateOwnedImageAbsence } from "./owned-cleanup.mjs";
+import { createSharedBudgetController, validateOwnedBuilderAudit } from "./owned-controls.mjs";
+import { captureOwnedScannerPair, createOwnedPublicEvidence, publishOwnedScannerEvidence, qualifyOwnedScanner } from "./owned-qualification.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
   helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustPublicSourcePath, seaweedRustScanArguments,
@@ -131,6 +135,33 @@ export function commandFailureDiagnostic(result, { privateOutput = false } = {})
       .slice(0, 16).map((line) => line.slice(0, 512)).join("\n").slice(0, 4096) };
 }
 
+export function throwCommandFailure(primary, cleanupError) {
+  if (primary) {
+    if (cleanupError) primary.cleanupError = cleanupError;
+    throw primary;
+  }
+  if (cleanupError) throw cleanupError;
+}
+
+export function removeOwnedAuditWork(work, runnerTemp) {
+  if (!path.isAbsolute(work) || path.resolve(work) !== work || path.dirname(work) !== runnerTemp ||
+      !/^aw-official-scanner-[A-Za-z0-9]{6}$/u.test(path.basename(work)) || realpathSync(runnerTemp) !== runnerTemp) fail("scanner_owned_work_cleanup_invalid");
+  if (!existsSync(work)) return { attempted: true, absent: true };
+  if (realpathSync(work) !== work || !lstatSync(work).isDirectory()) fail("scanner_owned_work_cleanup_invalid");
+  const writable = (directory) => {
+    chmodSync(directory, 0o700);
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) writable(file);
+      else if (entry.isFile()) chmodSync(file, 0o600);
+    }
+  };
+  writable(work);
+  rmSync(work, { recursive: true, force: false });
+  if (existsSync(work)) fail("scanner_owned_work_cleanup_uncertain");
+  return { attempted: true, absent: true };
+}
+
 export function validatePreparedRuntimeImage(inspected, report) {
   if (!Array.isArray(inspected) || inspected.length !== 1 || !digest(inspected[0]?.Id) ||
       inspected[0].Os !== "linux" || inspected[0].Architecture !== "amd64" || inspected[0].Id !== report?.Metadata?.ImageID) {
@@ -222,9 +253,13 @@ export function managedGosuHashArguments(subject) {
 }
 
 export function parseOfficialAuditArguments(argv) {
-  if (!Array.isArray(argv) || ![6, 8].includes(argv.length)) fail("scanner_official_arguments_invalid");
+  if (!Array.isArray(argv) || ![6, 8, 10].includes(argv.length)) fail("scanner_official_arguments_invalid");
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
+    if (argv[index] === "--producer") {
+      if (values.has("--producer") || argv[index + 1] !== "auto-world") fail("scanner_official_arguments_invalid");
+      values.set("--producer", "auto-world"); continue;
+    }
     if (argv[index] === "--scope") {
       if (values.has("--scope") || argv[index + 1] !== "managed") fail("scanner_official_arguments_invalid");
       values.set("--scope", "managed"); continue;
@@ -235,6 +270,7 @@ export function parseOfficialAuditArguments(argv) {
   const result = { scanner: values.get("--scanner"), buildInfo: values.get("--build-info"), output: values.get("--output") };
   if (Object.values(result).some((value) => typeof value !== "string") || new Set(Object.values(result)).size !== 3) fail("scanner_official_arguments_invalid");
   if (values.has("--scope")) result.scope = values.get("--scope");
+  if (values.has("--producer")) result.producer = values.get("--producer");
   return result;
 }
 
@@ -673,8 +709,9 @@ export async function auditAndPublishSeaweedRustSourceReports({ role, files, dir
   return failure ? { result: null, failure } : { result, failure: null };
 }
 
-export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream" }) {
-  if (!["upstream", "managed"].includes(scope)) fail("scanner_official_arguments_invalid");
+export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream", producer }) {
+  if (!["upstream", "managed"].includes(scope) || producer !== undefined && producer !== "auto-world") fail("scanner_official_arguments_invalid");
+  const sharedBudget = producer === "auto-world" ? createSharedBudgetController() : null;
   if (process.platform !== "linux" || process.getuid?.() === 0 || process.env.GITHUB_ACTIONS !== "true" ||
       process.env.RUNNER_ENVIRONMENT !== "github-hosted" || !safePath(process.env.RUNNER_TEMP)) fail("scanner_official_requires_nonroot_linux_actions");
   const runnerTemp = realpathSync(process.env.RUNNER_TEMP);
@@ -694,47 +731,60 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     receipt.milestone2Completion = "NOT_ESTABLISHED";
   }
   receipt.run = Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"].map((key) => [key, process.env[key] ?? ""]));
+  const ownedRun = { workflow: process.env.GITHUB_WORKFLOW ?? "", runId: process.env.GITHUB_RUN_ID ?? "",
+    runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), sourceSha: process.env.GITHUB_SHA ?? "" };
+  let built, ownedPublic, ownedControlsPublic, activeBudgetStage;
+  const ownedCopies = [];
   const owner = randomUUID();
-  let cleanupUncertain = false;
-  const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
+  let cleanupUncertain = false, cleanupBudgetFailure;
+  const invoke = (executable, args, timeout, env = environment, cleaning = false, maxOutputBytes = 128 * MiB) => {
+    let boundedTimeout = timeout;
+    if (sharedBudget) {
+      if (!cleaning) boundedTimeout = sharedBudget.commandTimeoutMs(timeout);
+      else try { boundedTimeout = sharedBudget.cleanupCommandTimeoutMs(timeout); }
+      catch (error) { cleanupBudgetFailure ??= error.message; boundedTimeout = Math.min(timeout, 5_000); }
+    }
+    return spawnSync(executable, args, { timeout: boundedTimeout,
+      maxBuffer: maxOutputBytes, encoding: null, windowsHide: true, env });
+  };
+  const dockerCleanup = createOwnedDockerCleanupRegistry({ budget: sharedBudget,
+    execute: (args, { timeoutMs, maxBytes }) => spawnSync(DOCKER, args, {
+      timeout: timeoutMs, maxBuffer: maxBytes, encoding: null, windowsHide: true, env: environment }) });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
-    expectedStdout, requireEmptyStderr = false } = {}) => {
+    expectedStdout, requireEmptyStderr = false, maxOutputBytes = 128 * MiB } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
-    const result = invoke(executable, args, timeout, env);
+    if (name) dockerCleanup.registerContainer({ name, owner });
+    let result, primary;
+    try { result = invoke(executable, args, timeout, env, false, maxOutputBytes); }
+    catch (error) { primary = error; result = { error, status: null, signal: null, stdout: null, stderr: null }; }
     const prefix = `command-${String(receipt.commands.length + 1).padStart(3, "0")}`;
     const record = { executable: path.basename(executable), exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
     if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput });
     receipt.commands.push(record);
+    if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
+      requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) primary ??= new Error("scanner_official_command_failed");
+    let cleanupError;
     try {
       writeFileSync(file ?? path.join(output, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
       writeFileSync(path.join(output, `${prefix}.stderr`), result.stderr ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
-    } finally {
+    } catch (error) { primary ??= error; }
+    finally {
       if (name) {
         try {
-          const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
-          record.cleanup = { inspected: inspected.status, removed: false };
-          if (!validateContainerAbsence(inspected, name)) {
-            record.cleanup.diagnostic = commandFailureDiagnostic(inspected);
-            if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
-            const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
-            const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
-            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed); fail("scanner_official_cleanup_uncertain"); }
-            record.cleanup.removed = true;
-            const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
-            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence); fail("scanner_official_cleanup_uncertain"); }
-          }
+          record.cleanup = dockerCleanup.cleanupContainer(name);
           record.ownedContainerAbsent = true;
-        } catch {
+        } catch (error) {
           cleanupUncertain = true;
-          fail("scanner_official_cleanup_uncertain");
+          cleanupError = new Error("scanner_official_cleanup_uncertain", { cause: error });
+          record.cleanup = error.ownedCleanup ?? null;
+          record.cleanupFailure = cleanupError.message;
         }
       }
     }
-    if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
-        requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
+    throwCommandFailure(primary, cleanupError);
     return result.stdout;
   };
   const phase = async (name, operation) => {
@@ -780,18 +830,32 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     const original = await captureFiles([{ path: inputScanner, cap: 512 * MiB }, { path: buildInfo, cap: 8 * MiB }]);
     validateOfficialScannerIdentity(original[0], config.scanner);
+    if (sharedBudget) ownedCopies.push(inputScanner);
     const inventory = parseOfficialGoBuildInfo(readFileSync(buildInfo));
+    let pair;
+    if (sharedBudget) {
+      built = await phase("owned_scanner_build", async () => buildOwnedScanner({ output: path.join(work, "owned-build-public"), scope, budget: sharedBudget }));
+      ownedPublic = built.publicDirectory;
+      ({ pair } = await captureOwnedScannerPair(built, ownedRun));
+      activeBudgetStage = "owned:controls"; sharedBudget.startStage(activeBudgetStage, 25 * 60_000);
+      ownedControlsPublic = createOwnedPublicEvidence(path.join(work, "owned-controls-public"), ownedRun);
+      receipt.producer = { kind: built.kind, binary: pair.binary, run: pair.run, source: pair.source, state: pair.state };
+    }
     const subject = path.join(work, "subject"); mkdirSync(subject, { mode: 0o755 });
-    const scanner = path.join(subject, "trivy"); copyFileSync(inputScanner, scanner); chmodSync(scanner, 0o555); chmodSync(subject, 0o555);
-    copyFileSync(buildInfo, path.join(output, "go-build-info.txt"));
+    const scanner = path.join(subject, "trivy"); copyFileSync(built?.candidatePath ?? inputScanner, scanner); chmodSync(scanner, 0o555); chmodSync(subject, 0o555);
+    if (built) ownedCopies.push(scanner);
+    if (built) writeFileSync(path.join(output, "go-build-info.txt"), built.rawBuildInfo.A, { flag: "wx", mode: 0o400 });
+    else copyFileSync(buildInfo, path.join(output, "go-build-info.txt"));
     const [binary] = await captureFiles([{ path: scanner, cap: 512 * MiB }]);
-    if (binary.sha256 !== original[0].sha256 || binary.size !== original[0].size) fail("scanner_official_binary_changed");
+    if (binary.sha256 !== (pair?.binary.sha256 ?? original[0].sha256) || binary.size !== (pair?.binary.bytes ?? original[0].size)) fail("scanner_official_binary_changed");
     receipt.subject = binary;
-    receipt.buildInventory = inventory;
+    receipt.buildInventory = pair ?? inventory;
     await assertFilesUnchanged(original);
     await assertFilesUnchanged(policyInputs);
-    const version = command(scanner, ["--version"], { file: path.join(output, "scanner-version.txt"), timeout: 30_000 }).toString("utf8");
-    if (!/^Version: 0\.76\.1\r?$/mu.test(version)) fail("scanner_official_version_invalid");
+    if (!built) {
+      const version = command(scanner, ["--version"], { file: path.join(output, "scanner-version.txt"), timeout: 30_000 }).toString("utf8");
+      if (!/^Version: 0\.76\.1\r?$/mu.test(version)) fail("scanner_official_version_invalid");
+    }
     const probe = path.join(work, "scanner-version-probe"); mkdirSync(probe);
     const probeFile = path.join(probe, "go.mod");
     writeFileSync(probeFile, versionProbeBytes({ scanner: { upstreamVersion: config.scanner.version }, compiler: { version: "1.27.3" } }), { flag: "wx" });
@@ -832,26 +896,67 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     receipt.databaseRegistries = { before, after };
     if (JSON.stringify(before) !== JSON.stringify(after)) fail("scanner_database_registry_changed");
     const database = await databaseEvidence(cache, new Date(), output); readOnlyTree(cache);
-    const inputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }, { path: scanner, cap: 512 * MiB },
+    const ownedInputs = built ? [{ path: built.candidatePath, cap: 256 * MiB },
+      { path: path.join(ROOT, "infra/scanner/owned-scanner-lock.json"), cap: MiB },
+      { path: path.join(ROOT, "infra/managed-images/seaweed-rust-source.json"), cap: MiB }] : [];
+    const inputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }, { path: scanner, cap: 512 * MiB }, ...ownedInputs,
       { path: probeFile, cap: MiB }, ...original.map(({ path: file, cap }) => ({ path: file, cap })), ...fixtureFiles,
       ...database.files.map(({ path: file, cap }) => ({ path: file, cap })), ...managedInputs.map(({ path: file, cap }) => ({ path: file, cap }))]);
     await assertFilesUnchanged(original); await assertFilesUnchanged(policyInputs); await assertFilesUnchanged(fixtureSnapshot);
     receipt.inputs = inputs;
-    receipt.budget = projectAuditBudget({ buildInputBytes: original.reduce((sum, entry) => sum + entry.size, 0), materialBytes: fixtureSnapshot.reduce((sum, entry) => sum + entry.size, 0),
+    receipt.budget = projectAuditBudget({ buildInputBytes: original.reduce((sum, entry) => sum + entry.size, 0) +
+      (built ? 3 * pair.binary.bytes + built.controlFixturePaths.reduce((sum, entry) => sum + entry.bytes, 0) : 0), materialBytes: fixtureSnapshot.reduce((sum, entry) => sum + entry.size, 0),
       databaseBytes: database.files.reduce((sum, entry) => sum + entry.size, 0), baselineImageBytes: carrierBytes, versionProbeBytes: lstatSync(probeFile).size });
     const scan = (mode, target, file, format = "json", extra = ["--offline-scan"]) => command(DOCKER, candidateDockerArguments({ carrier, scanner, cache, mode, target, format, extra }), { file });
-    await phase("self_audit", async () => {
+    if (built) await phase("owned_scanner_qualification", async () => {
+      const referenceSubject = path.join(work, "reference"); mkdirSync(referenceSubject, { mode: 0o755 });
+      const referenceScanner = path.join(referenceSubject, "trivy"); copyFileSync(inputScanner, referenceScanner); chmodSync(referenceScanner, 0o555); chmodSync(referenceSubject, 0o555);
+      ownedCopies.push(referenceScanner);
+      const [reference] = await captureFiles([{ path: referenceScanner, cap: 512 * MiB }]);
+      validateOfficialScannerIdentity(reference, config.scanner); inputs.push(reference);
+      receipt.budget = projectAuditBudget({ ...receipt.budget, buildInputBytes: receipt.budget.buildInputBytes + reference.size });
+      const rustControlMetadata = rustMetadata ?? validateSeaweedRustSourceLock((await readBoundedJson(path.join(ROOT, "infra/managed-images/seaweed-rust-source.json"), MiB)).value, config);
+      const controlsWork = path.join(work, "owned-controls"); mkdirSync(controlsWork, { mode: 0o700 });
+      const databaseJoin = { vulnerabilityDbSha256: database.files[0].sha256, javaDbSha256: database.files[2].sha256 };
+      const checkInputs = async () => { await assertFilesUnchanged(inputs); await databaseEvidence(cache, new Date()); };
+      const qualification = await qualifyOwnedScanner({ built, pair, carrier, cache, subject, referenceSubject, referenceScanner,
+        probe, fixtures, fixtureRoot, lock, rustMetadata: rustControlMetadata, databaseJoin, command, work: controlsWork,
+        publicEvidence: ownedControlsPublic, checkInputs, onState: (state) => { receipt.ownedQualification = state; },
+        auditBuilder: async (candidate) => {
+          const image = { role: "go-builder", repository: "library/golang", version: "1.27.3-alpine3.24",
+            manifestDigest: "sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c",
+            platform: { os: "linux", architecture: "amd64", variant: null, digest: "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747" } };
+          await checkInputs();
+          const reports = [];
+          for (const format of ["json", "cyclonedx"]) {
+            const file = path.join(controlsWork, `go-builder-${format}.json`);
+            command(DOCKER, officialImageScanArguments(carrier, candidate, cache, image, format), { file, privateOutput: true, maxOutputBytes: 8 * MiB });
+            reports.push((await readBoundedJson(file, 4 * MiB)).value);
+          }
+          const inventory = validateOfficialImageSbom(reports[0], reports[1], image);
+          const proof = validateOwnedBuilderAudit({ run: pair.run, binary: pair.binary, databaseJoin, subject: image,
+            report: reports[0], sbom: reports[1], inventory, now: new Date() });
+          ownedControlsPublic.write("go-builder.json", reports[0]); ownedControlsPublic.write("go-builder.cdx.json", reports[1]);
+          await checkInputs();
+          return proof;
+        },
+      });
+      receipt.ownedQualification = qualification;
+      sharedBudget.finishStage(activeBudgetStage, "PASSED"); activeBudgetStage = null;
+      activeBudgetStage = "downstream:audit"; sharedBudget.startStage(activeBudgetStage, 225 * 60_000);
+    });
+    if (!built) await phase("self_audit", async () => {
       const json = path.join(output, "scanner-self.json"); const sbom = path.join(output, "scanner-self.cdx.json");
       scan("rootfs", subject, json, "json", ["--offline-scan", "--severity", "HIGH,CRITICAL"]); scan("rootfs", subject, sbom, "cyclonedx");
       validateSelfReport((await readBoundedJson(json)).value, (await readBoundedJson(sbom)).value, inventory, config.scanner.version, { expectedScannerVersion: config.scanner.version });
       await assertFilesUnchanged(inputs);
     });
-    await phase("main_version_probe", async () => {
+    if (!built) await phase("main_version_probe", async () => {
       const file = path.join(output, "scanner-version-probe.json"); scan("fs", probe, file, "json", ["--offline-scan", "--severity", "HIGH,CRITICAL"]);
       validateVersionProbeReport((await readBoundedJson(file)).value, config.scanner.version, { expectedScannerVersion: config.scanner.version });
       await assertFilesUnchanged(inputs);
     });
-    await phase("fixtures_and_same_database_baseline", async () => {
+    if (!built) await phase("fixtures_and_same_database_baseline", async () => {
       for (const fixture of fixtures) {
         const target = fixture.material[0].path.startsWith("gomod/") ? "gomod" : fixture.material[0].path;
         const mode = fixtureScanMode(fixture); const file = path.join(output, `fixture-${fixture.id}-official.json`);
@@ -900,12 +1005,19 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const build = { role: candidate.role, result: "failed", identityKind: "LOCAL_DIAGNOSTIC_NOT_REGISTRY_SUBJECT" };
           receipt.builds.push(build);
           try {
+            if (sharedBudget) {
+              const existing = invoke(DOCKER, ["image", "inspect", tag], 15_000);
+              if (!validateOwnedImageAbsence(existing, tag)) fail("scanner_owned_image_tag_not_absent");
+              dockerCleanup.registerImage({ tag, owner });
+            }
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
-              "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
+              "--target", "runtime", "--tag", tag, ...(sharedBudget ? ["--label", `io.auto-world.scanner-official=${owner}`] : []),
+              "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspected = JSON.parse(command(DOCKER, ["image", "inspect", tag], { file: inspectedFile }).toString("utf8"));
             const metadata = (await readBoundedJson(metadataFile, MiB)).value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
+            if (sharedBudget) dockerCleanup.bindImageId(tag, identity.imageId);
             command(DOCKER, ["image", "save", "--output", archive, tag]); chmodSync(archive, 0o444);
             const frozen = await captureFiles([{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }]);
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
@@ -1334,8 +1446,11 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const execute = async (spec) => {
             // Leave ten minutes inside the thirty-minute total for owned cleanup and absence proofs.
             const remainingMs = Math.floor((cleaning ? 30 : 20) * 60_000 - (performance.now() - started));
-            if (remainingMs <= 0) fail("scanner_seaweed_go_s3_qualification_timeout");
-            const result = invoke(spec.command, spec.args, Math.min(spec.timeoutMs, remainingMs));
+            if (remainingMs <= 0) {
+              if (!cleaning) fail("scanner_seaweed_go_s3_qualification_timeout");
+              cleanupBudgetFailure ??= "scanner_seaweed_go_s3_qualification_timeout";
+            }
+            const result = invoke(spec.command, spec.args, Math.min(spec.timeoutMs, remainingMs > 0 ? remainingMs : 5_000), environment, cleaning);
             const record = { executable: path.basename(spec.command), operation: spec.operation,
               exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
             receipt.commands.push(record);
@@ -1604,12 +1719,65 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     receipt.result = "passed";
   } catch (error) {
     receipt.failure = error.message;
+    ownedPublic ??= error.ownedPublicDirectory;
+    if (error.ownedCleanup) receipt.ownedCleanup = error.ownedCleanup;
     throw error;
   } finally {
-    // No image/cache pruning: this new directory belongs only to the disposable runner job.
-    receipt.workRetention = "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
+    if (sharedBudget) {
+      if (activeBudgetStage && sharedBudget.snapshot().active?.name === activeBudgetStage) {
+        try { sharedBudget.finishStage(activeBudgetStage, receipt.result === "passed" ? "PASSED" : "FAILED"); }
+        catch (error) { receipt.result = "failed"; receipt.failure ??= error.message; }
+        activeBudgetStage = null;
+      }
+      if (built || ownedCopies.length) {
+        let cleanupError;
+        if (built) try { built.cleanup.cleanupAll(); } catch (error) { cleanupError = error; }
+        for (const file of ownedCopies) {
+          try { chmodSync(path.dirname(file), 0o755); if (existsSync(file)) unlinkSync(file); }
+          catch (error) { cleanupError ??= error; }
+        }
+        receipt.ownedCleanup = { ...receipt.ownedCleanup, absent: (built ? built.cleanup.verify() : receipt.ownedCleanup?.absent === true) && ownedCopies.every((file) => !existsSync(file)),
+          ...(cleanupError ? { failure: cleanupError.message } : {}) };
+        if (cleanupError) { receipt.result = "failed"; receipt.failure ??= cleanupError.message; }
+      }
+      try { receipt.dockerCleanup = dockerCleanup.cleanupAll(); }
+      catch (error) {
+        cleanupUncertain = true; receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.dockerCleanup = error.ownedCleanup ?? dockerCleanup.snapshot();
+      }
+      if (cleanupBudgetFailure) {
+        receipt.result = "failed"; receipt.failure ??= cleanupBudgetFailure;
+        receipt.cleanupBudgetFailure = cleanupBudgetFailure;
+      }
+      receipt.timeBudget = sharedBudget.snapshot();
+      if (built && receipt.ownedCleanup?.absent !== true) {
+        receipt.result = "failed"; receipt.failure ??= "scanner_owned_cleanup_uncertain";
+      }
+      try {
+        const directories = [];
+        if (ownedPublic?.manifest) directories.push(["build", ownedPublic]);
+        if (ownedControlsPublic) {
+          ownedControlsPublic.write("final-state.json", { run: ownedRun, qualification: receipt.ownedQualification ?? null,
+            cleanup: receipt.ownedCleanup ?? null, dockerCleanup: receipt.dockerCleanup ?? null,
+            result: receipt.result, failure: receipt.failure ?? null, budget: receipt.timeBudget });
+          directories.push(["controls", ownedControlsPublic]);
+        }
+        if (directories.length) receipt.ownedPublicEvidence = await publishOwnedScannerEvidence({ directories,
+          destination: path.join(output, "owned-scanner-public"), run: ownedRun, exportDirectory: exportManagedTextEvidence });
+      } catch (error) {
+        receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.ownedPublicEvidenceFailure = error.message;
+      }
+      try { receipt.workCleanup = removeOwnedAuditWork(work, runnerTemp); }
+      catch (error) { receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.workCleanup = { attempted: true, absent: false, failure: error.message }; }
+    }
+    // Shared registry images are not uniquely owned resources and are never broadly pruned.
+    receipt.workRetention = sharedBudget && receipt.workCleanup?.absent ? "REMOVED_WITH_ABSENCE_PROOF" : "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
+    receipt.cleanupUncertain = cleanupUncertain;
     writeJson(path.join(output, "official-audit-receipt.json"), receipt);
   }
+  if (receipt.result !== "passed") fail(receipt.failure ?? "scanner_owned_qualification_failed");
   return receipt;
 }
 
