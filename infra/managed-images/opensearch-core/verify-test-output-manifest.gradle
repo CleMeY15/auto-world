@@ -1,0 +1,369 @@
+import groovy.json.JsonSlurper
+import org.gradle.api.GradleException
+
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
+import java.nio.file.DirectoryStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
+
+final class AutoWorldTestOutputManifestVerifier {
+    private static final String SENTINEL = 'AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID'
+    private static final Set<String> PHASES = Set.of('unfixed', 'seeded-fixed', 'full')
+    private static final Path ROOT = Paths.get('/evidence/test-output')
+    private static final int EXPECTED_UID = 1000
+    private static final long MIB = 1024L * 1024L
+    private static final int MAX_DESCRIPTORS = 4094
+    private static final int MAX_STREAMS = 4093
+    private static final int MAX_DEPTH = 64
+    private static final int MAX_FIELD_BYTES = 16 * 1024
+    private static final long MAX_EVENTS = 1_000_000L
+    private static final long MAX_STREAM_BYTES = 4L * MIB
+    private static final long MAX_TOTAL_BYTES = 64L * MIB
+    private static final Set<String> ROOT_KEYS = Set.of('schemaVersion', 'phase', 'task', 'descriptors',
+        'streams', 'totals')
+    private static final Set<String> DESCRIPTOR_KEYS = Set.of('id', 'parentId', 'name', 'displayName',
+        'className', 'composite', 'lifecycle', 'resultType')
+    private static final Set<String> STREAM_KEYS = Set.of('descriptorId', 'destination', 'path', 'events',
+        'bytes', 'sha256')
+    private static final Set<String> TOTAL_KEYS = Set.of('descriptors', 'descriptorMetadataBytes', 'events',
+        'files', 'bytes', 'captureErrors', 'openWriters')
+
+    static boolean acceptsPhase(String phase) {
+        return PHASES.contains(phase)
+    }
+
+    static void verify(String phase) {
+        try {
+            if (!acceptsPhase(phase)) {
+                throw new IOException('invalid phase')
+            }
+            Path capture = ROOT.resolve(phase)
+            validateDirectory(ROOT)
+            validateDirectory(capture)
+            Path manifestPath = capture.resolve('manifest.json')
+            Path completePath = capture.resolve('complete.status')
+            if (Files.exists(capture.resolve('capture-invalid.status'), LinkOption.NOFOLLOW_LINKS)
+                || Files.exists(capture.resolve('.complete.status.tmp'), LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException('poison or temporary marker present')
+            }
+            Object manifestFileKey = validateRegularFile(manifestPath)
+            Object completeFileKey = validateRegularFile(completePath)
+            if (Files.size(completePath) != 'COMPLETE\n'.getBytes(StandardCharsets.UTF_8).length) {
+                throw new IOException('completion marker bound')
+            }
+            byte[] completeBytes = readBounded(completePath, 'COMPLETE\n'.getBytes(StandardCharsets.UTF_8).length)
+            if (!Arrays.equals(completeBytes, 'COMPLETE\n'.getBytes(StandardCharsets.UTF_8))) {
+                throw new IOException('invalid completion marker')
+            }
+            long manifestLength = Files.size(manifestPath)
+            if (manifestLength > MIB || manifestLength > MAX_STREAM_BYTES) {
+                throw new IOException('manifest bound')
+            }
+            byte[] manifestBytes = readBounded(manifestPath, MIB)
+            if (manifestBytes.length != manifestLength) {
+                throw new IOException('manifest changed')
+            }
+            String manifestText = strictUtf8(manifestBytes)
+            Object parsed = new JsonSlurper().parseText(manifestText)
+            Map manifest = requireMap(parsed, ROOT_KEYS, 'manifest')
+            if (exactLong(manifest.schemaVersion, 1L, 1L, 'schemaVersion') != 1L
+                || manifest.phase != phase || manifest.task != ':server:internalClusterTest') {
+                throw new IOException('manifest identity')
+            }
+
+            List descriptors = requireList(manifest.descriptors, MAX_DESCRIPTORS, 'descriptors')
+            if (descriptors.isEmpty()) {
+                throw new IOException('missing descriptors')
+            }
+            Set<Long> descriptorIds = new LinkedHashSet<>()
+            Map<Long, Long> parents = new LinkedHashMap<>()
+            for (int index = 0; index < descriptors.size(); index += 1) {
+                Map descriptor = requireMap(descriptors[index], DESCRIPTOR_KEYS, 'descriptor')
+                long id = exactLong(descriptor.id, 0L, MAX_DESCRIPTORS - 1L, 'descriptor id')
+                if (id != index || !descriptorIds.add(id)) {
+                    throw new IOException('descriptor identity')
+                }
+                Long parentId = descriptor.parentId == null ? null
+                    : exactLong(descriptor.parentId, 0L, MAX_DESCRIPTORS - 1L, 'parent id')
+                if (parentId != null && (!descriptorIds.contains(parentId) || parentId == id)) {
+                    throw new IOException('descriptor parent')
+                }
+                parents[id] = parentId
+                requireNullableField(descriptor.name)
+                requireNullableField(descriptor.displayName)
+                requireNullableField(descriptor.className)
+                if (!(descriptor.composite instanceof Boolean)) {
+                    throw new IOException('descriptor composite')
+                }
+                if (descriptor.lifecycle == 'output-only') {
+                    if (descriptor.resultType != null) {
+                        throw new IOException('output-only result')
+                    }
+                } else if (descriptor.lifecycle == 'finished') {
+                    if (!(descriptor.resultType in ['SUCCESS', 'FAILURE', 'SKIPPED'])) {
+                        throw new IOException('finished result')
+                    }
+                } else {
+                    throw new IOException('unfinished lifecycle')
+                }
+            }
+            for (Long id : descriptorIds) {
+                int depth = 0
+                Long current = id
+                Set<Long> seen = new HashSet<>()
+                while (current != null) {
+                    if (!seen.add(current) || depth >= MAX_DEPTH) {
+                        throw new IOException('descriptor ancestry')
+                    }
+                    current = parents[current]
+                    depth += 1
+                }
+            }
+
+            int descriptorStart = manifestText.indexOf('"descriptors":[') + '"descriptors":['.length()
+            int descriptorEnd = manifestText.indexOf('],"streams":', descriptorStart)
+            if (descriptorStart < '"descriptors":['.length() || descriptorEnd < descriptorStart
+                || descriptorEnd != manifestText.lastIndexOf('],"streams":')) {
+                throw new IOException('descriptor metadata framing')
+            }
+            long descriptorMetadataBytes = manifestText.substring(descriptorStart, descriptorEnd)
+                .getBytes(StandardCharsets.UTF_8).length
+
+            List streams = requireList(manifest.streams, MAX_STREAMS, 'streams')
+            Set<String> expectedFiles = new LinkedHashSet<>(['manifest.json', 'complete.status'])
+            Set<String> streamKeys = new HashSet<>()
+            long totalEvents = 0L
+            long totalBytes = manifestBytes.length + completeBytes.length
+            for (Object value : streams) {
+                Map stream = requireMap(value, STREAM_KEYS, 'stream')
+                long events = exactLong(stream.events, 1L, MAX_EVENTS, 'stream events')
+                long bytes = exactLong(stream.bytes, 0L, MAX_STREAM_BYTES, 'stream bytes')
+                if (totalEvents > MAX_EVENTS - events || totalBytes > MAX_TOTAL_BYTES - bytes) {
+                    throw new IOException('aggregate bound')
+                }
+                totalEvents += events
+                totalBytes += bytes
+            }
+            for (Object value : streams) {
+                Map stream = (Map) value
+                long descriptorId = exactLong(stream.descriptorId, 0L, MAX_DESCRIPTORS - 1L, 'stream descriptor')
+                if (!descriptorIds.contains(descriptorId) || !(stream.destination in ['stdout', 'stderr'])) {
+                    throw new IOException('stream identity')
+                }
+                String expectedName = String.format(Locale.ROOT, 'descriptor-%04d-%s.log', descriptorId,
+                    stream.destination)
+                if (stream.path != expectedName || !streamKeys.add("${descriptorId}:${stream.destination}")
+                    || !expectedFiles.add(expectedName)) {
+                    throw new IOException('stream path')
+                }
+                long bytes = exactLong(stream.bytes, 0L, MAX_STREAM_BYTES, 'stream bytes')
+                if (!(stream.sha256 instanceof String) || !(stream.sha256 ==~ /[0-9a-f]{64}/)) {
+                    throw new IOException('stream digest')
+                }
+                Path streamPath = capture.resolve(expectedName)
+                Object streamFileKey = validateRegularFile(streamPath)
+                if (Files.size(streamPath) != bytes || sha256(streamPath, bytes) != stream.sha256) {
+                    throw new IOException('stream bytes')
+                }
+                strictUtf8File(streamPath, bytes)
+                if (!streamFileKey.equals(validateRegularFile(streamPath)) || Files.size(streamPath) != bytes) {
+                    throw new IOException('stream identity changed')
+                }
+            }
+
+            Set<String> actualFiles = new LinkedHashSet<>()
+            DirectoryStream<Path> directory = Files.newDirectoryStream(capture)
+            try {
+                for (Path entry : directory) {
+                    if (actualFiles.size() >= 4096) {
+                        throw new IOException('capture file count')
+                    }
+                    validateRegularFile(entry)
+                    if (!actualFiles.add(entry.fileName.toString())) {
+                        throw new IOException('duplicate capture file')
+                    }
+                }
+            } finally {
+                directory.close()
+            }
+            if (actualFiles != expectedFiles || actualFiles.size() > 4096) {
+                throw new IOException('capture file closure')
+            }
+            if (!manifestFileKey.equals(validateRegularFile(manifestPath))
+                || !completeFileKey.equals(validateRegularFile(completePath))
+                || Files.size(manifestPath) != manifestBytes.length
+                || Files.size(completePath) != completeBytes.length) {
+                throw new IOException('manifest closure changed')
+            }
+
+            Map totals = requireMap(manifest.totals, TOTAL_KEYS, 'totals')
+            exactLong(totals.descriptors, descriptors.size(), descriptors.size(), 'total descriptors')
+            exactLong(totals.descriptorMetadataBytes, descriptorMetadataBytes, descriptorMetadataBytes,
+                'total descriptor metadata')
+            exactLong(totals.events, totalEvents, totalEvents, 'total events')
+            exactLong(totals.files, actualFiles.size(), actualFiles.size(), 'total files')
+            exactLong(totals.bytes, totalBytes, totalBytes, 'total bytes')
+            exactLong(totals.captureErrors, 0L, 0L, 'capture errors')
+            exactLong(totals.openWriters, 0L, 0L, 'open writers')
+        } catch (Throwable ignored) {
+            System.err.println(SENTINEL)
+            throw new GradleException(SENTINEL)
+        }
+    }
+
+    private static Map requireMap(Object value, Set<String> keys, String label) {
+        if (!(value instanceof Map) || ((Map) value).keySet() != keys) {
+            throw new IOException("invalid ${label} schema")
+        }
+        return (Map) value
+    }
+
+    private static List requireList(Object value, int maximum, String label) {
+        if (!(value instanceof List) || ((List) value).size() > maximum) {
+            throw new IOException("invalid ${label} list")
+        }
+        return (List) value
+    }
+
+    private static long exactLong(Object value, long minimum, long maximum, String label) {
+        if (!(value instanceof Number)) {
+            throw new IOException("invalid ${label}")
+        }
+        long result = ((Number) value).longValue()
+        if (value.toString() != Long.toString(result) || result < minimum || result > maximum) {
+            throw new IOException("invalid ${label}")
+        }
+        return result
+    }
+
+    private static void requireNullableField(Object value) {
+        if (value == null) {
+            return
+        }
+        if (!(value instanceof String)) {
+            throw new IOException('invalid descriptor field')
+        }
+        def encoder = StandardCharsets.UTF_8.newEncoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        ByteBuffer encoded = encoder.encode(CharBuffer.wrap((String) value))
+        if (encoded.remaining() > MAX_FIELD_BYTES) {
+            throw new IOException('invalid descriptor field')
+        }
+    }
+
+    private static void validateDirectory(Path directory) {
+        BasicFileAttributes attributes = Files.readAttributes(directory, BasicFileAttributes,
+            LinkOption.NOFOLLOW_LINKS)
+        if (!attributes.isDirectory() || attributes.isSymbolicLink() || Files.isSymbolicLink(directory)
+            || attributes.fileKey() == null || uid(directory) != EXPECTED_UID) {
+            throw new IOException('invalid capture directory')
+        }
+    }
+
+    private static Object validateRegularFile(Path file) {
+        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes,
+            LinkOption.NOFOLLOW_LINKS)
+        if (!attributes.isRegularFile() || attributes.isSymbolicLink() || Files.isSymbolicLink(file)
+            || attributes.fileKey() == null || uid(file) != EXPECTED_UID) {
+            throw new IOException('invalid capture file')
+        }
+        return attributes.fileKey()
+    }
+
+    private static int uid(Path path) {
+        Object value = Files.getAttribute(path, 'unix:uid', LinkOption.NOFOLLOW_LINKS)
+        if (!(value instanceof Number)) {
+            throw new IOException('missing uid')
+        }
+        return ((Number) value).intValue()
+    }
+
+    private static String strictUtf8(byte[] bytes) {
+        def decoder = StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        return decoder.decode(ByteBuffer.wrap(bytes)).toString()
+    }
+
+    private static void strictUtf8File(Path path, long expectedBytes) {
+        if (expectedBytes > MAX_STREAM_BYTES) {
+            throw new IOException('stream bound')
+        }
+        byte[] bytes = readBounded(path, MAX_STREAM_BYTES)
+        if (bytes.length != expectedBytes) {
+            throw new IOException('stream changed')
+        }
+        strictUtf8(bytes)
+    }
+
+    private static byte[] readBounded(Path path, long maximum) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream()
+        InputStream input = Files.newInputStream(path, StandardOpenOption.READ)
+        try {
+            byte[] buffer = new byte[8192]
+            long total = 0L
+            int read
+            while ((read = input.read(buffer)) != -1) {
+                if (total > maximum - read) {
+                    throw new IOException('file read bound')
+                }
+                output.write(buffer, 0, read)
+                total += read
+            }
+        } finally {
+            input.close()
+        }
+        return output.toByteArray()
+    }
+
+    private static String sha256(Path path, long expectedBytes) {
+        MessageDigest digest = MessageDigest.getInstance('SHA-256')
+        InputStream input = Files.newInputStream(path, StandardOpenOption.READ)
+        try {
+            byte[] buffer = new byte[8192]
+            long total = 0L
+            int read
+            while ((read = input.read(buffer)) != -1) {
+                if (total > expectedBytes - read) {
+                    throw new IOException('stream grew while hashing')
+                }
+                digest.update(buffer, 0, read)
+                total += read
+            }
+            if (total != expectedBytes) {
+                throw new IOException('stream shrank while hashing')
+            }
+        } finally {
+            input.close()
+        }
+        StringBuilder result = new StringBuilder(64)
+        for (byte value : digest.digest()) {
+            result.append(String.format(Locale.ROOT, '%02x', value & 0xff))
+        }
+        return result.toString()
+    }
+}
+
+String autoWorldVerifyPhase = System.getProperty('auto.world.verify.test.output.phase')
+if (autoWorldVerifyPhase != null) {
+    if (!AutoWorldTestOutputManifestVerifier.acceptsPhase(autoWorldVerifyPhase)) {
+        System.err.println('AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID')
+        throw new GradleException('AUTO_WORLD_TEST_OUTPUT_MANIFEST_INVALID')
+    }
+    gradle.projectsEvaluated {
+        gradle.rootProject.tasks.register('autoWorldVerifyTestOutputManifest') {
+            doLast {
+                AutoWorldTestOutputManifestVerifier.verify(autoWorldVerifyPhase)
+            }
+        }
+    }
+}

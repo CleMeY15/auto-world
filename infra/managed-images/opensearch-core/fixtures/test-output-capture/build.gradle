@@ -1,0 +1,32 @@
+plugins {
+    id 'base'
+}
+
+project(':server') {
+    apply plugin: 'java'
+
+    tasks.register('internalClusterTest', Test) {
+        actions.clear()
+        testClassesDirs = files(layout.projectDirectory.dir('fixture-input'))
+        failOnNoDiscoveredTests = false
+        outputs.upToDateWhen { false }
+        doLast {
+            if (System.getProperty('auto.world.fixture.taskFailure') == 'true') {
+                throw new GradleException('AUTO_WORLD_FIXTURE_EXPECTED_TASK_FAILURE')
+            }
+        }
+    }
+}
+
+def scopeTestProvider = project(':server').tasks.named('internalClusterTest', Test)
+
+tasks.register('autoWorldCompositeScopeFixture') {
+    dependsOn gradle.includedBuild('missing-doclet').task(':autoWorldIncludedScopeProbe')
+    doLast {
+        Test selected = scopeTestProvider.get()
+        assert selected.reports.junitXml.includeSystemOutLog.get() == false
+        assert selected.reports.junitXml.includeSystemErrLog.get() == false
+        assert !selected.state.executed
+        println 'AUTO_WORLD_COMPOSITE_SCOPE_ROOT_PASS'
+    }
+}

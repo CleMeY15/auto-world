@@ -1,5 +1,7 @@
 # TASK-0005 — Correct the three rejected image roles
 
+Official SeaweedFS candidate refresh, 26 October 2026: [the reviewed4.51 selection](../../docs/validation/TASK-0005-seaweed-451-candidate.md) applies ADR-0026's official-first route after newly available registry metadata. Only the four SeaweedFS input declarations change; all three derivative recipes and existing gates remain intact. User authorisation for a fourth maintained derivative remains fallback authority after a named rejection and bounded reviewed amendment. Historical0c quality/OpenSearch evidence does not transfer; fresh Linux five-role audit, four conditional runtime scenarios, independent reviews and protected source/main delivery remain required. Source correspondence/provenance, private retention/admission and final17 phases remain separate and open.
+
 Status: ACCEPTED_FOR_DIAGNOSTIC_IMPLEMENTATION after sequential actual Architect and distinct Critic CLEAR reviews on25October2026. Both reviewed the13,270-byte decision candidate, SHA256 `0190337b84e14bd53cea82dd41b1277dc90d3219ef4654e1f32fb6b96baea74e`. This status note grants no additional capability. Exact material locking and Go/JDK audits still precede construction. This is milestone2 of ADR-0026, not publication, image admission or support activation.
 
 ## Measured problem
