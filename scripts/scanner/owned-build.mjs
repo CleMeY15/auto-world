@@ -189,7 +189,7 @@ export function ownedBuildDockerArguments({ lock, source, moduleCache, buildCach
     "-v", mount(moduleCache, "/gomodcache"), "-v", mount(buildCache, "/gocache"), "-v", mount(output, "/out"), "-w", "/src",
     "-e", "CGO_ENABLED=0", "-e", "GOOS=linux", "-e", "GOARCH=amd64", "-e", "GOAMD64=v1", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off",
     "-e", "GOPRIVATE=", "-e", "GONOPROXY=", "-e", "GONOSUMDB=",
-    "-e", "GOENV=off", "-e", "GOFLAGS=-mod=readonly", "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/gocache", "-e", "HOME=/tmp/home",
+    "-e", "GOENV=off", "-e", "GOWORK=off", "-e", "GOFLAGS=-mod=readonly", "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/gocache", "-e", "HOME=/tmp/home",
     "-e", "TZ=UTC", "-e", "LANG=C.UTF-8", "-e", "LC_ALL=C.UTF-8"];
   if (officialGoRoot) args.push("-v", mount(officialGoRoot, "/usr/local/go", true));
   args.push(lock.compiler.builder.reference, "/bin/sh", "-euc", [
@@ -372,7 +372,8 @@ export function validateModuleClosure(downloads, modules, compiledPaths, lock) {
   for (const entry of downloads) {
     if (entry?.Error || typeof entry?.Path !== "string" || typeof entry?.Version !== "string" || typeof entry?.Sum !== "string" || typeof entry?.GoModSum !== "string" ||
         !entry.ZipIdentity || !HASH.test(entry.ZipIdentity.sha256) || !Number.isSafeInteger(entry.ZipIdentity.bytes) ||
-        !entry.ModIdentity || !HASH.test(entry.ModIdentity.sha256) || !entry.InfoIdentity || !HASH.test(entry.InfoIdentity.sha256)) fail("scanner_owned_module_closure_invalid");
+        !entry.ModIdentity || !HASH.test(entry.ModIdentity.sha256) || !entry.InfoIdentity || !HASH.test(entry.InfoIdentity.sha256) ||
+        !entry.DirIdentity || !HASH.test(entry.DirIdentity.sha256) || !Number.isSafeInteger(entry.DirIdentity.bytes)) fail("scanner_owned_module_closure_invalid");
     const key = `${entry.Path}@${entry.Version}`;
     if (downloaded.has(key)) fail("scanner_owned_module_closure_invalid");
     downloaded.set(key, entry);
@@ -385,7 +386,7 @@ export function validateModuleClosure(downloads, modules, compiledPaths, lock) {
   const closure = dependencyModules.map((entry) => {
     const key = `${entry.Path}@${entry.Version}`;
     const material = downloaded.get(key);
-    if (!material || entry.Replace) fail("scanner_owned_module_closure_invalid");
+    if (!material || entry.Replace || entry.Sum !== material.Sum || entry.GoModSum !== material.GoModSum) fail("scanner_owned_module_closure_invalid");
     return { path: entry.Path, version: entry.Version, sum: entry.Sum, goModSum: entry.GoModSum, compiled: compiled.has(entry.Path) };
   }).sort((a, b) => `${a.path}@${a.version}`.localeCompare(`${b.path}@${b.version}`, "en"));
   if (closure.length !== downloaded.size || new Set(closure.map((entry) => `${entry.path}@${entry.version}`)).size !== closure.length) fail("scanner_owned_module_closure_invalid");
@@ -394,9 +395,121 @@ export function validateModuleClosure(downloads, modules, compiledPaths, lock) {
   if (jose.length !== 1 || jose[0].version !== lock.goJose.version || jose[0].sum !== lock.goJose.sum || jose[0].goModSum !== lock.goJose.goModSum || !jose[0].compiled) fail("scanner_owned_go_jose_closure_invalid");
   const materials = dependencyModules.map((entry) => {
     const material = downloaded.get(`${entry.Path}@${entry.Version}`);
-    return { path: entry.Path, version: entry.Version, zip: material.ZipIdentity, mod: material.ModIdentity, info: material.InfoIdentity };
+    return { path: entry.Path, version: entry.Version, zip: material.ZipIdentity, mod: material.ModIdentity, info: material.InfoIdentity, dir: material.DirIdentity };
   }).sort((a, b) => `${a.path}@${a.version}`.localeCompare(`${b.path}@${b.version}`, "en"));
   return Object.freeze({ modules: closure, materials, sha256: sha256(Buffer.from(`${canonicalJson({ modules: closure, materials })}\n`)) });
+}
+
+function strictText(bytes, code = "scanner_owned_preparation_invalid") {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { fail(code); }
+}
+
+function byteIdentity(bytes) {
+  return Object.freeze({ bytes: bytes.length, sha256: sha256(bytes) });
+}
+
+function parseGoSum(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 8 * MiB) fail("scanner_owned_preparation_invalid");
+  const text = strictText(bytes);
+  if (text.includes("\r") || !text.endsWith("\n")) fail("scanner_owned_preparation_invalid");
+  const lines = text.slice(0, -1).split("\n");
+  if (lines.some((line) => line.length < 1) || new Set(lines).size !== lines.length) fail("scanner_owned_preparation_invalid");
+  const parsed = lines.map((line) => {
+    const fields = line.split(" ");
+    if (fields.length !== 3 || fields.some((field) => field.length < 1) || !fields[2].startsWith("h1:") || fields[0].startsWith(".") ||
+        fields[0].startsWith("/") || fields[0].includes("\\") || fields[0].includes("\0")) fail("scanner_owned_preparation_invalid");
+    const goMod = fields[1].endsWith("/go.mod");
+    const version = goMod ? fields[1].slice(0, -7) : fields[1];
+    if (!version.startsWith("v") || version.length < 2) fail("scanner_owned_preparation_invalid");
+    return Object.freeze({ line, path: fields[0], version, sum: fields[2], goMod });
+  });
+  return Object.freeze(parsed);
+}
+
+function normalizeGraph(graphText) {
+  if (typeof graphText !== "string" || Buffer.byteLength(graphText) > 8 * MiB || graphText.includes("\r")) fail("scanner_owned_preparation_invalid");
+  const lines = graphText.split("\n").filter(Boolean);
+  if (lines.length < 1 || new Set(lines).size !== lines.length || lines.some((line) => line.split(" ").length !== 2)) fail("scanner_owned_preparation_invalid");
+  return Object.freeze([...lines].sort());
+}
+
+function validatePreparationSeals(seals, identities) {
+  const stages = ["initialized", "tidy", "download", "modules", "graph", "deps", "verify"];
+  if (!Array.isArray(seals) || seals.length !== stages.length) fail("scanner_owned_preparation_invalid");
+  for (const [index, seal] of seals.entries()) {
+    if (!exactKeys(seal, ["stage", "canonicalMod", "canonicalSum", "privateMod", "privateSum"]) || seal.stage !== stages[index] ||
+        canonicalJson(seal.canonicalMod) !== canonicalJson(identities.canonicalMod) || canonicalJson(seal.canonicalSum) !== canonicalJson(identities.canonicalSum) ||
+        canonicalJson(seal.privateMod) !== canonicalJson(identities.canonicalMod) || !Number.isSafeInteger(seal.privateSum?.bytes) || seal.privateSum.bytes < 1 ||
+        seal.privateSum.bytes > 8 * MiB || !HASH.test(seal.privateSum?.sha256 ?? "")) fail("scanner_owned_preparation_invalid");
+  }
+  if (canonicalJson(seals[0].privateSum) !== canonicalJson(identities.canonicalSum) || canonicalJson(seals[1].privateSum) !== canonicalJson(identities.canonicalSum) ||
+      canonicalJson(seals.at(-1).privateSum) !== canonicalJson(identities.privateSum)) fail("scanner_owned_preparation_invalid");
+}
+
+export function validatePrivatePreparation({ canonicalMod, canonicalSum, privateMod, privateSum, downloads, modules, graphText, sumdbLines, seals, lock }) {
+  if (![canonicalMod, canonicalSum, privateMod, privateSum].every(Buffer.isBuffer) || canonicalMod.length < 1 || canonicalMod.length > 8 * MiB || privateMod.length > 8 * MiB ||
+      !Array.isArray(downloads) || !Array.isArray(modules) || !Array.isArray(sumdbLines)) fail("scanner_owned_preparation_invalid");
+  const identities = { canonicalMod: byteIdentity(canonicalMod), canonicalSum: byteIdentity(canonicalSum), privateSum: byteIdentity(privateSum) };
+  if (canonicalJson(identities.canonicalMod) !== canonicalJson(lock?.scanner?.patched?.goMod) ||
+      canonicalJson(identities.canonicalSum) !== canonicalJson(lock?.scanner?.patched?.goSum) || !privateMod.equals(canonicalMod)) fail("scanner_owned_preparation_invalid");
+  const canonical = parseGoSum(canonicalSum); const prepared = parseGoSum(privateSum);
+  const canonicalLines = new Set(canonical.map((entry) => entry.line)); const preparedLines = new Map(prepared.map((entry) => [entry.line, entry]));
+  if ([...canonicalLines].some((line) => !preparedLines.has(line))) fail("scanner_owned_preparation_invalid");
+  const selected = new Map();
+  for (const module of modules) {
+    if (module?.Main === true) {
+      if (module.Path !== "github.com/aquasecurity/trivy" || module.Replace) fail("scanner_owned_preparation_invalid");
+      continue;
+    }
+    if (typeof module?.Path !== "string" || typeof module?.Version !== "string" || typeof module?.Sum !== "string" || typeof module?.GoModSum !== "string" || module.Replace) fail("scanner_owned_preparation_invalid");
+    const key = `${module.Path}@${module.Version}`;
+    if (selected.has(key)) fail("scanner_owned_preparation_invalid");
+    selected.set(key, module);
+  }
+  const downloaded = new Map();
+  for (const entry of downloads) {
+    if (entry?.Error || typeof entry?.Path !== "string" || typeof entry?.Version !== "string" || typeof entry?.Sum !== "string" || typeof entry?.GoModSum !== "string") fail("scanner_owned_preparation_invalid");
+    const key = `${entry.Path}@${entry.Version}`;
+    if (downloaded.has(key)) fail("scanner_owned_preparation_invalid");
+    downloaded.set(key, entry);
+  }
+  if (selected.size !== downloaded.size) fail("scanner_owned_preparation_invalid");
+  for (const [key, module] of selected) {
+    const material = downloaded.get(key);
+    if (!material || material.Sum !== module.Sum || material.GoModSum !== module.GoModSum ||
+        !preparedLines.has(`${module.Path} ${module.Version} ${material.Sum}`) || !preparedLines.has(`${module.Path} ${module.Version}/go.mod ${material.GoModSum}`)) fail("scanner_owned_preparation_invalid");
+  }
+  const graph = normalizeGraph(graphText); const graphNodes = new Set(graph.flatMap((line) => line.split(" ")));
+  const authenticated = new Set(sumdbLines);
+  if (authenticated.size !== sumdbLines.length || sumdbLines.some((line) => typeof line !== "string" || line.includes("\r") || line.includes("\n"))) fail("scanner_owned_preparation_invalid");
+  const additions = [];
+  for (const entry of prepared) {
+    if (entry.path === lock.goJose.module && (entry.version !== lock.goJose.version || entry.sum !== (entry.goMod ? lock.goJose.goModSum : lock.goJose.sum))) fail("scanner_owned_preparation_invalid");
+    if (canonicalLines.has(entry.line)) continue;
+    const selectedModule = selected.get(`${entry.path}@${entry.version}`);
+    if (selectedModule) {
+      const expected = entry.goMod ? selectedModule.GoModSum : selectedModule.Sum;
+      if (entry.sum !== expected) fail("scanner_owned_preparation_invalid");
+      additions.push({ line: entry.line, kind: entry.goMod ? "SELECTED_GO_MOD" : "SELECTED_ZIP", path: entry.path, version: entry.version });
+    } else {
+      if (!entry.goMod || !graphNodes.has(`${entry.path}@${entry.version}`) || !authenticated.has(entry.line)) fail("scanner_owned_preparation_invalid");
+      additions.push({ line: entry.line, kind: "HISTORICAL_GO_MOD", path: entry.path, version: entry.version });
+    }
+  }
+  if (additions.length > 4096 || privateSum.length - canonicalSum.length > 2 * MiB) fail("scanner_owned_preparation_invalid");
+  validatePreparationSeals(seals, identities);
+  const semanticSumSha256 = sha256(Buffer.from(`${[...preparedLines.keys()].sort().join("\n")}\n`));
+  return Object.freeze({ privateMod: identities.canonicalMod, privateSum: identities.privateSum, semanticSumSha256,
+    additions: Object.freeze(additions.sort((a, b) => a.line.localeCompare(b.line, "en")).map(Object.freeze)), graph,
+    sumdbLines: Object.freeze(additions.filter((entry) => entry.kind === "HISTORICAL_GO_MOD").map((entry) => entry.line).sort()), seals: Object.freeze(seals.map((seal) => Object.freeze({ ...seal }))) });
+}
+
+export function validatePreparationPair(a, b) {
+  if (!a?.preparation || !b?.preparation || !a?.closure || !b?.closure) fail("scanner_owned_preparation_mismatch");
+  const semantic = (value) => ({ privateMod: value.preparation.privateMod, semanticSumSha256: value.preparation.semanticSumSha256, additions: value.preparation.additions,
+    graph: value.preparation.graph, sumdbLines: value.preparation.sumdbLines, closure: value.closure });
+  if (canonicalJson(semantic(a)) !== canonicalJson(semantic(b))) fail("scanner_owned_preparation_mismatch");
+  return true;
 }
 
 function stage(budget, journal, name, requestedMs, operation) {
@@ -457,13 +570,31 @@ export function requiredOwnedFreeBytes(scope, stagedIncrementalPeak) {
   return scope === "managed" ? Math.max(20 * GiB, projected) : projected;
 }
 
-function preparationScript() {
+function preparationScript(lock) {
+  const mod = lock.scanner.patched.goMod;
+  const sum = lock.scanner.patched.goSum;
   return [
-    "set -euo pipefail", "test \"$(go version)\" = 'go version go1.27.3 linux/amd64'", "export GOTOOLCHAIN=local GOENV=off",
-    "GOFLAGS= go mod tidy -diff > /evidence/tidy.diff", "test ! -s /evidence/tidy.diff", "export GOFLAGS=-mod=readonly", "go mod download -json all > /evidence/downloads.seq",
-    "go list -m -json all > /evidence/modules.seq", "go list -deps -json ./cmd/trivy > /evidence/deps.seq",
-    "go mod verify > /evidence/verify.txt", "test \"$(grep -c '^all modules verified$' /evidence/verify.txt)\" -eq 1"
+    "set -euo pipefail", "test \"$(go version)\" = 'go version go1.27.3 linux/amd64'", "export GOTOOLCHAIN=local GOENV=off GOWORK=off",
+    `test "$(wc -c < /src/go.mod | tr -d ' ')" = '${mod.bytes}' && test "$(sha256sum /src/go.mod | cut -d ' ' -f 1)" = '${mod.sha256}'`,
+    `test "$(wc -c < /src/go.sum | tr -d ' ')" = '${sum.bytes}' && test "$(sha256sum /src/go.sum | cut -d ' ' -f 1)" = '${sum.sha256}'`,
+    "seal() { stage=$1; cm_bytes=$(wc -c < /src/go.mod | tr -d ' '); cm_hash=$(sha256sum /src/go.mod | cut -d ' ' -f 1); cs_bytes=$(wc -c < /src/go.sum | tr -d ' '); cs_hash=$(sha256sum /src/go.sum | cut -d ' ' -f 1); pm_bytes=$(wc -c < /evidence/trivy.mod | tr -d ' '); pm_hash=$(sha256sum /evidence/trivy.mod | cut -d ' ' -f 1); ps_bytes=$(wc -c < /evidence/trivy.sum | tr -d ' '); ps_hash=$(sha256sum /evidence/trivy.sum | cut -d ' ' -f 1); printf '{\"stage\":\"%s\",\"canonicalMod\":{\"bytes\":%s,\"sha256\":\"%s\"},\"canonicalSum\":{\"bytes\":%s,\"sha256\":\"%s\"},\"privateMod\":{\"bytes\":%s,\"sha256\":\"%s\"},\"privateSum\":{\"bytes\":%s,\"sha256\":\"%s\"}}\\n' \"$stage\" \"$cm_bytes\" \"$cm_hash\" \"$cs_bytes\" \"$cs_hash\" \"$pm_bytes\" \"$pm_hash\" \"$ps_bytes\" \"$ps_hash\" >> /evidence/seals.jsonl; }",
+    "seal initialized", "go env -json GOTOOLCHAIN GOENV GOWORK GOFLAGS GOPROXY GOSUMDB GOPRIVATE GONOPROXY GONOSUMDB > /evidence/effective-env.json",
+    "GOFLAGS= go mod tidy -diff > /evidence/tidy.diff", "test ! -s /evidence/tidy.diff", "seal tidy",
+    "go mod download -modfile=/evidence/trivy.mod -json all > /evidence/downloads.seq", "seal download",
+    "go list -modfile=/evidence/trivy.mod -m -json all > /evidence/modules.seq", "seal modules",
+    "go mod graph -modfile=/evidence/trivy.mod > /evidence/graph.txt", "seal graph",
+    "go list -modfile=/evidence/trivy.mod -deps -json=Module ./cmd/trivy > /evidence/deps.seq", "seal deps",
+    "go mod verify -modfile=/evidence/trivy.mod > /evidence/verify.txt", "test \"$(grep -c '^all modules verified$' /evidence/verify.txt)\" -eq 1", "seal verify"
   ].join("\n");
+}
+
+export function ownedPreparationDockerArguments({ lock, source, moduleCache, buildCache, evidence, user }) {
+  if (!/^\d+:\d+$/u.test(user ?? "")) fail("scanner_owned_container_user_invalid");
+  return ["run", "--rm", "--platform", "linux/amd64", "--user", user, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "2048", "--memory", "4g", "--memory-swap", "4g", "--tmpfs", "/tmp:rw,nosuid,nodev,size=2g",
+    "-v", mount(source, "/src", true), "-v", mount(moduleCache, "/gomodcache"), "-v", mount(buildCache, "/gocache"), "-v", mount(evidence, "/evidence"), "-w", "/src",
+    "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/gocache", "-e", "CGO_ENABLED=0", "-e", "GOOS=linux", "-e", "GOARCH=amd64", "-e", "GOAMD64=v1",
+    "-e", "GOTOOLCHAIN=local", "-e", "GOENV=off", "-e", "GOWORK=off", "-e", "GOFLAGS=-mod=readonly", "-e", "GOPROXY=https://proxy.golang.org", "-e", "GOSUMDB=sum.golang.org", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=",
+    lock.compiler.builder.reference, "/bin/sh", "-euc", preparationScript(lock)];
 }
 
 function containerCachePath(value, moduleCache) {
@@ -477,12 +608,50 @@ function containerCachePath(value, moduleCache) {
 
 function enrichDownloads(downloads, moduleCache, cap) {
   return downloads.map((entry) => {
-    if (entry.Error || !entry.Zip || !entry.GoMod || !entry.Info) fail("scanner_owned_module_download_invalid");
+    if (entry.Error || !entry.Zip || !entry.GoMod || !entry.Info || !entry.Dir) fail("scanner_owned_module_download_invalid");
+    const directory = containerCachePath(entry.Dir, moduleCache);
+    const directoryInfo = lstatSync(directory);
+    if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) fail("scanner_owned_module_download_invalid");
+    const directoryManifest = manifestTree(directory, cap);
+    const directoryBytesValue = directoryManifest.reduce((total, item) => total + item.bytes, 0);
     return { Path: entry.Path, Version: entry.Version, Sum: entry.Sum, GoModSum: entry.GoModSum,
       ZipIdentity: fileIdentity(containerCachePath(entry.Zip, moduleCache), cap),
       ModIdentity: fileIdentity(containerCachePath(entry.GoMod, moduleCache), 8 * MiB, { allowEmpty: true }),
-      InfoIdentity: fileIdentity(containerCachePath(entry.Info, moduleCache), 8 * MiB) };
+      InfoIdentity: fileIdentity(containerCachePath(entry.Info, moduleCache), 8 * MiB),
+      DirIdentity: { bytes: directoryBytesValue, sha256: sha256(Buffer.from(`${canonicalJson(directoryManifest)}\n`)) }, Origin: entry.Origin ?? null };
   });
+}
+
+function collectSumdbLines(sumdbRoot, cap) {
+  if (!existsSync(sumdbRoot)) return Object.freeze([]);
+  const manifest = manifestTree(sumdbRoot, cap);
+  const lines = new Set();
+  for (const entry of manifest) {
+    if (entry.bytes > 8 * MiB) fail("scanner_owned_preparation_invalid");
+    let text;
+    try { text = strictText(readFileSync(path.join(sumdbRoot, ...entry.path.split("/")))); } catch { continue; }
+    for (const line of text.replaceAll("\r\n", "\n").split("\n")) {
+      if (/^[^\s\\/][^\s\\]* v[^\s]+(?:\/go\.mod)? h1:[^\s]+$/u.test(line)) lines.add(line);
+    }
+  }
+  return Object.freeze([...lines].sort());
+}
+
+function parseSeals(file) {
+  const bytes = readFileSync(file);
+  if (bytes.length < 1 || bytes.length > 8 * MiB) fail("scanner_owned_preparation_invalid");
+  const text = strictText(bytes);
+  if (text.includes("\r") || !text.endsWith("\n")) fail("scanner_owned_preparation_invalid");
+  try { return text.slice(0, -1).split("\n").map((line) => JSON.parse(line)); } catch { fail("scanner_owned_preparation_invalid"); }
+}
+
+function validatePreparationEnvironment(file) {
+  let value;
+  try { value = JSON.parse(strictText(readFileSync(file))); } catch { fail("scanner_owned_preparation_invalid"); }
+  const expected = { GOENV: "off", GOFLAGS: "-mod=readonly", GONOPROXY: "", GONOSUMDB: "", GOPRIVATE: "", GOPROXY: "https://proxy.golang.org",
+    GOSUMDB: "sum.golang.org", GOTOOLCHAIN: "local", GOWORK: "off" };
+  if (canonicalJson(value) !== canonicalJson(expected)) fail("scanner_owned_preparation_invalid");
+  return Object.freeze(expected);
 }
 
 export function ownedCompilerReceipt(lock, construction) {
@@ -535,7 +704,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
     stage(budget, journal, "preparation", lock.limits.preparationMs, (timeoutMs) => {
       const bounded = (cap) => Math.min(timeoutMs, budget.commandTimeoutMs(cap));
       const stagedIncrementalPeak = 4 * lock.limits.sourceTreeBytes + 2 * lock.limits.moduleCacheBytes + 3 * lock.limits.buildCacheBytes +
-        lock.limits.sourceArchiveBytes + lock.limits.compilerTreeBytes + 2 * lock.limits.binaryBytes + lock.fixtures.rpm.bytes + lock.fixtures.git.bytes;
+        lock.limits.sourceArchiveBytes + lock.limits.compilerTreeBytes + 2 * lock.limits.binaryBytes + 2 * 64 * MiB + lock.fixtures.rpm.bytes + lock.fixtures.git.bytes;
       ensureSpace(privateRoot, requiredOwnedFreeBytes(scope, stagedIncrementalPeak));
       const source = path.join(privateRoot, "source-base");
       run("/usr/bin/git", ["-c", "credential.helper=", "clone", "--no-checkout", "--filter=blob:none", lock.scanner.repositoryUrl, source], { timeoutMs: bounded(15 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: path.join(privateLogs, "source-clone.log") });
@@ -563,35 +732,51 @@ export function buildOwnedScanner({ output, scope, budget }) {
       run("/usr/bin/tar", ["-xzf", goArchive, "--strip-components=1", "-C", officialGo, "--no-same-owner", "--no-same-permissions"], { timeoutMs: bounded(5 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: path.join(privateLogs, "go-extract.log") });
       directoryBytes(officialGo, lock.limits.compilerTreeBytes);
 
+      const preparations = {};
       for (const letter of ["a", "b"]) {
         const sourceCopy = path.join(privateRoot, `source-${letter}`); cpSync(source, sourceCopy, { recursive: true, verbatimSymlinks: true }); rmSync(path.join(sourceCopy, ".git"), { recursive: true, force: true });
         validateSourcePatch(sourceCopy, lock);
         const moduleCache = path.join(privateRoot, `gomodcache-${letter}`); const buildCache = path.join(privateRoot, `gocache-${letter}`); const prepEvidence = path.join(evidence, `prep-${letter}`);
         mkdirSync(moduleCache); mkdirSync(buildCache); mkdirSync(prepEvidence);
-        const prepArgs = ["run", "--rm", "--platform", "linux/amd64", "--user", runnerUser, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "2048", "--memory", "4g", "--memory-swap", "4g", "--tmpfs", "/tmp:rw,nosuid,nodev,size=2g",
-          "-v", mount(sourceCopy, "/src"), "-v", mount(moduleCache, "/gomodcache"), "-v", mount(buildCache, "/gocache"), "-v", mount(prepEvidence, "/evidence"), "-w", "/src",
-          "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/gocache", "-e", "CGO_ENABLED=0", "-e", "GOOS=linux", "-e", "GOARCH=amd64", "-e", "GOAMD64=v1", "-e", "GOPROXY=https://proxy.golang.org", "-e", "GOSUMDB=sum.golang.org", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=",
-          lock.compiler.builder.reference, "/bin/sh", "-euc", preparationScript()];
+        copyFileSync(path.join(sourceCopy, "go.mod"), path.join(prepEvidence, "trivy.mod"));
+        copyFileSync(path.join(sourceCopy, "go.sum"), path.join(prepEvidence, "trivy.sum"));
+        assertIdentity(path.join(prepEvidence, "trivy.mod"), lock.scanner.patched.goMod, 8 * MiB);
+        assertIdentity(path.join(prepEvidence, "trivy.sum"), lock.scanner.patched.goSum, 8 * MiB);
+        const prepArgs = ownedPreparationDockerArguments({ lock, source: sourceCopy, moduleCache, buildCache, evidence: prepEvidence, user: runnerUser });
         containers.execute(prepArgs, { timeoutMs: bounded(25 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: path.join(privateLogs, `prepare-${letter}.log`) });
+        directoryBytes(prepEvidence, 64 * MiB);
+        for (const [name, allowEmpty] of [["trivy.mod", false], ["trivy.sum", false], ["tidy.diff", true], ["downloads.seq", false], ["modules.seq", false],
+          ["graph.txt", false], ["deps.seq", false], ["verify.txt", false], ["seals.jsonl", false], ["effective-env.json", false]]) {
+          fileIdentity(path.join(prepEvidence, name), name.startsWith("trivy.") ? 8 * MiB : lock.limits.childStreamBytes, { allowEmpty });
+        }
         validateSourcePatch(sourceCopy, lock);
         directoryBytes(sourceCopy, lock.limits.sourceTreeBytes, { trivySource: true }); directoryBytes(moduleCache, lock.limits.moduleCacheBytes); directoryBytes(buildCache, lock.limits.buildCacheBytes);
         if (canonicalJson(manifestTree(sourceCopy, lock.limits.sourceTreeBytes, { trivySource: true })) !== canonicalJson(sourceManifest)) fail("scanner_owned_source_seal_changed");
         const downloadsJson = run("/usr/bin/jq", ["-s", ".", path.join(prepEvidence, "downloads.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const modulesJson = run("/usr/bin/jq", ["-s", ".", path.join(prepEvidence, "modules.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
         const compiledJson = run("/usr/bin/jq", ["-s", "[.[] | select(.Module != null and .Module.Main != true) | .Module.Path] | unique", path.join(prepEvidence, "deps.seq")], { timeoutMs: bounded(60_000), maxBytes: lock.limits.childStreamBytes }).stdout;
-        writeFileSync(path.join(prepEvidence, "downloads.json"), downloadsJson, { flag: "wx", mode: 0o600 });
-        writeFileSync(path.join(prepEvidence, "modules.json"), modulesJson, { flag: "wx", mode: 0o600 });
-        writeFileSync(path.join(prepEvidence, "compiled.json"), compiledJson, { flag: "wx", mode: 0o600 });
         const rawDownloads = JSON.parse(downloadsJson.toString("utf8"));
         const downloadMaterials = enrichDownloads(rawDownloads, moduleCache, 256 * MiB);
-        const closure = validateModuleClosure(downloadMaterials, JSON.parse(modulesJson.toString("utf8")), JSON.parse(compiledJson.toString("utf8")), lock);
+        const modules = JSON.parse(modulesJson.toString("utf8"));
+        const closure = validateModuleClosure(downloadMaterials, modules, JSON.parse(compiledJson.toString("utf8")), lock);
         writeFileSync(path.join(evidence, `closure-${letter}.json`), `${canonicalJson(closure)}\n`, { flag: "wx", mode: 0o600 });
         const sumdbRoot = path.join(moduleCache, "cache", "download", "sumdb");
         const sumdbEvidence = existsSync(sumdbRoot) ? manifestTree(sumdbRoot, 64 * MiB) : [];
+        const environment = validatePreparationEnvironment(path.join(prepEvidence, "effective-env.json"));
+        const preparation = validatePrivatePreparation({ canonicalMod: readFileSync(path.join(sourceCopy, "go.mod")), canonicalSum: readFileSync(path.join(sourceCopy, "go.sum")),
+          privateMod: readFileSync(path.join(prepEvidence, "trivy.mod")), privateSum: readFileSync(path.join(prepEvidence, "trivy.sum")), downloads: rawDownloads, modules,
+          graphText: strictText(readFileSync(path.join(prepEvidence, "graph.txt"))), sumdbLines: collectSumdbLines(sumdbRoot, 64 * MiB), seals: parseSeals(path.join(prepEvidence, "seals.jsonl")), lock });
+        preparations[letter] = { preparation, closure };
         writePublicJson(output, `module-preparation-${letter}.json`, { schemaVersion: 1, construction: letter.toUpperCase(), closureSha256: closure.sha256,
           materials: downloadMaterials.map((entry) => ({ path: entry.Path, version: entry.Version, sum: entry.Sum, goModSum: entry.GoModSum,
-            zip: entry.ZipIdentity, mod: entry.ModIdentity, info: entry.InfoIdentity })), sumdbEvidence, notices: noticeManifest(moduleCache, 4 * MiB) }, publicFiles, lock.limits);
+            zip: entry.ZipIdentity, mod: entry.ModIdentity, info: entry.InfoIdentity, dir: entry.DirIdentity, origin: entry.Origin })),
+          preparation: { privateMod: preparation.privateMod, privateSum: preparation.privateSum, semanticSumSha256: preparation.semanticSumSha256,
+            additions: preparation.additions.length,
+            additionsSha256: sha256(Buffer.from(`${canonicalJson(preparation.additions)}\n`)), graphSha256: sha256(Buffer.from(`${preparation.graph.join("\n")}\n`)),
+            sumdbRelevantSha256: sha256(Buffer.from(`${preparation.sumdbLines.join("\n")}\n`)), environment }, sumdbEvidence,
+          notices: noticeManifest(moduleCache, 4 * MiB) }, publicFiles, lock.limits);
       }
+      validatePreparationPair(preparations.a, preparations.b);
       const jose = path.join(privateRoot, "go-jose");
       run("/usr/bin/git", ["-c", "credential.helper=", "clone", "--no-checkout", "https://github.com/go-jose/go-jose.git", jose], { timeoutMs: bounded(10 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: path.join(privateLogs, "jose-clone.log") });
       run("/usr/bin/git", ["-C", jose, "checkout", "--detach", lock.goJose.commit], { timeoutMs: bounded(2 * 60_000), maxBytes: MiB });
@@ -624,7 +809,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
       const testArgs = ["run", "--rm", "--platform", "linux/amd64", "--user", runnerUser, "--network", "none", "--pull=never", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "4096", "--memory", "4g", "--memory-swap", "4g",
         "--tmpfs", "/tmp:rw,nosuid,nodev,size=2g", "-v", mount(testCopy, "/src"), "-v", mount(path.join(privateRoot, "gomodcache-a"), "/gomodcache", true),
         "-v", mount(path.join(privateRoot, "test-cache"), "/test-cache"), "-w", "/src", "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/test-cache/gocache", "-e", "GOTMPDIR=/test-cache/tmp",
-        "-e", "GOPATH=/test-cache/gopath", "-e", "GOBIN=/test-cache/bin", "-e", "MAGEFILE_CACHE=/test-cache/mage", "-e", "HOME=/test-cache/home", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=", "-e", "GOENV=off", "-e", "CGO_ENABLED=0",
+        "-e", "GOPATH=/test-cache/gopath", "-e", "GOBIN=/test-cache/bin", "-e", "MAGEFILE_CACHE=/test-cache/mage", "-e", "HOME=/test-cache/home", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=", "-e", "GOENV=off", "-e", "GOWORK=off", "-e", "CGO_ENABLED=0",
         lock.compiler.builder.reference, "/bin/sh", "-euc", "mkdir -p /test-cache/gocache /test-cache/tmp /test-cache/gopath /test-cache/bin /test-cache/mage /test-cache/home; go install -mod=readonly github.com/magefile/mage; /test-cache/bin/mage -v test:unit"];
       mkdirSync(path.join(privateRoot, "test-cache"));
       const trivyLog = path.join(privateLogs, "trivy-unit.log");
@@ -641,7 +826,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
       const jose = path.join(privateRoot, "go-jose");
       const joseLicense = fileIdentity(path.join(jose, "LICENSE"), MiB);
       const joseArgs = ["run", "--rm", "--platform", "linux/amd64", "--user", runnerUser, "--network", "none", "--pull=never", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "4096", "--memory", "4g", "--memory-swap", "4g", "-v", mount(jose, "/src", true), "-w", "/src",
-        "--tmpfs", "/tmp:rw,nosuid,nodev,size=1g", "-e", "CGO_ENABLED=0", "-e", "GOOS=linux", "-e", "GOARCH=amd64", "-e", "GOAMD64=v1", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=", "-e", "GOENV=off",
+        "--tmpfs", "/tmp:rw,nosuid,nodev,size=1g", "-e", "CGO_ENABLED=0", "-e", "GOOS=linux", "-e", "GOARCH=amd64", "-e", "GOAMD64=v1", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=", "-e", "GOENV=off", "-e", "GOWORK=off",
         lock.compiler.builder.reference, "/bin/sh", "-euc", "mkdir -p /tmp/home /tmp/cache /tmp/work; HOME=/tmp/home GOCACHE=/tmp/cache GOTMPDIR=/tmp/work go test -mod=readonly -count=1 ./..."];
       const joseLog = path.join(privateLogs, "jose-tests.log");
       containers.execute(joseArgs, { timeoutMs: bounded(15 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: joseLog });

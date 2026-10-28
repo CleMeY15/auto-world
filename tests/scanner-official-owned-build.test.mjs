@@ -14,12 +14,15 @@ import {
   ownedContainerCreateArguments,
   ownedCompilerReceipt,
   ownedFailureResult,
+  ownedPreparationDockerArguments,
   removeOwnedScannerPaths,
   requiredOwnedFreeBytes,
   runOwnedFinalCleanup,
   sha256,
   validateGitArchiveListing,
   validateModuleClosure,
+  validatePrivatePreparation,
+  validatePreparationPair,
   validateOwnedOutput,
   validateOwnedScannerLock
 } from "../scripts/scanner/owned-build.mjs";
@@ -121,8 +124,8 @@ test("canonical JSON is stable across insertion order", () => {
 test("module closure binds downloaded bytes and the compiled subset", () => {
   const material = (seed) => ({ bytes: seed, sha256: String(seed).padStart(64, "0") });
   const downloads = [
-    { Path: "example.invalid/uncompiled", Version: "v1.0.0", Sum: "h1:u", GoModSum: "h1:um", ZipIdentity: material(1), ModIdentity: material(2), InfoIdentity: material(3) },
-    { Path: LOCK.goJose.module, Version: LOCK.goJose.version, Sum: LOCK.goJose.sum, GoModSum: LOCK.goJose.goModSum, ZipIdentity: material(4), ModIdentity: material(5), InfoIdentity: material(6) }
+    { Path: "example.invalid/uncompiled", Version: "v1.0.0", Sum: "h1:u", GoModSum: "h1:um", ZipIdentity: material(1), ModIdentity: material(2), InfoIdentity: material(3), DirIdentity: material(7), Origin: { VCS: "git", Hash: "a" } },
+    { Path: LOCK.goJose.module, Version: LOCK.goJose.version, Sum: LOCK.goJose.sum, GoModSum: LOCK.goJose.goModSum, ZipIdentity: material(4), ModIdentity: material(5), InfoIdentity: material(6), DirIdentity: material(8), Origin: { VCS: "git", Hash: "b" } }
   ];
   const modules = [
     { Path: "github.com/aquasecurity/trivy", Main: true },
@@ -135,8 +138,92 @@ test("module closure binds downloaded bytes and the compiled subset", () => {
   assert.equal(closure.modules.find((item) => item.path === "example.invalid/uncompiled").compiled, false);
   assert.equal(closure.sha256, sha256(Buffer.from(`${canonicalJson({ modules: closure.modules, materials: closure.materials })}\n`)));
   assert.equal(closure.materials.length, 2);
+  const differentOrigins = downloads.map((entry, index) => ({ ...entry, Origin: { VCS: "git", Hash: `different-${index}` } }));
+  assert.equal(canonicalJson(validateModuleClosure(differentOrigins, modules, [LOCK.goJose.module], LOCK)), canonicalJson(closure));
   assert.throws(() => validateModuleClosure(downloads, modules, [], LOCK), /scanner_owned_go_jose_closure_invalid/u);
   assert.throws(() => validateModuleClosure(downloads, [...modules, { Path: "example.invalid/local", Version: "v1.0.0", Replace: { Path: ".." } }], [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
+  assert.throws(() => validateModuleClosure([{ ...downloads[0], Sum: "h1:wrong" }, downloads[1]], modules, [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
+  assert.throws(() => validateModuleClosure([{ ...downloads[0], GoModSum: "h1:wrong" }, downloads[1]], modules, [LOCK.goJose.module], LOCK), /scanner_owned_module_closure_invalid/u);
+});
+
+function preparationFixture(reverse = false) {
+  const canonicalMod = Buffer.from("module github.com/aquasecurity/trivy\n\ngo 1.27.3\n");
+  const canonicalSum = Buffer.from([
+    "example.invalid/selected v1.0.0 h1:selected",
+    "example.invalid/selected v1.0.0/go.mod h1:selected-mod",
+    `${LOCK.goJose.module} ${LOCK.goJose.version} ${LOCK.goJose.sum}`,
+    `${LOCK.goJose.module} ${LOCK.goJose.version}/go.mod ${LOCK.goJose.goModSum}`,
+    ""
+  ].join("\n"));
+  const additions = ["example.invalid/historical v1.9.0/go.mod h1:historical-19", "example.invalid/historical v1.10.0/go.mod h1:historical-110"];
+  const privateLines = [...canonicalSum.toString("utf8").trimEnd().split("\n"), ...additions].sort();
+  if (reverse) privateLines.reverse();
+  const privateSum = Buffer.from(`${privateLines.join("\n")}\n`);
+  const downloads = [
+    { Path: "example.invalid/selected", Version: "v1.0.0", Sum: "h1:selected", GoModSum: "h1:selected-mod" },
+    { Path: LOCK.goJose.module, Version: LOCK.goJose.version, Sum: LOCK.goJose.sum, GoModSum: LOCK.goJose.goModSum }
+  ];
+  const modules = [{ Path: "github.com/aquasecurity/trivy", Main: true }, ...downloads];
+  const identity = (bytes) => ({ bytes: bytes.length, sha256: sha256(bytes) });
+  const lock = JSON.parse(JSON.stringify(LOCK));
+  lock.scanner.patched.goMod = identity(canonicalMod); lock.scanner.patched.goSum = identity(canonicalSum);
+  const stages = ["initialized", "tidy", "download", "modules", "graph", "deps", "verify"];
+  const seals = stages.map((stage, index) => ({ stage, canonicalMod: identity(canonicalMod), canonicalSum: identity(canonicalSum),
+    privateMod: identity(canonicalMod), privateSum: identity(index < 2 ? canonicalSum : privateSum) }));
+  return { canonicalMod, canonicalSum, privateMod: Buffer.from(canonicalMod), privateSum, downloads, modules, lock,
+    graphText: "github.com/aquasecurity/trivy@example example.invalid/historical@v1.9.0\ngithub.com/aquasecurity/trivy@example example.invalid/historical@v1.10.0\n",
+    sumdbLines: additions, seals };
+}
+
+test("private preparation accepts only additive authenticated module sums", () => {
+  const fixture = preparationFixture();
+  const result = validatePrivatePreparation(fixture);
+  assert.deepEqual(result.additions.map((entry) => entry.version).sort(), ["v1.10.0", "v1.9.0"]);
+  assert.equal(result.privateMod.sha256, sha256(fixture.canonicalMod));
+  assert.equal(result.privateSum.sha256, sha256(fixture.privateSum));
+  assert.deepEqual(result.sumdbLines, [...fixture.sumdbLines].sort());
+
+  for (const mutate of [
+    (value) => { value.privateMod = Buffer.from("module changed\n"); },
+    (value) => { value.privateSum = Buffer.from(value.privateSum.toString("utf8").replace("h1:selected\n", "h1:changed\n")); },
+    (value) => { value.privateSum = Buffer.from(`${value.privateSum.toString("utf8")}example.invalid/selected v1.0.0 h1:selected\n`); },
+    (value) => { value.privateSum = Buffer.from(value.privateSum.toString("utf8").replace("example.invalid/historical v1.9.0/go.mod h1:historical-19\n", "") + "example.invalid/unknown v1.0.0 h1:unknown\n"); },
+    (value) => { value.graphText = "github.com/aquasecurity/trivy@example example.invalid/other@v0.9.0\n"; },
+    (value) => { value.sumdbLines = []; },
+    (value) => { value.privateSum = Buffer.from(value.privateSum.toString("utf8").replace("example.invalid/historical v1.9.0/go.mod h1:historical-19", "example.invalid/historical v1.9.0 h1:historical-19")); },
+    (value) => { value.privateSum = Buffer.from(value.privateSum.toString("utf8").replace(`${LOCK.goJose.module} ${LOCK.goJose.version}`, `${LOCK.goJose.module} v4.1.5`)); },
+    (value) => { value.seals[3] = { ...value.seals[3], canonicalSum: { bytes: 1, sha256: "0".repeat(64) } }; }
+  ]) {
+    const changed = preparationFixture(); mutate(changed);
+    assert.throws(() => validatePrivatePreparation(changed), /scanner_owned_preparation_invalid/u);
+  }
+});
+
+test("preparation arguments isolate writable module files and compare semantic A/B evidence", () => {
+  const args = ownedPreparationDockerArguments({ lock: LOCK, source: "/runner/source-a", moduleCache: "/runner/mod-a", buildCache: "/runner/cache-a",
+    evidence: "/runner/prep-a", user: "1001:1002" });
+  assert.ok(args.includes("/runner/source-a:/src:ro"));
+  assert.ok(args.includes("/runner/prep-a:/evidence"));
+  assert.ok(args.includes("GOWORK=off"));
+  assert.ok(args.includes("GOENV=off"));
+  assert.ok(args.includes("GOTOOLCHAIN=local"));
+  const script = args.at(-1);
+  assert.match(script, /GOFLAGS= go mod tidy -diff/u);
+  assert.doesNotMatch(script.split("go mod tidy -diff")[0], /-modfile/u);
+  for (const command of ["go mod download", "go list", "go mod graph", "go mod verify"]) assert.match(script, new RegExp(`${command.replaceAll(" ", "\\s+")}[^\\n]*-modfile=/evidence/trivy\\.mod`, "u"));
+  assert.match(script, /go list -modfile=\/evidence\/trivy\.mod -deps -json=Module \.\/cmd\/trivy > \/evidence\/deps\.seq/u);
+
+  const fixture = preparationFixture();
+  const validated = validatePrivatePreparation(fixture);
+  const alternate = validatePrivatePreparation(preparationFixture(true));
+  assert.notEqual(validated.privateSum.sha256, alternate.privateSum.sha256);
+  assert.equal(validated.semanticSumSha256, alternate.semanticSumSha256);
+  const record = { preparation: validated, closure: { sha256: "1".repeat(64), modules: [], materials: [] } };
+  const clone = () => JSON.parse(JSON.stringify(record));
+  assert.equal(validatePreparationPair(record, clone()), true);
+  assert.equal(validatePreparationPair(record, { preparation: alternate, closure: record.closure }), true);
+  assert.throws(() => validatePreparationPair(record, { ...clone(), preparation: { ...validated, graph: [...validated.graph, "x@y z@v1"] } }), /scanner_owned_preparation_mismatch/u);
+  assert.throws(() => validatePreparationPair(record, { ...clone(), preparation: { ...validated, semanticSumSha256: "2".repeat(64) } }), /scanner_owned_preparation_mismatch/u);
 });
 
 test("Trivy source trees preserve only the three pinned dangling symlinks without following them", (context) => {
@@ -201,6 +288,7 @@ test("both build paths are offline and use the same canonical output", () => {
     assert.ok(args.includes("ALL"));
     assert.ok(args.includes("4g"));
     assert.ok(args.includes("GOAMD64=v1"));
+    assert.ok(args.includes("GOWORK=off"));
     assert.ok(args.includes("--pull=never"));
     assert.ok(args.includes("/runner/source:/src:ro"));
     assert.ok(args.includes("/runner/out:/out"));
@@ -391,5 +479,7 @@ test("build source retains private evidence and exposes bounded public receipts"
   assert.match(source, /go test -mod=readonly -count=1 \.\/\.\.\./u);
   assert.match(source, /mage -v test:unit/u);
   assert.match(source, /GOPROXY=https:\/\/proxy\.golang\.org/u);
+  assert.equal((source.match(/-modfile=\/evidence\/trivy\.mod/gu) ?? []).length, 5);
+  assert.doesNotMatch(source, /downloads\.json|modules\.json|compiled\.json/u);
   assert.doesNotMatch(source, /infra\/scanner\/scanner-lock\.json|scripts\/scanner\/build\.mjs/u);
 });
