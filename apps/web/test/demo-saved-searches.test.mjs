@@ -111,6 +111,8 @@ test("store hydrates without server reads, normalizes names, persists canonical 
   assert.equal(store.add("too early", numericCriteria).reason, "readonly");
   store.hydrate();
   assert.equal(providerCalls, 1);
+  const hydratedSnapshot = store.getSnapshot();
+  assert.strictEqual(store.getSnapshot(), hydratedSnapshot);
   assert.deepEqual(store.add("  E\u0301lectrique  ", numericCriteria), { ok: true });
   assert.deepEqual(store.add("Même filtre", numericCriteria), { ok: false, reason: "duplicate" });
   assert.equal(store.getSnapshot().searches[0].name, "Électrique");

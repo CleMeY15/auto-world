@@ -1,6 +1,7 @@
 import { Banner, Button } from "@auto-world/design-system/primitives";
 import type { DemoCatalogResponseV2, DemoEvidence, DemoResultV2, DemoSearchResponseV2 } from "@auto-world/demo-search-contract";
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { comparisonConflicts, comparisonRows, type ComparisonEntry } from "../../demo/comparison";
 import { resolveDescription } from "../../demo/catalog";
@@ -107,6 +108,7 @@ export interface ComparisonScreenProps {
   readonly catalog?: DemoCatalogResponseV2;
   readonly online: boolean;
   readonly refreshError?: string;
+  readonly saveControl?: ReactNode;
   readonly onReturn: () => void;
   readonly onRemove: (entry: ComparisonEntry) => void;
 }
@@ -182,7 +184,7 @@ export function ComparisonTable({ entries, catalog, responses }: {
   );
 }
 
-export function ComparisonScreen({ entries, response, catalog, online, refreshError, onReturn, onRemove }: ComparisonScreenProps) {
+export function ComparisonScreen({ entries, response, catalog, online, refreshError, saveControl, onReturn, onRemove }: ComparisonScreenProps) {
   return (
     <section aria-labelledby="demo-screen-title">
       <ScreenHeader
@@ -201,7 +203,7 @@ export function ComparisonScreen({ entries, response, catalog, online, refreshEr
             <p>Valeurs de cette recherche, non actualisées automatiquement.</p>
             <p>Données arrêtées au <time dateTime={response.dataAsOf}>{formatDate(response.dataAsOf)}</time>.</p>
           </div>
-          {entries.length >= 2 ? <ComparisonLinkCreator listingIds={entries.map((entry) => entry.result.listingId)} /> : null}
+          {entries.length >= 2 ? <div className="demo-comparison-persistence-actions"><ComparisonLinkCreator listingIds={entries.map((entry) => entry.result.listingId)} />{saveControl}</div> : null}
           {response.state === "partial" ? <Banner role="note" tone="warning">La projection est partielle : la comparaison porte uniquement sur les publications affichées.</Banner> : null}
           {response.state === "stale" ? <Banner role="note" tone="warning">Cet instant de démonstration est ancien. Les valeurs restent celles de la recherche acceptée.</Banner> : null}
           {!online ? <Banner role="note" tone="warning">Vous êtes hors connexion. Ces données ont déjà été chargées ; aucune actualisation en direct n’est effectuée.</Banner> : null}

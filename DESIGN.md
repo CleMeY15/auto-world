@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. Product increments through TASK-0115 are accepted on main through their delivery checkpoints. TASK-0116 improves the existing comparison under its own [validation gates](docs/validation/TASK-0116.md), without infrastructure admission.
-- Last refreshed: 2026-10-26.
+- Status: Active. Product increments through TASK-0116 are accepted on main through their delivery checkpoints. TASK-0117 adds named local comparison shortcuts under its own [task gates](roadmap/tasks/TASK-0117-saved-comparisons.md), without infrastructure admission.
+- Last refreshed: 2026-10-28.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -24,7 +24,7 @@
 ## Information architecture
 - Primary navigation in this slice: Search/Results and Saved; synthetic listing detail is reached from a result or saved item. A resolved Vehicle page is later scope.
 - Core routes: search/results, synthetic listing detail and local saved list. Return to results preserves filters and scroll.
-- TASK-0108 navigation labels: Recherche / Enregistrés; retain `#saved` and avoid an ambiguous combined counter. Saved contains compact Recherches enregistrées (n sur 10), then existing Favoris synthétiques. One global empty state when both lists are empty; concise section-empty copy otherwise. No extra destination or home dashboard.
+- Navigation labels: Recherche / Enregistrés; retain `#saved` and avoid an ambiguous combined counter. Saved contains compact Recherches enregistrées (n sur 10), Comparaisons enregistrées (n sur 10), then Favoris synthétiques. One global empty state when all three collections are authoritatively empty; concise section-empty copy otherwise. No extra destination or home dashboard.
 - Content hierarchy: persistent demo disclosure, search controls, scannable synthetic listing card, evidence/history on demand, one clear next action.
 
 ## Design principles
@@ -76,7 +76,7 @@
 - Tone: concise, neutral and decision-oriented.
 - Terminology: say “données de démonstration” persistently; say “observé le …” for canonical observations, “première immatriculation fictive” for the authored year, and “déclaration issue d’une fixture synthétique, non vérifiée” for make/model/year provenance. Never shorten this year to “année-modèle”.
 - Microcopy rules: no “bonne affaire”, “historique vérifié”, “VIN certifié” or real-source endorsement in the synthetic slice.
-- Saved heading: Mes listes. Initial Éléments enregistrés fragmented a word at200% with wider font metrics; the shorter title preserves hierarchy and the no-fragmentation guard. Persistent disclosure: Recherches et favoris conservés uniquement dans ce navigateur. Aucun compte ni alerte n’est créé. Distinguish enregistré sur cet appareil from conservé pour cette session; clearing browser data loses local records.
+- Saved heading: Mes listes. Initial Éléments enregistrés fragmented a word at200% with wider font metrics; the shorter title preserves hierarchy and the no-fragmentation guard. Persistent disclosure includes searches, comparisons and favorites stored only in this browser, without an account or alert. Distinguish enregistré sur cet appareil from conservé pour cette session; clearing browser data loses local records.
 
 ## Implementation constraints
 - Framework/styling system: the TASK-0007 foundation uses Next.js 16.4.2 / React 19.3.0 / TypeScript 5.9.2 on the pinned workspace toolchain after [2026-10-22 security maintenance](docs/validation/runtime-security-2026-10-22.md). Server-rendered document/page plus one ephemeral client island; CSS handles initial system appearance without storage reads or hydration effects. The only layout effect restores focus after a user-triggered state replacement. No second UI framework.
@@ -166,3 +166,12 @@
 - A compact wrapping toolbar provides a 44px label target and polite visible/total criterion count. Disabled below two publications; no-difference state explains the limited comparison without implying vehicle identity. Unchecking restores every row. View state is ephemeral and resets on leaving/reopening or re-reading.
 - Preserve semantic headers and the labelled horizontal-scroll region. Two-publication tables need three readable columns, not the width reserved for four. No sticky labels that obscure values at narrow widths or enlarged text.
 - [TASK-0116](roadmap/tasks/TASK-0116-comparison-differences.md) requires both-engine viewport/theme/enlarged-text/keyboard/axe checks, actual-pixel review, no-side-effect regressions and measured responsiveness before delivery.
+
+## TASK-0117 named comparison shortcuts
+
+- Reuse the inline name form, Button/Field/Banner, existing calm tokens and compact saved rows. No new primary destination, visual system, modal or decorative imagery. The comparison save action sits near the existing link action; only 2–3 accepted publications can be saved.
+- Store only a normalized name and canonical comparison fragment in a separate versioned key. State before saving that references point to the current local demo, not frozen values or real vehicles. Prices and provenance are reread only after explicit `Charger la comparaison`.
+- Mes listes adds a compact named comparison section between searches and favorites. Each row shows its name, publication count and Open/Delete; no repeated vehicle table or frozen summaries. Open leads to existing review without detail reads. Optional local title/back context is ephemeral; ordinary received links remain unchanged.
+- Opening the form focuses the name; invalid submission keeps focus; cancel/success returns to a stable action. Changing selection or leaving destroys stale form intent. Open focuses the review heading. Deletion focuses its own undo; undo focuses the restored row. Reset has a separate confirmation invalidated by changed storage.
+- Persisted/session/denied/quota/corrupt/future states remain honest and independent of the other collections. Future data cannot be reset. Payloads beyond the bounded 64 KiB format inspection are also preserved read-only; copy says newer or unsupported format without claiming a known version. Offline local management remains possible; comparison loading uses existing all-or-nothing, mismatch and retry states. Disabled demo does no API work.
+- Validate form/list/reopening across both browsers, viewport/theme/enlarged-text/reduced-motion matrix, semantic focus/44px/axe/content-fit checks, actual pixels and 100ms local feedback at 4x CPU. Preserve the existing table and provenance regression suite. [TASK-0117](roadmap/tasks/TASK-0117-saved-comparisons.md) governs acceptance, not merely compilation.
