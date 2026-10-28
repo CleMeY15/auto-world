@@ -655,6 +655,13 @@ test("received comparison controls meet keyboard, touch target and WCAG 2.2 AA r
   const targets = await page.locator("main button, main input, main select, .demo-comparison-scroll").evaluateAll((elements) => elements
     .filter((element) => getComputedStyle(element).visibility !== "hidden")
     .map((element) => {
+      // A native checkbox and its associated label form one clickable target.
+      if (element instanceof HTMLInputElement && element.type === "checkbox") {
+        const label = element.labels?.item(0);
+        if (!label || label.control !== element || element.disabled) throw new Error("Expected an enabled checkbox with an associated label");
+        const bounds = label.getBoundingClientRect();
+        return { height: bounds.height, width: bounds.width };
+      }
       const bounds = element.getBoundingClientRect();
       return { height: bounds.height, width: bounds.width };
     }));
