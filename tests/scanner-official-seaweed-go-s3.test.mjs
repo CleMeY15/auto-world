@@ -1,14 +1,28 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { chmodSync, linkSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { captureSeaweedGoS3QualificationFile } from "../scripts/scanner/official-audit.mjs";
 import {
   SEAWEED_GO_S3_SOURCE,
+  runSeaweedGoS3InertQualification,
   runSeaweedGoS3SourcePreflight,
+  seaweedGoS3ContainerDiffArguments,
+  seaweedGoS3DeleteCompareArguments,
+  seaweedGoS3DeleteHelpersArguments,
   seaweedGoS3DockerInfoArguments,
+  seaweedGoS3ExportCompareArguments,
+  seaweedGoS3FilteredExportCompareArguments,
+  seaweedGoS3FixtureInspectArguments,
+  seaweedGoS3FixtureWriteArguments,
   seaweedGoS3GnuTarVersionArguments,
+  seaweedGoS3ImageSaveArguments,
+  seaweedGoS3LegacySaveInspectArguments,
   seaweedGoS3PythonVersionArguments,
+  seaweedGoS3QualificationNames,
+  seaweedGoS3QualificationRefusalReceipt,
   seaweedGoS3ResourceRequirements,
   seaweedGoS3SourceSaveArguments,
   seaweedGoS3SourceRefusalError,
@@ -18,6 +32,11 @@ import {
   validateSeaweedGoS3EnvelopeDiagnostic,
   validateSeaweedGoS3Profile,
   validateSeaweedGoS3ManifestDiagnostic,
+  validateSeaweedGoS3QualificationContainer,
+  validateSeaweedGoS3QualificationImage,
+  validateSeaweedGoS3QualificationInspection,
+  validateSeaweedGoS3QualificationReceipt,
+  validateSeaweedGoS3QualificationRefusal,
   validateSeaweedGoS3SourceEnvelope,
   validateSeaweedGoS3SourceInspection,
   validateSeaweedGoS3SourcePreflightReceipt,
@@ -1232,4 +1251,815 @@ test("cleanup uncertainty suppresses auxiliary and envelope diagnostics", async 
   assert.match(caught.message, /scanner_seaweed_go_s3_cleanup_uncertain/u);
   assert.equal(seaweedGoS3SourceRefusalReceipt(caught), null);
   assert.equal(seaweedGoS3SourceRefusalReceipt(finiteError), null);
+});
+
+const qualificationRunId = "123e4567-e89b-42d3-a456-426614174000";
+
+function qualificationNames() {
+  return seaweedGoS3QualificationNames({ runId: qualificationRunId, scratchDirectory: absolute("qualification") });
+}
+
+function qualificationImageEvidence(stage = "source") {
+  const names = qualificationNames();
+  return {
+    imageId: `sha256:${(stage === "source" ? "a" : "b").repeat(64)}`,
+    tag: names.tags[stage],
+    platform: "linux/amd64",
+    created: "2026-10-28T08:00:00Z",
+    config: {
+      Cmd: ["/auto-world-inert-never-execute"],
+      Entrypoint: null,
+      Labels: {
+        "com.auto-world.task005.inert": qualificationRunId,
+        "com.auto-world.task005.inert-stage": stage,
+        "org.auto-world.seaweed-go-s3-control": "inert-v1",
+      },
+      User: "1001:1002",
+      Volumes: { "/data": {} },
+      WorkingDir: "/data",
+    },
+  };
+}
+
+function qualificationImage(stage = "source") {
+  const value = qualificationImageEvidence(stage);
+  return [{
+    Id: value.imageId,
+    RepoTags: [value.tag],
+    Os: "linux",
+    Architecture: "amd64",
+    Created: value.created,
+    Config: clone(value.config),
+    RootFS: { Type: "layers", Layers: [`sha256:${"d".repeat(64)}`] },
+  }];
+}
+
+function qualificationContainerEvidence(stage = "source") {
+  const names = qualificationNames();
+  const image = qualificationImageEvidence(stage);
+  return {
+    containerId: "c".repeat(64),
+    name: names.containers[stage],
+    imageId: image.imageId,
+    state: {
+      status: "created",
+      running: false,
+      startedAt: "0001-01-01T00:00:00Z",
+      finishedAt: "0001-01-01T00:00:00Z",
+    },
+    config: {
+      Cmd: ["/auto-world-inert-never-execute"],
+      Labels: clone(image.config.Labels),
+      User: "1001:1002",
+      WorkingDir: "/data",
+    },
+    hostConfig: {
+      networkMode: "none",
+      readonlyRootfs: true,
+      capDrop: ["ALL"],
+      securityOpt: ["no-new-privileges"],
+      memory: 67_108_864,
+      nanoCpus: 250_000_000,
+      pidsLimit: 64,
+      binds: [],
+    },
+    mounts: [{ type: "volume", name: `aw-volume-${qualificationRunId}`, destination: "/data", rw: true }],
+  };
+}
+
+function qualificationContainer(stage = "source") {
+  const value = qualificationContainerEvidence(stage);
+  return [{
+    Id: value.containerId,
+    Name: `/${value.name}`,
+    Image: value.imageId,
+    State: {
+      Status: "created",
+      Running: false,
+      Paused: false,
+      Restarting: false,
+      Dead: false,
+      StartedAt: "0001-01-01T00:00:00Z",
+      FinishedAt: "0001-01-01T00:00:00Z",
+    },
+    Config: {
+      Cmd: clone(value.config.Cmd),
+      Entrypoint: null,
+      Env: [],
+      ExposedPorts: null,
+      Healthcheck: null,
+      Labels: clone(value.config.Labels),
+      User: value.config.User,
+      Volumes: { "/data": {} },
+      WorkingDir: value.config.WorkingDir,
+    },
+    HostConfig: {
+      NetworkMode: "none",
+      ReadonlyRootfs: true,
+      CapDrop: ["ALL"],
+      SecurityOpt: ["no-new-privileges"],
+      Memory: 67_108_864,
+      NanoCpus: 250_000_000,
+      PidsLimit: 64,
+      Binds: null,
+      Tmpfs: null,
+    },
+    Mounts: [{ Type: "volume", Destination: "/data", RW: true, Name: `aw-volume-${qualificationRunId}` }],
+    NetworkSettings: { Networks: {} },
+  }];
+}
+
+test("qualification names bind every path, tag and container to the full canonical UUID", () => {
+  const scratchDirectory = absolute("qualification");
+  assert.deepEqual(qualificationNames(), {
+    runId: qualificationRunId,
+    scratchDirectory,
+    labels: { control: "inert-v1", owner: qualificationRunId },
+    paths: {
+      fixture: path.join(scratchDirectory, "inert-fixture.tar"),
+      sourceExport: path.join(scratchDirectory, "source-export.tar"),
+      filteredRootfs: path.join(scratchDirectory, "filtered-rootfs.tar"),
+      finalSave: path.join(scratchDirectory, "filtered-save.tar"),
+      roundtripExport: path.join(scratchDirectory, "roundtrip-export.tar"),
+    },
+    tags: {
+      source: `auto-world-managed/seaweedfs-go-s3-inert-source:${qualificationRunId}`,
+      filtered: `auto-world-managed/seaweedfs-go-s3-control:${qualificationRunId}`,
+    },
+    containers: {
+      source: `aw-seaweed-go-s3-inert-source-${qualificationRunId}`,
+      filtered: `aw-seaweed-go-s3-inert-filtered-${qualificationRunId}`,
+    },
+  });
+});
+
+test("qualification names reject UUID aliases before producing owned resources", () => {
+  for (const runId of [qualificationRunId.toUpperCase(), qualificationRunId.replaceAll("-", ""), "123e4567-e89b-42d3-a456"])
+    assert.throws(() => seaweedGoS3QualificationNames({ runId, scratchDirectory: absolute("qualification") }), /scanner_seaweed_go_s3_/u);
+});
+
+test("qualification names accept the full lowercase UUID syntax without version or variant narrowing", () => {
+  const runId = "00000000-0000-0000-0000-000000000000";
+  assert.equal(seaweedGoS3QualificationNames({ runId, scratchDirectory: absolute("qualification-zero") }).runId, runId);
+});
+
+test("qualification Python builders expose only the six fixed local archive actions", () => {
+  const names = qualificationNames();
+  const python = "/usr/bin/python3";
+  const inspector = absolute("seaweed_profile_archive.py");
+  const specs = [
+    seaweedGoS3FixtureWriteArguments({ python, inspector, archive: names.paths.fixture }),
+    seaweedGoS3FixtureInspectArguments({ python, inspector, archive: names.paths.fixture }),
+    seaweedGoS3ExportCompareArguments({ python, inspector, original: names.paths.fixture, exported: names.paths.sourceExport }),
+    seaweedGoS3DeleteCompareArguments({ python, inspector, original: names.paths.sourceExport, filtered: names.paths.filteredRootfs }),
+    seaweedGoS3FilteredExportCompareArguments({ python, inspector, filtered: names.paths.filteredRootfs, exported: names.paths.roundtripExport }),
+    seaweedGoS3LegacySaveInspectArguments({
+      python,
+      inspector,
+      archive: names.paths.finalSave,
+      imageId: `sha256:${"b".repeat(64)}`,
+      tag: names.tags.filtered,
+      diffId: `sha256:${"d".repeat(64)}`,
+      created: "2026-10-28T08:00:00Z",
+      owner: qualificationRunId,
+    }),
+  ];
+  assert.deepEqual(specs.map((value) => value.operation), [
+    "fixture_write", "fixture_inspect", "export_compare", "delete_compare", "filtered_export_compare", "legacy_save_inspect",
+  ]);
+  specs.forEach((value) => {
+    assert.equal(value.command, "/usr/bin/python3");
+    assert.equal(value.timeoutMs, 300_000);
+    assert.equal(value.stdoutLimitBytes, 4 * MiB);
+    assert.equal(value.stderrLimitBytes, 4 * MiB);
+    assert.equal(Object.isFrozen(value), true);
+    assert.equal(value.args.some((argument) => /https?:|\*|credential|token/iu.test(argument)), false);
+  });
+});
+
+test("GNU deletion is one fixed invocation naming exactly the two helper paths", () => {
+  const spec = seaweedGoS3DeleteHelpersArguments({ archive: qualificationNames().paths.filteredRootfs });
+  assert.equal(spec.operation, "delete_helpers");
+  assert.equal(spec.command, "/usr/bin/tar");
+  assert.deepEqual(spec.args, [
+    "--delete", "--file", qualificationNames().paths.filteredRootfs, "usr/bin/weed-volume", "usr/bin/weed-worker",
+  ]);
+});
+
+test("image save is bound to the final tag and cannot degrade to a bare image ID", () => {
+  const names = qualificationNames();
+  const spec = seaweedGoS3ImageSaveArguments({
+    tag: names.tags.filtered,
+    imageId: `sha256:${"b".repeat(64)}`,
+    archive: names.paths.finalSave,
+  });
+  assert.equal(spec.operation, "image_save");
+  assert.equal(spec.args.some((value) => value.includes(names.tags.filtered)), true);
+  assert.equal(spec.args.some((value) => value === `sha256:${"b".repeat(64)}`), false);
+  assert.throws(
+    () => seaweedGoS3ImageSaveArguments({ imageId: `sha256:${"b".repeat(64)}`, archive: names.paths.finalSave }),
+    /scanner_seaweed_go_s3_/u,
+  );
+});
+
+test("qualification image validation requires the exact owner, stage, tag and inert config", () => {
+  const image = qualificationImage("filtered");
+  const expected = qualificationImageEvidence("filtered");
+  const names = qualificationNames();
+  assert.deepEqual(
+    validateSeaweedGoS3QualificationImage(image, { owner: qualificationRunId, stage: "filtered", tag: names.tags.filtered }),
+    expected,
+  );
+  const changed = clone(image);
+  changed[0].Config.Labels["com.auto-world.task005.inert-stage"] = "source";
+  assert.throws(
+    () => validateSeaweedGoS3QualificationImage(changed, { owner: qualificationRunId, stage: "filtered", tag: names.tags.filtered }),
+    /scanner_seaweed_go_s3_/u,
+  );
+});
+
+test("qualification container validation proves created-never-running security and one data volume", () => {
+  const container = qualificationContainer("source");
+  const expected = qualificationContainerEvidence("source");
+  const names = qualificationNames();
+  assert.deepEqual(validateSeaweedGoS3QualificationContainer(container, {
+    owner: qualificationRunId,
+    stage: "source",
+    name: names.containers.source,
+    imageId: qualificationImageEvidence("source").imageId,
+  }), expected);
+  const running = clone(container);
+  running[0].State.Running = true;
+  assert.throws(() => validateSeaweedGoS3QualificationContainer(running, {
+    owner: qualificationRunId,
+    stage: "source",
+    name: names.containers.source,
+    imageId: qualificationImageEvidence("source").imageId,
+  }), /scanner_seaweed_go_s3_/u);
+});
+
+for (const [description, mutate] of [
+  ["a network endpoint", (raw) => { raw.NetworkSettings.Networks.bridge = { EndpointID: "e".repeat(64) }; }],
+  ["an entrypoint", (raw) => { raw.Config.Entrypoint = ["/bin/sh"]; }],
+  ["a healthcheck", (raw) => { raw.Config.Healthcheck = { Test: ["CMD", "true"] }; }],
+  ["an exposed port", (raw) => { raw.Config.ExposedPorts = { "8333/tcp": {} }; }],
+  ["an environment entry", (raw) => { raw.Config.Env = ["UNEXPECTED=1"]; }],
+]) {
+  test(`qualification container validation rejects ${description}`, () => {
+    const raw = qualificationContainer("source");
+    mutate(raw[0]);
+    assert.throws(() => validateSeaweedGoS3QualificationContainer(raw, {
+      owner: qualificationRunId,
+      stage: "source",
+      name: qualificationNames().containers.source,
+      imageId: qualificationImageEvidence("source").imageId,
+    }), /scanner_seaweed_go_s3_/u);
+  });
+}
+
+test("container diff builders keep before and after as distinct strict operations", () => {
+  const container = qualificationNames().containers.source;
+  const before = seaweedGoS3ContainerDiffArguments({ container, phase: "before" });
+  const after = seaweedGoS3ContainerDiffArguments({ container, phase: "after" });
+  assert.equal(before.operation, "container_diff_before");
+  assert.equal(after.operation, "container_diff_after");
+  assert.notDeepEqual(before, after);
+  assert.throws(() => seaweedGoS3ContainerDiffArguments({ container, phase: "during" }), /scanner_seaweed_go_s3_/u);
+});
+
+const qualificationFixture = [
+  ["etc", "directory", 0o750, 101, 202, 1_700_000_100, Buffer.alloc(0), ""],
+  ["etc/fixture.conf", "file", 0o640, 101, 202, 1_700_000_101, Buffer.from("auto-world-inert-fixture-v1\n", "ascii"), ""],
+  ["opt", "directory", 0o755, 0, 0, 1_700_000_102, Buffer.alloc(0), ""],
+  ["opt/auto-world", "directory", 0o750, 123, 456, 1_700_000_103, Buffer.alloc(0), ""],
+  ["opt/auto-world/marker.txt", "file", 0o444, 123, 456, 1_700_000_104, Buffer.from("preserve-this-marker\n", "ascii"), ""],
+  ["var", "directory", 0o755, 0, 0, 1_700_000_105, Buffer.alloc(0), ""],
+  ["var/lib", "directory", 0o755, 0, 0, 1_700_000_106, Buffer.alloc(0), ""],
+  ["var/lib/seaweed", "directory", 0o750, 1001, 1002, 1_700_000_107, Buffer.alloc(0), ""],
+  ["var/lib/seaweed/state.bin", "file", 0o600, 1001, 1002, 1_700_000_108,
+    Buffer.from("006175746f2d776f726c64ff7365617765656410", "hex"), ""],
+  ["usr", "directory", 0o755, 0, 0, 1_700_000_109, Buffer.alloc(0), ""],
+  ["usr/bin", "directory", 0o755, 0, 0, 1_700_000_110, Buffer.alloc(0), ""],
+  ["usr/bin/weed-volume", "file", 0o640, 1001, 1002, 1_700_000_111,
+    Buffer.from("AUTO WORLD INERT DATA ONLY: weed-volume\n", "ascii"), ""],
+  ["usr/bin/weed-worker", "file", 0o640, 1001, 1002, 1_700_000_112,
+    Buffer.from("AUTO WORLD INERT DATA ONLY: weed-worker\n", "ascii"), ""],
+  ["data", "directory", 0o700, 1001, 1002, 1_700_000_113, Buffer.alloc(0), ""],
+  ["data/sentinel.txt", "file", 0o440, 1001, 1002, 1_700_000_114,
+    Buffer.from("volume-underlay-sentinel-v1\n", "ascii"), ""],
+  ["marker-link", "symlink", 0o777, 123, 456, 1_700_000_115, Buffer.alloc(0), "opt/auto-world/marker.txt"],
+];
+
+const canonicalJson = (value) => Array.isArray(value)
+  ? `[${value.map(canonicalJson).join(",")}]`
+  : value !== null && typeof value === "object"
+    ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`
+    : JSON.stringify(value);
+const canonicalSha256 = (value) => createHash("sha256").update(canonicalJson(value), "ascii").digest("hex");
+
+function qualificationArchive(sha, membersOrCount) {
+  const members = Array.isArray(membersOrCount) ? membersOrCount : null;
+  const semanticMembers = members?.map((member) => ({ path: member.path, type: member.type, mode: member.mode,
+    uid: member.uid, gid: member.gid, mtime: member.mtime, size: member.size, linkname: member.linkname,
+    payloadSha256: member.payloadSha256 })).sort((left, right) => left.path.localeCompare(right.path));
+  return { sha256: sha.repeat(64), bytes: 10_240, memberCount: members?.length ?? membersOrCount,
+    semanticSha256: members ? canonicalSha256(semanticMembers) : "8".repeat(64),
+    orderedRawSha256: members ? canonicalSha256(members.map(({ path: item, rawSha256 }) => ({ path: item, rawSha256 }))) : "9".repeat(64) };
+}
+
+function qualificationMembers(filtered = false) {
+  const removed = new Set(["usr/bin/weed-volume", "usr/bin/weed-worker"]);
+  return qualificationFixture.filter(([item]) => !filtered || !removed.has(item)).map(([
+    item, type, mode, uid, gid, mtime, payload, linkname,
+  ]) => ({
+    path: item, type, mode, uid, gid, mtime, size: payload.length, linkname,
+    payloadSha256: createHash("sha256").update(payload).digest("hex"),
+    rawSha256: createHash("sha256").update(`independent-raw-record:${item}`, "ascii").digest("hex"),
+  }));
+}
+
+const qualificationSentinel = {
+  path: "data/sentinel.txt",
+  sha256: createHash("sha256").update("volume-underlay-sentinel-v1\n", "ascii").digest("hex"),
+  bytes: 28,
+};
+
+function qualificationCommon(kind) {
+  return { schemaVersion: 1, profile: "go-s3-4.51-v1", evidenceClass: "INERT_CONSTRUCTION_QUALIFICATION", kind, status: "PASS" };
+}
+
+function qualificationReports() {
+  const members = qualificationMembers();
+  const filteredMembers = qualificationMembers(true);
+  const fixtureArchive = qualificationArchive("1", members);
+  const exportArchive = qualificationArchive("2", members);
+  const filteredArchive = qualificationArchive("d", filteredMembers);
+  const roundtripArchive = qualificationArchive("f", filteredMembers);
+  return {
+    fixtureWrite: { ...qualificationCommon("INERT_FIXTURE_V1"), operation: "WRITE", archive: fixtureArchive,
+      members, sentinel: qualificationSentinel },
+    fixtureInspect: { ...qualificationCommon("INERT_FIXTURE_V1"), operation: "INSPECT", archive: fixtureArchive,
+      members, sentinel: qualificationSentinel },
+    sourceExport: { ...qualificationCommon("INERT_EXPORT_SEMANTICS_V1"), original: fixtureArchive,
+      exported: exportArchive, matched: true, members, sentinel: qualificationSentinel },
+    deletion: { ...qualificationCommon("INERT_RAW_DELETE_V1"), original: exportArchive, filtered: filteredArchive,
+      removedCount: 2, removed: ["usr/bin/weed-volume", "usr/bin/weed-worker"], survivorCount: 14,
+      survivorRawSha256: filteredArchive.orderedRawSha256,
+      survivors: filteredMembers.map(({ path: item, rawSha256 }) => ({ path: item, rawSha256 })),
+      sentinel: qualificationSentinel },
+    roundtrip: { ...qualificationCommon("INERT_FILTERED_EXPORT_SEMANTICS_V1"), filtered: filteredArchive,
+      exported: roundtripArchive, matched: true, members: filteredMembers, sentinel: qualificationSentinel },
+    finalSave: { ...qualificationCommon("INERT_LEGACY_SAVE_V1"), archive: qualificationArchive("e", 7),
+      family: "MOBY_LEGACY_SINGLE_LAYER_V1",
+      image: { imageId: `sha256:${"b".repeat(64)}`, tag: qualificationNames().tags.filtered, owner: qualificationRunId,
+        created: "2026-10-28T08:00:00Z", serverVersion: "28.0.4", configSha256: "b".repeat(64) },
+      layer: { diffId: `sha256:${"d".repeat(64)}`, sha256: "d".repeat(64), bytes: 10_240, memberCount: 14,
+        semanticSha256: filteredArchive.semanticSha256 },
+      graph: { configPath: `${"b".repeat(64)}.json`, layerPath: `${"c".repeat(64)}/layer.tar`,
+        layerId: "c".repeat(64), descriptorCount: 1 }, sentinel: qualificationSentinel },
+  };
+}
+
+test("qualification inspection rejects a fixture member whose pinned mode changes", () => {
+  const report = clone(qualificationReports().fixtureInspect);
+  report.members.find((member) => member.path === "etc").mode = 0o777;
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+test("qualification inspection recomputes the fixture semantic commitment", () => {
+  const report = clone(qualificationReports().fixtureInspect);
+  report.archive.semanticSha256 = "6".repeat(64);
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+test("qualification deletion rejects a removed helper substituted for a survivor", () => {
+  const report = clone(qualificationReports().deletion);
+  report.survivors[0].path = "usr/bin/weed-volume";
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+test("qualification deletion recomputes its ordered raw survivor commitment", () => {
+  const report = clone(qualificationReports().deletion);
+  report.survivors[0].rawSha256 = "6".repeat(64);
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+test("qualification save binds its config path to the image ID", () => {
+  const report = clone(qualificationReports().finalSave);
+  report.graph.configPath = `${"a".repeat(64)}.json`;
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+test("qualification save binds its layer path to the declared graph layer", () => {
+  const report = clone(qualificationReports().finalSave);
+  report.graph.layerPath = `${"a".repeat(64)}/layer.tar`;
+  assert.throws(() => validateSeaweedGoS3QualificationInspection(report),
+    /scanner_seaweed_go_s3_qualification_inspection_invalid/u);
+});
+
+async function qualificationSourcePreflight() {
+  const item = harness();
+  item.operations.inspectSource = async () => {
+    item.events.push("inspectSource");
+    return mobyInspection();
+  };
+  return runSeaweedGoS3SourcePreflight(input(), item.operations);
+}
+
+function qualificationSnapshot(sha) {
+  return { bytes: 10_240, sha256: sha.repeat(64), identity: {
+    dev: "1", ino: "2", mode: "33060", uid: "1000", gid: "1000", nlink: "1", size: "10240",
+    mtimeNs: "1700000000000000000", ctimeNs: "1700000000000000001",
+  } };
+}
+
+async function qualificationLifecycleHarness({ refusalAt = null, refusalKind = "INERT_EXPORT_SEMANTICS_V1",
+  refusalCode = "qualification_export_mismatch", strictDiffWhitespace = false, cleanupCertain = true,
+  collision = null, malformedAt = null, ambiguousAt = null, filesystemDriftAt = null, insufficientAt = null,
+  elapsedStep = 1, inputTamperAt = null } = {}) {
+  const sourcePreflight = await qualificationSourcePreflight();
+  const names = qualificationNames();
+  const reports = qualificationReports();
+  const events = [];
+  const executedSpecs = [];
+  const cleanupJournals = [];
+  let elapsed = 0;
+  let filesystemChecks = 0;
+  let inputChecks = 0;
+  const snapshots = new Map([
+    [names.paths.fixture, qualificationSnapshot("1")],
+    [names.paths.sourceExport, qualificationSnapshot("2")],
+    [names.paths.filteredRootfs, qualificationSnapshot("d")],
+    [names.paths.finalSave, qualificationSnapshot("e")],
+    [names.paths.roundtripExport, qualificationSnapshot("f")],
+  ]);
+  const sourceId = `sha256:${"a".repeat(64)}`, filteredId = `sha256:${"b".repeat(64)}`;
+  const sourceContainerId = "c".repeat(64), filteredContainerId = "e".repeat(64);
+  const execute = async (spec) => {
+    events.push(spec.operation);
+    executedSpecs.push(clone(spec));
+    if (malformedAt === spec.operation) return { exitCode: 0, stdout: "ambiguous\n", stderr: "" };
+    if (ambiguousAt === spec.operation) {
+      const first = spec.operation.startsWith("import_") ? `sha256:${"a".repeat(64)}` : "a".repeat(64);
+      const second = spec.operation.startsWith("import_") ? `sha256:${"b".repeat(64)}` : "b".repeat(64);
+      return { exitCode: 0, stdout: `${first}\n${second}\n`, stderr: "" };
+    }
+    if (refusalAt === spec.operation) {
+      const refusal = { schemaVersion: 1, profile: "go-s3-4.51-v1", evidenceClass: "INERT_CONSTRUCTION_QUALIFICATION",
+        kind: refusalKind, status: "REFUSED", refusal: { code: refusalCode } };
+      return { exitCode: 2, stdout: `${JSON.stringify(refusal)}\n`, stderr: "" };
+    }
+    const reportsByOperation = {
+      fixture_write: reports.fixtureWrite,
+      fixture_inspect: reports.fixtureInspect,
+      export_compare: reports.sourceExport,
+      delete_compare: reports.deletion,
+      legacy_save_inspect: reports.finalSave,
+      filtered_export_compare: reports.roundtrip,
+    };
+    if (reportsByOperation[spec.operation]) return { exitCode: 0, stdout: `${JSON.stringify(reportsByOperation[spec.operation])}\n`, stderr: "" };
+    if (spec.operation === "import_source") return { exitCode: 0, stdout: `${sourceId}\n`, stderr: "" };
+    if (spec.operation === "import_filtered") return { exitCode: 0, stdout: `${filteredId}\n`, stderr: "" };
+    if (spec.operation === "container_create_source") return { exitCode: 0, stdout: `${sourceContainerId}\n`, stderr: "" };
+    if (spec.operation === "container_create_filtered") return { exitCode: 0, stdout: `${filteredContainerId}\n`, stderr: "" };
+    if (spec.operation === "image_inspect") {
+      const subject = spec.args.at(-1);
+      return { exitCode: 0, stdout: `${JSON.stringify(qualificationImage(subject === sourceId ? "source" : "filtered"))}\n`, stderr: "" };
+    }
+    if (spec.operation === "container_inspect") {
+      const subject = spec.args.at(-1);
+      return { exitCode: 0, stdout: `${JSON.stringify(qualificationContainer(subject === sourceContainerId ? "source" : "filtered"))}\n`, stderr: "" };
+    }
+    if (strictDiffWhitespace && spec.operation === "container_diff_after") return { exitCode: 0, stdout: "\n", stderr: "" };
+    return { exitCode: 0, stdout: "", stderr: "" };
+  };
+  const operations = {
+    assertInputsUnchanged: async () => {
+      events.push("assertInputsUnchanged"); inputChecks += 1;
+      if (inputTamperAt === inputChecks) throw new Error("test_input_tamper");
+    },
+    statFilesystems: async () => {
+      filesystemChecks += 1;
+      const scratch = { ...sourcePreflight.resources.scratch, path: names.scratchDirectory };
+      if (filesystemDriftAt === filesystemChecks) scratch.filesystemId = "drifted-filesystem";
+      if (insufficientAt === filesystemChecks) scratch.freeBytes = 1;
+      return { scratch, docker: sourcePreflight.resources.docker };
+    },
+    assertNamesAbsent: async () => ({ containersAbsent: collision !== "containers", imagesAbsent: collision !== "images",
+      filesAbsent: collision !== "files" }),
+    execute,
+    captureFile: async ({ file }) => clone(snapshots.get(file)),
+    lockFile: async () => {},
+    copyOwnedFile: async () => {},
+    elapsedMs: async () => { const current = elapsed; elapsed += elapsedStep; return current; },
+    cleanupOwned: async (journal) => {
+      events.push("cleanupOwned"); cleanupJournals.push(clone(journal)); assert.equal(journal.owner, qualificationRunId);
+    },
+    cleanupAbsent: async () => { events.push("cleanupAbsent"); return {
+      containersAbsent: cleanupCertain, imagesAbsent: true, volumesAbsent: true, filesAbsent: true,
+    }; },
+  };
+  return { input: { sourcePreflight, runId: qualificationRunId,
+    paths: { scratchDirectory: names.scratchDirectory, python: "/usr/bin/python3", inspector: absolute("seaweed_profile_archive.py") } },
+  operations, events, executedSpecs, cleanupJournals };
+}
+
+test("successful inert qualification proves both strict diffs, exact removal, legacy save and cleanup without construction", async (t) => {
+  const item = await qualificationLifecycleHarness();
+  const receipt = await runSeaweedGoS3InertQualification(item.input, item.operations);
+  assert.deepEqual(validateSeaweedGoS3QualificationReceipt(receipt), receipt);
+  assert.equal(receipt.state, "INERT_QUALIFICATION_PASSED");
+  assert.equal(receipt.construction, "PENDING_NOT_IMPLEMENTED");
+  assert.deepEqual(receipt.deletion.removed, ["usr/bin/weed-volume", "usr/bin/weed-worker"]);
+  assert.deepEqual(receipt.sourceDiff, { before: { exitCode: 0, stdout: "", stderr: "" }, after: { exitCode: 0, stdout: "", stderr: "" } });
+  assert.deepEqual(receipt.roundtripDiff, receipt.sourceDiff);
+  assert.deepEqual(receipt.cleanup, { containersAbsent: true, imagesAbsent: true, volumesAbsent: true, filesAbsent: true });
+  assert.ok(item.events.lastIndexOf("cleanupOwned") < item.events.lastIndexOf("cleanupAbsent"));
+  assert.ok(item.events.lastIndexOf("cleanupAbsent") < item.events.lastIndexOf("assertInputsUnchanged"));
+  assert.equal(item.events.at(-1), "assertInputsUnchanged");
+  const receiptMutationCases = [
+    ["fixture bytes remain bound to the source comparison input", (value) => { value.sourceExport.original.sha256 = "3".repeat(64); }],
+    ["source export bytes remain bound to deletion input", (value) => { value.deletion.original.sha256 = "3".repeat(64); }],
+    ["deleted bytes remain bound to the roundtrip comparison input", (value) => { value.roundtrip.filtered.sha256 = "4".repeat(64); }],
+    ["deleted bytes remain bound to the saved layer digest", (value) => {
+      value.finalSave.layer.sha256 = "6".repeat(64);
+      value.finalSave.layer.diffId = `sha256:${"6".repeat(64)}`;
+    }],
+    ["deleted bytes remain bound to the saved layer size", (value) => { value.finalSave.layer.bytes += 512; }],
+    ["deleted semantics remain bound to the saved layer", (value) => { value.finalSave.layer.semanticSha256 = "6".repeat(64); }],
+  ];
+  for (const [description, mutate] of receiptMutationCases) {
+    await t.test(description, () => {
+      const divergent = clone(receipt);
+      mutate(divergent);
+      assert.throws(() => validateSeaweedGoS3QualificationReceipt(divergent),
+        /scanner_seaweed_go_s3_qualification_(?:inspection|receipt)_invalid/u);
+    });
+  }
+});
+
+test("a finite semantic refusal releases evidence only after complete cleanup and never reaches import", async () => {
+  const item = await qualificationLifecycleHarness({ refusalAt: "export_compare" });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("finite qualification refusal unexpectedly passed"),
+    (error) => error,
+  );
+  const receipt = seaweedGoS3QualificationRefusalReceipt(caught);
+  assert.deepEqual(validateSeaweedGoS3QualificationRefusal(receipt.refusal), receipt.refusal);
+  assert.equal(receipt.state, "INERT_QUALIFICATION_REFUSED");
+  assert.equal(receipt.construction, "NOT_ATTEMPTED");
+  assert.equal(receipt.stage, "INERT_EXPORT_SEMANTICS_V1");
+  assert.equal(item.events.includes("import_filtered"), false);
+  assert.ok(item.events.lastIndexOf("cleanupOwned") < item.events.lastIndexOf("cleanupAbsent"));
+  assert.ok(item.events.lastIndexOf("cleanupAbsent") < item.events.lastIndexOf("assertInputsUnchanged"));
+  assert.equal(item.events.at(-1), "assertInputsUnchanged");
+});
+
+for (const [operation, kind, code] of [
+  ["fixture_write", "INERT_FIXTURE_V1", "qualification_fixture_mismatch"],
+  ["fixture_inspect", "INERT_FIXTURE_V1", "qualification_fixture_mismatch"],
+  ["export_compare", "INERT_EXPORT_SEMANTICS_V1", "qualification_export_mismatch"],
+  ["delete_compare", "INERT_RAW_DELETE_V1", "qualification_removed_helpers_mismatch"],
+  ["legacy_save_inspect", "INERT_LEGACY_SAVE_V1", "qualification_save_manifest_invalid"],
+  ["filtered_export_compare", "INERT_FILTERED_EXPORT_SEMANTICS_V1", "qualification_export_mismatch"],
+]) {
+  test(`a finite ${operation} refusal is bound to its operation kind and stage`, async () => {
+    const item = await qualificationLifecycleHarness({ refusalAt: operation, refusalKind: kind, refusalCode: code });
+    const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+      () => assert.fail("finite qualification refusal unexpectedly passed"),
+      (error) => error,
+    );
+    const receipt = seaweedGoS3QualificationRefusalReceipt(caught);
+    assert.ok(receipt, caught.message);
+    assert.equal(receipt.stage, kind);
+    assert.equal(receipt.refusal.kind, kind);
+  });
+}
+
+test("a finite refusal whose kind does not match the failed operation is suppressed", async () => {
+  const item = await qualificationLifecycleHarness({
+    refusalAt: "fixture_inspect",
+    refusalKind: "INERT_EXPORT_SEMANTICS_V1",
+    refusalCode: "qualification_export_mismatch",
+  });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("mismatched qualification refusal unexpectedly passed"),
+    (error) => error,
+  );
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("an unknown qualification refusal kind is rejected globally", () => {
+  const refusal = { schemaVersion: 1, profile: "go-s3-4.51-v1", evidenceClass: "INERT_CONSTRUCTION_QUALIFICATION",
+    kind: "INERT_UNKNOWN_V1", status: "REFUSED", refusal: { code: "qualification_export_mismatch" } };
+  assert.throws(() => validateSeaweedGoS3QualificationRefusal(refusal),
+    /scanner_seaweed_go_s3_qualification_refusal_invalid/u);
+});
+
+test("cleanup uncertainty suppresses an otherwise finite qualification receipt", async () => {
+  const item = await qualificationLifecycleHarness({ refusalAt: "export_compare", cleanupCertain: false });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("uncertain cleanup unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_cleanup_uncertain/u);
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("strict container diff rejects even whitespace and stops before deletion", async () => {
+  const item = await qualificationLifecycleHarness({ strictDiffWhitespace: true });
+  await assert.rejects(runSeaweedGoS3InertQualification(item.input, item.operations), /scanner_seaweed_go_s3_qualification_process_invalid/u);
+  assert.equal(item.events.includes("delete_helpers"), false);
+  assert.ok(item.events.lastIndexOf("cleanupOwned") < item.events.lastIndexOf("cleanupAbsent"));
+  assert.equal(item.events.at(-1), "cleanupAbsent");
+});
+
+for (const collision of ["containers", "images", "files"]) {
+  test(`pre-existing qualification ${collision} stop before writes and still run bounded cleanup`, async () => {
+    const item = await qualificationLifecycleHarness({ collision });
+    const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+      () => assert.fail("resource collision unexpectedly passed"),
+      (error) => error,
+    );
+    assert.match(caught.message, /scanner_seaweed_go_s3_qualification_ownership_ambiguous/u);
+    assert.deepEqual(item.executedSpecs, []);
+    assert.equal(item.cleanupJournals.length, 1);
+    assert.deepEqual(item.cleanupJournals[0].paths, []);
+    assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+  });
+}
+
+for (const [failure, operation, journalCollection, idField] of [
+  ["malformed", "import_source", "images", "imageId"],
+  ["ambiguous", "import_source", "images", "imageId"],
+  ["malformed", "container_create_source", "containers", "containerId"],
+  ["ambiguous", "container_create_source", "containers", "containerId"],
+]) {
+  test(`${failure} ${operation} output is global and cleanup retains the attempted resource`, async () => {
+    const item = await qualificationLifecycleHarness({
+      malformedAt: failure === "malformed" ? operation : null,
+      ambiguousAt: failure === "ambiguous" ? operation : null,
+    });
+    const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+      () => assert.fail("ambiguous Docker output unexpectedly passed"),
+      (error) => error,
+    );
+    assert.match(caught.message, /scanner_seaweed_go_s3_qualification_/u);
+    assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+    const attempted = item.cleanupJournals[0][journalCollection].at(-1);
+    assert.equal(attempted.attempted, true);
+    assert.equal(attempted[idField], null);
+  });
+}
+
+test("filesystem identity drift stops before the next Docker import", async () => {
+  const item = await qualificationLifecycleHarness({ filesystemDriftAt: 3 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("filesystem identity drift unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_filesystem_invalid/u);
+  assert.equal(item.events.includes("fixture_write"), true);
+  assert.equal(item.events.includes("import_source"), false);
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("free-space drift stops before the next Docker import", async () => {
+  const item = await qualificationLifecycleHarness({ insufficientAt: 3 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("free-space drift unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_disk_insufficient/u);
+  assert.equal(item.events.includes("fixture_write"), true);
+  assert.equal(item.events.includes("import_source"), false);
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("the whole-run deadline forwards a shrinking command budget and cannot yield evidence", async () => {
+  const item = await qualificationLifecycleHarness({ elapsedStep: 100_000 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("expired qualification unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_qualification_timeout/u);
+  assert.equal(item.executedSpecs.every((spec) => spec.timeoutMs <= 300_000), true);
+  assert.equal(item.executedSpecs.some((spec) => spec.timeoutMs < 300_000), true);
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("a regressing monotonic clock is fatal before evidence can be released", async () => {
+  const item = await qualificationLifecycleHarness({ elapsedStep: -1 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("regressing monotonic clock unexpectedly passed"),
+    (error) => error,
+  );
+  assert.match(caught.message, /scanner_seaweed_go_s3_qualification_timeout/u);
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("post-cleanup input tampering suppresses an otherwise successful qualification", async () => {
+  const item = await qualificationLifecycleHarness({ inputTamperAt: 3 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("post-cleanup input tamper unexpectedly passed"),
+    (error) => error,
+  );
+  assert.equal(caught.message, "test_input_tamper");
+  assert.ok(item.events.lastIndexOf("cleanupAbsent") < item.events.lastIndexOf("assertInputsUnchanged"));
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("post-cleanup input tampering suppresses an otherwise finite refusal", async () => {
+  const item = await qualificationLifecycleHarness({ refusalAt: "export_compare", inputTamperAt: 3 });
+  const caught = await runSeaweedGoS3InertQualification(item.input, item.operations).then(
+    () => assert.fail("tampered finite refusal unexpectedly passed"),
+    (error) => error,
+  );
+  assert.equal(caught.message, "test_input_tamper");
+  assert.equal(seaweedGoS3QualificationRefusalReceipt(caught), null);
+});
+
+test("Linux qualification file capture binds sealed bytes and complete FD identity", { skip: process.platform !== "linux" }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-qualification-"));
+  try {
+    const file = path.join(directory, "sealed.tar");
+    const payload = Buffer.from("sealed qualification evidence\n", "ascii");
+    writeFileSync(file, payload, { flag: "wx", mode: 0o600 });
+    chmodSync(file, 0o444);
+    const captured = captureSeaweedGoS3QualificationFile({ file, cap: 8 * MiB });
+    assert.equal(captured.bytes, payload.length);
+    assert.equal(captured.sha256, createHash("sha256").update(payload).digest("hex"));
+    assert.deepEqual(Object.keys(captured.identity), ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeNs", "ctimeNs"]);
+    Object.values(captured.identity).forEach((value) => assert.match(value, /^(0|[1-9][0-9]*)$/u));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Linux qualification file capture rejects writable evidence before reading it", { skip: process.platform !== "linux" }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-qualification-"));
+  try {
+    const file = path.join(directory, "mutable.tar");
+    writeFileSync(file, "mutable", { flag: "wx", mode: 0o600 });
+    assert.throws(
+      () => captureSeaweedGoS3QualificationFile({ file, cap: 8 * MiB }),
+      /scanner_seaweed_go_s3_qualification_file_invalid/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Linux qualification file capture rejects symlink aliases", { skip: process.platform !== "linux" }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-qualification-"));
+  try {
+    const file = path.join(directory, "sealed.tar");
+    const alias = path.join(directory, "alias.tar");
+    writeFileSync(file, "sealed", { flag: "wx", mode: 0o600 });
+    chmodSync(file, 0o444);
+    symlinkSync(file, alias);
+    assert.throws(
+      () => captureSeaweedGoS3QualificationFile({ file: alias, cap: 8 * MiB }),
+      /scanner_seaweed_go_s3_qualification_file_invalid/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Linux qualification file capture rejects multiply linked evidence", { skip: process.platform !== "linux" }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-qualification-"));
+  try {
+    const file = path.join(directory, "sealed.tar");
+    const alias = path.join(directory, "hardlink.tar");
+    writeFileSync(file, "sealed", { flag: "wx", mode: 0o600 });
+    chmodSync(file, 0o444);
+    linkSync(file, alias);
+    assert.throws(
+      () => captureSeaweedGoS3QualificationFile({ file, cap: 8 * MiB }),
+      /scanner_seaweed_go_s3_qualification_file_invalid/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Linux qualification file capture enforces the requested byte cap", { skip: process.platform !== "linux" }, () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-qualification-"));
+  try {
+    const file = path.join(directory, "sealed.tar");
+    writeFileSync(file, "two", { flag: "wx", mode: 0o600 });
+    chmodSync(file, 0o444);
+    assert.throws(
+      () => captureSeaweedGoS3QualificationFile({ file, cap: 2 }),
+      /scanner_seaweed_go_s3_qualification_file_invalid/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

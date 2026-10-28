@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -70,6 +71,37 @@ def archive_bytes(entries, *, fmt=tarfile.PAX_FORMAT):
     return output.getvalue()
 
 
+def tar_extension_record(type_flag, payload):
+    info = tarfile.TarInfo("././@LongLink" if type_flag in {tarfile.GNUTYPE_LONGNAME, tarfile.GNUTYPE_LONGLINK} else "PaxHeaders.X/hidden")
+    info.type = type_flag
+    info.mode = 0o644
+    info.uid = 0
+    info.gid = 0
+    info.mtime = 0
+    info.size = len(payload)
+    header = info.tobuf(format=tarfile.GNU_FORMAT, encoding="ascii", errors="strict")
+    padding = (-len(payload)) % tarfile.BLOCKSIZE
+    return header + payload + (b"\0" * padding)
+
+
+def pax_record(key, value):
+    body = f"{key}={value}\n".encode("ascii")
+    length = len(body) + 2
+    while True:
+        record = str(length).encode("ascii") + b" " + body
+        if len(record) == length:
+            return record
+        length = len(record)
+
+
+def tar_member_offset(entries, ordinal):
+    offset = 0
+    for _info, payload in entries[:ordinal]:
+        payload_bytes = b"" if payload is None else payload
+        offset += tarfile.BLOCKSIZE + ((len(payload_bytes) + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
+    return offset
+
+
 def inspect_bytes(value, *, label="merged-export", max_members=64):
     return inspect_archive(io.BytesIO(value), label=label, max_members=max_members)
 
@@ -78,6 +110,145 @@ def assert_refusal(test_case, code, callback):
     with test_case.assertRaises(InspectionRefusal) as caught:
         callback()
     test_case.assertEqual(caught.exception.code, code)
+
+
+INERT_FIXTURE_SPEC = (
+    ("etc", "directory", 0o750, 101, 202, 1_700_000_100, b"", ""),
+    ("etc/fixture.conf", "file", 0o640, 101, 202, 1_700_000_101, b"auto-world-inert-fixture-v1\n", ""),
+    ("opt", "directory", 0o755, 0, 0, 1_700_000_102, b"", ""),
+    ("opt/auto-world", "directory", 0o750, 123, 456, 1_700_000_103, b"", ""),
+    ("opt/auto-world/marker.txt", "file", 0o444, 123, 456, 1_700_000_104, b"preserve-this-marker\n", ""),
+    ("var", "directory", 0o755, 0, 0, 1_700_000_105, b"", ""),
+    ("var/lib", "directory", 0o755, 0, 0, 1_700_000_106, b"", ""),
+    ("var/lib/seaweed", "directory", 0o750, 1001, 1002, 1_700_000_107, b"", ""),
+    ("var/lib/seaweed/state.bin", "file", 0o600, 1001, 1002, 1_700_000_108,
+     bytes.fromhex("006175746f2d776f726c64ff7365617765656410"), ""),
+    ("usr", "directory", 0o755, 0, 0, 1_700_000_109, b"", ""),
+    ("usr/bin", "directory", 0o755, 0, 0, 1_700_000_110, b"", ""),
+    ("usr/bin/weed-volume", "file", 0o640, 1001, 1002, 1_700_000_111,
+     b"AUTO WORLD INERT DATA ONLY: weed-volume\n", ""),
+    ("usr/bin/weed-worker", "file", 0o640, 1001, 1002, 1_700_000_112,
+     b"AUTO WORLD INERT DATA ONLY: weed-worker\n", ""),
+    ("data", "directory", 0o700, 1001, 1002, 1_700_000_113, b"", ""),
+    ("data/sentinel.txt", "file", 0o440, 1001, 1002, 1_700_000_114,
+     b"volume-underlay-sentinel-v1\n", ""),
+    ("marker-link", "symlink", 0o777, 123, 456, 1_700_000_115, b"", "opt/auto-world/marker.txt"),
+)
+
+
+def inert_fixture_entries(spec=INERT_FIXTURE_SPEC):
+    entries = []
+    for name, member_type, mode, uid, gid, mtime, payload, linkname in spec:
+        info = tarfile.TarInfo(name)
+        info.mode = mode
+        info.uid = uid
+        info.gid = gid
+        info.mtime = mtime
+        info.uname = ""
+        info.gname = ""
+        if member_type == "directory":
+            info.type = tarfile.DIRTYPE
+            info.size = 0
+            entries.append((info, None))
+        elif member_type == "symlink":
+            info.type = tarfile.SYMTYPE
+            info.linkname = linkname
+            info.size = 0
+            entries.append((info, None))
+        else:
+            info.size = len(payload)
+            entries.append((info, payload))
+    return entries
+
+
+ZERO_CONTAINER_CONFIG = {
+    "Hostname": "",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": False,
+    "AttachStdout": False,
+    "AttachStderr": False,
+    "Tty": False,
+    "OpenStdin": False,
+    "StdinOnce": False,
+    "Env": None,
+    "Cmd": None,
+    "Image": "",
+    "Volumes": None,
+    "WorkingDir": "",
+    "Entrypoint": None,
+    "OnBuild": None,
+    "Labels": None,
+}
+
+
+def inert_legacy_save_fixture(*, owner="123e4567-e89b-42d3-a456-426614174000"):
+    created = "2026-10-28T08:00:00Z"
+    server_version = "28.0.4"
+    repository = "auto-world-managed/seaweedfs-go-s3-control"
+    tag = f"{repository}:{owner}"
+    layer_id = "c" * 64
+    filtered_spec = [
+        item for item in INERT_FIXTURE_SPEC
+        if item[0] not in {"usr/bin/weed-volume", "usr/bin/weed-worker"}
+    ]
+    layer_bytes = archive_bytes(inert_fixture_entries(filtered_spec), fmt=tarfile.USTAR_FORMAT)
+    diff_id = f"sha256:{hashlib.sha256(layer_bytes).hexdigest()}"
+    runtime_config = {
+        "Cmd": ["/auto-world-inert-never-execute"],
+        "Labels": {
+            "com.auto-world.task005.inert": owner,
+            "com.auto-world.task005.inert-stage": "filtered",
+            "org.auto-world.seaweed-go-s3-control": "inert-v1",
+        },
+        "User": "1001:1002",
+        "Volumes": {"/data": {}},
+        "WorkingDir": "/data",
+    }
+    comment = "auto-world-inert-qualification-v1"
+    config = {
+        "architecture": "amd64",
+        "comment": comment,
+        "config": runtime_config,
+        "container_config": ZERO_CONTAINER_CONFIG,
+        "created": created,
+        "docker_version": server_version,
+        "history": [{"created": created, "comment": comment}],
+        "os": "linux",
+        "rootfs": {"type": "layers", "diff_ids": [diff_id]},
+    }
+    config_bytes = json.dumps(config, separators=(",", ":"), sort_keys=True).encode("ascii")
+    image_hex = hashlib.sha256(config_bytes).hexdigest()
+    layer_metadata = {
+        "architecture": "amd64",
+        "comment": comment,
+        "config": runtime_config,
+        "container_config": ZERO_CONTAINER_CONFIG,
+        "created": created,
+        "docker_version": server_version,
+        "id": layer_id,
+        "os": "linux",
+    }
+    manifest = [{"Config": f"{image_hex}.json", "RepoTags": [tag], "Layers": [f"{layer_id}/layer.tar"]}]
+    entries = [
+        regular("manifest.json", json.dumps(manifest, separators=(",", ":"), sort_keys=True).encode("ascii")),
+        regular(f"{image_hex}.json", config_bytes),
+        regular("repositories", json.dumps({repository: {owner: layer_id}}, separators=(",", ":"), sort_keys=True).encode("ascii")),
+        directory(layer_id),
+        regular(f"{layer_id}/VERSION", b"1.0"),
+        regular(f"{layer_id}/json", json.dumps(layer_metadata, separators=(",", ":"), sort_keys=True).encode("ascii")),
+        regular(f"{layer_id}/layer.tar", layer_bytes),
+    ]
+    return {
+        "archive": archive_bytes(entries, fmt=tarfile.USTAR_FORMAT),
+        "image_id": f"sha256:{image_hex}",
+        "tag": tag,
+        "diff_id": diff_id,
+        "created": created,
+        "server_version": server_version,
+        "owner": owner,
+        "layer_id": layer_id,
+    }
 
 
 def source_save_fixture(
@@ -1930,6 +2101,289 @@ class SourceSaveCliTests(unittest.TestCase):
         output = json.loads(completed.stdout)
         self.assertEqual(output["status"], "REFUSED")
         self.assertNotIn("Traceback", completed.stdout)
+
+
+class InertQualificationCliTests(unittest.TestCase):
+    def run_cli(self, arguments):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.object(archive_module, "_activate_cli_limits", return_value=None):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = archive_module.main(arguments)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertNotIn("Traceback", stdout.getvalue())
+        return status, json.loads(stdout.getvalue())
+
+    def assert_fixed_fixture_report(self, report, operation):
+        self.assertEqual(
+            set(report),
+            {"schemaVersion", "profile", "evidenceClass", "kind", "status", "operation", "archive", "members", "sentinel"},
+        )
+        self.assertEqual(report["schemaVersion"], 1)
+        self.assertEqual(report["profile"], "go-s3-4.51-v1")
+        self.assertEqual(report["evidenceClass"], "INERT_CONSTRUCTION_QUALIFICATION")
+        self.assertEqual(report["kind"], "INERT_FIXTURE_V1")
+        self.assertEqual(report["status"], "PASS")
+        self.assertEqual(report["operation"], operation)
+        self.assertEqual(
+            set(report["archive"]),
+            {"sha256", "bytes", "memberCount", "semanticSha256", "orderedRawSha256"},
+        )
+        self.assertEqual(report["archive"]["memberCount"], 16)
+        self.assertEqual(len(report["members"]), 16)
+        for actual, expected in zip(report["members"], INERT_FIXTURE_SPEC, strict=True):
+            name, member_type, mode, uid, gid, mtime, payload, linkname = expected
+            self.assertEqual(
+                set(actual),
+                {"path", "type", "mode", "uid", "gid", "mtime", "size", "linkname", "payloadSha256", "rawSha256"},
+            )
+            self.assertEqual(
+                {key: actual[key] for key in ("path", "type", "mode", "uid", "gid", "mtime", "size", "linkname", "payloadSha256")},
+                {
+                    "path": name,
+                    "type": member_type,
+                    "mode": mode,
+                    "uid": uid,
+                    "gid": gid,
+                    "mtime": mtime,
+                    "size": len(payload) if member_type == "file" else 0,
+                    "linkname": linkname,
+                    "payloadSha256": hashlib.sha256(payload if member_type == "file" else b"").hexdigest(),
+                },
+            )
+            self.assertRegex(actual["rawSha256"], r"^[0-9a-f]{64}$")
+        sentinel_payload = b"volume-underlay-sentinel-v1\n"
+        self.assertEqual(
+            report["sentinel"],
+            {
+                "path": "data/sentinel.txt",
+                "sha256": hashlib.sha256(sentinel_payload).hexdigest(),
+                "bytes": 28,
+            },
+        )
+
+    def write_fixture(self, directory):
+        archive = directory / "fixture.tar"
+        status, report = self.run_cli(["fixture-write", "--archive", os.fspath(archive.resolve())])
+        self.assertEqual(status, 0)
+        self.assert_fixed_fixture_report(report, "WRITE")
+        self.assertEqual(report["archive"]["bytes"], archive.stat().st_size)
+        self.assertEqual(report["archive"]["sha256"], hashlib.sha256(archive.read_bytes()).hexdigest())
+        self.assertEqual(archive.stat().st_mode & 0o777, 0o444)
+        return archive, report
+
+    def test_fixture_writer_and_inspector_pin_the_independent_sixteen_member_contract(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive, written = self.write_fixture(Path(directory_name))
+            status, inspected = self.run_cli(["fixture-inspect", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 0)
+            self.assert_fixed_fixture_report(inspected, "INSPECT")
+            self.assertEqual(inspected["archive"], written["archive"])
+            self.assertEqual(inspected["members"], written["members"])
+
+    def test_fixture_writer_refuses_to_overwrite_an_existing_file(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "fixture.tar"
+            archive.write_bytes(b"keep-existing")
+            status, report = self.run_cli(["fixture-write", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 3)
+            self.assertEqual(report["status"], "ERROR")
+            self.assertEqual(archive.read_bytes(), b"keep-existing")
+
+    def test_fixture_inspector_refuses_gnu_longname_metadata_even_when_the_resolved_path_is_unchanged(self):
+        entries = inert_fixture_entries()
+        original = archive_bytes(entries, fmt=tarfile.USTAR_FORMAT)
+        extension = tar_extension_record(tarfile.GNUTYPE_LONGNAME, b"etc\0")
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "gnu-longname.tar"
+            archive.write_bytes(extension + original)
+            archive.chmod(0o444)
+            status, report = self.run_cli(["fixture-inspect", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"], {"code": "archive_hidden_region", "member": "etc"})
+
+    def test_fixture_inspector_refuses_gnu_longlink_metadata_even_when_the_resolved_target_is_unchanged(self):
+        entries = inert_fixture_entries()
+        original = archive_bytes(entries, fmt=tarfile.USTAR_FORMAT)
+        offset = tar_member_offset(entries, 15)
+        extension = tar_extension_record(tarfile.GNUTYPE_LONGLINK, b"opt/auto-world/marker.txt\0")
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "gnu-longlink.tar"
+            archive.write_bytes(original[:offset] + extension + original[offset:])
+            archive.chmod(0o444)
+            status, report = self.run_cli(["fixture-inspect", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"], {"code": "archive_hidden_region", "member": "marker-link"})
+
+    def test_fixture_inspector_refuses_a_mixed_pax_and_gnu_extension_chain(self):
+        entries = inert_fixture_entries()
+        original = archive_bytes(entries, fmt=tarfile.USTAR_FORMAT)
+        pax = tar_extension_record(tarfile.XHDTYPE, pax_record("path", "etc"))
+        gnu = tar_extension_record(tarfile.GNUTYPE_LONGNAME, b"etc\0")
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "mixed-extension.tar"
+            archive.write_bytes(pax + gnu + original)
+            archive.chmod(0o444)
+            status, report = self.run_cli(["fixture-inspect", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"], {"code": "archive_hidden_region", "member": "etc"})
+
+    def test_fixture_inspector_refuses_duplicate_pax_keys_before_tarfile_can_collapse_them(self):
+        entries = inert_fixture_entries()
+        original = archive_bytes(entries, fmt=tarfile.USTAR_FORMAT)
+        duplicate = pax_record("path", "etc") + pax_record("path", "etc")
+        extension = tar_extension_record(tarfile.XHDTYPE, duplicate)
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "duplicate-pax.tar"
+            archive.write_bytes(extension + original)
+            archive.chmod(0o444)
+            status, report = self.run_cli(["fixture-inspect", "--archive", os.fspath(archive.resolve())])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"], {"code": "archive_hidden_region", "member": "etc"})
+
+    def test_export_comparison_accepts_semantic_fidelity_with_different_order_and_raw_encoding(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            original, _report = self.write_fixture(directory)
+            exported = directory / "exported.tar"
+            exported.write_bytes(archive_bytes(list(reversed(inert_fixture_entries())), fmt=tarfile.PAX_FORMAT))
+            exported.chmod(0o444)
+            status, report = self.run_cli([
+                "export-compare", "--original", os.fspath(original.resolve()), "--export", os.fspath(exported.resolve()),
+            ])
+            self.assertEqual(status, 0)
+            self.assertEqual(report["kind"], "INERT_EXPORT_SEMANTICS_V1")
+            self.assertEqual(report["matched"], True)
+            self.assertEqual(report["original"]["memberCount"], 16)
+            self.assertEqual(report["exported"]["memberCount"], 16)
+            self.assertNotEqual(report["original"]["orderedRawSha256"], report["exported"]["orderedRawSha256"])
+
+    def test_export_comparison_refuses_a_changed_sentinel(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            original, _report = self.write_fixture(directory)
+            changed_spec = list(INERT_FIXTURE_SPEC)
+            sentinel = list(changed_spec[14])
+            sentinel[6] = b"changed-underlay-sentinel-v1\n"
+            changed_spec[14] = tuple(sentinel)
+            exported = directory / "exported.tar"
+            exported.write_bytes(archive_bytes(inert_fixture_entries(changed_spec), fmt=tarfile.USTAR_FORMAT))
+            exported.chmod(0o444)
+            status, report = self.run_cli([
+                "export-compare", "--original", os.fspath(original.resolve()), "--export", os.fspath(exported.resolve()),
+            ])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["status"], "REFUSED")
+            self.assertEqual(report["refusal"]["code"], "qualification_export_mismatch")
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and Path("/usr/bin/tar").is_file(), "GNU tar integration requires Linux")
+    def test_gnu_tar_delete_removes_exactly_two_helpers_and_preserves_raw_survivors(self):
+        version = subprocess.run(["/usr/bin/tar", "--version"], check=False, capture_output=True, text=True, timeout=10)
+        self.assertEqual(version.returncode, 0)
+        self.assertIn("GNU tar", version.stdout)
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            original, _report = self.write_fixture(directory)
+            filtered = directory / "filtered.tar"
+            shutil.copyfile(original, filtered)
+            filtered.chmod(0o600)
+            deleted = subprocess.run(
+                ["/usr/bin/tar", "--delete", "--file", os.fspath(filtered), "usr/bin/weed-volume", "usr/bin/weed-worker"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual((deleted.returncode, deleted.stdout, deleted.stderr), (0, "", ""))
+            filtered.chmod(0o444)
+            status, report = self.run_cli([
+                "delete-compare", "--original", os.fspath(original.resolve()), "--filtered", os.fspath(filtered.resolve()),
+            ])
+            self.assertEqual(status, 0)
+            self.assertEqual(report["kind"], "INERT_RAW_DELETE_V1")
+            self.assertEqual(report["removedCount"], 2)
+            self.assertEqual(report["removed"], ["usr/bin/weed-volume", "usr/bin/weed-worker"])
+            self.assertEqual(report["survivorCount"], 14)
+            expected_paths = [item[0] for item in INERT_FIXTURE_SPEC if item[0] not in set(report["removed"])]
+            self.assertEqual([item["path"] for item in report["survivors"]], expected_paths)
+
+    def test_filtered_export_comparison_refuses_reintroduced_helper_content(self):
+        with tempfile.TemporaryDirectory() as directory_name:
+            directory = Path(directory_name)
+            filtered_spec = [item for item in INERT_FIXTURE_SPEC if item[0] not in {"usr/bin/weed-volume", "usr/bin/weed-worker"}]
+            filtered = directory / "filtered.tar"
+            filtered.write_bytes(archive_bytes(inert_fixture_entries(filtered_spec), fmt=tarfile.USTAR_FORMAT))
+            filtered.chmod(0o444)
+            exported = directory / "exported.tar"
+            exported.write_bytes(archive_bytes(inert_fixture_entries(), fmt=tarfile.USTAR_FORMAT))
+            exported.chmod(0o444)
+            status, report = self.run_cli([
+                "filtered-export-compare", "--filtered", os.fspath(filtered.resolve()), "--export", os.fspath(exported.resolve()),
+            ])
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"]["code"], "qualification_export_mismatch")
+
+    def legacy_arguments(self, archive, fixture):
+        return [
+            "legacy-save-inspect",
+            "--archive", os.fspath(archive.resolve()),
+            "--image-id", fixture["image_id"],
+            "--tag", fixture["tag"],
+            "--diff-id", fixture["diff_id"],
+            "--server-version", fixture["server_version"],
+            "--created", fixture["created"],
+            "--owner", fixture["owner"],
+        ]
+
+    def test_legacy_save_inspection_binds_one_classic_layer_to_filtered_semantics(self):
+        fixture = inert_legacy_save_fixture()
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "save.tar"
+            archive.write_bytes(fixture["archive"])
+            archive.chmod(0o444)
+            status, report = self.run_cli(self.legacy_arguments(archive, fixture))
+            self.assertEqual(status, 0)
+            self.assertEqual(
+                set(report),
+                {"schemaVersion", "profile", "evidenceClass", "kind", "status", "archive", "family", "image", "layer", "graph", "sentinel"},
+            )
+            self.assertEqual(report["kind"], "INERT_LEGACY_SAVE_V1")
+            self.assertEqual(report["family"], "MOBY_LEGACY_SINGLE_LAYER_V1")
+            self.assertEqual(report["image"], {
+                "imageId": fixture["image_id"],
+                "tag": fixture["tag"],
+                "owner": fixture["owner"],
+                "created": fixture["created"],
+                "serverVersion": fixture["server_version"],
+                "configSha256": fixture["image_id"].removeprefix("sha256:"),
+            })
+            self.assertEqual(report["layer"]["diffId"], fixture["diff_id"])
+            self.assertEqual(report["layer"]["memberCount"], 14)
+            self.assertEqual(report["graph"]["layerId"], fixture["layer_id"])
+            self.assertEqual(report["graph"]["descriptorCount"], 1)
+
+    def test_legacy_save_inspection_refuses_any_server_version_other_than_28_0_4(self):
+        fixture = inert_legacy_save_fixture()
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "save.tar"
+            archive.write_bytes(fixture["archive"])
+            archive.chmod(0o444)
+            arguments = self.legacy_arguments(archive, fixture)
+            arguments[arguments.index("--server-version") + 1] = "28.0.5"
+            status, report = self.run_cli(arguments)
+            self.assertEqual(status, 2)
+            self.assertEqual(report["refusal"], {"code": "qualification_argument_invalid"})
+
+    def test_legacy_save_inspection_stops_on_an_oci_family_without_reusing_source_authority(self):
+        fixture = inert_legacy_save_fixture()
+        with tempfile.TemporaryDirectory() as directory_name:
+            archive = Path(directory_name) / "save.tar"
+            archive.write_bytes(archive_bytes([regular("oci-layout", b'{"imageLayoutVersion":"1.0.0"}')], fmt=tarfile.USTAR_FORMAT))
+            archive.chmod(0o444)
+            status, report = self.run_cli(self.legacy_arguments(archive, fixture))
+            self.assertEqual(status, 2)
+            self.assertEqual(report["kind"], "INERT_LEGACY_SAVE_V1")
+            self.assertEqual(report["refusal"], {"code": "qualification_save_format_unsupported"})
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ import re
 import stat
 import sys
 import tarfile
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, BinaryIO, Iterable
@@ -194,6 +195,35 @@ PRODUCTION_AUXILIARY_PROFILE = {
     ),
     "orderedSetSha256": "4ef427670dac48137a29c82eb56b679a0c42f662013b5834209a9fe96306f39a",
 }
+
+QUALIFICATION_EVIDENCE_CLASS = "INERT_CONSTRUCTION_QUALIFICATION"
+QUALIFICATION_MAX_BYTES = 8 * 1024**2
+QUALIFICATION_UUID = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+QUALIFICATION_SERVER_VERSION = "28.0.4"
+QUALIFICATION_CREATED = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z$"
+)
+QUALIFICATION_SENTINEL = b"volume-underlay-sentinel-v1\n"
+QUALIFICATION_FIXTURE = (
+    {"path": "etc", "type": "directory", "mode": 0o750, "uid": 101, "gid": 202, "mtime": 1700000100},
+    {"path": "etc/fixture.conf", "type": "file", "mode": 0o640, "uid": 101, "gid": 202, "mtime": 1700000101, "payload": b"auto-world-inert-fixture-v1\n"},
+    {"path": "opt", "type": "directory", "mode": 0o755, "uid": 0, "gid": 0, "mtime": 1700000102},
+    {"path": "opt/auto-world", "type": "directory", "mode": 0o750, "uid": 123, "gid": 456, "mtime": 1700000103},
+    {"path": "opt/auto-world/marker.txt", "type": "file", "mode": 0o444, "uid": 123, "gid": 456, "mtime": 1700000104, "payload": b"preserve-this-marker\n"},
+    {"path": "var", "type": "directory", "mode": 0o755, "uid": 0, "gid": 0, "mtime": 1700000105},
+    {"path": "var/lib", "type": "directory", "mode": 0o755, "uid": 0, "gid": 0, "mtime": 1700000106},
+    {"path": "var/lib/seaweed", "type": "directory", "mode": 0o750, "uid": 1001, "gid": 1002, "mtime": 1700000107},
+    {"path": "var/lib/seaweed/state.bin", "type": "file", "mode": 0o600, "uid": 1001, "gid": 1002, "mtime": 1700000108, "payload": bytes.fromhex("006175746f2d776f726c64ff7365617765656410")},
+    {"path": "usr", "type": "directory", "mode": 0o755, "uid": 0, "gid": 0, "mtime": 1700000109},
+    {"path": "usr/bin", "type": "directory", "mode": 0o755, "uid": 0, "gid": 0, "mtime": 1700000110},
+    {"path": "usr/bin/weed-volume", "type": "file", "mode": 0o640, "uid": 1001, "gid": 1002, "mtime": 1700000111, "payload": b"AUTO WORLD INERT DATA ONLY: weed-volume\n"},
+    {"path": "usr/bin/weed-worker", "type": "file", "mode": 0o640, "uid": 1001, "gid": 1002, "mtime": 1700000112, "payload": b"AUTO WORLD INERT DATA ONLY: weed-worker\n"},
+    {"path": "data", "type": "directory", "mode": 0o700, "uid": 1001, "gid": 1002, "mtime": 1700000113},
+    {"path": "data/sentinel.txt", "type": "file", "mode": 0o440, "uid": 1001, "gid": 1002, "mtime": 1700000114, "payload": QUALIFICATION_SENTINEL},
+    {"path": "marker-link", "type": "symlink", "mode": 0o777, "uid": 123, "gid": 456, "mtime": 1700000115, "linkname": "opt/auto-world/marker.txt"},
+)
 
 
 class InspectionRefusal(Exception):
@@ -2333,6 +2363,763 @@ def inspect_source_save_fixture(
     )
 
 
+def _qualification_common(kind: str, status: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "profile": PROFILE,
+        "evidenceClass": QUALIFICATION_EVIDENCE_CLASS,
+        "kind": kind,
+        "status": status,
+    }
+
+
+def _qualification_expected_members(*, filtered: bool) -> list[dict[str, Any]]:
+    expected: list[dict[str, Any]] = []
+    for item in QUALIFICATION_FIXTURE:
+        if filtered and item["path"] in REMOVED_HELPERS:
+            continue
+        payload = item.get("payload", b"")
+        expected.append(
+            {
+                "path": item["path"],
+                "type": item["type"],
+                "mode": item["mode"],
+                "uid": item["uid"],
+                "gid": item["gid"],
+                "mtime": item["mtime"],
+                "size": len(payload),
+                "linkname": item.get("linkname", ""),
+                "payloadSha256": hashlib.sha256(payload).hexdigest(),
+            }
+        )
+    return expected
+
+
+def _qualification_semantic_member(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: record[key]
+        for key in (
+            "path",
+            "type",
+            "mode",
+            "uid",
+            "gid",
+            "mtime",
+            "size",
+            "linkname",
+            "payloadSha256",
+        )
+    }
+
+
+def _qualification_report_member(record: dict[str, Any]) -> dict[str, Any]:
+    value = _qualification_semantic_member(record)
+    value["rawSha256"] = record["rawSha256"]
+    return value
+
+
+def _qualification_semantic_sha256(records: Iterable[dict[str, Any]]) -> str:
+    values = sorted(
+        (_qualification_semantic_member(record) for record in records),
+        key=lambda record: record["path"],
+    )
+    return _canonical_sha256(values)
+
+
+def _qualification_ordered_raw_sha256(records: Iterable[dict[str, Any]]) -> str:
+    return _canonical_sha256(
+        [
+            {"path": record["path"], "rawSha256": record["rawSha256"]}
+            for record in records
+        ]
+    )
+
+
+def _qualification_validate_member(
+    info: tarfile.TarInfo, record: dict[str, Any]
+) -> None:
+    _require(
+        info.devmajor in (None, 0) and info.devminor in (None, 0),
+        "qualification_fixture_mismatch",
+        member=record["path"],
+        member_is_safe=True,
+    )
+    _require(
+        not info.pax_headers,
+        "archive_hidden_region",
+        member=record["path"],
+        member_is_safe=True,
+    )
+
+
+def _qualification_input(
+    value: str | os.PathLike[str], *, max_bytes: int
+) -> _SecureInput:
+    try:
+        return _SecureInput(value, max_bytes=max_bytes)
+    except InspectionRefusal as refusal:
+        if refusal.code in {
+            "input_path_invalid",
+            "input_open_failed",
+            "input_type_invalid",
+            "input_owner_invalid",
+            "input_link_count_invalid",
+            "input_not_readonly",
+            "input_identity_mismatch",
+            "input_size_limit",
+        }:
+            raise InspectionIntegrityError("qualification_input_unsafe") from None
+        raise
+
+
+def _inspect_qualification_path(
+    archive_path: str | os.PathLike[str], *, label: str
+) -> dict[str, Any]:
+    with _qualification_input(
+        archive_path, max_bytes=QUALIFICATION_MAX_BYTES
+    ) as secure:
+        if secure.file is None:
+            raise InspectionIntegrityError()
+        inspected = inspect_archive(
+            secure.file,
+            label=label,
+            max_members=64,
+        )
+        try:
+            for record, info in zip(
+                inspected["records"], inspected["infos"], strict=True
+            ):
+                _qualification_validate_member(info, record)
+            records = [
+                _qualification_report_member(record)
+                for record in inspected["records"]
+            ]
+            summary = {
+                "sha256": secure.sha256,
+                "bytes": secure.size,
+                "memberCount": len(records),
+                "semanticSha256": _qualification_semantic_sha256(records),
+                "orderedRawSha256": _qualification_ordered_raw_sha256(records),
+            }
+            return {"archive": summary, "members": records}
+        finally:
+            inspected["archive"].close()
+
+
+def _require_qualification_members(
+    records: list[dict[str, Any]],
+    *,
+    filtered: bool,
+    code: str,
+    ordered: bool = False,
+) -> None:
+    expected = _qualification_expected_members(filtered=filtered)
+    actual = [_qualification_semantic_member(record) for record in records]
+    if ordered:
+        _require(actual == expected, code)
+    else:
+        _require(
+            sorted(actual, key=lambda record: record["path"])
+            == sorted(expected, key=lambda record: record["path"]),
+            code,
+        )
+
+
+def _qualification_sentinel() -> dict[str, Any]:
+    return {
+        "path": "data/sentinel.txt",
+        "sha256": hashlib.sha256(QUALIFICATION_SENTINEL).hexdigest(),
+        "bytes": len(QUALIFICATION_SENTINEL),
+    }
+
+
+def _qualification_fixture_result(
+    archive_path: str | os.PathLike[str], *, operation: str
+) -> dict[str, Any]:
+    inspected = _inspect_qualification_path(
+        archive_path, label="inert-qualification-fixture"
+    )
+    _require_qualification_members(
+        inspected["members"],
+        filtered=False,
+        code="qualification_fixture_mismatch",
+        ordered=True,
+    )
+    return {
+        **_qualification_common("INERT_FIXTURE_V1", "PASS"),
+        "operation": operation,
+        "archive": inspected["archive"],
+        "members": inspected["members"],
+        "sentinel": _qualification_sentinel(),
+    }
+
+
+def write_inert_qualification_fixture(
+    archive_path: str | os.PathLike[str],
+) -> dict[str, Any]:
+    path = Path(archive_path)
+    if not path.is_absolute():
+        raise InspectionIntegrityError("qualification_output_unsafe")
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError:
+        raise InspectionIntegrityError("qualification_output_unsafe") from None
+    try:
+        before = os.fstat(descriptor)
+        current_uid = os.geteuid() if hasattr(os, "geteuid") else before.st_uid
+        if not (
+            stat.S_ISREG(before.st_mode)
+            and before.st_uid == current_uid
+            and before.st_nlink == 1
+            and before.st_size == 0
+        ):
+            raise InspectionIntegrityError("qualification_output_unsafe")
+        with os.fdopen(os.dup(descriptor), "wb", buffering=0) as output:
+            with tarfile.open(
+                fileobj=output, mode="w:", format=tarfile.USTAR_FORMAT
+            ) as archive:
+                for item in QUALIFICATION_FIXTURE:
+                    info = tarfile.TarInfo(item["path"])
+                    info.mode = item["mode"]
+                    info.uid = item["uid"]
+                    info.gid = item["gid"]
+                    info.mtime = item["mtime"]
+                    info.uname = ""
+                    info.gname = ""
+                    info.devmajor = 0
+                    info.devminor = 0
+                    payload = item.get("payload", b"")
+                    if item["type"] == "directory":
+                        info.type = tarfile.DIRTYPE
+                        info.size = 0
+                        archive.addfile(info)
+                    elif item["type"] == "symlink":
+                        info.type = tarfile.SYMTYPE
+                        info.linkname = item["linkname"]
+                        info.size = 0
+                        archive.addfile(info)
+                    else:
+                        info.type = tarfile.REGTYPE
+                        info.size = len(payload)
+                        archive.addfile(info, io.BytesIO(payload))
+            output.flush()
+            os.fsync(output.fileno())
+        after_write = os.fstat(descriptor)
+        if not (
+            (after_write.st_dev, after_write.st_ino, after_write.st_uid, after_write.st_nlink)
+            == (before.st_dev, before.st_ino, before.st_uid, before.st_nlink)
+            and 0 < after_write.st_size <= QUALIFICATION_MAX_BYTES
+        ):
+            raise InspectionIntegrityError("qualification_output_unsafe")
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o444)
+        else:  # pragma: no cover - all supported runtimes expose fchmod.
+            os.chmod(path, 0o444)
+        sealed = os.fstat(descriptor)
+        path_stat = os.lstat(path)
+        if not (
+            stat.S_IMODE(sealed.st_mode) & 0o222 == 0
+            and (path_stat.st_dev, path_stat.st_ino, path_stat.st_size)
+            == (sealed.st_dev, sealed.st_ino, sealed.st_size)
+        ):
+            raise InspectionIntegrityError("qualification_output_unsafe")
+    finally:
+        os.close(descriptor)
+    return _qualification_fixture_result(path, operation="WRITE")
+
+
+def inspect_inert_qualification_fixture(
+    archive_path: str | os.PathLike[str],
+) -> dict[str, Any]:
+    return _qualification_fixture_result(archive_path, operation="INSPECT")
+
+
+def compare_inert_qualification_export(
+    original_path: str | os.PathLike[str],
+    export_path: str | os.PathLike[str],
+) -> dict[str, Any]:
+    original = _inspect_qualification_path(original_path, label="inert-fixture")
+    exported = _inspect_qualification_path(export_path, label="inert-export")
+    _require_qualification_members(
+        original["members"],
+        filtered=False,
+        code="qualification_fixture_mismatch",
+        ordered=True,
+    )
+    _require_qualification_members(
+        exported["members"],
+        filtered=False,
+        code="qualification_export_mismatch",
+    )
+    _require(
+        original["archive"]["semanticSha256"]
+        == exported["archive"]["semanticSha256"],
+        "qualification_export_mismatch",
+    )
+    return {
+        **_qualification_common("INERT_EXPORT_SEMANTICS_V1", "PASS"),
+        "original": original["archive"],
+        "exported": exported["archive"],
+        "matched": True,
+        "members": exported["members"],
+        "sentinel": _qualification_sentinel(),
+    }
+
+
+def compare_inert_qualification_delete(
+    original_path: str | os.PathLike[str],
+    filtered_path: str | os.PathLike[str],
+) -> dict[str, Any]:
+    original = _inspect_qualification_path(original_path, label="inert-control-export")
+    filtered = _inspect_qualification_path(filtered_path, label="inert-filtered")
+    _require_qualification_members(
+        original["members"],
+        filtered=False,
+        code="qualification_fixture_mismatch",
+    )
+    _require_qualification_members(
+        filtered["members"],
+        filtered=True,
+        code="qualification_removed_helpers_mismatch",
+    )
+    survivors = [
+        {"path": record["path"], "rawSha256": record["rawSha256"]}
+        for record in original["members"]
+        if record["path"] not in REMOVED_HELPERS
+    ]
+    filtered_survivors = [
+        {"path": record["path"], "rawSha256": record["rawSha256"]}
+        for record in filtered["members"]
+    ]
+    _require(
+        survivors == filtered_survivors,
+        "qualification_raw_survivor_mismatch",
+    )
+    return {
+        **_qualification_common("INERT_RAW_DELETE_V1", "PASS"),
+        "original": original["archive"],
+        "filtered": filtered["archive"],
+        "removedCount": 2,
+        "removed": list(REMOVED_HELPERS),
+        "survivorCount": len(survivors),
+        "survivorRawSha256": _canonical_sha256(survivors),
+        "survivors": survivors,
+        "sentinel": _qualification_sentinel(),
+    }
+
+
+def compare_inert_qualification_filtered_export(
+    filtered_path: str | os.PathLike[str],
+    export_path: str | os.PathLike[str],
+) -> dict[str, Any]:
+    filtered = _inspect_qualification_path(filtered_path, label="inert-filtered")
+    exported = _inspect_qualification_path(export_path, label="inert-filtered-export")
+    for value in (filtered, exported):
+        _require_qualification_members(
+            value["members"],
+            filtered=True,
+            code="qualification_export_mismatch",
+        )
+    _require(
+        filtered["archive"]["semanticSha256"]
+        == exported["archive"]["semanticSha256"],
+        "qualification_export_mismatch",
+    )
+    return {
+        **_qualification_common(
+            "INERT_FILTERED_EXPORT_SEMANTICS_V1", "PASS"
+        ),
+        "filtered": filtered["archive"],
+        "exported": exported["archive"],
+        "matched": True,
+        "members": exported["members"],
+        "sentinel": _qualification_sentinel(),
+    }
+
+
+def _qualification_arguments(
+    *,
+    image_id: str,
+    tag: str,
+    diff_id: str,
+    server_version: str,
+    created: str,
+    owner: str,
+) -> tuple[str, str]:
+    _require(
+        isinstance(owner, str) and QUALIFICATION_UUID.fullmatch(owner) is not None,
+        "qualification_owner_invalid",
+    )
+    expected_tag = f"auto-world-managed/seaweedfs-go-s3-control:{owner}"
+    _require(tag == expected_tag, "qualification_argument_invalid")
+    _require(
+        isinstance(image_id, str)
+        and image_id.startswith("sha256:")
+        and HEX64.fullmatch(image_id[7:]) is not None,
+        "qualification_argument_invalid",
+    )
+    _require(
+        isinstance(diff_id, str)
+        and diff_id.startswith("sha256:")
+        and HEX64.fullmatch(diff_id[7:]) is not None,
+        "qualification_argument_invalid",
+    )
+    _require(
+        isinstance(server_version, str)
+        and len(server_version) <= 64
+        and server_version == QUALIFICATION_SERVER_VERSION,
+        "qualification_argument_invalid",
+    )
+    _require(
+        isinstance(created, str)
+        and len(created) <= 40
+        and QUALIFICATION_CREATED.fullmatch(created) is not None,
+        "qualification_argument_invalid",
+    )
+    try:
+        parsed_created = datetime.fromisoformat(created[:-1] + "+00:00")
+    except ValueError:
+        raise InspectionRefusal("qualification_argument_invalid") from None
+    _require(parsed_created.utcoffset() is not None, "qualification_argument_invalid")
+    return image_id[7:], diff_id[7:]
+
+
+def _qualification_runtime_config(value: Any, owner: str) -> None:
+    _require(isinstance(value, dict), "qualification_save_config_invalid")
+    required = {
+        "User": "1001:1002",
+        "Cmd": ["/auto-world-inert-never-execute"],
+        "WorkingDir": "/data",
+        "Volumes": {"/data": {}},
+        "Labels": {
+            "com.auto-world.task005.inert": owner,
+            "com.auto-world.task005.inert-stage": "filtered",
+            "org.auto-world.seaweed-go-s3-control": "inert-v1",
+        },
+    }
+    allowed = dict(ZERO_CONTAINER_CONFIG)
+    allowed.update(required)
+    _require(
+        set(required).issubset(value)
+        and set(value).issubset(allowed)
+        and all(value[key] == expected for key, expected in required.items())
+        and all(value[key] == allowed[key] for key in set(value) - set(required)),
+        "qualification_save_config_invalid",
+    )
+
+
+def _qualification_legacy_config(
+    value: Any,
+    *,
+    owner: str,
+    created: str,
+    server_version: str,
+    diff_id: str,
+) -> None:
+    expected_keys = {
+        "architecture",
+        "comment",
+        "config",
+        "container_config",
+        "created",
+        "docker_version",
+        "history",
+        "os",
+        "rootfs",
+    }
+    _require(
+        isinstance(value, dict)
+        and set(value) == expected_keys
+        and value["architecture"] == "amd64"
+        and value["os"] == "linux"
+        and value["created"] == created
+        and value["docker_version"] == server_version
+        and value["comment"] == "auto-world-inert-qualification-v1"
+        and value["container_config"] == ZERO_CONTAINER_CONFIG
+        and value["history"]
+        == [
+            {
+                "created": created,
+                "comment": "auto-world-inert-qualification-v1",
+            }
+        ]
+        and value["rootfs"] == {"type": "layers", "diff_ids": [diff_id]},
+        "qualification_save_config_invalid",
+    )
+    _qualification_runtime_config(value["config"], owner)
+
+
+def _qualification_layer_metadata(
+    value: Any,
+    *,
+    layer_id: str,
+    owner: str,
+    created: str,
+    server_version: str,
+) -> None:
+    _require(
+        isinstance(value, dict)
+        and set(value)
+        == {
+            "architecture",
+            "comment",
+            "config",
+            "container_config",
+            "created",
+            "docker_version",
+            "id",
+            "os",
+        }
+        and value["id"] == layer_id
+        and value["architecture"] == "amd64"
+        and value["os"] == "linux"
+        and value["created"] == created
+        and value["docker_version"] == server_version
+        and value["comment"] == "auto-world-inert-qualification-v1"
+        and value["container_config"] == ZERO_CONTAINER_CONFIG,
+        "qualification_save_config_invalid",
+    )
+    _qualification_runtime_config(value["config"], owner)
+
+
+def inspect_inert_qualification_legacy_save(
+    archive_path: str | os.PathLike[str],
+    *,
+    image_id: str,
+    tag: str,
+    diff_id: str,
+    server_version: str,
+    created: str,
+    owner: str,
+) -> dict[str, Any]:
+    image_hex, diff_hex = _qualification_arguments(
+        image_id=image_id,
+        tag=tag,
+        diff_id=diff_id,
+        server_version=server_version,
+        created=created,
+        owner=owner,
+    )
+    with _qualification_input(
+        archive_path, max_bytes=QUALIFICATION_MAX_BYTES
+    ) as secure:
+        if secure.file is None:
+            raise InspectionIntegrityError()
+        outer = inspect_archive(
+            secure.file,
+            label="inert-legacy-save",
+            max_members=16,
+        )
+        outer_archive: tarfile.TarFile = outer["archive"]
+        try:
+            for record, info in zip(
+                outer["records"], outer["infos"], strict=True
+            ):
+                _qualification_validate_member(info, record)
+            by_name = {
+                record["path"]: (record, info)
+                for record, info in zip(
+                    outer["records"], outer["infos"], strict=True
+                )
+            }
+            names = set(by_name)
+            if (
+                "oci-layout" in names
+                or "index.json" in names
+                or any(name == "blobs" or name.startswith("blobs/") for name in names)
+            ):
+                raise InspectionRefusal("qualification_save_format_unsupported")
+            _require(
+                "manifest.json" in by_name,
+                "qualification_save_manifest_invalid",
+            )
+            manifest_record, manifest_info = by_name["manifest.json"]
+            _require(
+                manifest_record["type"] == "file",
+                "qualification_save_manifest_invalid",
+            )
+            manifest = _json_no_duplicates(
+                _read_member(outer_archive, manifest_info, MAX_JSON_BYTES),
+                "qualification_save_manifest_invalid",
+            )
+            _require(
+                isinstance(manifest, list)
+                and len(manifest) == 1
+                and isinstance(manifest[0], dict),
+                "qualification_save_manifest_invalid",
+            )
+            target = manifest[0]
+            if "LayerSources" in target:
+                raise InspectionRefusal("qualification_save_format_unsupported")
+            _require(
+                set(target) == {"Config", "RepoTags", "Layers"}
+                and target["Config"] == f"{image_hex}.json"
+                and target["RepoTags"] == [tag]
+                and isinstance(target["Layers"], list)
+                and len(target["Layers"]) == 1,
+                "qualification_save_manifest_invalid",
+            )
+            layer_path = target["Layers"][0]
+            match = LAYER_MEMBER.fullmatch(layer_path) if isinstance(layer_path, str) else None
+            if match is None:
+                raise InspectionRefusal("qualification_save_format_unsupported")
+            layer_id = match.group(1)
+            config_path = f"{image_hex}.json"
+            expected_names = {
+                "manifest.json",
+                config_path,
+                "repositories",
+                layer_id,
+                f"{layer_id}/VERSION",
+                f"{layer_id}/json",
+                layer_path,
+            }
+            _require(
+                names == expected_names,
+                "qualification_save_manifest_invalid",
+            )
+            type_expectations = {
+                "manifest.json": "file",
+                config_path: "file",
+                "repositories": "file",
+                layer_id: "directory",
+                f"{layer_id}/VERSION": "file",
+                f"{layer_id}/json": "file",
+                layer_path: "file",
+            }
+            _require(
+                all(by_name[name][0]["type"] == kind for name, kind in type_expectations.items()),
+                "qualification_save_manifest_invalid",
+            )
+            config_record, config_info = by_name[config_path]
+            _require(
+                config_record["payloadSha256"] == image_hex,
+                "qualification_save_identity_mismatch",
+            )
+            config = _json_no_duplicates(
+                _read_member(outer_archive, config_info, MAX_JSON_BYTES),
+                "qualification_save_config_invalid",
+            )
+            _qualification_legacy_config(
+                config,
+                owner=owner,
+                created=created,
+                server_version=server_version,
+                diff_id=diff_id,
+            )
+            version_record, version_info = by_name[f"{layer_id}/VERSION"]
+            _require(
+                version_record["size"] == 3
+                and _read_member(outer_archive, version_info, 64) == b"1.0",
+                "qualification_save_manifest_invalid",
+            )
+            metadata_record, metadata_info = by_name[f"{layer_id}/json"]
+            _require(
+                metadata_record["size"] <= MAX_JSON_BYTES,
+                "qualification_save_config_invalid",
+            )
+            metadata = _json_no_duplicates(
+                _read_member(outer_archive, metadata_info, MAX_JSON_BYTES),
+                "qualification_save_config_invalid",
+            )
+            _qualification_layer_metadata(
+                metadata,
+                layer_id=layer_id,
+                owner=owner,
+                created=created,
+                server_version=server_version,
+            )
+            repositories_record, repositories_info = by_name["repositories"]
+            _require(
+                repositories_record["size"] <= MAX_JSON_BYTES,
+                "qualification_save_manifest_invalid",
+            )
+            repositories = _json_no_duplicates(
+                _read_member(outer_archive, repositories_info, MAX_JSON_BYTES),
+                "qualification_save_manifest_invalid",
+            )
+            _require(
+                repositories
+                == {"auto-world-managed/seaweedfs-go-s3-control": {owner: layer_id}},
+                "qualification_save_manifest_invalid",
+            )
+            layer_record, layer_info = by_name[layer_path]
+            _require(
+                layer_record["payloadSha256"] == diff_hex,
+                "qualification_save_layer_invalid",
+            )
+            layer_stream = outer_archive.extractfile(layer_info)
+            _require(layer_stream is not None, "qualification_save_layer_invalid")
+            with layer_stream:
+                layer = inspect_archive(
+                    layer_stream,
+                    label="inert-legacy-layer",
+                    max_members=64,
+                )
+                try:
+                    for record, info in zip(
+                        layer["records"], layer["infos"], strict=True
+                    ):
+                        _qualification_validate_member(info, record)
+                    layer_members = [
+                        _qualification_report_member(record)
+                        for record in layer["records"]
+                    ]
+                    _require_qualification_members(
+                        layer_members,
+                        filtered=True,
+                        code="qualification_save_layer_invalid",
+                    )
+                finally:
+                    layer["archive"].close()
+            outer_members = [
+                _qualification_report_member(record) for record in outer["records"]
+            ]
+            archive_summary = {
+                "sha256": secure.sha256,
+                "bytes": secure.size,
+                "memberCount": len(outer_members),
+                "semanticSha256": _qualification_semantic_sha256(outer_members),
+                "orderedRawSha256": _qualification_ordered_raw_sha256(outer_members),
+            }
+            return {
+                **_qualification_common("INERT_LEGACY_SAVE_V1", "PASS"),
+                "archive": archive_summary,
+                "family": "MOBY_LEGACY_SINGLE_LAYER_V1",
+                "image": {
+                    "imageId": image_id,
+                    "tag": tag,
+                    "owner": owner,
+                    "created": created,
+                    "serverVersion": server_version,
+                    "configSha256": image_hex,
+                },
+                "layer": {
+                    "diffId": diff_id,
+                    "sha256": diff_hex,
+                    "bytes": layer_info.size,
+                    "memberCount": len(layer_members),
+                    "semanticSha256": _qualification_semantic_sha256(layer_members),
+                },
+                "graph": {
+                    "configPath": config_path,
+                    "layerPath": layer_path,
+                    "layerId": layer_id,
+                    "descriptorCount": 1,
+                },
+                "sentinel": _qualification_sentinel(),
+            }
+        finally:
+            outer_archive.close()
+
+
 def _activate_cli_limits() -> None:
     _require(resource is not None, "resource_limits_unavailable")
     try:
@@ -2400,6 +3187,43 @@ def _integrity_json(error: InspectionIntegrityError) -> dict[str, Any]:
     }
 
 
+def _qualification_kind(command: str | None) -> str | None:
+    return {
+        "fixture-write": "INERT_FIXTURE_V1",
+        "fixture-inspect": "INERT_FIXTURE_V1",
+        "export-compare": "INERT_EXPORT_SEMANTICS_V1",
+        "delete-compare": "INERT_RAW_DELETE_V1",
+        "filtered-export-compare": "INERT_FILTERED_EXPORT_SEMANTICS_V1",
+        "legacy-save-inspect": "INERT_LEGACY_SAVE_V1",
+    }.get(command)
+
+
+def _qualification_refusal_json(
+    kind: str, refusal: InspectionRefusal
+) -> dict[str, Any]:
+    detail: dict[str, Any] = {"code": refusal.code}
+    if refusal.member is not None:
+        if refusal.member_is_safe:
+            detail["member"] = refusal.member
+        else:
+            detail["memberSha256"] = hashlib.sha256(
+                refusal.member.encode("utf-8", "backslashreplace")
+            ).hexdigest()
+    return {
+        **_qualification_common(kind, "REFUSED"),
+        "refusal": detail,
+    }
+
+
+def _qualification_integrity_json(
+    kind: str, error: InspectionIntegrityError
+) -> dict[str, Any]:
+    return {
+        **_qualification_common(kind, "ERROR"),
+        "error": {"code": error.code},
+    }
+
+
 def _emit(value: dict[str, Any]) -> None:
     encoded = json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("ascii") + b"\n"
     if len(encoded) > MAX_OUTPUT_BYTES:
@@ -2424,23 +3248,115 @@ def main(argv: list[str] | None = None) -> int:
     source_save = subcommands.add_parser("source-save")
     source_save.add_argument("--archive", required=True)
     source_save.add_argument("--config", required=True)
+    fixture_write = subcommands.add_parser("fixture-write")
+    fixture_write.add_argument("--archive", required=True)
+    fixture_inspect = subcommands.add_parser("fixture-inspect")
+    fixture_inspect.add_argument("--archive", required=True)
+    export_compare = subcommands.add_parser("export-compare")
+    export_compare.add_argument("--original", required=True)
+    export_compare.add_argument("--export", required=True)
+    delete_compare = subcommands.add_parser("delete-compare")
+    delete_compare.add_argument("--original", required=True)
+    delete_compare.add_argument("--filtered", required=True)
+    filtered_export_compare = subcommands.add_parser("filtered-export-compare")
+    filtered_export_compare.add_argument("--filtered", required=True)
+    filtered_export_compare.add_argument("--export", required=True)
+    legacy_save = subcommands.add_parser("legacy-save-inspect")
+    legacy_save.add_argument("--archive", required=True)
+    legacy_save.add_argument("--image-id", required=True)
+    legacy_save.add_argument("--tag", required=True)
+    legacy_save.add_argument("--diff-id", required=True)
+    legacy_save.add_argument("--server-version", required=True)
+    legacy_save.add_argument("--created", required=True)
+    legacy_save.add_argument("--owner", required=True)
+    arguments: argparse.Namespace | None = None
     try:
         arguments = parser.parse_args(argv)
         _activate_cli_limits()
         if arguments.command == "source-save":
             _emit(inspect_source_save(arguments.archive, arguments.config))
             return 0
+        if arguments.command == "fixture-write":
+            _emit(write_inert_qualification_fixture(arguments.archive))
+            return 0
+        if arguments.command == "fixture-inspect":
+            _emit(inspect_inert_qualification_fixture(arguments.archive))
+            return 0
+        if arguments.command == "export-compare":
+            _emit(
+                compare_inert_qualification_export(
+                    arguments.original, arguments.export
+                )
+            )
+            return 0
+        if arguments.command == "delete-compare":
+            _emit(
+                compare_inert_qualification_delete(
+                    arguments.original, arguments.filtered
+                )
+            )
+            return 0
+        if arguments.command == "filtered-export-compare":
+            _emit(
+                compare_inert_qualification_filtered_export(
+                    arguments.filtered, arguments.export
+                )
+            )
+            return 0
+        if arguments.command == "legacy-save-inspect":
+            _emit(
+                inspect_inert_qualification_legacy_save(
+                    arguments.archive,
+                    image_id=arguments.image_id,
+                    tag=arguments.tag,
+                    diff_id=arguments.diff_id,
+                    server_version=arguments.server_version,
+                    created=arguments.created,
+                    owner=arguments.owner,
+                )
+            )
+            return 0
         raise InspectionRefusal("command_invalid")
     except InspectionIntegrityError as error:
-        _emit(_integrity_json(error))
+        command = arguments.command if arguments is not None else None
+        kind = _qualification_kind(command)
+        _emit(
+            _qualification_integrity_json(kind, error)
+            if kind is not None
+            else _integrity_json(error)
+        )
         return 3
     except InspectionRefusal as refusal:
-        _emit(_refusal_json(refusal))
+        command = arguments.command if arguments is not None else None
+        kind = _qualification_kind(command)
+        _emit(
+            _qualification_refusal_json(kind, refusal)
+            if kind is not None
+            else _refusal_json(refusal)
+        )
         return 2
     except (MemoryError, RecursionError):
+        command = arguments.command if arguments is not None else None
+        kind = _qualification_kind(command)
+        if kind is not None:
+            _emit(
+                _qualification_integrity_json(
+                    kind, InspectionIntegrityError("resource_limit")
+                )
+            )
+            return 3
         _emit(_refusal_json(InspectionRefusal("resource_limit")))
         return 2
     except BaseException:
+        command = arguments.command if arguments is not None else None
+        kind = _qualification_kind(command)
+        if kind is not None:
+            _emit(
+                _qualification_integrity_json(
+                    kind, InspectionIntegrityError("internal_error")
+                )
+            )
+            return 3
         _emit(_refusal_json(InspectionRefusal("internal_error")))
         return 3
 
