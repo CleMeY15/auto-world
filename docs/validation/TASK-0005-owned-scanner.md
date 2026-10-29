@@ -1,6 +1,6 @@
 # TASK-0005 — Auto World scanner qualification
 
-Status: GOENV_PROJECTION_REPAIR_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
+Status: TEST_COMMAND_DIAGNOSTIC_REVIEWED_NEW_LINUX_PENDING. No owned scanner binary or Linux qualification result exists yet. TASK-0005/0005A remain IN_PROGRESS, M2 NOT_ESTABLISHED and admission NOT_AUTHORIZED. Activation/support dates remain null.
 
 ## Cause and accepted scope
 
@@ -75,6 +75,28 @@ The reviewed repair retains configured `GOENV=off` and validates exactly nine ef
 Real-file regressions accept only the exact effective object and refuse old `off`, arbitrary paths, every changed/missing key, extra keys, malformed JSON and invalid UTF-8. A/B argument tests preserve configured off and forbid the old projection comparison. Targeted tests pass 19/19. Reviewed source SHA256 is `df16fecda18da5d6886974c765d82d956a9b40d00690c0ad5a2726de36efebb9`; regression-file SHA256 is `8299fafef3dcc1ac3d269a78af93132d8b9cb8759d0e9047250357e60509b9ff`. A fresh Linux source must prove the next stage; no qualification result is inferred from this correction.
 
 Final local root validation passes 2266 tests with 490 unchanged environment-dependent exclusions and zero failures (2756 total), including the scanner regressions. Targeted 19/19, ESLint, syntax and diff checks pass. Application typecheck/build/browser acceptance remains a separate Linux gate on each new source.
+
+## Fifth Linux run: both preparations pass, test-command failure remains unattributed
+
+Source `788834907c3c612efb2beff83aca2da7b0562ddf`, tree `860452912e40a813c6446c08c09fdf68272f657f`, is bound to synthetic checkout `00e62e440c5c8fa72e20900108e5a9cd3d0996e1`, whose ordered parents are accepted main `b8d31a3045ddb0e26b961eeb12ae173537835bd8` and that source. [Quality40708951379](https://github.com/CleMeY15/auto-world/actions/runs/40708951379) passes: lint14, typecheck21, root2906 PASS/60 known exclusions, workspace624 PASS, build14, browser418 PASS/8 existing exclusions with no failure, flaky result or retry, Secretlint1220 and clean dependency audit. This does not qualify the owned scanner.
+
+[Managed40708951403](https://github.com/CleMeY15/auto-world/actions/runs/40708951403) and [upstream40708951445](https://github.com/CleMeY15/auto-world/actions/runs/40708951445) both pass complete A/B preparation, including source seals, bounded module enrichment, the corrected effective environment and semantic pair validation. Each construction records 989 materials, 806 classified checksum additions and closure SHA256 `93db9fd682db6f4c084903d9c37938e5f514605b0d9850c4359ea4ff33dc5267`. The go-jose source receipt is also present.
+
+Both then fail with `scanner_owned_command_failed:docker:1` in the single test-container command at `owned-build.mjs:819` in this source. That command chains directory setup, Mage installation and full `mage -v test:unit`. Its private log is correctly removed by cleanup. Neither original establishes whether Mage installed, the unit suite started or a particular package/test failed; no resource, fixture or dependency cause is inferred. The separate go-jose suite, output-tree validation, builds A/B, reproducibility, scanner qualification and downstream image/Native checks remain NOT_RUN. Owned, Docker and work-root cleanup are complete and certain in both runs.
+
+Retained originals, each successfully acquired once: managed log299807B/SHA256 `6273e28f917456570a543b3cc3af1a9dc319380bff308e2afce17ddc513cd9bd`, ZIP986779B/`d918bfc3f6d273681451e6737e44b912b22e0bf05788b80535dce0f6255879d1`; upstream log77383B/`e072a9b442ace085e423361eb7e843de035e490c5d01423f91ff6ac4f9c54846`, ZIP984309B/`227e82f96b71c31026891c60097db09c7777d1b19b034093ee09b3b1beebbd5b`. ZIP identities match GitHub and each contains25 safe public text files. The upstream receiver separately preserves a failed wrong-artifact-ID HTTP404 request; it is not a successful acquisition. Resumed managed review reused existing originals/extraction. Nothing was reacquired, re-extracted or rerun unchanged.
+
+The bounded diagnostic plan was independently approved by the architect and published/read back exactly in PR202 before implementation (64368-character complete body, including the unchanged frozen plan and earlier repairs). It requires private ordered subcommand markers, genuine-process error branding, a bounded exact-owned container-state observation before cleanup, and a failure-only canonical JSON containing bounded source-grounded Go package/top-level test observations. Arbitrary output, paths and subtest values remain private. The existing command, full tests, resource limits, qualification gates, primary error and cleanup remain unchanged. Code/privacy review and a fresh exact-source Linux execution are still required. This is a diagnostic repair, not a demonstrated correction to an upstream test failure.
+
+## Reviewed test-command diagnostic
+
+The implementation retains ordered private SETUP/MAGE_INSTALL/UNIT_TESTS/COMPLETE markers and brands only actual local process failures in a private WeakMap. Before removal, one bounded probe revalidates the exact container ID/owner and exposes only closed status, exit and OOM observations. UTF-8, field count, numeric grammar and record termination are strict. The probe uses ordinary remaining stage time (maximum5s/4KiB), never cleanup reserve, and cannot replace the primary failure.
+
+A failure-only public JSON is limited to16KiB and the existing manifest gates. It contains process class/counts, phase, container observations, private-log bytes/hash, and separately capped package/top-level test identifiers derived from the verified pinned source before execution. Subtest values and arbitrary output remain private. Missing/malformed diagnostic inputs degrade to unknown/unavailable; they do not become a qualification gate. The complete existing Mage target, offline environment, resource limits, success checks and cleanup remain unchanged.
+
+Initial independent code/privacy review returned REQUEST_CHANGES for permissive state parsing, a diagnostic-error property on the primary failure and missing regression cases. All findings were corrected; final review is APPROVE with zero open findings. Reviewed SHA256: build module `4f9c8429e4c0713b6913d56240cf38bd4697485d75639fc9d3f09e407374f470`; diagnostic helper `367a90068c0cf3f30f95605fe59d3c18e09d04401af60376dadfecfce3b9177c`; regression file `9d2e36f3d71880428466f5136b1780f0dcb39297b811e8521f19fd7873eb7699`.
+
+Fresh local validation with Node22.23.2: targeted28/28; full root2765 =2275 PASS+490 unchanged environment exclusions, zero failures; repository-script/test ESLint, syntax, diff checks and Secretlint1222 pass. Tests include real Node nonzero/timeout/output-limit/spawn failures, injected signal, strict/foreign state rejection, budget refusal, primary preservation, success without a diagnostic probe, invalid UTF-8/oversized lines, parser caps and privacy sentinels. No Go/Docker/scanner runtime ran on Windows. Fresh Linux quality and provider executions remain required and the original test-command cause remains unknown.
 
 ## Acceptance still required
 

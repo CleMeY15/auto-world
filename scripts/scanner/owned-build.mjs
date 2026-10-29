@@ -7,6 +7,9 @@ import {
 import path from "node:path";
 import process from "node:process";
 import { TextDecoder } from "node:util";
+import {
+  buildOwnedTestFailureDiagnostic, createOwnedTestSourceAllowlist
+} from "./owned-test-diagnostic.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const LOCK_PATH = path.join(ROOT, "infra/scanner/owned-scanner-lock.json");
@@ -25,6 +28,9 @@ const TRIVY_SOURCE_SYMLINKS = Object.freeze(new Map([
   ["pkg/fanal/analyzer/language/rust/binary/testdata/symlink", Object.freeze({ target: "foo", gitBlobSha1: "19102815663d23f8b75a47e7a01965dcdc96468c" })],
   ["pkg/fanal/walker/testdata/fs/sym.txt", Object.freeze({ target: "bar", gitBlobSha1: "ba0e162e1c47469e3fe4b393a8bf8c569f302116" })],
 ]));
+const PROCESS_CLASSES = new Set(["NONZERO_EXIT", "SIGNAL", "TIMEOUT", "OUTPUT_LIMIT", "SPAWN_ERROR", "UNKNOWN"]);
+const CONTAINER_STATUSES = new Set(["created", "running", "paused", "restarting", "removing", "exited", "dead"]);
+const processFailureDiagnostics = new WeakMap();
 const fail = (code) => { throw new Error(code); };
 
 export function sha256(bytes) {
@@ -80,16 +86,55 @@ export function validateOwnedOutput(output, runnerTemp) {
   return output;
 }
 
-function run(command, args, { cwd, env, timeoutMs, maxBytes, logFile, allowFailure = false } = {}) {
-  const result = spawnSync(command, args, { cwd, env, timeout: timeoutMs, maxBuffer: maxBytes, encoding: null, windowsHide: true });
+function emptyContainerObservation() { return Object.freeze({ observation: "UNAVAILABLE", status: null, exitCode: null, oomKilled: null }); }
+
+function createOwnedProcessFailure({ message, cause, result, maxBytes, outputExceeded = false }) {
+  let processClass = "UNKNOWN";
+  if (outputExceeded || result.error?.code === "ENOBUFS") processClass = "OUTPUT_LIMIT";
+  else if (result.error?.code === "ETIMEDOUT") processClass = "TIMEOUT";
+  else if (result.error) processClass = "SPAWN_ERROR";
+  else if (result.signal) processClass = "SIGNAL";
+  else if (result.status !== 0) processClass = "NONZERO_EXIT";
+  if (!PROCESS_CLASSES.has(processClass)) processClass = "UNKNOWN";
+  const status = Number.isSafeInteger(result.status) && result.status >= 0 && result.status <= 255 ? result.status : null;
+  const error = new Error(message); if (cause !== undefined) error.cause = cause;
+  processFailureDiagnostics.set(error, Object.freeze({ hostOperation: null,
+    process: Object.freeze({ class: processClass, status, stdoutBytes: Math.min(Buffer.isBuffer(result.stdout) ? result.stdout.length : 0, maxBytes),
+      stderrBytes: Math.min(Buffer.isBuffer(result.stderr) ? result.stderr.length : 0, maxBytes) }), container: emptyContainerObservation() }));
+  return error;
+}
+
+function containerObservation(value) {
+  if (!value || !CONTAINER_STATUSES.has(value.status) || !Number.isSafeInteger(value.exitCode) || value.exitCode < 0 || value.exitCode > 255 || typeof value.oomKilled !== "boolean") return emptyContainerObservation();
+  return Object.freeze({ observation: "OBSERVED", status: value.status, exitCode: value.exitCode, oomKilled: value.oomKilled });
+}
+
+function attachOwnedStartDiagnostic(error, value) {
+  const current = processFailureDiagnostics.get(error);
+  if (current) processFailureDiagnostics.set(error, Object.freeze({ hostOperation: "DOCKER_START_ATTACH", process: current.process, container: containerObservation(value) }));
+}
+
+function ownedProcessFailureDiagnostic(error) {
+  const value = processFailureDiagnostics.get(error);
+  return value?.hostOperation === "DOCKER_START_ATTACH" ? value : null;
+}
+
+function projectOwnedTestFailureDiagnostic(error, context) {
+  const processDiagnostic = ownedProcessFailureDiagnostic(error);
+  return context && processDiagnostic ? buildOwnedTestFailureDiagnostic({ processDiagnostic, ...context }) : null;
+}
+
+function run(command, args, { cwd, env, timeoutMs, maxBytes, logFile, allowFailure = false } = {}, runner = spawnSync) {
+  const result = runner(command, args, { cwd, env, timeout: timeoutMs, maxBuffer: maxBytes, encoding: null, windowsHide: true });
   const stdout = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.alloc(0);
   const stderr = Buffer.isBuffer(result.stderr) ? result.stderr : Buffer.alloc(0);
-  if (stdout.length > maxBytes || stderr.length > maxBytes) fail("scanner_owned_child_output_exceeded");
+  if (stdout.length > maxBytes || stderr.length > maxBytes) {
+    throw createOwnedProcessFailure({ message: "scanner_owned_child_output_exceeded", result, maxBytes, outputExceeded: true });
+  }
   if (logFile) writeFileSync(logFile, Buffer.concat([stdout, stderr]), { flag: "wx", mode: 0o600 });
   if (!allowFailure && (result.error || result.signal || result.status !== 0)) {
-    const error = new Error(`scanner_owned_command_failed:${path.basename(command)}:${result.status ?? result.signal ?? "error"}`);
-    error.cause = result.error;
-    throw error;
+    throw createOwnedProcessFailure({ message: `scanner_owned_command_failed:${path.basename(command)}:${result.status ?? result.signal ?? "error"}`,
+      cause: result.error, result, maxBytes });
   }
   return { status: result.status, signal: result.signal, stdout, stderr };
 }
@@ -131,6 +176,21 @@ export function createOwnedContainerRunner({ runValue, scope, budget = { command
   const inspectIdentityArguments = (target) => ["inspect", "--format", "{{index .Config.Labels \"com.autoworld.owned-scanner\"}}|{{.Id}}", target];
   const inspect = (target) => invoke(inspectArguments(target), { timeoutMs: 60_000, maxBytes: MiB, allowFailure: true });
   const inspectIdentity = (target) => invoke(inspectIdentityArguments(target), { timeoutMs: 60_000, maxBytes: MiB, allowFailure: true });
+  const observeFailure = (id) => {
+    try {
+      const observed = invoke(["inspect", "--format", "{{index .Config.Labels \"com.autoworld.owned-scanner\"}}|{{.Id}}|{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}", id],
+        { timeoutMs: 5_000, maxBytes: 4 * 1024, allowFailure: true });
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(observed.stdout);
+      if (!text.endsWith("\n") || text.slice(0, -1).includes("\n") || text.includes("\r")) return null;
+      const fields = text.slice(0, -1).split("|");
+      if (fields.length !== 5 || fields.some((field) => field.length === 0)) return null;
+      const [observedOwner, observedId, status, rawExitCode, rawOomKilled] = fields;
+      if (!/^(?:0|[1-9][0-9]{0,2})$/u.test(rawExitCode)) return null;
+      const exitCode = Number(rawExitCode);
+      if (observed.status !== 0 || observedOwner !== owner || observedId !== id || !Number.isSafeInteger(exitCode) || exitCode < 0 || exitCode > 255 || !["true", "false"].includes(rawOomKilled)) return null;
+      return { observation: "OBSERVED", status, exitCode, oomKilled: rawOomKilled === "true" };
+    } catch { return null; }
+  };
   const cleanup = (id) => {
     const removed = cleanupInvoke(["rm", "--force", id], { timeoutMs: 60_000, maxBytes: MiB, allowFailure: true });
     const remaining = cleanupInvoke(inspectArguments(id), { timeoutMs: 60_000, maxBytes: MiB, allowFailure: true });
@@ -168,7 +228,7 @@ export function createOwnedContainerRunner({ runValue, scope, budget = { command
     if (identity.stdout.toString("utf8").trim() !== `${owner}|${id}`) { const error = new Error("scanner_owned_container_identity_invalid"); try { cleanup(id); } catch (cleanupError) { error.cleanupError = cleanupError; } throw error; }
     let result; let primary;
     try { result = invoke(["start", "--attach", id], options); }
-    catch (error) { primary = error; }
+    catch (error) { primary = error; attachOwnedStartDiagnostic(error, observeFailure(id)); }
     try { cleanup(id); } catch (error) { if (primary) primary.cleanupError = error; else throw error; }
     if (primary) throw primary;
     return result;
@@ -701,6 +761,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
   mkdirSync(privateLogs); mkdirSync(evidence); mkdirSync(dockerHome, { mode: 0o700 }); mkdirSync(dockerConfig, { mode: 0o700 });
   const containers = createOwnedContainerRunner({ runValue, scope, budget, dockerEnv: { HOME: dockerHome, DOCKER_CONFIG: dockerConfig, PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" } });
   let firstFailure;
+  let failureDiagnosticContext;
   let returnValue;
   const publicDirectory = { root: output, manifest: null };
   try {
@@ -792,6 +853,7 @@ export function buildOwnedScanner({ output, scope, budget }) {
     stage(budget, journal, "tests", lock.limits.testsMs, (timeoutMs) => {
       const bounded = (cap) => Math.min(timeoutMs, budget.commandTimeoutMs(cap));
       const sourceA = path.join(privateRoot, "source-a");
+      const sourceAllowlist = createOwnedTestSourceAllowlist(sourceA);
       const testCopy = path.join(privateRoot, "trivy-test"); cpSync(sourceA, testCopy, { recursive: true, verbatimSymlinks: true });
       const rpmDestination = path.join(testCopy, "pkg/fanal/analyzer/pkg/rpm/testdata/socat-1.7.3.2-2.el7.x86_64.rpm"); mkdirSync(path.dirname(rpmDestination), { recursive: true }); copyFileSync(path.join(ROOT, lock.fixtures.rpm.path), rpmDestination); assertIdentity(rpmDestination, lock.fixtures.rpm, MiB);
       const gitParent = path.join(testCopy, "internal/gittest/testdata"); const gitDestination = path.join(gitParent, "test-repo"); mkdirSync(gitParent, { recursive: true });
@@ -813,10 +875,12 @@ export function buildOwnedScanner({ output, scope, budget }) {
         "--tmpfs", "/tmp:rw,nosuid,nodev,size=2g", "-v", mount(testCopy, "/src"), "-v", mount(path.join(privateRoot, "gomodcache-a"), "/gomodcache", true),
         "-v", mount(path.join(privateRoot, "test-cache"), "/test-cache"), "-w", "/src", "-e", "GOMODCACHE=/gomodcache", "-e", "GOCACHE=/test-cache/gocache", "-e", "GOTMPDIR=/test-cache/tmp",
         "-e", "GOPATH=/test-cache/gopath", "-e", "GOBIN=/test-cache/bin", "-e", "MAGEFILE_CACHE=/test-cache/mage", "-e", "HOME=/test-cache/home", "-e", "GOTOOLCHAIN=local", "-e", "GOPROXY=off", "-e", "GOSUMDB=off", "-e", "GONOSUMDB=", "-e", "GONOPROXY=", "-e", "GOPRIVATE=", "-e", "GOENV=off", "-e", "GOWORK=off", "-e", "CGO_ENABLED=0",
-        lock.compiler.builder.reference, "/bin/sh", "-euc", "mkdir -p /test-cache/gocache /test-cache/tmp /test-cache/gopath /test-cache/bin /test-cache/mage /test-cache/home; go install -mod=readonly github.com/magefile/mage; /test-cache/bin/mage -v test:unit"];
+        lock.compiler.builder.reference, "/bin/sh", "-euc", "printf 'SETUP\\n' >> /test-cache/owned-test-phase; mkdir -p /test-cache/gocache /test-cache/tmp /test-cache/gopath /test-cache/bin /test-cache/mage /test-cache/home; printf 'MAGE_INSTALL\\n' >> /test-cache/owned-test-phase; go install -mod=readonly github.com/magefile/mage; printf 'UNIT_TESTS\\n' >> /test-cache/owned-test-phase; /test-cache/bin/mage -v test:unit; printf 'COMPLETE\\n' >> /test-cache/owned-test-phase"];
       mkdirSync(path.join(privateRoot, "test-cache"));
       const trivyLog = path.join(privateLogs, "trivy-unit.log");
+      failureDiagnosticContext = { sourceAllowlist, phaseFile: path.join(privateRoot, "test-cache", "owned-test-phase"), logFile: trivyLog };
       containers.execute(testArgs, { timeoutMs: bounded(55 * 60_000), maxBytes: lock.limits.childStreamBytes, logFile: trivyLog });
+      failureDiagnosticContext = null;
       directoryBytes(path.join(privateRoot, "test-cache"), lock.limits.buildCacheBytes);
       const after = manifestTree(testCopy, lock.limits.sourceTreeBytes, { trivySource: true });
       const beforeMap = new Map(before.map((item) => [item.path, item]));
@@ -888,6 +952,10 @@ export function buildOwnedScanner({ output, scope, budget }) {
     firstFailure = error;
   }
   if (firstFailure) {
+    try {
+      const diagnostic = projectOwnedTestFailureDiagnostic(firstFailure, failureDiagnosticContext);
+      if (diagnostic) writePublicJson(output, "test-failure-diagnostic.json", diagnostic, publicFiles, lock.limits);
+    } catch { /* Diagnostic evidence is best effort and must not alter the primary failure. */ }
     let cleanupFailure;
     try { runOwnedFinalCleanup({ beginCleanup: budget.beginCleanup, cleanupContainers: containers.cleanupAll, cleanupPaths: () => removeOwnedScannerPaths(privateRoot, runnerTemp) }); }
     catch (error) { cleanupFailure = error; firstFailure.cleanupError = error; }
@@ -917,3 +985,9 @@ export function buildOwnedScanner({ output, scope, budget }) {
   const verify = () => !existsSync(privateRoot);
   return Object.freeze({ ...returnValue, publicDirectory: Object.freeze(publicDirectory), cleanup: Object.freeze({ ownedPaths: [privateRoot], cleanupDuplicate, cleanupAll, verify }) });
 }
+
+export const OWNED_TEST_DIAGNOSTIC_TEST_ONLY = Object.freeze({
+  run: (command, args, options, runner) => run(command, args, options, runner),
+  processDiagnostic: (error) => ownedProcessFailureDiagnostic(error),
+  project: (error, context) => projectOwnedTestFailureDiagnostic(error, context)
+});
