@@ -1,6 +1,6 @@
 # TASK-0117 — Retrouver une comparaison nommée
 
-Status: LOCAL_VALIDATED_DELIVERY_PENDING, 2026-10-28. Priority P1, independent synthetic lane. Owner: application lead; independent code, architecture and visual reviewers. DoR satisfied by the contracts, dependencies, flow, states and tests below; sequential Architect APPROVE and distinct Critic APPROVE recorded before implementation. Final local gates and independent reviews pass, including 487 browser passes / 9 documented exclusions / zero retries. Exact-source Linux CI and protected-main acceptance remain mandatory; this task is not Done.
+Status: LOCAL_VALIDATED_DELIVERY_PENDING, refreshed 2026-10-29. Priority P1, independent synthetic lane. Owner: application lead; independent code, architecture and visual reviewers. DoR satisfied by the contracts, dependencies, flow, states and tests below; sequential Architect APPROVE and distinct Critic APPROVE recorded before implementation. Final local gates and independent reviews pass, including 487 browser passes / 9 documented exclusions / zero retries, followed by a fresh 69-pass targeted run after accepted-main integration. Exact-source Linux CI and protected-main acceptance remain mandatory; this task is not Done.
 
 ## Goal and dependencies
 
@@ -30,7 +30,7 @@ Unit tests cover canonical/hostile/oversized input, immutable snapshots, exact o
 
 Both Chromium and WebKit: mobile/tablet/desktop at 320/390/768/1440, light/dark, 200% platform and wide-font text, reduced motion, keyboard/focus, 44px targets, axe WCAG 2.2 AA, no page overflow and actual screenshots. Measure local save/open feedback within 100ms under Chromium 4x CPU; preserve existing performance budgets. Table regression evidence can be reused while new captures focus on form/list/reopening states.
 
-Pinned frozen install, lint, typecheck, root/workspace tests, build, secrets and dependency audit; nonzero task counts, full browser suite and independent code/architecture/pixel reviews. Exact-source Linux CI then protected-main acceptance are mandatory. Current main CI took 19m36 under its 20-minute limit; shared capacity changes belong to the other branch and must be accepted before relying on them. No test, engine, assertion or essential control may be removed.
+Pinned frozen install, lint, typecheck, root/workspace tests, build, secrets and dependency audit; nonzero task counts, full browser suite and independent code/architecture/pixel reviews. Exact-source Linux CI then protected-main acceptance are mandatory. The shared capacity prerequisite is now accepted through [PR #203](https://github.com/CleMeY15/auto-world/pull/203) and integrated from main `b8d31a3045ddb0e26b961eeb12ae173537835bd8`; the refreshed evidence and unchanged product-tree verification are recorded in the validation document. No test, engine, assertion or essential control is removed.
 
 ## Isolation and rollback
 
