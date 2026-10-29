@@ -8,12 +8,20 @@ import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearch
 import { recordAnalyticsEvent, type DemoAnalyticsOutcome, type DemoAnalyticsScreen } from "../../demo/analytics";
 import { createDemoClientV2, createSearchPaginationV2, loadSavedDetailsV2, type DemoClientErrorCode, type DemoClientOutcomeV2, type SavedDetailResultV2 } from "../../demo/client";
 import { matchingCatalog, modelsForMake } from "../../demo/catalog";
-import { decodeComparisonLinkFragment, isComparisonLinkFragment, resolveComparisonBundle } from "../../demo/comparison-link";
+import { decodeComparisonLinkFragment, encodeComparisonLinkFragment, isComparisonLinkFragment, resolveComparisonBundle } from "../../demo/comparison-link";
 import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, type ComparisonEntry } from "../../demo/comparison";
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
 import { parseFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
 import { decodeSearchLinkFragment, isSearchLinkFragment } from "../../demo/search-link";
+import {
+  createSavedComparisonStore,
+  DEMO_SAVED_COMPARISONS_KEY,
+  SAVED_COMPARISON_LIMIT,
+  type SavedComparison,
+  type SavedComparisonSnapshot,
+  type SavedComparisonStorageStatus,
+} from "../../demo/saved-comparisons";
 import {
   captureSavedSearchCriteria,
   createSavedSearchStore,
@@ -38,6 +46,7 @@ import {
 import { ComparisonScreen } from "./comparison-components";
 import { ComparisonLinkReview, type ComparisonLinkLoadState, type ComparisonLinkSlotState } from "./comparison-link-components";
 import { DetailSnapshot } from "./history-components";
+import { SaveComparisonControl, SavedComparisonsSection, type SaveComparisonResult } from "./saved-comparison-components";
 import { SavedSearchesSection } from "./saved-search-components";
 import { PublicationLinkCreator, SearchLinkCreator, SearchLinkReview } from "./search-link-components";
 
@@ -47,6 +56,8 @@ type DetailState = { readonly status: "idle" | "loading" } | { readonly status: 
 type CatalogState = { readonly status: "idle" | "loading" } | { readonly status: "ready"; readonly data: DemoCatalogResponseV2 } | { readonly status: "error"; readonly code: DemoClientErrorCode; readonly mismatch?: boolean; readonly empty?: boolean };
 type SearchError = DemoClientErrorCode | "changed_snapshot" | "changed_state" | "duplicate_result" | "inconsistent_page" | "projection_overflow" | "late_page";
 type Theme = "system" | "light" | "dark";
+type SavedComparisonOrigin = { readonly name: string; readonly fragment: string; awaitingOpen: boolean };
+type SaveComparisonAuthority = { readonly screen: "compare" | "received-comparison"; readonly fragment: string; readonly rawHash: string };
 
 const client = createDemoClientV2();
 
@@ -115,6 +126,15 @@ function savedSearchStorageCopy(status: SavedSearchStorageStatus) {
   return undefined;
 }
 
+function savedComparisonStorageCopy(status: SavedComparisonStorageStatus) {
+  if (status === "session") return "Les comparaisons restent disponibles dans cette session, mais elles ne sont pas enregistrées sur cet appareil.";
+  if (status === "quota") return "L’enregistrement local est plein. Les comparaisons ajoutées restent limitées à cette session.";
+  if (status === "denied") return "Le stockage local est inaccessible. Les comparaisons ajoutées restent limitées à cette session.";
+  if (status === "corrupt") return "Les comparaisons enregistrées sont illisibles. Vous pouvez les réinitialiser explicitement.";
+  if (status === "future") return "Ces comparaisons proviennent d’une version plus récente ou d’un format non pris en charge. Elles sont préservées et ne seront pas modifiées.";
+  return undefined;
+}
+
 export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const hash = useSyncExternalStore(subscribeHash, getHashSnapshot, getHashServerSnapshot);
   const online = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getOnlineServerSnapshot);
@@ -125,9 +145,11 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const decodedComparisonLink = decodeComparisonLinkFragment(hash);
   const [favorites] = useState(() => createFavoritesStore());
   const [savedSearches] = useState(() => createSavedSearchStore());
+  const [savedComparisons] = useState(() => createSavedComparisonStore());
   const [pagination] = useState(() => createSearchPaginationV2());
   const favoriteSnapshot = useSyncExternalStore(favorites.subscribe, favorites.getSnapshot, favorites.getServerSnapshot);
   const savedSearchSnapshot = useSyncExternalStore(savedSearches.subscribe, savedSearches.getSnapshot, savedSearches.getServerSnapshot);
+  const savedComparisonSnapshot = useSyncExternalStore(savedComparisons.subscribe, savedComparisons.getSnapshot, savedComparisons.getServerSnapshot);
   const [theme, setTheme] = useState<Theme>("system");
   const [text, setText] = useState("");
   const [price, setPrice] = useState("");
@@ -164,6 +186,9 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const [resetArmed, setResetArmed] = useState(false);
   const [savedSearchResetArmed, setSavedSearchResetArmed] = useState(false);
   const [savedSearchResetToken, setSavedSearchResetToken] = useState<SavedSearchSnapshot>();
+  const [savedComparisonResetArmed, setSavedComparisonResetArmed] = useState(false);
+  const [savedComparisonResetToken, setSavedComparisonResetToken] = useState<SavedComparisonSnapshot>();
+  const [savedComparisonOrigin, setSavedComparisonOrigin] = useState<SavedComparisonOrigin>();
   const searchAbort = useRef<AbortController | undefined>(undefined);
   const detailAbort = useRef<AbortController | undefined>(undefined);
   const savedAbort = useRef<AbortController | undefined>(undefined);
@@ -186,6 +211,12 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const appendStartIndex = useRef(0);
   const removedFavoriteIndex = useRef<number | undefined>(undefined);
   const removedSavedSearchIndex = useRef<number | undefined>(undefined);
+  const removedSavedComparisonIndex = useRef<number | undefined>(undefined);
+  const savedComparisonOriginRef = useRef<SavedComparisonOrigin | undefined>(undefined);
+  const saveComparisonAuthorityRef = useRef<SaveComparisonAuthority | undefined>(undefined);
+  const savedComparisonResetConfirmFocused = useRef(false);
+  const savedComparisonResetArmedRef = useRef(false);
+  const savedComparisonResetTokenRef = useRef<SavedComparisonSnapshot | undefined>(undefined);
   const pendingResponseFocus = useRef<string | undefined>(undefined);
   const initialSearchFocus = useRef(true);
   const markHydrated = useCallback((node: HTMLElement | null) => { if (node) node.dataset.demoHydrated = "true"; }, []);
@@ -197,13 +228,14 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }, []);
 
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
+    saveComparisonAuthorityRef.current = undefined;
     if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
   }, [screen]);
 
-  useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); }, [favorites, savedSearches]);
+  useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); savedComparisons.hydrate(); }, [favorites, savedComparisons, savedSearches]);
   useEffect(() => {
     const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : screen === "received-comparison" ? "Comparaison reçue" : "Mes listes";
     document.title = `${label} — Auto World`;
@@ -219,10 +251,49 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     }
   }, [savedSearchSnapshot.storageStatus, screen]);
   useEffect(() => {
-    const listener = (event: StorageEvent) => { favorites.reconcileStorageEvent(event); savedSearches.reconcileStorageEvent(event); };
+    if (["session", "corrupt", "future", "denied", "quota"].includes(savedComparisonSnapshot.storageStatus)) {
+      recordAnalyticsEvent({ eventName: "storage_failed", screen, outcome: "error" });
+    }
+  }, [savedComparisonSnapshot.storageStatus, screen]);
+  useEffect(() => {
+    const listener = (event: StorageEvent) => { favorites.reconcileStorageEvent(event); savedSearches.reconcileStorageEvent(event); savedComparisons.reconcileStorageEvent(event); };
     window.addEventListener("storage", listener);
     return () => window.removeEventListener("storage", listener);
-  }, [favorites, savedSearches]);
+  }, [favorites, savedComparisons, savedSearches]);
+
+  useEffect(() => savedComparisons.subscribe(() => {
+    const token = savedComparisonResetTokenRef.current;
+    if (!savedComparisonResetArmedRef.current || token === undefined || token === savedComparisons.getSnapshot()) return;
+    const restoreFocus = savedComparisonResetConfirmFocused.current;
+    savedComparisonResetConfirmFocused.current = false;
+    savedComparisonResetArmedRef.current = false;
+    savedComparisonResetTokenRef.current = undefined;
+    setSavedComparisonResetToken(undefined);
+    setSavedComparisonResetArmed(false);
+    if (!restoreFocus) return;
+    setAnnouncement("Les comparaisons enregistrées ont changé. La confirmation a été annulée.");
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const target = document.getElementById("demo-saved-comparison-reset-start")
+        ?? document.getElementById("demo-saved-comparisons-title")
+        ?? document.getElementById("demo-screen-title");
+      target?.focus();
+    }));
+  }), [savedComparisons]);
+
+  useEffect(() => {
+    const reconcileSavedComparisonOrigin = () => {
+      const origin = savedComparisonOriginRef.current;
+      if (origin === undefined) return;
+      if (origin.awaitingOpen && window.location.hash === origin.fragment) {
+        origin.awaitingOpen = false;
+        return;
+      }
+      savedComparisonOriginRef.current = undefined;
+      setSavedComparisonOrigin(undefined);
+    };
+    window.addEventListener("hashchange", reconcileSavedComparisonOrigin);
+    return () => window.removeEventListener("hashchange", reconcileSavedComparisonOrigin);
+  }, []);
 
   useEffect(() => {
     const cancelForReceivedLink = () => {
@@ -241,6 +312,9 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     let active = true;
     const resetComparisonLink = () => {
       if (!active) return;
+      const saveAuthority = saveComparisonAuthorityRef.current;
+      const keepLocalAuthority = saveAuthority?.screen === "compare" && saveAuthority.rawHash === window.location.hash;
+      if (!keepLocalAuthority) saveComparisonAuthorityRef.current = undefined;
       comparisonLinkAbort.current?.abort();
       comparisonLinkAbort.current = undefined;
       if (comparisonLinkSlowTimer.current !== undefined) window.clearTimeout(comparisonLinkSlowTimer.current);
@@ -577,6 +651,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   async function loadLinkedComparison() {
     if (!enabled || receivedComparisonHash === undefined || window.location.hash !== receivedComparisonHash || decodedComparisonLink.status !== "valid" || comparisonLinkLoading.current) return;
+    saveComparisonAuthorityRef.current = undefined;
     comparisonLinkLoading.current = true;
     const rawHash = receivedComparisonHash;
     const requestedIds = decodedComparisonLink.listingIds;
@@ -701,6 +776,105 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     focusAfterRender("demo-saved-searches-title");
   }
 
+  function saveComparison(name: string, fragment: string, sourceScreen: "compare" | "received-comparison"): SaveComparisonResult {
+    const authority = saveComparisonAuthorityRef.current;
+    if (!enabled || authority?.screen !== sourceScreen || authority.fragment !== fragment || authority.rawHash !== window.location.hash) return "stale";
+    const result = savedComparisons.add(name, fragment);
+    return result.ok ? "saved" : result.reason;
+  }
+
+  function announceSavedComparison(sourceScreen: "compare" | "received-comparison") {
+    const status = savedComparisons.getSnapshot().storageStatus;
+    setAnnouncement(status === "persisted" ? "Comparaison enregistrée sur cet appareil." : "Comparaison conservée pour cette session.");
+    recordAnalyticsEvent({ eventName: "saved_comparison_added", screen: sourceScreen, outcome: "success" });
+  }
+
+  function viewSavedComparisons(index?: number) {
+    navigate("saved");
+    focusAfterRender(index === undefined ? "demo-saved-comparisons-title" : `demo-saved-comparison-name-${index}`);
+  }
+
+  function openSavedComparison(comparison: SavedComparison) {
+    savedComparisons.reconcileStorageEvent({ key: DEMO_SAVED_COMPARISONS_KEY, newValue: null });
+    const current = savedComparisons.getSnapshot();
+    if (current.storageStatus === "unhydrated" || current.storageStatus === "corrupt" || current.storageStatus === "future") {
+      setAnnouncement("Cette comparaison ne peut pas être ouverte tant que les données enregistrées ne sont pas lisibles et modifiables.");
+      return;
+    }
+    const stored = current.comparisons.find((candidate) => candidate.fragment === comparison.fragment && candidate.name === comparison.name);
+    const decoded = stored === undefined ? undefined : decodeComparisonLinkFragment(stored.fragment);
+    const canonical = decoded?.status === "valid" ? encodeComparisonLinkFragment(decoded.listingIds) : undefined;
+    if (stored === undefined || canonical !== stored.fragment) {
+      setAnnouncement("Cette comparaison enregistrée a changé ou n’est plus disponible. La liste a été actualisée.");
+      return;
+    }
+    const origin: SavedComparisonOrigin = { name: stored.name, fragment: stored.fragment, awaitingOpen: true };
+    savedComparisonOriginRef.current = origin;
+    setSavedComparisonOrigin(origin);
+    window.location.hash = stored.fragment;
+    recordAnalyticsEvent({ eventName: "saved_comparison_opened", screen: "saved", outcome: "success" });
+  }
+
+  function removeSavedComparison(comparison: SavedComparison, index: number) {
+    if (!savedComparisons.remove(comparison.fragment)) return;
+    removedSavedComparisonIndex.current = index;
+    setAnnouncement("Comparaison enregistrée supprimée. Vous pouvez annuler cette action.");
+    focusAfterRender("demo-saved-comparison-undo");
+    recordAnalyticsEvent({ eventName: "saved_comparison_removed", screen: "saved", outcome: "success" });
+  }
+
+  function undoSavedComparison() {
+    if (savedComparisons.undo() === undefined) return;
+    setAnnouncement("La comparaison enregistrée a été restaurée à sa position précédente.");
+    const restoredIndex = removedSavedComparisonIndex.current;
+    if (restoredIndex !== undefined) focusAfterRender(`demo-saved-comparison-remove-${restoredIndex}`);
+    recordAnalyticsEvent({ eventName: "saved_comparison_undone", screen: "saved", outcome: "success" });
+  }
+
+  function armSavedComparisonReset() {
+    savedComparisonResetConfirmFocused.current = false;
+    const token = savedComparisons.getSnapshot();
+    savedComparisonResetArmedRef.current = true;
+    savedComparisonResetTokenRef.current = token;
+    setSavedComparisonResetToken(token);
+    setSavedComparisonResetArmed(true);
+    focusAfterRender("demo-saved-comparison-reset-confirm");
+  }
+
+  function cancelSavedComparisonReset() {
+    savedComparisonResetConfirmFocused.current = false;
+    savedComparisonResetArmedRef.current = false;
+    savedComparisonResetTokenRef.current = undefined;
+    setSavedComparisonResetToken(undefined);
+    setSavedComparisonResetArmed(false);
+    focusAfterRender("demo-saved-comparison-reset-start");
+  }
+
+  function confirmSavedComparisonReset() {
+    savedComparisonResetConfirmFocused.current = false;
+    savedComparisonResetArmedRef.current = false;
+    savedComparisonResetTokenRef.current = undefined;
+    if (savedComparisonResetToken !== savedComparisons.getSnapshot()) {
+      setSavedComparisonResetToken(undefined);
+      setSavedComparisonResetArmed(false);
+      setAnnouncement("Les comparaisons enregistrées ont changé. La confirmation a été annulée.");
+      focusAfterRender("demo-saved-comparison-reset-start");
+      return;
+    }
+    const result = savedComparisons.reset();
+    if (!result.ok) {
+      setSavedComparisonResetToken(undefined);
+      setSavedComparisonResetArmed(false);
+      setAnnouncement("La réinitialisation a été annulée car les données enregistrées ont changé.");
+      focusAfterRender("demo-saved-comparison-reset-start");
+      return;
+    }
+    setSavedComparisonResetToken(undefined);
+    setSavedComparisonResetArmed(false);
+    setAnnouncement(result.scope === "session" ? "Les comparaisons de cette session ont été effacées." : "Les comparaisons enregistrées dans ce navigateur ont été effacées.");
+    focusAfterRender(result.scope === "session" ? "demo-screen-title" : "demo-saved-comparisons-title");
+  }
+
 
   function armReset() { setResetArmed(true); focusAfterRender("demo-reset-confirm"); }
   function cancelReset() { setResetArmed(false); focusAfterRender("demo-reset-start"); }
@@ -713,6 +887,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   function toggleComparison(listingId: string) {
     if (loading) return;
+    saveComparisonAuthorityRef.current = undefined;
     const selected = comparisonIds.includes(listingId);
     const next = toggleComparisonSelection(comparisonIds, response, listingId);
     const changed = next.length !== comparisonIds.length || next.some((value, index) => value !== comparisonIds[index]);
@@ -737,6 +912,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }
 
   function removeFromComparison(entry: ComparisonEntry) {
+    saveComparisonAuthorityRef.current = undefined;
     const position = comparisonEntries.findIndex((candidate) => candidate.result.listingId === entry.result.listingId);
     const nextIds = toggleComparisonSelection(comparisonIds, response, entry.result.listingId);
     const nextEntries = selectComparisonEntries(response, nextIds);
@@ -750,6 +926,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const effectiveSearch = screen === "results" && response === undefined;
   const storageMessage = storageCopy(favoriteSnapshot.storageStatus);
   const savedSearchStorageMessage = savedSearchStorageCopy(savedSearchSnapshot.storageStatus);
+  const savedComparisonStorageMessage = savedComparisonStorageCopy(savedComparisonSnapshot.storageStatus);
   const catalogData = catalog.status === "ready" ? catalog.data : undefined;
   const availableModels = catalogData === undefined || makeId === "" ? [] : modelsForMake(catalogData, makeId);
   const responseCatalog = matchingCatalog(catalogData, response);
@@ -765,11 +942,12 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const acceptedSearchKey = acceptedCriteria === undefined ? undefined : getSavedSearchKey(acceptedCriteria);
   const acceptedSearchIndex = acceptedSearchKey === undefined ? -1 : savedSearchSnapshot.searches.findIndex((search) => getSavedSearchKey(search.criteria) === acceptedSearchKey);
   const savedSearchResetActive = savedSearchResetArmed && savedSearchResetToken === savedSearchSnapshot;
-  const bothSavedListsEmpty = savedSearchSnapshot.searches.length === 0 && favoriteSnapshot.listingIds.length === 0;
-  const savedCollectionsHydrating = savedSearchSnapshot.storageStatus === "unhydrated" || favoriteSnapshot.storageStatus === "unhydrated";
-  const bothSavedListsPersisted = savedSearchSnapshot.storageStatus === "persisted" && favoriteSnapshot.storageStatus === "persisted";
-  const showAuthoritativeSavedEmpty = bothSavedListsEmpty && bothSavedListsPersisted;
-  const showSavedSections = !savedCollectionsHydrating && (!bothSavedListsEmpty || bothSavedListsPersisted);
+  const savedComparisonResetActive = savedComparisonResetArmed && savedComparisonResetToken === savedComparisonSnapshot;
+  const allSavedListsEmpty = savedSearchSnapshot.searches.length === 0 && savedComparisonSnapshot.comparisons.length === 0 && favoriteSnapshot.listingIds.length === 0;
+  const savedCollectionsHydrating = savedSearchSnapshot.storageStatus === "unhydrated" || savedComparisonSnapshot.storageStatus === "unhydrated" || favoriteSnapshot.storageStatus === "unhydrated";
+  const allSavedListsPersisted = savedSearchSnapshot.storageStatus === "persisted" && savedComparisonSnapshot.storageStatus === "persisted" && favoriteSnapshot.storageStatus === "persisted";
+  const showAuthoritativeSavedEmpty = allSavedListsEmpty && allSavedListsPersisted;
+  const showSavedSections = !savedCollectionsHydrating && (!allSavedListsEmpty || allSavedListsPersisted);
   const savedSearchEmptyCopy = savedSearchSnapshot.storageStatus === "persisted"
     ? "Aucune recherche enregistrée. Vous pouvez en nommer une depuis les résultats."
     : ["session", "quota", "denied"].includes(savedSearchSnapshot.storageStatus)
@@ -780,7 +958,55 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
     : ["session", "quota", "denied"].includes(favoriteSnapshot.storageStatus)
       ? "Aucun favori conservé pour cette session."
       : undefined;
+  const savedComparisonEmptyCopy = savedComparisonSnapshot.storageStatus === "persisted"
+    ? "Aucune comparaison enregistrée. Enregistrez-en une depuis une comparaison prête."
+    : ["session", "quota", "denied"].includes(savedComparisonSnapshot.storageStatus)
+      ? "Aucune comparaison conservée pour cette session."
+      : undefined;
   const savedSearchResetIsSession = ["session", "quota", "denied"].includes(savedSearchSnapshot.storageStatus);
+  const savedComparisonResetIsSession = ["session", "quota", "denied"].includes(savedComparisonSnapshot.storageStatus);
+  const savedComparisonReadOnly = savedComparisonSnapshot.storageStatus === "future" || savedComparisonSnapshot.storageStatus === "corrupt";
+  const localComparisonFragment = comparisonEntries.length >= 2 ? encodeComparisonLinkFragment(comparisonEntries.map((entry) => entry.result.listingId)) : undefined;
+  const receivedComparisonFragment = comparisonLinkLoad.status === "ready" && decodedComparisonLink.status === "valid" ? encodeComparisonLinkFragment(decodedComparisonLink.listingIds) : undefined;
+  const localSavedComparisonIndex = localComparisonFragment === undefined ? -1 : savedComparisonSnapshot.comparisons.findIndex((item) => item.fragment === localComparisonFragment);
+  const receivedSavedComparisonIndex = receivedComparisonFragment === undefined ? -1 : savedComparisonSnapshot.comparisons.findIndex((item) => item.fragment === receivedComparisonFragment);
+  const localSaveComparisonControl = localComparisonFragment === undefined ? undefined : (
+    <SaveComparisonControl
+      key={`compare:${localComparisonFragment}`}
+      fragment={localComparisonFragment}
+      existingIndex={localSavedComparisonIndex}
+      full={savedComparisonSnapshot.comparisons.length >= SAVED_COMPARISON_LIMIT}
+      readOnly={savedComparisonReadOnly}
+      onSave={(name, fragment) => saveComparison(name, fragment, "compare")}
+      onSaved={() => announceSavedComparison("compare")}
+      onViewSaved={viewSavedComparisons}
+    />
+  );
+  const receivedSaveComparisonControl = receivedComparisonFragment === undefined ? undefined : (
+    <SaveComparisonControl
+      key={`received-comparison:${receivedComparisonFragment}`}
+      fragment={receivedComparisonFragment}
+      existingIndex={receivedSavedComparisonIndex}
+      full={savedComparisonSnapshot.comparisons.length >= SAVED_COMPARISON_LIMIT}
+      readOnly={savedComparisonReadOnly}
+      onSave={(name, fragment) => saveComparison(name, fragment, "received-comparison")}
+      onSaved={() => announceSavedComparison("received-comparison")}
+      onViewSaved={viewSavedComparisons}
+    />
+  );
+  const savedComparisonOriginActive = savedComparisonOrigin?.fragment === receivedComparisonHash;
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      saveComparisonAuthorityRef.current = undefined;
+    } else if (screen === "compare" && localComparisonFragment !== undefined) {
+      saveComparisonAuthorityRef.current = { screen: "compare", fragment: localComparisonFragment, rawHash: "#compare" };
+    } else if (screen === "received-comparison" && receivedComparisonFragment !== undefined && receivedComparisonHash !== undefined) {
+      saveComparisonAuthorityRef.current = { screen: "received-comparison", fragment: receivedComparisonFragment, rawHash: receivedComparisonHash };
+    } else {
+      saveComparisonAuthorityRef.current = undefined;
+    }
+  }, [enabled, localComparisonFragment, receivedComparisonFragment, receivedComparisonHash, screen]);
 
   return (
     <main className="demo-shell demo-main" id="demo-main" ref={markHydrated} tabIndex={-1}>
@@ -869,7 +1095,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
       {screen === "shared" && enabled ? <SearchLinkReview link={decodeSearchLinkFragment(hash)} catalog={catalogData} catalogPending={catalog.status === "idle" || catalog.status === "loading"} onLoad={loadLinkedSearch} onIgnore={() => navigate("search")} /> : null}
 
-      {screen === "received-comparison" && enabled ? <ComparisonLinkReview link={decodedComparisonLink} load={comparisonLinkLoad} catalog={catalogData} online={online} slow={comparisonLinkSlow} onLoad={() => { void loadLinkedComparison(); }} onReturn={() => navigate("search")} /> : null}
+      {screen === "received-comparison" && enabled ? <ComparisonLinkReview link={decodedComparisonLink} load={comparisonLinkLoad} catalog={catalogData} online={online} slow={comparisonLinkSlow} saveControl={receivedSaveComparisonControl} title={savedComparisonOriginActive ? "Comparaison enregistrée" : undefined} returnLabel={savedComparisonOriginActive ? "Retour à mes listes" : undefined} onLoad={() => { void loadLinkedComparison(); }} onReturn={() => navigate(savedComparisonOriginActive ? "saved" : "search")} /> : null}
 
       {screen === "compare" && enabled ? (
         <ComparisonScreen
@@ -878,6 +1104,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
           catalog={responseCatalog}
           online={online}
           refreshError={searchError ? errorCopy(searchError) : undefined}
+          saveControl={localSaveComparisonControl}
           onReturn={returnFromComparison}
           onRemove={removeFromComparison}
         />
@@ -903,16 +1130,19 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
       {screen === "saved" ? (
         <section aria-labelledby="demo-screen-title">
-          <ScreenHeader title="Mes listes" description="Recherches et favoris conservés uniquement dans ce navigateur. Aucun compte ni alerte n’est créé." action={enabled ? <Button variant="secondary" onClick={() => navigate(response ? "results" : "search")}>Retour à la recherche</Button> : undefined} />
+          <ScreenHeader title="Mes listes" description="Recherches, comparaisons et favoris conservés uniquement dans ce navigateur. Aucun compte ni alerte n’est créé." action={enabled ? <Button variant="secondary" onClick={() => navigate(response ? "results" : "search")}>Retour à la recherche</Button> : undefined} />
           {!enabled ? <Banner role="note" tone="warning">La recherche et le détail sont désactivés. Aucun appel réseau n’est effectué depuis cet écran.</Banner> : null}
-          {!online && enabled ? <Banner role="note" tone="warning">Vous êtes hors connexion. Les favoris restent gérables, mais leurs détails ne sont pas chargés.</Banner> : null}
+          {!online && enabled ? <Banner role="note" tone="warning">Vous êtes hors connexion. Les listes restent gérables, mais les détails des favoris et des comparaisons ne sont pas chargés.</Banner> : null}
           {savedSearchStorageMessage ? <Banner role="note" tone="warning">{savedSearchStorageMessage}</Banner> : null}
+          {savedComparisonStorageMessage ? <Banner role="note" tone="warning">{savedComparisonStorageMessage}</Banner> : null}
           {storageMessage ? <Banner role="note" tone="warning">{storageMessage}</Banner> : null}
           {savedCollectionsHydrating ? <LoadingResults label="Chargement des éléments enregistrés…" /> : null}
-          {showAuthoritativeSavedEmpty ? <StatePanel title="Aucun élément enregistré"><p>Enregistrez une recherche ou ajoutez une publication synthétique aux favoris pour la retrouver ici.</p>{enabled ? <Button onClick={() => navigate(response ? "results" : "search")}>Rechercher</Button> : null}</StatePanel> : null}
+          {showAuthoritativeSavedEmpty ? <StatePanel title="Aucun élément enregistré"><p>Enregistrez une recherche ou une comparaison, ou ajoutez une publication synthétique aux favoris pour la retrouver ici.</p>{enabled ? <Button onClick={() => navigate(response ? "results" : "search")}>Rechercher</Button> : null}</StatePanel> : null}
           {savedSearchSnapshot.canUndo ? <div className="demo-undo"><span>Une recherche enregistrée vient d’être supprimée.</span><Button id="demo-saved-search-undo" variant="secondary" onClick={undoSavedSearch}>Annuler la suppression</Button></div> : null}
           {showSavedSections ? <SavedSearchesSection searches={savedSearchSnapshot.searches} catalog={catalogData} catalogPending={enabled && (catalog.status === "idle" || catalog.status === "loading")} enabled={enabled} readOnly={savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt"} emptyCopy={showAuthoritativeSavedEmpty ? undefined : savedSearchEmptyCopy} showCount={savedSearchSnapshot.searches.length > 0 || savedSearchSnapshot.storageStatus === "persisted"} onLoad={loadSavedSearch} onRemove={removeSavedSearch} /> : null}
           {(savedSearchSnapshot.searches.length > 0 || savedSearchStorageMessage) && savedSearchSnapshot.storageStatus !== "future" ? <div className="demo-reset">{savedSearchResetActive ? <><p>{savedSearchResetIsSession ? "Confirmez la suppression des recherches conservées pour cette session uniquement." : "Confirmez la suppression des recherches enregistrées dans ce navigateur."}</p><Button id="demo-saved-search-reset-confirm" onClick={confirmSavedSearchReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelSavedSearchReset}>Conserver</Button></> : <Button id="demo-saved-search-reset-start" variant="secondary" onClick={armSavedSearchReset}>{savedSearchResetIsSession ? "Effacer les recherches de cette session" : "Effacer les recherches enregistrées"}</Button>}</div> : null}
+          {showSavedSections || savedComparisonSnapshot.canUndo ? <SavedComparisonsSection comparisons={savedComparisonSnapshot.comparisons} enabled={enabled} readOnly={savedComparisonReadOnly} emptyCopy={showAuthoritativeSavedEmpty ? undefined : savedComparisonEmptyCopy} showCount={savedComparisonSnapshot.comparisons.length > 0 || savedComparisonSnapshot.storageStatus === "persisted"} undoNotice={savedComparisonSnapshot.canUndo ? <div className="demo-undo"><span>Une comparaison enregistrée vient d’être supprimée.</span><Button id="demo-saved-comparison-undo" variant="secondary" onClick={undoSavedComparison}>Annuler la suppression</Button></div> : null} onOpen={openSavedComparison} onRemove={removeSavedComparison} /> : null}
+          {(savedComparisonSnapshot.comparisons.length > 0 || savedComparisonStorageMessage) && savedComparisonSnapshot.storageStatus !== "future" ? <div className="demo-reset">{savedComparisonResetActive ? <><p>{savedComparisonResetIsSession ? "Confirmez la suppression des comparaisons conservées pour cette session uniquement." : "Confirmez la suppression des comparaisons enregistrées dans ce navigateur."}</p><Button id="demo-saved-comparison-reset-confirm" onFocus={() => { savedComparisonResetConfirmFocused.current = true; }} onBlur={() => { savedComparisonResetConfirmFocused.current = false; }} onClick={confirmSavedComparisonReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelSavedComparisonReset}>Conserver</Button></> : <Button id="demo-saved-comparison-reset-start" variant="secondary" onClick={armSavedComparisonReset}>{savedComparisonResetIsSession ? "Effacer les comparaisons de cette session" : "Effacer les comparaisons enregistrées"}</Button>}</div> : null}
           {favoriteSnapshot.canUndo ? <div className="demo-undo"><span>Un favori vient d’être retiré.</span><Button id="demo-favorite-undo" variant="secondary" onClick={undoFavorite}>Annuler</Button></div> : null}
           {showSavedSections ? <section aria-labelledby="demo-favorites-title" className="demo-saved-section">
             <div className="demo-section-heading"><h2 id="demo-favorites-title" tabIndex={-1}>Favoris synthétiques</h2><p>{enabled ? "Les détails sont relus uniquement lorsque cet écran est actif." : "Les identifiants restent gérables localement."}</p></div>

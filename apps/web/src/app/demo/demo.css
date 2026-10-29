@@ -112,15 +112,20 @@
 .demo-history-list { list-style: none; margin: 0; padding: 0; }
 .demo-history-list li { border-bottom: 1px solid var(--aw-color-border); min-width: 0; padding-block: var(--aw-space-4); }
 .demo-evidence { border-top: 1px solid var(--aw-color-border); padding-top: var(--aw-space-8); }
-.demo-section-heading h2 { margin-bottom: var(--aw-space-2); }
-.demo-section-heading p { color: var(--aw-color-text-muted); max-width: var(--aw-layout-reading-max); }
+.demo-section-heading { max-width: 100%; min-width: 0; }
+.demo-section-heading h2 { margin-bottom: var(--aw-space-2); max-width: 100%; overflow-wrap: anywhere; }
+.demo-section-heading p { color: var(--aw-color-text-muted); max-width: var(--aw-layout-reading-max); overflow-wrap: anywhere; }
+.demo-section-count { font-size: var(--aw-font-size-small); font-weight: 650; white-space: nowrap; }
 .demo-evidence-list { display: grid; gap: var(--aw-space-3); list-style: none; margin: var(--aw-space-6) 0 0; padding: 0; }
 .demo-evidence-list li { border-bottom: 1px solid var(--aw-color-border); display: grid; gap: var(--aw-space-1); padding-block: var(--aw-space-3); }
 .demo-evidence-list span { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); }
 .demo-description-history { border-top: 1px solid var(--aw-color-border); margin-top: var(--aw-space-8); padding-top: var(--aw-space-8); }
-.demo-save-search { border-top: 1px solid var(--aw-color-border); display: grid; gap: var(--aw-space-3); margin-block: var(--aw-space-4) var(--aw-space-6); padding-top: var(--aw-space-4); }
-.demo-save-search > .aw-button { justify-self: start; }
-.demo-save-search-form { display: grid; gap: var(--aw-space-3); max-width: 32rem; }
+.demo-save-search, .demo-save-comparison { border-top: 1px solid var(--aw-color-border); display: grid; gap: var(--aw-space-3); margin-block: var(--aw-space-4) var(--aw-space-6); padding-top: var(--aw-space-4); }
+.demo-save-search > .aw-button, .demo-save-comparison > .aw-button { justify-self: start; }
+.demo-save-search-form, .demo-save-comparison-form { display: grid; gap: var(--aw-space-3); max-width: 32rem; }
+.demo-comparison-persistence-actions { align-items: start; display: flex; flex-wrap: wrap; gap: var(--aw-space-3); }
+.demo-comparison-persistence-actions > * { flex: 1 1 18rem; }
+.demo-comparison-persistence-actions .demo-save-comparison { border-top: 0; margin: 0; padding-top: 0; }
 .demo-search-link { display: grid; gap: var(--aw-space-3); min-width: 0; }
 .demo-search-link > .aw-button { justify-self: start; }
 .demo-search-link-panel, .demo-received-search-content { display: grid; gap: var(--aw-space-4); max-width: 38rem; min-width: 0; }
@@ -133,7 +138,7 @@
 .demo-saved-section:first-of-type { margin-top: var(--aw-space-6); }
 .demo-section-empty { color: var(--aw-color-text-muted); }
 .demo-saved-search-list { display: grid; gap: var(--aw-space-3); list-style: none; margin: 0; padding: 0; }
-.demo-saved-search { align-items: stretch; display: flex; flex-wrap: wrap; gap: var(--aw-space-4) var(--aw-space-8); justify-content: space-between; padding: clamp(1rem, 4vw, 1.5rem); }
+.demo-saved-search, .demo-saved-comparison { align-items: stretch; display: flex; flex-wrap: wrap; gap: var(--aw-space-4) var(--aw-space-8); justify-content: space-between; padding: clamp(1rem, 4vw, 1.5rem); }
 .demo-saved-search-copy { flex: 1 1 18rem; min-width: 0; }
 .demo-saved-search-copy h3 { font-size: var(--aw-font-size-body); margin-bottom: var(--aw-space-3); overflow-wrap: anywhere; }
 .demo-saved-search-criteria { display: grid; gap: var(--aw-space-2); margin: 0; }
@@ -156,6 +161,7 @@
 @media (max-width: 30rem) {
   .demo-header { align-items: flex-start; flex-direction: column; gap: var(--aw-space-1); justify-content: center; min-height: 4.5rem; padding-block: var(--aw-space-2); }
   .demo-header-label { overflow-wrap: anywhere; }
+  .demo-section-heading h2 { font-size: clamp(1.125rem, 5vw, 1.25rem); }
   .demo-toolbar nav, .demo-toolbar nav .aw-button, .demo-toolbar label, .demo-toolbar select { width: 100%; }
   .demo-toolbar nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); }
   .demo-toolbar nav .aw-button { justify-content: center; padding-inline: var(--aw-space-2); }
