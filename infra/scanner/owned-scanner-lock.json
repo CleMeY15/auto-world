@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "state": "BUILD_DIAGNOSTIC_NOT_QUALIFIED",
+  "receiptKind": "auto-world-trivy-0.76.1-jose4.1.6-r1",
+  "scanner": {
+    "repositoryUrl": "https://github.com/aquasecurity/trivy.git",
+    "sourceCommit": "e713f67f7d54decdcd9b3132c9751833dcced698",
+    "sourceTree": "2b2e1ef32745d09fbd85b9d040da722333dd4258",
+    "cliVersion": "0.76.1",
+    "commandPath": "github.com/aquasecurity/trivy/cmd/trivy",
+    "original": {
+      "goMod": { "bytes": 25287, "sha256": "3b80afcc13ad1abbafa5a3054198622ea51444295967069899f907be1acaba71" },
+      "goSum": { "bytes": 123446, "sha256": "24155b9b13b24ad37ca2938d53304974a18bc84e9db00dd77b0e707c838b1cd6" }
+    },
+    "patched": {
+      "goMod": { "bytes": 25287, "sha256": "cb75cc749fd36f4ec0a6a152aa40598653e0b5a8f58b9cf9702a29f62f5bcc81" },
+      "goSum": { "bytes": 123446, "sha256": "a934abfc262a21a885c2c9b755f43397460996d67a07d1ab3fa52e8e66d94e84" }
+    }
+  },
+  "patch": {
+    "path": "infra/scanner/patches/trivy-go-jose-4.1.6.patch",
+    "bytes": 606,
+    "sha256": "d0a813858c9ddca40ee2327bbce3f520c6b2eec3dc4b8b84deefc281aea0edea",
+    "changedPaths": ["go.mod", "go.sum"],
+    "substitutions": 3
+  },
+  "notice": {
+    "path": "infra/scanner/AUTO-WORLD-TRIVY-NOTICE.txt",
+    "bytes": 521,
+    "sha256": "5462d7196bf45638e10fca14d4f52430222715ab4169d8611b6423bb1997a82a"
+  },
+  "goJose": {
+    "module": "github.com/go-jose/go-jose/v4",
+    "version": "v4.1.6",
+    "commit": "a0111f82742fa92bceec9ede40845e73319e6230",
+    "tree": "69bfc467e2ee98423d83dbe4a367ef7b4fd663b8",
+    "sum": "h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=",
+    "goModSum": "h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=",
+    "goMod": { "bytes": 48, "sha256": "e069e6002d29495b8c2dc6cf0d3b56a075ec5be7abb6c2eb1a1c0845cb66b8b3" },
+    "goSum": { "bytes": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" }
+  },
+  "compiler": {
+    "version": "go1.27.3",
+    "builder": {
+      "reference": "golang@sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747",
+      "indexDigest": "sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c",
+      "platformDigest": "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747"
+    },
+    "archive": {
+      "url": "https://go.dev/dl/go1.27.3.linux-amd64.tar.gz",
+      "bytes": 70588678,
+      "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+    }
+  },
+  "build": {
+    "platform": { "goos": "linux", "goarch": "amd64", "cgoEnabled": false },
+    "outputPath": "/out/trivy",
+    "flags": ["-mod=readonly", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -buildid= -extldflags=-static -X github.com/aquasecurity/trivy/pkg/version/app.ver=0.76.1"],
+    "environment": { "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off", "GOENV": "off" }
+  },
+  "fixtures": {
+    "rpm": { "path": "infra/scanner/materials/trivy/socat-1.7.3.2-2.el7.x86_64.rpm", "bytes": 296692, "sha256": "629571bd05c7ae50170a7a94d2b987489e7f50de7d733955f70fb8e396831ba9" },
+    "git": { "path": "infra/scanner/materials/trivy/test-repo-git-worktree.tar.gz", "bytes": 34282, "sha256": "6da90be2808700df2ebcc188202d89d5e30e966cac5b2d12e0571ccf7cbe9393", "commit": "8a19b492a589955c3e70c6ad8efd1e4ec6ae0d35", "tree": "028f8b12792c2084211d02d883e3368ca87cc92f" },
+    "rust": [
+      { "path": "integration/testdata/fixtures/repo/trivy-ci-test/Cargo.lock", "bytes": 30526, "sha256": "bdd6b5e1d9700326d43bf3ad586c130ac1f883d634d127f841bf7707e2350117" },
+      { "path": "integration/testdata/fixtures/repo/cargo/Cargo.lock", "bytes": 2186, "sha256": "f8e887c771fb2cfdd969dd97469e11bca8c7cbb9d65ebcd9faaa20d96b9988a6" }
+    ]
+  },
+  "limits": {
+    "sourceArchiveBytes": 536870912,
+    "sourceTreeBytes": 1073741824,
+    "compilerTreeBytes": 536870912,
+    "moduleCacheBytes": 4294967296,
+    "buildCacheBytes": 2147483648,
+    "binaryBytes": 268435456,
+    "childStreamBytes": 8388608,
+    "publicFileBytes": 4194304,
+    "publicTotalBytes": 67108864,
+    "publicEntries": 128,
+    "preparationMs": 1500000,
+    "testsMs": 3300000,
+    "buildPairMs": 2400000,
+    "cleanupReserveMs": 600000
+  }
+}

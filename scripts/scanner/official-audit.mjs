@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants, copyFileSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statfsSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
 import process from "node:process";
 import { TextDecoder } from "node:util";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence,
@@ -9,12 +10,21 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
+import { buildOwnedScanner } from "./owned-build.mjs";
+import { createOwnedDockerCleanupRegistry, validateOwnedImageAbsence } from "./owned-cleanup.mjs";
+import { createSharedBudgetController, validateOwnedBuilderAudit } from "./owned-controls.mjs";
+import { captureOwnedScannerPair, createOwnedPublicEvidence, publishOwnedScannerEvidence, qualifyOwnedScanner } from "./owned-qualification.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
   helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustPublicSourcePath, seaweedRustScanArguments,
   seaweedRustSourceFetchArguments, validateSeaweedRustControlReport, validateSeaweedRustHelperAbsence,
   validateSeaweedRustHelperContainer, validateSeaweedRustHelperMeasurement, validateSeaweedRustLockUniverse,
   validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock } from "./seaweed-rust-source.mjs";
+import { runSeaweedGoS3SourcePreflight, seaweedGoS3DockerInfoArguments, seaweedGoS3DockerVersionArguments,
+  seaweedGoS3GnuTarVersionArguments, seaweedGoS3PythonVersionArguments, validateSeaweedGoS3Profile,
+  seaweedGoS3SourceRefusalError, seaweedGoS3SourceRefusalReceipt, validateSeaweedGoS3SourceRefusal,
+  runSeaweedGoS3InertQualification, seaweedGoS3QualificationNames, seaweedGoS3QualificationRefusalReceipt,
+  validateSeaweedGoS3QualificationImage, validateSeaweedGoS3QualificationContainer } from "./seaweed-go-s3.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
@@ -26,6 +36,43 @@ const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensea
 // Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
 const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-pkg", "jar"]);
 const fail = (code) => { throw new Error(code); };
+export function captureSeaweedGoS3QualificationFile({ file, cap }) {
+  if (process.platform !== "linux" || typeof process.getuid !== "function" || !constants.O_NOFOLLOW || !constants.O_NONBLOCK ||
+      typeof file !== "string" || !path.isAbsolute(file) || path.resolve(file) !== file ||
+      !Number.isSafeInteger(cap) || cap < 1 || cap > 8 * MiB) fail("scanner_seaweed_go_s3_qualification_file_invalid");
+  const fields = ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeNs", "ctimeNs"];
+  const identity = (info) => {
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1n || info.uid !== BigInt(process.getuid()) ||
+        (info.mode & 0o222n) !== 0n || info.size < 1n || info.size > BigInt(cap) ||
+        fields.some((key) => typeof info[key] !== "bigint" || info[key] < 0n)) fail("scanner_seaweed_go_s3_qualification_file_invalid");
+    return Object.fromEntries(fields.map((key) => [key, String(info[key])]));
+  };
+  let fd;
+  try {
+    if (realpathSync(file) !== file) fail("scanner_seaweed_go_s3_qualification_file_invalid");
+    const initial = identity(lstatSync(file, { bigint: true }));
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const same = (info) => {
+      if (JSON.stringify(identity(info)) !== JSON.stringify(initial)) fail("scanner_seaweed_go_s3_qualification_file_changed");
+    };
+    same(fstatSync(fd, { bigint: true }));
+    const hash = createHash("sha256"), buffer = Buffer.alloc(MiB);
+    let bytes = 0;
+    for (;;) {
+      const count = readSync(fd, buffer, 0, Math.min(buffer.length, cap - bytes + 1), bytes);
+      if (count === 0) break;
+      bytes += count;
+      if (bytes > cap || BigInt(bytes) > BigInt(initial.size)) fail("scanner_seaweed_go_s3_qualification_file_changed");
+      hash.update(buffer.subarray(0, count));
+    }
+    if (BigInt(bytes) !== BigInt(initial.size)) fail("scanner_seaweed_go_s3_qualification_file_changed");
+    same(fstatSync(fd, { bigint: true })); same(lstatSync(file, { bigint: true }));
+    if (realpathSync(file) !== file) fail("scanner_seaweed_go_s3_qualification_file_changed");
+    return { bytes, sha256: hash.digest("hex"), identity: initial };
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
 export function deferManagedImageAuditFailure({ scope, error, cleanupUncertain }) {
   if (scope !== "managed" || cleanupUncertain !== false || !(error instanceof Error) ||
       error.message !== "scanner_official_images_blocked") throw error;
@@ -86,6 +133,33 @@ export function commandFailureDiagnostic(result, { privateOutput = false } = {})
     stdoutTail: stdout.slice(-4096), stderrTail: stderr.slice(-4096),
     stderrErrors: stderr.split("\n").filter((line) => /\b(?:not found|no such file or directory|error|failed)\b/iu.test(line))
       .slice(0, 16).map((line) => line.slice(0, 512)).join("\n").slice(0, 4096) };
+}
+
+export function throwCommandFailure(primary, cleanupError) {
+  if (primary) {
+    if (cleanupError) primary.cleanupError = cleanupError;
+    throw primary;
+  }
+  if (cleanupError) throw cleanupError;
+}
+
+export function removeOwnedAuditWork(work, runnerTemp) {
+  if (!path.isAbsolute(work) || path.resolve(work) !== work || path.dirname(work) !== runnerTemp ||
+      !/^aw-official-scanner-[A-Za-z0-9]{6}$/u.test(path.basename(work)) || realpathSync(runnerTemp) !== runnerTemp) fail("scanner_owned_work_cleanup_invalid");
+  if (!existsSync(work)) return { attempted: true, absent: true };
+  if (realpathSync(work) !== work || !lstatSync(work).isDirectory()) fail("scanner_owned_work_cleanup_invalid");
+  const writable = (directory) => {
+    chmodSync(directory, 0o700);
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory() && !entry.isSymbolicLink()) writable(file);
+      else if (entry.isFile()) chmodSync(file, 0o600);
+    }
+  };
+  writable(work);
+  rmSync(work, { recursive: true, force: false });
+  if (existsSync(work)) fail("scanner_owned_work_cleanup_uncertain");
+  return { attempted: true, absent: true };
 }
 
 export function validatePreparedRuntimeImage(inspected, report) {
@@ -179,9 +253,13 @@ export function managedGosuHashArguments(subject) {
 }
 
 export function parseOfficialAuditArguments(argv) {
-  if (!Array.isArray(argv) || ![6, 8].includes(argv.length)) fail("scanner_official_arguments_invalid");
+  if (!Array.isArray(argv) || ![6, 8, 10].includes(argv.length)) fail("scanner_official_arguments_invalid");
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
+    if (argv[index] === "--producer") {
+      if (values.has("--producer") || argv[index + 1] !== "auto-world") fail("scanner_official_arguments_invalid");
+      values.set("--producer", "auto-world"); continue;
+    }
     if (argv[index] === "--scope") {
       if (values.has("--scope") || argv[index + 1] !== "managed") fail("scanner_official_arguments_invalid");
       values.set("--scope", "managed"); continue;
@@ -192,6 +270,7 @@ export function parseOfficialAuditArguments(argv) {
   const result = { scanner: values.get("--scanner"), buildInfo: values.get("--build-info"), output: values.get("--output") };
   if (Object.values(result).some((value) => typeof value !== "string") || new Set(Object.values(result)).size !== 3) fail("scanner_official_arguments_invalid");
   if (values.has("--scope")) result.scope = values.get("--scope");
+  if (values.has("--producer")) result.producer = values.get("--producer");
   return result;
 }
 
@@ -630,8 +709,9 @@ export async function auditAndPublishSeaweedRustSourceReports({ role, files, dir
   return failure ? { result: null, failure } : { result, failure: null };
 }
 
-export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream" }) {
-  if (!["upstream", "managed"].includes(scope)) fail("scanner_official_arguments_invalid");
+export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream", producer }) {
+  if (!["upstream", "managed"].includes(scope) || producer !== undefined && producer !== "auto-world") fail("scanner_official_arguments_invalid");
+  const sharedBudget = producer === "auto-world" ? createSharedBudgetController() : null;
   if (process.platform !== "linux" || process.getuid?.() === 0 || process.env.GITHUB_ACTIONS !== "true" ||
       process.env.RUNNER_ENVIRONMENT !== "github-hosted" || !safePath(process.env.RUNNER_TEMP)) fail("scanner_official_requires_nonroot_linux_actions");
   const runnerTemp = realpathSync(process.env.RUNNER_TEMP);
@@ -651,47 +731,60 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     receipt.milestone2Completion = "NOT_ESTABLISHED";
   }
   receipt.run = Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"].map((key) => [key, process.env[key] ?? ""]));
+  const ownedRun = { workflow: process.env.GITHUB_WORKFLOW ?? "", runId: process.env.GITHUB_RUN_ID ?? "",
+    runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT), sourceSha: process.env.GITHUB_SHA ?? "" };
+  let built, ownedPublic, ownedControlsPublic, activeBudgetStage;
+  const ownedCopies = [];
   const owner = randomUUID();
-  let cleanupUncertain = false;
-  const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
+  let cleanupUncertain = false, cleanupBudgetFailure;
+  const invoke = (executable, args, timeout, env = environment, cleaning = false, maxOutputBytes = 128 * MiB) => {
+    let boundedTimeout = timeout;
+    if (sharedBudget) {
+      if (!cleaning) boundedTimeout = sharedBudget.commandTimeoutMs(timeout);
+      else try { boundedTimeout = sharedBudget.cleanupCommandTimeoutMs(timeout); }
+      catch (error) { cleanupBudgetFailure ??= error.message; boundedTimeout = Math.min(timeout, 5_000); }
+    }
+    return spawnSync(executable, args, { timeout: boundedTimeout,
+      maxBuffer: maxOutputBytes, encoding: null, windowsHide: true, env });
+  };
+  const dockerCleanup = createOwnedDockerCleanupRegistry({ budget: sharedBudget,
+    execute: (args, { timeoutMs, maxBytes }) => spawnSync(DOCKER, args, {
+      timeout: timeoutMs, maxBuffer: maxBytes, encoding: null, windowsHide: true, env: environment }) });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
-    expectedStdout, requireEmptyStderr = false } = {}) => {
+    expectedStdout, requireEmptyStderr = false, maxOutputBytes = 128 * MiB } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
-    const result = invoke(executable, args, timeout, env);
+    if (name) dockerCleanup.registerContainer({ name, owner });
+    let result, primary;
+    try { result = invoke(executable, args, timeout, env, false, maxOutputBytes); }
+    catch (error) { primary = error; result = { error, status: null, signal: null, stdout: null, stderr: null }; }
     const prefix = `command-${String(receipt.commands.length + 1).padStart(3, "0")}`;
     const record = { executable: path.basename(executable), exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
     if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput });
     receipt.commands.push(record);
+    if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
+      requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) primary ??= new Error("scanner_official_command_failed");
+    let cleanupError;
     try {
       writeFileSync(file ?? path.join(output, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
       writeFileSync(path.join(output, `${prefix}.stderr`), result.stderr ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
-    } finally {
+    } catch (error) { primary ??= error; }
+    finally {
       if (name) {
         try {
-          const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
-          record.cleanup = { inspected: inspected.status, removed: false };
-          if (!validateContainerAbsence(inspected, name)) {
-            record.cleanup.diagnostic = commandFailureDiagnostic(inspected);
-            if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
-            const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
-            const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
-            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed); fail("scanner_official_cleanup_uncertain"); }
-            record.cleanup.removed = true;
-            const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
-            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence); fail("scanner_official_cleanup_uncertain"); }
-          }
+          record.cleanup = dockerCleanup.cleanupContainer(name);
           record.ownedContainerAbsent = true;
-        } catch {
+        } catch (error) {
           cleanupUncertain = true;
-          fail("scanner_official_cleanup_uncertain");
+          cleanupError = new Error("scanner_official_cleanup_uncertain", { cause: error });
+          record.cleanup = error.ownedCleanup ?? null;
+          record.cleanupFailure = cleanupError.message;
         }
       }
     }
-    if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
-        requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
+    throwCommandFailure(primary, cleanupError);
     return result.stdout;
   };
   const phase = async (name, operation) => {
@@ -705,12 +798,15 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     const policyInputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }]);
     const config = validateOfficialReleaseConfig((await readBoundedJson(configFile, MiB)).value);
     const lock = (await readBoundedJson(lockFile, MiB)).value;
-    let managed, rustMetadata, rustMetadataFile;
+    let managed, rustMetadata, rustMetadataFile, seaweedGoS3Profile, seaweedGoS3ProfileFile, seaweedGoS3ConfigFile;
     let managedInputs = [];
     if (scope === "managed") {
       managed = validateManagedImageLock((await readBoundedJson(path.join(ROOT, "infra/managed-images/lock.json"), MiB)).value, config);
       rustMetadataFile = path.join(ROOT, "infra/managed-images/seaweed-rust-source.json");
       rustMetadata = validateSeaweedRustSourceLock((await readBoundedJson(rustMetadataFile, MiB)).value, config);
+      seaweedGoS3ProfileFile = path.join(ROOT, "infra/managed-images/seaweed-go-s3/profile.json");
+      seaweedGoS3ConfigFile = path.join(ROOT, "infra/managed-images/seaweed-go-s3/source-config.json");
+      seaweedGoS3Profile = validateSeaweedGoS3Profile((await readBoundedJson(seaweedGoS3ProfileFile, MiB)).value);
       const sourceFiles = [];
       const visit = (directory) => {
         for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -723,6 +819,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       };
       visit(path.join(ROOT, "infra/managed-images"));
       managedInputs = await captureFiles(sourceFiles);
+      const profileInput = managedInputs.find((entry) => entry.path === seaweedGoS3ProfileFile);
+      const configInput = managedInputs.find((entry) => entry.path === seaweedGoS3ConfigFile);
+      if (!profileInput || !configInput || configInput.size !== seaweedGoS3Profile.source.configBytes ||
+          configInput.sha256 !== seaweedGoS3Profile.source.configSha256) fail("scanner_seaweed_go_s3_profile_invalid");
       receipt.managedSources = managedInputs;
       const disk = statfsSync(runnerTemp);
       receipt.managedDisk = { freeBytes: disk.bavail * disk.bsize, requiredFreeBytes: 20 * GiB };
@@ -730,18 +830,32 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     const original = await captureFiles([{ path: inputScanner, cap: 512 * MiB }, { path: buildInfo, cap: 8 * MiB }]);
     validateOfficialScannerIdentity(original[0], config.scanner);
+    if (sharedBudget) ownedCopies.push(inputScanner);
     const inventory = parseOfficialGoBuildInfo(readFileSync(buildInfo));
+    let pair;
+    if (sharedBudget) {
+      built = await phase("owned_scanner_build", async () => buildOwnedScanner({ output: path.join(work, "owned-build-public"), scope, budget: sharedBudget }));
+      ownedPublic = built.publicDirectory;
+      ({ pair } = await captureOwnedScannerPair(built, ownedRun));
+      activeBudgetStage = "owned:controls"; sharedBudget.startStage(activeBudgetStage, 25 * 60_000);
+      ownedControlsPublic = createOwnedPublicEvidence(path.join(work, "owned-controls-public"), ownedRun);
+      receipt.producer = { kind: built.kind, binary: pair.binary, run: pair.run, source: pair.source, state: pair.state };
+    }
     const subject = path.join(work, "subject"); mkdirSync(subject, { mode: 0o755 });
-    const scanner = path.join(subject, "trivy"); copyFileSync(inputScanner, scanner); chmodSync(scanner, 0o555); chmodSync(subject, 0o555);
-    copyFileSync(buildInfo, path.join(output, "go-build-info.txt"));
+    const scanner = path.join(subject, "trivy"); copyFileSync(built?.candidatePath ?? inputScanner, scanner); chmodSync(scanner, 0o555); chmodSync(subject, 0o555);
+    if (built) ownedCopies.push(scanner);
+    if (built) writeFileSync(path.join(output, "go-build-info.txt"), built.rawBuildInfo.A, { flag: "wx", mode: 0o400 });
+    else copyFileSync(buildInfo, path.join(output, "go-build-info.txt"));
     const [binary] = await captureFiles([{ path: scanner, cap: 512 * MiB }]);
-    if (binary.sha256 !== original[0].sha256 || binary.size !== original[0].size) fail("scanner_official_binary_changed");
+    if (binary.sha256 !== (pair?.binary.sha256 ?? original[0].sha256) || binary.size !== (pair?.binary.bytes ?? original[0].size)) fail("scanner_official_binary_changed");
     receipt.subject = binary;
-    receipt.buildInventory = inventory;
+    receipt.buildInventory = pair ?? inventory;
     await assertFilesUnchanged(original);
     await assertFilesUnchanged(policyInputs);
-    const version = command(scanner, ["--version"], { file: path.join(output, "scanner-version.txt"), timeout: 30_000 }).toString("utf8");
-    if (!/^Version: 0\.76\.1\r?$/mu.test(version)) fail("scanner_official_version_invalid");
+    if (!built) {
+      const version = command(scanner, ["--version"], { file: path.join(output, "scanner-version.txt"), timeout: 30_000 }).toString("utf8");
+      if (!/^Version: 0\.76\.1\r?$/mu.test(version)) fail("scanner_official_version_invalid");
+    }
     const probe = path.join(work, "scanner-version-probe"); mkdirSync(probe);
     const probeFile = path.join(probe, "go.mod");
     writeFileSync(probeFile, versionProbeBytes({ scanner: { upstreamVersion: config.scanner.version }, compiler: { version: "1.27.3" } }), { flag: "wx" });
@@ -782,26 +896,67 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     receipt.databaseRegistries = { before, after };
     if (JSON.stringify(before) !== JSON.stringify(after)) fail("scanner_database_registry_changed");
     const database = await databaseEvidence(cache, new Date(), output); readOnlyTree(cache);
-    const inputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }, { path: scanner, cap: 512 * MiB },
+    const ownedInputs = built ? [{ path: built.candidatePath, cap: 256 * MiB },
+      { path: path.join(ROOT, "infra/scanner/owned-scanner-lock.json"), cap: MiB },
+      { path: path.join(ROOT, "infra/managed-images/seaweed-rust-source.json"), cap: MiB }] : [];
+    const inputs = await captureFiles([{ path: configFile, cap: MiB }, { path: lockFile, cap: MiB }, { path: scanner, cap: 512 * MiB }, ...ownedInputs,
       { path: probeFile, cap: MiB }, ...original.map(({ path: file, cap }) => ({ path: file, cap })), ...fixtureFiles,
       ...database.files.map(({ path: file, cap }) => ({ path: file, cap })), ...managedInputs.map(({ path: file, cap }) => ({ path: file, cap }))]);
     await assertFilesUnchanged(original); await assertFilesUnchanged(policyInputs); await assertFilesUnchanged(fixtureSnapshot);
     receipt.inputs = inputs;
-    receipt.budget = projectAuditBudget({ buildInputBytes: original.reduce((sum, entry) => sum + entry.size, 0), materialBytes: fixtureSnapshot.reduce((sum, entry) => sum + entry.size, 0),
+    receipt.budget = projectAuditBudget({ buildInputBytes: original.reduce((sum, entry) => sum + entry.size, 0) +
+      (built ? 3 * pair.binary.bytes + built.controlFixturePaths.reduce((sum, entry) => sum + entry.bytes, 0) : 0), materialBytes: fixtureSnapshot.reduce((sum, entry) => sum + entry.size, 0),
       databaseBytes: database.files.reduce((sum, entry) => sum + entry.size, 0), baselineImageBytes: carrierBytes, versionProbeBytes: lstatSync(probeFile).size });
     const scan = (mode, target, file, format = "json", extra = ["--offline-scan"]) => command(DOCKER, candidateDockerArguments({ carrier, scanner, cache, mode, target, format, extra }), { file });
-    await phase("self_audit", async () => {
+    if (built) await phase("owned_scanner_qualification", async () => {
+      const referenceSubject = path.join(work, "reference"); mkdirSync(referenceSubject, { mode: 0o755 });
+      const referenceScanner = path.join(referenceSubject, "trivy"); copyFileSync(inputScanner, referenceScanner); chmodSync(referenceScanner, 0o555); chmodSync(referenceSubject, 0o555);
+      ownedCopies.push(referenceScanner);
+      const [reference] = await captureFiles([{ path: referenceScanner, cap: 512 * MiB }]);
+      validateOfficialScannerIdentity(reference, config.scanner); inputs.push(reference);
+      receipt.budget = projectAuditBudget({ ...receipt.budget, buildInputBytes: receipt.budget.buildInputBytes + reference.size });
+      const rustControlMetadata = rustMetadata ?? validateSeaweedRustSourceLock((await readBoundedJson(path.join(ROOT, "infra/managed-images/seaweed-rust-source.json"), MiB)).value, config);
+      const controlsWork = path.join(work, "owned-controls"); mkdirSync(controlsWork, { mode: 0o700 });
+      const databaseJoin = { vulnerabilityDbSha256: database.files[0].sha256, javaDbSha256: database.files[2].sha256 };
+      const checkInputs = async () => { await assertFilesUnchanged(inputs); await databaseEvidence(cache, new Date()); };
+      const qualification = await qualifyOwnedScanner({ built, pair, carrier, cache, subject, referenceSubject, referenceScanner,
+        probe, fixtures, fixtureRoot, lock, rustMetadata: rustControlMetadata, databaseJoin, command, work: controlsWork,
+        publicEvidence: ownedControlsPublic, checkInputs, onState: (state) => { receipt.ownedQualification = state; },
+        auditBuilder: async (candidate) => {
+          const image = { role: "go-builder", repository: "library/golang", version: "1.27.3-alpine3.24",
+            manifestDigest: "sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c",
+            platform: { os: "linux", architecture: "amd64", variant: null, digest: "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747" } };
+          await checkInputs();
+          const reports = [];
+          for (const format of ["json", "cyclonedx"]) {
+            const file = path.join(controlsWork, `go-builder-${format}.json`);
+            command(DOCKER, officialImageScanArguments(carrier, candidate, cache, image, format), { file, privateOutput: true, maxOutputBytes: 8 * MiB });
+            reports.push((await readBoundedJson(file, 4 * MiB)).value);
+          }
+          const inventory = validateOfficialImageSbom(reports[0], reports[1], image);
+          const proof = validateOwnedBuilderAudit({ run: pair.run, binary: pair.binary, databaseJoin, subject: image,
+            report: reports[0], sbom: reports[1], inventory, now: new Date() });
+          ownedControlsPublic.write("go-builder.json", reports[0]); ownedControlsPublic.write("go-builder.cdx.json", reports[1]);
+          await checkInputs();
+          return proof;
+        },
+      });
+      receipt.ownedQualification = qualification;
+      sharedBudget.finishStage(activeBudgetStage, "PASSED"); activeBudgetStage = null;
+      activeBudgetStage = "downstream:audit"; sharedBudget.startStage(activeBudgetStage, 225 * 60_000);
+    });
+    if (!built) await phase("self_audit", async () => {
       const json = path.join(output, "scanner-self.json"); const sbom = path.join(output, "scanner-self.cdx.json");
       scan("rootfs", subject, json, "json", ["--offline-scan", "--severity", "HIGH,CRITICAL"]); scan("rootfs", subject, sbom, "cyclonedx");
       validateSelfReport((await readBoundedJson(json)).value, (await readBoundedJson(sbom)).value, inventory, config.scanner.version, { expectedScannerVersion: config.scanner.version });
       await assertFilesUnchanged(inputs);
     });
-    await phase("main_version_probe", async () => {
+    if (!built) await phase("main_version_probe", async () => {
       const file = path.join(output, "scanner-version-probe.json"); scan("fs", probe, file, "json", ["--offline-scan", "--severity", "HIGH,CRITICAL"]);
       validateVersionProbeReport((await readBoundedJson(file)).value, config.scanner.version, { expectedScannerVersion: config.scanner.version });
       await assertFilesUnchanged(inputs);
     });
-    await phase("fixtures_and_same_database_baseline", async () => {
+    if (!built) await phase("fixtures_and_same_database_baseline", async () => {
       for (const fixture of fixtures) {
         const target = fixture.material[0].path.startsWith("gomod/") ? "gomod" : fixture.material[0].path;
         const mode = fixtureScanMode(fixture); const file = path.join(output, `fixture-${fixture.id}-official.json`);
@@ -850,12 +1005,19 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const build = { role: candidate.role, result: "failed", identityKind: "LOCAL_DIAGNOSTIC_NOT_REGISTRY_SUBJECT" };
           receipt.builds.push(build);
           try {
+            if (sharedBudget) {
+              const existing = invoke(DOCKER, ["image", "inspect", tag], 15_000);
+              if (!validateOwnedImageAbsence(existing, tag)) fail("scanner_owned_image_tag_not_absent");
+              dockerCleanup.registerImage({ tag, owner });
+            }
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
-              "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
+              "--target", "runtime", "--tag", tag, ...(sharedBudget ? ["--label", `io.auto-world.scanner-official=${owner}`] : []),
+              "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspected = JSON.parse(command(DOCKER, ["image", "inspect", tag], { file: inspectedFile }).toString("utf8"));
             const metadata = (await readBoundedJson(metadataFile, MiB)).value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
+            if (sharedBudget) dockerCleanup.bindImageId(tag, identity.imageId);
             command(DOCKER, ["image", "save", "--output", archive, tag]); chmodSync(archive, 0o444);
             const frozen = await captureFiles([{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }]);
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
@@ -910,7 +1072,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         }
       });
     }
-    let originalImageFailure;
+    let originalImageFailure, seaweedGoS3SourceImage;
     try { await phase("five_image_audits", async () => {
       receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
         ? { role: image.role, ...localImages.get(image.role).subject }
@@ -1065,6 +1227,12 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         { file: path.join(output, "seaweed-rust-image-inspect.json") }).toString("utf8"));
       const imageReport = (await readBoundedJson(path.join(output, "image-seaweedfs.json"))).value;
       const imageId = validatePreparedRuntimeImage(inspected, imageReport);
+      if (imageId !== `sha256:${seaweedGoS3Profile.source.configSha256}` || reference !==
+          `${seaweedGoS3Profile.source.repository}@${seaweedGoS3Profile.source.platformDigest}`) {
+        fail("scanner_seaweed_go_s3_profile_invalid");
+      }
+      seaweedGoS3SourceImage = { reference, imageId, manifestDigest: seaweedGoS3Profile.source.platformDigest,
+        configDigest: `sha256:${seaweedGoS3Profile.source.configSha256}`, platform: "linux/amd64" };
       const helperRoot = path.join(work, "seaweed-rust-helper-copies"); mkdirSync(helperRoot, { mode: 0o700 });
       const limitRoot = path.join(work, "seaweed-rust-soft-limit-control"); mkdirSync(limitRoot, { mode: 0o700 });
       const disk = statfsSync(helperRoot); const freeBytes = disk.bavail * disk.bsize;
@@ -1156,7 +1324,328 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       await assertFilesUnchanged(inputs); await assertFilesUnchanged(sourceInputs); await assertFilesUnchanged(publicSourceInputs);
         return { failure: rustFailures[0] ?? null };
       },
-      producedImageRuntime: async () => phase("produced_image_runtime", async () => {
+      producedImageRuntime: async () => {
+        await phase("seaweed_go_s3_source_preflight", async () => {
+          if (!seaweedGoS3SourceImage) fail("scanner_seaweed_go_s3_source_preflight_invalid");
+          const directory = path.join(work, `seaweed-go-s3-preflight-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
+          const archive = path.join(directory, "source-save.tar");
+          const frozenConfig = path.join(directory, "source-config.json");
+          copyFileSync(seaweedGoS3ConfigFile, frozenConfig); chmodSync(frozenConfig, 0o444);
+          const publicRoot = path.join(directory, "public"); mkdirSync(publicRoot, { mode: 0o700 });
+          const inspector = path.join(ROOT, "scripts/scanner/seaweed_profile_archive.py");
+          const python = "/usr/bin/python3";
+          const preflightInputs = await captureFiles([
+            { path: seaweedGoS3ProfileFile, cap: MiB }, { path: seaweedGoS3ConfigFile, cap: MiB }, { path: frozenConfig, cap: MiB },
+            { path: inspector, cap: MiB }, { path: path.join(ROOT, "scripts/scanner/seaweed-go-s3.mjs"), cap: MiB },
+            { path: import.meta.filename, cap: MiB },
+          ]);
+          if (preflightInputs[1].size !== preflightInputs[2].size || preflightInputs[1].sha256 !== preflightInputs[2].sha256) {
+            fail("scanner_seaweed_go_s3_profile_invalid");
+          }
+          const finiteToolProbe = (executable, args, operation) => {
+            const result = invoke(executable, args, 30_000);
+            const record = { executable: path.basename(executable), operation, exitCode: result.status, signal: result.signal,
+              error: result.error?.code ?? null };
+            receipt.commands.push(record);
+            if (!successful(result)) { record.diagnostic = commandFailureDiagnostic(result); fail("scanner_official_command_failed"); }
+            if ((result.stderr?.length ?? 0) > 0 && (result.stdout?.length ?? 0) > 0) fail("scanner_seaweed_go_s3_tool_evidence_invalid");
+            return Buffer.concat([result.stdout ?? Buffer.alloc(0), result.stderr ?? Buffer.alloc(0)]).toString("utf8").trim();
+          };
+          const filesystemEvidence = (directoryPath) => {
+            const resolved = realpathSync(directoryPath);
+            const identity = lstatSync(resolved);
+            const disk = statfsSync(resolved, { bigint: true });
+            const free = disk.bavail * disk.bsize;
+            if (free < 1n || free > BigInt(Number.MAX_SAFE_INTEGER)) fail("scanner_seaweed_go_s3_filesystem_invalid");
+            return { path: resolved, filesystemId: `${identity.dev}:${disk.type}`, freeBytes: Number(free) };
+          };
+          let result;
+          try {
+            result = await runSeaweedGoS3SourcePreflight({ source: seaweedGoS3SourceImage,
+              paths: { archive, config: frozenConfig, inspector, python, scratchDirectory: directory } }, {
+            assertInputsUnchanged: async () => { await assertFilesUnchanged(inputs); await assertFilesUnchanged(preflightInputs); },
+            probeTools: async () => {
+              const version = JSON.parse(command(DOCKER, seaweedGoS3DockerVersionArguments(),
+                { file: path.join(directory, "docker-version.json"), timeout: 30_000, requireEmptyStderr: true }).toString("utf8"));
+              const info = JSON.parse(command(DOCKER, seaweedGoS3DockerInfoArguments(),
+                { file: path.join(directory, "docker-info.json"), timeout: 30_000, requireEmptyStderr: true }).toString("utf8"));
+              return { docker: { clientVersion: version?.Client?.Version, serverVersion: version?.Server?.Version,
+                apiVersion: version?.Client?.ApiVersion, dockerRootDir: info?.DockerRootDir,
+                operatingSystem: info?.OSType, architecture: info?.Architecture },
+              python: { version: finiteToolProbe(python, seaweedGoS3PythonVersionArguments(), "seaweed_go_s3_python_version") },
+              gnuTar: { version: finiteToolProbe("/usr/bin/tar", seaweedGoS3GnuTarVersionArguments(), "seaweed_go_s3_gnu_tar_version") } };
+            },
+            statFilesystems: async ({ scratchDirectory, dockerRootDirectory }) => {
+              const scratch = filesystemEvidence(scratchDirectory), docker = filesystemEvidence(dockerRootDirectory);
+              return { scratch, docker };
+            },
+            saveSource: async (spec) => { command(spec.command, spec.args, { timeout: spec.timeoutMs, requireEmptyStderr: true }); },
+            lockArchive: async (file) => { chmodSync(file, 0o444); },
+            captureArchive: async ({ file, cap }) => {
+              const [captured] = await captureFiles([{ path: file, cap }]);
+              return { bytes: captured.size, sha256: captured.sha256 };
+            },
+            inspectSource: async (spec) => {
+              const reportFile = path.join(directory, "source-preflight.json");
+              try { command(spec.command, spec.args, { file: reportFile, timeout: spec.timeoutMs, requireEmptyStderr: true }); }
+              catch (error) {
+                const record = receipt.commands.at(-1);
+                if (record?.error != null || record?.signal != null || record?.exitCode !== 2 || record?.diagnostic?.stderrBytes !== 0) throw error;
+                const refusal = validateSeaweedGoS3SourceRefusal((await readBoundedJson(reportFile, 4 * MiB)).value);
+                throw seaweedGoS3SourceRefusalError(refusal);
+              }
+              return (await readBoundedJson(reportFile, 4 * MiB)).value;
+            },
+            removeOwnedArchive: async (file) => {
+              try {
+                if (!existsSync(file)) return;
+                const info = lstatSync(file);
+                if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                chmodSync(file, 0o600); unlinkSync(file);
+              } catch { fail("scanner_seaweed_go_s3_cleanup_uncertain"); }
+            },
+            archiveAbsent: async (file) => {
+              try { lstatSync(file); return false; }
+              catch (error) {
+                if (error?.code === "ENOENT") return true;
+                fail("scanner_seaweed_go_s3_cleanup_uncertain");
+              }
+            },
+            });
+          } catch (error) {
+            const refusalReceipt = seaweedGoS3SourceRefusalReceipt(error);
+            if (!refusalReceipt) throw error;
+            receipt.seaweedGoS3SourcePreflight = refusalReceipt;
+            writeJson(path.join(publicRoot, "source-preflight-refusal.json"), refusalReceipt);
+            const published = path.join(output, "managed-public-evidence");
+            if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+            receipt.seaweedGoS3PublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-go-s3"));
+            throw error;
+          }
+          receipt.seaweedGoS3SourcePreflight = result;
+          writeJson(path.join(publicRoot, "source-preflight.json"), result);
+          const published = path.join(output, "managed-public-evidence");
+          if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+          receipt.seaweedGoS3PublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-go-s3"));
+          await assertFilesUnchanged(inputs); await assertFilesUnchanged(preflightInputs);
+        });
+        await phase("seaweed_go_s3_inert_qualification", async () => {
+          const directory = path.join(work, `seaweed-go-s3-inert-${randomUUID()}`);
+          mkdirSync(directory, { mode: 0o700 });
+          const runId = randomUUID(), started = performance.now();
+          const names = seaweedGoS3QualificationNames({ runId, scratchDirectory: directory });
+          const inspector = path.join(ROOT, "scripts/scanner/seaweed_profile_archive.py");
+          const qualificationInputs = await captureFiles([
+            { path: inspector, cap: MiB }, { path: path.join(ROOT, "scripts/scanner/seaweed-go-s3.mjs"), cap: MiB },
+            { path: import.meta.filename, cap: MiB },
+          ]);
+          const filePaths = new Set(Object.values(names.paths));
+          const snapshots = new Map(), cleanedContainers = new Map(), cleanedImages = new Map(), cleanedVolumes = new Set();
+          let privateOutputBytes = 0, cleaning = false;
+          const decode = (bytes) => new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? Buffer.alloc(0));
+          const execute = async (spec) => {
+            // Leave ten minutes inside the thirty-minute total for owned cleanup and absence proofs.
+            const remainingMs = Math.floor((cleaning ? 30 : 20) * 60_000 - (performance.now() - started));
+            if (remainingMs <= 0) {
+              if (!cleaning) fail("scanner_seaweed_go_s3_qualification_timeout");
+              cleanupBudgetFailure ??= "scanner_seaweed_go_s3_qualification_timeout";
+            }
+            const result = invoke(spec.command, spec.args, Math.min(spec.timeoutMs, remainingMs > 0 ? remainingMs : 5_000), environment, cleaning);
+            const record = { executable: path.basename(spec.command), operation: spec.operation,
+              exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
+            receipt.commands.push(record);
+            if (result.error || result.signal !== null || !Number.isSafeInteger(result.status)) {
+              record.diagnostic = commandFailureDiagnostic(result);
+              fail("scanner_seaweed_go_s3_qualification_process_failed");
+            }
+            if ((result.stdout?.length ?? 0) > spec.stdoutLimitBytes || (result.stderr?.length ?? 0) > spec.stderrLimitBytes) {
+              fail("scanner_seaweed_go_s3_qualification_output_limit");
+            }
+            const outputBytes = (result.stdout?.length ?? 0) + (result.stderr?.length ?? 0);
+            const retainOutput = privateOutputBytes + outputBytes <= 4 * MiB;
+            if (!retainOutput && !cleaning) fail("scanner_seaweed_go_s3_qualification_output_limit");
+            // Only the validated public receipt is exported. Process details stay in this private job directory.
+            const prefix = `qualification-${String(receipt.commands.length).padStart(3, "0")}`;
+            if (retainOutput) {
+              privateOutputBytes += outputBytes;
+              try {
+                writeFileSync(path.join(directory, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
+                writeFileSync(path.join(directory, `${prefix}.stderr`), result.stderr ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
+              } catch (error) {
+                if (!cleaning) throw error;
+                record.outputRetained = false;
+              }
+            } else record.outputRetained = false;
+            return { exitCode: result.status, stdout: decode(result.stdout), stderr: decode(result.stderr) };
+          };
+          const docker = (operation, args) => execute({ operation: `inert_${operation}`, command: DOCKER, args,
+            timeoutMs: 30_000, stdoutLimitBytes: 4 * MiB, stderrLimitBytes: 64 * 1024 });
+          const absent = (result, kind, name) => {
+            const messages = kind === "container" ? [`Error response from daemon: No such container: ${name}`, `Error: No such object: ${name}`]
+              : kind === "image" ? [`Error response from daemon: No such image: ${name}`, `Error: No such image: ${name}`]
+                : [`Error response from daemon: get ${name}: no such volume`, `Error response from daemon: No such volume: ${name}`];
+            return result.exitCode === 1 && ["", "[]\n"].includes(result.stdout) &&
+              messages.some((message) => result.stderr === message || result.stderr === `${message}\n`);
+          };
+          const inspect = (kind, name) => docker(`${kind}_inspect`, [kind, "inspect", name]);
+          const requireAbsent = async (kind, name) => {
+            if (!absent(await inspect(kind, name), kind, name)) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+          };
+          const parsed = (result) => {
+            if (result.exitCode !== 0 || result.stderr !== "") fail("scanner_seaweed_go_s3_cleanup_uncertain");
+            return JSON.parse(result.stdout);
+          };
+          const fileAbsent = (file) => {
+            try { lstatSync(file); return false; }
+            catch (error) { if (error?.code === "ENOENT") return true; throw error; }
+          };
+          const ownedFile = (file) => {
+            if (!filePaths.has(file) || path.dirname(file) !== directory || realpathSync(directory) !== directory || realpathSync(file) !== file) {
+              fail("scanner_seaweed_go_s3_cleanup_uncertain");
+            }
+            const info = lstatSync(file);
+            if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || info.uid !== process.getuid()) {
+              fail("scanner_seaweed_go_s3_cleanup_uncertain");
+            }
+          };
+          const capture = ({ file, cap }) => {
+            if (!filePaths.has(file)) fail("scanner_seaweed_go_s3_qualification_file_invalid");
+            const current = captureSeaweedGoS3QualificationFile({ file, cap });
+            if (snapshots.has(file) && JSON.stringify(snapshots.get(file)) !== JSON.stringify(current)) {
+              fail("scanner_seaweed_go_s3_qualification_file_changed");
+            }
+            snapshots.set(file, current);
+            return current;
+          };
+          const filesystemEvidence = (directoryPath) => {
+            const resolved = realpathSync(directoryPath), identity = lstatSync(resolved), disk = statfsSync(resolved, { bigint: true });
+            const free = disk.bavail * disk.bsize;
+            if (free < 1n || free > BigInt(Number.MAX_SAFE_INTEGER)) fail("scanner_seaweed_go_s3_filesystem_invalid");
+            return { path: resolved, filesystemId: `${identity.dev}:${disk.type}`, freeBytes: Number(free) };
+          };
+          const cleanupOwned = async (journal) => {
+            cleaning = true;
+            let uncertain = false;
+            for (const entry of [...journal.containers].reverse()) {
+              try {
+                if (entry.name !== names.containers[entry.stage]) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                const result = await inspect("container", entry.name);
+                if (absent(result, "container", entry.name)) {
+                  if (entry.containerId !== null) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                  continue;
+                }
+                const image = journal.images.find((item) => item.stage === entry.stage);
+                const value = validateSeaweedGoS3QualificationContainer(parsed(result), {
+                  owner: runId, stage: entry.stage, name: entry.name, imageId: image?.imageId,
+                });
+                if (entry.containerId !== null && entry.containerId !== value.containerId ||
+                    entry.volumeNames.length > 0 && JSON.stringify(entry.volumeNames) !== JSON.stringify(value.mounts.map((mount) => mount.name))) {
+                  fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                }
+                cleanedContainers.set(entry.name, value.containerId);
+                for (const mount of value.mounts) {
+                  const volumes = parsed(await inspect("volume", mount.name));
+                  if (!Array.isArray(volumes) || volumes.length !== 1 || volumes[0]?.Name !== mount.name || volumes[0].Driver !== "local" ||
+                      volumes[0].Scope !== "local" || volumes[0].Options !== null && Object.keys(volumes[0].Options ?? {}).length !== 0) {
+                    fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                  }
+                  cleanedVolumes.add(mount.name);
+                }
+                const removed = await docker("container_remove", ["container", "rm", "--force", "--volumes", value.containerId]);
+                if (removed.exitCode !== 0 || removed.stderr !== "") fail("scanner_seaweed_go_s3_cleanup_uncertain");
+              } catch { uncertain = true; }
+            }
+            for (const entry of [...journal.images].reverse()) {
+              try {
+                if (entry.tag !== names.tags[entry.stage]) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                const result = await inspect("image", entry.tag);
+                if (absent(result, "image", entry.tag)) {
+                  if (entry.imageId !== null) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                  continue;
+                }
+                const value = validateSeaweedGoS3QualificationImage(parsed(result), {
+                  owner: runId, stage: entry.stage, tag: entry.tag, imageId: entry.imageId,
+                });
+                cleanedImages.set(entry.tag, value.imageId);
+                const removed = await docker("image_remove", ["image", "rm", entry.tag]);
+                if (removed.exitCode !== 0 || removed.stderr !== "") fail("scanner_seaweed_go_s3_cleanup_uncertain");
+              } catch { uncertain = true; }
+            }
+            for (const entry of journal.paths) {
+              try {
+                if (!filePaths.has(entry.path)) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                if (fileAbsent(entry.path)) continue;
+                ownedFile(entry.path); chmodSync(entry.path, 0o600); unlinkSync(entry.path);
+              } catch { uncertain = true; }
+            }
+            if (uncertain) { cleanupUncertain = true; fail("scanner_seaweed_go_s3_cleanup_uncertain"); }
+          };
+          let result;
+          try {
+            result = await runSeaweedGoS3InertQualification({ sourcePreflight: receipt.seaweedGoS3SourcePreflight, runId,
+              paths: { scratchDirectory: directory, python: "/usr/bin/python3", inspector } }, {
+              assertInputsUnchanged: async () => { await assertFilesUnchanged(inputs); await assertFilesUnchanged(qualificationInputs); },
+              statFilesystems: async ({ scratchDirectory, dockerRootDirectory }) => ({
+                scratch: filesystemEvidence(scratchDirectory), docker: filesystemEvidence(dockerRootDirectory),
+              }),
+              assertNamesAbsent: async () => {
+                for (const file of filePaths) if (!fileAbsent(file)) fail("scanner_seaweed_go_s3_qualification_collision");
+                for (const name of Object.values(names.containers)) {
+                  if (!absent(await inspect("container", name), "container", name)) fail("scanner_seaweed_go_s3_qualification_collision");
+                }
+                for (const tag of Object.values(names.tags)) {
+                  if (!absent(await inspect("image", tag), "image", tag)) fail("scanner_seaweed_go_s3_qualification_collision");
+                }
+                return { containersAbsent: true, imagesAbsent: true, filesAbsent: true };
+              },
+              execute,
+              captureFile: async (args) => capture(args),
+              lockFile: async (file) => { ownedFile(file); chmodSync(file, 0o444); },
+              copyOwnedFile: async ({ source, destination }) => {
+                if (source !== names.paths.sourceExport || destination !== names.paths.filteredRootfs || !fileAbsent(destination)) {
+                  fail("scanner_seaweed_go_s3_qualification_file_invalid");
+                }
+                capture({ file: source, cap: 8 * MiB });
+                copyFileSync(source, destination, constants.COPYFILE_EXCL); ownedFile(destination); chmodSync(destination, 0o600);
+                capture({ file: source, cap: 8 * MiB });
+              },
+              elapsedMs: () => Math.floor(performance.now() - started),
+              cleanupOwned,
+              cleanupAbsent: async (journal) => {
+                try {
+                  for (const entry of journal.containers) {
+                    await requireAbsent("container", entry.name);
+                    if (cleanedContainers.has(entry.name)) await requireAbsent("container", cleanedContainers.get(entry.name));
+                  }
+                  for (const entry of journal.images) {
+                    await requireAbsent("image", entry.tag);
+                    if (cleanedImages.has(entry.tag)) await requireAbsent("image", cleanedImages.get(entry.tag));
+                  }
+                  for (const name of cleanedVolumes) await requireAbsent("volume", name);
+                  for (const entry of journal.paths) if (!fileAbsent(entry.path)) fail("scanner_seaweed_go_s3_cleanup_uncertain");
+                  return { containersAbsent: true, imagesAbsent: true, volumesAbsent: true, filesAbsent: true };
+                } catch { cleanupUncertain = true; fail("scanner_seaweed_go_s3_cleanup_uncertain"); }
+              },
+            });
+          } catch (error) {
+            result = seaweedGoS3QualificationRefusalReceipt(error);
+            if (!result) throw error;
+            receipt.seaweedGoS3Qualification = result;
+            const publicRoot = path.join(directory, "public"); mkdirSync(publicRoot, { mode: 0o700 });
+            writeJson(path.join(publicRoot, "inert-qualification-refusal.json"), result);
+            receipt.seaweedGoS3QualificationPublicEvidence = exportManagedTextEvidence(publicRoot,
+              path.join(output, "managed-public-evidence", "seaweed-go-s3-qualification"));
+            throw error;
+          }
+          receipt.seaweedGoS3Qualification = result;
+          const publicRoot = path.join(directory, "public"); mkdirSync(publicRoot, { mode: 0o700 });
+          writeJson(path.join(publicRoot, "inert-qualification.json"), result);
+          receipt.seaweedGoS3QualificationPublicEvidence = exportManagedTextEvidence(publicRoot,
+            path.join(output, "managed-public-evidence", "seaweed-go-s3-qualification"));
+          await assertFilesUnchanged(inputs); await assertFilesUnchanged(qualificationInputs);
+        });
+        await phase("seaweed_go_s3_construction", async () => fail("scanner_seaweed_go_s3_construction_pending"));
+        return phase("produced_image_runtime", async () => {
        await assertFilesUnchanged(inputs);
       const directory = path.join(work, `managed-runtime-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
       const runtimeFile = path.join(ROOT, "tests/managed-image-runtime.integration.mjs");
@@ -1223,18 +1712,72 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       const { passed } = await publishManagedRuntimeResult({ resultFile: path.join(directory, "runtime-result.json"),
         publicFile: path.join(output, "managed-runtime-result.json"), expected: runtimeInput, childFailed: Boolean(childFailure), receipt });
       if (!passed) fail("scanner_managed_runtime_incomplete");
-      }),
+        });
+      },
     });
     await assertFilesUnchanged(inputs);
     receipt.result = "passed";
   } catch (error) {
     receipt.failure = error.message;
+    ownedPublic ??= error.ownedPublicDirectory;
+    if (error.ownedCleanup) receipt.ownedCleanup = error.ownedCleanup;
     throw error;
   } finally {
-    // No image/cache pruning: this new directory belongs only to the disposable runner job.
-    receipt.workRetention = "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
+    if (sharedBudget) {
+      if (activeBudgetStage && sharedBudget.snapshot().active?.name === activeBudgetStage) {
+        try { sharedBudget.finishStage(activeBudgetStage, receipt.result === "passed" ? "PASSED" : "FAILED"); }
+        catch (error) { receipt.result = "failed"; receipt.failure ??= error.message; }
+        activeBudgetStage = null;
+      }
+      if (built || ownedCopies.length) {
+        let cleanupError;
+        if (built) try { built.cleanup.cleanupAll(); } catch (error) { cleanupError = error; }
+        for (const file of ownedCopies) {
+          try { chmodSync(path.dirname(file), 0o755); if (existsSync(file)) unlinkSync(file); }
+          catch (error) { cleanupError ??= error; }
+        }
+        receipt.ownedCleanup = { ...receipt.ownedCleanup, absent: (built ? built.cleanup.verify() : receipt.ownedCleanup?.absent === true) && ownedCopies.every((file) => !existsSync(file)),
+          ...(cleanupError ? { failure: cleanupError.message } : {}) };
+        if (cleanupError) { receipt.result = "failed"; receipt.failure ??= cleanupError.message; }
+      }
+      try { receipt.dockerCleanup = dockerCleanup.cleanupAll(); }
+      catch (error) {
+        cleanupUncertain = true; receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.dockerCleanup = error.ownedCleanup ?? dockerCleanup.snapshot();
+      }
+      if (cleanupBudgetFailure) {
+        receipt.result = "failed"; receipt.failure ??= cleanupBudgetFailure;
+        receipt.cleanupBudgetFailure = cleanupBudgetFailure;
+      }
+      receipt.timeBudget = sharedBudget.snapshot();
+      if (built && receipt.ownedCleanup?.absent !== true) {
+        receipt.result = "failed"; receipt.failure ??= "scanner_owned_cleanup_uncertain";
+      }
+      try {
+        const directories = [];
+        if (ownedPublic?.manifest) directories.push(["build", ownedPublic]);
+        if (ownedControlsPublic) {
+          ownedControlsPublic.write("final-state.json", { run: ownedRun, qualification: receipt.ownedQualification ?? null,
+            cleanup: receipt.ownedCleanup ?? null, dockerCleanup: receipt.dockerCleanup ?? null,
+            result: receipt.result, failure: receipt.failure ?? null, budget: receipt.timeBudget });
+          directories.push(["controls", ownedControlsPublic]);
+        }
+        if (directories.length) receipt.ownedPublicEvidence = await publishOwnedScannerEvidence({ directories,
+          destination: path.join(output, "owned-scanner-public"), run: ownedRun, exportDirectory: exportManagedTextEvidence });
+      } catch (error) {
+        receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.ownedPublicEvidenceFailure = error.message;
+      }
+      try { receipt.workCleanup = removeOwnedAuditWork(work, runnerTemp); }
+      catch (error) { receipt.result = "failed"; receipt.failure ??= error.message;
+        receipt.workCleanup = { attempted: true, absent: false, failure: error.message }; }
+    }
+    // Shared registry images are not uniquely owned resources and are never broadly pruned.
+    receipt.workRetention = sharedBudget && receipt.workCleanup?.absent ? "REMOVED_WITH_ABSENCE_PROOF" : "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
+    receipt.cleanupUncertain = cleanupUncertain;
     writeJson(path.join(output, "official-audit-receipt.json"), receipt);
   }
+  if (receipt.result !== "passed") fail(receipt.failure ?? "scanner_owned_qualification_failed");
   return receipt;
 }
 
