@@ -3,3 +3,7 @@ packages:
   - services/*
   - packages/*
   - connectors/*
+
+# Temporary reviewed tooling override; see docs/validation/minimatch-security-2026-11-04.md.
+overrides:
+  minimatch: 11.0.4
