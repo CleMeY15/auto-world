@@ -9,6 +9,7 @@ test("saved-comparison analytics accept only the approved event, screen and outc
     { eventName: "saved_comparison_added", screen: "received-comparison", outcome: "success" },
     { eventName: "saved_comparison_opened", screen: "saved", outcome: "success" },
     { eventName: "saved_comparison_removed", screen: "saved", outcome: "success" },
+    { eventName: "saved_comparison_renamed", screen: "saved", outcome: "success" },
     { eventName: "saved_comparison_undone", screen: "saved", outcome: "success" },
   ];
 
@@ -18,6 +19,8 @@ test("saved-comparison analytics accept only the approved event, screen and outc
   assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_added", screen: "compare", outcome: "error" }), undefined);
   assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_opened", screen: "compare", outcome: "success" }), undefined);
   assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_removed", screen: "saved", outcome: "error" }), undefined);
+  assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_renamed", screen: "compare", outcome: "success" }), undefined);
+  assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_renamed", screen: "saved", outcome: "error" }), undefined);
 });
 
 test("saved-comparison analytics reject names, fragments, identifiers and counts", () => {
@@ -29,6 +32,7 @@ test("saved-comparison analytics reject names, fragments, identifiers and counts
       [forbidden]: "private",
     }), undefined);
   }
+  assert.equal(parseAnalyticsEvent({ eventName: "saved_comparison_renamed", screen: "saved", outcome: "success", name: "private" }), undefined);
 });
 
 test("saved-comparison analytics remain collector-free and tolerate sink failure", () => {

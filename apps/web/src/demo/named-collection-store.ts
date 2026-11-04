@@ -36,6 +36,7 @@ export interface NamedCollectionEngine<Item, Snapshot> {
   hydrate(): Snapshot;
   prepareMutation(): boolean;
   addPrepared(item: Item): "added" | "duplicate" | "full";
+  replacePrepared(key: string, item: Item): boolean;
   remove(key: string): boolean;
   undo(): Item | undefined;
   reset(): { readonly ok: true; readonly scope: "persisted" | "session" } | { readonly ok: false };
@@ -168,6 +169,16 @@ export function createNamedCollectionEngine<Item, Snapshot>(
       const status = persist(next);
       update(next, status, removal);
       return "added";
+    },
+    replacePrepared(key: string, item: Item) {
+      if (key === "" || adapter.key(item) !== key) return false;
+      const index = items.findIndex((candidate) => adapter.key(candidate) === key);
+      if (index < 0) return false;
+      const next = [...items];
+      next[index] = item;
+      const status = persist(next);
+      update(next, status, removal);
+      return true;
     },
     remove(key: string) {
       if (!writable() || key === "") return false;

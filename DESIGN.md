@@ -1,8 +1,8 @@
 # Auto World design contract
 
 ## Source of truth
-- Status: Active. Product increments through TASK-0116 are accepted on main through their delivery checkpoints. TASK-0117 adds named local comparison shortcuts under its own [task gates](roadmap/tasks/TASK-0117-saved-comparisons.md), without infrastructure admission.
-- Last refreshed: 2026-10-28.
+- Status: Active. Product increments through TASK-0117 are accepted on main through their delivery checkpoints. TASK-0118 adds name-only editing under its own [task gates](roadmap/tasks/TASK-0118-rename-saved-comparisons.md), without infrastructure admission.
+- Last refreshed: 2026-11-04.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -175,3 +175,10 @@
 - Opening the form focuses the name; invalid submission keeps focus; cancel/success returns to a stable action. Changing selection or leaving destroys stale form intent. Open focuses the review heading. Deletion focuses its own undo; undo focuses the restored row. Reset has a separate confirmation invalidated by changed storage.
 - Persisted/session/denied/quota/corrupt/future states remain honest and independent of the other collections. Future data cannot be reset. Payloads beyond the bounded 64 KiB format inspection are also preserved read-only; copy says newer or unsupported format without claiming a known version. Offline local management remains possible; comparison loading uses existing all-or-nothing, mismatch and retry states. Disabled demo does no API work.
 - Validate form/list/reopening across both browsers, viewport/theme/enlarged-text/reduced-motion matrix, semantic focus/44px/axe/content-fit checks, actual pixels and 100ms local feedback at 4x CPU. Preserve the existing table and provenance regression suite. [TASK-0117](roadmap/tasks/TASK-0117-saved-comparisons.md) governs acceptance, not merely compilation.
+
+## TASK-0118 rename a saved comparison
+
+- TASK-0117 is accepted on main4517b12, [final checkpoint](https://github.com/CleMeY15/auto-world/pull/204#issuecomment-6505532536). Extend its compact row with one secondary Renommer action. Assumption under autonomous direction: edit the local label only; keep references/order unchanged. No saved-search rename or new destination.
+- Reveal a single inline prefilled name field, shared Field/Button/Banner and current tokens. Select/focus on open, Enregistrer/Annuler, Escape cancels. Invalid names remain editable; success/cancel restores the current row action. Use restrained wrapping actions, not nested decorative panels. No network spinner for local work.
+- A changed collection invalidates an old draft, explains the conflict and preserves external bytes. Restore focus by fragment only if the removed editor held focus, otherwise do not interrupt. Navigation discards editing intent. Same-name save is a quiet no-op; quota/denied copy says changes are session-only, not persisted.
+- Keep synthetic/current-runtime disclosure, no new vehicle facts or backend reads. Both-browser viewport/theme/enlarged-text/reduced-motion/axe/44px/actual-pixel and100ms feedback checks remain required by [TASK-0118](roadmap/tasks/TASK-0118-rename-saved-comparisons.md).
