@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Banner, Button, Card, Field } from "@auto-world/design-system/primitives";
 
 import { decodeComparisonLinkFragment } from "../../demo/comparison-link";
@@ -7,6 +7,12 @@ import { decodeComparisonLinkFragment } from "../../demo/comparison-link";
 export interface SavedComparisonItem {
   readonly name: string;
   readonly fragment: string;
+}
+
+export interface SavedComparisonRenameDraft {
+  readonly fragment: string;
+  readonly name: string;
+  readonly error?: "invalid";
 }
 
 export type SaveComparisonResult = "saved" | "invalid" | "duplicate" | "full" | "readonly" | "stale";
@@ -92,21 +98,42 @@ export function SavedComparisonsSection({
   comparisons,
   enabled,
   readOnly,
+  renameDraft,
   emptyCopy,
   showCount,
   undoNotice,
   onOpen,
+  onRenameStart,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
   onRemove,
 }: {
   readonly comparisons: readonly SavedComparisonItem[];
   readonly enabled: boolean;
   readonly readOnly: boolean;
+  readonly renameDraft?: SavedComparisonRenameDraft;
   readonly emptyCopy?: string;
   readonly showCount: boolean;
   readonly undoNotice?: ReactNode;
   readonly onOpen: (comparison: SavedComparisonItem, index: number) => void;
+  readonly onRenameStart: (comparison: SavedComparisonItem) => void;
+  readonly onRenameChange: (name: string) => void;
+  readonly onRenameSubmit: () => void;
+  readonly onRenameCancel: () => void;
   readonly onRemove: (comparison: SavedComparisonItem, index: number) => void;
 }) {
+  function submitRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onRenameSubmit();
+  }
+
+  function handleRenameKeyDown(event: KeyboardEvent<HTMLFormElement>) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    onRenameCancel();
+  }
+
   return (
     <section aria-labelledby="demo-saved-comparisons-title" className="demo-saved-section">
       <div className="demo-section-heading">
@@ -118,12 +145,13 @@ export function SavedComparisonsSection({
       </div>
       {undoNotice}
       <p className="demo-field-hint">Ces raccourcis restent dans ce navigateur et désignent les données actuellement disponibles dans cette démo. Ils ne constituent ni un historique figé ni une identité de véhicule réel.</p>
-      {readOnly ? <p className="demo-field-hint">Ces comparaisons sont en lecture seule. Leur ouverture et leur suppression sont désactivées afin de préserver les données existantes.</p> : null}
+      {readOnly ? <p className="demo-field-hint">Ces comparaisons sont en lecture seule. Leur ouverture, leur renommage et leur suppression sont désactivés afin de préserver les données existantes.</p> : null}
       {comparisons.length === 0 ? (emptyCopy ? <p className="demo-section-empty">{emptyCopy}</p> : null) : (
         <ol className="demo-saved-search-list">
           {comparisons.map((comparison, index) => {
             const decoded = decodeComparisonLinkFragment(comparison.fragment);
             const count = decoded.status === "valid" ? decoded.listingIds.length : 0;
+            const activeDraft = renameDraft?.fragment === comparison.fragment ? renameDraft : undefined;
             return (
               <li key={comparison.fragment}>
                 <Card className="demo-saved-comparison">
@@ -133,8 +161,26 @@ export function SavedComparisonsSection({
                   </div>
                   <div className="demo-card-actions">
                     <Button disabled={!enabled || readOnly || count === 0} id={`demo-saved-comparison-open-${index}`} onClick={() => onOpen(comparison, index)}>Ouvrir</Button>
+                    <Button disabled={readOnly || activeDraft !== undefined} id={`demo-saved-comparison-rename-${index}`} variant="secondary" onClick={() => onRenameStart(comparison)}>Renommer</Button>
                     <Button disabled={readOnly} id={`demo-saved-comparison-remove-${index}`} variant="secondary" onClick={() => onRemove(comparison, index)}>Supprimer</Button>
                   </div>
+                  {activeDraft ? (
+                    <form className="demo-rename-comparison-form" noValidate onKeyDown={handleRenameKeyDown} onSubmit={submitRename}>
+                      <Field
+                        id="demo-rename-comparison-name"
+                        name="comparisonName"
+                        label="Nouveau nom"
+                        value={activeDraft.name}
+                        onChange={(event) => onRenameChange(event.target.value)}
+                        error={activeDraft.error === "invalid" ? "Choisissez un nom de 1 à 60 caractères, sans caractères de contrôle." : undefined}
+                        autoComplete="off"
+                      />
+                      <div className="demo-form-actions">
+                        <Button type="submit">Enregistrer</Button>
+                        <Button type="button" variant="secondary" onClick={onRenameCancel}>Annuler</Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </Card>
               </li>
             );

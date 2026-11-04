@@ -139,6 +139,8 @@
 .demo-section-empty { color: var(--aw-color-text-muted); }
 .demo-saved-search-list { display: grid; gap: var(--aw-space-3); list-style: none; margin: 0; padding: 0; }
 .demo-saved-search, .demo-saved-comparison { align-items: stretch; display: flex; flex-wrap: wrap; gap: var(--aw-space-4) var(--aw-space-8); justify-content: space-between; padding: clamp(1rem, 4vw, 1.5rem); }
+.demo-rename-comparison-form { border-top: 1px solid var(--aw-color-border); display: grid; flex: 1 1 100%; gap: var(--aw-space-3); max-width: 32rem; min-width: 0; padding-top: var(--aw-space-4); width: 100%; }
+.demo-rename-comparison-form .aw-field, .demo-rename-comparison-form input { min-width: 0; width: 100%; }
 .demo-saved-search-copy { flex: 1 1 18rem; min-width: 0; }
 .demo-saved-search-copy h3 { font-size: var(--aw-font-size-body); margin-bottom: var(--aw-space-3); overflow-wrap: anywhere; }
 .demo-saved-search-criteria { display: grid; gap: var(--aw-space-2); margin: 0; }

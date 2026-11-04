@@ -23,6 +23,9 @@ export interface SavedComparisonStore {
   subscribe(listener: () => void): () => void;
   hydrate(): SavedComparisonSnapshot;
   add(name: unknown, fragment: unknown): { readonly ok: true } | { readonly ok: false; readonly reason: "invalid" | "duplicate" | "full" | "readonly" };
+  rename(fragment: unknown, name: unknown, expectedSnapshot: SavedComparisonSnapshot):
+    | { readonly ok: true; readonly outcome: "renamed" | "unchanged" }
+    | { readonly ok: false; readonly reason: "invalid" | "stale" | "readonly" };
   remove(fragment: string): boolean;
   undo(): SavedComparison | undefined;
   reset(): { readonly ok: true; readonly scope: "persisted" | "session" } | { readonly ok: false };
@@ -108,6 +111,20 @@ export function createSavedComparisonStore(options: { readonly storageProvider?:
       if (name === undefined || fragment === undefined) return { ok: false, reason: "invalid" };
       const result = engine.addPrepared(Object.freeze({ name, fragment }));
       return result === "added" ? { ok: true } : { ok: false, reason: result };
+    },
+    rename(fragmentInput: unknown, nameInput: unknown, expectedSnapshot: SavedComparisonSnapshot) {
+      if (!engine.prepareMutation()) return { ok: false, reason: "readonly" };
+      const currentSnapshot = engine.getSnapshot();
+      if (currentSnapshot !== expectedSnapshot) return { ok: false, reason: "stale" };
+      const fragment = canonicalFragment(fragmentInput);
+      const name = normalizeNamedCollectionName(nameInput);
+      if (fragment === undefined || name === undefined) return { ok: false, reason: "invalid" };
+      const current = currentSnapshot.comparisons.find((comparison) => comparison.fragment === fragment);
+      if (current === undefined) return { ok: false, reason: "stale" };
+      if (current.name === name) return { ok: true, outcome: "unchanged" };
+      return engine.replacePrepared(fragment, Object.freeze({ name, fragment }))
+        ? { ok: true, outcome: "renamed" }
+        : { ok: false, reason: "stale" };
     },
     remove(fragmentInput: string) {
       const fragment = canonicalFragment(fragmentInput);

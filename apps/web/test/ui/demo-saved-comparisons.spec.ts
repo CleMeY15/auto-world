@@ -518,7 +518,7 @@ test("quota failure retains a saved comparison for the session without persisten
   await saveCurrentComparison(page, "Session seulement");
   await openSavedList(page);
   await expect(page.locator(".demo-saved-comparison")).toContainText("Session seulement");
-  await expect(page.getByRole("note").filter({ hasText: "L’enregistrement local est plein. Les comparaisons ajoutées restent limitées à cette session." })).toBeVisible();
+  await expect(page.getByRole("note").filter({ hasText: "L’enregistrement local est plein. Les modifications des comparaisons restent limitées à cette session." })).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), savedComparisonsKey)).toBeNull();
   await captureRecoveryMatrix(page, testInfo, "quota", browserName);
   await page.locator("#demo-saved-comparison-remove-0").click();
