@@ -4,6 +4,18 @@ Status: Accepted for the bounded scanner qualification and diagnostic image audi
 Date: 2026-10-25
 Scope: TASK-0005 development/CI, not production or real-source activation.
 
+## Amendment — owned scanner qualification, 28 October 2026
+
+The authenticated official Trivy 0.76.1 now fails its own HIGH/CRITICAL gate on CVE-2026-116587 in go-jose/v4 v4.1.5. The user explicitly selected construction and maintenance of a corrected Auto World scanner. The [frozen plan](../../roadmap/plans/TASK-0005-autoworld-corrected-scanner.md), 41317 bytes / SHA256 `16efca0d298a2dd1424cf2b2aacd694ef00239d5281eefdee6c57be6ae2b726c`, received actual Architect CLEAR followed by distinct Critic CLEAR and was published/read back in full in PR202 before code. Its captured readiness header is historical; this amendment records the subsequent planning approval. The implementation and local validation are recorded separately from pending Linux acceptance in [the validation record](../validation/TASK-0005-owned-scanner.md).
+
+This narrowly supersedes decision 4 below for diagnostic continuation. Preserve the official release and historical scanner locks, patches, generations and failed evidence. Add a separate producer `auto-world-trivy-0.76.1-jose4.1.6-r1`, based on exact Trivy source `e713f67f7d54decdcd9b3132c9751833dcced698` and only three substitutions across `go.mod` and `go.sum`. Keep application version 0.76.1 and honest Go main `(devel)` without VCS stamping; no Aqua attestation or official binary identity transfers to the derivative.
+
+Each consuming Linux job must construct two private copies through the locked Go image and the exact official Go archive, compare them, run the complete bounded upstream tests and four self/cross-self scans, preserve detection and inventory on the same captured databases, and audit the current builder before downstream use. Writable upstream test copies are separate from immutable build inputs. No source, binary, cache or database is uploaded. Existing severity, database freshness, package/SBOM conservation, Native and SeaweedFS controls stay in force.
+
+The explicit CI cost is a 360-minute job ceiling with one 320-minute execution process, a shared monotonic deadline and ten minutes reserved for verified cleanup. Internal stage and child limits cannot extend that deadline. Exhaustion is a recorded non-acceptance, never a reason to skip tests. Existing input-plus-transient resource limits, scanner memory/tmpfs limits and artifact caps remain unchanged; workspace preflight includes 25 percent reserve and the managed 20 GiB floor.
+
+This grants diagnostic construction and qualification only. Publication, signing, admission, activation and four-service completion remain separate gates. Support dates stay null until activation; the selected support period is one year from activation, with continuous security checks on use and archives retained at least 365 additional days. The first qualified official fixed release is the preferred reviewed exit. Rollback disables the owned producer path, retaining its failure evidence and the official profile's existing refusal; it does not restore a vulnerable scanner's authority.
+
 The reviewed decision candidate was 9,588 bytes, SHA256 `5db011001cf5b6333257d14b479cfc5f77a613e867c0e523059c9145afcd5e26`. The three reviews completed in that order on 25 October 2026. This status note records their acceptance; it adds no capability or changed control.
 
 ## Problem and outcome

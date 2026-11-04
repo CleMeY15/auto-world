@@ -1,0 +1,10 @@
+Auto World Scanner, based on Trivy 0.76.1
+
+Auto World changes the Trivy 0.76.1 module closure only to update
+github.com/go-jose/go-jose/v4 from v4.1.5 to v4.1.6. This derivative is
+produced and maintained by Auto World. Aqua Security does not sponsor,
+attest, sign, publish, or support this derivative.
+
+Trivy and go-jose are licensed under the Apache License, Version 2.0.
+The exact upstream LICENSE and NOTICE files and the complete module notice
+manifest are retained with the private source materials for each build.

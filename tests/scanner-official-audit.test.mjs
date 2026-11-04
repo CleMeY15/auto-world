@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { candidateDockerArguments } from "../scripts/scanner/audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
-import { auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
+import { auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments, removeOwnedAuditWork, throwCommandFailure,
   validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
@@ -13,6 +14,27 @@ const carrier = `aquasec/trivy@sha256:${"a".repeat(64)}`;
 const scanner = path.resolve("synthetic/trivy");
 const cache = path.resolve("synthetic/cache");
 const image = config.images.find((entry) => entry.role === "postgres");
+
+test("the original command failure survives a simultaneous cleanup failure", () => {
+  const primary = new Error("scanner_official_command_failed");
+  const cleanup = new Error("scanner_official_cleanup_uncertain");
+  assert.throws(() => throwCommandFailure(primary, cleanup), (error) => error === primary && error.cleanupError === cleanup);
+  assert.throws(() => throwCommandFailure(null, cleanup), (error) => error === cleanup);
+  assert.doesNotThrow(() => throwCommandFailure(null, null));
+});
+
+test("final cleanup removes only the exact job-owned work tree including readonly caches", (t) => {
+  const runner = realpathSync(mkdtempSync(path.join(os.tmpdir(), "aw-audit-cleanup-test-")));
+  t.after(() => rmSync(runner, { recursive: true, force: true }));
+  const work = mkdtempSync(path.join(runner, "aw-official-scanner-"));
+  const cache = path.join(work, "cache"); mkdirSync(cache);
+  writeFileSync(path.join(cache, "db"), "private"); chmodSync(cache, 0o555);
+  const unrelated = path.join(runner, "unrelated"); mkdirSync(unrelated);
+  assert.throws(() => removeOwnedAuditWork(unrelated, runner), /scanner_owned_work_cleanup_invalid/u);
+  assert.deepEqual(removeOwnedAuditWork(work, runner), { attempted: true, absent: true });
+  assert.equal(existsSync(work), false);
+  assert.equal(existsSync(unrelated), true);
+});
 const owner = "01234567-89ab-4cde-8012-3456789abcde";
 const name = `aw-official-${owner}`;
 
@@ -51,8 +73,13 @@ test("a build's original command error survives a long echoed instruction with b
 test("official CLI accepts exactly the three distinct absolute input/output paths", () => {
   const argv = ["--scanner", scanner, "--build-info", path.resolve("synthetic/build-info.txt"), "--output", path.resolve("synthetic/output")];
   assert.deepEqual(parseOfficialAuditArguments(argv), { scanner, buildInfo: argv[3], output: argv[5] });
+  assert.deepEqual(parseOfficialAuditArguments([...argv, "--producer", "auto-world"]),
+    { scanner, buildInfo: argv[3], output: argv[5], producer: "auto-world" });
+  assert.deepEqual(parseOfficialAuditArguments([...argv, "--scope", "managed", "--producer", "auto-world"]),
+    { scanner, buildInfo: argv[3], output: argv[5], scope: "managed", producer: "auto-world" });
   for (const bad of [argv.slice(0, 4), [...argv, "--skip", "yes"], ["--scanner", scanner, "--scanner", cache, "--output", argv[5]],
-    ["--scanner", "relative", ...argv.slice(2)], [...argv.slice(0, 4), "--output", scanner], [...argv.slice(0, 5), `${argv[5]},other`]]) {
+    ["--scanner", "relative", ...argv.slice(2)], [...argv.slice(0, 4), "--output", scanner], [...argv.slice(0, 5), `${argv[5]},other`],
+    [...argv, "--producer", "untrusted"], [...argv, "--producer", "auto-world", "--producer", "auto-world"]]) {
     assert.throws(() => parseOfficialAuditArguments(bad), /scanner_official_arguments_invalid/u);
   }
 });

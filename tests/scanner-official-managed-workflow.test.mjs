@@ -11,7 +11,7 @@ test("managed builds retain the independently exercised official provenance boun
   assert.deepEqual(steps.find((step) => step.id === "provenance"), upstream.jobs.audit.steps.find((step) => step.id === "provenance"));
   assert.deepEqual(workflow.permissions, { contents: "read" });
   assert.equal(workflow.jobs.audit["runs-on"], "ubuntu-24.04");
-  assert.equal(workflow.jobs.audit["timeout-minutes"], 240);
+  assert.equal(workflow.jobs.audit["timeout-minutes"], 360);
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
   assert.deepEqual(Object.keys(workflow.on).sort(), ["pull_request", "push"]);
   assert.deepEqual(workflow.on.push.branches, ["main"]);
@@ -25,14 +25,15 @@ test("managed builds retain the independently exercised official provenance boun
 test("managed diagnostic failures remain failures and only validated evidence is public", () => {
   const audit = steps.find((step) => step.id === "audit");
   assert.match(audit.run, /env -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node scripts\/scanner\/official-audit\.mjs/u);
-  assert.match(audit.run, /--scope managed\s*$/u);
-  assert.equal(audit["timeout-minutes"], 225);
+  assert.match(audit.run, /--scope managed --producer auto-world\s*$/u);
+  assert.equal(audit["timeout-minutes"], 320);
   const upload = steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
   assert.equal(upload.if, "${{ always() }}");
   assert.equal(upload.with["retention-days"], 14);
   const paths = upload.with.path.split("\n");
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json"));
+  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/owned-scanner-public/**"));
   for (const file of paths) {
     assert.doesNotMatch(file, /\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
     assert.notEqual(file, "${{ runner.temp }}/data-foundation-audit/**");
@@ -40,6 +41,16 @@ test("managed diagnostic failures remain failures and only validated evidence is
   const enforce = steps.at(-1);
   assert.match(enforce.if, /steps\.audit\.outcome != 'success'/u);
   assert.match(enforce.run, /^exit 1\s*$/u);
+});
+
+test("managed qualification uses a single execution process and forty minutes of bounded overhead", () => {
+  assert.equal(steps.filter((step) => step.run?.includes("official-audit.mjs")).length, 1);
+  assert.equal(steps.filter((step) => step.id !== "audit").reduce((sum, step) => sum + step["timeout-minutes"], 0), 40);
+  for (const event of ["pull_request", "push"]) {
+    for (const file of ["infra/scanner/owned-scanner-lock.json", "scripts/scanner/owned-*.mjs", "infra/scanner/materials/trivy/**"]) {
+      assert.ok(workflow.on[event].paths.includes(file));
+    }
+  }
 });
 
 test("produced-service integration triggers diagnostics but stays outside pre-build pure tests", () => {

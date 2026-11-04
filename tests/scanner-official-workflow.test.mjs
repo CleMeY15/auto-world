@@ -67,7 +67,7 @@ function assertFailureEnforcement(value) {
   for (const entry of steps(value)) assert.equal(entry["continue-on-error"], undefined);
   const audit = step(value, "audit");
   assert.equal(audit.if, undefined);
-  assert.equal(audit["timeout-minutes"], 60);
+  assert.equal(audit["timeout-minutes"], 320);
   assert.match(audit.run, /^set -euo pipefail\n/u);
   assert.doesNotMatch(audit.run, /\|\|\s*(?:true|:)|set \+e/u);
   const upload = steps(value).find((entry) => entry.uses === actions.upload);
@@ -89,6 +89,7 @@ function assertPublicAllowlist(value) {
     "scanner-version-probe.json", "scanner-version.txt", "go-build-info.txt",
     "fixture-*-official.json", "fixture-*-baseline.json", "image-*.json",
     "database-*-manifest.json", "database-evidence.json", "carrier-inspect.json", "docker-version.json", "buildx-version.txt",
+    "owned-scanner-public/**",
   ]);
   for (const entry of entries) {
     const prefix = "${{ runner.temp }}/";
@@ -100,7 +101,8 @@ function assertPublicAllowlist(value) {
       assert.ok(relative.startsWith("data-foundation-audit/"));
       assert.ok(auditFiles.has(relative.slice("data-foundation-audit/".length)));
     }
-    assert.doesNotMatch(relative, /(?:^|\/)(?:bin|download|negative|cache|db|private|\.omx)(?:\/|$)|\.tar(?:\.gz)?$|\.zip$|\.stderr$|\.stdout$|\*\*/u);
+    assert.doesNotMatch(relative, /(?:^|\/)(?:bin|download|negative|cache|db|private|\.omx)(?:\/|$)|\.tar(?:\.gz)?$|\.zip$|\.stderr$|\.stdout$/u);
+    if (relative.includes("**")) assert.equal(relative, "data-foundation-audit/owned-scanner-public/**");
   }
   assert.equal(upload.with["if-no-files-found"], "error");
   assert.equal(upload.with["retention-days"], 14);
@@ -109,7 +111,7 @@ function assertPublicAllowlist(value) {
 test("diagnostic workflow uses exact managed tools without write or retained checkout authority", () => {
   assertReadOnlyBoundary(workflow);
   assert.equal(workflow.jobs.audit["runs-on"], "ubuntu-24.04");
-  assert.equal(workflow.jobs.audit["timeout-minutes"], 75);
+  assert.equal(workflow.jobs.audit["timeout-minutes"], 360);
   assert.equal(workflow.concurrency["cancel-in-progress"], false);
   assert.deepEqual(steps(workflow).filter((entry) => entry.uses).map((entry) => entry.uses),
     [actions.checkout, actions.node, actions.upload]);
@@ -142,6 +144,8 @@ test("automatic audit triggers cover release, evaluator and fixture inputs on PR
     "infra/scanner/scanner-lock.json", "infra/scanner/materials/scanner-fixtures/**",
     "scripts/scanner/official-*.mjs", "scripts/scanner/audit.mjs",
     "scripts/scanner/audit-policy.mjs", "scripts/scanner/controls.mjs", "tests/scanner-official-*.test.mjs",
+    "infra/scanner/owned-scanner-lock.json", "infra/scanner/patches/trivy-go-jose-4.1.6.patch",
+    "scripts/scanner/owned-*.mjs", "infra/scanner/materials/trivy/**",
   ]) assert.ok(workflow.on.pull_request.paths.includes(required));
   assert.doesNotMatch(JSON.stringify(workflow.on), /pull_request_target|workflow_run/u);
 });
@@ -188,7 +192,7 @@ test("missing refusal or early extraction is rejected by the ordering regression
   assert.throws(() => assertQualificationOrder(earlyExtraction));
 });
 
-test("three pure suites precede authenticated acquisition and scanner execution", () => {
+test("official and owned pure suites precede authenticated acquisition and scanner execution", () => {
   const tests = step(workflow, "tests");
   for (const file of ["scanner-official-controls.test.mjs", "scanner-official-audit.test.mjs", "scanner-official-workflow.test.mjs"]) {
     assert.ok(tests.run.includes("tests/" + file));
@@ -196,9 +200,19 @@ test("three pure suites precede authenticated acquisition and scanner execution"
   assert.ok(steps(workflow).indexOf(tests) < steps(workflow).indexOf(step(workflow, "provenance")));
   assert.ok(steps(workflow).indexOf(step(workflow, "provenance")) < steps(workflow).indexOf(step(workflow, "audit")));
   assert.match(step(workflow, "audit").run, /scripts\/scanner\/official-audit\.mjs/u);
+  assert.match(tests.run, /tests\/scanner-official-owned-\*\.test\.mjs/u);
+  assert.match(step(workflow, "audit").run, /--producer auto-world\s*$/u);
   for (const argument of ["--scanner", "--build-info", "--output"]) {
     assert.ok(step(workflow, "audit").run.includes(argument + ' "${RUNNER_TEMP}/'));
   }
+});
+
+test("owned construction and downstream work share one bounded execution step with capped overhead", () => {
+  assert.equal(steps(workflow).filter((entry) => entry.run?.includes("official-audit.mjs")).length, 1);
+  assert.equal(step(workflow, "audit")["timeout-minutes"], 320);
+  const overhead = steps(workflow).filter((entry) => entry.id !== "audit");
+  assert.ok(overhead.every((entry) => Number.isInteger(entry["timeout-minutes"]) && entry["timeout-minutes"] > 0));
+  assert.equal(overhead.reduce((sum, entry) => sum + entry["timeout-minutes"], 0), 40);
 });
 
 test("failed audit stays failed while the public evidence allowlist always uploads", () => {
