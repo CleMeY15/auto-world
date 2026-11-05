@@ -1,6 +1,6 @@
 # TASK-0106 — V1 prototype application recovery and operations acceptance
 
-Status: BLOCKED until TASK-0105 is `DONE_FOR_V1_PROTOTYPE` on `main`, under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Deferred TASK-0005 image/security qualification is not a prototype dependency. Priority: P1. Owner: Platform/SRE executor; independent architecture, security/privacy, data and operations review of changed application boundaries, excluding deferred TASK-0005 image/scanner/admission qualification.
+Status: IN_PROGRESS on `codex/task-0106-prototype-application`, from accepted main `2e37541427cc2e8a871822c613d4c05272412daa`. TASK-0105 is `DONE_FOR_V1_PROTOTYPE` by the [PR226 final checkpoint](https://github.com/CleMeY15/auto-world/pull/226#issuecomment-6666281417), under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). [Implementation plan](../plans/TASK-0106-prototype-application.md); [validation](../../docs/validation/TASK-0106.md). Deferred TASK-0005 image/security qualification is not a prototype dependency. Priority: P1. Owner: Platform/SRE executor; independent architecture, security/privacy, data and operations review of changed application boundaries, excluding deferred TASK-0005 image/scanner/admission qualification.
 
 ## Goal and dependencies
 

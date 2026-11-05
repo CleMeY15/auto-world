@@ -43,6 +43,7 @@ type MutationEnvelope<T> = { readonly mutation: MutationReceipt; readonly data: 
 type MutationRow = { kind: ConnectorMutationKind; payload_sha256: string; semantic_command: string; receipt: unknown };
 type RunRow = { status: "running" | "completed"; request_sha256: string; request: unknown; policy: unknown; checkpoint: unknown };
 type InventoryRow = { generation_id: string; revision: number | string; head: unknown };
+type ProjectionIdentityRow = { source_listing_id: string };
 
 const ok = <T>(data: T): StoreResult<T> => ({ acknowledged: true, success: true, data });
 const fail = <T>(code: StoreFailureCode): StoreResult<T> => ({ acknowledged: true, success: false, failure: { code, retryable: false } });
@@ -245,6 +246,28 @@ async function inventory(client: DatabaseClient, sourceId: string, scope: Runnin
   return head;
 }
 
+async function currentActiveBaseline(client: DatabaseClient, sourceId: string, scopeId: string,
+  head: InventoryHead): Promise<string[]> {
+  if (head.activeSourceListingIds.length > 0) {
+    const missing = await client.query<ProjectionIdentityRow>(
+      `SELECT member.source_listing_id FROM unnest($3::text[]) AS member(source_listing_id)
+       WHERE NOT EXISTS (SELECT 1 FROM aw_connector.projections p
+         WHERE p.source_id=$1 AND p.scope_id=$2 AND p.source_listing_id=member.source_listing_id)
+       LIMIT 1`,
+      [sourceId, scopeId, head.activeSourceListingIds],
+    );
+    requireState(missing.rowCount === 0, "inventory_conflict");
+  }
+  const active = await client.query<ProjectionIdentityRow>(
+    `SELECT DISTINCT source_listing_id COLLATE "C" AS source_listing_id FROM aw_connector.projections
+     WHERE source_id=$1 AND scope_id=$2 AND state='active'
+     ORDER BY source_listing_id LIMIT 100001`,
+    [sourceId, scopeId],
+  );
+  requireState(active.rows.length <= 100_000, "invalid_state");
+  return active.rows.map((row) => row.source_listing_id).sort();
+}
+
 function completed(run: RunningConnectorCheckpoint, head: InventoryHead, operationKey: OperationKey, completedAt: string): Extract<ConnectorCheckpoint, { status: "completed" }> {
   const result = { status: "completed" as const, runId: run.runId, pages: run.committedPages, items: run.committedItems, checkpointRevision: run.checkpointRevision };
   return {
@@ -409,6 +432,12 @@ export function createStore(pool: Pool): ConnectorStorePort {
           }
           else {
             requireState(old.authorityRevision === input.authority.authorityRevision && old.configurationSha256 === input.configurationSha256, "idempotency_conflict");
+            const newer = await client.query(
+              `SELECT 1 FROM aw_connector.runs WHERE source_id=$1 AND scope_id=$2 AND run_id<>$3 AND lease_fence>$4
+               LIMIT 1`,
+              [input.sourceId, input.scope.scopeId, input.runId, old.leaseFence],
+            );
+            requireState(newer.rowCount === 0, "checkpoint_conflict");
             requireState(old.expectedInventoryRevision === head.revision && old.expectedInventoryGenerationId === head.generationId, "inventory_conflict");
             const resumed: RunningConnectorCheckpoint = { ...old, leaseFence: input.leaseFence, checkpointRevision: old.checkpointRevision + 1 };
             await client.query("UPDATE aw_connector.runs SET lease_fence=$3,checkpoint_revision=$4,checkpoint=$5::jsonb WHERE source_id=$1 AND run_id=$2",
@@ -419,13 +448,16 @@ export function createStore(pool: Pool): ConnectorStorePort {
         } else {
           if (input.request.mode === "incremental") requireState(input.operations.incremental && head.lastCompletedFullAt !== null &&
             nowMs < Date.parse(head.lastCompletedFullAt) + input.operations.fullReconcileIntervalSeconds * 1000, "full_reconciliation_required");
+          const baselineActiveSourceListingIds = input.request.mode === "full"
+            ? await currentActiveBaseline(client, input.sourceId, input.scope.scopeId, head)
+            : head.activeSourceListingIds;
           const opened: RunningConnectorCheckpoint = {
             schemaVersion: 1, status: "running", checkpointRevision: 1, sourceId: input.sourceId, runId: input.runId,
             leaseFence: input.leaseFence, request: input.request, requestSha256: input.requestSha256, startedAt: input.openedAt,
             authorityRevision: input.authority.authorityRevision, registryRevision: input.registryRevision,
             configurationSha256: input.configurationSha256, authorizationBasisRef: input.obligations.authorizationBasisRef,
             obligations: input.obligations, operations: input.operations, scope: input.scope,
-            baselineGenerationId: head.generationId, baselineActiveSourceListingIds: head.activeSourceListingIds,
+            baselineGenerationId: head.generationId, baselineActiveSourceListingIds,
             expectedInventoryGenerationId: head.generationId, expectedInventoryRevision: head.revision,
             lastCompletedFullAt: head.lastCompletedFullAt, nextPageOrdinal: 0,
             nextCursor: input.request.mode === "full" ? null : head.incrementalCursor,

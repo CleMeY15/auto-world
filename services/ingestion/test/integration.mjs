@@ -180,6 +180,86 @@ export async function runStoreScenarios({
       assert.equal(raw.rows[0].actual_length, raw.rows[0].byte_length);
     });
 
+    await phase("disjoint full reconciles active evidence from an interrupted full", async () => {
+      const sourceId = "src_pg_interrupted_full_reconcile";
+      const interrupted = await run(runtime, sourceId, "interrupted", "partialInterrupted");
+      assert.equal(interrupted.result.status, "failed");
+      assert.equal(await count(adminPool, "projections", "source_id=$1 AND state='active'", [sourceId]), 1);
+      await expectCompleted(await run(runtime, sourceId, "replacement", "valid"));
+      const projections = await adminPool.query(
+        "SELECT source_listing_id,state FROM aw_connector.projections WHERE source_id=$1 ORDER BY source_listing_id COLLATE \"C\"",
+        [sourceId],
+      );
+      assert.deepEqual(projections.rows, [
+        { source_listing_id: "publication-partial-a", state: "missing" },
+        { source_listing_id: "publication-valid", state: "active" },
+      ]);
+      const head = await adminPool.query("SELECT head FROM aw_connector.inventories WHERE source_id=$1", [sourceId]);
+      assert.deepEqual(head.rows[0].head.activeSourceListingIds, ["publication-valid"]);
+    });
+
+    await phase("later partial run makes an older running checkpoint stale", async () => {
+      const sourceId = "src_pg_stale_resume_after_later_run";
+      const older = await run(runtime, sourceId, "older", "partialInterrupted");
+      assert.equal(older.result.status, "failed");
+      const later = await run(runtime, sourceId, "later", "partialInterrupted");
+      assert.equal(later.result.status, "failed");
+      const resumed = await run(runtime, sourceId, "older", "partialInterrupted");
+      assert.equal(resumed.result.status, "failed");
+      assert.equal(resumed.result.error.code, "checkpoint_conflict");
+      assert.equal(resumed.trace.length, 0);
+    });
+
+    await phase("full baseline uses the SDK JavaScript ordering for Unicode publication ids", async () => {
+      const sourceId = "src_pg_unicode_baseline_order";
+      await expectCompleted(await run(runtime, sourceId, "baseline"));
+      const saved = await adminPool.query("SELECT * FROM aw_connector.projections WHERE source_id=$1", [sourceId]);
+      assert.equal(saved.rowCount, 1);
+      const original = saved.rows[0];
+      await adminPool.query(
+        "UPDATE aw_connector.inventories SET head=jsonb_set(head,'{activeSourceListingIds}','[]'::jsonb) WHERE source_id=$1",
+        [sourceId],
+      );
+      await adminPool.query("UPDATE aw_connector.projections SET state='withdrawn' WHERE source_id=$1", [sourceId]);
+      const unicodeIds = [String.fromCodePoint(0x10000), String.fromCodePoint(0xe000)];
+      for (const [index, sourceListingId] of unicodeIds.entries()) {
+        const listingId = `lst_unicode_order_${index}`;
+        const projection = {
+          ...original.projection,
+          listingId,
+          sourceListingId,
+          latestVersionId: null,
+          state: "active",
+          projectionRevision: Number(original.revision) + 1,
+        };
+        await adminPool.query(`INSERT INTO aw_connector.projections
+          (source_id,scope_id,listing_id,source_listing_id,latest_version_id,state,revision,projection)
+          VALUES($1,$2,$3,$4,NULL,'active',$5,$6::jsonb)`,
+        [sourceId, original.scope_id, listingId, sourceListingId, projection.projectionRevision,
+          JSON.stringify(projection)]);
+      }
+      let openedBaseline;
+      const observingStore = new Proxy(runtime.store, {
+        get(target, property, receiver) {
+          if (property !== "openRun") return Reflect.get(target, property, receiver);
+          return async (input) => {
+            const opened = await target.openRun(input);
+            if (opened.success) openedBaseline = opened.data.checkpoint.baselineActiveSourceListingIds;
+            return opened;
+          };
+        },
+      });
+      const terminalAdapter = createCorpusAdapter("valid");
+      terminalAdapter.fetchPage = async () => ({ success: false, failure: { kind: "terminal" } });
+      const stopped = await run(runtime, sourceId, "unicode-order", "valid", {
+        adapter: terminalAdapter,
+        store: observingStore,
+      });
+      assert.equal(stopped.result.status, "failed");
+      assert.equal(stopped.result.error.code, "acquisition_failed");
+      assert.deepEqual(openedBaseline, [...unicodeIds].sort());
+    });
+
     await phase("incremental run resumes from the durable full watermark", async () => {
       const sourceId = "src_pg_incremental";
       await expectCompleted(await run(runtime, sourceId, "baseline"));
@@ -368,6 +448,76 @@ export async function runStoreScenarios({
         assert.equal(await count(adminPool, "listing_versions", "source_id=$1", [sourceId]), 1);
       });
     }
+
+    for (const deletionMode of ["both", "explicit_tombstone"]) {
+      await phase(`${deletionMode} full baseline does not resurrect an explicit end`, async () => {
+        const sourceId = `src_pg_explicit_end_${deletionMode}`;
+        const registryOptions = { operations: { deletionMode } };
+        await expectCompleted(await run(runtime, sourceId, "active", "withdrawnBaseline", { registry: registryOptions }));
+        const interruptedStore = new Proxy(runtime.store, {
+          get(target, property, receiver) {
+            if (property !== "finalizeFullRun") return Reflect.get(target, property, receiver);
+            return async () => { throw new Error("synthetic_pre_finalization_failure"); };
+          },
+        });
+        const ended = await run(runtime, sourceId, "ended", "withdrawnDelta", {
+          registry: registryOptions, store: interruptedStore,
+        });
+        assert.equal(ended.result.status, "failed");
+        assert.equal(ended.result.error.code, "mutation_indeterminate");
+        const interruptedHead = await adminPool.query("SELECT head FROM aw_connector.inventories WHERE source_id=$1", [sourceId]);
+        assert.deepEqual(interruptedHead.rows[0].head.activeSourceListingIds, ["publication-withdrawn"]);
+        const interruptedProjection = await adminPool.query(
+          "SELECT state FROM aw_connector.projections WHERE source_id=$1 AND source_listing_id='publication-withdrawn'",
+          [sourceId],
+        );
+        assert.deepEqual(interruptedProjection.rows, [{ state: "withdrawn" }]);
+        const inferredBefore = await count(adminPool, "tombstones", "source_id=$1 AND kind='inferred_missing'", [sourceId]);
+        await expectCompleted(await run(runtime, sourceId, "empty-after-end", "empty", { registry: registryOptions }));
+        assert.equal(await count(adminPool, "tombstones", "source_id=$1 AND kind='inferred_missing'", [sourceId]), inferredBefore);
+        const projection = await adminPool.query(
+          "SELECT state FROM aw_connector.projections WHERE source_id=$1 AND source_listing_id='publication-withdrawn'",
+          [sourceId],
+        );
+        assert.deepEqual(projection.rows, [{ state: "withdrawn" }]);
+        const head = await adminPool.query("SELECT head FROM aw_connector.inventories WHERE source_id=$1", [sourceId]);
+        assert.deepEqual(head.rows[0].head.activeSourceListingIds, []);
+      });
+    }
+
+    await phase("new full fails closed when completed inventory membership has no projection", async () => {
+      const sourceId = "src_pg_inventory_projection_corruption";
+      await expectCompleted(await run(runtime, sourceId, "baseline"));
+      const saved = await adminPool.query("SELECT * FROM aw_connector.projections WHERE source_id=$1", [sourceId]);
+      assert.equal(saved.rowCount, 1);
+      await adminPool.query("DELETE FROM aw_connector.projections WHERE source_id=$1", [sourceId]);
+      try {
+        let storeFailureCode;
+        const observingStore = new Proxy(runtime.store, {
+          get(target, property, receiver) {
+            if (property !== "openRun") return Reflect.get(target, property, receiver);
+            return async (input) => {
+              const opened = await target.openRun(input);
+              if (!opened.success) storeFailureCode = opened.failure.code;
+              return opened;
+            };
+          },
+        });
+        const corrupted = await run(runtime, sourceId, "corruption-check", "empty", { store: observingStore });
+        assert.equal(storeFailureCode, "inventory_conflict");
+        assert.equal(corrupted.result.status, "failed");
+        assert.equal(corrupted.result.error.code, "checkpoint_conflict");
+        assert.equal(corrupted.trace.length, 0);
+        assert.equal(await count(adminPool, "runs", "source_id=$1", [sourceId]), 1);
+      } finally {
+        const row = saved.rows[0];
+        await adminPool.query(`INSERT INTO aw_connector.projections
+          (source_id,scope_id,listing_id,source_listing_id,latest_version_id,state,revision,projection)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,
+        [row.source_id, row.scope_id, row.listing_id, row.source_listing_id, row.latest_version_id,
+          row.state, row.revision, JSON.stringify(row.projection)]);
+      }
+    });
 
     await phase("same-source scopes reconcile without cross-scope tombstones", async () => {
       const sourceId = "src_pg_scope_isolation";

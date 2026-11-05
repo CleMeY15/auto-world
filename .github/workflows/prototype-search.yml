@@ -9,6 +9,7 @@ on:
       - services/api/**
       - services/ingestion/**
       - scripts/prototype-search/**
+      - scripts/prototype-shared/**
       - scripts/prototype-postgres/**
       - tests/prototype-search-workflow.test.mjs
       - connectors/_sdk/**
@@ -29,6 +30,7 @@ on:
       - services/api/**
       - services/ingestion/**
       - scripts/prototype-search/**
+      - scripts/prototype-shared/**
       - scripts/prototype-postgres/**
       - tests/prototype-search-workflow.test.mjs
       - connectors/_sdk/**

@@ -37,6 +37,7 @@ test("prototype search workflow is scoped to the projection boundary", () => {
     "services/api/**",
     "services/ingestion/**",
     "scripts/prototype-search/**",
+    "scripts/prototype-shared/**",
     "scripts/prototype-postgres/**",
     "connectors/synthetic/**",
     "packages/demo-search-contract/**",
