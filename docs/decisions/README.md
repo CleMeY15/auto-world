@@ -19,6 +19,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 - [ADR-0018 — Observation-change events V1](ADR-0018-observation-change-events.md): TASK-0009 DONE_ON_MAIN at `4f750960`, identical reviewed tree `7699a448`, final CI38431216651/main CI38433291505 SUCCESS and independent delivery PASS/CLEAR. [PR162 delivery](https://github.com/CleMeY15/auto-world/pull/162#issuecomment-6150751053). Closed price/mileage representation changes only; no lifecycle, authenticated evidence or durable delivery authority.
 
+- [ADR-0027 — Deferred security qualification during bounded functional development](ADR-0027-functional-development-security-deferral.md): synthetic four-service diagnostics may continue; security, admission, support, production and real-source use remain unauthorized
+
 ## Plans under implementation
 
 - [ADR-0024 — Official registration simulator handoff](ADR-0024-official-registration-guide.md): TASK-0114 static preparation page and explicit external navigation only; no fiscal engine, data transfer or infrastructure admission.

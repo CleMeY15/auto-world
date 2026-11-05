@@ -91,9 +91,19 @@ test("only the raw volume disables image skeleton copy-up before empty-target re
 test("four-service diagnostic runs on infrastructure changes with read-only permissions", () => {
   const workflow = readFileSync(new URL("../.github/workflows/data-integration-diagnostic.yml", import.meta.url), "utf8");
   for (const required of [
-    "pull_request:", "push:", "infra/compose.json", "infra/images.json", "infra/migrations/**",
+    "workflow_dispatch:", "pull_request:", "push:", "infra/compose.json", "infra/images.json", "infra/migrations/**",
     "scripts/data-infra/**", "contents: read", "persist-credentials: false",
     "runs-on: ubuntu-24.04", "run: pnpm infra:test", "if-no-files-found: error",
   ]) assert.ok(workflow.includes(required), `missing integration workflow contract: ${required}`);
-  assert.doesNotMatch(workflow, /data-image-audit:|run: pnpm infra:audit/u);
+  assert.doesNotMatch(workflow, /data-image-audit:|run: pnpm infra:audit|continue-on-error:/u);
+  assert.match(workflow, /id: lifecycle\s+run: pnpm infra:test/u);
+  const summary = workflow.slice(workflow.indexOf("- name: Report functional development scope"));
+  for (const required of [
+    "if: always()", "LIFECYCLE_OUTCOME: ${{ steps.lifecycle.outcome }}",
+    "executionScope: DIAGNOSTIC_ONLY", "dataScope: SYNTHETIC_ONLY",
+    "securityQualification: DEFERRED_BY_USER", "imageAdmission: NOT_AUTHORIZED",
+    "supportedRuntime: NOT_AUTHORIZED", "lifecycleStepOutcome: %s", '"$LIFECYCLE_OUTCOME"',
+    "all 17 named phases", '"$GITHUB_STEP_SUMMARY"',
+  ]) assert.ok(summary.includes(required), `missing development scope contract: ${required}`);
+  assert.doesNotMatch(summary, /VERIFIED_DIAGNOSTIC_ONLY|securityQualification: (?:PASS|VERIFIED)/u);
 });

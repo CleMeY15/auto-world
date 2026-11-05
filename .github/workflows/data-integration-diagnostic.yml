@@ -1,6 +1,7 @@
 name: Four-service data integration diagnostic
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/data-integration-diagnostic.yml
@@ -55,6 +56,7 @@ jobs:
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
       - name: Validate the real Compose lifecycle and data contracts
+        id: lifecycle
         run: pnpm infra:test
       - name: Retain sanitized validation records
         if: always()
@@ -65,3 +67,19 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
+      - name: Report functional development scope
+        if: always()
+        env:
+          LIFECYCLE_OUTCOME: ${{ steps.lifecycle.outcome }}
+        run: |
+          {
+            printf '## TASK-0005 functional development\n\n'
+            printf 'executionScope: DIAGNOSTIC_ONLY\n\n'
+            printf 'dataScope: SYNTHETIC_ONLY\n\n'
+            printf 'securityQualification: DEFERRED_BY_USER\n\n'
+            printf 'imageAdmission: NOT_AUTHORIZED\n\n'
+            printf 'supportedRuntime: NOT_AUTHORIZED\n\n'
+            printf 'lifecycleStepOutcome: %s\n\n' "$LIFECYCLE_OUTCOME"
+            printf 'Functional verification requires a successful whole job and review of the original data-integration artifact, including all 17 named phases.\n'
+            printf 'Image findings remain open; this run grants no security, production or support acceptance.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
