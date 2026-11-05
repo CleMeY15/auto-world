@@ -8,7 +8,9 @@ Prochaine chaîne : TASK-0104 (stockage PostgreSQL), puis TASK-0105 (index/reche
 
 Les points de suivi datés ci-dessous sont conservés comme historiques ; leurs anciens blocages TASK-0104–0106 sont remplacés uniquement pour cette voie prototype.
 
-TASK-0104 est implémentée et revue sur `codex/task-0104-prototype-postgres` : stockage transactionnel PostgreSQL avec le pilote standard `pg`, sans ORM ni nouvel orchestrateur. Les 34 phases locales sur PostgreSQL réel et 518 tests navigateur passent. [Les preuves de validation](docs/validation/TASK-0104.md) distinguent contrôles locaux et livraison finale ; la PR et les CI exactes source/main restent requises avant `DONE_FOR_V1_PROTOTYPE`. Aucune modification d'interface, aucun démarrage de TASK-0105 et aucune reprise des scanners TASK-0005 n'en découlent.
+TASK-0104 est `DONE_FOR_V1_PROTOTYPE` sur main `87e873276b92c83b50dbb1f1e07c2aafd62f5cea`, par [PR224 et son checkpoint final](https://github.com/CleMeY15/auto-world/pull/224#issuecomment-6662552697) : stockage transactionnel PostgreSQL avec le pilote standard `pg`, sans ORM ni nouvel orchestrateur. [Les preuves de validation](docs/validation/TASK-0104.md) conservent le détail des contrôles.
+
+TASK-0105 est en cours sur `codex/task-0105-prototype-search-api`, réservée à cette branche après coordination : projection OpenSearch reconstruisible depuis PostgreSQL et adaptateur de lecture pour l'API V1 existante. [ADR-0030](docs/decisions/ADR-0030-prototype-search-projection.md) et [les preuves](docs/validation/TASK-0105.md) délimitent les validations locales et la livraison restant à accepter. Aucune modification d'interface, aucun démarrage de TASK-0106 et aucune reprise des scanners TASK-0005.
 
 ## North Star
 

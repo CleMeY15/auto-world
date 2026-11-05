@@ -1,6 +1,6 @@
 # TASK-0105 — V1 prototype OpenSearch projection and API read adapter
 
-Status: BLOCKED until TASK-0104 is `DONE_FOR_V1_PROTOTYPE` on `main`, under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Deferred TASK-0005 image/security qualification is not a prototype dependency. Priority: P1. Owner: Search/API executor; independent architecture, security/privacy and data review of changed application boundaries, excluding deferred TASK-0005 image/scanner/admission qualification.
+Status: IN_PROGRESS, 2026-11-05, on `codex/task-0105-prototype-search-api`. TASK-0104 is `DONE_FOR_V1_PROTOTYPE` on `main` at `87e873276b92c83b50dbb1f1e07c2aafd62f5cea`, accepted by the [PR224 final checkpoint](https://github.com/CleMeY15/auto-world/pull/224#issuecomment-6662552697), under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Implementation follows [ADR-0030](../../docs/decisions/ADR-0030-prototype-search-projection.md); evidence and remaining gates are tracked in [validation](../../docs/validation/TASK-0105.md). Deferred TASK-0005 image/security qualification is not a prototype dependency. Priority: P1. Owner: Search/API executor; independent architecture, security/privacy and data review of changed application boundaries, excluding deferred TASK-0005 image/scanner/admission qualification. TASK-0106 is not started.
 
 ## Goal and dependencies
 

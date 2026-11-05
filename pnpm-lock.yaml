@@ -194,7 +194,35 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
 
-  services/search: {}
+  services/search:
+    devDependencies:
+      '@auto-world/api':
+        specifier: workspace:*
+        version: link:../api
+      '@auto-world/connector-sdk':
+        specifier: workspace:*
+        version: link:../../connectors/_sdk
+      '@auto-world/demo-search-contract':
+        specifier: workspace:*
+        version: link:../../packages/demo-search-contract
+      '@auto-world/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
+      '@auto-world/synthetic-connector':
+        specifier: workspace:*
+        version: link:../../connectors/synthetic
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-schema
+      '@types/node':
+        specifier: 22.20.2
+        version: 22.20.2
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
 
 packages:
 
