@@ -4,6 +4,8 @@ Status: Accepted as a sequencing amendment after sequential independent Architec
 Date: 2026-11-05
 Scope: TASK-0005 synthetic development/CI diagnostics only.
 
+Superseding sequencing decision, 2026-11-05: [ADR-0028](ADR-0028-v1-prototype-functional-gate.md) records the user's later instruction to defer TASK-0005 security until a usable functional V1 prototype and permits container-backed synthetic application development after PR222's accepted functional milestone. The diagnostic evidence below retains its original scope; this ADR's prohibition on downstream prototype work is replaced by ADR-0028. No security/admission result is promoted to PASS, and production/real-source use remains unauthorized.
+
 ## Context
 
 TASK-0005 already has an isolated four-service Compose lifecycle covering PostgreSQL, OpenSearch, Redis and S3-compatible storage. Its existing `pnpm infra:test` path uses fabricated fixtures and validates seventeen named phases, including migrations, transactional raw/outbox writes, restarts, dependency failures, cold backup, isolated restore and scoped cleanup.

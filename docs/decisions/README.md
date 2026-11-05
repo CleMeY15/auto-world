@@ -3,6 +3,8 @@ Create an ADR before introducing a cross-service contract or changing a previous
 
 ## Accepted decisions
 
+- [ADR-0028 — V1 prototype functional gate](ADR-0028-v1-prototype-functional-gate.md): sequencing authorized by the user; independent contract review APPROVE, local checks passed, exact-source CI/repository delivery pending. TASK-0005's functional milestone satisfies the isolated prototype dependency; image/security qualification is deferred until the usable V1, never declared passed. TASK-0104→0105→0106 stay sequential; production and real data remain unauthorized.
+
 - [ADR-0001 — Canonical vehicle contract](ADR-0001-canonical-vehicle-contract.md)
 - [ADR-0002 — Source registry contract](ADR-0002-source-registry-contract.md)
 - [ADR-0003 — Connector SDK contract](ADR-0003-connector-sdk-contract.md) and its [API appendix](ADR-0003-connector-sdk-api.md)

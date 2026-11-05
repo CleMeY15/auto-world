@@ -1,5 +1,11 @@
 # Auto World delivery ledger
 
+## Functional foundation and V1 sequencing — 2026-11-05
+
+[PR222's accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/222#issuecomment-6656692551) records main39521a7f630ef4cbc4896f39129859a201ef5203, integration42015103402 SUCCESS/17 real phases and quality42015103516 SUCCESS, with independently reviewed originals. This is functional evidence, not image-security admission.
+
+The user's later instruction to postpone TASK-0005 security until a usable V1 prototype is recorded by [ADR-0028](../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Its documentation delivery remains pending; [validation](../docs/validation/ADR-0028-V1-PROTOTYPE.md) tracks this amendment separately. After acceptance, PR222's milestone satisfies the infrastructure dependency for isolated synthetic TASK-0104→0105→0106 in order. Their code and functional acceptance remain to be delivered. Security/admission remains deferred and production/real data unauthorized. The older blocked-status checkpoints below remain historical, not the active prototype queue.
+
 ## Product checkpoint — TASK-0114 DONE_ON_MAIN, 2026-10-23
 
 Recorded from the accepted [PR190 delivery checkpoint](https://github.com/CleMeY15/auto-world/pull/190#issuecomment-6352642818), dated 2026-10-23 Europe/Paris. [TASK-0114](tasks/TASK-0114-official-registration-guide.md) delivers a static preparation page at `/carte-grise` and explicit private navigation to the official Service Public simulator, with local help and an official guidance fallback. No internal calculator, copied tax rates, form, PII collection, prefill, storage, iframe, scraper, proxy or returned estimate is introduced.
