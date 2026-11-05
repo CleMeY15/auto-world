@@ -11,7 +11,7 @@ Create a reproducible monorepo foundation and freeze the first cross-service con
 2. `TASK-0002-canonical-vehicle-schema.md` — DONE; PR #4 merged at `fe82aaf`, main CI green
 3. `TASK-0003-source-registry-contract.md` — DONE; PR #5 merged and main verified at `79e6ab0`
 4. `TASK-0004-connector-sdk-contract.md` — DONE; PR #6 merged into accepted main `b9d22a2`
-5. `TASK-0005-local-data-infra.md` — IN_PROGRESS in the supported-infrastructure lane; image admission and four-service acceptance remain required
+5. `TASK-0005-local-data-infra.md` — accepted PR222 functional milestone satisfies the isolated V1 prototype dependency under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md); remaining image/security admission and TASK-0005A are DEFERRED_UNTIL_V1, not passed. Next prototype task is TASK-0104, followed sequentially by TASK-0105/0106; no production or real-source activation.
 6. `TASK-0006-first-vertical-slice-plan.md` — DONE on accepted `main` `198503c` through [PR #146](https://github.com/CleMeY15/auto-world/pull/146); final-head/main CI pass; [plan and downstream contracts](../plans/TASK-0006-synthetic-first-slice.md) are not a completed slice
 7. `TASK-0007-design-web-foundation.md` — DONE after independent code/UX acceptance and full exact-head CI on [PR #147](https://github.com/CleMeY15/auto-world/pull/147); final-head/main delivery record in the PR governs dependency acceptance; reusable primitives and component preview only; [evidence](../../docs/validation/TASK-0007.md)
 

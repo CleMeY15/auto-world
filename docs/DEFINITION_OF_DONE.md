@@ -1,5 +1,9 @@
 # DEFINITION OF DONE
 
+## V1 prototype scope
+
+[ADR-0028](decisions/ADR-0028-v1-prototype-functional-gate.md) permits `DONE_FOR_V1_PROTOTYPE` for isolated synthetic development after the applicable criteria below pass. TASK-0005's remaining image/scanner/security qualification is explicitly deferred until the usable V1 milestone and is not a prerequisite for this scoped completion. This is not a general security/privacy exemption: secrets, isolation, data integrity, ordinary quality checks and review of changed boundaries remain required. Record deferred qualification separately, never as PASS. Full image admission, public deployment, supported operation and real data remain blocked until their release gates pass. Functional and UI/UX criteria are unchanged.
+
 A task is Done only if applicable items pass:
 - Acceptance criteria satisfied.
 - Unit/contract/integration/E2E tests added and green.

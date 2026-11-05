@@ -1,10 +1,10 @@
-# TASK-0105 — Supported OpenSearch projection and API read adapter
+# TASK-0105 — V1 prototype OpenSearch projection and API read adapter
 
-Status: BLOCKED until TASK-0104 is Done on `main`. Priority: P1. Owner: Search/API executor; independent architecture, security and data review.
+Status: BLOCKED until TASK-0104 is `DONE_FOR_V1_PROTOTYPE` on `main`, under [ADR-0028](../../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Deferred TASK-0005 image/security qualification is not a prototype dependency. Priority: P1. Owner: Search/API executor; independent architecture, security/privacy and data review of changed application boundaries, excluding deferred TASK-0005 image/scanner/admission qualification.
 
 ## Goal and dependencies
 
-Build a rebuildable eventually-consistent OpenSearch projection from committed PostgreSQL outbox events, then replace only the API `DemoReadPort` adapter without changing the versioned public DTO. Depends on TASK-0005 accepted exact images, TASK-0102 API contract and TASK-0104 durable store on `main`. No real source is activated.
+Build a rebuildable eventually-consistent OpenSearch projection from committed PostgreSQL outbox events, then replace only the API `DemoReadPort` adapter in the isolated prototype composition without changing the versioned public DTO or the offline demo entrypoint. Depends on ADR-0028, TASK-0005's accepted PR222 functional milestone, TASK-0102 API contract and TASK-0104 prototype durable store on `main`. No real source is activated and image admission remains deferred.
 
 ## Relevant contracts and scope
 
@@ -14,5 +14,5 @@ Build a rebuildable eventually-consistent OpenSearch projection from committed P
 
 - Version index mappings and consumer checkpoint; idempotent outbox consumption handles duplicates, reordering and restart. Backfill/rebuild from PostgreSQL and reconciliation detect/fix stale, missing or withdrawn index documents without rewriting canonical history. Use at most five bounded backoff attempts per outbox event; quarantine exhausted/poison events with immutable diagnostic evidence, halt before advancing the checkpoint, and require operator-reviewed replay. Test poison, restart, replay and no silent skip.
 - Search filters/sort/cursor match the frozen DTO/query tests. Return the same `DemoSearchResponseV1` `dataAsOf`/`complete|partial|stale` semantics; stale-index and partial-result responses are explicit, with no false complete count. Search p95 <500 ms under stated representative load. In the bounded fixture profile, healthy committed-to-queryable index lag is ≤60 seconds; >60 seconds for five continuous minutes raises a warning test alert, and quarantine/checkpoint halt raises an immediate critical test alert. Measure sample count and lag distribution separately; these are not production SLO claims.
-- Exact admitted OpenSearch/PostgreSQL image/currentness checks, targeted integration/rebuild/failure tests, sanitized metrics/traces, root quality/security gates, exact-head/merged-main CI and independent reviews pass. Document deployment stop/rollback and evidence in `docs/validation/TASK-0105.md`.
+- Exact pinned OpenSearch/PostgreSQL identities from the functional stack, targeted real-service integration/rebuild/failure tests, sanitized metrics/traces, ordinary root quality/secrets/dependency gates, exact-head/merged-main CI and independent architecture/security/privacy/data/operations reviews of changed application boundaries pass. Those reviews exclude deferred TASK-0005 image/scanner/admission qualification. Keep prototype composition explicit, loopback/isolation and production-import exclusions intact; supported admission brokers stay unchanged. Document stop/rollback and evidence in `docs/validation/TASK-0105.md`. Completion is `DONE_FOR_V1_PROTOTYPE`, not security/admission or supported-runtime approval; any changed image needs affected functional validation.
 - This does not establish four-service application acceptance, backup/restore of all data, source rights or production activation; TASK-0106 owns the combined operational gate.

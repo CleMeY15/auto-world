@@ -1,5 +1,9 @@
 # SECURITY, PRIVACY & LEGAL ORCHESTRATION
 
+## Prototype sequencing exception
+
+[ADR-0028](../decisions/ADR-0028-v1-prototype-functional-gate.md) records the user's deferral of remaining TASK-0005/TASK-0005A image/scanner qualification until a usable functional V1. It no longer blocks isolated application development on fabricated data after the accepted functional milestone. It does not waive source rights, secret handling, loopback/isolation, data integrity, ordinary dependency checks or security review of newly changed application boundaries. Keep known findings and resume release qualification at that V1 milestone, before any public deployment, production, supported activation or real-data use. Never describe deferred image qualification as passed.
+
 ## Source gate
 No production source without documented authorization basis and redistribution/caching rules. Legal review must cover database rights, copyright/media, ToS/API terms, personal data and territorial restrictions.
 

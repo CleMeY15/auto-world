@@ -39,6 +39,7 @@ Read `docs/PRODUCT_UX.md` before implementing or reviewing any user-facing surfa
 
 ## Work selection
 - Pick only tasks whose dependencies are complete.
+- For isolated synthetic V1 development, apply [ADR-0028](docs/decisions/ADR-0028-v1-prototype-functional-gate.md): TASK-0005's accepted functional milestone satisfies the prototype infrastructure dependency; its image/security qualification is deferred until the usable V1 milestone, not marked passed. Keep task order, functional/UX quality and essential protections; production, public deployment, real data and image admission remain unauthorized.
 - Prefer P0 before P1 before P2 before P3.
 - One task = one focused branch/PR unless an explicit epic says otherwise.
 - If a contract/schema is ambiguous, create/update an ADR in `docs/decisions/` before coupling multiple services to it.

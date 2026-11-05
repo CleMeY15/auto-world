@@ -2,6 +2,8 @@
 
 Status: Accepted on reviewed merge to `main`, 2026-10-08.
 
+Sequencing amendment, 2026-11-05: [ADR-0028](ADR-0028-v1-prototype-functional-gate.md) extends the prototype lane to explicitly isolated container-backed development on fabricated data, using TASK-0005's accepted functional milestone without waiting for its deferred image/security qualification. The no-container restriction below continues to describe the original offline lane, not the new prototype composition. Production import exclusion, source rights and non-prototype admission remain unchanged; TASK-0104→0105→0106 retain their functional dependency order.
+
 ## Context
 
 TASK-0006 produces an implementation-ready vertical-slice plan; it does not run a connector, an image or a data service. Its previous dependency on completing the four-service TASK-0005 blocked even a plan using only synthetic fixtures and the already accepted TASK-0004 connector contracts. On 2026-10-08 the user directed that the synthetic development/CI path advance independently while the supported image-admission path continues.
