@@ -23,9 +23,9 @@ function authority(current) {
   } };
 }
 
-function ports(ingestion, adapter) {
+function ports(ingestion, adapter, operationsOverrides = {}) {
   return {
-    authority: authority(registry()), lease: ingestion.lease, store: ingestion.store, adapter,
+    authority: authority(registry({ operations: operationsOverrides })), lease: ingestion.lease, store: ingestion.store, adapter,
     clock: { nowMs: () => Date.now() }, scheduler: systemScheduler, random: { next: () => 0 }, telemetry: noopTelemetry,
   };
 }
@@ -57,14 +57,14 @@ function generatedAdapter(count, offset = 0, outcome = "active") {
   };
 }
 
-async function ingest(ingestion, adapter, invocationKey, mode = "full", limitOverrides = {}) {
+async function ingest(ingestion, adapter, invocationKey, mode = "full", limitOverrides = {}, operationsOverrides = {}) {
   const source = SYNTHETIC_CORPUS_MANIFEST.source;
   const outcome = await runConnector(request({
     sourceId: source.sourceId, territory: source.territory, acquisitionMethod: source.acquisitionMethod,
     audience: "internal", fields: ["source_listing_id", "price", "mileage"], mode, invocationKey,
     adapterVersion: `prototype-search-${invocationKey}`, mapperVersion: "synthetic-search-mapper-v1",
     limits: { maxPages: 20, maxItems: 2_000, maxPageBytes: 64 * 1024, maxJsonMembers: 2_000, ...limitOverrides },
-  }), ports(ingestion, adapter));
+  }), ports(ingestion, adapter, operationsOverrides));
   return outcome;
 }
 
@@ -380,8 +380,22 @@ export async function runSearchScenarios({
         FROM aw_connector.projections p WHERE p.source_id=$1 AND p.source_listing_id='publication-page-0002'`,
       [SYNTHETIC_CORPUS_MANIFEST.source.sourceId]);
       assert.equal(inferredCandidate.rowCount, 1);
+      // The SDK caps each effect at min(request budget, source policy budget).
+      // Only this 999-tombstone fixture needs the larger bounded allowance.
       const replacement = await ingest(ingestion, createCorpusAdapter("withdrawnBaseline"),
-        "integration-mass-full-replacement", "full", { maxEffectMs: 10_000, maxRunMs: 100_000 });
+        "integration-mass-full-replacement", "full", { maxEffectMs: 10_000, maxRunMs: 100_000 }, { timeoutMs: 10_000 });
+      const budgets = await adminPool.query(`SELECT request->>'invocationKey' AS invocation,
+        (checkpoint#>>'{request,limits,maxEffectMs}')::int AS request_ms,
+        (policy#>>'{operations,timeoutMs}')::int AS policy_ms,
+        (checkpoint#>>'{request,limits,maxRunMs}')::int AS run_ms
+        FROM aw_connector.runs WHERE source_id=$1 AND request->>'invocationKey'=ANY($2::text[])
+        ORDER BY request->>'invocationKey'`, [SYNTHETIC_CORPUS_MANIFEST.source.sourceId,
+        ["integration-explicit-withdrawal", "integration-mass-full-replacement"]]);
+      assert.deepEqual(budgets.rows, [
+        { invocation: "integration-explicit-withdrawal", request_ms: 2_000, policy_ms: 1_000, run_ms: 100_000 },
+        { invocation: "integration-mass-full-replacement", request_ms: 10_000, policy_ms: 10_000, run_ms: 100_000 },
+      ]);
+      metrics.effectBudgets = budgets.rows.map((row) => ({ ...row, effective_ms: Math.min(row.request_ms, row.policy_ms) }));
       if (replacement.status !== "completed") {
         const diagnostic = new Error("connector_workload_failed");
         Object.defineProperty(diagnostic, "prototypePhase", {

@@ -10,7 +10,7 @@ Les points de suivi datés ci-dessous sont conservés comme historiques ; leurs 
 
 TASK-0104 est `DONE_FOR_V1_PROTOTYPE` sur main `87e873276b92c83b50dbb1f1e07c2aafd62f5cea`, par [PR224 et son checkpoint final](https://github.com/CleMeY15/auto-world/pull/224#issuecomment-6662552697) : stockage transactionnel PostgreSQL avec le pilote standard `pg`, sans ORM ni nouvel orchestrateur. [Les preuves de validation](docs/validation/TASK-0104.md) conservent le détail des contrôles.
 
-TASK-0105 est en cours sur `codex/task-0105-prototype-search-api`, réservée à cette branche après coordination : projection OpenSearch reconstruisible depuis PostgreSQL et adaptateur de lecture pour l'API V1 existante. [ADR-0030](docs/decisions/ADR-0030-prototype-search-projection.md) et [les preuves](docs/validation/TASK-0105.md) délimitent les validations locales et la livraison restant à accepter. Aucune modification d'interface, aucun démarrage de TASK-0106 et aucune reprise des scanners TASK-0005.
+TASK-0105 est implémentée par [PR225](https://github.com/CleMeY15/auto-world/pull/225), mais son acceptation reste en cours : la validation main a révélé un plafond de temps incohérent dans un scénario de test massif. Le correctif ciblé est réservé à `codex/task-0105-search-ci-budget`, après coordination. La projection OpenSearch reconstruisible depuis PostgreSQL et l'adaptateur de lecture pour l'API V1 existante ne changent pas. [ADR-0030](docs/decisions/ADR-0030-prototype-search-projection.md) et [les preuves](docs/validation/TASK-0105.md) délimitent les validations et le checkpoint final de livraison restant à accepter. Aucune modification d'interface, aucun démarrage de TASK-0106 et aucune reprise des scanners TASK-0005.
 
 ## North Star
 
