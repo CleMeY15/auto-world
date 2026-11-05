@@ -28,7 +28,7 @@ export async function ensureRawBucket(state, request = s3) {
     await request(state, "head-bucket");
   } catch (error) {
     if (!(error instanceof InfraError) || error.code !== "infra_s3_request_failed" ||
-      !/^An error occurred \((?:404|NoSuchBucket|NotFound)\) when calling the HeadBucket operation:/mu.test(error.stderr ?? "")) throw error;
+      !/^(?:aws: \[ERROR\]: )?An error occurred \((?:404|NoSuchBucket|NotFound)\) when calling the HeadBucket operation:/mu.test(error.stderr ?? "")) throw error;
     await request(state, "create-bucket");
   }
 }

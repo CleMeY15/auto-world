@@ -52,6 +52,20 @@ export function syntheticStore(time, trace = []) {
     }
     return draft.inventories.get(scope.scopeId);
   }
+  function fullBaseline(draft, input, head) {
+    const missingInventoryProjections = new Set(head.activeSourceListingIds);
+    const active = new Set();
+    for (const projection of draft.projections.values()) {
+      if (projection.sourceId !== input.sourceId || projection.scope.scopeId !== input.scope.scopeId) continue;
+      missingInventoryProjections.delete(projection.sourceListingId);
+      if (projection.state === "active") {
+        active.add(projection.sourceListingId);
+        requireState(active.size <= 100_000);
+      }
+    }
+    requireState(missingInventoryProjections.size === 0, "inventory_conflict");
+    return [...active].sort();
+  }
   function running(draft, input) {
     const run = draft.runs.get(input.runId);
     requireState(run?.status === "running");
@@ -137,6 +151,9 @@ export function syntheticStore(time, trace = []) {
           if (old.status === "completed") {
             return { status: "completed", oldFencesQuiesced: true, checkpoint: old, result: old.result };
           }
+          requireState(![...draft.runs.values()].some((run) => run.runId !== old.runId &&
+            run.sourceId === old.sourceId && run.scope.scopeId === old.scope.scopeId &&
+            run.leaseFence > old.leaseFence), "checkpoint_conflict");
           requireState(old.authorityRevision === input.authority.authorityRevision &&
             old.configurationSha256 === input.configurationSha256, "idempotency_conflict");
           requireState(old.expectedInventoryRevision === head.revision &&
@@ -150,6 +167,8 @@ export function syntheticStore(time, trace = []) {
             time.clock.nowMs() < Date.parse(head.lastCompletedFullAt) +
               input.operations.fullReconcileIntervalSeconds * 1000, "full_reconciliation_required");
         }
+        const baselineActiveSourceListingIds = input.request.mode === "full"
+          ? fullBaseline(draft, input, head) : [...head.activeSourceListingIds];
         const run = {
           schemaVersion: 1, status: "running", checkpointRevision: 1,
           sourceId: input.sourceId, runId: input.runId, leaseFence: input.leaseFence,
@@ -158,7 +177,7 @@ export function syntheticStore(time, trace = []) {
           configurationSha256: input.configurationSha256,
           authorizationBasisRef: input.obligations.authorizationBasisRef,
           obligations: copy(input.obligations), operations: copy(input.operations), scope: copy(input.scope),
-          baselineGenerationId: head.generationId, baselineActiveSourceListingIds: [...head.activeSourceListingIds],
+          baselineGenerationId: head.generationId, baselineActiveSourceListingIds,
           expectedInventoryGenerationId: head.generationId, expectedInventoryRevision: head.revision,
           lastCompletedFullAt: head.lastCompletedFullAt, nextPageOrdinal: 0,
           nextCursor: input.request.mode === "full" ? null : head.incrementalCursor,
@@ -347,5 +366,11 @@ export function syntheticStore(time, trace = []) {
       }));
     },
   };
-  return { port, faults, hooks, snapshot: () => copy(state), scopeKey };
+  return { port, faults, hooks, snapshot: () => copy(state), scopeKey,
+    seed(action) {
+      const draft = copy(state);
+      action(draft);
+      draft.version += 1;
+      state = draft;
+    } };
 }

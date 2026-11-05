@@ -14,14 +14,14 @@ test("infra CLI accepts only documented scoped commands and relevant options", (
   }
 });
 
-test("bucket initialization creates only after a verified missing-bucket response", async () => {
+for (const prefix of ["", "aws: [ERROR]: "]) test(`bucket initialization recognizes verified absence with prefix ${JSON.stringify(prefix)}`, async () => {
   const state = {};
   const operations = [];
   await ensureRawBucket(state, async (_state, operation) => {
     assert.equal(_state, state);
     operations.push(operation);
     if (operation === "head-bucket") throw new InfraError("infra_s3_request_failed", {
-      stderr: "An error occurred (404) when calling the HeadBucket operation: Not Found",
+      stderr: `${prefix}An error occurred (404) when calling the HeadBucket operation: Not Found`,
     });
   });
   assert.deepEqual(operations, ["head-bucket", "create-bucket"]);
@@ -30,8 +30,10 @@ test("bucket initialization creates only after a verified missing-bucket respons
 test("bucket initialization preserves authentication and transport failures", async () => {
   for (const original of [
     new InfraError("infra_s3_request_failed", { stderr: "An error occurred (403) when calling the HeadBucket operation: Forbidden" }),
+    new InfraError("infra_s3_request_failed", { stderr: "aws: [ERROR]: An error occurred (403) when calling the HeadBucket operation: Forbidden" }),
     new InfraError("infra_s3_request_failed", { stderr: "Could not connect to the endpoint URL" }),
     new InfraError("infra_s3_request_failed", { stderr: "An error occurred (404) when calling the CreateBucket operation: Not Found" }),
+    new InfraError("infra_s3_request_failed", { stderr: "aws: [ERROR]: An error occurred (404) when calling the CreateBucket operation: Not Found" }),
     new InfraError("deadline_exceeded"),
   ]) {
     const operations = [];

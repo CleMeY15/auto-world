@@ -58,14 +58,17 @@ export async function migrate(state, direction = "up") {
   await sql(state, migrationSql(direction), { role: "migrator", timeoutMs: 30_000 });
 }
 
-// The owned-project runtime validates state and carries bootstrap credentials over
-// stdin. Neither the SQL nor the derived application secrets are evidence/log data.
-export async function provisionRoles(state) {
+export function deriveRoleCredentials(state) {
   if (!/^[a-f0-9]{64}$/u.test(state?.credentials?.pgBootstrap)) throw new Error("search_credentials_invalid");
   const derive = (role) => createHmac("sha256", Buffer.from(state.credentials.pgBootstrap, "hex"))
     .update(`auto-world-search-prototype-v1\0${role}`).digest("hex");
-  const workerPassword = derive("worker");
-  const apiPassword = derive("api");
+  return Object.freeze({ workerPassword: derive("worker"), apiPassword: derive("api") });
+}
+
+// The owned-project runtime validates state and carries bootstrap credentials over
+// stdin. Neither the SQL nor the derived application secrets are evidence/log data.
+export async function provisionRoles(state) {
+  const { workerPassword, apiPassword } = deriveRoleCredentials(state);
   for (const [role, password] of [["aw_search_worker", workerPassword], ["aw_search_api", apiPassword]]) {
     await sql(state, `DO $roles$
 BEGIN
