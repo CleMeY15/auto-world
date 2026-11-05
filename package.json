@@ -28,7 +28,8 @@
     "infra:backup": "node scripts/data-infra/cli.mjs backup",
     "infra:restore-check": "node scripts/data-infra/cli.mjs restore-check",
     "infra:test": "pnpm --filter @auto-world/source-registry... build && node scripts/data-infra/integration.mjs",
-    "prototype:test": "pnpm --filter @auto-world/ingestion build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-postgres/integration.mjs"
+    "prototype:test": "pnpm --filter @auto-world/ingestion build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-postgres/integration.mjs",
+    "prototype:search:test": "pnpm --filter @auto-world/search... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-search/integration.mjs"
   },
   "devDependencies": {
     "@auto-world/source-registry": "workspace:*",
