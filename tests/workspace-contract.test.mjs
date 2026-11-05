@@ -58,6 +58,7 @@ test("declares every architecture boundary as a private workspace package", () =
     const design = expectedName === "@auto-world/design-system";
     const web = expectedName === "@auto-world/web";
     const api = expectedName === "@auto-world/api";
+    const prototypeStore = expectedName === "@auto-world/ingestion";
     const activeContract = expectedName === "@auto-world/vehicle-schema" || registry || connector || design || demo || taxonomy || domainEvents || api;
     const dependencyBuild = demo
       ? "pnpm --filter @auto-world/vehicle-schema build && pnpm --filter @auto-world/vehicle-taxonomy build && "
@@ -85,6 +86,16 @@ test("declares every architecture boundary as a private workspace package", () =
       assert.equal(manifest.devDependencies["@types/node"], "22.20.2");
       assert.deepEqual(manifest.files, ["dist"]);
       assert.deepEqual(Object.keys(manifest.exports), ["."]);
+    } else if (prototypeStore) {
+      assert.equal(manifest.scripts.build, "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json && tsc -p tsconfig.prototype.json");
+      assert.equal(manifest.scripts.lint, "eslint src prototype test --max-warnings=0");
+      assert.equal(manifest.scripts.typecheck, "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.prototype.json --noEmit");
+      assert.equal(manifest.scripts.test, "pnpm run build && node --conditions=auto-world-prototype --test test/*.test.mjs");
+      assert.deepEqual(manifest.files, ["dist"]);
+      assert.deepEqual(Object.keys(manifest.exports), ["./prototype"]);
+      assert.equal(manifest.devDependencies.pg, "8.23.1");
+      assert.equal(manifest.devDependencies["@types/pg"], "8.23.1");
+      assert.equal(manifest.dependencies, undefined);
     } else if (design) {
       assert.match(manifest.scripts.build, /^tsc .*generate-styles/u);
       assert.match(manifest.scripts.lint, /^eslint src test scripts/u);

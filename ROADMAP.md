@@ -2,11 +2,13 @@
 
 ## Priorité active — prototype V1, 5 novembre 2026
 
-L'utilisateur demande de développer un bon prototype V1 fonctionnel avant de reprendre la sécurité restante de TASK-0005. [ADR-0028](docs/decisions/ADR-0028-v1-prototype-functional-gate.md) remplace le blocage de développement : le [jalon fonctionnel accepté de PR222](https://github.com/CleMeY15/auto-world/pull/222#issuecomment-6656692551), dont les17 phases réelles passent sur main39521a7f, suffit comme dépendance infrastructure **pour le prototype isolé à données fictives**. L'amendement documentaire reste soumis à sa propre livraison ; aucun résultat antérieur ne valide son diff.
+L'utilisateur demande de développer un bon prototype V1 fonctionnel avant de reprendre la sécurité restante de TASK-0005. [ADR-0028](docs/decisions/ADR-0028-v1-prototype-functional-gate.md) remplace le blocage de développement : le [jalon fonctionnel accepté de PR222](https://github.com/CleMeY15/auto-world/pull/222#issuecomment-6656692551), dont les17 phases réelles passent sur main39521a7f, suffit comme dépendance infrastructure **pour le prototype isolé à données fictives**. L'amendement est livré par [PR223 et son checkpoint](https://github.com/CleMeY15/auto-world/pull/223#issuecomment-6657834017), sur main `b785f432` ; cette acceptation ne valide pas les modifications ultérieures.
 
 Prochaine chaîne : TASK-0104 (stockage PostgreSQL), puis TASK-0105 (index/recherche/API), puis TASK-0106 (reprise de l'application). Chaque prédécesseur doit être réellement livré dans ce périmètre avant le suivant. Les autres dépendances, la DoR, les tests fonctionnels, la qualité UI/UX et les protections essentielles restent exigés. TASK-0005A et la qualification sécurité/admission de TASK-0005 sont différées jusqu'à la V1 utilisable ; elles ne sont ni validées ni un motif pour relancer les scanners pendant le développement du prototype. Production, publication publique et données réelles restent interdites avant leur qualification distincte.
 
 Les points de suivi datés ci-dessous sont conservés comme historiques ; leurs anciens blocages TASK-0104–0106 sont remplacés uniquement pour cette voie prototype.
+
+TASK-0104 est implémentée et revue sur `codex/task-0104-prototype-postgres` : stockage transactionnel PostgreSQL avec le pilote standard `pg`, sans ORM ni nouvel orchestrateur. Les 34 phases locales sur PostgreSQL réel et 518 tests navigateur passent. [Les preuves de validation](docs/validation/TASK-0104.md) distinguent contrôles locaux et livraison finale ; la PR et les CI exactes source/main restent requises avant `DONE_FOR_V1_PROTOTYPE`. Aucune modification d'interface, aucun démarrage de TASK-0105 et aucune reprise des scanners TASK-0005 n'en découlent.
 
 ## North Star
 
