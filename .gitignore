@@ -5,6 +5,7 @@ dist/
 build/
 .next/
 .test-dist/
+.prototype-dist/
 *.tsbuildinfo
 playwright-report/
 test-results/

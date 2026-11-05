@@ -1,10 +1,14 @@
 # Auto World delivery ledger
 
+## PostgreSQL prototype — TASK-0104 local checkpoint, 2026-11-05
+
+The [TASK-0104 implementation](tasks/TASK-0104-supported-data-integration.md) reuses standard `pg` and the existing owned PostgreSQL stack for the isolated synthetic V1 prototype. Independent architecture and code/data/migration reviews approve it. [Validation](../docs/validation/TASK-0104.md) records 34/34 real PostgreSQL phases (including exact restore and stale-fence recovery), ordinary local quality checks and 518 browser passes / 10 existing exclusions. This is not final delivery: exact-source CI, normal protected merge and merged-main CI must be recorded in the PR checkpoint before `DONE_FOR_V1_PROTOTYPE`. TASK-0105 has not started; TASK-0005 image qualification stays deferred. No production or real-data acceptance follows.
+
 ## Functional foundation and V1 sequencing — 2026-11-05
 
 [PR222's accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/222#issuecomment-6656692551) records main39521a7f630ef4cbc4896f39129859a201ef5203, integration42015103402 SUCCESS/17 real phases and quality42015103516 SUCCESS, with independently reviewed originals. This is functional evidence, not image-security admission.
 
-The user's later instruction to postpone TASK-0005 security until a usable V1 prototype is recorded by [ADR-0028](../docs/decisions/ADR-0028-v1-prototype-functional-gate.md). Its documentation delivery remains pending; [validation](../docs/validation/ADR-0028-V1-PROTOTYPE.md) tracks this amendment separately. After acceptance, PR222's milestone satisfies the infrastructure dependency for isolated synthetic TASK-0104→0105→0106 in order. Their code and functional acceptance remain to be delivered. Security/admission remains deferred and production/real data unauthorized. The older blocked-status checkpoints below remain historical, not the active prototype queue.
+The user's later instruction to postpone TASK-0005 security until a usable V1 prototype is recorded by [ADR-0028](../docs/decisions/ADR-0028-v1-prototype-functional-gate.md), accepted on main `b785f432e4ae655fa50e7b21445a18f493f235ec` through [PR223's checkpoint](https://github.com/CleMeY15/auto-world/pull/223#issuecomment-6657834017). This supersedes the historical pre-delivery status in its [validation record](../docs/validation/ADR-0028-V1-PROTOTYPE.md). PR222's milestone satisfies the infrastructure dependency for isolated synthetic TASK-0104→0105→0106 in order. Their functional acceptance remains separately gated. Security/admission remains deferred and production/real data unauthorized. The older blocked-status checkpoints below remain historical, not the active prototype queue.
 
 ## Product checkpoint — TASK-0114 DONE_ON_MAIN, 2026-10-23
 

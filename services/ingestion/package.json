@@ -2,11 +2,28 @@
   "name": "@auto-world/ingestion",
   "version": "0.0.0",
   "private": true,
+  "files": ["dist"],
   "type": "module",
+  "exports": {
+    "./prototype": {
+      "auto-world-prototype": {
+        "types": "./.prototype-dist/index.d.ts",
+        "import": "./.prototype-dist/index.js"
+      }
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "lint": "eslint src --max-warnings=0",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node ../../scripts/verify-package-build.mjs"
+    "build": "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json && tsc -p tsconfig.prototype.json",
+    "lint": "eslint src prototype test --max-warnings=0",
+    "typecheck": "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.prototype.json --noEmit",
+    "test": "pnpm run build && node --conditions=auto-world-prototype --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@auto-world/connector-sdk": "workspace:*",
+    "@auto-world/source-registry": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
+    "@types/node": "22.20.2",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1"
   }
 }

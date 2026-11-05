@@ -12,7 +12,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
+      "outputs": ["dist/**", ".prototype-dist/**", ".next/**"]
     },
     "lint": {
       "dependsOn": ["^lint"],
