@@ -8,6 +8,7 @@ import {
   type DemoReadOutcome,
   type DemoReadPort,
   type DemoResultV1,
+  type DemoResultV2,
   type DemoSearchQueryV1,
 } from "@auto-world/demo-search-contract";
 import { parseListingId } from "@auto-world/vehicle-schema";
@@ -25,7 +26,7 @@ interface CursorRecord {
 
 interface Options {
   readonly loadPublication: (signal: AbortSignal) => Promise<Publication | null>;
-  readonly search: Pick<OpenSearchTransport, "search" | "detail">;
+  readonly search: Pick<OpenSearchTransport, "search" | "detail" | "searchV2" | "detailV2">;
   readonly nowMs?: () => number;
   readonly randomBytes?: (size: number) => Uint8Array;
   readonly cursorCapacity?: number;
@@ -53,18 +54,28 @@ function generation(publication: Publication): string {
 
 function publicationValid(publication: Publication): boolean {
   const revision = publication.revision;
-  return /^aw-v1-search-[a-f0-9]{32}$/u.test(publication.indexName)
+  const v1 = /^aw-v1-search-[a-f0-9]{32}$/u.test(publication.indexName)
+    && (publication.mappingVersion === undefined || publication.mappingVersion === 1)
+    && publication.snapshot.schemaVersion === 1
+    && publication.snapshot.fixtureVersion === PROFILE.fixtureVersion;
+  const v2 = /^aw-v2-search-[a-f0-9]{32}$/u.test(publication.indexName)
+    && publication.mappingVersion === 2 && publication.snapshot.schemaVersion === 2
+    && /^prf_[a-f0-9]{64}$/u.test(publication.snapshot.profileFingerprint);
+  return (v1 || v2)
     && Number.isSafeInteger(revision)
     && revision >= 1
     && publication.documentCount >= 0
     && Number.isSafeInteger(publication.documentCount)
     && publication.documentCount <= PROFILE.maxDocuments
-    && publication.snapshot.schemaVersion === 1
-    && publication.snapshot.fixtureVersion === PROFILE.fixtureVersion
     && (publication.snapshot.completeness === "complete" || publication.snapshot.completeness === "partial")
     && typeof publication.pendingRelevant === "boolean"
     && /^[a-f0-9]{64}$/u.test(publication.snapshot.fingerprint)
     && Number.isFinite(exactUtc(publication.snapshot.dataAsOf));
+}
+
+function base(document: DemoResultV2): DemoResultV1 {
+  return { listingId: document.listingId, availability: document.availability,
+    price: document.price, mileage: document.mileage, evidence: document.evidence };
 }
 
 function responseFor(publication: Publication, results: readonly DemoResultV1[], total: number, nowMs: number, nextCursor?: string): DemoReadOutcome {
@@ -164,7 +175,9 @@ export function createSearchReadPort(options: Options): DemoReadPort {
         if (record === undefined || record.binding !== binding) return failure("invalid_cursor");
         offset = record.offset;
       }
-      const page = await options.search.search(current.indexName, parsed.data, offset, context.signal);
+      const page = current.snapshot.schemaVersion === 2
+        ? await options.search.searchV2(current.indexName, { ...parsed.data, schemaVersion: 2 }, offset, context.signal)
+        : await options.search.search(current.indexName, parsed.data, offset, context.signal);
       if (activeGeneration !== requestGeneration || epoch !== requestEpoch) return failure("read_unavailable");
       if (!Number.isSafeInteger(page.total)
         || page.total < page.results.length
@@ -174,7 +187,7 @@ export function createSearchReadPort(options: Options): DemoReadPort {
       }
       const nextOffset = offset + page.results.length;
       const nextCursor = nextOffset < page.total && page.results.length > 0 ? continuation(binding, nextOffset) : undefined;
-      return responseFor(current, page.results, page.total, nowMs(), nextCursor);
+      return responseFor(current, page.results.map((item) => current.snapshot.schemaVersion === 2 ? base(item as DemoResultV2) : item), page.total, nowMs(), nextCursor);
     } catch (error) {
       return failure(isAbort(error, context.signal) ? "cancelled" : "read_unavailable");
     }
@@ -189,9 +202,12 @@ export function createSearchReadPort(options: Options): DemoReadPort {
       if (current === null) return failure("read_unavailable");
       const requestGeneration = generation(current);
       const requestEpoch = epoch;
-      const result = await options.search.detail(current.indexName, listingId.data, context.signal);
+      const result = current.snapshot.schemaVersion === 2
+        ? await options.search.detailV2(current.indexName, listingId.data, context.signal)
+        : await options.search.detail(current.indexName, listingId.data, context.signal);
       if (activeGeneration !== requestGeneration || epoch !== requestEpoch) return failure("read_unavailable");
-      const outcome = responseFor(current, result === null ? [] : [result], result === null ? 0 : 1, nowMs());
+      const projected = result === null ? [] : [current.snapshot.schemaVersion === 2 ? base(result as DemoResultV2) : result];
+      const outcome = responseFor(current, projected, result === null ? 0 : 1, nowMs());
       if (result === null && (!outcome.success || outcome.data.state !== "complete")) return failure("read_unavailable");
       return outcome;
     } catch (error) {

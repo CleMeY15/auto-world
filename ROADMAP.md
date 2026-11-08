@@ -12,7 +12,11 @@ TASK-0104 est `DONE_FOR_V1_PROTOTYPE` sur main `87e873276b92c83b50dbb1f1e07c2aaf
 
 TASK-0105 est `DONE_FOR_V1_PROTOTYPE` sur main `2e37541427cc2e8a871822c613d4c05272412daa`, par [PR226 et son checkpoint final](https://github.com/CleMeY15/auto-world/pull/226#issuecomment-6666281417). Le plafond incohérent du scénario massif de PR225 a été corrigé sans retirer de contrôle. La qualité et les quinze phases PostgreSQL/OpenSearch passent sur cette révision exacte ; [les preuves historiques](docs/validation/TASK-0105.md) restent conservées.
 
-TASK-0106 est `IN_PROGRESS` sur `codex/task-0106-prototype-application` : composition applicative isolée, redémarrage, sauvegarde froide existante et restauration vérifiée avant reconstruction OpenSearch. [Le plan](roadmap/plans/TASK-0106-prototype-application.md) et [la validation](docs/validation/TASK-0106.md) distinguent le travail en cours de l'acceptation livrée. Le backend V1 utilise un port distinct ; l'aperçu web V2 existant reste inchangé. Ce lot ne termine pas tout le site V1 et ne relance pas la qualification TASK-0005.
+TASK-0106 est `DONE_FOR_V1_PROTOTYPE` sur main `6a37b3da28a4b5f8dc10100c8e0808baaf6f1f5a`, par [PR227 et son checkpoint final](https://github.com/CleMeY15/auto-world/pull/227#issuecomment-6669154748). La composition, la reprise et la restauration ont été validées ; [les preuves historiques](docs/validation/TASK-0106.md) restent conservées. Cette acceptation ne termine pas tout le site V1 et ne relance pas la qualification TASK-0005.
+
+Incrément actif, 8 novembre 2026 : [TASK-0119 — interface du prototype persistant](roadmap/tasks/TASK-0119-persistent-web-prototype.md), `IN_PROGRESS` sur `codex/task-0119-persistent-web-prototype`. Réutiliser l'interface V2 existante avec le stockage PostgreSQL et l'index OpenSearch, données fictives uniquement ; conserver les descriptions et leur provenance, isoler le mode et les listes locales, prouver les parcours et le redémarrage réels. [ADR-0032](docs/decisions/ADR-0032-persistent-web-prototype.md). L'autre branche et l'aperçu3100 restent intacts. Aucune nouvelle tâche après ce lot avant sa livraison validée.
+
+Checkpoint local TASK-0119, 8 novembre : `LOCAL_VALIDATED / DELIVERY_PENDING`, parcours persistants9/9 et compatibilité V1 sur services réels15/15,518 tests navigateur réussis (10 exclusions préexistantes), qualité et revues indépendantes validées. [Preuves et limites](docs/validation/TASK-0119.md). Cela ne remplace pas l'acceptation de la PR et du main protégé.
 
 ## North Star
 

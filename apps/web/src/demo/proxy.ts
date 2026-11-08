@@ -7,8 +7,8 @@ import {
   statusForDemoError,
   type DemoHttpErrorCode,
 } from "./protocol.ts";
+import { demoBackendOrigin, resolveDemoBackendMode, type DemoBackendMode } from "./backend.ts";
 
-const upstreamOrigin = "http://127.0.0.1:3210";
 const requestLimit = 8_192;
 const responseLimit = 1_048_576;
 
@@ -21,6 +21,7 @@ export interface DemoProxyOptions {
   readonly clock?: () => Date;
   readonly telemetry?: DemoProxyTelemetrySink;
   readonly isEnabled?: () => boolean;
+  readonly backendMode?: () => DemoBackendMode;
 }
 
 export function formatDemoProxyTelemetry(event: DemoProxyTelemetryEvent): string {
@@ -81,7 +82,6 @@ function decodeUtf8(bytes: Uint8Array): string { return new TextDecoder("utf-8",
 export function createDemoProxyHandler(options: DemoProxyOptions): (request: Request, listingId?: string) => Promise<Response> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const clock = options.clock ?? (() => new Date());
-  const enabled = options.isEnabled ?? (() => process.env.AUTO_WORLD_DEMO === "1");
   const schemaVersion = options.schemaVersion ?? 1;
   if (options.route === "catalog" && schemaVersion !== 2) throw new TypeError("catalog requires schemaVersion 2");
   return async (request, listingIdInput) => {
@@ -98,7 +98,11 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
       }
       return response;
     };
-    if (!enabled()) return finish(localError("not_found", schemaVersion), "not_found");
+    const backendMode = options.backendMode?.()
+      ?? (options.isEnabled === undefined
+        ? resolveDemoBackendMode()
+        : options.isEnabled() ? "offline" : "disabled");
+    if (backendMode === "disabled") return finish(localError("not_found", schemaVersion), "not_found");
     const expectedMethod = options.route === "search" ? "POST" : "GET";
     if (request.method !== expectedMethod) return finish(localError("method_not_allowed", schemaVersion), "method_not_allowed");
     if (!validInbound(request)) return finish(localError("invalid_request", schemaVersion), "invalid_request");
@@ -135,7 +139,7 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
     else request.signal.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 7_000);
     try {
-      const upstream = await fetchImpl(`${upstreamOrigin}${path}`, {
+      const upstream = await fetchImpl(`${demoBackendOrigin(backendMode)}${path}`, {
         method: expectedMethod,
         headers: options.route === "search" ? { "content-type": "application/json" } : undefined,
         body: body === undefined ? undefined : Uint8Array.from(body).buffer,

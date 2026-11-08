@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
+import { SYNTHETIC_DESCRIPTION_TAXONOMY_REFERENCE, SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE } from "@auto-world/synthetic-connector/demo";
 import { createOpenSearch } from "../.prototype-dist/opensearch.js";
 
 const INDEX = `aw-v1-search-${"a".repeat(32)}`;
@@ -56,6 +57,22 @@ function searchResponse(documents, alter = (source) => source) {
   };
 }
 
+function resultV2() {
+  const base = result();
+  const make = SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE.makes[0];
+  const model = SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE.models.find((candidate) => candidate.makeId === make.makeId);
+  const value = { release: SYNTHETIC_DESCRIPTION_TAXONOMY_REFERENCE, makeId: make.makeId, modelId: model.modelId,
+    firstRegistrationYear: 2024, attribution: { kind: "synthetic_fixture", fixtureRef: "prototype-web/page-0001.json" } };
+  const id = `de_${"4".repeat(64)}`;
+  return { ...base, description: { status: "authored_synthetic", value, evidenceId: id },
+    descriptionEvidence: [{ evidenceId: id, capturedAt: "2026-01-01T00:00:00.000Z", value }] };
+}
+
+function indexedV2(document) {
+  return { ...indexed(document), publicDto: document, makeId: document.description.value.makeId,
+    modelId: document.description.value.modelId, firstRegistrationYear: document.description.value.firstRegistrationYear };
+}
+
 test("build uses a strict versioned mapping, bounded bulk DTOs, refresh and full verification", async () => {
   const document = result();
   const seen = [];
@@ -107,6 +124,69 @@ test("search sends exact-count active filters and missing-last deterministic sor
     { range: { mileageKm: { lte: 50.5 } } },
   ]);
   assert.deepEqual(sent.sort, [{ mileageKm: { order: "desc", missing: "_last" } }, { listingId: { order: "asc" } }]);
+});
+
+test("V2 search validates exact derived taxonomy fields and sends all public filters", async () => {
+  const index = `aw-v2-search-${"b".repeat(32)}`;
+  const document = resultV2();
+  let sent;
+  await withServer(async (request, response) => {
+    sent = JSON.parse(await body(request));
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ timed_out: false, _shards: { failed: 0 }, hits: { total: { value: 1, relation: "eq" },
+      hits: [{ _id: document.listingId, _source: indexedV2(document) }] } }));
+  }, async (port) => {
+    const found = await createOpenSearch({ port }).searchV2(index, { schemaVersion: 2, sort: "price_asc",
+      makeId: document.description.value.makeId, modelId: document.description.value.modelId,
+      firstRegistrationYear: 2024 }, 0, new globalThis.AbortController().signal);
+    assert.equal(found.total, 1);
+  });
+  assert.deepEqual(sent.query.bool.filter.slice(-3), [{ term: { makeId: document.description.value.makeId } },
+    { term: { modelId: document.description.value.modelId } }, { term: { firstRegistrationYear: 2024 } }]);
+});
+
+test("V2 build seals a distinct mapping with exact profile and derived taxonomy fields", async () => {
+  const index = `aw-v2-search-${"b".repeat(32)}`;
+  const profile = `prf_${"c".repeat(64)}`;
+  const document = resultV2();
+  const seen = [];
+  await withServer(async (request, response) => {
+    const requestBody = await body(request);
+    seen.push({ url: request.url, method: request.method, body: requestBody });
+    response.setHeader("content-type", "application/json");
+    if (request.url === `/${index}`) response.end(JSON.stringify({ acknowledged: true }));
+    else if (request.url === `/${index}/_bulk`) response.end(JSON.stringify({ errors: false, items: [{ index: { status: 201 } }] }));
+    else if (request.url === `/${index}/_refresh`) response.end(JSON.stringify({ _shards: { failed: 0 } }));
+    else if (request.url === `/${index}/_settings` && request.method === "PUT") response.end(JSON.stringify({ acknowledged: true }));
+    else if (request.url === `/${index}/_settings?flat_settings=true`) response.end(JSON.stringify({ [index]: { settings: { "index.blocks.write": "true" } } }));
+    else if (request.url === `/${index}/_mapping?filter_path=*.mappings._meta`) response.end(JSON.stringify({ [index]: { mappings: {
+      _meta: { mappingVersion: 2, profileFingerprint: profile, generation: index },
+    } } }));
+    else response.end(JSON.stringify({ timed_out: false, _shards: { failed: 0 }, hits: { total: { value: 1, relation: "eq" },
+      hits: [{ _id: document.listingId, _source: indexedV2(document) }] } }));
+  }, async (port) => createOpenSearch({ port }).buildV2(index, [document], profile, new globalThis.AbortController().signal));
+  const mapping = JSON.parse(seen[0].body).mappings;
+  assert.deepEqual(mapping._meta, { mappingVersion: 2, profileFingerprint: profile, generation: index });
+  assert.deepEqual(Object.keys(mapping.properties).sort(), ["availability", "firstRegistrationYear", "listingId", "makeId", "mileageKm", "modelId", "priceEUR", "publicDto"]);
+  const source = JSON.parse(seen.find((entry) => entry.url.endsWith("/_bulk")).body.trim().split("\n")[1]);
+  assert.deepEqual(source, indexedV2(document));
+});
+
+test("V2 verification refuses absent, mismatched or extra ownership metadata", async () => {
+  const index = `aw-v2-search-${"b".repeat(32)}`;
+  const profile = `prf_${"c".repeat(64)}`;
+  const document = resultV2();
+  for (const meta of [undefined,
+    { mappingVersion: 2, profileFingerprint: `prf_${"d".repeat(64)}`, generation: index },
+    { mappingVersion: 2, profileFingerprint: profile, generation: index, extra: true }]) {
+    await withServer(async (request, response) => {
+      await body(request);
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ [index]: { mappings: meta === undefined ? {} : { _meta: meta } } }));
+    }, async (port) => {
+      assert.equal(await createOpenSearch({ port }).verifyV2(index, [document], profile, new globalThis.AbortController().signal), false);
+    });
+  }
 });
 
 test("detail rejects inconsistent totals and a different listing instead of inventing absence", async () => {

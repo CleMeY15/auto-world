@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSyntheticHarness } from "@auto-world/synthetic-connector/demo";
+import { createSyntheticDescriptionHarness, createSyntheticHarness, SYNTHETIC_CORPUS_MANIFEST,
+  SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST, SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE } from "@auto-world/synthetic-connector/demo";
 import { ProjectionRejected } from "../.prototype-dist/model.js";
 import { captureSnapshot, projectCanonicalSnapshot } from "../.prototype-dist/snapshot.js";
 
@@ -45,10 +46,10 @@ function canonical(snapshot) {
       source_listing_id: evidence.sourceListingId, kind: evidence.kind,
       snapshot_id: evidence.raw?.snapshotId ?? null, raw_sha256: evidence.raw?.sha256 ?? null, evidence,
     })),
-    rawPages: [...snapshot.raw.values()].map(({ pending }) => ({
+    rawPages: [...snapshot.raw.values()].map(({ pending, bytes }) => ({
       run_id: versions.find((version) => version.raw.snapshotId === pending.snapshotId)?.connectorRunId ??
         [...snapshot.tombstones.values()].find((tombstone) => tombstone.raw?.snapshotId === pending.snapshotId)?.runId,
-      snapshot_id: pending.snapshotId, sha256: pending.sha256, pending,
+      snapshot_id: pending.snapshotId, sha256: pending.sha256, pending, raw_bytes: Buffer.from(bytes),
     })),
   };
 }
@@ -173,4 +174,111 @@ test("captureSnapshot uses only bounded allowlisted canonical columns", async ()
     assert.equal(sql.includes(forbidden), false, forbidden);
   }
   assert.ok(statements.every((statement) => /limit \d+/iu.test(statement)));
+});
+
+test("captureSnapshot rejects invalid V1 before any V2 raw byte read", async () => {
+  const { input } = await fixture("valid");
+  const invalid = globalThis.structuredClone(input);
+  invalid.observations[0].observation.provenance.raw.sha256 = "f".repeat(64);
+  const rows = [[invalid.inventory], invalid.runs, invalid.events, invalid.projections, invalid.versions,
+    invalid.observations, invalid.tombstones, invalid.rawPages];
+  const statements = [];
+  const client = { async query(text) { statements.push(text); return { rows: rows.shift(), rowCount: 0, command: "SELECT", oid: 0, fields: [] }; } };
+  const options = { fixtureVersion: "synthetic-search-v1",
+    catalog: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "synthetic-search-v1", taxonomyRelease: SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE },
+    mapperVersion: input.runs[0].checkpoint.request.mapperVersion, descriptors: [SYNTHETIC_CORPUS_MANIFEST.files.valid],
+    project(_projectionInput, base) { return base.map((document) => ({ ...document, description: { status: "unavailable" }, descriptionEvidence: [] })); } };
+  await assert.rejects(captureSnapshot(client, NOW, options), (error) => error instanceof ProjectionRejected && error.code === "projection_invalid");
+  assert.equal(statements.some((statement) => statement.includes("raw_bytes")), false);
+  assert.equal(statements.length, 8);
+});
+
+test("captureSnapshot binds verified V2 raw references with the SQL recordset field names", async () => {
+  const { input } = await fixture("valid");
+  const metadata = input.rawPages.map((row) => ({ run_id: row.run_id, snapshot_id: row.snapshot_id,
+    sha256: row.sha256, pending: row.pending }));
+  const rows = [[input.inventory], input.runs, input.events, input.projections, input.versions,
+    input.observations, input.tombstones, metadata];
+  let rawRead = false;
+  const client = {
+    async query(text, values) {
+      if (!text.includes("raw_bytes")) {
+        return { rows: rows.shift(), rowCount: 0, command: "SELECT", oid: 0, fields: [] };
+      }
+      rawRead = true;
+      const references = JSON.parse(values[1]);
+      assert.deepEqual(Object.keys(references[0]).sort(), ["run_id", "snapshot_id"]);
+      const selected = input.rawPages.filter((row) => references.some((reference) =>
+        reference.run_id === row.run_id && reference.snapshot_id === row.snapshot_id));
+      assert.equal(selected.length, references.length);
+      return { rows: selected.map(({ run_id, snapshot_id, raw_bytes }) => ({ run_id, snapshot_id, raw_bytes })),
+        rowCount: selected.length, command: "SELECT", oid: 0, fields: [] };
+    },
+  };
+  const options = { fixtureVersion: "synthetic-search-v1",
+    catalog: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "synthetic-search-v1", taxonomyRelease: SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE },
+    mapperVersion: input.runs[0].checkpoint.request.mapperVersion, descriptors: [SYNTHETIC_CORPUS_MANIFEST.files.valid],
+    project(_projectionInput, base) { return base.map((document) => ({ ...document, description: { status: "unavailable" }, descriptionEvidence: [] })); } };
+  const projected = await captureSnapshot(client, NOW, options);
+  assert.equal(projected.schemaVersion, 2);
+  assert.equal(rawRead, true);
+  assert.equal(rows.length, 0);
+});
+
+test("V2 projection receives only verified bounded raw copies and preserves every V1 field", async () => {
+  const { input } = await fixture("valid");
+  let received;
+  const options = {
+    fixtureVersion: "synthetic-search-v1",
+    catalog: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "synthetic-search-v1",
+      taxonomyRelease: SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE },
+    mapperVersion: input.runs[0].checkpoint.request.mapperVersion,
+    descriptors: [SYNTHETIC_CORPUS_MANIFEST.files.valid],
+    project(projectionInput, base) {
+      received = projectionInput;
+      return base.map((document) => ({ ...document, description: { status: "unavailable" }, descriptionEvidence: [] }));
+    },
+  };
+  const v1 = projectCanonicalSnapshot(input, NOW);
+  const v2 = projectCanonicalSnapshot(input, NOW, options);
+  assert.equal(v2.schemaVersion, 2);
+  assert.match(v2.profileFingerprint, /^prf_[a-f0-9]{64}$/u);
+  assert.equal(received.versions.length, input.versions.length);
+  assert.equal(received.versions[0].rawSha256, SYNTHETIC_CORPUS_MANIFEST.files.valid.sha256);
+  assert.equal(received.versions[0].latest, true);
+  assert.equal(received.versions[0].rawBytes.byteLength, SYNTHETIC_CORPUS_MANIFEST.files.valid.byteLength);
+  assert.deepEqual(v2.documents.map((document) => ({ listingId: document.listingId, availability: document.availability,
+    price: document.price, mileage: document.mileage, evidence: document.evidence })), v1.documents);
+
+  const corrupt = { ...input, rawPages: input.rawPages.map((row) => ({ ...row, raw_bytes: Buffer.from(row.raw_bytes) })) };
+  corrupt.rawPages[0].raw_bytes[0] ^= 1;
+  assert.throws(() => projectCanonicalSnapshot(corrupt, NOW, options), (error) =>
+    error instanceof ProjectionRejected && error.code === "projection_invalid");
+
+  const wrongMapper = globalThis.structuredClone(input);
+  wrongMapper.versions[0].evidence.mapperVersion = "different-mapper-v2";
+  assert.throws(() => projectCanonicalSnapshot(wrongMapper, NOW, options), (error) =>
+    error instanceof ProjectionRejected && error.code === "projection_invalid");
+
+  const malicious = { ...options, project(_projectionInput, base) { base.splice(0, 1); return []; } };
+  assert.throws(() => projectCanonicalSnapshot(input, NOW, malicious), (error) =>
+    error instanceof ProjectionRejected && error.code === "projection_invalid");
+  assert.deepEqual(projectCanonicalSnapshot(input, NOW), v1);
+});
+
+test("V2 validates every listing version even when several share one raw page", async () => {
+  const harness = createSyntheticDescriptionHarness({ initialTime: NOW });
+  const { input } = await fixture("descriptionBaseline", {}, harness);
+  assert.ok(input.versions.length > 1);
+  assert.equal(new Set(input.versions.map((version) => version.snapshot_id)).size, 1);
+  const options = { fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+    catalog: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.fixtureVersion,
+      taxonomyRelease: SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE }, mapperVersion: input.runs[0].checkpoint.request.mapperVersion,
+    descriptors: [SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.files.descriptionBaseline],
+    project(_projectionInput, base) { return base.map((document) => ({ ...document, description: { status: "unavailable" }, descriptionEvidence: [] })); } };
+  const corrupt = globalThis.structuredClone(input);
+  corrupt.rawPages = input.rawPages.map((row) => ({ ...row, raw_bytes: Buffer.from(row.raw_bytes) }));
+  corrupt.versions[1].evidence.mapperVersion = "different-mapper-v2";
+  assert.throws(() => projectCanonicalSnapshot(corrupt, harness.time.clock.nowMs(), options), (error) =>
+    error instanceof ProjectionRejected && error.code === "projection_invalid");
 });

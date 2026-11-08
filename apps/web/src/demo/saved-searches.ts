@@ -16,8 +16,10 @@ import {
   type NamedCollectionStorageStatus,
 } from "./named-collection-store.ts";
 import { parseStrictJson } from "./strict-json.ts";
+import { demoStorageKeys, type DemoStorageNamespace } from "./storage-namespace.ts";
 
-export const DEMO_SAVED_SEARCHES_KEY = "auto-world.demo.saved-searches.v1";
+export const DEMO_SAVED_SEARCHES_KEY = demoStorageKeys("offline").savedSearches;
+export const PROTOTYPE_SAVED_SEARCHES_KEY = demoStorageKeys("prototype").savedSearches;
 export const SAVED_SEARCH_LIMIT = 10;
 const BYTE_LIMIT = 16_384;
 
@@ -31,6 +33,7 @@ export interface SavedSearchSnapshot { readonly searches: readonly SavedSearch[]
 export interface SavedSearchStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 export interface SavedSearchStorageEvent { readonly key: string | null; readonly newValue: string | null; readonly storageArea?: SavedSearchStorage | null }
 export interface SavedSearchStore {
+  readonly storageKey: string;
   getSnapshot(): SavedSearchSnapshot;
   getServerSnapshot(): SavedSearchSnapshot;
   subscribe(listener: () => void): () => void;
@@ -222,10 +225,11 @@ export function savedSearchToFilterInput(criteria: SavedSearchCriteria, catalog?
   });
 }
 
-export function createSavedSearchStore(options: { readonly storageProvider?: () => SavedSearchStorage | null } = {}): SavedSearchStore {
+export function createSavedSearchStore(options: { readonly storageProvider?: () => SavedSearchStorage | null; readonly namespace?: DemoStorageNamespace } = {}): SavedSearchStore {
   const storageProvider = options.storageProvider ?? (() => typeof window === "undefined" ? null : window.localStorage);
+  const storageKey = demoStorageKeys(options.namespace).savedSearches;
   const engine = createNamedCollectionEngine<SavedSearch, SavedSearchSnapshot>({
-    storageKey: DEMO_SAVED_SEARCHES_KEY,
+    storageKey,
     limit: SAVED_SEARCH_LIMIT,
     emptyItems: emptySearches,
     serverSnapshot,
@@ -239,6 +243,7 @@ export function createSavedSearchStore(options: { readonly storageProvider?: () 
     snapshot: (searches, storageStatus, canUndo) => Object.freeze({ searches, storageStatus, canUndo }),
   }, storageProvider);
   const store: SavedSearchStore = {
+    storageKey,
     getSnapshot: engine.getSnapshot,
     getServerSnapshot: engine.getServerSnapshot,
     subscribe: engine.subscribe,

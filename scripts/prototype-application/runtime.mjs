@@ -85,7 +85,7 @@ export function createApplicationRuntime(dependencies = {}) {
   const loadModules = dependencies.loadModules ?? defaultModules;
   const now = dependencies.now ?? Date.now;
 
-  async function prepareApplication(state) {
+  async function prepareApplication(state, options = {}) {
     assertPrototypeExecution(dependencies);
     return classifiedStep("acquire-project-lock", () => (dependencies.withProjectLock ?? withProjectLock)(state, async () => {
       await classifiedStep("validate-compose", () => (dependencies.compose ?? compose)(state,
@@ -95,7 +95,7 @@ export function createApplicationRuntime(dependencies = {}) {
       await classifiedStep("start-four-services", () => (dependencies.up ?? up)(state));
       await classifiedStep("migrate-connector-store", () => (dependencies.migrateConnector ?? migrateConnector)(state));
       await classifiedStep("provision-search-roles", () => (dependencies.provisionRoles ?? provisionRoles)(state));
-      await classifiedStep("migrate-search-store", () => (dependencies.migrateSearch ?? migrateSearch)(state));
+      await classifiedStep("migrate-search-store", () => (dependencies.migrateSearch ?? migrateSearch)(state, "up", options.targetMappingVersion ?? 1));
       await classifiedStep("ensure-raw-bucket", () => (dependencies.ensureRawBucket ?? ensureRawBucket)(state));
       return classifiedStep("verify-four-service-health", async () => {
         const health = await (dependencies.serviceHealth ?? serviceHealth)(state);
@@ -132,8 +132,11 @@ export function createApplicationRuntime(dependencies = {}) {
         password: state.credentials.pgWriter });
       search = modules.createSearchPrototype({ postgres: { host: "127.0.0.1", port: postgresPort,
         workerPassword: credentials.workerPassword, apiPassword: credentials.apiPassword },
-      opensearch: { port: searchPort }, ...(options.onEvent === undefined ? {} : { telemetry: { emit } }) });
+      opensearch: { port: searchPort }, ...(options.onEvent === undefined ? {} : { telemetry: { emit } }),
+      ...(options.projectionV2 === undefined ? {} : { targetMappingVersion: 2, projectionV2: options.projectionV2 }) });
+      if (options.projectionV2 !== undefined) await search.assertProfile();
       app = modules.createDemoApi({ readPort: search.readPort, loopbackPolicy: { boundPort },
+        ...(options.projectionV2 === undefined ? {} : { readPortV2: search.readPortV2 }),
         ...(options.onEvent === undefined ? {} : { telemetry: {
           metric: emit, log: emit, span: emit, alert: emit,
         } }) });
@@ -141,12 +144,21 @@ export function createApplicationRuntime(dependencies = {}) {
       await app.listen({ host: "127.0.0.1", port: boundPort });
       if (controller.signal.aborted) throw new Error("prototype_application_cancelled");
       if (options.seed === true) {
-        const outcome = await modules.ingest(ingestion, modules.generatedAdapter(1_000), SEED_INVOCATION, "full",
+        const seed = options.webSeed;
+        if ((options.projectionV2 === undefined) !== (seed === undefined)) throw new Error("prototype_application_seed_profile_invalid");
+        const outcome = await modules.ingest(ingestion, seed?.adapter ?? modules.generatedAdapter(1_000), seed?.invocationKey ?? SEED_INVOCATION, "full",
           { maxEffectMs: 10_000, maxRunMs: 100_000 }, { timeoutMs: 10_000 },
-          { signal: controller.signal, telemetry: options.onEvent === undefined ? undefined : { emit } });
+          { signal: controller.signal, telemetry: options.onEvent === undefined ? undefined : { emit },
+            ...(seed === undefined ? {} : { mapperVersion: options.projectionV2.mapperVersion }) });
         emit({ name: "application_seed", status: outcome.status });
         if (controller.signal.aborted) throw new Error("prototype_application_cancelled");
-        if (outcome.status !== "completed") throw new Error("prototype_application_seed_failed");
+        if (outcome.status !== "completed") {
+          const failure = new Error("prototype_application_seed_failed");
+          // SDK failure categories are fixed, never raw payloads or credentials.
+          failure.prototypeApplicationStep = "seed-canonical-store";
+          if (/^[a-z_]{1,64}$/u.test(outcome.error?.code ?? "")) failure.code = outcome.error.code;
+          throw failure;
+        }
       }
       if (options.consume !== false) {
         consumerPromise = (async () => {

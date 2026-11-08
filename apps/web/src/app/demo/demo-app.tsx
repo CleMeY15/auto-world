@@ -13,10 +13,10 @@ import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, t
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
 import { parseFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
+import type { DemoStorageNamespace } from "../../demo/storage-namespace";
 import { decodeSearchLinkFragment, isSearchLinkFragment } from "../../demo/search-link";
 import {
   createSavedComparisonStore,
-  DEMO_SAVED_COMPARISONS_KEY,
   SAVED_COMPARISON_LIMIT,
   type SavedComparison,
   type SavedComparisonSnapshot,
@@ -142,7 +142,7 @@ function savedComparisonStorageCopy(status: SavedComparisonStorageStatus) {
   return undefined;
 }
 
-export function DemoApp({ enabled }: { readonly enabled: boolean }) {
+export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly enabled: boolean; readonly storageNamespace?: DemoStorageNamespace }) {
   const hash = useSyncExternalStore(subscribeHash, getHashSnapshot, getHashServerSnapshot);
   const online = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getOnlineServerSnapshot);
   const location = parseLocation(hash);
@@ -150,9 +150,9 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   const sharedHash = screen === "shared" ? hash : undefined;
   const receivedComparisonHash = screen === "received-comparison" ? hash : undefined;
   const decodedComparisonLink = decodeComparisonLinkFragment(hash);
-  const [favorites] = useState(() => createFavoritesStore());
-  const [savedSearches] = useState(() => createSavedSearchStore());
-  const [savedComparisons] = useState(() => createSavedComparisonStore());
+  const [favorites] = useState(() => createFavoritesStore({ namespace: storageNamespace }));
+  const [savedSearches] = useState(() => createSavedSearchStore({ namespace: storageNamespace }));
+  const [savedComparisons] = useState(() => createSavedComparisonStore({ namespace: storageNamespace }));
   const [pagination] = useState(() => createSearchPaginationV2());
   const favoriteSnapshot = useSyncExternalStore(favorites.subscribe, favorites.getSnapshot, favorites.getServerSnapshot);
   const savedSearchSnapshot = useSyncExternalStore(savedSearches.subscribe, savedSearches.getSnapshot, savedSearches.getServerSnapshot);
@@ -857,7 +857,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   function startSavedComparisonRename(comparison: SavedComparison) {
     if (enabled && parseLocation(window.location.hash).screen !== "saved") return;
-    savedComparisons.reconcileStorageEvent({ key: DEMO_SAVED_COMPARISONS_KEY, newValue: null });
+    savedComparisons.reconcileStorageEvent({ key: savedComparisons.storageKey, newValue: null });
     const current = savedComparisons.getSnapshot();
     const stored = current.comparisons.find((candidate) => candidate.fragment === comparison.fragment && candidate.name === comparison.name);
     if (stored === undefined || current.storageStatus === "unhydrated" || current.storageStatus === "corrupt" || current.storageStatus === "future") {
@@ -935,7 +935,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
   }
 
   function openSavedComparison(comparison: SavedComparison) {
-    savedComparisons.reconcileStorageEvent({ key: DEMO_SAVED_COMPARISONS_KEY, newValue: null });
+    savedComparisons.reconcileStorageEvent({ key: savedComparisons.storageKey, newValue: null });
     const current = savedComparisons.getSnapshot();
     if (current.storageStatus === "unhydrated" || current.storageStatus === "corrupt" || current.storageStatus === "future") {
       setAnnouncement("Cette comparaison ne peut pas être ouverte tant que les données enregistrées ne sont pas lisibles et modifiables.");
@@ -1150,7 +1150,7 @@ export function DemoApp({ enabled }: { readonly enabled: boolean }) {
 
   return (
     <main className="demo-shell demo-main" id="demo-main" ref={markHydrated} tabIndex={-1}>
-      <SyntheticDisclosure />
+      <SyntheticDisclosure persistent={storageNamespace === "prototype"} />
       <div className="demo-toolbar" aria-label="Navigation de la démonstration">
         <nav aria-label="Sections principales">
           <Button aria-current={screen === "search" || screen === "results" ? "page" : undefined} variant={screen === "search" || screen === "results" ? "primary" : "secondary"} onClick={() => navigate(response ? "results" : "search")}><SearchIcon />Recherche</Button>

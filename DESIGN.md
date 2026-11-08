@@ -182,3 +182,10 @@
 - Reveal a single inline prefilled name field, shared Field/Button/Banner and current tokens. Select/focus on open, Enregistrer/Annuler, Escape cancels. Invalid names remain editable; success/cancel restores the current row action. Use restrained wrapping actions, not nested decorative panels. No network spinner for local work.
 - A changed collection invalidates an old draft, explains the conflict and preserves external bytes. Restore focus by fragment only if the removed editor held focus, otherwise do not interrupt. Navigation discards editing intent. Same-name save is a quiet no-op; quota/denied copy says changes are session-only, not persisted.
 - Keep synthetic/current-runtime disclosure, no new vehicle facts or backend reads. Both-browser viewport/theme/enlarged-text/reduced-motion/axe/44px/actual-pixel and100ms feedback checks remain required by [TASK-0118](roadmap/tasks/TASK-0118-rename-saved-comparisons.md).
+
+## TASK-0119 persistent local prototype
+
+- Reuse the complete V2 search/detail/compare/saved journey and existing tokens. No new navigation, imagery, component framework or restyling. An explicit server mode changes the data source, not the interaction model.
+- Header says « Prototype local »; nearby concise copy explains that fictitious listings are retained locally, while personal lists remain in this browser. Keep authored-synthetic provenance visible. No production readiness, real vehicle or cloud synchronization claim.
+- Separate fixed storage keys and distinct origin3111 preserve the original demo's lists. API outage remains unavailable with criteria/retry intact, never an automatic fallback to offline fixtures. Local saved-item management remains usable.
+- Existing loading/skeleton/empty/offline/stale/error/focus/undo/read-only states and viewport/accessibility/performance budgets apply. Actual-pixel and both-browser persistent journeys are required by [TASK-0119](roadmap/tasks/TASK-0119-persistent-web-prototype.md).
