@@ -2,7 +2,7 @@
 
 Status: IN_PROGRESS, 2026-11-08. Priority P1. Owner: application lead; backend and web executors, independent architecture/critic/code/visual reviewers. Branch `codex/task-0119-persistent-web-prototype`. DoR satisfied; sequential Architect then distinct Critic APPROVE/CLEAR before execution.
 
-Local checkpoint, 2026-11-08: LOCAL_VALIDATED / DELIVERY_PENDING. Root quality gates,35 focused contracts,518 browser passes (10 existing exclusions), actual V1 search15/15 and final persistent-web9/9 phases passed; independent architecture/code/visual decisions are clear. [Exact receipts and limits](../../docs/validation/TASK-0119.md). PR-head Linux and protected-main acceptance remain required before DONE_FOR_V1_PROTOTYPE; no next task has started.
+Local checkpoint, 2026-11-08: LOCAL_VALIDATED / DELIVERY_PENDING. Root quality gates,36 focused contracts,518 browser passes (10 existing exclusions), actual V1 search15/15 and final persistent-web9/9 phases passed; independent architecture/code/visual decisions are clear. The initial PR build-recipe failure is corrected and independently verified in a cold checkout. [Exact receipts and limits](../../docs/validation/TASK-0119.md). PR-head Linux and protected-main acceptance remain required before DONE_FOR_V1_PROTOTYPE; no next task has started.
 
 ## Goal and dependencies
 

@@ -112,6 +112,10 @@ The UI must show honest dependency-unavailable states; it must not silently swit
 
 Use the same browser profile and origin `http://127.0.0.1:3111`. Prototype saved state is namespaced local storage, not PostgreSQL data, and therefore does not follow the project to another browser profile or device. Do not copy values into the offline preview's `auto-world.demo.*` namespace.
 
+### The retained synthetic results are marked stale
+
+The seed is a fixed snapshot, not a live vehicle feed. Its original `dataAsOf` is preserved, so results eventually use the existing `projection_stale` state and omit a fresh exact count while remaining readable. Restart or idempotent reseed does not invent a newer observation time. This warning is not data loss; do not change timestamps or reset a retained project to hide it.
+
 ## Rollback and deferred qualification
 
 Stop the persistent prototype normally and continue using the unchanged preview on ports 3100/3210. Roll back code, not a populated project: destructive in-place downgrade is refused, and a future schema change requires a new additive migration.
