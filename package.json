@@ -32,9 +32,9 @@
     "prototype:search:test": "pnpm --filter @auto-world/search... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-search/integration.mjs",
     "prototype:application:start": "pnpm --filter @auto-world/search... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-application/server.mjs",
     "prototype:application:test": "pnpm --filter @auto-world/search... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-application/integration.mjs",
-    "prototype:web:start": "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-web/server.mjs",
+    "prototype:web:start": "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-web/server.mjs",
     "prototype:web:unit": "pnpm --filter @auto-world/search... build && node --conditions=auto-world-prototype --conditions=auto-world-demo --test scripts/prototype-web/*.test.mjs",
-    "prototype:web:test": "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-web/integration.mjs"
+    "prototype:web:test": "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web... build && node --conditions=auto-world-prototype --conditions=auto-world-demo scripts/prototype-web/integration.mjs"
   },
   "devDependencies": {
     "@auto-world/source-registry": "workspace:*",

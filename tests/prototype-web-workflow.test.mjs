@@ -17,6 +17,14 @@ test("persistent web acceptance retains explicit guards, exact source and both b
   assert.match(workflow, /node --conditions=auto-world-prototype --conditions=auto-world-demo scripts\/prototype-web\/integration\.mjs/u);
 });
 
+test("persistent web recipes build the complete web dependency closure", () => {
+  const recipe = "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web... build";
+  assert.ok(scripts["prototype:web:start"].startsWith(`${recipe} && `));
+  assert.ok(scripts["prototype:web:test"].startsWith(`${recipe} && `));
+  assert.match(workflow, new RegExp(`run: ${recipe.replaceAll(".", "\\.")}`, "u"));
+  assert.doesNotMatch(workflow, /pnpm --filter @auto-world\/web build/u);
+});
+
 test("persistent web workflow has pinned tools and sanitized bounded artifacts only", () => {
   for (const pin of ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",

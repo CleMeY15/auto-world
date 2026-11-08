@@ -79,7 +79,7 @@ jobs:
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
       - name: Build existing backend and web
-        run: pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web build
+        run: pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web... build
       - name: Validate the prototype composition contracts
         run: node --conditions=auto-world-prototype --conditions=auto-world-demo --test scripts/prototype-web/*.test.mjs
       - name: Install both existing browser engines
