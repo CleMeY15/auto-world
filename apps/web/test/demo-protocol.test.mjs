@@ -66,6 +66,24 @@ test("V2 proxy uses only literal catalog, search and detail destinations", async
   assert.deepEqual(calls, ["http://127.0.0.1:3210/v2/demo/catalog", "http://127.0.0.1:3210/v2/demo/search", `http://127.0.0.1:3210/v2/demo/listings/${ID}`]);
 });
 
+test("prototype mode switches every closed route to port 3211 without accepting an arbitrary target", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return apiResponse(url.endsWith("/catalog") ? catalogEnvelope() : v2Envelope()); };
+  const options = { schemaVersion: 2, backendMode: () => "prototype", clock: () => new Date(NOW), fetchImpl };
+  const catalog = createDemoProxyHandler({ ...options, route: "catalog" });
+  const search = createDemoProxyHandler({ ...options, route: "search" });
+  const detail = createDemoProxyHandler({ ...options, route: "detail" });
+  assert.equal((await catalog(request("/api/demo/v2/catalog", { method: "GET", headers: { "x-upstream": "http://127.0.0.1:9999" } }))).status, 200);
+  assert.equal((await search(request("/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json", "x-upstream": "http://127.0.0.1:9999" }, body: "{}" }))).status, 200);
+  assert.equal((await detail(request(`/api/demo/v2/listings/${ID}`, { method: "GET" }), ID)).status, 200);
+  assert.deepEqual(calls, ["http://127.0.0.1:3211/v2/demo/catalog", "http://127.0.0.1:3211/v2/demo/search", `http://127.0.0.1:3211/v2/demo/listings/${ID}`]);
+
+  let disabledCalls = 0;
+  const disabled = createDemoProxyHandler({ route: "search", schemaVersion: 2, backendMode: () => "disabled", async fetchImpl() { disabledCalls += 1; return apiResponse(v2Envelope()); } });
+  assert.equal((await disabled(request("/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }))).status, 404);
+  assert.equal(disabledCalls, 0);
+});
+
 test("proxy uses the fixed destination, strips incoming headers and preserves the original strict body", async () => {
   const calls = [];
   const telemetry = [];

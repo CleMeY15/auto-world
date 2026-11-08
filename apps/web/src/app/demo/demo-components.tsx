@@ -5,8 +5,8 @@ import { resolveDescription } from "../../demo/catalog";
 import { formatExactNumber, formatObservedPrice } from "../../demo/observation-history";
 import { ObservationHistory } from "./history-components";
 
-export function SyntheticDisclosure() {
-  return <p className="demo-disclosure">Données entièrement synthétiques. Aucun véhicule à vendre.</p>;
+export function SyntheticDisclosure({ persistent = false }: { readonly persistent?: boolean }) {
+  return <p className="demo-disclosure">{persistent ? "Prototype local persistant sur données entièrement synthétiques. Aucun véhicule à vendre." : "Données entièrement synthétiques. Aucun véhicule à vendre."}</p>;
 }
 
 export function NeutralIllustration() {

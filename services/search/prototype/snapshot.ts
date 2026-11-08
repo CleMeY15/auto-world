@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 import { parseConnectorCheckpoint, type ConnectorCheckpoint, type InventoryHead, type ListingProjection } from "@auto-world/connector-sdk";
-import { parseDemoResult, type DemoResultV1 } from "@auto-world/demo-search-contract";
+import { parseDemoResult, parseDemoResultV2, type DemoResultV1, type DemoResultV2 } from "@auto-world/demo-search-contract";
 import { parseListing, parseListingId, parseObservation, type Listing, type Observation } from "@auto-world/vehicle-schema";
-import { PROFILE, ProjectionRejected, ascii, exactUtc, stable, type PublicSnapshot } from "./model.js";
+import { PROFILE, ProjectionRejected, ascii, exactUtc, profileFingerprint, stable,
+  type ProjectionV2Options, type PublicSnapshot, type PublicSnapshotV2, type SearchSnapshot,
+  type VerifiedDescriptionProjectionInput, type VerifiedDescriptionVersion } from "./model.js";
 
 const MAX_ROWS = 100_000;
 const ROW_SENTINEL = MAX_ROWS + 1;
@@ -15,7 +17,7 @@ interface ProjectionRow extends QueryResultRow { listing_id: string; source_list
 interface VersionRow extends QueryResultRow { run_id: string; listing_version_id: string; listing_id: string; source_listing_id: string; snapshot_id: string; raw_sha256: string; listing: unknown; evidence: unknown }
 interface ObservationRow extends QueryResultRow { run_id: string; observation_id: string; listing_id: string; listing_version_id: string; snapshot_id: string; raw_sha256: string; observation: unknown }
 interface TombstoneRow extends QueryResultRow { run_id: string; tombstone_id: string; listing_id: string; source_listing_id: string; kind: string; snapshot_id: string | null; raw_sha256: string | null; evidence: unknown }
-interface RawRow extends QueryResultRow { run_id: string; snapshot_id: string; sha256: string; pending: unknown }
+interface RawRow extends QueryResultRow { run_id: string; snapshot_id: string; sha256: string; pending: unknown; raw_bytes?: Buffer }
 
 export interface CanonicalSnapshotInput {
   readonly inventory: InventoryRow;
@@ -90,6 +92,14 @@ function frame(value: string): Buffer {
 function evidenceId(listingId: string, observationId: string): string {
   return `ev_${createHash("sha256").update(Buffer.concat([
     Buffer.from("aw-demo-evidence-v1\0", "utf8"), frame(listingId), frame(observationId),
+  ])).digest("hex")}`;
+}
+
+function descriptionEvidenceId(version: VerifiedDescriptionVersion, mapperVersion: string): string {
+  return `de_${createHash("sha256").update(Buffer.concat([
+    Buffer.from("aw-demo-description-evidence-v2\0", "utf8"),
+    frame(version.listingId), frame(version.listingVersionId), frame(version.runId),
+    frame(version.snapshotId), frame(version.rawSha256), frame(mapperVersion),
   ])).digest("hex")}`;
 }
 
@@ -237,7 +247,159 @@ function publicResult(projection: ListingProjection, runs: ReadonlyMap<string, C
   return parsed.data;
 }
 
-export function projectCanonicalSnapshot(input: CanonicalSnapshotInput, nowMs: number): PublicSnapshot {
+function baseOf(document: DemoResultV2): DemoResultV1 {
+  return {
+    listingId: document.listingId,
+    availability: document.availability,
+    price: document.price,
+    mileage: document.mileage,
+    evidence: document.evidence,
+  };
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function descriptionReferences(input: CanonicalSnapshotInput, options: ProjectionV2Options): readonly { readonly runId: string; readonly snapshotId: string }[] {
+  profileFingerprint(options);
+  const descriptors = new Map(options.descriptors.map((descriptor) => [descriptor.sha256, descriptor]));
+  const rawByReference = new Map<string, RawRow>();
+  for (const raw of input.rawPages) addUnique(rawByReference, rawKey(raw.run_id, raw.snapshot_id), raw);
+  const mapperByRun = new Map<string, string>();
+  for (const run of input.runs) {
+    const checkpoint = object(run.checkpoint);
+    const request = object(checkpoint.request);
+    if (typeof request.mapperVersion !== "string") reject();
+    mapperByRun.set(run.run_id, request.mapperVersion);
+  }
+  const references = new Map<string, { runId: string; snapshotId: string }>();
+  let bytes = 0;
+  for (const version of input.versions) {
+    const key = rawKey(version.run_id, version.snapshot_id);
+    const raw = rawByReference.get(key);
+    const descriptor = descriptors.get(version.raw_sha256);
+    const evidence = object(version.evidence);
+    if (!raw || raw.sha256 !== version.raw_sha256 || !descriptor
+      || evidence.mapperVersion !== options.mapperVersion || mapperByRun.get(version.run_id) !== options.mapperVersion) reject();
+    if (references.has(key)) continue;
+    const pending = object(raw.pending);
+    if (pending.snapshotId !== raw.snapshot_id || pending.sha256 !== raw.sha256
+      || pending.byteLength !== descriptor.byteLength
+      || pending.pageIdentity !== `${options.fixtureVersion}:${descriptor.name}`) reject();
+    bytes += descriptor.byteLength;
+    if (bytes > PROFILE.maxSnapshotBytes) reject("projection_limit");
+    references.set(key, Object.freeze({ runId: version.run_id, snapshotId: version.snapshot_id }));
+  }
+  return Object.freeze([...references.values()]);
+}
+
+function projectDescriptionSnapshot(
+  input: CanonicalSnapshotInput,
+  inventory: InventoryHead,
+  base: PublicSnapshot,
+  projections: readonly ListingProjection[],
+  options: ProjectionV2Options,
+): PublicSnapshotV2 {
+  const profile = profileFingerprint(options);
+  const descriptors = new Map(options.descriptors.map((descriptor) => [descriptor.sha256, descriptor]));
+  const referenced = new Set(descriptionReferences(input, options).map((reference) => rawKey(reference.runId, reference.snapshotId)));
+  const rawCopies = new Map<string, Uint8Array>();
+  const pendingByReference = new Map<string, Record<string, unknown>>();
+  let rawBytes = 0;
+  for (const row of input.rawPages) {
+    const reference = rawKey(row.run_id, row.snapshot_id);
+    if (!referenced.has(reference)) continue;
+    const pending = object(row.pending);
+    const descriptor = descriptors.get(row.sha256);
+    if (!descriptor || row.raw_bytes === undefined || !Buffer.isBuffer(row.raw_bytes)
+      || pending.sha256 !== row.sha256 || pending.snapshotId !== row.snapshot_id
+      || pending.byteLength !== descriptor.byteLength || row.raw_bytes.byteLength !== descriptor.byteLength
+      || pending.pageIdentity !== `${options.fixtureVersion}:${descriptor.name}`
+      || createHash("sha256").update(row.raw_bytes).digest("hex") !== row.sha256) reject();
+    rawBytes += row.raw_bytes.byteLength;
+    if (rawBytes > PROFILE.maxSnapshotBytes) reject("projection_limit");
+    rawCopies.set(reference, Uint8Array.from(row.raw_bytes));
+    pendingByReference.set(reference, pending);
+  }
+  const latestByListing = new Map<string, string | null>(projections.map((projection) => [projection.listingId, projection.latestVersionId]));
+  const versions: VerifiedDescriptionVersion[] = input.versions.map((row) => {
+    const reference = rawKey(row.run_id, row.snapshot_id);
+    const pending = pendingByReference.get(reference);
+    const bytes = rawCopies.get(reference);
+    const pageOrdinal = pending?.pageOrdinal;
+    if (!pending || !bytes || row.raw_sha256 !== createHash("sha256").update(bytes).digest("hex")
+      || typeof pending.capturedAt !== "string" || !Number.isSafeInteger(pageOrdinal)
+      || typeof pending.pageIdentity !== "string" || (pageOrdinal as number) < 0) reject();
+    return Object.freeze({
+      listingId: row.listing_id,
+      sourceListingId: row.source_listing_id,
+      listingVersionId: row.listing_version_id,
+      runId: row.run_id,
+      snapshotId: row.snapshot_id,
+      rawSha256: row.raw_sha256,
+      capturedAt: pending.capturedAt,
+      pageOrdinal: pageOrdinal as number,
+      pageIdentity: pending.pageIdentity,
+      latest: latestByListing.get(row.listing_id) === row.listing_version_id,
+      rawBytes: bytes,
+    });
+  });
+  const projectionInput: VerifiedDescriptionProjectionInput = Object.freeze({
+    generationId: inventory.generationId,
+    revision: inventory.revision,
+    dataAsOf: base.dataAsOf,
+    versions: Object.freeze(versions),
+  });
+  let projected: readonly DemoResultV2[];
+  try {
+    projected = options.project(projectionInput, deepFreeze(structuredClone(base.documents)));
+  } catch {
+    reject();
+  }
+  if (!Array.isArray(projected) || projected.length !== base.documents.length) reject();
+  const documents = projected.map((candidate, index) => {
+    const parsed = parseDemoResultV2(candidate);
+    if (!parsed.success || stable(baseOf(parsed.data)) !== stable(base.documents[index])) reject();
+    const listingVersions = versions.filter((version) => version.listingId === parsed.data.listingId);
+    const expectedEvidence = new Map(listingVersions.map((version) => [descriptionEvidenceId(version, options.mapperVersion), version]));
+    for (const evidence of parsed.data.descriptionEvidence) {
+      const version = expectedEvidence.get(evidence.evidenceId);
+      if (!version || evidence.capturedAt !== version.capturedAt || exactUtc(evidence.capturedAt) > exactUtc(base.dataAsOf)) reject();
+    }
+    if (parsed.data.description.status === "authored_synthetic") {
+      const latest = listingVersions.find((version) => version.latest);
+      if (!latest || parsed.data.description.evidenceId !== descriptionEvidenceId(latest, options.mapperVersion)) reject();
+    }
+    return parsed.data;
+  });
+  const fingerprint = createHash("sha256").update(stable({
+    fixtureVersion: options.fixtureVersion,
+    profileFingerprint: profile,
+    baseFingerprint: base.fingerprint,
+    documents,
+  })).digest("hex");
+  const snapshot: PublicSnapshotV2 = {
+    schemaVersion: 2,
+    fixtureVersion: options.fixtureVersion,
+    taxonomyRelease: { catalogId: options.catalog.taxonomyRelease.catalogId, releaseId: options.catalog.taxonomyRelease.releaseId,
+      revision: options.catalog.taxonomyRelease.revision },
+    mapperVersion: options.mapperVersion,
+    profileFingerprint: profile,
+    dataAsOf: base.dataAsOf,
+    completeness: base.completeness,
+    fingerprint,
+    documents,
+  };
+  if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > PROFILE.maxSnapshotBytes) reject("projection_limit");
+  return Object.freeze(snapshot);
+}
+
+export function projectCanonicalSnapshot(input: CanonicalSnapshotInput, nowMs: number, projectionV2?: ProjectionV2Options): SearchSnapshot {
   if (!Number.isSafeInteger(nowMs)) reject();
   for (const rows of [input.runs, input.events, input.versions, input.observations, input.tombstones, input.rawPages]) {
     if (rows.length > MAX_ROWS) reject("projection_limit");
@@ -350,15 +512,16 @@ export function projectCanonicalSnapshot(input: CanonicalSnapshotInput, nowMs: n
     const projected = projections.filter((projection) => projection.state === "active").map((projection) => projection.sourceListingId);
     if (projected.length !== active.size || projected.some((value) => !active.has(value))) reject();
   }
-  const documents = projections.map((projection) => publicResult(projection, runs, indexes))
-    .sort((left, right) => ascii(left.listingId, right.listingId));
+  const documents = Object.freeze(projections.map((projection) => publicResult(projection, runs, indexes))
+    .sort((left, right) => ascii(left.listingId, right.listingId)));
   const fingerprint = createHash("sha256").update(stable({ fixtureVersion: PROFILE.fixtureVersion,
     generationId: inventory.generationId, revision: inventory.revision,
     receipt: [selected.row.run_id, selected.row.operation_key, selected.record.recordedAt], documents })).digest("hex");
   const snapshot: PublicSnapshot = { schemaVersion: 1, fixtureVersion: PROFILE.fixtureVersion,
     dataAsOf: selected.record.recordedAt as string, completeness, fingerprint, documents };
   if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > PROFILE.maxSnapshotBytes) reject("projection_limit");
-  return Object.freeze(snapshot);
+  const frozen = Object.freeze(snapshot);
+  return projectionV2 === undefined ? frozen : projectDescriptionSnapshot(input, inventory, frozen, projections, projectionV2);
 }
 
 async function bounded<T extends QueryResultRow>(client: Pick<PoolClient, "query">, text: string, values: readonly unknown[], limit: number): Promise<readonly T[]> {
@@ -367,7 +530,7 @@ async function bounded<T extends QueryResultRow>(client: Pick<PoolClient, "query
   return result.rows;
 }
 
-export async function captureSnapshot(client: Pick<PoolClient, "query">, nowMs: number): Promise<PublicSnapshot> {
+export async function captureSnapshot(client: Pick<PoolClient, "query">, nowMs: number, projectionV2?: ProjectionV2Options): Promise<SearchSnapshot> {
   const inventory = await bounded<InventoryRow>(client,
     "SELECT generation_id, revision, head FROM aw_connector.inventories WHERE source_id=$1 AND scope_id=$2 LIMIT 2",
     [PROFILE.sourceId, PROFILE.scopeId], 1);
@@ -402,5 +565,25 @@ export async function captureSnapshot(client: Pick<PoolClient, "query">, nowMs: 
     `SELECT p.run_id, p.snapshot_id, p.sha256, p.pending FROM aw_connector.raw_pages p JOIN aw_connector.runs r USING (source_id,run_id)
      WHERE p.source_id=$1 AND r.scope_id=$2 ORDER BY p.run_id, p.snapshot_id LIMIT ${ROW_SENTINEL}`,
     [PROFILE.sourceId, PROFILE.scopeId], MAX_ROWS);
-  return projectCanonicalSnapshot({ inventory: inventory[0]!, runs, events, projections, versions, observations, tombstones, rawPages }, nowMs);
+  const input: CanonicalSnapshotInput = { inventory: inventory[0]!, runs, events, projections, versions, observations, tombstones, rawPages };
+  const base = projectCanonicalSnapshot(input, nowMs);
+  if (projectionV2 === undefined) return base;
+  const references = descriptionReferences(input, projectionV2);
+  if (references.length === 0) return projectCanonicalSnapshot(input, nowMs, projectionV2);
+  const bytes = await bounded<{ run_id: string; snapshot_id: string; raw_bytes: Buffer }>(client,
+    `SELECT p.run_id,p.snapshot_id,p.raw_bytes FROM aw_connector.raw_pages p
+     JOIN jsonb_to_recordset($2::jsonb) AS ref(run_id text,snapshot_id text)
+       ON (ref.run_id,ref.snapshot_id)=(p.run_id,p.snapshot_id)
+     WHERE p.source_id=$1 ORDER BY p.run_id,p.snapshot_id LIMIT ${ROW_SENTINEL}`,
+    [PROFILE.sourceId, JSON.stringify(references.map((reference) => ({
+      run_id: reference.runId,
+      snapshot_id: reference.snapshotId,
+    })))], MAX_ROWS);
+  if (bytes.length !== references.length) reject();
+  const bytesByReference = new Map(bytes.map((row) => [rawKey(row.run_id, row.snapshot_id), row.raw_bytes]));
+  const enrichedRaw = rawPages.map((row) => {
+    const rawBytes = bytesByReference.get(rawKey(row.run_id, row.snapshot_id));
+    return rawBytes === undefined ? row : { ...row, raw_bytes: rawBytes };
+  });
+  return projectCanonicalSnapshot({ ...input, rawPages: enrichedRaw }, nowMs, projectionV2);
 }

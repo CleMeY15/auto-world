@@ -6,8 +6,10 @@ import {
   type NamedCollectionStorageStatus,
 } from "./named-collection-store.ts";
 import { parseStrictJson } from "./strict-json.ts";
+import { demoStorageKeys, type DemoStorageNamespace } from "./storage-namespace.ts";
 
-export const DEMO_SAVED_COMPARISONS_KEY = "auto-world.demo.saved-comparisons.v1";
+export const DEMO_SAVED_COMPARISONS_KEY = demoStorageKeys("offline").savedComparisons;
+export const PROTOTYPE_SAVED_COMPARISONS_KEY = demoStorageKeys("prototype").savedComparisons;
 export const SAVED_COMPARISON_LIMIT = 10;
 const BYTE_LIMIT = 16_384;
 const FUTURE_VERSION_INSPECTION_BYTE_LIMIT = 65_536;
@@ -18,6 +20,7 @@ export interface SavedComparisonSnapshot { readonly comparisons: readonly SavedC
 export interface SavedComparisonStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 export interface SavedComparisonStorageEvent { readonly key: string | null; readonly newValue: string | null; readonly storageArea?: SavedComparisonStorage | null }
 export interface SavedComparisonStore {
+  readonly storageKey: string;
   getSnapshot(): SavedComparisonSnapshot;
   getServerSnapshot(): SavedComparisonSnapshot;
   subscribe(listener: () => void): () => void;
@@ -83,10 +86,11 @@ function decode(source: string): Decoded {
   return { kind: "valid", comparisons: Object.freeze(comparisons) };
 }
 
-export function createSavedComparisonStore(options: { readonly storageProvider?: () => SavedComparisonStorage | null } = {}): SavedComparisonStore {
+export function createSavedComparisonStore(options: { readonly storageProvider?: () => SavedComparisonStorage | null; readonly namespace?: DemoStorageNamespace } = {}): SavedComparisonStore {
   const storageProvider = options.storageProvider ?? (() => typeof window === "undefined" ? null : window.localStorage);
+  const storageKey = demoStorageKeys(options.namespace).savedComparisons;
   const engine = createNamedCollectionEngine<SavedComparison, SavedComparisonSnapshot>({
-    storageKey: DEMO_SAVED_COMPARISONS_KEY,
+    storageKey,
     limit: SAVED_COMPARISON_LIMIT,
     emptyItems: emptyComparisons,
     serverSnapshot,
@@ -100,6 +104,7 @@ export function createSavedComparisonStore(options: { readonly storageProvider?:
     snapshot: (comparisons, storageStatus, canUndo) => Object.freeze({ comparisons, storageStatus, canUndo }),
   }, storageProvider);
   const store: SavedComparisonStore = {
+    storageKey,
     getSnapshot: engine.getSnapshot,
     getServerSnapshot: engine.getServerSnapshot,
     subscribe: engine.subscribe,

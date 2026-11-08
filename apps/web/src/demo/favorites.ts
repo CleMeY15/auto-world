@@ -1,7 +1,9 @@
 import { parseListingId, type ListingId } from "@auto-world/vehicle-schema";
 import { parseStrictJson } from "./strict-json.ts";
+import { demoStorageKeys, type DemoStorageNamespace } from "./storage-namespace.ts";
 
-export const DEMO_FAVORITES_KEY = "auto-world.demo.favorites.v1";
+export const DEMO_FAVORITES_KEY = demoStorageKeys("offline").favorites;
+export const PROTOTYPE_FAVORITES_KEY = demoStorageKeys("prototype").favorites;
 const byteLimit = 8_192;
 const itemLimit = 100;
 
@@ -11,6 +13,7 @@ export interface FavoritesStorage { getItem(key: string): string | null; setItem
 export interface FavoritesStorageEvent { readonly key: string | null; readonly newValue: string | null; readonly storageArea?: FavoritesStorage | null }
 export interface FavoritesEventTarget { addEventListener(type: "storage", listener: (event: FavoritesStorageEvent) => void): void; removeEventListener(type: "storage", listener: (event: FavoritesStorageEvent) => void): void }
 export interface FavoritesStore {
+  readonly storageKey: string;
   getSnapshot(): FavoritesSnapshot;
   getServerSnapshot(): FavoritesSnapshot;
   subscribe(listener: () => void): () => void;
@@ -53,8 +56,9 @@ function failureStatus(error: unknown): FavoritesStorageStatus {
   return typeof error === "object" && error !== null && (error as { name?: unknown }).name === "QuotaExceededError" ? "quota" : "denied";
 }
 
-export function createFavoritesStore(options: { readonly storageProvider?: () => FavoritesStorage | null; readonly eventTarget?: FavoritesEventTarget } = {}): FavoritesStore {
+export function createFavoritesStore(options: { readonly storageProvider?: () => FavoritesStorage | null; readonly eventTarget?: FavoritesEventTarget; readonly namespace?: DemoStorageNamespace } = {}): FavoritesStore {
   const storageProvider = options.storageProvider ?? (() => typeof window === "undefined" ? null : window.localStorage);
+  const storageKey = demoStorageKeys(options.namespace).favorites;
   let ids: readonly ListingId[] = Object.freeze([]);
   let storageStatus: FavoritesStorageStatus = "unhydrated";
   let removal: { readonly id: ListingId; readonly index: number } | undefined;
@@ -80,12 +84,12 @@ export function createFavoritesStore(options: { readonly storageProvider?: () =>
     if (target === null) return "session";
     const value = encode(nextIds);
     if (value === undefined) return "quota";
-    try { target.setItem(DEMO_FAVORITES_KEY, value); return "persisted"; }
+    try { target.setItem(storageKey, value); return "persisted"; }
     catch (error) { storageAuthority = false; return failureStatus(error); }
   };
   const reconcileStorageEvent = (event: FavoritesStorageEvent): void => {
     if (storageStatus === "unhydrated") return;
-    if (event.key !== DEMO_FAVORITES_KEY || (event.storageArea !== undefined && storage !== undefined && event.storageArea !== storage)) return;
+    if (event.key !== storageKey || (event.storageArea !== undefined && storage !== undefined && event.storageArea !== storage)) return;
     if (event.newValue === null) { storageAuthority = true; update([], "persisted", removal); return; }
     const decoded = decode(event.newValue);
     storageAuthority = decoded.kind === "valid";
@@ -94,6 +98,7 @@ export function createFavoritesStore(options: { readonly storageProvider?: () =>
   };
   options.eventTarget?.addEventListener("storage", reconcileStorageEvent);
   const store: FavoritesStore = {
+    storageKey,
     getSnapshot: () => snapshot,
     getServerSnapshot: () => serverSnapshot,
     subscribe(listener: () => void) { listeners.add(listener); return () => listeners.delete(listener); },
@@ -101,7 +106,7 @@ export function createFavoritesStore(options: { readonly storageProvider?: () =>
       const target = resolveStorage();
       if (target === null) { update(ids, "denied"); return snapshot; }
       try {
-        const value = target.getItem(DEMO_FAVORITES_KEY);
+        const value = target.getItem(storageKey);
         if (value === null) { storageAuthority = true; update([], "persisted"); }
         else {
           const decoded = decode(value);
@@ -140,7 +145,7 @@ export function createFavoritesStore(options: { readonly storageProvider?: () =>
       if (storageStatus === "future") return false;
       const target = resolveStorage();
       if (target === null) { update([], "session", undefined); return true; }
-      try { target.removeItem(DEMO_FAVORITES_KEY); storageAuthority = true; update([], "persisted", undefined); return true; }
+      try { target.removeItem(storageKey); storageAuthority = true; update([], "persisted", undefined); return true; }
       catch (error) { storageAuthority = false; update(ids, failureStatus(error), removal); return false; }
     },
     reconcileStorageEvent,

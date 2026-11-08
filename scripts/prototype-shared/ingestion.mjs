@@ -56,7 +56,7 @@ export async function ingest(ingestion, adapter, invocationKey, mode = "full", l
   return runConnector(request({
     sourceId: source.sourceId, territory: source.territory, acquisitionMethod: source.acquisitionMethod,
     audience: "internal", fields: ["source_listing_id", "price", "mileage"], mode, invocationKey,
-    adapterVersion: `prototype-search-${invocationKey}`, mapperVersion: "synthetic-search-mapper-v1",
+    adapterVersion: `prototype-search-${invocationKey}`, mapperVersion: runtimeOptions.mapperVersion ?? "synthetic-search-mapper-v1",
     limits: { maxPages: 20, maxItems: 2_000, maxPageBytes: 64 * 1024, maxJsonMembers: 2_000, ...limitOverrides },
   }), ports(ingestion, adapter, operationsOverrides, runtimeOptions.telemetry ?? noopTelemetry), runtimeOptions.signal);
 }

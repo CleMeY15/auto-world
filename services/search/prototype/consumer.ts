@@ -2,7 +2,7 @@ import "./guard.js";
 import { createHash, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { databaseTime, transaction, withClient } from "./database.js";
-import { PROFILE, ProjectionRejected, requireProjection, stable, type PublicSnapshot } from "./model.js";
+import { PROFILE, ProjectionRejected, requireProjection, stable, type ProjectionV2Options, type SearchSnapshot } from "./model.js";
 import { captureSnapshot } from "./snapshot.js";
 import type { OpenSearchTransport } from "./opensearch.js";
 
@@ -15,7 +15,7 @@ export interface ConsumerOutcome {
   readonly attempt?: number;
 }
 interface State { fence: string; active_batch: string | null; published_batch: string | null; index_name: string | null; halted: boolean }
-interface Batch { batch_id: string; cycle: number; snapshot: PublicSnapshot | null; payload_sha256: string | null; next_attempt_at: Date }
+interface Batch { batch_id: string; cycle: number; mapping_version: number; snapshot: SearchSnapshot | null; payload_sha256: string | null; next_attempt_at: Date }
 
 const relevant = `FROM aw_connector.outbox o
   JOIN aw_connector.mutations m USING (source_id,run_id,operation_key)
@@ -33,7 +33,10 @@ export function lagAlert(input: { halted: boolean; lagMs: number; nowMs: number;
   return { alert, slowSinceMs } as const;
 }
 
-export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetry?: ProjectionTelemetry) {
+export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetry?: ProjectionTelemetry,
+  options: { readonly targetMappingVersion?: 1 | 2; readonly projectionV2?: ProjectionV2Options } = {}) {
+  const targetMappingVersion = options.targetMappingVersion ?? 1;
+  requireProjection((targetMappingVersion === 1) === (options.projectionV2 === undefined));
   const emit = (event: Parameters<ProjectionTelemetry["emit"]>[0]) => { try { telemetry?.emit(Object.freeze(event)); } catch { /* Metrics are not authority. */ } };
 
   async function locked<T>(signal: AbortSignal, action: (client: PoolClient, fence: string) => Promise<T>): Promise<T | { status: "busy" }> {
@@ -61,7 +64,8 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
     // deadline, measured from replacement for previously published indices.
     // Only names durably allocated by this database are candidates;
     // the transport additionally verifies their exact index ownership metadata.
-    const candidates = await client.query<{ index_name: string }>(`SELECT a.index_name FROM aw_search.attempt a
+    const candidates = await client.query<{ index_name: string; mapping_version: number; profile_fingerprint: string | null }>(`SELECT a.index_name,b.mapping_version,b.metadata->>'profileFingerprint' AS profile_fingerprint FROM aw_search.attempt a
+      JOIN aw_search.batch b USING(batch_id)
       LEFT JOIN aw_search.superseded_index s USING(index_name)
       CROSS JOIN aw_search.consumer c WHERE c.id=1
       AND COALESCE(s.recorded_at,a.recorded_at) < clock_timestamp()-interval '120 seconds'
@@ -70,7 +74,8 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
       ORDER BY a.recorded_at,a.index_name LIMIT 100`);
     for (const candidate of candidates.rows) {
       try {
-        await search.remove(candidate.index_name, signal);
+        await search.remove(candidate.index_name, signal,
+          candidate.mapping_version === 2 ? candidate.profile_fingerprint ?? undefined : undefined);
         await client.query("INSERT INTO aw_search.retired_index(index_name) VALUES($1)", [candidate.index_name]);
       } catch {
         if (signal.aborted) throw new ProjectionRejected("search_unavailable");
@@ -85,7 +90,7 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
       const state = (await client.query<State>("SELECT * FROM aw_search.consumer WHERE id=1 FOR UPDATE")).rows[0]!;
       if (state.halted) return { status: "halted" };
       if (state.active_batch) {
-        const rows = await client.query<Batch>(`SELECT b.batch_id,b.payload_sha256,p.cycle,p.next_attempt_at,v.snapshot
+        const rows = await client.query<Batch>(`SELECT b.batch_id,b.mapping_version,b.payload_sha256,p.cycle,p.next_attempt_at,v.snapshot
           FROM aw_search.batch b JOIN aw_search.progress p USING(batch_id)
           LEFT JOIN aw_search.payload v USING(batch_id) WHERE b.batch_id=$1`, [state.active_batch]);
         requireProjection(rows.rows.length === 1);
@@ -104,19 +109,21 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
         `SELECT o.source_id,o.run_id,o.operation_key ${relevant} ORDER BY o.run_id,o.operation_key LIMIT 100001`, scope);
       if (!events.rows.length && !rebuild) return { status: "idle" };
       const batchId = id();
-      let snapshot: PublicSnapshot | null = null;
+      let snapshot: SearchSnapshot | null = null;
       let poison: string | null = null;
       try {
         if (events.rows.length > 100000) throw new ProjectionRejected("projection_limit");
-        snapshot = await captureSnapshot(client, await databaseTime(client));
+        snapshot = await captureSnapshot(client, await databaseTime(client), options.projectionV2);
       } catch (error) {
         if (!(error instanceof ProjectionRejected)) throw error;
         poison = error.code;
       }
       const metadata = snapshot ? { schemaVersion: snapshot.schemaVersion, fixtureVersion: snapshot.fixtureVersion,
-        dataAsOf: snapshot.dataAsOf, completeness: snapshot.completeness, fingerprint: snapshot.fingerprint } : null;
+        dataAsOf: snapshot.dataAsOf, completeness: snapshot.completeness, fingerprint: snapshot.fingerprint,
+        ...(snapshot.schemaVersion === 2 ? { taxonomyRelease: snapshot.taxonomyRelease, mapperVersion: snapshot.mapperVersion,
+          profileFingerprint: snapshot.profileFingerprint } : {}) } : null;
       await client.query(`INSERT INTO aw_search.batch(batch_id,mapping_version,metadata,payload_sha256,document_count,rebuild)
-        VALUES($1,1,$2::jsonb,$3,$4,$5)`, [batchId, JSON.stringify(metadata), snapshot ? hash(snapshot) : null,
+        VALUES($1,$2,$3::jsonb,$4,$5,$6)`, [batchId, targetMappingVersion, JSON.stringify(metadata), snapshot ? hash(snapshot) : null,
         snapshot?.documents.length ?? 0, rebuild]);
       await client.query(`INSERT INTO aw_search.batch_event(batch_id,source_id,run_id,operation_key)
         SELECT $1,e.source_id,e.run_id,e.operation_key FROM jsonb_to_recordset($2::jsonb)
@@ -125,7 +132,7 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
       await client.query("INSERT INTO aw_search.progress(batch_id) VALUES($1)", [batchId]);
       await client.query("UPDATE aw_search.consumer SET active_batch=$1 WHERE id=1", [batchId]);
       if (poison) { await halt(client, batchId, 0, poison); return { status: "halted" }; }
-      return { batch_id: batchId, cycle: 0, snapshot, payload_sha256: hash(snapshot), next_attempt_at: new Date(0) };
+      return { batch_id: batchId, cycle: 0, mapping_version: targetMappingVersion, snapshot, payload_sha256: hash(snapshot), next_attempt_at: new Date(0) };
     }, true);
   }
 
@@ -149,13 +156,18 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
           await transaction(client, () => halt(client, batch.batch_id, batch.cycle, "attempts_exhausted"));
           return { status: "halted" };
         }
-        const indexName = `aw-v1-search-${id()}`;
+        requireProjection(batch.mapping_version === batch.snapshot.schemaVersion && (batch.mapping_version === 1 || batch.mapping_version === 2));
+        const indexName = `aw-v${batch.mapping_version}-search-${id()}`;
         await transaction(client, async () => {
           await client.query("INSERT INTO aw_search.attempt(batch_id,cycle,number,index_name) VALUES($1,$2,$3,$4)", [batch.batch_id, batch.cycle, attempt, indexName]);
           await client.query("UPDATE aw_search.progress SET next_attempt_at=clock_timestamp()+($2*interval '1 millisecond') WHERE batch_id=$1", [batch.batch_id, 250 * 2 ** (attempt - 1)]);
         });
         try {
-          await search.build(indexName, batch.snapshot.documents, signal);
+          if (batch.snapshot.schemaVersion === 2) {
+            await search.buildV2(indexName, batch.snapshot.documents, batch.snapshot.profileFingerprint, signal);
+          } else {
+            await search.build(indexName, batch.snapshot.documents, signal);
+          }
         } catch {
           if (signal.aborted) throw new ProjectionRejected("search_unavailable");
           if (attempt === 5) {
@@ -225,11 +237,14 @@ export function createConsumer(pool: Pool, search: OpenSearchTransport, telemetr
 
   async function reconcile(options: { signal?: AbortSignal } = {}): Promise<ConsumerOutcome> {
     const signal = options.signal ?? AbortSignal.timeout(55_000);
-    const current = await withClient(pool, signal, async (client) => (await client.query<{ index_name: string | null; snapshot: PublicSnapshot | null; halted: boolean }>(
+    const current = await withClient(pool, signal, async (client) => (await client.query<{ index_name: string | null; snapshot: SearchSnapshot | null; halted: boolean }>(
       `SELECT c.index_name,c.halted,p.snapshot FROM aw_search.consumer c LEFT JOIN aw_search.payload p ON p.batch_id=c.published_batch WHERE c.id=1`)).rows[0]!);
     if (current.halted) return { status: "halted" };
     const matches = current.index_name && current.snapshot
-      ? await search.verify(current.index_name, current.snapshot.documents, signal) : false;
+      ? current.snapshot.schemaVersion === 2
+        ? await search.verifyV2(current.index_name, current.snapshot.documents, current.snapshot.profileFingerprint, signal)
+        : await search.verify(current.index_name, current.snapshot.documents, signal)
+      : false;
     if (matches) return consume({ signal });
     const outcome = await consume({ signal, rebuild: true });
     if (outcome.status === "published") emit({ name: "reconciled" });

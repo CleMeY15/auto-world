@@ -8,6 +8,37 @@ const conditions = new Set(["auto-world-demo", "auto-world-prototype"]);
 const state = { project: "aw-test-12345678-1234-4123-8123-123456789abc",
   credentials: { pgBootstrap: "a".repeat(64), pgWriter: "b".repeat(64) } };
 
+test("V2 profile is verified before API construction, listening or seeding", async () => {
+  const calls = [];
+  const profile = { mapperVersion: "test-web-v2" };
+  const runtime = createApplicationRuntime({ conditions, publishedPort: async () => 15432,
+    loadModules: async () => ({ createPostgresPrototype: () => ({ close: async () => calls.push("ingestion:close") }),
+      createSearchPrototype: (options) => {
+        assert.equal(options.targetMappingVersion, 2); assert.equal(options.projectionV2, profile);
+        return { assertProfile: async () => { calls.push("profile"); throw new Error("profile_mismatch"); }, close: async () => calls.push("search:close") };
+      }, createDemoApi: () => { calls.push("api"); return {}; }, ingest: async () => calls.push("seed") }) });
+  await assert.rejects(runtime.openApplication(state, { projectionV2: profile, seed: true }), /profile_mismatch/u);
+  assert.deepEqual(calls, ["profile", "search:close", "ingestion:close"]);
+});
+
+test("V2 runtime injects the durable read port and separate seed identity", async () => {
+  const calls = [];
+  const readPortV2 = {};
+  const adapter = {};
+  const profile = { mapperVersion: "test-web-v2" };
+  const runtime = createApplicationRuntime({ conditions, publishedPort: async () => 15432,
+    loadModules: async () => ({ createPostgresPrototype: () => ({ close: async () => {} }),
+      createSearchPrototype: () => ({ readPort: {}, readPortV2, assertProfile: async () => calls.push("profile"), close: async () => {} }),
+      createDemoApi: (options) => { assert.equal(options.readPortV2, readPortV2);
+        return { listen: async () => calls.push("listen"), close: async () => {} }; },
+      ingest: async (...args) => { assert.equal(args[1], adapter); assert.equal(args[2], "test-web-seed-v2");
+        assert.equal(args[6].mapperVersion, profile.mapperVersion); calls.push("seed"); return { status: "completed" }; } }) });
+  const application = await runtime.openApplication(state, { consume: false, seed: true, projectionV2: profile,
+    webSeed: { adapter, invocationKey: "test-web-seed-v2" } });
+  assert.deepEqual(calls, ["profile", "listen", "seed"]);
+  await application.close();
+});
+
 test("prepareApplication performs bounded setup under the project lock", async () => {
   const calls = [];
   const runtime = createApplicationRuntime({ conditions,

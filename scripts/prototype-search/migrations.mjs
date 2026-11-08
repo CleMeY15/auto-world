@@ -3,19 +3,42 @@ import { readFileSync } from "node:fs";
 import { sql } from "../data-infra/runtime.mjs";
 
 const directory = new URL("../../services/search/prototype/migrations/", import.meta.url);
-export function migrationChecksum(up, down) {
-  return createHash("sha256").update("aw-search-migration-1\0").update(up).update("\0").update(down).digest("hex");
+export function migrationChecksum(up, down, version = 1) {
+  if (!Number.isSafeInteger(version) || version < 1 || version > 2) throw new Error("search_invalid_migration");
+  return createHash("sha256").update(`aw-search-migration-${version}\0`).update(up).update("\0").update(down).digest("hex");
 }
-export function readMigration() {
-  const up = readFileSync(new URL("0001-search.up.sql", directory), "utf8");
-  const down = readFileSync(new URL("0001-search.down.sql", directory), "utf8");
-  return { version: 1, up, down, checksum: migrationChecksum(up, down) };
+export function readMigration(version = 1) {
+  if (![1, 2].includes(version)) throw new Error("search_invalid_migration");
+  const stem = String(version).padStart(4, "0") + (version === 1 ? "-search" : "-search-v2");
+  const up = readFileSync(new URL(`${stem}.up.sql`, directory), "utf8");
+  const down = readFileSync(new URL(`${stem}.down.sql`, directory), "utf8");
+  return { version, up, down, checksum: migrationChecksum(up, down, version) };
 }
-export function migrationSql(direction = "up", definition = readMigration()) {
-  if (!["up", "down"].includes(direction) || definition.version !== 1 ||
+export function readMigrations() { return Object.freeze([readMigration(1), readMigration(2)]); }
+export function migrationSql(direction = "up", targetVersion = 1, inputDefinitions = readMigrations()) {
+  let definitions = inputDefinitions;
+  if (typeof targetVersion === "object" && targetVersion !== null) {
+    definitions = [targetVersion];
+    targetVersion = targetVersion.version;
+  }
+  if (!["up", "down"].includes(direction) || !Number.isSafeInteger(targetVersion) || targetVersion < 1 || targetVersion > 2
+      || !Array.isArray(definitions)) throw new Error("search_invalid_migration");
+  const allDefinitions = [...definitions].sort((left, right) => left.version - right.version);
+  const selected = allDefinitions.filter((definition) => definition.version <= targetVersion);
+  if (selected.length !== targetVersion || allDefinitions.some((definition, index) => definition.version !== index + 1 ||
       typeof definition.up !== "string" || typeof definition.down !== "string" ||
-      definition.checksum !== migrationChecksum(definition.up, definition.down) ||
-      /\$search_(?:body|migration)\$/u.test(definition.up + definition.down)) throw new Error("search_invalid_migration");
+      definition.checksum !== migrationChecksum(definition.up, definition.down, definition.version) ||
+      new RegExp(`\\$search_(?:body_v${definition.version}|migration)\\$`, "u").test(definition.up + definition.down))) {
+    throw new Error("search_invalid_migration");
+  }
+  const knownCases = allDefinitions.map((definition) => `WHEN '${definition.checksum}' THEN ${definition.version}`).join(" ");
+  const upCases = selected.map((definition) => `WHEN ${definition.version} THEN
+        EXECUTE $search_body_v${definition.version}$${definition.up}$search_body_v${definition.version}$;
+        INSERT INTO aw_search_migration.history(checksum,action) VALUES ('${definition.checksum}','up');`).join("\n      ");
+  const downCases = [...selected].reverse().map((definition) => `WHEN ${definition.version} THEN
+        EXECUTE $search_body_v${definition.version}$${definition.down}$search_body_v${definition.version}$;
+        INSERT INTO aw_search_migration.history(checksum,action) VALUES ('${definition.checksum}','down');`).join("\n      ");
+  const desired = direction === "up" ? targetVersion : targetVersion - 1;
   return `BEGIN;
 SET LOCAL statement_timeout = '25s'; SET LOCAL lock_timeout = '10s';
 SET LOCAL search_path = pg_catalog;
@@ -33,29 +56,46 @@ BEGIN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='immutable_search_migration
 $immutable$;
 REVOKE ALL ON FUNCTION aw_search_migration.immutable() FROM PUBLIC;
 DO $search_migration$
-DECLARE known text; previous text;
+DECLARE entry record; migration_version integer; current_version integer := 0; step integer;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='aw_search_migration.history'::regclass AND tgname='immutable_history') THEN
     CREATE TRIGGER immutable_history BEFORE UPDATE OR DELETE OR TRUNCATE ON aw_search_migration.history
       FOR EACH STATEMENT EXECUTE FUNCTION aw_search_migration.immutable();
   END IF;
-  SELECT checksum, action INTO known, previous FROM aw_search_migration.history ORDER BY sequence DESC LIMIT 1;
-  IF known IS NOT NULL AND known <> '${definition.checksum}' THEN
-    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_checksum_drift';
-  END IF;
-  IF (to_regnamespace('aw_search') IS NOT NULL) IS DISTINCT FROM (coalesce(previous,'down')='up') THEN
+  FOR entry IN SELECT checksum,action FROM aw_search_migration.history ORDER BY sequence LOOP
+    migration_version := CASE entry.checksum ${knownCases} ELSE NULL END;
+    IF migration_version IS NULL THEN
+      RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_checksum_drift';
+    END IF;
+    IF entry.action='up' THEN
+      IF migration_version <> current_version+1 THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_order_invalid'; END IF;
+      current_version := migration_version;
+    ELSE
+      IF migration_version <> current_version THEN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_order_invalid'; END IF;
+      current_version := current_version-1;
+    END IF;
+  END LOOP;
+  IF (to_regnamespace('aw_search') IS NOT NULL) IS DISTINCT FROM (current_version>0) THEN
     RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_state_mismatch';
   END IF;
-  IF coalesce(previous,'down') <> '${direction}' THEN
-    EXECUTE $search_body$${definition[direction]}$search_body$;
-    INSERT INTO aw_search_migration.history(checksum,action) VALUES ('${definition.checksum}','${direction}');
+  IF '${direction}'='up' AND current_version>${desired} OR '${direction}'='down' AND current_version NOT IN (${targetVersion},${desired}) THEN
+    RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_order_invalid';
+  END IF;
+  IF current_version<${desired} THEN
+    FOR step IN current_version+1..${desired} LOOP
+      CASE step ${upCases} ELSE RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_order_invalid'; END CASE;
+    END LOOP;
+  ELSIF current_version>${desired} THEN
+    FOR step IN REVERSE current_version..${desired + 1} LOOP
+      CASE step ${downCases} ELSE RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='search_migration_order_invalid'; END CASE;
+    END LOOP;
   END IF;
 END
 $search_migration$;
 COMMIT;`;
 }
-export async function migrate(state, direction = "up") {
-  await sql(state, migrationSql(direction), { role: "migrator", timeoutMs: 30_000 });
+export async function migrate(state, direction = "up", targetVersion = 1) {
+  await sql(state, migrationSql(direction, targetVersion), { role: "migrator", timeoutMs: 30_000 });
 }
 
 export function deriveRoleCredentials(state) {
