@@ -1,6 +1,6 @@
 # TASK-0124 — Trier directement les résultats
 
-Status: IN_PROGRESS, 2026-11-09. Priority P1, isolated synthetic V1 lane. Owner: application lead; independent test, code and visual review lanes. Definition of Ready satisfied below. Direct bounded implementation using the existing search authority, no new architectural contract.
+Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-11-09. Not Done: exact-source/main delivery remains required. Priority P1, isolated synthetic V1 lane. Owner: application lead; independent test, code and visual review lanes. Definition of Ready satisfied below. Direct bounded implementation using the existing search authority, no new architectural contract.
 
 ## Goal, dependency and scope
 
