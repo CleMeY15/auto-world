@@ -7,7 +7,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { exportManagedTextEvidence, managedEvidenceDiagnostic } from "../scripts/scanner/official-audit.mjs";
+import { exportManagedTextEvidence, managedEvidenceDiagnostic, managedSeaweedEvidenceStatusDiagnostic } from "../scripts/scanner/official-audit.mjs";
 
 const MiB = 1024 ** 2;
 const error = /^scanner_managed_evidence_invalid$/u;
@@ -158,6 +158,29 @@ test("managed evidence refuses recognizable GitHub, AWS and Authorization creden
       assert.deepEqual(readFileSync(path.join(source, "output.log")), original);
     });
   }
+});
+
+test("authenticated Seaweed export refusal retains only strict numeric private statuses and publishes nothing", (t) => {
+  const { source, destination } = fixture(t);
+  const statuses = {
+    "preparation.exit-code": "0\n", "package-list.exit-code": "0\n", "go-test.exit-code": "7\n",
+    "go-test-capture.exit-code": "0\n", "build.exit-code": "9\n", "build-validation.exit-code": "1\n",
+  };
+  for (const [name, value] of Object.entries(statuses)) put(source, name, value);
+  put(source, "go-test-events/chunk-0005.json", `ordinary output\nAKIA${"A1".repeat(8)}\n`);
+  let failure;
+  assert.throws(() => exportManagedTextEvidence(source, destination), (value) => {
+    failure = value;
+    return error.test(value.message);
+  });
+  const diagnostic = managedSeaweedEvidenceStatusDiagnostic(failure, source);
+  assert.deepEqual(diagnostic, { schemaVersion: 1, statuses: {
+    preparation: 0, packageList: 0, tests: 7, capture: 0, build: 9, buildValidation: 1,
+  } });
+  assert.equal(Object.isFrozen(diagnostic), true);
+  assert.equal(existsSync(destination), false);
+  assert.equal(JSON.stringify(diagnostic).includes("AKIA"), false);
+  assert.equal(managedSeaweedEvidenceStatusDiagnostic(new Error("scanner_managed_evidence_invalid"), source), undefined);
 });
 
 test("managed evidence refuses an occupied directory or file without changing it", (t) => {

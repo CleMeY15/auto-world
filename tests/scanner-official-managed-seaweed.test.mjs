@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "../scripts/scanner/managed-seaweed.mjs";
+import { readManagedSeaweedStatuses, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "../scripts/scanner/managed-seaweed.mjs";
 import { validateManagedImageLock } from "../scripts/scanner/official-audit.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -48,6 +48,47 @@ test("Seaweed test evidence reconstructs all interleaved events, UTF8 output and
   assert.deepEqual(result.counts, { packages: { total: 2, pass: 2, fail: 0, skip: 0 }, tests: { total: 2, pass: 2, fail: 0, skip: 0 } });
   assert.equal(result.result, "passed"); assert.equal(result.runtimeEligible, true); assert.deepEqual(result.skips, []);
 });
+
+test("Seaweed private status diagnostics read exactly six bounded numeric statuses without deriving acceptance", (context) => {
+  const data = fixture(context);
+  data.write("preparation.exit-code", "255\n");
+  data.write("package-list.exit-code", "1\n");
+  data.write("go-test.exit-code", "2\n");
+  data.write("go-test-capture.exit-code", "3\n");
+  data.write("build.exit-code", "4\n");
+  data.write("build-validation.exit-code", "5\n");
+  const statuses = readManagedSeaweedStatuses(data.directory);
+  assert.deepEqual(statuses, { preparation: 255, packageList: 1, tests: 2, capture: 3, build: 4, buildValidation: 5 });
+  assert.equal(Object.isFrozen(statuses), true);
+  assert.equal(Object.hasOwn(statuses, "result"), false);
+  assert.equal(Object.hasOwn(statuses, "runtimeEligible"), false);
+});
+
+for (const [label, mutate] of [
+  ["a missing fixed status", ({ directory }) => rmSync(path.join(directory, "go-test.exit-code"))],
+  ["a multiline status", ({ write }) => write("go-test.exit-code", "0\n1\n")],
+  ["a status without its newline", ({ write }) => write("go-test.exit-code", "0")],
+  ["a negative status", ({ write }) => write("go-test.exit-code", "-1\n")],
+  ["a status above 255", ({ write }) => write("go-test.exit-code", "256\n")],
+]) test(`Seaweed private status diagnostics refuse ${label}`, (context) => {
+  const data = fixture(context); mutate(data);
+  assert.throws(() => readManagedSeaweedStatuses(data.directory), /scanner_managed_seaweed_evidence_invalid/u);
+});
+
+test("Seaweed private status diagnostics refuse hard-linked status files", (context) => {
+  const data = fixture(context);
+  linkSync(path.join(data.directory, "go-test.exit-code"), path.join(data.directory, "status-alias.txt"));
+  assert.throws(() => readManagedSeaweedStatuses(data.directory), /scanner_managed_seaweed_evidence_invalid/u);
+});
+
+test("Seaweed private status diagnostics refuse a noncanonical root alias",
+  { skip: process.platform !== "linux" && "Linux symlink semantics are required" }, (context) => {
+    const data = fixture(context);
+    const alias = `${data.directory}-alias`;
+    context.after(() => rmSync(alias, { force: true }));
+    symlinkSync(data.directory, alias, "dir");
+    assert.throws(() => readManagedSeaweedStatuses(alias), /scanner_managed_seaweed_evidence_invalid/u);
+  });
 
 test("Seaweed retains an upstream skip identity but does not authorize unreviewed skips", (context) => {
   const events = fixtureEvents(); events[5].Action = "skip";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
 
@@ -49,6 +49,42 @@ export function validateManagedSeaweedGoInventory(report) {
   return { target: "usr/bin/weed", packageCount: packages.length };
 }
 
+const SEAWEED_STATUS_FILES = Object.freeze({
+  preparation: "preparation.exit-code",
+  packageList: "package-list.exit-code",
+  tests: "go-test.exit-code",
+  capture: "go-test-capture.exit-code",
+  build: "build.exit-code",
+  buildValidation: "build-validation.exit-code",
+});
+
+// Read only the fixed numeric status surface from a canonical private evidence
+// root. This diagnostic does not inspect logs or imply runtime eligibility.
+export function readManagedSeaweedStatuses(directory) {
+  try {
+    requireValue(typeof directory === "string" && path.isAbsolute(directory) && !/[\0,\r\n]/u.test(directory) && path.resolve(directory) === directory);
+    const rootInfo = lstatSync(directory);
+    requireValue(rootInfo.isDirectory() && !rootInfo.isSymbolicLink() && realpathSync(directory) === directory);
+    const statuses = {};
+    for (const [key, name] of Object.entries(SEAWEED_STATUS_FILES)) {
+      const file = path.join(directory, name);
+      requireValue(path.dirname(file) === directory && path.relative(directory, file) === name && realpathSync(file) === file);
+      const info = lstatSync(file);
+      requireValue(info.isFile() && !info.isSymbolicLink() && info.nlink === 1 && info.size >= 2 && info.size <= 4);
+      const bytes = readFileSync(file);
+      requireValue(bytes.length === info.size);
+      const text = utf8(bytes);
+      requireValue(/^(?:0|[1-9][0-9]{0,2})\n$/u.test(text));
+      const value = Number(text.slice(0, -1));
+      requireValue(value <= 255);
+      statuses[key] = value;
+    }
+    return Object.freeze(statuses);
+  } catch {
+    fail();
+  }
+}
+
 // Read only an already bounded, exported text evidence tree. No command is run.
 export function readManagedSeaweedTests(directory) {
   const read = (name) => {
@@ -61,12 +97,7 @@ export function readManagedSeaweedTests(directory) {
     const text = utf8(bytes); requireValue(text.endsWith("\n") && !text.includes("\r") && !text.includes("\0"));
     return text.slice(0, -1).split("\n");
   };
-  const status = (name) => {
-    const text = utf8(read(name)); requireValue(/^(?:0|[1-9][0-9]{0,2})\n$/u.test(text));
-    const value = Number(text.trim()); requireValue(value <= 255); return value;
-  };
-  const statuses = { preparation: status("preparation.exit-code"), packageList: status("package-list.exit-code"), tests: status("go-test.exit-code"), build: status("build.exit-code"),
-    capture: status("go-test-capture.exit-code"), buildValidation: status("build-validation.exit-code") };
+  const statuses = readManagedSeaweedStatuses(directory);
   requireValue(statuses.preparation === 0);
   const packageNames = lines(read("package-list.txt"));
   requireValue(statuses.packageList === 0 && packageNames.length <= 4096 && new Set(packageNames).size === packageNames.length &&

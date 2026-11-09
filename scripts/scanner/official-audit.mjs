@@ -8,7 +8,7 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
-import { MANAGED_SEAWEED_MATERIAL, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
+import { MANAGED_SEAWEED_MATERIAL, readManagedSeaweedStatuses, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
@@ -74,6 +74,11 @@ const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.
 
 export function managedEvidenceDiagnostic(error) {
   return managedEvidenceDiagnostics.get(error);
+}
+
+export function managedSeaweedEvidenceStatusDiagnostic(error, directory) {
+  if (!managedEvidenceDiagnostics.has(error)) return undefined;
+  return Object.freeze({ schemaVersion: 1, statuses: readManagedSeaweedStatuses(directory) });
 }
 
 export function commandFailureDiagnostic(result, { privateOutput = false } = {}) {
@@ -932,6 +937,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             build.evidenceExport = "failed"; build.evidenceReason = error.message;
             const diagnostic = managedEvidenceDiagnostic(error);
             if (diagnostic) build.evidenceDiagnostic = diagnostic;
+            if (candidate.role === "seaweedfs" && diagnostic) {
+              try { build.evidenceStatusDiagnostic = managedSeaweedEvidenceStatusDiagnostic(error, evidence); }
+              catch { build.evidenceStatusReason = "scanner_managed_seaweed_evidence_invalid"; }
+            }
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
           }
           await assertFilesUnchanged(inputs);
