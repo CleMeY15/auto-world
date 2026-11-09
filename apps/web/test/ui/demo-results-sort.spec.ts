@@ -167,6 +167,37 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: file, fullPage: true, scale: "css" });
 }
 
+async function expectWrappedTextInsideBox(page: Page, selector: string) {
+  const report = await page.locator(selector).evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const textRects = Array.from(range.getClientRects()).map((rect) => ({
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+    }));
+    return {
+      bounds: { bottom: bounds.bottom, left: bounds.left, right: bounds.right, top: bounds.top },
+      clientHeight: element.clientHeight,
+      clientWidth: element.clientWidth,
+      scrollHeight: element.scrollHeight,
+      scrollWidth: element.scrollWidth,
+      textRects,
+    };
+  });
+  expect(report.textRects.length).toBeGreaterThan(0);
+  expect(report.scrollWidth).toBeLessThanOrEqual(report.clientWidth + 1);
+  expect(report.scrollHeight).toBeLessThanOrEqual(report.clientHeight + 1);
+  expect(report.textRects.every((rect) => (
+    rect.left >= report.bounds.left - 0.5
+    && rect.right <= report.bounds.right + 0.5
+    && rect.top >= report.bounds.top - 0.5
+    && rect.bottom <= report.bounds.bottom + 0.5
+  ))).toBe(true);
+}
+
 test("selecting a sort is local and abandoning Results restores the accepted sort", async ({ page }) => {
   const submitted = await openResults(page);
   const selector = page.getByLabel("Trier ces résultats");
@@ -179,6 +210,16 @@ test("selecting a sort is local and abandoning Results restores the accepted sor
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
   await expect(selector).toHaveValue(acceptedQuery.sort);
+  expect(submitted).toHaveLength(1);
+});
+
+test("the full applied and locally chosen sort labels stay distinct until submission", async ({ page }) => {
+  const submitted = await openResults(page);
+  await expect(page.locator("#demo-results-sort-applied")).toHaveText("Tri appliqué : Kilométrage décroissant (km d’abord)");
+  await expect(page.locator("#demo-results-sort-chosen")).toHaveCount(0);
+  await page.getByLabel("Trier ces résultats").selectOption("price_asc");
+  await expect(page.locator("#demo-results-sort-applied")).toHaveText("Tri appliqué : Kilométrage décroissant (km d’abord)");
+  await expect(page.locator("#demo-results-sort-chosen")).toHaveText("Tri choisi : Prix croissant (EUR d’abord)");
   expect(submitted).toHaveLength(1);
 });
 
@@ -251,7 +292,7 @@ test("successful sorting refreshes saved and shared accepted criteria", async ({
   expect(decodeSharedUrl(await page.locator("#demo-search-link-url").inputValue()).query).toEqual({ ...acceptedQuery, sort: "price_desc" });
 });
 
-test("pending sorting hides old actionable results and guards overlap", async ({ page }) => {
+test("pending sorting hides old actionable results and guards overlap", async ({ page, browserName }, testInfo) => {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
   const submitted = await openResults(page, { holdSort: held });
@@ -261,17 +302,19 @@ test("pending sorting hides old actionable results and guards overlap", async ({
   await expect(page.locator(".demo-result-card")).toHaveCount(0);
   await expect(page.locator("#demo-results-sort-apply")).toHaveCount(0);
   expect(submitted).toHaveLength(2);
+  await capture(page, testInfo, `demo-results-sort-pending-390-light-${browserName}.png`);
   release();
   await expect(page.locator(".demo-result-card")).toHaveCount(2);
   expect(submitted).toHaveLength(2);
 });
 
-test("failed sorting exposes a focused retry and repeats the same cursorless query", async ({ page }) => {
+test("failed sorting exposes a focused retry and repeats the same cursorless query", async ({ page, browserName }, testInfo) => {
   const submitted = await openResults(page, { failSortedAttempts: 1 });
   await applySort(page, "mileage_asc");
   await expect(page.getByText("Tri indisponible", { exact: true })).toBeVisible();
   await expect(page.locator(".demo-result-card")).toHaveCount(0);
   await expect(page.locator("#demo-results-sort-retry")).toBeFocused();
+  await capture(page, testInfo, `demo-results-sort-error-390-light-${browserName}.png`);
   await page.locator("#demo-results-sort-retry").click();
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeFocused();
   expect(submitted[1]?.body).toEqual({ ...acceptedQuery, sort: "mileage_asc" });
@@ -387,6 +430,11 @@ for (const font of ["platform", "verdana"] as const) {
     await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
     await fillAcceptedCriteria(page);
     await page.getByRole("button", { name: "Rechercher", exact: true }).click();
+    await page.getByLabel("Trier ces résultats").selectOption("price_asc");
+    await expect(page.locator("#demo-results-sort-applied")).toHaveText("Tri appliqué : Kilométrage décroissant (km d’abord)");
+    await expect(page.locator("#demo-results-sort-chosen")).toHaveText("Tri choisi : Prix croissant (EUR d’abord)");
+    await expectWrappedTextInsideBox(page, "#demo-results-sort-applied");
+    await expectWrappedTextInsideBox(page, "#demo-results-sort-chosen");
     await capture(page, testInfo, `demo-results-sort-390-light-text-200-${font}-${browserName}.png`);
   });
 }
