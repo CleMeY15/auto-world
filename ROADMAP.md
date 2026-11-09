@@ -18,7 +18,7 @@ Incrément actif, 8 novembre 2026 : [TASK-0119 — interface du prototype persis
 
 Checkpoint local TASK-0119, 8 novembre : `LOCAL_VALIDATED / DELIVERY_PENDING`, parcours persistants9/9 et compatibilité V1 sur services réels15/15,518 tests navigateur réussis (10 exclusions préexistantes), qualité et revues indépendantes validées. [Preuves et limites](docs/validation/TASK-0119.md). Cela ne remplace pas l'acceptation de la PR et du main protégé.
 
-Checkpoint main, 9 novembre : PR228 fusionnée normalement, cinq validations d'intégration réussies. Un contrôle de réactivité de la comparaison dépasse100ms ; correction ciblée sur `codex/fix-comparison-open-budget`, sans relever le seuil ni retirer de contrôles. TASK-0119 reste `IN_PROGRESS` jusqu'à validation de cette correction ; aucune tâche suivante engagée.
+Checkpoint main, 9 novembre : PR228 fusionnée normalement, cinq validations d'intégration réussies. Un contrôle de réactivité de la comparaison dépasse100ms ; correction ciblée sur `codex/fix-comparison-open-budget`, sans relever le seuil ni retirer de contrôles. Correction validée localement : qualité Linux native,520 tests navigateur réussis (10 exclusions existantes), ouverture locale maximale31.1ms/100ms, revues indépendantes favorables. TASK-0119 reste `IN_PROGRESS` jusqu'à acceptation GitHub/main de cette correction ; aucune tâche suivante engagée.
 
 ## North Star
 
