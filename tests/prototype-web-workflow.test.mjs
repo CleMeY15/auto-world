@@ -17,10 +17,12 @@ test("persistent web acceptance retains explicit guards, exact source and both b
   assert.match(workflow, /node --conditions=auto-world-prototype --conditions=auto-world-demo scripts\/prototype-web\/integration\.mjs/u);
 });
 
-test("persistent web recipes build the complete web dependency closure", () => {
-  const recipe = "pnpm --filter @auto-world/search... build && pnpm --filter @auto-world/web... build";
+test("persistent web recipes serialize the complete dependency closure without competing declaration writers", () => {
+  const backend = "pnpm --workspace-concurrency=1 --filter @auto-world/search... build";
+  const recipe = `${backend} && pnpm --workspace-concurrency=1 --filter @auto-world/web... build`;
   assert.ok(scripts["prototype:web:start"].startsWith(`${recipe} && `));
   assert.ok(scripts["prototype:web:test"].startsWith(`${recipe} && `));
+  assert.ok(scripts["prototype:web:unit"].startsWith(`${backend} && `));
   assert.match(workflow, new RegExp(`run: ${recipe.replaceAll(".", "\\.")}`, "u"));
   assert.doesNotMatch(workflow, /pnpm --filter @auto-world\/web build/u);
 });

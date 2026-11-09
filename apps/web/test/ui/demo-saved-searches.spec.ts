@@ -339,7 +339,7 @@ test("a cross-tab corruption change invalidates the old reset confirmation befor
 });
 
 test("future saved-search bytes remain read-only and cannot be reset", async ({ page }) => {
-  const future = JSON.stringify({ schemaVersion: 2, searches: [] });
+  const future = JSON.stringify({ schemaVersion: 3, searches: [] });
   await page.addInitScript(({ key, value }) => localStorage.setItem(key, value), { key: savedSearchKey, value: future });
   await page.goto("/demo#saved");
   await expect(page.getByText(/version plus récente/i)).toBeVisible();

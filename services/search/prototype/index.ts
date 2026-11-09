@@ -4,6 +4,7 @@ import { createConsumer, type ProjectionTelemetry } from "./consumer.js";
 import { createOpenSearch } from "./opensearch.js";
 import { createSearchReadPort } from "./read-port.js";
 import { createSearchReadPortV2 } from "./read-port-v2.js";
+import { createSearchKeywordReadPort } from "./read-port-v3.js";
 import { assertStoredProfileRows, profileFingerprint, PROFILE, ProjectionRejected, type ProjectionV2Options, type Publication } from "./model.js";
 
 export function createSearchPrototype(options: {
@@ -25,6 +26,8 @@ export function createSearchPrototype(options: {
   const readPort = createSearchReadPort({ search, loadPublication });
   const readPortV2 = options.projectionV2 === undefined ? undefined
     : createSearchReadPortV2({ search, loadPublication, catalog: options.projectionV2.catalog });
+  const keywordReadPort = options.projectionV2 === undefined ? undefined
+    : createSearchKeywordReadPort({ search, loadPublication, catalog: options.projectionV2.catalog });
   async function assertProfile(): Promise<void> {
     if (options.projectionV2 === undefined) return;
     const expected = profileFingerprint(options.projectionV2);
@@ -49,7 +52,7 @@ export function createSearchPrototype(options: {
       assertStoredProfileRows(options.projectionV2!, runs.rows, rawPages.rows);
     });
   }
-  return { ...consumer, readPort, ...(readPortV2 === undefined ? {} : { readPortV2 }), assertProfile,
+  return { ...consumer, readPort, ...(readPortV2 === undefined ? {} : { readPortV2, keywordReadPort }), assertProfile,
     close: async () => { await Promise.all([pools.worker.end(), pools.api.end()]); } };
 }
 

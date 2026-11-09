@@ -17,6 +17,11 @@ export {
   parseDemoSearchQueryV2,
   parseDemoSearchResponseV2,
 } from "./parsers-v2.js";
+export {
+  normalizeDemoSearchText,
+  parseDemoSearchQueryV3,
+  resolveDemoSearchModels,
+} from "./parsers-v3.js";
 
 export type {
   MakeId,
@@ -43,6 +48,7 @@ export type {
   DemoReadOutcome,
   DemoReadPort,
   DemoReadPortV2,
+  DemoKeywordReadPort,
   DemoResultV1,
   DemoResultV2,
   DemoCatalogReadFailureCodeV2,
@@ -56,6 +62,7 @@ export type {
   DemoReadOutcomeV2,
   DemoSearchQueryV1,
   DemoSearchQueryV2,
+  DemoSearchQueryV3,
   DemoSearchResponseV1,
   DemoSearchResponseV2,
   DemoSearchSort,

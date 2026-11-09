@@ -57,6 +57,10 @@ test("fragment helpers recognize the route and round-trip canonical criteria", (
     }
     assert.equal(encodeSearchLinkFragment(decoded.criteria), encoded);
   }
+  const keywordCriteria = { query: { schemaVersion: 3, sort: "listing_asc", text: "etoile modele" } };
+  const keywordFragment = encodeSearchLinkFragment(keywordCriteria);
+  assert.ok(keywordFragment.startsWith("#search-link/v2/"));
+  assert.deepEqual(decodeSearchLinkFragment(keywordFragment), { status: "valid", criteria: keywordCriteria });
 });
 
 test("encoding normalizes negative zero and returns a detached frozen value on decode", () => {
@@ -122,7 +126,7 @@ test("decoding distinguishes unsupported versions and rejects malformed URI, UTF
   const valid = encodeSearchLinkFragment({ query: { schemaVersion: 2, sort: "listing_asc" } });
   assert.ok(valid);
   const encodedPayload = valid.slice(`${SEARCH_LINK_PREFIX}v1/`.length);
-  assert.deepEqual(decodeSearchLinkFragment(`${SEARCH_LINK_PREFIX}v2/${encodedPayload}`), { status: "unsupported" });
+  assert.deepEqual(decodeSearchLinkFragment(`${SEARCH_LINK_PREFIX}v2/${encodedPayload}`), { status: "invalid" });
   assert.deepEqual(decodeSearchLinkFragment(`${SEARCH_LINK_PREFIX}v999/${encodedPayload}`), { status: "unsupported" });
   for (const fragment of [
     "#search-link",

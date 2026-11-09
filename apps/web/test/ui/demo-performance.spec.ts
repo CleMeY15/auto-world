@@ -149,7 +149,7 @@ test("real synthetic web flow stays within mobile lab and local-action feedback 
       return measurement?.observersReady === true && measurement.lcp > 0;
     });
 
-    const freeText = page.getByLabel("Recherche libre");
+    const freeText = page.getByLabel("Recherche par mots");
     await freeText.click();
     await page.keyboard.type("voyage");
     await freeText.fill("");

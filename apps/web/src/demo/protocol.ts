@@ -16,6 +16,7 @@ export type DemoHttpOutcome =
 export type DemoHttpOutcomeV2 =
   | { readonly ok: true; readonly requestId: string; readonly data: DemoSearchResponseV2 }
   | { readonly ok: false; readonly requestId: string; readonly code: DemoHttpErrorCode };
+export type DemoHttpOutcomeV3 = DemoHttpOutcomeV2;
 export type DemoCatalogHttpOutcomeV2 =
   | { readonly ok: true; readonly requestId: string; readonly data: DemoCatalogResponseV2 }
   | { readonly ok: false; readonly requestId: string; readonly code: DemoHttpErrorCode };
@@ -60,6 +61,13 @@ function parseV2Error(input: unknown, status: number, allowedCodes: ReadonlySet<
   return errorStatus[code] === status ? Object.freeze({ ok: false, requestId: input.requestId, code }) : undefined;
 }
 
+function parseV3Error(input: unknown, status: number): Extract<DemoHttpOutcomeV3, { readonly ok: false }> | undefined {
+  if (!plainExact(input, ["schemaVersion", "requestId", "error"]) || input.schemaVersion !== 3 || typeof input.requestId !== "string" || !requestIdPattern.test(input.requestId)) return undefined;
+  if (!plainExact(input.error, ["code"]) || typeof input.error.code !== "string" || !errorCodes.has(input.error.code as DemoHttpErrorCode)) return undefined;
+  const code = input.error.code as DemoHttpErrorCode;
+  return errorStatus[code] === status ? Object.freeze({ ok: false, requestId: input.requestId, code }) : undefined;
+}
+
 export function parseDemoHttpOutcomeV2(source: string, status: number, asOf: string, expectedListingId?: ListingId): DemoHttpOutcomeV2 | undefined {
   let input: unknown;
   try { input = parseStrictJson(source); } catch { return undefined; }
@@ -73,6 +81,16 @@ export function parseDemoHttpOutcomeV2(source: string, status: number, asOf: str
     const result = parsed.data.results[0];
     if (parsed.data.results.length !== 1 || parsed.data.nextCursor !== undefined || (parsed.data.state === "complete" && parsed.data.totalCount !== 1) || result?.listingId !== expectedListingId) return undefined;
   }
+  return Object.freeze({ ok: true, requestId: input.requestId, data: parsed.data });
+}
+
+export function parseDemoHttpOutcomeV3(source: string, status: number, asOf: string): DemoHttpOutcomeV3 | undefined {
+  let input: unknown;
+  try { input = parseStrictJson(source); } catch { return undefined; }
+  if (status !== 200) return parseV3Error(input, status);
+  if (!plainExact(input, ["schemaVersion", "requestId", "data"]) || input.schemaVersion !== 3 || typeof input.requestId !== "string" || !requestIdPattern.test(input.requestId)) return undefined;
+  const parsed = parseDemoSearchResponseV2(input.data, asOf);
+  if (!parsed.success || parsed.data.results.some((result) => result.availability !== "active")) return undefined;
   return Object.freeze({ ok: true, requestId: input.requestId, data: parsed.data });
 }
 

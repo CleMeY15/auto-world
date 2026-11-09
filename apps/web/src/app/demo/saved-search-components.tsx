@@ -27,6 +27,7 @@ export function SearchCriteriaSummary({ criteria, catalog }: { readonly criteria
 
   return (
     <dl className="demo-saved-search-criteria">
+      {query.schemaVersion === 3 && query.text !== undefined ? <div><dt>Mots recherchés</dt><dd>{query.text}</dd></div> : null}
       {make ? <div><dt>Marque fictive</dt><dd>{make.primaryName.value}</dd></div> : null}
       {model ? <div><dt>Modèle fictif</dt><dd>{model.primaryName.value}</dd></div> : null}
       {exactInput?.firstRegistrationYear ? <div><dt>Première immatriculation fictive</dt><dd>{exactInput.firstRegistrationYear}</dd></div> : null}

@@ -2,6 +2,7 @@ import type {
   DemoCatalogResponseV2,
   DemoSearchQueryV1,
   DemoSearchQueryV2,
+  DemoSearchQueryV3,
   DemoSearchResponseV1,
   DemoSearchResponseV2,
 } from "@auto-world/demo-search-contract";
@@ -11,6 +12,7 @@ import {
   parseDemoCatalogHttpOutcomeV2,
   parseDemoHttpOutcome,
   parseDemoHttpOutcomeV2,
+  parseDemoHttpOutcomeV3,
   type DemoHttpErrorCode,
 } from "./protocol.ts";
 
@@ -31,7 +33,7 @@ export type DemoCatalogClientOutcomeV2 =
   | { readonly ok: false; readonly code: DemoClientErrorCode };
 export interface DemoClientV2 {
   catalog(options?: { readonly signal?: AbortSignal }): Promise<DemoCatalogClientOutcomeV2>;
-  search(query: DemoSearchQueryV2, options?: { readonly signal?: AbortSignal }): Promise<DemoClientOutcomeV2>;
+  search(query: DemoSearchQueryV2 | DemoSearchQueryV3, options?: { readonly signal?: AbortSignal }): Promise<DemoClientOutcomeV2>;
   listing(listingId: ListingId, options?: { readonly signal?: AbortSignal }): Promise<DemoClientOutcomeV2>;
 }
 
@@ -66,13 +68,15 @@ export function createDemoClient(options: { readonly fetchImpl?: typeof fetch; r
 export function createDemoClientV2(options: { readonly fetchImpl?: typeof fetch; readonly clock?: () => Date } = {}): DemoClientV2 {
   const fetchImpl = options.fetchImpl ?? fetch;
   const clock = options.clock ?? (() => new Date());
-  const request = async (url: string, init: RequestInit, kind: "catalog" | "search" | "detail", listingId?: ListingId): Promise<DemoClientOutcomeV2 | DemoCatalogClientOutcomeV2> => {
+  const request = async (url: string, init: RequestInit, kind: "catalog" | "search-v2" | "search-v3" | "detail", listingId?: ListingId): Promise<DemoClientOutcomeV2 | DemoCatalogClientOutcomeV2> => {
     try {
       const response = await fetchImpl(url, { ...init, cache: "no-store", redirect: "error" });
       const text = await response.text();
       const parsed = kind === "catalog"
         ? parseDemoCatalogHttpOutcomeV2(text, response.status)
-        : parseDemoHttpOutcomeV2(text, response.status, clock().toISOString(), listingId);
+        : kind === "search-v3"
+          ? parseDemoHttpOutcomeV3(text, response.status, clock().toISOString())
+          : parseDemoHttpOutcomeV2(text, response.status, clock().toISOString(), listingId);
       if (parsed === undefined) return { ok: false, code: "invalid_response" };
       return parsed.ok ? parsed : { ok: false, code: parsed.code };
     } catch (error) {
@@ -84,8 +88,9 @@ export function createDemoClientV2(options: { readonly fetchImpl?: typeof fetch;
     catalog(callOptions: { readonly signal?: AbortSignal } = {}) {
       return request("/api/demo/v2/catalog", { method: "GET", signal: callOptions.signal }, "catalog") as Promise<DemoCatalogClientOutcomeV2>;
     },
-    search(query: DemoSearchQueryV2, callOptions: { readonly signal?: AbortSignal } = {}) {
-      return request("/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(query), signal: callOptions.signal }, "search") as Promise<DemoClientOutcomeV2>;
+    search(query: DemoSearchQueryV2 | DemoSearchQueryV3, callOptions: { readonly signal?: AbortSignal } = {}) {
+      const v3 = query.schemaVersion === 3;
+      return request(v3 ? "/api/demo/v3/search" : "/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(query), signal: callOptions.signal }, v3 ? "search-v3" : "search-v2") as Promise<DemoClientOutcomeV2>;
     },
     listing(listingId: ListingId, callOptions: { readonly signal?: AbortSignal } = {}) {
       const segment = encodeListingPathSegment(listingId);
