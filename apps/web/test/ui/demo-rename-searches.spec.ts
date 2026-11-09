@@ -303,6 +303,36 @@ test("the newest editor wins both shared-focus races between searches and compar
   await expect(page.locator(".demo-rename-search-form")).toHaveCount(0);
 });
 
+test("stale cancel, submit and external-invalidation focus callbacks cannot steal from a newer editor", async ({ page, context }) => {
+  await seed(context);
+  await seedComparisons(context);
+  await ready(page);
+
+  await edit(page);
+  await page.evaluate(() => {
+    document.querySelector<HTMLButtonElement>(".demo-rename-search-form button[type=button]")!.click();
+    document.getElementById("demo-saved-comparison-rename-0")!.click();
+  });
+  await expect(page.locator("#demo-rename-comparison-name")).toBeFocused();
+
+  await page.evaluate(() => {
+    const input = document.getElementById("demo-rename-comparison-name") as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Comparaison validée");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector<HTMLFormElement>(".demo-rename-comparison-form")!.requestSubmit();
+    document.getElementById("demo-saved-search-rename-0")!.click();
+  });
+  await expect(page.locator("#demo-rename-search-name")).toBeFocused();
+
+  await page.evaluate(({ storageKey, replacement }) => {
+    localStorage.setItem(storageKey, replacement);
+    window.dispatchEvent(new StorageEvent("storage", { key: storageKey, storageArea: localStorage, newValue: replacement }));
+    document.getElementById("demo-saved-comparison-rename-0")!.click();
+  }, { storageKey: key, replacement: bytes([entry("Externe", identityCriteria)]) });
+  await expect(page.locator("#demo-rename-comparison-name")).toBeFocused();
+  await expect(page.locator(".demo-rename-search-form")).toHaveCount(0);
+});
+
 test("inline editor is accessible across representative viewports and themes", async ({ page, context, browserName }, info) => {
   test.setTimeout(120_000);
   await seed(context);

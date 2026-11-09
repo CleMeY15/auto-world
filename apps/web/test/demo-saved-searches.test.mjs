@@ -151,7 +151,7 @@ test("rename changes only the selected name at its original position, including 
     assert.deepEqual(store.add(`Recherche ${index}`, { query: { schemaVersion: 2, sort: "listing_asc", mileageMaxKm: index } }), { ok: true });
   }
   const before = store.getSnapshot();
-  const preservedCriteria = structuredClone(before.searches[0].criteria);
+  const preservedCriteria = globalThis.structuredClone(before.searches[0].criteria);
   const key = getSavedSearchKey(before.searches[0].criteria);
 
   assert.deepEqual(store.rename(key, "  E\u0301lectriques  ", before), { ok: true, outcome: "renamed" });
