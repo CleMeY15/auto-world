@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { deriveListingId } from "../../connectors/_sdk/dist/keys.js";
-import { parseDemoSearchResponseV2 } from "../../packages/demo-search-contract/dist/index.js";
+import { normalizeDemoSearchText, parseDemoSearchResponseV2, resolveDemoSearchModels } from "../../packages/demo-search-contract/dist/index.js";
 import { root, initProject, withProjectLock, compose, port, reset, run, stop, up } from "../data-infra/runtime.mjs";
 import { discardTestProject } from "../data-infra/ephemeral.mjs";
 import { protectedRecovery, withCancellation } from "../data-infra/cancellation.mjs";
@@ -30,7 +30,7 @@ const signal = () => new globalThis.AbortController().signal;
 const listingId = (number) => deriveListingId("src_sdk_synthetic",
   `publication-prototype-web-${String(number).padStart(4, "0")}`);
 
-async function request(route, query, status = 200) {
+async function request(route, query, status = 200, errorCode = "read_unavailable") {
   const response = await globalThis.fetch(`${apiUrl}${route}`, { method: query ? "POST" : "GET",
     ...(query ? { headers: { "content-type": "application/json" }, body: JSON.stringify(query) } : {}),
     redirect: "error", signal: globalThis.AbortSignal.timeout(7_000) });
@@ -39,7 +39,8 @@ async function request(route, query, status = 200) {
   assert.ok(bytes.byteLength <= 1024 * 1024);
   const envelope = JSON.parse(Buffer.from(bytes).toString("utf8"));
   assert.match(envelope.requestId, /^req_[a-f0-9]{32}$/u);
-  if (status !== 200) { assert.equal(envelope.error.code, "read_unavailable"); return envelope.error; }
+  assert.equal(envelope.schemaVersion, route.startsWith("/v3/") ? 3 : 2);
+  if (status !== 200) { assert.equal(envelope.error.code, errorCode); return envelope.error; }
   if (route !== "/v2/demo/catalog") {
     assert.equal(parseDemoSearchResponseV2(envelope.data, new Date().toISOString()).success, true);
     assert.equal(envelope.data.fixtureVersion, WEB_FIXTURE_VERSION);
@@ -47,6 +48,8 @@ async function request(route, query, status = 200) {
   return envelope.data;
 }
 const query = (criteria = {}, status = 200) => request("/v2/demo/search", { schemaVersion: 2, sort: "listing_asc", ...criteria }, status);
+const keywordQuery = (criteria = {}, status = 200, errorCode) => request("/v3/demo/search",
+  { schemaVersion: 3, sort: "listing_asc", ...criteria }, status, errorCode);
 const detail = async (number) => request(`/v2/demo/listings/${await listingId(number)}`);
 
 async function allResults(expected) {
@@ -201,6 +204,66 @@ export async function runWebIntegration() {
       samples.sort((a, b) => a - b); metrics.queryP95Ms = samples[Math.ceil(samples.length * 0.95) - 1];
       metrics.querySamples = samples.length; assert.ok(metrics.queryP95Ms < 500);
     });
+    await phase("keyword-filter-parity-pagination-and-latency", async () => {
+      const seed = publicBefore.results.find((row) => row.description.status === "authored_synthetic");
+      const { makeId, modelId, firstRegistrationYear } = seed.description.value;
+      const model = WEB_CATALOG.taxonomyRelease.models.find((item) => item.modelId === modelId);
+      const text = normalizeDemoSearchText(model.primaryName.value);
+      assert.equal(text.success, true);
+      assert.deepEqual(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, text.data), [modelId]);
+      for (const sort of ["listing_asc", "price_asc", "price_desc", "mileage_asc", "mileage_desc"]) {
+        const criteria = { sort, makeId, modelId, firstRegistrationYear, priceMaxMinor: 4_000_000, mileageMaxKm: 200_000 };
+        const baseline = await query(criteria);
+        const page = await keywordQuery({ ...criteria, text: text.data });
+        assert.deepEqual(page.results, baseline.results);
+        assert.equal(page.state, "complete");
+        assert.equal(page.totalCount, baseline.totalCount);
+        assert.ok(page.results.length > 0);
+      }
+      const missing = await keywordQuery({ text: "nonexistentkeyword" });
+      assert.equal(missing.totalCount, 0); assert.deepEqual(missing.results, []);
+      assert.equal(missing.nextCursor, undefined);
+      assert.equal((await keywordQuery({ text: text.data, priceMaxMinor: 0 })).totalCount, 0);
+      await keywordQuery({ text: "!!!" }, 400, "invalid_query");
+
+      // The broad primary word matches every catalog model, but never a missing
+      // current description, even when that listing retains authored history.
+      assert.equal(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "fixture").length, WEB_CATALOG.taxonomyRelease.models.length);
+      const first = await keywordQuery({ text: "fixture" });
+      assert.ok(first.nextCursor);
+      const equivalent = await keywordQuery({ text: " FIXTURÉ fixture ", cursor: first.nextCursor });
+      assert.deepEqual(equivalent, await keywordQuery({ text: "fixture", cursor: first.nextCursor }));
+      const rows = [...first.results];
+      let cursor = first.nextCursor;
+      for (let count = 1; cursor; count += 1) {
+        assert.ok(count < 100);
+        const page = await keywordQuery({ text: "fixture", cursor });
+        assert.equal(page.totalCount, first.totalCount); assert.equal(page.dataAsOf, first.dataAsOf);
+        rows.push(...page.results); cursor = page.nextCursor;
+      }
+      assert.deepEqual(rows, publicBefore.results.filter((row) => row.description.status === "authored_synthetic"));
+      assert.equal(rows.length, first.totalCount);
+      assert.equal(new Set(rows.map((row) => row.listingId)).size, rows.length);
+      assert.equal(rows.some((row) => row.listingId === publicBefore.results.find((row) => row.descriptionEvidence.length === 2).listingId), false);
+
+      assert.deepEqual(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "aw fixture"),
+        resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "fixture"));
+      await keywordQuery({ text: "aw fixture", cursor: first.nextCursor }, 400, "invalid_cursor");
+      const v2 = await query(); const v3 = await keywordQuery();
+      await keywordQuery({ cursor: v2.nextCursor }, 400, "invalid_cursor");
+      await request("/v2/demo/search", { schemaVersion: 2, sort: "listing_asc", cursor: v3.nextCursor }, 400, "invalid_cursor");
+      const samples = [];
+      for (let index = 0; index < 50; index += 1) {
+        const start = performance.now();
+        await keywordQuery({ text: text.data, sort: index % 2 ? "price_asc" : "mileage_desc", makeId });
+        samples.push(performance.now() - start);
+      }
+      samples.sort((a, b) => a - b);
+      metrics.keywordQueryP95Ms = samples[Math.ceil(samples.length * 0.95) - 1];
+      metrics.keywordQuerySamples = samples.length;
+      metrics.keywordMatchedCount = rows.length;
+      assert.ok(metrics.keywordQueryP95Ms < 500);
+    });
     await phase("real-next-chromium-webkit-user-journeys", async () => {
       web = await startWebProcess(); browser = await openBrowserJourneys(evidenceDirectory);
       metrics.browser = browser.metrics;
@@ -279,7 +342,7 @@ export async function runWebIntegration() {
         } catch (error) { failure ??= error; }
       }
     });
-    await writeFile(path.join(evidenceDirectory, "result.json"), `${JSON.stringify({ schemaVersion: 1, task: "TASK-0119",
+    await writeFile(path.join(evidenceDirectory, "result.json"), `${JSON.stringify({ schemaVersion: 1, task: "TASK-0120", prerequisiteTask: "TASK-0119",
       scope: "SYNTHETIC_V1_PROTOTYPE", productionApproval: false, imageQualification: "DEFERRED_UNTIL_V1",
       ...identity, startedAt, finishedAt: new Date().toISOString(), status: failure ? "failed" : "passed", phases,
       phaseCount: phases.length, metrics, cleanupCompleted, failedPhase: failure ? activePhase : null,

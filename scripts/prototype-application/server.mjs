@@ -27,7 +27,7 @@ export function createCliEventSink(output = (value) => console.log(JSON.stringif
       return;
     }
     if (input.name === "api.failure" && ["/v1/demo/search", "/v1/demo/listings/:listingId", "/v2/demo/catalog",
-      "/v2/demo/search", "/v2/demo/listings/:listingId"].includes(input.route)
+      "/v2/demo/search", "/v2/demo/listings/:listingId", "/v3/demo/search"].includes(input.route)
       && Number.isInteger(input.status) && input.status >= 500 && input.status <= 599 && API_CODES.has(input.code)) {
       output({ event: "prototype_application_signal", name: input.name, route: input.route, status: input.status, code: input.code });
       return;

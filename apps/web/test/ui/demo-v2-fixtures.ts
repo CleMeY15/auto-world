@@ -52,6 +52,8 @@ export function descriptionFields(index = 1, options: { readonly unavailable?: b
 }
 
 export function v2Envelope(data: unknown, requestId = demoRequestId) { return { schemaVersion: 2, requestId, data }; }
+export function v3Envelope(data: unknown, requestId = demoRequestId) { return { schemaVersion: 3, requestId, data }; }
+export function v3Error(code: string, requestId = demoRequestId) { return { schemaVersion: 3, requestId, error: { code } }; }
 export function v2Error(code: string, requestId = demoRequestId) { return { schemaVersion: 2, requestId, error: { code } }; }
 export function v2Response(results: readonly unknown[], options: { readonly state?: "complete" | "partial" | "stale"; readonly dataAsOf?: string; readonly cursor?: string; readonly fixture?: string; readonly total?: number } = {}) {
   const state = options.state ?? "complete";

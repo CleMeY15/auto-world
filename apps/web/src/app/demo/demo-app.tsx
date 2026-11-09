@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
 import { Banner, Button, Card, Field, FilterIcon, SearchIcon, Skeleton } from "@auto-world/design-system/primitives";
-import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchResponseV2, DemoSearchSort } from "@auto-world/demo-search-contract";
+import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchQueryV3, DemoSearchResponseV2, DemoSearchSort } from "@auto-world/demo-search-contract";
 
 import { recordAnalyticsEvent, type DemoAnalyticsOutcome, type DemoAnalyticsScreen } from "../../demo/analytics";
 import { createDemoClientV2, createSearchPaginationV2, loadSavedDetailsV2, type DemoClientErrorCode, type DemoClientOutcomeV2, type SavedDetailResultV2 } from "../../demo/client";
@@ -11,7 +11,7 @@ import { matchingCatalog, modelsForMake } from "../../demo/catalog";
 import { decodeComparisonLinkFragment, encodeComparisonLinkFragment, isComparisonLinkFragment, resolveComparisonBundle } from "../../demo/comparison-link";
 import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, type ComparisonEntry } from "../../demo/comparison";
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
-import { parseFilterInputV2 } from "../../demo/model";
+import { parseFilterInputV3 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
 import type { DemoStorageNamespace } from "../../demo/storage-namespace";
 import { decodeSearchLinkFragment, isSearchLinkFragment } from "../../demo/search-link";
@@ -169,7 +169,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [fieldError, setFieldError] = useState<{ readonly field: "text" | "priceMaxEUR" | "mileageMaxKm" | "sort" | "makeId" | "modelId" | "firstRegistrationYear"; readonly message: string }>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
   const [comparisonIds, setComparisonIds] = useState<readonly string[]>([]);
-  const [resultQuery, setResultQuery] = useState<DemoSearchQueryV2>();
+  const [resultQuery, setResultQuery] = useState<DemoSearchQueryV2 | DemoSearchQueryV3>();
   const [acceptedCriteria, setAcceptedCriteria] = useState<SavedSearchCriteria>();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
   const [saveSearchName, setSaveSearchName] = useState("");
@@ -212,7 +212,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const comparisonLinkDeadlineTimer = useRef<number | undefined>(undefined);
   const catalogMismatchAttempts = useRef(new Set<string>());
   const catalogStateRef = useRef<CatalogState>(catalog);
-  const lastQuery = useRef<DemoSearchQueryV2 | undefined>(undefined);
+  const lastQuery = useRef<DemoSearchQueryV2 | DemoSearchQueryV3 | undefined>(undefined);
   const resultsScroll = useRef(0);
   const resultsReturnIndex = useRef<number | undefined>(undefined);
   const comparisonReturnPending = useRef(false);
@@ -511,7 +511,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(id)?.focus()));
   }, []);
 
-  const runSearch = useCallback(async (query: DemoSearchQueryV2, append: boolean, focusAfter?: "refresh") => {
+  const runSearch = useCallback(async (query: DemoSearchQueryV2 | DemoSearchQueryV3, append: boolean, focusAfter?: "refresh") => {
     if ((query.makeId !== undefined || query.modelId !== undefined) && catalogStateRef.current.status !== "ready") { navigate("search"); return; }
     const pageToken = append ? pagination.beginNext() : pagination.beginSearch();
     if (pageToken === undefined) return;
@@ -523,7 +523,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       setSaveSearchName("");
       setSaveSearchError(undefined);
     }
-    const requestedQuery: DemoSearchQueryV2 = {
+    const commonQuery = {
       schemaVersion: query.schemaVersion,
       sort: query.sort,
       ...(query.priceMaxMinor === undefined ? {} : { priceMaxMinor: query.priceMaxMinor }),
@@ -533,6 +533,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       ...(query.firstRegistrationYear === undefined ? {} : { firstRegistrationYear: query.firstRegistrationYear }),
       ...(pageToken.cursor === undefined ? {} : { cursor: pageToken.cursor }),
     };
+    const requestedQuery: DemoSearchQueryV2 | DemoSearchQueryV3 = query.schemaVersion === 3
+      ? { ...commonQuery, schemaVersion: 3, ...(query.text === undefined ? {} : { text: query.text }) }
+      : { ...commonQuery, schemaVersion: 2 };
     const controller = new AbortController();
     searchAbort.current?.abort(); searchAbort.current = controller;
     const epoch = ++searchEpoch.current;
@@ -560,9 +563,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLinkedCriteriaNotice(undefined);
-    const parsed = parseFilterInputV2({ priceMaxEUR: price, mileageMaxKm: mileage, sort, text, makeId, modelId, firstRegistrationYear });
+    const parsed = parseFilterInputV3({ priceMaxEUR: price, mileageMaxKm: mileage, sort, text, makeId, modelId, firstRegistrationYear });
     if (!parsed.ok) {
-      const message = parsed.code === "unsupported_text" ? "La recherche libre n’est pas encore prise en charge. Effacez ce texte ou utilisez les filtres structurés." : "Vérifiez cette valeur avant de rechercher.";
+      const message = parsed.code === "invalid_text" ? "Utilisez de 1 à 8 mots simples de marque ou de modèle fictifs, sans caractère de contrôle." : "Vérifiez cette valeur avant de rechercher.";
       setFieldError({ field: parsed.field, message });
       window.requestAnimationFrame(() => document.getElementById(`demo-${parsed.field}`)?.focus());
       return;
@@ -1175,7 +1178,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
           {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
           <div className="demo-search-layout">
             <form className="demo-search-form" noValidate onSubmit={submitSearch}>
-              <Field id="demo-text" label="Recherche libre" value={text} onChange={(event) => { setText(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "text" ? fieldError.message : undefined} hint="Ce champ prépare une capacité future. Un texte non vide n’est jamais envoyé." autoComplete="off" />
+              <Field id="demo-text" label="Recherche par mots" value={text} onChange={(event) => { setText(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "text" ? fieldError.message : undefined} hint="Marque ou modèle fictifs. Tous les mots sont recherchés." autoComplete="off" />
               <Field id="demo-priceMaxEUR" label="Budget maximum (€)" inputMode="decimal" value={price} onChange={(event) => { setPrice(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "priceMaxEUR" ? fieldError.message : undefined} autoComplete="off" />
               <button className="demo-advanced-toggle" type="button" aria-expanded={advanced} onClick={() => setAdvanced((value) => !value)}><FilterIcon />{advanced ? "Masquer les critères avancés" : "Afficher les critères avancés"}</button>
               {advanced ? <div className="demo-advanced">

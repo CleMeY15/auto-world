@@ -1,5 +1,9 @@
 # Auto World delivery ledger
 
+## Product checkpoint — TASK-0119 accepted, TASK-0120 started, 2026-11-09
+
+TASK-0119 is DONE_FOR_V1_PROTOTYPE at main `293a218c0750ee693ad1c426e91629816cfa238d`, tree `668a8619c4cd49a12cda578978c56044ec0a5c85`, by [PR229's authoritative checkpoint](https://github.com/CleMeY15/auto-world/pull/229#issuecomment-6730265143). Exact-source/main quality and persistent browser acceptance supersede its historical preacceptance records, which remain preserved. This satisfies the dependency of [TASK-0120 keyword search](tasks/TASK-0120-keyword-search.md), now IN_PROGRESS after independent plan review. TASK-0120 has no delivery acceptance yet. TASK-0005 qualification is separate, not passed by either product increment.
+
 ## PostgreSQL prototype — TASK-0104 local checkpoint, 2026-11-05
 
 The [TASK-0104 implementation](tasks/TASK-0104-supported-data-integration.md) reuses standard `pg` and the existing owned PostgreSQL stack for the isolated synthetic V1 prototype. Independent architecture and code/data/migration reviews approve it. [Validation](../docs/validation/TASK-0104.md) records 34/34 real PostgreSQL phases (including exact restore and stale-fence recovery), ordinary local quality checks and 518 browser passes / 10 existing exclusions. This is not final delivery: exact-source CI, normal protected merge and merged-main CI must be recorded in the PR checkpoint before `DONE_FOR_V1_PROTOTYPE`. TASK-0105 has not started; TASK-0005 image qualification stays deferred. No production or real-data acceptance follows.

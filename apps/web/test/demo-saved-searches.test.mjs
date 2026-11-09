@@ -1,7 +1,7 @@
 /* global DOMException */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseFilterInputV2 } from "../.test-dist/src/demo/model.js";
+import { parseFilterInputV2, parseFilterInputV3 } from "../.test-dist/src/demo/model.js";
 import {
   captureSavedSearchCriteria,
   createSavedSearchStore,
@@ -120,7 +120,7 @@ test("store hydrates without server reads, normalizes names, persists canonical 
   assert.equal(store.remove(firstKey), true);
   assert.equal(store.getSnapshot().canUndo, true);
   assert.deepEqual(store.undo(), { name: "Électrique", criteria: numericCriteria });
-  assert.deepEqual(JSON.parse(storage.value), { schemaVersion: 1, searches: [{ name: "Électrique", criteria: numericCriteria }] });
+  assert.deepEqual(JSON.parse(storage.value), { schemaVersion: 2, searches: [{ name: "Électrique", criteria: numericCriteria }] });
   assert.equal(Object.isFrozen(store.getSnapshot()), true);
   assert.equal(Object.isFrozen(store.getSnapshot().searches), true);
   assert.equal(Object.isFrozen(store.getSnapshot().searches[0].criteria.query), true);
@@ -168,7 +168,7 @@ test("decode rejects extra, duplicate, prototype, duplicate criteria, noncanonic
     assert.equal(store.hydrate().storageStatus, "corrupt");
     assert.equal(store.add("Blocked", numericCriteria).reason, "readonly");
   }
-  const futureBytes = '{"schemaVersion":2,"searches":[],"policy":"future"}';
+  const futureBytes = '{"schemaVersion":3,"searches":[],"policy":"future"}';
   const futureStorage = memory(futureBytes);
   const future = createSavedSearchStore({ storageProvider: () => futureStorage });
   assert.equal(future.hydrate().storageStatus, "future");
@@ -202,10 +202,35 @@ test("noncanonical valid JSON is accepted and canonicalized by the next explicit
   const store = createSavedSearchStore({ storageProvider: () => storage });
   assert.equal(store.hydrate().storageStatus, "persisted");
   assert.deepEqual(store.add("Deux", numericCriteria), { ok: true });
-  assert.equal(storage.value, JSON.stringify({ schemaVersion: 1, searches: [
+  assert.equal(storage.value, JSON.stringify({ schemaVersion: 2, searches: [
     { name: "Valide", criteria: { query: { schemaVersion: 2, sort: "listing_asc" } } },
     { name: "Deux", criteria: numericCriteria },
   ] }));
+});
+
+test("V3 words persist canonically, restore without submitting and deduplicate semantic equivalents", () => {
+  const words = { query: { schemaVersion: 3, sort: "listing_asc", text: "etoile modele" } };
+  const captured = captureSavedSearchCriteria({ schemaVersion: 3, sort: "listing_asc", text: "Modèle Étoile" }, response, response.dataAsOf);
+  assert.deepEqual(captured, words);
+  const input = savedSearchToFilterInput(words);
+  assert.equal(input.text, "etoile modele");
+  assert.deepEqual(parseFilterInputV3(input), { ok: true, query: words.query });
+
+  const storage = memory(JSON.stringify({ schemaVersion: 1, searches: [{ name: "Ancienne", criteria: numericCriteria }] }));
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  assert.equal(store.hydrate().storageStatus, "persisted");
+  assert.match(storage.value, /"schemaVersion":1/u);
+  assert.deepEqual(store.add("Avec mots", words), { ok: true });
+  const persisted = JSON.parse(storage.value);
+  assert.equal(persisted.schemaVersion, 2);
+  assert.deepEqual(persisted.searches.map((item) => item.criteria.query.schemaVersion), [2, 3]);
+  assert.deepEqual(store.add("Même mots", { query: { schemaVersion: 3, sort: "listing_asc", text: "MODELE etoile" } }), { ok: false, reason: "duplicate" });
+  assert.equal(getSavedSearchKey({ query: { schemaVersion: 3, sort: "listing_asc" } }), getSavedSearchKey({ query: { schemaVersion: 2, sort: "listing_asc" } }));
+  const wordIdentity = { query: { ...identityCriteria.query, schemaVersion: 3, text: "etoile modele" }, binding: identityCriteria.binding };
+  assert.equal(savedSearchToFilterInput(wordIdentity), undefined);
+  assert.deepEqual(savedSearchToFilterInput(wordIdentity, undefined, true), {
+    priceMaxEUR: "", mileageMaxKm: "", sort: "price_asc", text: "etoile modele", makeId: "", modelId: "", firstRegistrationYear: "2022",
+  });
 });
 
 test("quota and denied sessions retain local edits and preserve original bytes", () => {

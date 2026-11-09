@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { appendSearchPage, appendSearchPageV2, createSearchPagination, loadSavedDetails } from "../.test-dist/src/demo/client.js";
-import { parseFilterInput, parseFilterInputV2 } from "../.test-dist/src/demo/model.js";
+import { parseFilterInput, parseFilterInputV2, parseFilterInputV3 } from "../.test-dist/src/demo/model.js";
 
 const NOW = "2026-10-12T08:00:00.000Z";
 const cursor = `cur_${"a".repeat(64)}`;
@@ -24,6 +24,15 @@ test("V2 filter input keeps exact synthetic identity criteria separate from free
   });
   assert.deepEqual(parseFilterInputV2({ priceMaxEUR: "", mileageMaxKm: "", sort: "listing_asc", text: "", makeId: "", modelId: "model_fixture", firstRegistrationYear: "" }), { ok: false, code: "invalid_filter", field: "modelId" });
   assert.deepEqual(parseFilterInputV2({ priceMaxEUR: "", mileageMaxKm: "", sort: "listing_asc", text: "", makeId: "make_fixture", modelId: "", firstRegistrationYear: "202" }), { ok: false, code: "invalid_filter", field: "firstRegistrationYear" });
+});
+
+test("keyword filter input keeps blank searches on V2 and canonicalizes valid words on V3", () => {
+  const base = { priceMaxEUR: "", mileageMaxKm: "", sort: "listing_asc", makeId: "", modelId: "", firstRegistrationYear: "" };
+  assert.deepEqual(parseFilterInputV3({ ...base, text: "   " }), { ok: true, query: { schemaVersion: 2, sort: "listing_asc" } });
+  assert.deepEqual(parseFilterInputV3({ ...base, text: "  Modèle   Étoile  " }), { ok: true, query: { schemaVersion: 3, sort: "listing_asc", text: "etoile modele" } });
+  assert.deepEqual(parseFilterInputV3({ ...base, text: "***" }), { ok: false, code: "invalid_text", field: "text" });
+  assert.deepEqual(parseFilterInputV3({ ...base, text: "\nmodele" }), { ok: false, code: "invalid_text", field: "text" });
+  assert.deepEqual(parseFilterInputV3({ ...base, text: ` ${"a".repeat(120)} ` }), { ok: false, code: "invalid_text", field: "text" });
 });
 
 test("pagination preserves order and rejects snapshot, listing and evidence mixing", () => {

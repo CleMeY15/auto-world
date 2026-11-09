@@ -6,6 +6,7 @@ export const SEARCH_LINK_PREFIX = "#search-link/";
 export const SEARCH_LINK_MAX_LENGTH = 4_096;
 
 const SEARCH_LINK_V1_PREFIX = `${SEARCH_LINK_PREFIX}v1/`;
+const SEARCH_LINK_V2_PREFIX = `${SEARCH_LINK_PREFIX}v2/`;
 const versionPattern = /^v[1-9][0-9]*$/u;
 
 export type SearchLinkDecodeResult =
@@ -19,18 +20,21 @@ export function isSearchLinkFragment(hash: string): boolean {
 export function encodeSearchLinkFragment(input: unknown): string | undefined {
   const criteria = parseSavedSearchCriteria(input);
   if (criteria === undefined) return undefined;
-  const fragment = `${SEARCH_LINK_V1_PREFIX}${encodeURIComponent(JSON.stringify(criteria))}`;
+  const prefix = criteria.query.schemaVersion === 3 ? SEARCH_LINK_V2_PREFIX : SEARCH_LINK_V1_PREFIX;
+  const fragment = `${prefix}${encodeURIComponent(JSON.stringify(criteria))}`;
   return fragment.length <= SEARCH_LINK_MAX_LENGTH ? fragment : undefined;
 }
 
 export function decodeSearchLinkFragment(input: unknown): SearchLinkDecodeResult {
   if (typeof input !== "string" || input.length > SEARCH_LINK_MAX_LENGTH || !isSearchLinkFragment(input)) return { status: "invalid" };
-  if (!input.startsWith(SEARCH_LINK_V1_PREFIX)) {
+  const expectedSchemaVersion = input.startsWith(SEARCH_LINK_V1_PREFIX) ? 2 : input.startsWith(SEARCH_LINK_V2_PREFIX) ? 3 : undefined;
+  if (expectedSchemaVersion === undefined) {
     const versionEnd = input.indexOf("/", SEARCH_LINK_PREFIX.length);
     const version = versionEnd < 0 ? input.slice(SEARCH_LINK_PREFIX.length) : input.slice(SEARCH_LINK_PREFIX.length, versionEnd);
-    return versionPattern.test(version) && version !== "v1" ? { status: "unsupported" } : { status: "invalid" };
+    return versionPattern.test(version) && version !== "v1" && version !== "v2" ? { status: "unsupported" } : { status: "invalid" };
   }
-  const encoded = input.slice(SEARCH_LINK_V1_PREFIX.length);
+  const prefix = expectedSchemaVersion === 2 ? SEARCH_LINK_V1_PREFIX : SEARCH_LINK_V2_PREFIX;
+  const encoded = input.slice(prefix.length);
   if (encoded.length === 0) return { status: "invalid" };
   let source: string;
   try { source = decodeURIComponent(encoded); }
@@ -39,7 +43,7 @@ export function decodeSearchLinkFragment(input: unknown): SearchLinkDecodeResult
   try { decoded = parseStrictJson(source); }
   catch { return { status: "invalid" }; }
   const criteria = parseSavedSearchCriteria(decoded);
-  return criteria === undefined ? { status: "invalid" } : { status: "valid", criteria };
+  return criteria === undefined || criteria.query.schemaVersion !== expectedSchemaVersion ? { status: "invalid" } : { status: "valid", criteria };
 }
 
 export function buildSearchLink(criteria: unknown, pageUrl: string): string | undefined {

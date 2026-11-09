@@ -1,7 +1,8 @@
-/* global document, localStorage, window */
+/* global document, localStorage, MutationObserver, window */
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { normalizeDemoSearchText } from "../../packages/demo-search-contract/dist/index.js";
 
 const require = createRequire(new URL("../../apps/web/package.json", import.meta.url));
 const { chromium, webkit, expect } = require("@playwright/test");
@@ -80,6 +81,81 @@ async function submitSearch(page) {
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
+async function submitSearchWithEnvelope(page, pathName, outerVersion, expectedText, metrics, measureFeedback = false) {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === ALLOWED_ORIGIN && url.pathname === pathName && response.request().method() === "POST";
+  });
+  if (measureFeedback) {
+    const feedbackMs = await page.getByRole("button", { name: "Rechercher", exact: true }).evaluate((button) =>
+      new Promise((resolve, reject) => {
+        const startedAt = window.performance.now();
+        const timeout = window.setTimeout(() => { observer.disconnect(); reject(new Error("keyword_search_feedback_timeout")); }, 500);
+        const observer = new MutationObserver(() => {
+          if (button.textContent?.includes("Recherche…")) {
+            window.clearTimeout(timeout);
+            observer.disconnect();
+            resolve(window.performance.now() - startedAt);
+          }
+        });
+        observer.observe(button, { childList: true, subtree: true, characterData: true });
+        button.click();
+      }));
+    expect(feedbackMs).toBeLessThanOrEqual(100);
+    metrics.keywordFeedbackMs.push(feedbackMs);
+  } else {
+    await page.getByRole("button", { name: "Rechercher", exact: true }).click();
+  }
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  const requestBody = response.request().postDataJSON();
+  expect(requestBody.schemaVersion).toBe(outerVersion);
+  if (expectedText === undefined) expect(requestBody.text).toBeUndefined();
+  else expect(requestBody.text).toBe(expectedText);
+  const envelope = await response.json();
+  expect(envelope.schemaVersion).toBe(outerVersion);
+  expect(envelope.data.schemaVersion).toBe(2);
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
+}
+
+async function assertKeywordSummary(page, canonicalText) {
+  const row = page.locator(".demo-saved-search-criteria").filter({ hasText: "Mots recherchés" }).first();
+  await expect(row.getByText("Mots recherchés", { exact: true })).toBeVisible();
+  await expect(row.getByText(canonicalText, { exact: true })).toBeVisible();
+}
+
+async function verifyKeywordShare(page, evidenceDirectory, engine, searchRequests, metrics, modelName, canonicalText) {
+  const beforeCreate = searchRequests.length;
+  await page.locator("#demo-search-link-start").click();
+  const sharedUrl = await page.locator("#demo-search-link-url").inputValue();
+  expect(sharedUrl).toContain("#search-link/v2/");
+  expect(searchRequests.length).toBe(beforeCreate);
+  await capture(page, evidenceDirectory, engine, "phone-keyword-link", metrics.screenshots);
+
+  await page.goto(sharedUrl, { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "Recherche reçue" })).toBeVisible();
+  await assertKeywordSummary(page, canonicalText);
+  await assertNoHorizontalOverflow(page);
+  await audit(page);
+  metrics.axeAudits += 1;
+  await page.waitForTimeout(250);
+  expect(searchRequests.length).toBe(beforeCreate);
+  await capture(page, evidenceDirectory, engine, "phone-keyword-link-review", metrics.screenshots);
+
+  await page.locator("#demo-search-link-load").click();
+  await expect(page.getByRole("heading", { name: "Explorer la démo" })).toBeVisible();
+  await expect(page.getByLabel("Recherche par mots")).toHaveValue(canonicalText);
+  await page.waitForTimeout(250);
+  expect(searchRequests.length).toBe(beforeCreate);
+  await submitSearchWithEnvelope(page, "/api/demo/v3/search", 3, canonicalText, metrics);
+  expect(searchRequests.length).toBe(beforeCreate + 1);
+  await expect(page.locator(".demo-result-card")).toHaveCount(20);
+  await expect(page.locator(".demo-result-card").filter({ hasText: modelName })).toHaveCount(20);
+  await page.locator("#demo-load-more").click();
+  await expect(page.locator(".demo-result-card")).toHaveCount(40);
+  await expect(page.locator(".demo-result-card").filter({ hasText: modelName })).toHaveCount(40);
+}
+
 async function saveInitialLists(page) {
   const cards = page.locator(".demo-result-card");
   await expect(cards).toHaveCount(40);
@@ -111,6 +187,89 @@ async function renameComparison(page, name) {
   await page.getByLabel("Nouveau nom").fill(name);
   await page.locator(".demo-rename-comparison-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
   await expect(page.getByRole("heading", { name })).toBeVisible();
+}
+
+async function openKeywordEngine(engine, browser, evidenceDirectory, metrics) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light", locale: "fr-FR" });
+  const page = await context.newPage();
+  const externalRequests = [];
+  const searchRequests = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if ((url.protocol === "http:" || url.protocol === "https:") && url.origin !== ALLOWED_ORIGIN) externalRequests.push(url.origin);
+    if (url.origin === ALLOWED_ORIGIN && (url.pathname === "/api/demo/v2/search" || url.pathname === "/api/demo/v3/search") && request.method() === "POST") searchRequests.push(url.pathname);
+  });
+  try {
+    const catalogPromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.origin === ALLOWED_ORIGIN && url.pathname === "/api/demo/v2/catalog" && response.request().method() === "GET";
+    });
+    await page.goto(WEB_URL, { waitUntil: "networkidle" });
+    const catalogResponse = await catalogPromise;
+    expect(catalogResponse.status()).toBe(200);
+    const catalogEnvelope = await catalogResponse.json();
+    expect(catalogEnvelope.schemaVersion).toBe(2);
+    expect(catalogEnvelope.data.schemaVersion).toBe(2);
+    const model = catalogEnvelope.data.taxonomyRelease.models[0];
+    const make = catalogEnvelope.data.taxonomyRelease.makes.find((candidate) => candidate.makeId === model.makeId);
+    expect(make).toBeTruthy();
+    const modelName = model.primaryName.value;
+    const keywordInput = `${make.primaryName.value} ${modelName}`;
+    const normalizedText = normalizeDemoSearchText(keywordInput);
+    expect(normalizedText.success).toBe(true);
+    const canonicalText = normalizedText.data;
+
+    await expect(page.getByLabel("Recherche par mots")).toBeVisible();
+    await submitSearchWithEnvelope(page, "/api/demo/v2/search", 2, undefined, metrics);
+    expect(searchRequests.at(-1)).toBe("/api/demo/v2/search");
+    await page.evaluate(() => { window.location.hash = "#search"; });
+    await expect(page.getByRole("heading", { name: "Explorer la démo" })).toBeVisible();
+
+    await page.getByLabel("Recherche par mots").fill(keywordInput);
+    await submitSearchWithEnvelope(page, "/api/demo/v3/search", 3, canonicalText, metrics, true);
+    expect(searchRequests.at(-1)).toBe("/api/demo/v3/search");
+    await expect(page.locator(".demo-result-card")).toHaveCount(20);
+    await expect(page.locator(".demo-result-card").filter({ hasText: modelName })).toHaveCount(20);
+    await page.locator("#demo-load-more").click();
+    await expect(page.locator(".demo-result-card")).toHaveCount(40);
+    await expect(page.locator(".demo-result-card").filter({ hasText: modelName })).toHaveCount(40);
+    metrics.keywordResultCounts.push(40);
+    await capture(page, evidenceDirectory, engine, "phone-keyword-results", metrics.screenshots);
+    await assertNoHorizontalOverflow(page);
+    await audit(page);
+    metrics.axeAudits += 1;
+
+    await page.locator(".demo-result-card").first().getByRole("button", { name: "Voir le détail" }).click();
+    await expect(page.getByRole("heading", { name: "Détail de la publication synthétique" })).toBeVisible();
+    await capture(page, evidenceDirectory, engine, "phone-keyword-detail", metrics.screenshots);
+    await page.getByRole("button", { name: "Retour aux résultats" }).click();
+    await expect(page.locator(".demo-result-card")).toHaveCount(40);
+
+    await page.locator("#demo-save-search-start").click();
+    await page.getByLabel("Nom de la recherche").fill("Recherche par mots persistante");
+    await page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
+    await verifyKeywordShare(page, evidenceDirectory, engine, searchRequests, metrics, modelName, canonicalText);
+
+    await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+    await assertKeywordSummary(page, canonicalText);
+    expect(await prototypeStorageSummary(page)).toEqual({ favorites: 0, searches: 1, comparisons: 0 });
+    await capture(page, evidenceDirectory, engine, "phone-keyword-saved", metrics.screenshots);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await assertNoHorizontalOverflow(page);
+    await capture(page, evidenceDirectory, engine, "desktop-keyword-saved", metrics.screenshots);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+    await assertKeywordSummary(page, canonicalText);
+    expect(externalRequests).toEqual([]);
+    metrics.keywordEngines += 1;
+    return { context, page, externalRequests, searchRequests, canonicalText, modelName };
+  } catch (error) {
+    await capture(page, evidenceDirectory, engine, "keyword-failure", metrics.screenshots).catch(() => {});
+    await context.close().catch(() => {});
+    throw error;
+  }
 }
 
 async function openEngine(engine, launcher, evidenceDirectory, metrics) {
@@ -185,7 +344,8 @@ async function openEngine(engine, launcher, evidenceDirectory, metrics) {
     metrics.engines += 1;
     metrics.initialResultCounts.push(initialResults);
     metrics.pagedResultCounts.push(pagedResults);
-    return { engine, browser, context, page, externalRequests, searchRequests };
+    const keyword = await openKeywordEngine(engine, browser, evidenceDirectory, metrics);
+    return { engine, browser, context, page, externalRequests, searchRequests, keyword };
   } catch (error) {
     await capture(page, evidenceDirectory, engine, "failure", metrics.screenshots).catch(() => {});
     await context.close().catch(() => {});
@@ -241,6 +401,24 @@ async function verifyRestoredEngine(state, metrics) {
   await assertSentinels(page);
   expect(externalRequests).toEqual([]);
   metrics.restoredEngines += 1;
+
+  const keywordPage = state.keyword.page;
+  await keywordPage.reload({ waitUntil: "networkidle" });
+  await expect(keywordPage.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+  await assertKeywordSummary(keywordPage, state.keyword.canonicalText);
+  expect(await prototypeStorageSummary(keywordPage)).toEqual({ favorites: 0, searches: 1, comparisons: 0 });
+  const beforeKeywordLoad = state.keyword.searchRequests.length;
+  await keywordPage.locator("#demo-saved-search-load-0").click();
+  await expect(keywordPage.getByRole("heading", { name: "Explorer la démo" })).toBeVisible();
+  await expect(keywordPage.getByLabel("Recherche par mots")).toHaveValue(state.keyword.canonicalText);
+  await keywordPage.waitForTimeout(250);
+  expect(state.keyword.searchRequests.length).toBe(beforeKeywordLoad);
+  await submitSearchWithEnvelope(keywordPage, "/api/demo/v3/search", 3, state.keyword.canonicalText, metrics);
+  expect(state.keyword.searchRequests.length).toBe(beforeKeywordLoad + 1);
+  await expect(keywordPage.locator(".demo-result-card")).toHaveCount(20);
+  await expect(keywordPage.locator(".demo-result-card").filter({ hasText: state.keyword.modelName })).toHaveCount(20);
+  expect(state.keyword.externalRequests).toEqual([]);
+  metrics.keywordRestoredEngines += 1;
 }
 
 export async function openBrowserJourneys(evidenceDirectory) {
@@ -248,6 +426,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
+    keywordEngines: 0, keywordRestoredEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];
   let closed = false;

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { recordAnalyticsEvent } from "../.test-dist/src/demo/analytics.js";
 import { createDemoClient, createDemoClientV2 } from "../.test-dist/src/demo/client.js";
-import { parseDemoCatalogHttpOutcomeV2, parseDemoHttpOutcome, parseDemoHttpOutcomeV2 } from "../.test-dist/src/demo/protocol.js";
+import { parseDemoCatalogHttpOutcomeV2, parseDemoHttpOutcome, parseDemoHttpOutcomeV2, parseDemoHttpOutcomeV3 } from "../.test-dist/src/demo/protocol.js";
 import { createDemoProxyHandler, formatDemoProxyTelemetry } from "../.test-dist/src/demo/proxy.js";
 
 const NOW = "2026-10-12T08:00:00.000Z";
@@ -16,6 +16,7 @@ const release = { catalogId: "taxcat_fixture", releaseId: "taxrel_fixture", revi
 function v2Result(overrides = {}) { return { ...result(), description: { status: "unavailable" }, descriptionEvidence: [], ...overrides }; }
 function v2Data(overrides = {}) { return { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "fixture-v2", taxonomyRelease: release, dataAsOf: NOW, state: "complete", results: [v2Result()], totalCount: 1, ...overrides }; }
 function v2Envelope(overrides = {}) { return JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, data: v2Data(overrides) }); }
+function v3Envelope(overrides = {}) { return JSON.stringify({ schemaVersion: 3, requestId: REQUEST_ID, data: v2Data(overrides) }); }
 function catalogEnvelope() { return JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, data: { schemaVersion: 2, dataMode: "synthetic", fixtureVersion: "fixture-v2", taxonomyRelease: { schemaVersion: 1, ...release, releasedAt: NOW, dataMode: "synthetic", attributions: [{ attributionId: "taxattr_fixture", kind: "synthetic_fixture", fixtureRef: "fixture" }], makes: [{ makeId: "make_fixture", primaryName: { value: "Marque UI fictive", attributionId: "taxattr_fixture" }, aliases: [] }], models: [{ modelId: "model_fixture", makeId: "make_fixture", primaryName: { value: "Modèle UI fictif", attributionId: "taxattr_fixture" }, aliases: [] }] } } }); }
 function request(path, init = {}) { const { headers, ...rest } = init; return new Request(`http://127.0.0.1:3107${path}`, { ...rest, headers: { host: "127.0.0.1:3107", ...headers } }); }
 function apiResponse(body, status = 200, headers = {}) { return new Response(body, { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } }); }
@@ -34,6 +35,12 @@ test("closed V2 parsers distinguish catalog and result envelopes", () => {
   assert.equal(parseDemoCatalogHttpOutcomeV2(catalogEnvelope(), 200).ok, true);
   assert.equal(parseDemoCatalogHttpOutcomeV2(v2Envelope(), 200), undefined);
   assert.equal(parseDemoHttpOutcomeV2(JSON.stringify({ schemaVersion: 2, requestId: REQUEST_ID, error: { code: "invalid_query" } }), 400, NOW).code, "invalid_query");
+});
+
+test("closed V3 parser requires wrapper 3 while retaining the V2 data envelope", () => {
+  assert.equal(parseDemoHttpOutcomeV3(v3Envelope(), 200, NOW).ok, true);
+  assert.equal(parseDemoHttpOutcomeV3(v2Envelope(), 200, NOW), undefined);
+  assert.equal(parseDemoHttpOutcomeV3(JSON.stringify({ schemaVersion: 3, requestId: REQUEST_ID, error: { code: "invalid_query" } }), 400, NOW).code, "invalid_query");
 });
 
 test("catalog HTTP outcomes reject search semantics but retain closed transport and flag errors", async () => {
@@ -64,6 +71,16 @@ test("V2 proxy uses only literal catalog, search and detail destinations", async
   assert.equal((await search(request("/api/demo/v2/search", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }))).status, 200);
   assert.equal((await detail(request(`/api/demo/v2/listings/${ID}`, { method: "GET" }), ID)).status, 200);
   assert.deepEqual(calls, ["http://127.0.0.1:3210/v2/demo/catalog", "http://127.0.0.1:3210/v2/demo/search", `http://127.0.0.1:3210/v2/demo/listings/${ID}`]);
+});
+
+test("V3 proxy uses only the literal keyword-search destination and wrapper", async () => {
+  const calls = [];
+  const handle = createDemoProxyHandler({ route: "search", schemaVersion: 3, isEnabled: () => true, clock: () => new Date(NOW), async fetchImpl(url) { calls.push(url); return apiResponse(v3Envelope()); } });
+  const response = await handle(request("/api/demo/v3/search", { method: "POST", headers: { "content-type": "application/json" }, body: '{"schemaVersion":3,"sort":"listing_asc","text":"modele"}' }));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).schemaVersion, 3);
+  assert.deepEqual(calls, ["http://127.0.0.1:3210/v3/demo/search"]);
+  assert.throws(() => createDemoProxyHandler({ route: "detail", schemaVersion: 3 }), /search-only/u);
 });
 
 test("prototype mode switches every closed route to port 3211 without accepting an arbitrary target", async () => {
@@ -202,6 +219,13 @@ test("V2 client bootstraps catalog without a hidden search and keeps literal sam
   assert.equal((await client.search({ schemaVersion: 2, sort: "listing_asc" })).ok, true);
   assert.equal((await client.listing(ID)).ok, true);
   assert.deepEqual(paths, ["/api/demo/v2/catalog", "/api/demo/v2/search", `/api/demo/v2/listings/${ID}`]);
+});
+
+test("V2-compatible client selects the V3 route only for keyword queries", async () => {
+  const paths = [];
+  const client = createDemoClientV2({ clock: () => new Date(NOW), async fetchImpl(url) { paths.push(url); return new Response(v3Envelope(), { status: 200 }); } });
+  assert.equal((await client.search({ schemaVersion: 3, sort: "listing_asc", text: "modele" })).ok, true);
+  assert.deepEqual(paths, ["/api/demo/v3/search"]);
 });
 
 test("proxy telemetry formatter exposes only the closed operational fields", () => {

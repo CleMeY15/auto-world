@@ -589,7 +589,7 @@ test("explicit shared load aborts a late old search before it can steal loaded c
 
 for (const [label, hash, safeCopy] of [
   ["malformed", "#search-link/v1/%E0%A4%A", /invalide ou incomplet/i],
-  ["future", `#search-link/v2/${encodeURIComponent(JSON.stringify(numericCriteria))}`, /version non prise en charge/i],
+    ["future", `#search-link/v3/${encodeURIComponent(JSON.stringify(numericCriteria))}`, /version non prise en charge/i],
   ["oversized", `#search-link/v1/${"x".repeat(4_097)}`, /invalide ou incomplet/i],
 ] as const) {
   test(`${label} links show fixed safe recovery copy without echoing hostile bytes`, async ({ page }) => {

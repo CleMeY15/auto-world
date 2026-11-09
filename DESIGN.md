@@ -189,3 +189,10 @@
 - Header says « Prototype local »; nearby concise copy explains that fictitious listings are retained locally, while personal lists remain in this browser. Keep authored-synthetic provenance visible. No production readiness, real vehicle or cloud synchronization claim.
 - Separate fixed storage keys and distinct origin3111 preserve the original demo's lists. API outage remains unavailable with criteria/retry intact, never an automatic fallback to offline fixtures. Local saved-item management remains usable.
 - Existing loading/skeleton/empty/offline/stale/error/focus/undo/read-only states and viewport/accessibility/performance budgets apply. Actual-pixel and both-browser persistent journeys are required by [TASK-0119](roadmap/tasks/TASK-0119-persistent-web-prototype.md).
+
+## TASK-0120 keyword search
+
+- Reuse the existing search field, Button/Field and criteria summaries. Label « Recherche par mots »; hint « Marque ou modèle fictifs. Tous les mots sont recherchés. » No extra destination, decorative panel or new visual system. Explicit Enter/Rechercher only; typing and loading saved/shared criteria never fetch.
+- Invalid bounded text stays editable with a concise field-linked error and no request. Valid nonmatch has the normal empty state. Preserve all loading/offline/error/retry/stale/partial states and focus. Accepted words, not a changed draft, follow next-page/detail/back/save/share.
+- Show canonical words as ordinary escaped text in readable criteria summaries. Saved/shared restore preserves words and fills the form only; explicit Rechercher reruns current catalog matching. Catalog-mismatch identity removal preserves words. State that shared links contain readable criteria, not frozen results.
+- Existing light/dark tokens,44px targets, keyboard/focus/axe,320/390/768/1440 and enlarged-text checks remain. Inspect actual screenshots and existing response budgets before acceptance; no new imagery, fonts or dependencies. [Task](roadmap/tasks/TASK-0120-keyword-search.md) and [validation](docs/validation/TASK-0120.md) govern completion.
