@@ -613,7 +613,7 @@ function createChild({ workerEnvelope, faults, events, installArchives, childSta
   return child;
 }
 
-function daemonIdentity(input, faults) {
+function daemonIdentity(input, faults, clockBase) {
   const parent = input.parent; const nonce = input.nonce; const pid = faults.daemonPid ?? 31337;
   return {
     purpose: "GOSU_DERIVATIVE_IMAGE_BUILD_OBSERVATION", authority: "LOCAL_DIAGNOSTIC", admission: "NOT_AUTHORIZED",
@@ -621,7 +621,7 @@ function daemonIdentity(input, faults) {
     configSha256: "7".repeat(64), argvSha256: "8".repeat(64), socket: `${parent}/endpoint/docker.sock`,
     endpoint: `unix://${parent}/endpoint/docker.sock`, dockerConfig: `${parent}/client`, buildxConfig: `${parent}/client/buildx`,
     outputDirectory: `${parent}/client/output`, contextName: `aw-cold-${nonce}`,
-    deadlineAtMs: Date.now() + (faults.daemonDeadlineOffsetMs ?? 300_000),
+    deadlineAtMs: clockBase + (faults.daemonDeadlineOffsetMs ?? 300_000),
     dataRoot: `${parent}/infra/data`, execRoot: `${parent}/infra/exec`, containerdAddress: input.principal.containerdAddress,
     containersNamespace: `awcold-${nonce}`, pluginsNamespace: `plugins.awcold-${nonce}`,
     rootActor: { uid: 0, gid: 0 }, clientActor: { uid: 1000, gid: 1000 },
@@ -775,7 +775,7 @@ function createControllerBoundaryHarness({ sourceText, control, input, workerEnv
   const synthetic = (identifier, values) => new vm.SyntheticModule(Object.keys(values), function initialize() {
     for (const [name, value] of Object.entries(values)) this.setExport(name, value);
   }, { context, identifier });
-  const identity = daemonIdentity(input, faults);
+  const identity = daemonIdentity(input, faults, clockBase);
   const linker = async (specifier) => {
     events.push(`import:${specifier}`);
     if (specifier === "node:fs") return synthetic("boundary:fs", { ...fsState.api,
@@ -1411,7 +1411,10 @@ if (!process.execArgv.includes("--experimental-vm-modules") && process.env[SENTI
     }
   });
 
-  test("controller v1 public run sends no payload after cutoff during leader proof", async () => {
+  test("controller v1 public run sends no payload after cutoff during leader proof", async (t) => {
+    // Host scheduling must not move the deadline relative to the VM's simulated clock.
+    let hostTime = 1_700_000_000_000;
+    t.mock.method(Date, "now", () => { hostTime += 1000; return hostTime; });
     const faults = { daemonDeadlineOffsetMs: 90_014, workerNeverCloses: true, workerTimeout: true, closeOnSignal: "SIGTERM" };
     const { api, capability, harness } = await controllerBoundaryScenario(faults);
     await assert.rejects(api.runGosuRetainedPairControllerV1(harness.inputBytes, capability), (error) => {
