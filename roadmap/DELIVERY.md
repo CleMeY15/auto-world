@@ -438,3 +438,9 @@ The separately reviewed current-only BASE keyset failure and the pinned official
 TASK-0121 DONE_FOR_V1_PROTOTYPE: source969615fd047fcef49e1b0eee0ae4c5d0cfe786a9, main7ea0d333babb74dd993aaf14684d4e10f4852e3f, identical tree113ec49747dfb9331ff45a22b05a2e71805494ce. [Authoritative PR232 checkpoint](https://github.com/CleMeY15/auto-world/pull/232#issuecomment-6738946552). Source quality42602391723/persistent42602391842 and main quality42606305185/persistent42606305101 SUCCESS;576 browser passes/10 existing exclusions,136 web units, real persistent10/10 phases with cleanup. Independent source/pixels/final delivery accepted. Historical pending records preserved.
 
 [TASK-0122](tasks/TASK-0122-rename-saved-searches.md) starts only after that acceptance, DoR and sequential Architect/Critic APPROVE. Its own feature validation and delivery remain pending. No TASK-0005 qualification or production authorization follows.
+
+## Product acceptance — TASK-0122, next TASK-0123, 2026-11-09
+
+TASK-0122 DONE_FOR_V1_PROTOTYPE: source6ae59a8cb2081ad693ec1ed91eb27880b7a8a3be, main43d3943dced0dc249fba0df49c5749426912e080, identical tree52de25731d1d6ea39f34f3ad655ed247c9069a7b. [Authoritative PR233 checkpoint](https://github.com/CleMeY15/auto-world/pull/233#issuecomment-6740879403). Source quality42617101951/persistent42617101496 and main quality42620086112/persistent42620085885 SUCCESS;608 browser passes/10 existing exclusions,146 web units,10/10 persistent phases with two rename engines and cleanup. Code/architecture/pixels and final independent delivery accepted. Historical pending evidence remains intact.
+
+[TASK-0123](tasks/TASK-0123-saved-search-criteria.md) starts after that acceptance. DoR satisfied; native saved-row disclosure only, no contract/backend/dependency change. Its own feature validation and delivery remain pending; TASK-0005 qualification and production authorization remain separate.
