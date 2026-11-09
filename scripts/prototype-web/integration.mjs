@@ -17,7 +17,7 @@ import { openApplication } from "../prototype-application/runtime.mjs";
 import { sourceIdentity } from "../prototype-application/evidence.mjs";
 import { captureSnapshot, compareCanonicalSnapshot } from "../prototype-application/snapshot.mjs";
 import { WEB_CATALOG, WEB_FIXTURE_VERSION, WEB_MAPPER_VERSION, WEB_PROJECTION,
-  WEB_SEED_INVOCATION, createWebSeedAdapter, createWebDeltaAdapter } from "./profile.mjs";
+  WEB_SEED_INVOCATION, WEB_KEYWORD_QUERIES, createWebSeedAdapter, createWebDeltaAdapter } from "./profile.mjs";
 import { prepareWebApplication, startWebProcess } from "./runtime.mjs";
 import { openBrowserJourneys } from "./browser.mjs";
 import { waitForWebServices } from "./readiness.mjs";
@@ -228,16 +228,17 @@ export async function runWebIntegration() {
 
       // The broad primary word matches every catalog model, but never a missing
       // current description, even when that listing retains authored history.
-      assert.equal(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "fixture").length, WEB_CATALOG.taxonomyRelease.models.length);
-      const first = await keywordQuery({ text: "fixture" });
+      const { broad, equivalent: equivalentText, different } = WEB_KEYWORD_QUERIES;
+      assert.equal(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, broad).length, WEB_CATALOG.taxonomyRelease.models.length);
+      const first = await keywordQuery({ text: broad });
       assert.ok(first.nextCursor);
-      const equivalent = await keywordQuery({ text: " FIXTURÉ fixture ", cursor: first.nextCursor });
-      assert.deepEqual(equivalent, await keywordQuery({ text: "fixture", cursor: first.nextCursor }));
+      const equivalent = await keywordQuery({ text: equivalentText, cursor: first.nextCursor });
+      assert.deepEqual(equivalent, await keywordQuery({ text: broad, cursor: first.nextCursor }));
       const rows = [...first.results];
       let cursor = first.nextCursor;
       for (let count = 1; cursor; count += 1) {
         assert.ok(count < 100);
-        const page = await keywordQuery({ text: "fixture", cursor });
+        const page = await keywordQuery({ text: broad, cursor });
         assert.equal(page.totalCount, first.totalCount); assert.equal(page.dataAsOf, first.dataAsOf);
         rows.push(...page.results); cursor = page.nextCursor;
       }
@@ -246,9 +247,9 @@ export async function runWebIntegration() {
       assert.equal(new Set(rows.map((row) => row.listingId)).size, rows.length);
       assert.equal(rows.some((row) => row.listingId === publicBefore.results.find((row) => row.descriptionEvidence.length === 2).listingId), false);
 
-      assert.deepEqual(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "aw fixture"),
-        resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, "fixture"));
-      await keywordQuery({ text: "aw fixture", cursor: first.nextCursor }, 400, "invalid_cursor");
+      assert.deepEqual(resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, different),
+        resolveDemoSearchModels(WEB_CATALOG.taxonomyRelease, broad));
+      await keywordQuery({ text: different, cursor: first.nextCursor }, 400, "invalid_cursor");
       const v2 = await query(); const v3 = await keywordQuery();
       await keywordQuery({ cursor: v2.nextCursor }, 400, "invalid_cursor");
       await request("/v2/demo/search", { schemaVersion: 2, sort: "listing_asc", cursor: v3.nextCursor }, 400, "invalid_cursor");

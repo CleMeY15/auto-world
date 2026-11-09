@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWebSeedAdapter, createWebDeltaAdapter, projectWebDescriptions, WEB_DESCRIPTORS, WEB_CATALOG,
-  WEB_FIXTURE_VERSION, WEB_PROJECTION } from "./profile.mjs";
+  WEB_FIXTURE_VERSION, WEB_PROJECTION, WEB_KEYWORD_QUERIES } from "./profile.mjs";
+import { normalizeDemoSearchText, resolveDemoSearchModels } from "../../packages/demo-search-contract/dist/index.js";
 import { inspectSyntheticDescriptionRaw } from "../../connectors/synthetic/demo/index.mjs";
 import { parseAdapterFetchResult } from "../../connectors/_sdk/dist/index.js";
 
 const signal = new globalThis.AbortController().signal;
+
+test("keyword integration cases match the actual primary catalog labels with distinct cursor criteria", () => {
+  const catalog = WEB_CATALOG.taxonomyRelease;
+  const allIds = catalog.models.map((model) => model.modelId).sort();
+  const { broad, equivalent, different } = WEB_KEYWORD_QUERIES;
+  for (const text of [broad, equivalent, different]) {
+    assert.deepEqual(resolveDemoSearchModels(catalog, text), allIds);
+  }
+  assert.deepEqual(normalizeDemoSearchText(equivalent), normalizeDemoSearchText(broad));
+  assert.notDeepEqual(normalizeDemoSearchText(different), normalizeDemoSearchText(broad));
+});
 const input = (pageOrdinal = 0) => ({ pageOrdinal, signal, maxResponseBytes: 64 * 1024 });
 const base = { listingId: "lst_prototype-test", availability: "active", price: { status: "unavailable" },
   mileage: { status: "unavailable" }, evidence: [] };
