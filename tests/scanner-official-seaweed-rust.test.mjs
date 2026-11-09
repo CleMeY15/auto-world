@@ -102,7 +102,7 @@ function pairsFor(role) {
 }
 
 function reportFor(role, pairs = pairsFor(role), vulnerabilities) {
-  return { SchemaVersion: 2, Trivy: { Version: "0.76.1" }, CreatedAt: now.toISOString(),
+  return { SchemaVersion: 2, Trivy: { Version: official.scanner.version }, CreatedAt: now.toISOString(),
     ArtifactName: `/${role}`, ArtifactType: "filesystem", Results: [{ Target: "Cargo.lock", Class: "lang-pkgs", Type: "cargo",
       Packages: pairs.map(([Name, Version]) => ({ Name, Version })), ...(vulnerabilities ? { Vulnerabilities: vulnerabilities } : {}) }] };
 }

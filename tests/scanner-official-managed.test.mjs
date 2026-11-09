@@ -34,8 +34,9 @@ function deepFreeze(value) {
 function pairedReports(role = "postgres") {
   const bound = subject(role);
   const prop = (name, value) => ({ name: `aquasecurity:trivy:${name}`, value });
+  // Synthetic current-scanner adaptation only. The retained managed-gosu raw fixtures stay historical and byte-bound.
   const report = { SchemaVersion: 2, CreatedAt: now.toISOString(), ArtifactName: bound.artifactName,
-    ArtifactType: "container_image", Trivy: { Version: "0.76.1" },
+    ArtifactType: "container_image", Trivy: { Version: config.scanner.version },
     Metadata: { ImageID: imageId, ImageConfig: { os: "linux", architecture: "amd64" }, OS: { Family: "alpine", Name: "3.24.1", EOSL: false } },
     Results: [
       { Target: `${bound.artifactName} (alpine 3.24.1)`, Class: "os-pkgs", Type: "alpine", Packages: [{ Name: "fixture-os", Epoch: 1, Version: "1.2", Release: "r3" }] },

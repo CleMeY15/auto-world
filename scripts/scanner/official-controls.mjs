@@ -1,6 +1,6 @@
 import { evaluateImageResults, validateDatabaseMetadata } from "./audit-policy.mjs";
 
-const VERSION = "0.76.1";
+const VERSION = "0.76.2";
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const fail = (code) => { throw new Error(code); };
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -96,7 +96,7 @@ export function validateSelfReport(report, sbom, buildInventory, upstreamVersion
   if (!validVersion(report, expectedScannerVersion) || upstreamVersion !== VERSION || report?.SchemaVersion !== 2 || report.ArtifactType !== "filesystem" ||
       !Array.isArray(report.Results) || report.Results.length !== 1 || report.Results[0]?.Type !== "gobinary" ||
       report.Results[0]?.Class !== "lang-pkgs" || buildInventory?.main?.path !== "github.com/aquasecurity/trivy" ||
-      buildInventory.main.version !== "v0.76.1+dirty" || !Array.isArray(buildInventory.dependencies)) fail("scanner_self_report_invalid");
+      buildInventory.main.version !== "v0.76.2" || !Array.isArray(buildInventory.dependencies)) fail("scanner_self_report_invalid");
   const inventory = normalized(report);
   const reportPackages = new Set(inventory.packages.map((entry) => { const [, , name, version] = JSON.parse(entry); return JSON.stringify([name, version]); }));
   const expected = [buildInventory.stdlib, ...buildInventory.dependencies].map((entry) => JSON.stringify([entry.path, entry.version]));

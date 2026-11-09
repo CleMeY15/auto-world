@@ -9,8 +9,9 @@ const GiB = 1024 ** 3;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const SHA256 = /^[a-f0-9]{64}$/u;
 const SOURCE_COMMIT = "ffa87c25fdf587178b1521ad87f2a4a72a02e584";
+// These two retained Cargo.lock fixtures are historical 0.76.1 source material.
 const SCANNER_COMMIT = "e713f67f7d54decdcd9b3132c9751833dcced698";
-const SCANNER_VERSION = "0.76.1";
+const SCANNER_VERSION = "0.76.2";
 const RAW_HOST = "raw.githubusercontent.com";
 const RELATIONSHIPS = "unknown,root,workspace,direct,indirect";
 const SOURCE_ROLES = new Set(["volume", "worker"]);

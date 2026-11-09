@@ -20,10 +20,10 @@ const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
-const OFFICIAL_BINARY_SHA256 = "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83";
+const OFFICIAL_BINARY_SHA256 = "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3";
 const ROLES = new Map([["postgres", "library/postgres"], ["opensearch", "opensearchproject/opensearch"], ["redis", "library/redis"],
   ["seaweedfs", "chrislusf/seaweedfs"], ["aws-cli", "amazon/aws-cli"]]);
-// Trivy e713f67 pkg/fanal/types/const.go:167-173 and pkg/sbom/io/encode.go:170-204.
+// Trivy 3f6334d pkg/fanal/types/const.go:177-183 and pkg/sbom/io/encode.go:183-204.
 const AGGREGATING_TYPES = new Set(["python-pkg", "conda-pkg", "gemspec", "node-pkg", "jar"]);
 const fail = (code) => { throw new Error(code); };
 export function deferManagedImageAuditFailure({ scope, error, cleanupUncertain }) {
@@ -304,10 +304,10 @@ export function exportManagedTextEvidence(source, destination) {
 }
 
 export function validateOfficialReleaseConfig(config) {
-  if (config?.schemaVersion !== 1 || config.scanner?.version !== "0.76.1" || config.scanner.sourceCommit !== "e713f67f7d54decdcd9b3132c9751833dcced698" ||
-      config.scanner.archive?.name !== "trivy_0.76.1_Linux-64bit.tar.gz" || config.scanner.archive.bytes !== 52676794 ||
-      config.scanner.archive.sha256 !== "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0" ||
-      config.scanner.binarySha256 !== OFFICIAL_BINARY_SHA256 || config.scanner.mainModuleVersion !== "v0.76.1+dirty" || config.scanner.vcsModified !== true ||
+  if (config?.schemaVersion !== 1 || config.scanner?.version !== "0.76.2" || config.scanner.sourceCommit !== "3f6334d223b52188324af3b9923b4249cd206652" ||
+      config.scanner.archive?.name !== "trivy_0.76.2_Linux-64bit.tar.gz" || config.scanner.archive.bytes !== 52714130 ||
+      config.scanner.archive.sha256 !== "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf" ||
+      config.scanner.binarySha256 !== OFFICIAL_BINARY_SHA256 || config.scanner.mainModuleVersion !== "v0.76.2" || config.scanner.vcsModified !== false ||
       !Array.isArray(config.images) || config.images.length !== ROLES.size) fail("scanner_official_config_invalid");
   const seen = new Set();
   for (const image of config.images) {
@@ -741,7 +741,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     await assertFilesUnchanged(original);
     await assertFilesUnchanged(policyInputs);
     const version = command(scanner, ["--version"], { file: path.join(output, "scanner-version.txt"), timeout: 30_000 }).toString("utf8");
-    if (!/^Version: 0\.76\.1\r?$/mu.test(version)) fail("scanner_official_version_invalid");
+    if (!/^Version: 0\.76\.2\r?$/mu.test(version)) fail("scanner_official_version_invalid");
     const probe = path.join(work, "scanner-version-probe"); mkdirSync(probe);
     const probeFile = path.join(probe, "go.mod");
     writeFileSync(probeFile, versionProbeBytes({ scanner: { upstreamVersion: config.scanner.version }, compiler: { version: "1.27.3" } }), { flag: "wx" });
