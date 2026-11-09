@@ -2,6 +2,8 @@
 
 Status: IN_PROGRESS, 2026-11-09. Priority P1, isolated synthetic V1 lane. Owner: application lead; independent test and review lanes. Definition of Ready satisfied below. Direct bounded implementation: existing native disclosure pattern, no architectural contract change.
 
+Checkpoint: LOCAL_VALIDATED / DELIVERY_PENDING. Fresh pinned Linux quality gates and634 browser cases pass (10 existing exclusions,0 failures/retries); independent code and20-image actual-pixel reviews APPROVE. Exact final-source/main quality and persistent acceptance still required; [evidence](../../docs/validation/TASK-0123.md).
+
 ## Goal, dependency and scope
 
 Make Mes listes easier to scan without losing exact saved-search criteria. TASK-0122 is DONE_FOR_V1_PROTOTYPE on main `43d3943dced0dc249fba0df49c5749426912e080`, [accepted PR233 checkpoint](https://github.com/CleMeY15/auto-world/pull/233#issuecomment-6740879403). Source/main quality and persistent workflows all pass;608 browser cases pass with10 existing exclusions. This task starts only after that acceptance.
