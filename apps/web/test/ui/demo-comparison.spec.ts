@@ -122,6 +122,37 @@ test("real API comparison is ephemeral, bounded, local and returns to unchanged 
   await expect(page.locator("h1")).toHaveText("Comparer");
 });
 
+test("opening a local comparison does not repeat date formatting for unrelated empty state resets", async ({ page }) => {
+  await fixture(page);
+  await page.locator("#demo-result-compare-0").click();
+  await page.locator("#demo-result-compare-1").click();
+  await page.evaluate(() => {
+    const state = { calls: 0 };
+    (window as unknown as { comparisonDateWork: typeof state }).comparisonDateWork = state;
+    // Count actual production formatting work without React internals or timing assumptions.
+    Intl.DateTimeFormat = new Proxy(Intl.DateTimeFormat, {
+      construct(target, args, newTarget) {
+        if (args[0] === "fr-FR" && args[1]?.dateStyle === "medium" && args[1]?.timeStyle === "short") state.calls += 1;
+        return Reflect.construct(target, args, newTarget);
+      },
+    });
+  });
+  for (let opening = 0; opening < 2; opening += 1) {
+    await page.evaluate(() => { (window as unknown as { comparisonDateWork: { calls: number } }).comparisonDateWork.calls = 0; });
+    await page.locator("#demo-comparison-open").click();
+    await expect(page.getByRole("heading", { name: "Comparer", exact: true })).toBeFocused();
+    await expect(page.locator(".demo-comparison-table")).toBeVisible();
+    // Include post-navigation passive effects, not just the first DOM insertion.
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const dates = await page.locator("section[aria-labelledby='demo-screen-title'] time").count();
+    expect(dates).toBe(7);
+    const calls = await page.evaluate(() => (window as unknown as { comparisonDateWork: { calls: number } }).comparisonDateWork.calls);
+    expect(calls, "Each visible date should be formatted at most once during navigation").toBeLessThanOrEqual(dates);
+    await page.getByRole("button", { name: "Retour aux résultats", exact: true }).click();
+    await expect(page.locator("#demo-comparison-open")).toBeFocused();
+  }
+});
+
 test("capacity, keyboard removal and below-minimum selection remain manageable", async ({ page }) => {
   const source = await fixture(page);
   await expect(page.locator("#demo-result-compare-0")).toHaveAccessibleName("Comparer — Publication synthétique 01");

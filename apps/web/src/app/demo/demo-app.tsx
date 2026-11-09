@@ -363,11 +363,17 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       comparisonLinkDeadlineTimer.current = undefined;
       comparisonLinkEpoch.current += 1;
       comparisonLinkLoading.current = false;
-      const rawHash = window.location.hash;
+      // Keep exact received fragments (including invalid ones), but no per-screen
+      // link state outside that flow. Cancellation above still runs on every event.
+      const rawHash = isComparisonLinkFragment(window.location.hash) ? window.location.hash : "";
       const decoded = enabled ? decodeComparisonLinkFragment(rawHash) : undefined;
       const slots = comparisonSlots(decoded?.status === "valid" ? decoded.listingIds.length : 0, "idle", "Prête à être lue. Aucun détail n’a été chargé.");
       setComparisonLinkSlow(false);
-      setComparisonLinkState({ rawHash, load: { status: "idle", slots } });
+      setComparisonLinkState((current) => (
+        rawHash === "" && current.rawHash === "" && current.load.status === "idle" && current.load.slots.length === 0
+          ? current
+          : { rawHash, load: { status: "idle", slots } }
+      ));
     };
     // Observe every navigation, including a leave-and-return batched into one render.
     window.addEventListener("hashchange", resetComparisonLink);
@@ -468,13 +474,13 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   useEffect(() => {
     if (screen !== "saved" || !enabled || !online || favoriteSnapshot.listingIds.length === 0) {
       savedAbort.current?.abort();
-      queueMicrotask(() => setSavedDetails(new Map()));
+      queueMicrotask(() => setSavedDetails((current) => current.size === 0 ? current : new Map()));
       return;
     }
     const controller = new AbortController();
     savedAbort.current?.abort(); savedAbort.current = controller;
     const epoch = ++savedEpoch.current;
-    queueMicrotask(() => { if (!controller.signal.aborted && epoch === savedEpoch.current) setSavedDetails(new Map()); });
+    queueMicrotask(() => { if (!controller.signal.aborted && epoch === savedEpoch.current) setSavedDetails((current) => current.size === 0 ? current : new Map()); });
     void loadSavedDetailsV2(client, favoriteSnapshot.listingIds, {
       signal: controller.signal,
       onItem(item) {
