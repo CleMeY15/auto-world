@@ -13,12 +13,12 @@ const identityCriteria = {
   query: {
     schemaVersion: 3,
     sort: "mileage_asc",
-    text: "etoile modele",
     priceMaxMinor: 4_500_000,
     mileageMaxKm: 80_000,
     makeId: demoMakeIds.alpha,
     modelId: demoModelIds.alphaOne,
     firstRegistrationYear: 2022,
+    text: "etoile modele",
   },
   binding: { fixtureVersion: demoFixtureVersion, taxonomyRelease: demoRelease },
 } as const;
