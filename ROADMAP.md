@@ -2,6 +2,8 @@
 
 ## Point courant — 9 novembre 2026
 
+Checkpoint TASK-0121 : `LOCAL_TARGET_VALIDATED / DELIVERY_PENDING`,136 tests unitaires web et44 nouveaux scénarios navigateur réussis, qualité locale et revues source/pixels favorables. [Preuves et limites](docs/validation/TASK-0121.md). Suite navigateur complète, parcours persistant réel et acceptation GitHub/main encore requis.
+
 TASK-0120 est `DONE_FOR_V1_PROTOTYPE` sur main `37a6e5ea90a8469491b295b97a41a4a671b587a7`, par [PR231 et son checkpoint accepté](https://github.com/CleMeY15/auto-world/pull/231#issuecomment-6736705415). Les points pré-livraison ci-dessous restent historiques. Incrément suivant : [TASK-0121 — retirer un critère appliqué](roadmap/tasks/TASK-0121-refine-search.md), `IN_PROGRESS`, DoR et revues de plan validées. Réutiliser le formulaire existant, sans recherche automatique, avec annulation bornée ; aucun backend ni nouvelle dépendance. TASK-0005 et ses contrôles restent dans l'autre branche. Aucune tâche suivante avant livraison validée de ce lot.
 
 ## Priorité active — prototype V1, 5 novembre 2026

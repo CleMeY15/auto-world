@@ -1,5 +1,9 @@
 # Auto World delivery ledger
 
+## TASK-0121 local target checkpoint, 2026-11-09
+
+LOCAL_TARGET_VALIDATED / DELIVERY_PENDING: native root quality and136 web units pass;44 new Chromium/WebKit cases pass without exclusions/retries; code APPROVE, architecture CLEAR, actual-pixel APPROVE. [Validation](../docs/validation/TASK-0121.md) retains the two fixture-only failed runs and their bounded repairs. Full browser/persistent CI and exact-source/protected-main acceptance remain pending; no TASK-0005 qualification or next-task completion implied.
+
 ## Product checkpoint — TASK-0120 accepted, TASK-0121 started, 2026-11-09
 
 TASK-0120 is DONE_FOR_V1_PROTOTYPE at main `37a6e5ea90a8469491b295b97a41a4a671b587a7`, tree `6d3a025589525c7138a30327b06db889cd2d9074`, by [PR231's final accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/231#issuecomment-6736705415). All six source and six main checks succeeded, including532 browser passes/10 existing exclusions and10 real persistent phases with cleanup. Historical pending records below remain unchanged. [TASK-0121](tasks/TASK-0121-refine-search.md) is now IN_PROGRESS after distinct sequential Architect/Critic approval and DoR definition. It has no delivery acceptance yet and does not touch TASK-0005 qualification.

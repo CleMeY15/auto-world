@@ -1,6 +1,6 @@
 # TASK-0121 — Retirer un critère de recherche appliqué
 
-Status: IN_PROGRESS, 2026-11-09. Priority P1. Owner: application lead, bounded application executor and independent test/review lanes. Branch `codex/task-0121-refine-search`. DoR satisfied; sequential Architect APPROVE then Critic APPROVE before implementation.
+Status: LOCAL_TARGET_VALIDATED / DELIVERY_PENDING, 2026-11-09. Priority P1. Owner: application lead, bounded application executor and independent test/review lanes. Branch `codex/task-0121-refine-search`. DoR satisfied; sequential Architect APPROVE then Critic APPROVE before implementation. Root quality,136 web units,44 focused browser cases and independent source/pixel reviews pass; full browser and real persistent CI plus protected-main acceptance remain required.
 
 ## Goal, dependencies and contracts
 
