@@ -35,7 +35,9 @@ function bytes(searches: readonly ReturnType<typeof entry>[]) {
 }
 
 async function seed(context: BrowserContext, searches: readonly ReturnType<typeof entry>[] = [entry("Famille", exactCriteria), entry("Budget", numericCriteria)]) {
-  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), { key: storageKey, value: bytes(searches) });
+  await context.addInitScript(({ key, value }) => {
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, value);
+  }, { key: storageKey, value: bytes(searches) });
 }
 
 async function ready(page: Page) {
@@ -206,7 +208,7 @@ test("criteria inspection remains available offline, in disabled demo and for a 
   await page.goto(`${disabled}/demo#saved`);
   await ready(page);
   await open(page, "Famille");
-  await expect(row(page, "Famille").getByRole("button", { name: "Charger les critères", exact: true })).toBeDisabled();
+  await expect(row(page, "Famille").locator("#demo-saved-search-load-0")).toBeDisabled();
 
   await page.evaluate(({ key }) => {
     const value = '{"schemaVersion":3,"searches":[],"future":true}';
@@ -255,7 +257,7 @@ test("loading criteria remains explicit and never submits a search", async ({ pa
   await seed(context, [entry("Famille", exactCriteria)]);
   await mockDemoCatalog(page);
   const searchRequests: string[] = [];
-  page.on("request", (request) => { if (new URL(request.url()).pathname.endsWith("/api/demo/v2/search")) searchRequests.push(request.url()); });
+  page.on("request", (request) => { if (/^\/api\/demo\/v[23]\/search$/u.test(new URL(request.url()).pathname)) searchRequests.push(request.url()); });
   await page.goto("/demo#saved");
   await ready(page);
   await open(page, "Famille");
