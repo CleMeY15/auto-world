@@ -92,7 +92,7 @@ async function openAllCriteriaResults(page: Page, options: Parameters<typeof ins
 async function expectPreparedValues(page: Page, removed: keyof typeof expectedAcceptedQuery) {
   const values = {
     text: removed === "text" ? "" : "alpha modele",
-    priceMaxMinor: removed === "priceMaxMinor" ? "" : "32000.5",
+    priceMaxMinor: removed === "priceMaxMinor" ? "" : "32000.50",
     mileageMaxKm: removed === "mileageMaxKm" ? "" : "25000.25",
     makeId: removed === "makeId" ? "" : demoMakeIds.alpha,
     modelId: removed === "makeId" || removed === "modelId" ? "" : demoModelIds.alphaOne,
@@ -173,7 +173,7 @@ test("cancelling restores the prior unsent draft and unchanged accepted results"
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
   await page.locator("#demo-remove-mileageMaxKm").click();
   await expect(page.getByLabel("Recherche par mots")).toHaveValue("alpha modele");
-  await expect(page.getByLabel("Budget maximum (€)")).toHaveValue("32000.5");
+  await expect(page.getByLabel("Budget maximum (€)")).toHaveValue("32000.50");
   await expect(page.locator("#demo-refinement-cancel")).toBeVisible();
   await page.locator("#demo-refinement-cancel").click();
   await expect(page.locator("#demo-remove-mileageMaxKm")).toBeFocused();
@@ -312,6 +312,76 @@ test("offline preparation and cancellation keep the accepted result usable witho
   await expect(page.locator(".demo-result-card")).toHaveCount(1);
   expect(submitted).toHaveLength(1);
   await context.setOffline(false);
+});
+
+test("remove and cancel feedback commit within 100 ms", async ({ page, context, browserName }, testInfo) => {
+  const submitted = await openAllCriteriaResults(page);
+  const client = browserName === "chromium" ? await context.newCDPSession(page) : undefined;
+  const profile = browserName === "chromium"
+    ? { cpuSlowdownMultiplier: 4, qualification: "Chromium CDP 4x CPU slowdown" }
+    : { cpuSlowdownMultiplier: 1, qualification: "WebKit unthrottled; CDP CPU throttling is unavailable" };
+  try {
+    if (client !== undefined) await client.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    const removeButton = page.locator("#demo-remove-priceMaxMinor");
+    await removeButton.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          if (window.location.hash !== "#search" || document.querySelector("#demo-refinement-cancel") === null) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awRefinementRemoveMs?: number }).__awRefinementRemoveMs = performance.now() - started;
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }, { once: true });
+    });
+    await removeButton.click();
+    await page.waitForFunction(() => typeof (window as typeof window & { __awRefinementRemoveMs?: number }).__awRefinementRemoveMs === "number");
+
+    const cancelButton = page.locator("#demo-refinement-cancel");
+    await cancelButton.evaluate((button) => {
+      button.addEventListener("click", () => {
+        const started = performance.now();
+        const observer = new MutationObserver(() => {
+          if (window.location.hash !== "#results" || document.querySelector("#demo-refinement-cancel") !== null) return;
+          observer.disconnect();
+          requestAnimationFrame(() => {
+            (window as typeof window & { __awRefinementCancelMs?: number }).__awRefinementCancelMs = performance.now() - started;
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      }, { once: true });
+    });
+    await cancelButton.click();
+    await page.waitForFunction(() => typeof (window as typeof window & { __awRefinementCancelMs?: number }).__awRefinementCancelMs === "number");
+  } finally {
+    if (client !== undefined) {
+      await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+      await client.detach();
+    }
+  }
+
+  const samples = await page.evaluate(() => ({
+    cancelMs: (window as typeof window & { __awRefinementCancelMs: number }).__awRefinementCancelMs,
+    removeMs: (window as typeof window & { __awRefinementRemoveMs: number }).__awRefinementRemoveMs,
+  }));
+  expect(samples.removeMs).toBeLessThanOrEqual(100);
+  expect(samples.cancelMs).toBeLessThanOrEqual(100);
+  expect(submitted).toHaveLength(1);
+  const report = {
+    browserName,
+    browserVersion: context.browser()?.version(),
+    budgetMaxMs: 100,
+    caveat: "Local DOM feedback through the next animation frame; not a production INP or network-latency claim.",
+    collectedAt: new Date().toISOString(),
+    profile,
+    samples,
+  };
+  await testInfo.attach("demo-search-refinement-performance.json", {
+    body: Buffer.from(`${JSON.stringify(report, null, 2)}\n`),
+    contentType: "application/json",
+  });
 });
 
 test("criterion controls remain accessible across the viewport and theme matrix", async ({ page, browserName }, testInfo) => {
