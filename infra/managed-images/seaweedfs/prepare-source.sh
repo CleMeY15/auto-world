@@ -54,6 +54,43 @@ verify_iam_fixture_source() {
   } > "$evidence/iam-public-fixture-source.tsv"
 }
 
+verify_normal_skip_sources() {
+  cd "$source_root"
+  manifest="$materials_root/normal-skip-sources.tsv"
+  test -f "$manifest"
+  test ! -L "$manifest"
+  test "$(stat -c '%h' "$manifest")" = 1
+  printf '%s  %s\n' e6070047fca680c37d2da16c6af862c22f0261f2cb4f11e83b5a43e0215ed991 "$manifest" | sha256sum -c -
+  tab=$(printf '\t')
+  source_count=0
+  while IFS="$tab" read -r source_path expected_bytes expected_sha256 unexpected; do
+    test -n "$source_path"
+    test -n "$expected_bytes"
+    test -n "$expected_sha256"
+    test -z "$unexpected"
+    case "$source_path" in
+      /*|*..*|*\\*) exit 1 ;;
+    esac
+    case "$expected_bytes" in
+      ''|*[!0-9]*) exit 1 ;;
+    esac
+    case "$expected_sha256" in
+      *[!0-9a-f]*|'') exit 1 ;;
+    esac
+    test "${#expected_sha256}" = 64
+    test -f "$source_path"
+    test ! -L "$source_path"
+    test "$(stat -c '%h' "$source_path")" = 1
+    actual_bytes=$(wc -c < "$source_path" | tr -d '[:space:]')
+    test "$actual_bytes" = "$expected_bytes"
+    printf '%s  %s\n' "$expected_sha256" "$source_path" | sha256sum -c -
+    source_count=$((source_count + 1))
+  done < "$manifest"
+  test "$source_count" = 26
+  cp "$manifest" "$evidence/normal-skip-sources.tsv"
+  cmp "$manifest" "$evidence/normal-skip-sources.tsv"
+}
+
 apply_correction() {
   cd "$source_root"
   corrected_mod_bytes=$(wc -c < "$materials_root/corrected/go.mod" | tr -d '[:space:]')
@@ -138,6 +175,7 @@ run_phase archive-identity archive_identity
 run_phase source-extract extract_source
 run_phase original-material verify_originals
 run_phase iam-fixture-source verify_iam_fixture_source
+run_phase normal-skip-source verify_normal_skip_sources
 run_phase corrected-material apply_correction
 run_phase compiler-identity verify_compiler
 run_phase module-download download_modules

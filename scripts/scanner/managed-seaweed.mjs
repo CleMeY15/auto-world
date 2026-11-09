@@ -109,6 +109,11 @@ export function readManagedSeaweedStatuses(directory) {
   }
 }
 
+export function readManagedSeaweedStatusesFromCapture(view) {
+  requireValue(object(view) && typeof view.read === "function");
+  return readStatuses(view.read);
+}
+
 export function inspectManagedSeaweedTests(view) {
   requireValue(object(view) && typeof view.read === "function" && typeof view.list === "function" && typeof view.has === "function");
   const read = view.read;
@@ -219,4 +224,13 @@ export function readManagedSeaweedTestsFromCapture(view) {
 // Read only an already bounded, exported text evidence tree. No command is run.
 export function readManagedSeaweedTests(directory) {
   return readManagedSeaweedTestsFromCapture(filesystemView(directory));
+}
+
+// The managed-image adapter requires the closed reviewed profile. The generic
+// reader deliberately keeps its historical zero-skip behavior for diagnostics.
+export function acceptsManagedSeaweedRuntimeTests(tests) {
+  return tests?.result === "passed" && tests.runtimeEligible === true &&
+    tests.profile === "NORMAL_LINUX_AMD64_SKIP_REVIEW_V1" &&
+    tests.normalProfileTests === "PASS" && tests.skipReview === "REVIEWED_WITH_LIMITATIONS" &&
+    tests.supplemental?.result === "PASS";
 }

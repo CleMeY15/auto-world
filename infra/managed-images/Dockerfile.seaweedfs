@@ -14,10 +14,31 @@ RUN /bin/sh /materials/prepare-source.sh
 # The runtime target below independently requires every status to be zero.
 RUN --network=none /bin/sh /materials/run-normal-profile.sh
 
+FROM golang@sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747 AS weed-supplemental
+
+ENV GOENV=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
+    GOPRIVATE= GONOPROXY= GONOSUMDB= GOFLAGS= \
+    GOMODCACHE=/go/pkg/mod GOCACHE=/work/go-cache GOTMPDIR=/work/go-tmp \
+    TMPDIR=/work/tmp HOME=/work/home WEED_BINARY=/input/weed
+RUN mkdir -p /input /out/supplemental /work/go-cache /work/go-tmp /work/tmp /work/home && \
+    chown -R 10001:10001 /out/supplemental /work && \
+    chmod 0700 /work /work/go-cache /work/go-tmp /work/tmp /work/home
+USER 10001:10001
+WORKDIR /src/seaweedfs/weed
+RUN --network=none \
+    --mount=type=bind,from=weed-build,source=/materials,target=/materials,readonly \
+    --mount=type=bind,from=weed-build,source=/src/seaweedfs,target=/src/seaweedfs,readonly \
+    --mount=type=bind,from=weed-build,source=/go/pkg/mod,target=/go/pkg/mod,readonly \
+    --mount=type=bind,from=weed-build,source=/out/weed,target=/input/weed,readonly \
+    --mount=type=bind,from=weed-build,source=/out/evidence,target=/input/evidence,readonly \
+    /bin/sh /materials/run-supplemental-profile.sh
+
 FROM chrislusf/seaweedfs@sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707 AS seaweedfs-base
 
 FROM scratch AS evidence
 COPY --from=weed-build /out/evidence/ /
+COPY --from=weed-supplemental /out/supplemental/ /supplemental/
 
 FROM seaweedfs-base AS runtime
 COPY --from=weed-build --chown=0:0 --chmod=0755 /out/weed /usr/bin/weed
@@ -28,13 +49,20 @@ LABEL org.opencontainers.image.source="https://github.com/CleMeY15/auto-world" \
       io.auto-world.seaweedfs.source="https://github.com/seaweedfs/seaweedfs/commit/ffa87c25fdf587178b1521ad87f2a4a72a02e584" \
       io.auto-world.seaweedfs.patch-go-mod-sha256="5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9" \
       io.auto-world.seaweedfs.authority="diagnostic-only-not-admitted"
-RUN --network=none --mount=type=bind,from=weed-build,source=/out,target=/tmp/weed-build,readonly set -eu; \
+RUN --network=none \
+    --mount=type=bind,from=weed-build,source=/out,target=/tmp/weed-build,readonly \
+    --mount=type=bind,from=weed-supplemental,source=/out/supplemental,target=/tmp/weed-supplemental,readonly \
+    set -eu; \
     test "$(cat /tmp/weed-build/evidence/preparation.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/package-list.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/go-test.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/go-test-capture.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/build.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/build-validation.exit-code)" = 0; \
+    for status in preflight command storage capture finalization; do \
+      test "$(wc -c < "/tmp/weed-supplemental/$status.exit-code" | tr -d '[:space:]')" = 2; \
+      test "$(cat "/tmp/weed-supplemental/$status.exit-code")" = 0; \
+    done; \
     test "$(cat /tmp/weed-build/evidence/go-test-stream.tsv)" = "$(cat /tmp/weed-build/evidence/go-test-concat.tsv)"; \
     cmp /usr/bin/weed /tmp/weed-build/weed; \
     test "$(stat -c '%u:%g:%a' /usr/bin/weed)" = '0:0:755'; \

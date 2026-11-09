@@ -14,6 +14,8 @@ const recipe = readFileSync(path.join(root, "infra/managed-images/Dockerfile.sea
 const ignore = readFileSync(path.join(root, "infra/managed-images/Dockerfile.seaweedfs.dockerignore"), "utf8");
 const preparation = readFileSync(path.join(materials, "prepare-source.sh"), "utf8");
 const runner = readFileSync(path.join(materials, "run-normal-profile.sh"), "utf8");
+const supplementalRunner = readFileSync(path.join(materials, "run-supplemental-profile.sh"), "utf8");
+const normalSkipSources = readFileSync(path.join(materials, "normal-skip-sources.tsv"), "utf8");
 const notice = readFileSync(path.join(materials, "DERIVATIVE-NOTICE.txt"), "utf8");
 const originalMod = readFileSync(path.join(materials, "original/go.mod"));
 const originalSum = readFileSync(path.join(materials, "original/go.sum"));
@@ -64,11 +66,12 @@ function assertRecipeBoundary(source, preparationSource) {
     assert.ok(preparationSource.includes(hash), hash);
   }
   assert.ok(preparationSource.indexOf("run_phase original-material") < preparationSource.indexOf("run_phase iam-fixture-source"));
-  assert.ok(preparationSource.indexOf("run_phase iam-fixture-source") < preparationSource.indexOf("run_phase corrected-material"));
+  assert.ok(preparationSource.indexOf("run_phase iam-fixture-source") < preparationSource.indexOf("run_phase normal-skip-source"));
+  assert.ok(preparationSource.indexOf("run_phase normal-skip-source") < preparationSource.indexOf("run_phase corrected-material"));
   assert.match(source, /^RUN --network=none \/bin\/sh \/materials\/run-normal-profile\.sh$/mu);
   assert.doesNotMatch(source, /^ARG\s|\bgit (?:clone|init|checkout)|(?:apt|apk|dnf)(?:-get)?\s+(?:add|install)/mu);
   assert.ok(source.indexOf("RUN /bin/sh /materials/prepare-source.sh") < source.indexOf("RUN --network=none /bin/sh /materials/run-normal-profile.sh"));
-  assert.equal([...source.matchAll(/^FROM /gmu)].length, 4);
+  assert.equal([...source.matchAll(/^FROM /gmu)].length, 5);
 }
 
 function assertRuntimeBoundary(source) {
@@ -84,9 +87,93 @@ function assertRuntimeBoundary(source) {
   assert.doesNotMatch(runtime, /^(?:ENV|ENTRYPOINT|CMD|WORKDIR|VOLUME|EXPOSE|USER|ADD)\s/mu);
   for (const status of ["preparation.exit-code", "package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
     assert.ok(runtime.includes(`test "$(cat /tmp/weed-build/evidence/${status})" = 0`), status);
+  for (const status of ["preflight", "command", "storage", "capture", "finalization"]) {
+    assert.ok(runtime.includes(`/tmp/weed-supplemental/$status.exit-code`), status);
+  }
   assert.match(runtime, /test "\$\(cat \/tmp\/weed-build\/evidence\/go-test-stream\.tsv\)" = "\$\(cat \/tmp\/weed-build\/evidence\/go-test-concat\.tsv\)"/u);
   assert.match(runtime, /cmp \/usr\/bin\/weed \/tmp\/weed-build\/weed/u);
   assert.match(runtime, /stat -c '%u:%g:%a' \/usr\/bin\/weed/u);
+}
+
+function assertSupplementalBoundary(source, script, sourceManifest) {
+  const supplemental = stage(source, "weed-supplemental");
+  assert.match(supplemental, new RegExp(`^FROM golang@${identities.builder} AS weed-supplemental$`, "mu"));
+  assert.match(supplemental, /^USER 10001:10001$/mu);
+  assert.match(supplemental, /^WORKDIR \/src\/seaweedfs\/weed$/mu);
+  assert.match(supplemental, /RUN --network=none/u);
+  for (const mount of [
+    "source=/materials,target=/materials,readonly",
+    "source=/src/seaweedfs,target=/src/seaweedfs,readonly",
+    "source=/go/pkg/mod,target=/go/pkg/mod,readonly",
+    "source=/out/weed,target=/input/weed,readonly",
+    "source=/out/evidence,target=/input/evidence,readonly",
+  ]) assert.ok(supplemental.includes(mount), mount);
+  assert.match(supplemental, /GOMODCACHE=\/go\/pkg\/mod GOCACHE=\/work\/go-cache GOTMPDIR=\/work\/go-tmp/u);
+  assert.match(supplemental, /TMPDIR=\/work\/tmp HOME=\/work\/home WEED_BINARY=\/input\/weed/u);
+  assert.match(supplemental, /chmod 0700 \/work \/work\/go-cache \/work\/go-tmp \/work\/tmp \/work\/home/u);
+  assert.doesNotMatch(supplemental, /go build|--network=(?!none)/u);
+
+  const manifestRows = sourceManifest.trimEnd().split("\n").map((line) => line.split("\t"));
+  assert.equal(sha256(Buffer.from(sourceManifest)), "e6070047fca680c37d2da16c6af862c22f0261f2cb4f11e83b5a43e0215ed991");
+  assert.equal(manifestRows.length, 26);
+  assert.equal(new Set(manifestRows.map(([sourcePath]) => sourcePath)).size, 26);
+  for (const [sourcePath, bytes, hash] of manifestRows) {
+    assert.match(sourcePath, /^weed\//u);
+    assert.match(bytes, /^\d+$/u);
+    assert.match(hash, /^[0-9a-f]{64}$/u);
+  }
+
+  assert.match(script, /for status_name in preflight command storage capture finalization/u);
+  assert.match(script, /printf '%s\\n' 125 > "\$output_root\/\$status_name\.exit-code"/u);
+  const contextKeys = ["schema", "uid", "gid", "go_version", "goos", "goarch", "cgo_enabled", "build_tags", "command_zoneinfo", "command", "storage_zoneinfo", "storage"];
+  let contextIndex = -1;
+  for (const key of contextKeys) {
+    const nextIndex = script.indexOf(`printf '${key}\\t`, contextIndex + 1);
+    assert.ok(nextIndex > contextIndex, key);
+    contextIndex = nextIndex;
+  }
+  for (const assertion of [
+    'test "$(id -u)" = 10001',
+    'test "$(id -g)" = 10001',
+    'test "${GOENV-}" = off',
+    'test "${GOTOOLCHAIN-}" = local',
+    'test "${GOWORK-}" = off',
+    'test "${GOFLAGS-}" = \'\'',
+    'test "${GOMODCACHE-}" = /go/pkg/mod',
+    'test "${GOCACHE-}" = /work/go-cache',
+    'test "${GOTMPDIR-}" = /work/go-tmp',
+    'test "${WEED_BINARY-}" = /input/weed',
+    'test -z "${ZONEINFO+x}"',
+  ]) assert.ok(script.includes(assertion), assertion);
+  assert.match(script, /ZONEINFO=\/usr\/local\/go\/lib\/time\/zoneinfo\.zip go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m \.\/command -run '\^TestParseScanTimeHonoursTimezone\$'/u);
+  assert.match(script, /go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m \.\/storage -run '\^\(TestValidateEcVolume_TransientStatErrorKeeps\|TestRebuildIdx_UnwritableIdxDirSkipsOnlyThisVolume\)\$'/u);
+  assert.ok(script.includes(`command_test="go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m ./command -run '^TestParseScanTimeHonoursTimezone$'"`));
+  assert.ok(script.includes(`storage_test="go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m ./storage -run '^(TestValidateEcVolume_TransientStatErrorKeeps|TestRebuildIdx_UnwritableIdxDirSkipsOnlyThisVolume)$'"`));
+  assert.equal([...script.matchAll(/ZONEINFO=\/usr\/local\/go\/lib\/time\/zoneinfo\.zip go test/gu)].length, 1);
+  assert.match(script, /test "\$\(wc -l < "\$destination" \| tr -d '\[:space:\]'\)" = 36/u);
+  assert.match(script, /test -f "\$actual_path" \|\| return 1[\s\S]*test ! -L "\$actual_path" \|\| return 1[\s\S]*stat -c '%h' "\$actual_path"/u);
+  assert.match(script, /cmp "\$source_manifest" "\$normal_evidence\/normal-skip-sources\.tsv"/u);
+  assert.match(script, /cmp "\$output_root\/materials-before\.tsv" "\$output_root\/materials-after\.tsv"/u);
+  assert.match(script, /for stream_name in command\.go-test\.json command\.stderr\.txt storage\.go-test\.json storage\.stderr\.txt/u);
+  assert.match(script, /test "\$stream_bytes" -le 4194304/u);
+  assert.match(script, /test "\$total_bytes" -le 67108864/u);
+  const preflightWrite = script.indexOf(`printf '%s\\n' "$preflight_status" > "$output_root/preflight.exit-code"`);
+  const commandWrite = script.indexOf(`printf '%s\\n' "$command_status" > "$output_root/command.exit-code"`);
+  const captureManifest = script.indexOf(`: > "$output_root/capture-manifest.tsv"`, preflightWrite);
+  const materialsAfter = script.indexOf(`record_materials "$output_root/materials-after.tsv"`, preflightWrite);
+  assert.ok(preflightWrite !== -1 && commandWrite > preflightWrite && captureManifest > commandWrite && materialsAfter > captureManifest);
+  assert.match(script, /command_status=125[\s\S]*if \[ "\$preflight_status" -eq 0 \]; then/u);
+  assert.match(script, /storage_status=125[\s\S]*if \[ "\$preflight_status" -eq 0 \]; then/u);
+  assert.match(script, /if \[ "\$preflight_status" -ne 0 \]; then capture_status=125; fi/u);
+  assert.match(script, /if \[ "\$preflight_status" -ne 0 \]; then finalization_status=1; fi/u);
+  assert.match(script, /test "\$work_root" = \/work[\s\S]*test "\$gocache" = \/work\/go-cache[\s\S]*test ! -L "\$work_root"/u);
+  const interruptedStatus = script.indexOf(`printf '%s\\n' 1 > "$output_root/finalization.exit-code"`, script.indexOf("finish_interrupted()"));
+  const interruptedCleanup = script.indexOf("cleanup_owned_work || true", script.indexOf("finish_interrupted()"));
+  assert.ok(interruptedStatus !== -1 && interruptedCleanup > interruptedStatus);
+  const provisionalFinalization = script.lastIndexOf(`printf '%s\\n' 1 > "$output_root/finalization.exit-code"`);
+  const finalCleanup = script.lastIndexOf("cleanup_owned_work || finalization_status=1");
+  assert.ok(provisionalFinalization !== -1 && finalCleanup > provisionalFinalization);
+  assert.doesNotMatch(script, /\bgo (?:build|get|mod download)\b|\bcurl\b|\bwget\b|\bapk\b|\bapt\b/u);
 }
 
 test("SeaweedFS materials retain exact original and corrected bytes", () => {
@@ -100,6 +187,7 @@ test("SeaweedFS materials retain exact original and corrected bytes", () => {
   assert.equal(correctedMod.byteLength, 26652);
   assert.equal(correctedSum.byteLength, 232835);
   assert.equal(license.byteLength, 11337);
+  assert.equal(normalSkipSources.trimEnd().split("\n").length, 26);
 });
 
 test("the correction changes exactly two module versions and retains the authenticated checksum closure", () => {
@@ -137,6 +225,20 @@ test("the recipe binds the exact source, builder, base and authenticated then of
     [recipe, preparation.replace("go mod verify", "printf verification-skipped")],
     [recipe.replace("RUN --network=none /bin/sh", "RUN /bin/sh"), preparation],
   ]) assert.throws(() => assertRecipeBoundary(changedRecipe, changedPreparation));
+});
+
+test("the supplemental producer is closed over the reviewed commands, materials, capture, and failure statuses", () => {
+  assertSupplementalBoundary(recipe, supplementalRunner, normalSkipSources);
+  for (const [name, changedRecipe, changedRunner, changedManifest] of [
+    ["uid", recipe.replace("USER 10001:10001", "USER 0:0"), supplementalRunner, normalSkipSources],
+    ["candidate readonly", recipe.replace("source=/out/weed,target=/input/weed,readonly", "source=/out/weed,target=/input/weed"), supplementalRunner, normalSkipSources],
+    ["zoneinfo", recipe, supplementalRunner.replace("ZONEINFO=/usr/local/go/lib/time/zoneinfo.zip", "ZONEINFO=/tmp/zoneinfo.zip"), normalSkipSources],
+    ["command", recipe, supplementalRunner.replace("-timeout=5m ./command", "-timeout=6m ./command"), normalSkipSources],
+    ["status registry", recipe, supplementalRunner.replace("printf '%s\\n' 125", "printf '%s\\n' 0"), normalSkipSources],
+    ["capture cap", recipe, supplementalRunner.replace("4194304", "8388608"), normalSkipSources],
+    ["final material", recipe, supplementalRunner.replace("cmp \"$output_root/materials-before.tsv\"", "test -f \"$output_root/materials-before.tsv\" #"), normalSkipSources],
+    ["source hash", recipe, supplementalRunner, normalSkipSources.replace("70e2295442082ec7f878f9adca5628744dc1e58a5bc89ae21e9c7b86dea31f4b", "0".repeat(64))],
+  ]) assert.throws(() => assertSupplementalBoundary(changedRecipe, changedRunner, changedManifest), name);
 });
 
 test("normal-profile tests retain the complete original JSON stream and independent statuses", () => {
@@ -186,6 +288,7 @@ test("runtime overlays only weed and notices while evidence remains text-only", 
   assert.deepEqual(evidence.split("\n").filter(Boolean), [
     "FROM scratch AS evidence",
     "COPY --from=weed-build /out/evidence/ /",
+    "COPY --from=weed-supplemental /out/supplemental/ /supplemental/",
   ]);
   assert.doesNotMatch(evidence, /\/out\/weed|seaweedfs-source\.tar\.gz/u);
   assert.match(recipe, /io\.auto-world\.seaweedfs\.authority="diagnostic-only-not-admitted"/u);
@@ -199,7 +302,8 @@ test("deny-all build context exposes only this recipe and its exact materials", 
 test("the preparation script uses portable Alpine sh syntax without running candidate code", () => {
   assert.match(preparation, /^#!\/bin\/sh\nset -eu\n/u);
   assert.match(runner, /^#!\/bin\/sh\nset -euo pipefail\n/u);
-  for (const script of [preparation, runner]) {
+  assert.match(supplementalRunner, /^#!\/bin\/sh\nset -u\n/u);
+  for (const script of [preparation, runner, supplementalRunner]) {
     assert.doesNotMatch(script, /#!\/bin\/bash|\[\[|\]\]|^\s*(?:local|declare)\s|\(\([^)]*\+\+\)\)|\$\{![^}]+\}/mu);
     const bash = spawnSync("bash", ["--posix", "-n"], {
       encoding: "utf8",

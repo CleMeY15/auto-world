@@ -30,6 +30,7 @@ function createFixture(t) {
   for (const directory of [bin, originals, corrected, licenses]) mkdirSync(directory, { recursive: true });
   for (const relative of ["original/go.mod", "original/go.sum", "corrected/go.mod", "corrected/go.sum", "licenses/seaweedfs-LICENSE"])
     cpSync(path.join(materials, relative), path.join(fixtureMaterials, relative));
+  cpSync(path.join(materials, "normal-skip-sources.tsv"), path.join(fixtureMaterials, "normal-skip-sources.tsv"));
   const archive = path.join(fixture, "source.tar.gz");
   writeFileSync(archive, "archive-fixture\n");
   const prep = path.join(fixture, "prepare-source.sh");
@@ -47,6 +48,10 @@ rm -f "$temporary"
 if [ "\${1-}" = -c ]; then
   check=$(cat)
   if [ "\${AW_FAIL_IAM_HASH-}" = 1 ] && printf '%s\n' "$check" | grep -q 'iamapi_authz_test.go'; then
+    printf '%s\n' 'fixture: FAILED' >&2
+    exit 1
+  fi
+  if [ "\${AW_FAIL_SKIP_HASH-}" = 1 ] && printf '%s\n' "$check" | grep -q 'filer_meta_scan_test.go'; then
     printf '%s\n' 'fixture: FAILED' >&2
     exit 1
   fi
@@ -75,6 +80,13 @@ if [ "\${AW_OMIT_IAM_SOURCE-}" != 1 ]; then
 fi
 head -c 68613 /dev/zero | tr '\\000' b > "$target/weed/iamapi/iamapi_management_handlers.go"
 head -c 1854 /dev/zero | tr '\\000' c > "$target/weed/iamapi/iamapi_handlers.go"
+tab=$(printf '\\t')
+while IFS="$tab" read -r source_path source_bytes source_sha256 unexpected; do
+  if [ "\${AW_OMIT_SKIP_SOURCE-}" = 1 ] && [ "$source_path" = weed/command/filer_meta_scan_test.go ]; then continue; fi
+  if [ "\${AW_BAD_SKIP_SIZE-}" = 1 ] && [ "$source_path" = weed/command/filer_meta_scan_test.go ]; then source_bytes=$((source_bytes - 1)); fi
+  mkdir -p "$target/$(dirname "$source_path")"
+  head -c "$source_bytes" /dev/zero | tr '\\000' s > "$target/$source_path"
+done < "$AW_NORMAL_SKIP_MANIFEST"
 `);
   writeFileSync(path.join(bin, "go"), `#!/bin/sh
 printf '%s\n' "$*" >> "$AW_FAKE_GO_LOG"
@@ -106,6 +118,7 @@ esac
       AW_FIXTURE_ORIGINALS: originals,
       AW_FIXTURE_LICENSE: path.join(licenses, "seaweedfs-LICENSE"),
       AW_FAKE_GO_LOG: log,
+      AW_NORMAL_SKIP_MANIFEST: path.join(fixtureMaterials, "normal-skip-sources.tsv"),
       ...variables,
     };
     const environment = Object.entries(assignments)
@@ -197,13 +210,34 @@ test("preparation refuses missing, wrong-sized, or hash-mismatched IAM fixture s
   }
 });
 
+test("preparation refuses missing, wrong-sized, or hash-mismatched normal-skip sources atomically", async (t) => {
+  const { run } = createFixture(t);
+  const cases = [
+    ["missing", { AW_OMIT_SKIP_SOURCE: 1 }],
+    ["wrong-size", { AW_BAD_SKIP_SIZE: 1 }],
+    ["wrong-hash", { AW_FAIL_SKIP_HASH: 1 }],
+  ];
+  for (const [name, variables] of cases) {
+    await t.test(name, () => {
+      const { result, evidence, log } = run(`normal-skip-${name}`, variables);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(read(evidence, "preparation.exit-code").trim(), "1");
+      assert.equal(read(evidence, "preparation-first-failed-phase.txt").trim(), "normal-skip-source");
+      assert.equal(read(evidence, "preparation/normal-skip-source.exit-code").trim(), "1");
+      assert.equal(read(evidence, "preparation/corrected-material.exit-code").trim(), "125");
+      assert.equal(existsSync(path.join(evidence, "normal-skip-sources.tsv")), false);
+      assert.equal(existsSync(log), false);
+    });
+  }
+});
+
 test("successful preparation accepts padded wc output and retains all phase evidence", (t) => {
   const { run } = createFixture(t);
   const { result, evidence, source, log } = run("success");
   assert.equal(result.status, 0, result.stderr);
   assert.equal(read(evidence, "preparation.exit-code").trim(), "0");
   assert.equal(read(evidence, "preparation-first-failed-phase.txt").trim(), "NONE");
-  for (const phase of ["archive-identity", "source-extract", "original-material", "iam-fixture-source", "corrected-material", "compiler-identity", "module-download", "module-verify", "module-inventory", "final-material"])
+  for (const phase of ["archive-identity", "source-extract", "original-material", "iam-fixture-source", "normal-skip-source", "corrected-material", "compiler-identity", "module-download", "module-verify", "module-inventory", "final-material"])
     assert.equal(read(evidence, `preparation/${phase}.exit-code`).trim(), "0", phase);
   assert.equal(read(evidence, "iam-public-fixture-source.tsv"), [
     "weed/iamapi/iamapi_authz_test.go\t8153\t1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285",
@@ -211,6 +245,7 @@ test("successful preparation accepts padded wc output and retains all phase evid
     "weed/iamapi/iamapi_handlers.go\t1854\tcb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966",
     "",
   ].join("\n"));
+  assert.equal(read(evidence, "normal-skip-sources.tsv"), readFileSync(path.join(materials, "normal-skip-sources.tsv"), "utf8"));
   assert.equal(read(evidence, "module-download.json"), read(evidence, "preparation/module-download.stdout.txt"));
   assert.equal(read(evidence, "module-verify.txt"), read(evidence, "preparation/module-verify.stdout.txt"));
   assert.equal(read(evidence, "module-inventory.json"), read(evidence, "preparation/module-inventory.stdout.txt"));

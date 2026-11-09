@@ -4,7 +4,7 @@ import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, wr
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { readManagedSeaweedStatuses, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "../scripts/scanner/managed-seaweed.mjs";
+import { acceptsManagedSeaweedRuntimeTests, readManagedSeaweedStatuses, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "../scripts/scanner/managed-seaweed.mjs";
 import { validateManagedImageLock } from "../scripts/scanner/official-audit.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -50,6 +50,20 @@ test("Seaweed test evidence reconstructs all interleaved events, UTF8 output and
   assert.equal(result.statuses.preparation, 0);
   assert.deepEqual(result.counts, { packages: { total: 2, pass: 2, fail: 0, skip: 0 }, tests: { total: 2, pass: 2, fail: 0, skip: 0 } });
   assert.equal(result.result, "passed"); assert.equal(result.runtimeEligible, true); assert.deepEqual(result.skips, []);
+  assert.equal(acceptsManagedSeaweedRuntimeTests(result), false, "the actual managed gate cannot use a synthetic zero-skip profile");
+});
+
+test("Seaweed managed runtime acceptance requires the exact closed profile and supplemental result", () => {
+  const accepted = { result: "passed", runtimeEligible: true, profile: "NORMAL_LINUX_AMD64_SKIP_REVIEW_V1",
+    normalProfileTests: "PASS", skipReview: "REVIEWED_WITH_LIMITATIONS", supplemental: { result: "PASS" } };
+  assert.equal(acceptsManagedSeaweedRuntimeTests(accepted), true);
+  for (const mutate of [
+    (value) => { value.result = "failed"; }, (value) => { value.runtimeEligible = false; },
+    (value) => { value.profile += "_CALLER"; }, (value) => { value.normalProfileTests = "NOT_RUN"; },
+    (value) => { value.skipReview = "REQUIRED_NOT_ACCEPTED"; }, (value) => { value.supplemental.result = "FAILED"; },
+  ]) {
+    const changed = clone(accepted); mutate(changed); assert.equal(acceptsManagedSeaweedRuntimeTests(changed), false);
+  }
 });
 
 test("Seaweed private status diagnostics read exactly six bounded numeric statuses without deriving acceptance", (context) => {

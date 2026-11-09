@@ -8,8 +8,11 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
-import { MANAGED_SEAWEED_IAM_FIXTURE_SOURCES, MANAGED_SEAWEED_MATERIAL, inspectManagedSeaweedTests, readManagedSeaweedStatuses, readManagedSeaweedTests,
+import { acceptsManagedSeaweedRuntimeTests, MANAGED_SEAWEED_IAM_FIXTURE_SOURCES, MANAGED_SEAWEED_MATERIAL, inspectManagedSeaweedTests, readManagedSeaweedStatuses,
+  readManagedSeaweedStatusesFromCapture, readManagedSeaweedTests,
   validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
+import { diagnoseManagedSeaweedFailedProfile, hasManagedSeaweedSkipReviewEvidence,
+  reviewManagedSeaweedNormalProfile } from "./seaweed-normal-skip-review.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
@@ -476,16 +479,31 @@ function classifySeaweedIamFixture(files, view, inspection) {
 function exportManagedSeaweedCapturedEvidence(source, destination, afterCapture) {
   const files = captureManagedTextEvidence(source, destination);
   if (afterCapture) afterCapture();
+  const view = capturedView(files);
   let totalMatches = 0;
   for (const file of files) {
     MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
     totalMatches += [...file.text.matchAll(MANAGED_CREDENTIAL_PATTERN)].length;
   }
-  if (totalMatches === 0) return { files: writeManagedTextEvidence(files, destination), tests: undefined, profile: undefined };
-  const view = capturedView(files);
-  const inspection = inspectManagedSeaweedTests(view);
+  let inspection, tests;
+  if (hasManagedSeaweedSkipReviewEvidence(view)) {
+    const statuses = readManagedSeaweedStatusesFromCapture(view);
+    if (Object.values(statuses).every((value) => value === 0)) {
+      inspection = inspectManagedSeaweedTests(view);
+      tests = reviewManagedSeaweedNormalProfile(inspection, view);
+    } else if (statuses.preparation === 0 && statuses.packageList === 0 && (statuses.build !== 0 || statuses.capture === 0)) {
+      inspection = inspectManagedSeaweedTests(view);
+      tests = diagnoseManagedSeaweedFailedProfile(statuses, view, inspection.summary);
+    } else tests = diagnoseManagedSeaweedFailedProfile(statuses, view);
+  }
+  if (totalMatches === 0) {
+    scanCapturedCredentials(files);
+    return { files: writeManagedTextEvidence(files, destination), tests, profile: undefined };
+  }
+  inspection ??= inspectManagedSeaweedTests(view);
+  tests ??= inspection.summary;
   const profile = classifySeaweedIamFixture(files, view, inspection);
-  return { files: writeManagedTextEvidence(files, destination), tests: inspection.summary, profile };
+  return { files: writeManagedTextEvidence(files, destination), tests, profile };
 }
 
 export function exportManagedSeaweedTextEvidence(source, destination) {
@@ -1095,7 +1113,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               build.publicEvidence = exported.files;
               build.goTests = exported.tests ?? readManagedSeaweedTests(path.join(published, candidate.role));
               if (exported.profile) build.publicFixtureProfile = exported.profile;
-              build.goTestAcceptance = build.goTests.result === "passed" && build.goTests.runtimeEligible ? "passed" : "failed";
+              build.goTestAcceptance = acceptsManagedSeaweedRuntimeTests(build.goTests) ? "passed" : "failed";
             } else {
               build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
             }
