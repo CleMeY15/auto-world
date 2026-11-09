@@ -101,7 +101,10 @@ export function SavedSearchesSection({
                 <Card className="demo-saved-search">
                   <div className="demo-saved-search-copy">
                     <h3 id={`demo-saved-search-name-${index}`} tabIndex={-1}>{search.name}</h3>
-                    <SearchCriteriaSummary criteria={search.criteria} catalog={catalog} />
+                    <details className="demo-saved-search-disclosure">
+                      <summary id={`demo-saved-search-criteria-toggle-${index}`} aria-labelledby={`demo-saved-search-criteria-toggle-${index} demo-saved-search-name-${index}`}>Voir les critères</summary>
+                      <SearchCriteriaSummary criteria={search.criteria} catalog={catalog} />
+                    </details>
                     {hasIdentity && catalogPending ? <p className="demo-field-hint" role="status">Vérification de la marque et du modèle enregistrés…</p> : null}
                     {identityUnavailable ? <Banner role="note" tone="warning">La marque ou le modèle de cette recherche n’est plus disponible dans le catalogue validé.</Banner> : null}
                   </div>

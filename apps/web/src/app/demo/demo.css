@@ -112,9 +112,9 @@
 .demo-history-row span, .demo-history-note { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); overflow-wrap: anywhere; }
 .demo-history-label { color: var(--aw-color-text); font-size: var(--aw-font-size-small); font-weight: 650; margin-bottom: var(--aw-space-2); }
 .demo-history-disclosure { border-top: 1px solid var(--aw-color-border); }
-.demo-history-disclosure summary { color: var(--aw-color-action); cursor: pointer; min-height: var(--aw-size-touch); padding-block: var(--aw-space-3); }
+.demo-history-disclosure summary, .demo-saved-search-disclosure summary { color: var(--aw-color-action); cursor: pointer; min-height: var(--aw-size-touch); padding-block: var(--aw-space-3); }
 .demo-history-disclosure summary span { color: var(--aw-color-text-muted); }
-.demo-history-disclosure summary:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
+.demo-history-disclosure summary:focus-visible, .demo-saved-search-disclosure summary:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
 .demo-history-list { list-style: none; margin: 0; padding: 0; }
 .demo-history-list li { border-bottom: 1px solid var(--aw-color-border); min-width: 0; padding-block: var(--aw-space-4); }
 .demo-evidence { border-top: 1px solid var(--aw-color-border); padding-top: var(--aw-space-8); }
