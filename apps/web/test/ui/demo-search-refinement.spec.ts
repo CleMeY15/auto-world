@@ -131,9 +131,11 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 for (const criterion of ["text", "makeId", "modelId", "firstRegistrationYear", "priceMaxMinor", "mileageMaxKm"] as const) {
   test(`removing ${criterion} prepares the accepted criteria without a search request`, async ({ page }) => {
     const submitted = await openAllCriteriaResults(page);
+    if (criterion === "makeId") await expect(page.locator("#demo-remove-makeId")).toHaveAccessibleName("Retirer la marque et le modèle");
     await page.locator(`#demo-remove-${criterion}`).click();
     await expect(page.getByRole("heading", { name: "Explorer la démo" })).toBeFocused();
     await expectPreparedValues(page, criterion);
+    if (criterion === "makeId") await expect(page.locator(".demo-announcement")).toContainText("La marque et son modèle ont été retirés.");
     expect(submitted).toHaveLength(1);
   });
 }
@@ -170,6 +172,8 @@ test("cancelling restores the prior unsent draft and unchanged accepted results"
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
   await page.locator("#demo-remove-mileageMaxKm").click();
+  await expect(page.getByLabel("Recherche par mots")).toHaveValue("alpha modele");
+  await expect(page.getByLabel("Budget maximum (€)")).toHaveValue("32000.5");
   await expect(page.locator("#demo-refinement-cancel")).toBeVisible();
   await page.locator("#demo-refinement-cancel").click();
   await expect(page.locator("#demo-remove-mileageMaxKm")).toBeFocused();

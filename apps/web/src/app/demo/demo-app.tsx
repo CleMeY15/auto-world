@@ -360,6 +360,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const reconcileSearchRefinementRoute = (event: HashChangeEvent) => {
       const current = searchRefinementRef.current;
       if (current === undefined) return;
+      if (!event.oldURL || !event.newURL) { invalidateSearchRefinement(); return; }
       const previousHash = new URL(event.oldURL).hash || "#search";
       const nextHash = new URL(event.newURL).hash || "#search";
       if (current.awaitingSearch && previousHash === current.sourceHash && nextHash === "#search") {
@@ -380,7 +381,6 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       return;
     }
     if (screen === "search" && hash === "#search") {
-      if (current.awaitingSearch) updateSearchRefinement(Object.freeze({ ...current, awaitingSearch: false }));
       return;
     }
     if (current.awaitingSearch && screen === "results" && hash === current.sourceHash) return;

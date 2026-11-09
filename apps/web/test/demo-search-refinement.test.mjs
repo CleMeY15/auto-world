@@ -131,8 +131,8 @@ test("rejects retained identity when the current catalogue does not match", () =
 });
 
 test("does not mutate the source criteria", () => {
-  const source = structuredClone(completeCriteria);
-  const before = structuredClone(source);
+  const source = globalThis.structuredClone(completeCriteria);
+  const before = globalThis.structuredClone(source);
   assert.ok(remove("modelId", source));
   assert.deepEqual(source, before);
 });
