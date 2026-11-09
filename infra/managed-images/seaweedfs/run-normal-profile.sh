@@ -13,6 +13,68 @@ trap 'rm -rf "$work_directory"' EXIT HUP INT TERM
 mkdir -p "$output_root" "$event_directory" "$evidence/licenses"
 printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' > "$evidence/state.txt"
 
+copy_notices() {
+  mode=$1
+  if [ "$mode" = strict ]; then
+    cp "$source_root/LICENSE" "$evidence/licenses/seaweedfs-LICENSE"
+  elif [ -f "$source_root/LICENSE" ]; then
+    cp "$source_root/LICENSE" "$evidence/licenses/seaweedfs-LICENSE"
+  else
+    cp "$materials_root/licenses/seaweedfs-LICENSE" "$evidence/licenses/seaweedfs-LICENSE"
+  fi
+  cp "$compiler_root/LICENSE" "$evidence/licenses/go-LICENSE"
+  cp "$compiler_root/PATENTS" "$evidence/licenses/go-PATENTS"
+  if [ "$mode" = strict ]; then
+    cp "$module_root/github.com/go-jose/go-jose/v4@v4.1.6/LICENSE" "$evidence/licenses/go-jose-LICENSE"
+    cp "$module_root/golang.org/x/net@v0.62.0/LICENSE" "$evidence/licenses/x-net-LICENSE"
+    cp "$module_root/golang.org/x/net@v0.62.0/PATENTS" "$evidence/licenses/x-net-PATENTS"
+  else
+    if [ -f "$module_root/github.com/go-jose/go-jose/v4@v4.1.6/LICENSE" ]; then
+      cp "$module_root/github.com/go-jose/go-jose/v4@v4.1.6/LICENSE" "$evidence/licenses/go-jose-LICENSE"
+    fi
+    if [ -f "$module_root/golang.org/x/net@v0.62.0/LICENSE" ]; then
+      cp "$module_root/golang.org/x/net@v0.62.0/LICENSE" "$evidence/licenses/x-net-LICENSE"
+    fi
+    if [ -f "$module_root/golang.org/x/net@v0.62.0/PATENTS" ]; then
+      cp "$module_root/golang.org/x/net@v0.62.0/PATENTS" "$evidence/licenses/x-net-PATENTS"
+    fi
+  fi
+  cp "$materials_root/DERIVATIVE-NOTICE.txt" "$evidence/"
+}
+
+preparation_status=1
+preparation_status_bytes=0
+if [ -f "$evidence/preparation.exit-code" ]; then
+  preparation_status=$(cat "$evidence/preparation.exit-code")
+  preparation_status_bytes=$(wc -c < "$evidence/preparation.exit-code" | tr -d '[:space:]')
+fi
+if [ "$preparation_status_bytes" != 2 ] || [ "$preparation_status" != 0 ]; then
+  printf 'NOT_RUN_PREPARATION_FAILED status=%s\n' "$preparation_status" > "$evidence/preparation-runner-status.txt"
+  : > "$output_root/weed"
+  : > "$evidence/package-list.txt"
+  printf '%s\n' 'NOT_RUN_PREPARATION_FAILED' > "$evidence/package-list.stderr.txt"
+  printf '%s\n' 125 > "$evidence/package-list.exit-code"
+  : > "$evidence/go-test.stderr.txt"
+  : > "$evidence/go-test-manifest.tsv"
+  printf '%s\n' 0 > "$evidence/go-test-manifest-bytes.txt"
+  (
+    cd "$evidence" || exit 1
+    sha256sum go-test-manifest.tsv > go-test-manifest.sha256
+  )
+  : > "$work_directory/go-test-empty.json"
+  empty_sha256=$(sha256sum "$work_directory/go-test-empty.json" | cut -d ' ' -f 1)
+  printf '0\t%s\n' "$empty_sha256" > "$evidence/go-test-stream.tsv"
+  cp "$evidence/go-test-stream.tsv" "$evidence/go-test-concat.tsv"
+  printf '%s\n' 125 > "$evidence/go-test.exit-code"
+  printf '%s\n' 125 > "$evidence/go-test-capture.exit-code"
+  : > "$evidence/build.stdout.txt"
+  printf '%s\n' 'NOT_RUN_PREPARATION_FAILED' > "$evidence/build.stderr.txt"
+  printf '%s\n' 125 > "$evidence/build.exit-code"
+  printf '%s\n' 125 > "$evidence/build-validation.exit-code"
+  copy_notices available
+  exit 0
+fi
+
 cd "$source_root/weed" || exit 1
 
 package_status=0
@@ -98,12 +160,6 @@ printf '%s\n' "$build_validation_status" > "$evidence/build-validation.exit-code
 cmp "$materials_root/corrected/go.mod" "$source_root/go.mod"
 cmp "$materials_root/corrected/go.sum" "$source_root/go.sum"
 cp "$source_root/go.mod" "$source_root/go.sum" "$evidence/"
-cp "$source_root/LICENSE" "$evidence/licenses/seaweedfs-LICENSE"
-cp "$compiler_root/LICENSE" "$evidence/licenses/go-LICENSE"
-cp "$compiler_root/PATENTS" "$evidence/licenses/go-PATENTS"
-cp "$module_root/github.com/go-jose/go-jose/v4@v4.1.6/LICENSE" "$evidence/licenses/go-jose-LICENSE"
-cp "$module_root/golang.org/x/net@v0.62.0/LICENSE" "$evidence/licenses/x-net-LICENSE"
-cp "$module_root/golang.org/x/net@v0.62.0/PATENTS" "$evidence/licenses/x-net-PATENTS"
-cp "$materials_root/DERIVATIVE-NOTICE.txt" "$evidence/"
+copy_notices strict
 
 exit 0

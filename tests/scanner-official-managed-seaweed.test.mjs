@@ -34,6 +34,7 @@ function fixture(context, events = fixtureEvents(), testStatus = 0) {
   const stream = Buffer.concat(chunks), totals = `${stream.length}\t${hash(stream)}\n`;
   write("go-test-stream.tsv", totals); write("go-test-concat.tsv", totals);
   write("package-list.txt", `${pkg}\n${second}\n`);
+  write("preparation.exit-code", "0\n");
   write("package-list.exit-code", "0\n"); write("go-test.exit-code", `${testStatus}\n`); write("build.exit-code", "0\n");
   write("go-test-capture.exit-code", "0\n"); write("build-validation.exit-code", "0\n");
   return { directory, write };
@@ -43,6 +44,7 @@ test("Seaweed test evidence reconstructs all interleaved events, UTF8 output and
   const { directory } = fixture(context);
   const result = readManagedSeaweedTests(directory);
   assert.equal(result.events, 11);
+  assert.equal(result.statuses.preparation, 0);
   assert.deepEqual(result.counts, { packages: { total: 2, pass: 2, fail: 0, skip: 0 }, tests: { total: 2, pass: 2, fail: 0, skip: 0 } });
   assert.equal(result.result, "passed"); assert.equal(result.runtimeEligible, true); assert.deepEqual(result.skips, []);
 });
@@ -95,6 +97,9 @@ for (const [label, mutate] of [
   ["extra expected package", ({ write }) => write("package-list.txt", `${pkg}\n${second}\n${pkg}/foreign\n`)],
   ["duplicated expected package", ({ write }) => write("package-list.txt", `${pkg}\n${pkg}\n`)],
   ["missing build status", ({ directory }) => rmSync(path.join(directory, "build.exit-code"))],
+  ["missing preparation status", ({ directory }) => rmSync(path.join(directory, "preparation.exit-code"))],
+  ["failed preparation despite successful test evidence", ({ write }) => write("preparation.exit-code", "7\n")],
+  ["malformed preparation status", ({ write }) => write("preparation.exit-code", "0\n7\n")],
   ["nonzero test status over success", ({ write }) => write("go-test.exit-code", "1\n")],
   ["reordered manifest", ({ directory, write }) => {
     const manifest = `${readFileSync(path.join(directory, "go-test-manifest.tsv"), "utf8").trim().split("\n").reverse().join("\n")}\n`;

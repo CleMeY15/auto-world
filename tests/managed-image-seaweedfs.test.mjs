@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { readManagedSeaweedTests } from "../scripts/scanner/managed-seaweed.mjs";
+import { exportManagedTextEvidence } from "../scripts/scanner/official-audit.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const materials = path.join(root, "infra/managed-images/seaweedfs");
 const recipe = readFileSync(path.join(root, "infra/managed-images/Dockerfile.seaweedfs"), "utf8");
 const ignore = readFileSync(path.join(root, "infra/managed-images/Dockerfile.seaweedfs.dockerignore"), "utf8");
+const preparation = readFileSync(path.join(materials, "prepare-source.sh"), "utf8");
 const runner = readFileSync(path.join(materials, "run-normal-profile.sh"), "utf8");
 const notice = readFileSync(path.join(materials, "DERIVATIVE-NOTICE.txt"), "utf8");
 const originalMod = readFileSync(path.join(materials, "original/go.mod"));
@@ -39,19 +42,21 @@ function stage(source, name) {
   return lines.slice(start, next === -1 ? undefined : next).join("\n");
 }
 
-function assertRecipeBoundary(source) {
+function assertRecipeBoundary(source, preparationSource) {
   assert.match(source, new RegExp(`^FROM golang@${identities.builder} AS weed-build$`, "mu"));
   assert.match(source, new RegExp(`^FROM chrislusf/seaweedfs@${identities.base} AS seaweedfs-base$`, "mu"));
   assert.ok(source.includes(`ADD --checksum=sha256:${identities.archive} https://codeload.github.com/seaweedfs/seaweedfs/tar.gz/${identities.source} /tmp/seaweedfs-source.tar.gz`));
-  assert.match(source, /test "\$\(wc -c < \/tmp\/seaweedfs-source\.tar\.gz\)" = 81881370/u);
-  assert.match(source, /test "\$\(go version\)" = 'go version go1\.27\.3 linux\/amd64'/u);
+  assert.match(source, /^RUN \/bin\/sh \/materials\/prepare-source\.sh$/mu);
+  assert.match(preparationSource, /archive_bytes=\$\(wc -c < "\$archive" \| tr -d '\[:space:\]'\)/u);
+  assert.match(preparationSource, /test "\$archive_bytes" = 81881370/u);
+  assert.match(preparationSource, /test "\$compiler_version" = 'go version go1\.27\.3 linux\/amd64'/u);
   assert.match(source, /GOENV=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64/u);
   assert.match(source, /GOPROXY=https:\/\/proxy\.golang\.org GOSUMDB=sum\.golang\.org/u);
-  assert.match(source, /go mod download -json all > \/out\/evidence\/module-download\.json/u);
-  assert.match(source, /go mod verify > \/out\/evidence\/module-verify\.txt/u);
+  assert.match(preparationSource, /go mod download -json all/u);
+  assert.match(preparationSource, /go mod verify/u);
   assert.match(source, /^RUN --network=none \/bin\/sh \/materials\/run-normal-profile\.sh$/mu);
   assert.doesNotMatch(source, /^ARG\s|\bgit (?:clone|init|checkout)|(?:apt|apk|dnf)(?:-get)?\s+(?:add|install)/mu);
-  assert.ok(source.indexOf("go mod download -json all") < source.indexOf("RUN --network=none /bin/sh /materials/run-normal-profile.sh"));
+  assert.ok(source.indexOf("RUN /bin/sh /materials/prepare-source.sh") < source.indexOf("RUN --network=none /bin/sh /materials/run-normal-profile.sh"));
   assert.equal([...source.matchAll(/^FROM /gmu)].length, 4);
 }
 
@@ -66,7 +71,7 @@ function assertRuntimeBoundary(source) {
     "COPY --from=weed-build --chown=0:0 /out/evidence/DERIVATIVE-NOTICE.txt /usr/share/licenses/auto-world-seaweedfs/DERIVATIVE-NOTICE.txt",
   ]);
   assert.doesNotMatch(runtime, /^(?:ENV|ENTRYPOINT|CMD|WORKDIR|VOLUME|EXPOSE|USER|ADD)\s/mu);
-  for (const status of ["package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
+  for (const status of ["preparation.exit-code", "package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
     assert.ok(runtime.includes(`test "$(cat /tmp/weed-build/evidence/${status})" = 0`), status);
   assert.match(runtime, /test "\$\(cat \/tmp\/weed-build\/evidence\/go-test-stream\.tsv\)" = "\$\(cat \/tmp\/weed-build\/evidence\/go-test-concat\.tsv\)"/u);
   assert.match(runtime, /cmp \/usr\/bin\/weed \/tmp\/weed-build\/weed/u);
@@ -106,15 +111,15 @@ test("the correction changes exactly two module versions and adds exactly four c
 });
 
 test("the recipe binds the exact source, builder, base and authenticated then offline phases", () => {
-  assertRecipeBoundary(recipe);
-  for (const changed of [
-    recipe.replace(identities.source, "0".repeat(40)),
-    recipe.replaceAll(identities.archive, "1".repeat(64)),
-    recipe.replace(identities.builder, "sha256:" + "2".repeat(64)),
-    recipe.replace(identities.base, "sha256:" + "3".repeat(64)),
-    recipe.replace("go mod verify", "printf verification-skipped"),
-    recipe.replace("RUN --network=none /bin/sh", "RUN /bin/sh"),
-  ]) assert.throws(() => assertRecipeBoundary(changed));
+  assertRecipeBoundary(recipe, preparation);
+  for (const [changedRecipe, changedPreparation] of [
+    [recipe.replace(identities.source, "0".repeat(40)), preparation],
+    [recipe.replaceAll(identities.archive, "1".repeat(64)), preparation],
+    [recipe.replace(identities.builder, "sha256:" + "2".repeat(64)), preparation],
+    [recipe.replace(identities.base, "sha256:" + "3".repeat(64)), preparation],
+    [recipe, preparation.replace("go mod verify", "printf verification-skipped")],
+    [recipe.replace("RUN --network=none /bin/sh", "RUN /bin/sh"), preparation],
+  ]) assert.throws(() => assertRecipeBoundary(changedRecipe, changedPreparation));
 });
 
 test("normal-profile tests retain the complete original JSON stream and independent statuses", () => {
@@ -131,6 +136,7 @@ test("normal-profile tests retain the complete original JSON stream and independ
   assert.doesNotMatch(runner, /(?:grep|sed|jq).*go-test-stream/u);
   assert.match(runner, /printf '%s\\n' "\$test_status" > "\$evidence\/go-test\.exit-code"/u);
   assert.match(runner, /printf '%s\\n' "\$capture_status" > "\$evidence\/go-test-capture\.exit-code"/u);
+  assert.match(runner, /if \[ "\$preparation_status_bytes" != 2 \] \|\| \[ "\$preparation_status" != 0 \]; then/u);
   for (const name of ["package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
     assert.ok(runner.includes(name), name);
 });
@@ -167,14 +173,17 @@ test("deny-all build context exposes only this recipe and its exact materials", 
 });
 
 test("the preparation script uses portable Alpine sh syntax without running candidate code", () => {
+  assert.match(preparation, /^#!\/bin\/sh\nset -eu\n/u);
   assert.match(runner, /^#!\/bin\/sh\nset -euo pipefail\n/u);
-  assert.doesNotMatch(runner, /#!\/bin\/bash|\[\[|\]\]|^\s*(?:local|declare)\s|\(\([^)]*\+\+\)\)|\$\{![^}]+\}/mu);
-  const bash = spawnSync("bash", ["--posix", "-n"], {
-    encoding: "utf8",
-    input: runner,
-    windowsHide: true,
-  });
-  assert.equal(bash.status, 0, bash.stderr);
+  for (const script of [preparation, runner]) {
+    assert.doesNotMatch(script, /#!\/bin\/bash|\[\[|\]\]|^\s*(?:local|declare)\s|\(\([^)]*\+\+\)\)|\$\{![^}]+\}/mu);
+    const bash = spawnSync("bash", ["--posix", "-n"], {
+      encoding: "utf8",
+      input: script,
+      windowsHide: true,
+    });
+    assert.equal(bash.status, 0, bash.stderr);
+  }
 });
 
 function shellPath(value) {
@@ -220,7 +229,9 @@ esac
 `);
   chmodSync(fakeGo, 0o755);
   const executable = process.platform === "win32" ? "C:/Windows/System32/bash.exe" : "bash";
-  const runFixture = (target) => {
+  const runFixture = (target, preparationStatus = "0\n") => {
+    mkdirSync(path.join(target, "evidence"), { recursive: true });
+    writeFileSync(path.join(target, "evidence/preparation.exit-code"), preparationStatus);
     const values = [fixtureRunner, source, target, fixtureMaterials, modules, compiler]
       .map((value) => shellQuote(shellPath(value))).join(" ");
     const command = `PATH=${shellQuote(shellPath(bin))}:/usr/bin:/bin /bin/bash --posix ${values}`;
@@ -257,4 +268,30 @@ esac
   assert.equal(readFileSync(path.join(emptyEvidence, "build.exit-code"), "utf8").trim(), "9");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test-manifest.tsv"), "utf8"), "");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test-stream.tsv"), "utf8"), readFileSync(path.join(emptyEvidence, "go-test-concat.tsv"), "utf8"));
+
+  const sentinel = path.join(fixture, "unexpected-go-call");
+  writeFileSync(fakeGo, `#!/bin/sh
+printf '%s\n' called > ${shellQuote(shellPath(sentinel))}
+exit 98
+`);
+  chmodSync(fakeGo, 0o755);
+  const blockedOutput = path.join(fixture, "blocked-output");
+  const blockedRun = runFixture(blockedOutput, "23\n");
+  assert.equal(blockedRun.status, 0, blockedRun.stderr);
+  const blockedEvidence = path.join(blockedOutput, "evidence");
+  assert.equal(existsSync(sentinel), false);
+  for (const status of ["package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
+    assert.equal(readFileSync(path.join(blockedEvidence, status), "utf8").trim(), "125", status);
+  assert.equal(statSync(path.join(blockedOutput, "weed")).size, 0);
+  const exportedBlockedEvidence = path.join(fixture, "exported-blocked-evidence");
+  const exported = exportManagedTextEvidence(blockedEvidence, exportedBlockedEvidence);
+  assert.ok(exported.some(({ path: evidencePath }) => evidencePath === "preparation.exit-code"));
+  assert.ok(exported.some(({ path: evidencePath }) => evidencePath === "build.stderr.txt"));
+  assert.throws(() => readManagedSeaweedTests(exportedBlockedEvidence), /scanner_managed_seaweed_evidence_invalid/u);
+
+  const malformedOutput = path.join(fixture, "malformed-output");
+  const malformedRun = runFixture(malformedOutput, "0\n\n");
+  assert.equal(malformedRun.status, 0, malformedRun.stderr);
+  assert.equal(existsSync(sentinel), false);
+  assert.equal(readFileSync(path.join(malformedOutput, "evidence/go-test.exit-code"), "utf8").trim(), "125");
 });

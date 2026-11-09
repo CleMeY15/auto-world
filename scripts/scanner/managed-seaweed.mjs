@@ -65,8 +65,9 @@ export function readManagedSeaweedTests(directory) {
     const text = utf8(read(name)); requireValue(/^(?:0|[1-9][0-9]{0,2})\n$/u.test(text));
     const value = Number(text.trim()); requireValue(value <= 255); return value;
   };
-  const statuses = { packageList: status("package-list.exit-code"), tests: status("go-test.exit-code"), build: status("build.exit-code"),
+  const statuses = { preparation: status("preparation.exit-code"), packageList: status("package-list.exit-code"), tests: status("go-test.exit-code"), build: status("build.exit-code"),
     capture: status("go-test-capture.exit-code"), buildValidation: status("build-validation.exit-code") };
+  requireValue(statuses.preparation === 0);
   const packageNames = lines(read("package-list.txt"));
   requireValue(statuses.packageList === 0 && packageNames.length <= 4096 && new Set(packageNames).size === packageNames.length &&
     packageNames.every((name) => /^github\.com\/seaweedfs\/seaweedfs\/weed(?:\/[A-Za-z0-9_.-]+)*$/u.test(name)));

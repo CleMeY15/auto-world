@@ -8,32 +8,7 @@ ENV GOENV=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 WORKDIR /src/seaweedfs
 COPY infra/managed-images/seaweedfs/ /materials/
 ADD --checksum=sha256:d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9 https://codeload.github.com/seaweedfs/seaweedfs/tar.gz/ffa87c25fdf587178b1521ad87f2a4a72a02e584 /tmp/seaweedfs-source.tar.gz
-RUN set -eu; \
-    test "$(wc -c < /tmp/seaweedfs-source.tar.gz)" = 81881370; \
-    printf '%s  %s\n' d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9 /tmp/seaweedfs-source.tar.gz | sha256sum -c -; \
-    tar -xzf /tmp/seaweedfs-source.tar.gz --strip-components=1 -C /src/seaweedfs; \
-    test ! -e .git; \
-    test "$(go version)" = 'go version go1.27.3 linux/amd64'; \
-    cmp /materials/original/go.mod go.mod; \
-    cmp /materials/original/go.sum go.sum; \
-    cmp /materials/licenses/seaweedfs-LICENSE LICENSE; \
-    test "$(wc -c < /materials/corrected/go.mod)" = 26652; \
-    test "$(wc -c < /materials/corrected/go.sum)" = 167933; \
-    printf '%s  %s\n' 5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9 /materials/corrected/go.mod | sha256sum -c -; \
-    printf '%s  %s\n' 5f5cee2acd51c8fb55a16dc372520e3f8cf3aebb5dc873b150e5d15624a29b02 /materials/corrected/go.sum | sha256sum -c -; \
-    cp /materials/corrected/go.mod /materials/corrected/go.sum .; \
-    cmp /materials/corrected/go.mod go.mod; \
-    cmp /materials/corrected/go.sum go.sum; \
-    mkdir -p /out/evidence; \
-    sha256sum /tmp/seaweedfs-source.tar.gz > /out/evidence/source-sha256.txt; \
-    sha256sum /materials/original/go.mod /materials/original/go.sum > /out/evidence/original-module-sha256.txt; \
-    sha256sum go.mod go.sum > /out/evidence/corrected-module-sha256.txt; \
-    go version > /out/evidence/compiler-version.txt; \
-    go mod download -json all > /out/evidence/module-download.json; \
-    go mod verify > /out/evidence/module-verify.txt; \
-    go list -m -json all > /out/evidence/module-inventory.json; \
-    cmp /materials/corrected/go.mod go.mod; \
-    cmp /materials/corrected/go.sum go.sum
+RUN /bin/sh /materials/prepare-source.sh
 
 # Failed upstream tests or compilation remain exportable through target evidence.
 # The runtime target below independently requires every status to be zero.
@@ -54,6 +29,7 @@ LABEL org.opencontainers.image.source="https://github.com/CleMeY15/auto-world" \
       io.auto-world.seaweedfs.patch-go-mod-sha256="5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9" \
       io.auto-world.seaweedfs.authority="diagnostic-only-not-admitted"
 RUN --network=none --mount=type=bind,from=weed-build,source=/out,target=/tmp/weed-build,readonly set -eu; \
+    test "$(cat /tmp/weed-build/evidence/preparation.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/package-list.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/go-test.exit-code)" = 0; \
     test "$(cat /tmp/weed-build/evidence/go-test-capture.exit-code)" = 0; \

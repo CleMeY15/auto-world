@@ -1,6 +1,6 @@
 # TASK-0005 managed service dependency refresh
 
-Status: SOURCE_IMPLEMENTED_ACTUAL_IMAGE_VALIDATION_PENDING, 9 November 2026.
+Status: OPENSEARCH_DIAGNOSTIC_PASSED_SEAWEED_PREPARATION_BLOCKED, 9 November 2026.
 
 The [verified JDK increment](TASK-0005-jdk-builder-refresh.md) leaves one OpenSearch Guava HIGH and two SeaweedFS Go-module HIGH findings. The [module-local Guava plan](../../roadmap/plans/TASK-0005-opensearch-guava-refresh.md) and [SeaweedFS derivative plan](../../roadmap/plans/TASK-0005-seaweed-managed-go-refresh.md) received ordered dependency, architecture and distinct critic review before implementation. Their reviewed candidate hashes and exact upstream materials are recorded in those plans. No result from the preceding image build qualifies these changed subjects.
 
@@ -14,4 +14,20 @@ Both independent implementation reviews approve diagnostic execution. Local lint
 
 Service implementation commit `97497b2ee35bb5f0be80ff0f93d35be1f48dbb2c` was normally merged with validated main `37a6e5ea90a8469491b295b97a41a4a671b587a7`, producing `21b0f0b7ca9d9e5bbb33b352daa0205498aa4a61` without conflicts. The shared SDK fixture correction and product changes are inherited intact; no cherry-pick, prototype edit or preview restart was performed. New combined-source CI remains mandatory.
 
-Fresh exact-source GitHub diagnostics, original-artifact replay and independent acceptance remain pending. In particular, the new SeaweedFS main version or upstream test profile may still be rejected; no exemption has been introduced. There is no image publication, admission, support activation or final TASK-0005 milestone claim.
+## Actual combined-source results
+
+Source `4ae4acf433dc66f24427f4bf02f0f8da15ef70d4` and tested merge `0099b55196fe354015dc62de2dff0204a459dfdd` have the same tree `43c28320774ef55b5c1b544269855d9909f40a5b`. The [quality run42594169155](https://github.com/CleMeY15/auto-world/actions/runs/42594169155) closes the local environment gaps: lint14/14 and types23/23 uncached; root2,880 passes/60 existing exclusions/zero failures; workspace747 passes/zero failures; build14/14; browser532 passes/10 existing WebKit exclusions/zero retries; secrets1,324 files; dependency audit clear. These results qualify that source, not later repairs.
+
+The [managed diagnostic42594168902](https://github.com/CleMeY15/auto-world/actions/runs/42594168902) qualifies both builders and the available PostgreSQL, OpenSearch, Redis and AWS CLI subjects with zero findings or blockers. OpenSearch preserves the historical16 reports/1,736 tests/47 existing skips/zero failures or errors. Its new transport-grpc coverage has1,416 unit and11 internal-cluster tests, all passing with zero skips. Independent replay verifies the exact final Guava/failureaccess JARs,22 licence files, JDK restoration, original/fixed snapshot controls and all three capture phases. The original artifact13664037853 is2,913,843 bytes, SHA-256 `f864f02abd0cc6a8c21dd8550335ec05c4d1233afddf60b399c25044afc45027`; the replay checks the484 exported evidence identities, full available JSON/SBOM pairs, scanner controls and database identities.
+
+The run remains failed: both SeaweedFS runtime and evidence builds stop in their first source-preparation block. No SeaweedFS image, Go tests, actual main-module tuple or functional runtime result exists. The retained Docker error tail identifies the block but loses the precise subcommand. The Rust source-lock controls remain valid; the absent candidate prevents helper measurement. Thirty-two owned-container absence checks complete without uncertain cleanup. No generic main-module exception is justified by this run.
+
+The independent replay passes20/20 available checks and concludes `PARTIAL`, preserving the failed global receipt. Its report SHA-256 is `4b2c446af6b955c5c31d13404bca31ed92f89f6369b228866710a882132670e8`. Public text evidence does not substitute for independently retained final image archives or executable bytes.
+
+The preparation repair retains each phase's original stdout, stderr and status, records the first failure, and exports those diagnostics without running later phases. Both the runtime recipe and test-evidence reader require successful preparation. Exact source/compiler/module checks and licence requirements remain; only byte-count whitespace is normalized for shell portability. No dependency or capture limit changes. A new exact-source diagnostic is required to identify the original cause and validate this repair.
+
+The repair receives independent implementation `APPROVE`:41 focused tests pass, including malformed status, strict licence and failed-export regressions. The full affected Linux suite has598 cases:597 pass, one existing platform exclusion, zero failures. Local lint14/14 and typecheck23/23 pass uncached; build14/14 passes (eight cached tasks); Secretlint1,327 files and dependency audit pass. No actual candidate was executed by these local fixtures or reviews.
+
+The separate [upstream audit42594168967](https://github.com/CleMeY15/auto-world/actions/runs/42594168967) still rejects175 findings: PostgreSQL26, OpenSearch132, SeaweedFS2 and AWS CLI15; Redis has none. The corrected local subjects above do not reclassify those upstream subjects. Artifact13662044911 SHA-256 `553d065b89a74540415c19d39557e3e5e9547a153b6d049ad7c564a69c2b2d79` was independently replayed across all10 JSON/SBOM files and1,621 packages.
+
+There is no image publication, admission, support activation or final TASK-0005 milestone claim. SeaweedFS preparation, normal-profile tests, actual main coverage, helper binding and runtime acceptance remain open, followed by the existing provenance, retention, restoration and final acceptance obligations.
