@@ -13,16 +13,31 @@
     {
       "role": "jdk-builder",
       "repository": "library/eclipse-temurin",
-      "version": "25.0.4.1_1-jdk-noble",
-      "manifestDigest": "sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e",
-      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0"}
+      "version": "25.0.5_8-jdk-ubi10-minimal",
+      "manifestDigest": "sha256:6d870f0c9a54ea090e1ed8396a4926f183b1d379934248b0d335567282417517",
+      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3"}
     }
   ],
   "candidates": [
     {"role": "postgres", "dockerfile": "infra/managed-images/Dockerfile.postgres", "baseDigest": "sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4"},
     {"role": "opensearch", "dockerfile": "infra/managed-images/Dockerfile.opensearch-core", "baseDigest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"},
-    {"role": "aws-cli", "dockerfile": "infra/managed-images/Dockerfile.aws-cli", "baseDigest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"}
+    {"role": "aws-cli", "dockerfile": "infra/managed-images/Dockerfile.aws-cli", "baseDigest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"},
+    {"role": "seaweedfs", "dockerfile": "infra/managed-images/Dockerfile.seaweedfs", "baseDigest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"}
   ],
+  "seaweedfs": {
+    "version": "4.51",
+    "sourceCommit": "ffa87c25fdf587178b1521ad87f2a4a72a02e584",
+    "archiveBytes": 81881370,
+    "archiveSha256": "d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9",
+    "originalGoModSha256": "4980945b680fa12c0457f0aa909926401860d66e816eccc6f8508c71a5290ee8",
+    "originalGoSumSha256": "78c8b44110c4633c5721e0f7dad0fe99308116ebb7bdd5dafb160dc378f31d89",
+    "goModSha256": "5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9",
+    "goSumSha256": "abd0d0de5302a1a571dcff5527f8bc929380f9d80abd0593416e9129dde0e96a",
+    "licenseSha256": "d789d433cc11da163273d1e39be2e8fa67642f9a58ef220d3f258fa9c14ef613",
+    "goJose": "v4.1.6",
+    "xNet": "v0.62.0",
+    "displayCommit": "ffa87c2-aw-go-5b789254"
+  },
   "gosu": {
     "version": "1.20",
     "sourceCommit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
@@ -43,6 +58,12 @@
     "gradleWrapperJarSha256": "7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d",
     "jackson2": "2.22.3",
     "jackson3": "3.2.3",
+    "grpcGuava": "33.8.0-jre",
+    "grpcFailureaccess": "1.0.3",
+    "grpcBuildOriginalSha256": "c77756ad3c96ad3345df98b038bed1e9f1bfbb5947af2e055bd719a3ed0a3e71",
+    "grpcBuildPatchedSha256": "c8312d409ea46ecc3407bcbd555ef2551177e554ebda2c5ce2419cfefccd4323",
+    "grpcGuavaJarSha256": "97b79ec3f2c0a6313a0c2df51ce1abdf8907e6531803467b81efcaaf99b35161",
+    "grpcFailureaccessJarSha256": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb",
     "runtimeJdk": "PRESERVE_EXACT_BASE_DIRECTORY_VERIFY_BEFORE_AFTER"
   },
   "amazonLinux": {

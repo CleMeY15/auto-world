@@ -6,7 +6,7 @@ import process from "node:process";
 
 const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
-const CAPS = new Map([["postgres", 2 * GiB], ["opensearch", 4 * GiB], ["aws-cli", 2 * GiB]]);
+const CAPS = new Map([["postgres", 2 * GiB], ["opensearch", 4 * GiB], ["aws-cli", 2 * GiB], ["seaweedfs", 2 * GiB]]);
 const IDENTITY = ["dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtimeNs", "ctimeNs"];
 const fail = (code) => { throw new Error(code); };
 const keysAre = (value, keys) => value !== null && typeof value === "object" && !Array.isArray(value) &&

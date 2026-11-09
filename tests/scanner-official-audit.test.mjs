@@ -72,8 +72,8 @@ test("release config cannot omit a helper, substitute a repository or change the
     (value) => { delete value.scanner.binarySha256; },
     (value) => { value.scanner.mainModuleVersion = "v0.76.1"; },
     (value) => { value.scanner.mainModuleVersion = "v0.76.2+dirty"; },
-    (value) => { value.scanner.vcsModified = false; },
-    (value) => { value.scanner.vcsModified = "true"; },
+    (value) => { value.scanner.vcsModified = true; },
+    (value) => { value.scanner.vcsModified = "false"; },
   ]) {
     const changed = clone(config); mutate(changed);
     assert.throws(() => validateOfficialReleaseConfig(changed), /scanner_official_config_invalid/u);
@@ -81,7 +81,7 @@ test("release config cannot omit a helper, substitute a repository or change the
 });
 
 test("binary identity refuses changed hashes, malformed snapshots and expected-hash substitution", () => {
-  const expected = { sha256: "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83", size: 123 };
+  const expected = { sha256: "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3", size: 123 };
   assert.equal(validateOfficialScannerIdentity(expected, config.scanner), expected);
   for (const identity of [{ ...expected, sha256: "a".repeat(64) }, { ...expected, sha256: expected.sha256.toUpperCase() },
     { ...expected, size: 0 }, { ...expected, size: NaN }, { ...expected, sha256: undefined }]) {
@@ -140,7 +140,7 @@ test("absence proof rejects transport errors, foreign names and killed inspectio
 function pairedReports() {
   const ArtifactName = `${image.repository}@${image.platform.digest}`;
   const prop = (name, value) => ({ name: `aquasecurity:trivy:${name}`, value });
-  const report = { SchemaVersion: 2, CreatedAt: "2026-10-25T12:00:00Z", ArtifactName, ArtifactType: "container_image", Trivy: { Version: "0.76.1" },
+  const report = { SchemaVersion: 2, CreatedAt: "2026-10-25T12:00:00Z", ArtifactName, ArtifactType: "container_image", Trivy: { Version: "0.76.2" },
     Metadata: { ImageConfig: { os: "linux", architecture: "amd64" }, OS: { Family: "alpine", Name: "3.24.1", EOSL: false } },
     Results: [
       { Target: `${ArtifactName} (alpine 3.24.1)`, Class: "os-pkgs", Type: "alpine", Packages: [{ Name: "fixture-os", Epoch: 1, Version: "1.2", Release: "r3" }] },
@@ -217,7 +217,7 @@ test("official grouped Maven/npm identities and all five aggregated result types
 
 test("official report version adaptation retains the existing critical/fixable-high gates and subject rejection", () => {
   const { report } = pairedReports();
-  const evaluate = (value) => evaluateImageReport(value, image, [], new Date("2026-10-25T12:00:01Z"), { expectedScannerVersion: "0.76.1" });
+  const evaluate = (value) => evaluateImageReport(value, image, [], new Date("2026-10-25T12:00:01Z"), { expectedScannerVersion: "0.76.2" });
   assert.deepEqual(evaluate(report), { findings: [], blockers: [] });
   report.Results[0].Vulnerabilities = [{ Severity: "HIGH", VulnerabilityID: "CVE-2099-12345", PkgName: "fixture-os", InstalledVersion: "1:1.2-r3", FixedVersion: "1:1.3-r0" }];
   assert.equal(evaluate(report).blockers[0].code, "image_vulnerability_blocked");

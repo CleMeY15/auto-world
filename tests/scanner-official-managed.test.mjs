@@ -34,8 +34,9 @@ function deepFreeze(value) {
 function pairedReports(role = "postgres") {
   const bound = subject(role);
   const prop = (name, value) => ({ name: `aquasecurity:trivy:${name}`, value });
+  // Synthetic current-scanner adaptation only. The retained managed-gosu raw fixtures stay historical and byte-bound.
   const report = { SchemaVersion: 2, CreatedAt: now.toISOString(), ArtifactName: bound.artifactName,
-    ArtifactType: "container_image", Trivy: { Version: "0.76.1" },
+    ArtifactType: "container_image", Trivy: { Version: config.scanner.version },
     Metadata: { ImageID: imageId, ImageConfig: { os: "linux", architecture: "amd64" }, OS: { Family: "alpine", Name: "3.24.1", EOSL: false } },
     Results: [
       { Target: `${bound.artifactName} (alpine 3.24.1)`, Class: "os-pkgs", Type: "alpine", Packages: [{ Name: "fixture-os", Epoch: 1, Version: "1.2", Release: "r3" }] },
@@ -150,6 +151,13 @@ test("managed lock refuses substituted source, compiler, catalogue, repository a
     (value) => { value.buildTools[1].manifestDigest = `sha256:${"e".repeat(64)}`; },
     (value) => { value.buildTools[1].platform.digest = `sha256:${"e".repeat(64)}`; },
     (value) => { value.buildTools[1].platform.architecture = "arm64"; },
+    (value) => { value.buildTools[1].version = "25.0.4.1_1-jdk-noble"; },
+    (value) => { Object.assign(value.buildTools[1], {
+      version: "25.0.4.1_1-jdk-noble",
+      manifestDigest: "sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e",
+      platform: { os: "linux", architecture: "amd64", variant: null,
+        digest: "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0" },
+    }); },
     (value) => { value.gosu.sourceCommit = "e".repeat(40); },
     (value) => { value.gosu.archiveSha256 = "e".repeat(64); },
     (value) => { value.gosu.archiveBytes--; },
@@ -161,6 +169,8 @@ test("managed lock refuses substituted source, compiler, catalogue, repository a
     (value) => { value.opensearch.gradleVersion = "9.7.0"; },
     (value) => { value.opensearch.jackson2 = "2.22.2"; },
     (value) => { value.opensearch.jackson3 = "3.2.2"; },
+    ...["grpcGuava", "grpcFailureaccess", "grpcBuildOriginalSha256", "grpcBuildPatchedSha256", "grpcGuavaJarSha256", "grpcFailureaccessJarSha256"]
+      .map((key) => (value) => { value.opensearch[key] = "substituted"; }),
     (value) => { value.opensearch.gradleDistributionSha256 = "e".repeat(64); },
     (value) => { value.opensearch.gradleWrapperJarSha256 = "f".repeat(64); },
     (value) => { value.amazonLinux.releasever = "latest"; },
@@ -183,7 +193,7 @@ test("Buildx metadata binds the inspected configID while retaining a distinct va
   const originalInspect = inspected(), originalMetadata = metadata();
   deepFreeze(originalInspect); deepFreeze(originalMetadata);
   assert.deepEqual(audit.validateManagedLocalImage(originalInspect, originalMetadata, tag), { imageId, os: "linux", architecture: "amd64" });
-  for (const role of ["postgres", "opensearch", "aws-cli"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) {
     const ownedTag = `auto-world-managed/${role}:${"2".repeat(40)}`;
     const value = inspected(); value[0].RepoTags = [ownedTag];
     assert.deepEqual(audit.validateManagedLocalImage(value, metadata(), ownedTag), { imageId, os: "linux", architecture: "amd64" });
@@ -208,7 +218,7 @@ test("Buildx metadata binds the inspected configID while retaining a distinct va
 });
 
 test("archive scanner uses the actual read-only input with no network, daemon socket or host authority", () => {
-  for (const role of ["postgres", "opensearch", "aws-cli"]) for (const format of ["json", "cyclonedx"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) for (const format of ["json", "cyclonedx"]) {
     const archive = path.resolve(`synthetic-managed/managed-image-${role}.tar`);
     const args = audit.officialArchiveScanArguments(carrier, scanner, cache, archive, format);
     assert.equal(args[0], "run");
@@ -239,7 +249,7 @@ test("archive scanner uses the actual read-only input with no network, daemon so
 });
 
 test("local archive reports accept each owned artifact and preserve immutable raw evidence", () => {
-  for (const role of ["postgres", "opensearch", "aws-cli"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) {
     const { bound, report, sbom } = pairedReports(role);
     const before = JSON.stringify({ bound, report, sbom });
     deepFreeze(bound); deepFreeze(report); deepFreeze(sbom);

@@ -6,6 +6,7 @@ import test from "node:test";
 const root = path.resolve(import.meta.dirname, "..");
 const workflow = JSON.parse(await readFile(path.join(root, ".github/workflows/data-foundation-audit.yml"), "utf8"));
 const release = JSON.parse(await readFile(path.join(root, "infra/scanner/official-release.json"), "utf8"));
+const auditSource = await readFile(path.join(root, "scripts/scanner/official-audit.mjs"), "utf8");
 const steps = (value) => value.jobs.audit.steps;
 const step = (value, id) => steps(value).find((entry) => entry.id === id);
 const clone = () => JSON.parse(JSON.stringify(workflow));
@@ -148,17 +149,17 @@ test("automatic audit triggers cover release, evaluator and fixture inputs on PR
 
 test("archive expectations bind the reviewed upstream release and all five candidate roles", () => {
   assert.deepEqual(release.scanner, {
-    version: "0.76.1",
-    sourceCommit: "e713f67f7d54decdcd9b3132c9751833dcced698",
-    archive: { name: "trivy_0.76.1_Linux-64bit.tar.gz", bytes: 52676794,
-      sha256: "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0" },
+    version: "0.76.2",
+    sourceCommit: "3f6334d223b52188324af3b9923b4249cd206652",
+    archive: { name: "trivy_0.76.2_Linux-64bit.tar.gz", bytes: 52714130,
+      sha256: "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf" },
     repository: "aquasecurity/trivy",
     signerWorkflow: "aquasecurity/trivy/.github/workflows/reusable-release.yaml",
-    sourceRef: "refs/tags/v0.76.1",
+    sourceRef: "refs/tags/v0.76.2",
     goVersion: "1.27.3",
-    binarySha256: "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83",
-    mainModuleVersion: "v0.76.1+dirty",
-    vcsModified: true,
+    binarySha256: "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3",
+    mainModuleVersion: "v0.76.2",
+    vcsModified: false,
   });
   assert.deepEqual(release.images.map((image) => image.role).sort(), ["aws-cli", "opensearch", "postgres", "redis", "seaweedfs"]);
   for (const image of release.images) {
@@ -167,6 +168,8 @@ test("archive expectations bind the reviewed upstream release and all five candi
     assert.equal(image.platform.os, "linux");
     assert.equal(image.platform.architecture, "amd64");
   }
+  assert.match(auditSource, /\^Version: 0\\\.76\\\.2\\r\?\$\/mu\.test\(version\)/u);
+  assert.doesNotMatch(auditSource, /\^Version: 0\\\.76\\\.1\\r\?\$\/mu\.test\(version\)/u);
 });
 
 test("positive and refusal controls precede single-member extraction and data-only build inspection", () => {
