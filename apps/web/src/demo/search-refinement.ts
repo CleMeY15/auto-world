@@ -1,10 +1,10 @@
 import type { DemoCatalogResponseV2 } from "@auto-world/demo-search-contract";
 
-import type { DemoFilterInputV2 } from "./model";
+import type { DemoFilterInputV2 } from "./model.ts";
 import {
   parseSavedSearchCriteria,
   savedSearchToFilterInput,
-} from "./saved-searches";
+} from "./saved-searches.ts";
 
 export type SearchCriterion =
   | "text"
