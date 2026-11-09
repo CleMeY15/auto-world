@@ -111,6 +111,7 @@ test("rename changes only a normalized name at its existing position and survive
   expect(network).toEqual([]);
   await page.reload();
   await expect(page.locator("#demo-saved-search-name-1")).toHaveText("Électriques");
+  await page.locator("#demo-saved-search-criteria-toggle-1").click();
   await expect(page.locator(".demo-saved-search").nth(1)).toContainText("etoile modele");
   await expect(page.locator(".demo-saved-search").nth(1)).toContainText("45000");
 });
