@@ -74,6 +74,30 @@ test("removes mileage while preserving maximum safe cents exactly", () => {
   assert.equal(parseFilterInputV3(input).ok, true);
 });
 
+test("removes a numeric field from V2 while preserving the other exact value and sort", () => {
+  const input = removeSearchCriterion({
+    query: { schemaVersion: 2, sort: "price_desc", priceMaxMinor: 12_345, mileageMaxKm: 1e-7 },
+  }, "priceMaxMinor");
+  assert.ok(input);
+  assert.equal(input.priceMaxEUR, "");
+  assert.equal(input.mileageMaxKm, "0.0000001");
+  assert.deepEqual(parseFilterInputV3(input), {
+    ok: true,
+    query: { schemaVersion: 2, sort: "price_desc", mileageMaxKm: 1e-7 },
+  });
+});
+
+test("removing the last V2 field retains a cursorless sorted query", () => {
+  const input = removeSearchCriterion({
+    query: { schemaVersion: 2, sort: "listing_asc", priceMaxMinor: 12_345 },
+  }, "priceMaxMinor");
+  assert.ok(input);
+  assert.deepEqual(parseFilterInputV3(input), {
+    ok: true,
+    query: { schemaVersion: 2, sort: "listing_asc" },
+  });
+});
+
 test("removes the first registration year without changing identity", () => {
   const input = remove("firstRegistrationYear");
   assert.ok(input);

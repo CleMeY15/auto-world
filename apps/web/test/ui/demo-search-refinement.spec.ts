@@ -234,6 +234,19 @@ test("browser history cannot resurrect stale cancellation", async ({ page }) => 
   await expect(page.locator("#demo-refinement-cancel")).toHaveCount(0);
 });
 
+test("a rapid route change cannot preserve the initial refinement transition", async ({ page }) => {
+  const submitted = await openAllCriteriaResults(page);
+  await page.evaluate(() => {
+    document.getElementById("demo-remove-priceMaxMinor")?.click();
+    window.location.hash = "#saved";
+  });
+  await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
+  await page.evaluate(() => { window.location.hash = "#search"; });
+  await expect(page.getByRole("heading", { name: "Explorer la démo" })).toBeVisible();
+  await expect(page.locator("#demo-refinement-cancel")).toHaveCount(0);
+  expect(submitted).toHaveLength(1);
+});
+
 test("a mismatching catalogue disables retained-identity removals without exposing identifiers", async ({ page }) => {
   await openAllCriteriaResults(page, { responseFixture: "refinement-old-fixture" });
   await expect(page.locator("#demo-remove-makeId")).toBeEnabled();
@@ -286,6 +299,19 @@ test("an empty accepted result still offers a request-free criterion adjustment"
   await page.locator("#demo-remove-priceMaxMinor").click();
   await expect(page.getByLabel("Budget maximum (€)")).toHaveValue("");
   expect(submitted).toHaveLength(1);
+});
+
+test("offline preparation and cancellation keep the accepted result usable without a request", async ({ page, context }) => {
+  const submitted = await openAllCriteriaResults(page);
+  await context.setOffline(true);
+  await page.locator("#demo-remove-priceMaxMinor").click();
+  await expect(page.getByLabel("Budget maximum (€)")).toHaveValue("");
+  await expect(page.locator("#demo-refinement-cancel")).toBeVisible();
+  await page.locator("#demo-refinement-cancel").click();
+  await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
+  await expect(page.locator(".demo-result-card")).toHaveCount(1);
+  expect(submitted).toHaveLength(1);
+  await context.setOffline(false);
 });
 
 test("criterion controls remain accessible across the viewport and theme matrix", async ({ page, browserName }, testInfo) => {
