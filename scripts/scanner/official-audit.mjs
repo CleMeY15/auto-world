@@ -182,6 +182,31 @@ export function bindManagedGosuEvidence(subject, proof = {}) {
     os: subject.os, architecture: subject.architecture, ...pin };
 }
 
+export function parseManagedGosuModulePayloads(bytes, publicIdentity) {
+  const invalid = () => fail("scanner_gosu_module_payloads_invalid");
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > 1024 ||
+      publicIdentity === null || typeof publicIdentity !== "object" ||
+      Object.keys(publicIdentity).sort().join(",") !== "path,sha256,size" ||
+      publicIdentity.path !== "module-proxy-payloads.tsv" || publicIdentity.size !== bytes.length ||
+      publicIdentity.sha256 !== createHash("sha256").update(bytes).digest("hex")) invalid();
+  const lines = bytes.toString("utf8").split("\n");
+  if (lines.length !== 7 || lines.pop() !== "") invalid();
+  const files = [];
+  let totalBytes = 0;
+  for (const [module, version] of [["github.com/moby/sys/user", "v0.4.1"], ["golang.org/x/sys", "v0.1.0"]]) {
+    for (const kind of ["info", "mod", "zip"]) {
+      const fields = lines[files.length].split("\t");
+      if (fields.length !== 5 || fields[0] !== module || fields[1] !== version || fields[2] !== kind ||
+          !/^[1-9][0-9]{0,7}$/u.test(fields[3]) || !/^[a-f0-9]{64}$/u.test(fields[4])) invalid();
+      const size = Number(fields[3]);
+      totalBytes += size;
+      if (size > 16 * MiB || totalBytes > 32 * MiB) invalid();
+      files.push({ module, version, kind, bytes: size, sha256: fields[4] });
+    }
+  }
+  return { files, totalBytes, evidence: { path: publicIdentity.path, size: bytes.length, sha256: publicIdentity.sha256 } };
+}
+
 export function managedGosuHashArguments(subject) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" || !digest(subject.imageId) ||
       subject.os !== "linux" || subject.architecture !== "amd64" || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
@@ -1194,6 +1219,13 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               build.gosuSourceEvidence = bindManagedGosuEvidence(build.subject, { finalInventory,
                 buildInfo: readFileSync(path.join(evidence, "build-info.txt")), binaryInventory: readFileSync(path.join(evidence, "binary-sha256.txt")),
                 sourceInventory: readFileSync(path.join(evidence, "source-sha256.txt")), goMod: readFileSync(path.join(evidence, "go.mod")), goSum: readFileSync(path.join(evidence, "go.sum")) });
+              // Read the captured public copy, authenticated against that same build's export.
+              let gosuModulePayloadBytes;
+              try { gosuModulePayloadBytes = readFileSync(path.join(published, candidate.role, "module-proxy-payloads.tsv")); }
+              catch { fail("scanner_gosu_module_payloads_invalid"); }
+              build.gosuModulePayloads = parseManagedGosuModulePayloads(
+                gosuModulePayloadBytes,
+                build.publicEvidence.find((entry) => entry.path === "module-proxy-payloads.tsv"));
               localImages.get(candidate.role).gosuEvidence = build.gosuSourceEvidence;
               build.runtimeGosuEvidence = exportManagedTextEvidence(runtime, path.join(published, "postgres-runtime"));
             }
