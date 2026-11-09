@@ -4,6 +4,12 @@ Status on 2026-11-09: `PREPARATION_ONLY / NO_PUBLICATION_AUTHORITY`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`. Support dates remain null for
 these candidates. This record does not alter historical admissions or archives.
 
+Latest continuation: M3A is accepted by [PR237's protected-main checkpoint](https://github.com/CleMeY15/auto-world/pull/237#issuecomment-6750591581).
+The [scanner-retention bootstrap tranche](TASK-0005-scanner-retention-bootstrap.md)
+now implements the first step of the separately approved M3B plan. Its actual
+publication and retention proofs remain pending; older pending-M3A statements
+below describe their original checkpoints.
+
 ## Reviewed source and current boundary
 
 [PR230](https://github.com/CleMeY15/auto-world/pull/230) merged normally as
