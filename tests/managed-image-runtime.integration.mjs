@@ -59,14 +59,14 @@ export function validateRuntimeInput(value, expectedRun) {
     ensure(Array.isArray(item.evidence) && item.evidence.length <= 512);
     for (const file of item.evidence) proof(file, 4 * MiB, "evidence");
     const subject = item.subject;
-    if (["postgres", "opensearch", "aws-cli"].includes(item.role)) {
+    if (["postgres", "opensearch", "aws-cli", "seaweedfs"].includes(item.role)) {
       ensure(item.evidence.length > 0 && keys(subject, ["kind", "imageId", "os", "architecture", "archiveSha256", "archiveBytes", "archiveCapBytes", "artifactName"]) &&
         subject.kind === "LOCAL_MANAGED_IMAGE_V1" && subject.imageId === item.imageId && subject.os === "linux" && subject.architecture === "amd64" &&
         matches(HASH, subject.archiveSha256) && Number.isSafeInteger(subject.archiveBytes) && subject.archiveBytes > 0 &&
         subject.archiveCapBytes === (item.role === "opensearch" ? 4 : 2) * 1024 ** 3 && subject.archiveBytes <= subject.archiveCapBytes && subject.artifactName === `/managed-image-${item.role}.tar`);
     } else {
       ensure(keys(subject, ["kind", "repository", "manifestDigest", "platform"]) && subject.kind === "UPSTREAM_REGISTRY_SUBJECT" &&
-        subject.repository === (item.role === "redis" ? "library/redis" : "chrislusf/seaweedfs") && matches(DIGEST, subject.manifestDigest) &&
+        item.role === "redis" && subject.repository === "library/redis" && matches(DIGEST, subject.manifestDigest) &&
         keys(subject.platform, ["os", "architecture", "variant", "digest"]) && subject.platform.os === "linux" && subject.platform.architecture === "amd64" &&
         subject.platform.variant === null && matches(DIGEST, subject.platform.digest));
     }

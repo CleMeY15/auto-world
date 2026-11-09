@@ -488,8 +488,8 @@ test("bounded native output capture is fixed to the three internal-cluster phase
 
   assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
-  // Official 0.76.2 profile refresh; native output capture and its caps are unchanged.
-  assert.equal(sha256(officialAudit), "57a401578c8cf505ab0bba52bf3332a41dd6723c7be7d384b2a6c5f190a57715");
+  // Reviewed fourth managed candidate; native output capture and its caps are unchanged.
+  assert.equal(sha256(officialAudit), "731245a88a13b5d3cea41368af1b06752abbb45ee793138a5a5955cc4eba757d");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);
@@ -754,7 +754,7 @@ test("JDK inventory preserves required fields and plugin absence rejects visible
 });
 
 test("all preparation scripts have valid Bash syntax without building or executing candidate code", () => {
-  for (const name of ["patch-catalogue.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh", "verify-test-output-capture.sh"]) {
+  for (const name of ["patch-catalogue.sh", "patch-transport-grpc-guava.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh", "verify-test-output-capture.sh"]) {
     const result = spawnSync(bash, ["-n", path.join(directory, name).replaceAll("\\", "/")], { encoding: "utf8", windowsHide: true });
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
   }
@@ -799,6 +799,7 @@ test("core launch configuration and test gates preserve the selected limits and 
   assert.match(recipe, /CMD \[\]/u);
   assert.doesNotMatch(recipe, /DISABLE_INSTALL_DEMO_CONFIG|DISABLE_SECURITY_PLUGIN/u);
   for (const task of [":modules:ingest-geoip:updateShas", ":modules:ingest-geoip:dependencyLicenses", ":modules:ingest-geoip:thirdPartyAudit",
+    ":modules:transport-grpc:updateShas", ":modules:transport-grpc:dependencyLicenses", ":modules:transport-grpc:thirdPartyAudit", ":modules:transport-grpc:check",
     ":modules:ingest-geoip:test", ":modules:ingest-geoip:yamlRestTest", ":rest-api-spec:yamlRestTest",
     ":server:internalClusterTest", ":distribution:archives:buildNoJdkLinux", ":distribution:archives:no-jdk-linux-tar:assemble"]) assert.ok(build.includes(task), task);
   assertXContentProjectContract(build);

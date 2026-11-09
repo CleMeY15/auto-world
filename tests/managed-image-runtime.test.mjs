@@ -24,7 +24,7 @@ function fixture() {
   return { schemaVersion: 1, run: clone(run), ownerToken: "11111111-1111-4111-8111-111111111111", sourceInputs: [proof("bootstrap.sh")],
     roles: ["postgres", "opensearch", "redis", "seaweedfs", "aws-cli"].map((role, index) => ({ role, imageId: imageId(index), platform: "linux/amd64",
       reports: { json: proof(`${role}.json`), sbom: proof(`${role}.cdx.json`) }, evidence: [proof(`${role}-evidence.txt`)],
-      subject: ["postgres", "opensearch", "aws-cli"].includes(role)
+      subject: ["postgres", "opensearch", "aws-cli", "seaweedfs"].includes(role)
         ? { kind: "LOCAL_MANAGED_IMAGE_V1", imageId: imageId(index), os: "linux", architecture: "amd64", archiveSha256: hash,
           archiveBytes: 512, archiveCapBytes: (role === "opensearch" ? 4 : 2) * GiB, artifactName: `/managed-image-${role}.tar` }
         : { kind: "UPSTREAM_REGISTRY_SUBJECT", repository: role === "redis" ? "library/redis" : "chrislusf/seaweedfs",
@@ -153,7 +153,7 @@ for (const [name, mutate] of [
   ["coerced archive hash", (v) => { v.roles[0].subject.archiveSha256 = [hash]; }],
 ]) test(`runtime input rejects ${name}`, () => { const value = fixture(); const replaced = mutate(value); assert.throws(() => validateRuntimeInput(replaced ?? value, run)); });
 test("runtime input requires each role's exact archive ceiling rather than an adjustable limit", () => {
-  for (const index of [0, 1, 4]) for (const delta of [-1, 1]) { const value = fixture(); value.roles[index].subject.archiveCapBytes += delta; assert.throws(() => validateRuntimeInput(value, run)); }
+  for (const index of [0, 1, 3, 4]) for (const delta of [-1, 1]) { const value = fixture(); value.roles[index].subject.archiveCapBytes += delta; assert.throws(() => validateRuntimeInput(value, run)); }
 });
 test("runtime run syntax remains strict even when an invalid value matches the parent binding", () => {
   for (const [key, invalid] of [["sourceCommit", "A".repeat(40)], ["runId", "01"], ["runId", "9".repeat(25)], ["attempt", "0"], ["attempt", ["2"]]]) {

@@ -56,6 +56,7 @@ test("each Buildx context denies host-private data and admits only its reviewed 
     postgres: ["infra/managed-images/Dockerfile.postgres", "infra/managed-images/gosu-functional-tests.sh", "infra/managed-images/postgres/", "infra/managed-images/postgres/**"],
     "aws-cli": ["infra/managed-images/Dockerfile.aws-cli"],
     "opensearch-core": ["infra/managed-images/Dockerfile.opensearch-core", "infra/managed-images/opensearch-core/", "infra/managed-images/opensearch-core/**"],
+    seaweedfs: ["infra/managed-images/Dockerfile.seaweedfs", "infra/managed-images/seaweedfs/", "infra/managed-images/seaweedfs/**"],
   };
   for (const [role, inputs] of Object.entries(allowed)) {
     const patterns = read(`infra/managed-images/Dockerfile.${role}.dockerignore`).trim().split("\n");

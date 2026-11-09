@@ -24,6 +24,7 @@ import {
   validateSeaweedRustPublicEvidence,
   validateSeaweedRustPublicSourceMapping,
   validateSeaweedRustSourceLock,
+  validateSeaweedRustSubject,
 } from "../scripts/scanner/seaweed-rust-source.mjs";
 import { auditAndPublishSeaweedRustControlReport, auditAndPublishSeaweedRustSourceReports,
   classifySeaweedRustHelperCommandFailure, classifySeaweedRustSubjectFailure, collectSeaweedRustHelperIdentity,
@@ -37,6 +38,9 @@ const metadata = JSON.parse(readFileSync(new URL("../infra/managed-images/seawee
 const official = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url), "utf8"));
 const now = new Date("2026-10-26T20:00:00Z");
 const imageId = metadata.image.configDigest;
+const localSubject = Object.freeze({ kind: "LOCAL_MANAGED_IMAGE_V1", imageId: `sha256:${"c".repeat(64)}`,
+  os: "linux", architecture: "amd64", archiveSha256: "d".repeat(64), archiveBytes: 512 * 1024 ** 2,
+  archiveCapBytes: 2 * 1024 ** 3, artifactName: "/managed-image-seaweedfs.tar" });
 const owner = "12345678-1234-4234-8234-123456789abc";
 const containerName = `aw-seaweed-rust-${owner}`;
 const error = /scanner_seaweed_rust_/u;
@@ -87,7 +91,7 @@ test("Seaweed Rust source audit exposes the complete reviewed behavior surface",
   for (const value of [validateSeaweedRustSourceLock, seaweedRustSourceFetchArguments, prepareSeaweedRustLockViews,
     seaweedRustScanArguments, validateSeaweedRustControlReport, validateSeaweedRustLockUniverse,
     helperContainerCreateArguments, helperCopyCommand, validateSeaweedRustHelperContainer,
-    validateSeaweedRustHelperAbsence, validateSeaweedRustHelperMeasurement, combineSeaweedRustGate,
+    validateSeaweedRustHelperAbsence, validateSeaweedRustHelperMeasurement, validateSeaweedRustSubject, combineSeaweedRustGate,
     validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, auditAndPublishSeaweedRustControlReport,
     auditAndPublishSeaweedRustSourceReports, classifySeaweedRustHelperCommandFailure, classifySeaweedRustSubjectFailure,
     exportSeaweedRustAuditReportPair, measureSeaweedRustHelperFile, runManagedSeaweedRustPostImageLifecycle]) {
@@ -122,6 +126,50 @@ test("source metadata accepts the exact reviewed lock without mutating it", () =
   assert.equal(validateSeaweedRustSourceLock(value, official), value);
   assert.equal(JSON.stringify(value), before);
 });
+
+test("subject validator preserves the historical upstream identity when no managed subject exists", () => {
+  const result = validateSeaweedRustSubject(metadata);
+  assert.equal(result.imageId, metadata.image.configDigest);
+  assert.equal(result.subject, undefined);
+  assert.deepEqual(result.baseImage, metadata.image);
+});
+
+test("subject validator binds one exact local config and archive while retaining the known base separately", () => {
+  const before = JSON.stringify(localSubject);
+  assert.deepEqual(validateSeaweedRustSubject(metadata, localSubject), {
+    imageId: localSubject.imageId, subject: localSubject, baseImage: metadata.image,
+  });
+  assert.equal(JSON.stringify(localSubject), before);
+});
+
+for (const [label, mutate] of [
+  ["subject kind", (subject) => { subject.kind = "UPSTREAM_REGISTRY_SUBJECT"; }],
+  ["subject image ID", (subject) => { subject.imageId = metadata.image.platformDigest; }],
+  ["coerced subject image ID", (subject) => { subject.imageId = [localSubject.imageId]; }],
+  ["subject operating system", (subject) => { subject.os = "windows"; }],
+  ["subject architecture", (subject) => { subject.architecture = "arm64"; }],
+  ["archive hash", (subject) => { subject.archiveSha256 = "e".repeat(64); subject.archiveSha256 += "0"; }],
+  ["coerced archive hash", (subject) => { subject.archiveSha256 = [localSubject.archiveSha256]; }],
+  ["archive bytes", (subject) => { subject.archiveBytes = subject.archiveCapBytes + 1; }],
+  ["archive cap", (subject) => { subject.archiveCapBytes -= 1; }],
+  ["archive artifact name", (subject) => { subject.artifactName = "/managed-image-postgres.tar"; }],
+]) {
+  test(`subject validator rejects a substituted ${label}`, () => {
+    const changed = clone(localSubject); mutate(changed);
+    assert.throws(() => validateSeaweedRustSubject(metadata, changed), /scanner_seaweed_rust_subject_invalid/u);
+  });
+}
+
+for (const [label, mutate] of [
+  ["base manifest", (value) => { value.image.manifestDigest = `sha256:${"a".repeat(64)}`; }],
+  ["base platform", (value) => { value.image.platformDigest = `sha256:${"a".repeat(64)}`; }],
+  ["base config", (value) => { value.image.configDigest = `sha256:${"a".repeat(64)}`; }],
+]) {
+  test(`subject validator rejects a substituted ${label} identity`, () => {
+    const changed = clone(metadata); mutate(changed);
+    assert.throws(() => validateSeaweedRustSubject(changed, localSubject), /scanner_seaweed_rust_subject_invalid/u);
+  });
+}
 
 for (const [label, mutate] of [
   ["source hash", (value) => { value.files[0].sha256 = "a".repeat(64); }],
@@ -373,6 +421,16 @@ test("helper measurement binds exact host-copy type, mode, link count, size and 
   assert.equal(result.intrinsicBinaryInventory, "NOT_ESTABLISHED");
 });
 
+test("helper measurement binds the managed subject and known base without claiming the upstream manifest", () => {
+  const role = metadata.roles[0], file = path.resolve("synthetic-rust", "weed-volume");
+  const result = validateSeaweedRustHelperMeasurement({ role: role.role, file,
+    info: { isFile: true, isSymbolicLink: false, nlink: 1, mode: 0o755 },
+    identity: { size: role.helper.bytes, sha256: role.helper.sha256 }, metadata, localSubject });
+  assert.deepEqual(result.subject, localSubject);
+  assert.deepEqual(result.baseImage, metadata.image);
+  assert.equal(Object.hasOwn(result, "imageDigest"), false);
+});
+
 for (const [label, mutate] of [
   ["symbolic link", (value) => { value.info.isSymbolicLink = true; }], ["multiple hard links", (value) => { value.info.nlink = 2; }],
   ["writable mode", (value) => { value.info.mode = 0o777; }], ["wrong size", (value) => { value.identity.size -= 1; }],
@@ -467,6 +525,16 @@ function helperCollectorFixture(overrides = {}) {
   return { containerId, events, input, inspected, operations };
 }
 
+function managedHelperCollectorFixture(overrides = {}) {
+  const item = helperCollectorFixture(overrides);
+  item.input.localSubject = clone(localSubject);
+  item.input.imageId = localSubject.imageId;
+  item.input.imageReport = { ArtifactName: localSubject.artifactName, ArtifactType: "container_image",
+    Metadata: { ImageID: localSubject.imageId, ImageConfig: { os: "linux", architecture: "amd64" } } };
+  item.inspected[0].Image = localSubject.imageId;
+  return item;
+}
+
 test("helper collector performs the finite stopped-container sequence and proves cleanup", async () => {
   const item = helperCollectorFixture();
   const result = await collectSeaweedRustHelperIdentity(item.input, item.operations);
@@ -479,6 +547,45 @@ test("helper collector performs the finite stopped-container sequence and proves
     "measure", "list", "measure", "measure", "remove", "absent"]);
   const remove = item.events.find((entry) => entry[0] === "remove")[1];
   assert.deepEqual(remove, ["container", "rm", "--volumes", item.containerId]);
+});
+
+test("helper collector binds both inherited helpers to the exact local config and archive subject", async () => {
+  const item = managedHelperCollectorFixture();
+  const result = await collectSeaweedRustHelperIdentity(item.input, item.operations);
+  assert.equal(result.result, "passed");
+  assert.equal(item.events.find((entry) => entry[0] === "create")[1].at(-1), localSubject.imageId);
+  for (const measurement of result.measurements) {
+    assert.deepEqual(measurement.subject, localSubject);
+    assert.deepEqual(measurement.baseImage, metadata.image);
+    assert.equal(Object.hasOwn(measurement, "imageDigest"), false);
+  }
+});
+
+test("managed helper collector refuses a substituted local archive report before container creation", async () => {
+  const item = managedHelperCollectorFixture();
+  item.input.imageReport.ArtifactName = "/managed-image-postgres.tar";
+  await assert.rejects(collectSeaweedRustHelperIdentity(item.input, item.operations),
+    /scanner_seaweed_rust_helper_arguments_invalid/u);
+  assert.deepEqual(item.events, []);
+});
+
+test("managed helper collector refuses a different local config before container creation", async () => {
+  const item = managedHelperCollectorFixture();
+  item.input.imageId = `sha256:${"e".repeat(64)}`;
+  item.input.imageReport.Metadata.ImageID = item.input.imageId;
+  await assert.rejects(collectSeaweedRustHelperIdentity(item.input, item.operations),
+    /scanner_seaweed_rust_helper_arguments_invalid/u);
+  assert.deepEqual(item.events, []);
+});
+
+test("managed helper collector preserves owned cleanup after a lost create response", async () => {
+  const item = managedHelperCollectorFixture({ create: async () => {
+    item.events.push(["create-lost"]); throw new Error("transport_response_lost");
+  } });
+  await assert.rejects(collectSeaweedRustHelperIdentity(item.input, item.operations), /transport_response_lost/u);
+  assert.equal(item.events.some((entry) => entry[0] === "copy" || entry[0] === "measure"), false);
+  assert.equal(item.events.filter((entry) => entry[0] === "remove").length, 1);
+  assert.equal(item.events.filter((entry) => entry[0] === "absent").length, 1);
 });
 
 test("helper collector isolates soft-limit control files from the helper copy directory", async () => {
@@ -803,7 +910,8 @@ function completeGate() {
     controls: ["cargo-lock-vulnerable", "cargo-lock-clean"].map((role) => ({ role, result: "passed" })),
     sourceAudits: ["volume", "worker"].map((role) => ({ role, result: "passed", blockers: [] })),
     helpers: ["volume", "worker"].map((role) => ({ role, result: "passed" })),
-    managedBuilds: ["postgres", "opensearch", "aws-cli"].map((role) => ({ role, result: "passed", evidenceExport: "passed" })) };
+    managedBuilds: ["postgres", "opensearch", "aws-cli", "seaweedfs"].map((role) => ({ role, result: "passed", evidenceExport: "passed",
+      ...(role === "seaweedfs" ? { goTests: { result: "passed", runtimeEligible: true } } : {}) })) };
 }
 
 function postImageReceipt({ originalBlocked = false } = {}) {
@@ -1166,6 +1274,11 @@ for (const [label, mutate] of [
   ["source finding", (value) => { value.sourceAudits[0].result = "rejected"; value.sourceAudits[0].blockers = [{ code: "image_vulnerability_blocked" }]; }],
   ["helper failure", (value) => { value.helpers[0].result = "failed"; }],
   ["evidence export failure", (value) => { value.managedBuilds[0].evidenceExport = "failed"; }],
+  ["legacy three-build gate", (value) => { value.managedBuilds.pop(); }],
+  ["duplicate managed role", (value) => { value.managedBuilds[3].role = "aws-cli"; }],
+  ["managed role order change", (value) => { [value.managedBuilds[0], value.managedBuilds[1]] = [value.managedBuilds[1], value.managedBuilds[0]]; }],
+  ["Seaweed Go test failure", (value) => { value.managedBuilds[3].goTests.result = "failed"; }],
+  ["Seaweed Go runtime refusal", (value) => { value.managedBuilds[3].goTests.runtimeEligible = false; }],
 ]) {
   test(`combined gate blocks runtime after ${label}`, () => {
     const changed = completeGate(); mutate(changed);
@@ -1173,7 +1286,7 @@ for (const [label, mutate] of [
   });
 }
 
-function validPublicEvidence() {
+function validPublicEvidence(subject) {
   const control = (role, findingCount) => {
     const expected = metadata.controls.find((entry) => entry.role === role);
     return { role, result: "passed", evidenceClass: "RUST_ADVISORY_CONTROL", packageCount: expected.packageCount,
@@ -1190,9 +1303,11 @@ function validPublicEvidence() {
     controls: [control("cargo-lock-vulnerable", 1), control("cargo-lock-clean", 0)],
     sourceAudits: [sourceAudit("volume"), sourceAudit("worker")],
     helpers: metadata.roles.map((role) => ({ role: role.role, result: "passed", evidenceClass: "ARTIFACT_TO_IMAGE_IDENTITY",
-      imageDigest: metadata.image.platformDigest, bytes: role.helper.bytes, sha256: role.helper.sha256,
+      ...(subject === undefined ? { imageDigest: metadata.image.platformDigest } :
+        { subject: clone(subject), baseImage: clone(metadata.image) }), bytes: role.helper.bytes, sha256: role.helper.sha256,
       hostCopyMode: role.helper.mode, hostCopyNlink: 1, intrinsicBinaryInventory: "NOT_ESTABLISHED",
-      sourceToBinaryEquivalence: "NOT_ESTABLISHED" })), limitations: clone(metadata.limitations) };
+      sourceToBinaryEquivalence: "NOT_ESTABLISHED" })),
+    ...(subject === undefined ? {} : { subject: clone(subject), baseImage: clone(metadata.image) }), limitations: clone(metadata.limitations) };
 }
 
 test("public evidence keeps only diagnostic claims and exact aggregate helper bytes", () => {
@@ -1204,6 +1319,51 @@ test("public evidence keeps only diagnostic claims and exact aggregate helper by
   assert.equal(validateSeaweedRustPublicEvidence(additionalFinding, metadata), additionalFinding);
   assert.throws(() => validateSeaweedRustPublicEvidence({ ...value, privateBinary: "base64" }, metadata),
     /scanner_seaweed_rust_public_evidence_invalid/u);
+});
+
+test("public evidence requires both helpers to bind the same managed subject and known base", () => {
+  const value = validPublicEvidence(localSubject);
+  assert.equal(validateSeaweedRustPublicEvidence(value, metadata, localSubject), value);
+  for (const [label, mutate] of [
+    ["local config", (changed) => { changed.helpers[0].subject.imageId = `sha256:${"e".repeat(64)}`; }],
+    ["archive hash", (changed) => { changed.helpers[0].subject.archiveSha256 = "e".repeat(64); }],
+    ["base identity", (changed) => { changed.helpers[1].baseImage.configDigest = `sha256:${"e".repeat(64)}`; }],
+  ]) {
+    const changed = clone(value); mutate(changed);
+    assert.throws(() => validateSeaweedRustPublicEvidence(changed, metadata, localSubject),
+      /scanner_seaweed_rust_public_evidence_invalid/u, label);
+  }
+});
+
+test("public evidence validates the requested local context even when neither helper was measured", () => {
+  const value = validPublicEvidence(localSubject);
+  value.helpers = ["volume", "worker"].map((role) => ({ role, result: "rejected", reason: "scanner_seaweed_rust_helper_copy_failed" }));
+  assert.equal(validateSeaweedRustPublicEvidence(value, metadata, localSubject), value);
+  const coerced = clone(localSubject);
+  coerced.imageId = [localSubject.imageId];
+  assert.throws(() => validateSeaweedRustPublicEvidence(value, metadata, coerced), /scanner_seaweed_rust_subject_invalid/u);
+});
+
+for (const [label, mutate] of [
+  ["omitted subject", (value) => { delete value.subject; }],
+  ["omitted base", (value) => { delete value.baseImage; }],
+  ["substituted subject", (value) => { value.subject.imageId = `sha256:${"e".repeat(64)}`; }],
+  ["substituted base", (value) => { value.baseImage.platformDigest = `sha256:${"e".repeat(64)}`; }],
+]) {
+  test(`public evidence refuses ${label} even when both local helpers were rejected`, () => {
+    const value = validPublicEvidence(localSubject);
+    value.helpers = ["volume", "worker"].map((role) => ({ role, result: "rejected", reason: "scanner_seaweed_rust_helper_copy_failed" }));
+    mutate(value);
+    assert.throws(() => validateSeaweedRustPublicEvidence(value, metadata, localSubject),
+      /scanner_seaweed_rust_public_evidence_invalid/u);
+  });
+}
+
+test("legacy public evidence refuses local subject fields without a local subject argument", () => {
+  const value = validPublicEvidence();
+  value.subject = clone(localSubject);
+  value.baseImage = clone(metadata.image);
+  assert.throws(() => validateSeaweedRustPublicEvidence(value, metadata), /scanner_seaweed_rust_public_evidence_invalid/u);
 });
 
 test("public evidence preserves one passed helper beside one bounded rejection while the runtime gate stays closed", () => {

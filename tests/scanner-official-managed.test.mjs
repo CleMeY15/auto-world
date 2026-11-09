@@ -169,6 +169,8 @@ test("managed lock refuses substituted source, compiler, catalogue, repository a
     (value) => { value.opensearch.gradleVersion = "9.7.0"; },
     (value) => { value.opensearch.jackson2 = "2.22.2"; },
     (value) => { value.opensearch.jackson3 = "3.2.2"; },
+    ...["grpcGuava", "grpcFailureaccess", "grpcBuildOriginalSha256", "grpcBuildPatchedSha256", "grpcGuavaJarSha256", "grpcFailureaccessJarSha256"]
+      .map((key) => (value) => { value.opensearch[key] = "substituted"; }),
     (value) => { value.opensearch.gradleDistributionSha256 = "e".repeat(64); },
     (value) => { value.opensearch.gradleWrapperJarSha256 = "f".repeat(64); },
     (value) => { value.amazonLinux.releasever = "latest"; },
@@ -191,7 +193,7 @@ test("Buildx metadata binds the inspected configID while retaining a distinct va
   const originalInspect = inspected(), originalMetadata = metadata();
   deepFreeze(originalInspect); deepFreeze(originalMetadata);
   assert.deepEqual(audit.validateManagedLocalImage(originalInspect, originalMetadata, tag), { imageId, os: "linux", architecture: "amd64" });
-  for (const role of ["postgres", "opensearch", "aws-cli"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) {
     const ownedTag = `auto-world-managed/${role}:${"2".repeat(40)}`;
     const value = inspected(); value[0].RepoTags = [ownedTag];
     assert.deepEqual(audit.validateManagedLocalImage(value, metadata(), ownedTag), { imageId, os: "linux", architecture: "amd64" });
@@ -216,7 +218,7 @@ test("Buildx metadata binds the inspected configID while retaining a distinct va
 });
 
 test("archive scanner uses the actual read-only input with no network, daemon socket or host authority", () => {
-  for (const role of ["postgres", "opensearch", "aws-cli"]) for (const format of ["json", "cyclonedx"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) for (const format of ["json", "cyclonedx"]) {
     const archive = path.resolve(`synthetic-managed/managed-image-${role}.tar`);
     const args = audit.officialArchiveScanArguments(carrier, scanner, cache, archive, format);
     assert.equal(args[0], "run");
@@ -247,7 +249,7 @@ test("archive scanner uses the actual read-only input with no network, daemon so
 });
 
 test("local archive reports accept each owned artifact and preserve immutable raw evidence", () => {
-  for (const role of ["postgres", "opensearch", "aws-cli"]) {
+  for (const role of ["postgres", "opensearch", "aws-cli", "seaweedfs"]) {
     const { bound, report, sbom } = pairedReports(role);
     const before = JSON.stringify({ bound, report, sbom });
     deepFreeze(bound); deepFreeze(report); deepFreeze(sbom);

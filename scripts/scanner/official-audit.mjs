@@ -3,18 +3,20 @@ import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { TextDecoder } from "node:util";
+import { isDeepStrictEqual, TextDecoder } from "node:util";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
+import { MANAGED_SEAWEED_MATERIAL, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
   helperSoftLimitControlCommand, prepareSeaweedRustLockViews, seaweedRustLimits, seaweedRustPublicSourcePath, seaweedRustScanArguments,
   seaweedRustSourceFetchArguments, validateSeaweedRustControlReport, validateSeaweedRustHelperAbsence,
   validateSeaweedRustHelperContainer, validateSeaweedRustHelperMeasurement, validateSeaweedRustLockUniverse,
-  validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock } from "./seaweed-rust-source.mjs";
+  validateSeaweedRustPublicEvidence, validateSeaweedRustPublicSourceMapping, validateSeaweedRustSourceLock,
+  validateSeaweedRustSubject } from "./seaweed-rust-source.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DOCKER = "/usr/bin/docker";
@@ -203,8 +205,8 @@ export function validateManagedImageLock(managed, official) {
     ["go-builder", ["sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c", "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747"]],
     ["jdk-builder", ["sha256:6d870f0c9a54ea090e1ed8396a4926f183b1d379934248b0d335567282417517", "sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3"]],
   ]);
-  const recipes = new Map([["postgres", "Dockerfile.postgres"], ["opensearch", "Dockerfile.opensearch-core"], ["aws-cli", "Dockerfile.aws-cli"]]);
-  if (!keys(managed, ["schemaVersion", "state", "platform", "buildTools", "candidates", "gosu", "opensearch", "amazonLinux"]) ||
+  const recipes = new Map([["postgres", "Dockerfile.postgres"], ["opensearch", "Dockerfile.opensearch-core"], ["aws-cli", "Dockerfile.aws-cli"], ["seaweedfs", "Dockerfile.seaweedfs"]]);
+  if (!keys(managed, ["schemaVersion", "state", "platform", "buildTools", "candidates", "gosu", "opensearch", "amazonLinux", "seaweedfs"]) ||
       managed?.schemaVersion !== 1 || managed.state !== "DIAGNOSTIC_ONLY_NOT_ADMITTED" || managed.platform !== "linux/amd64" ||
       !Array.isArray(managed.buildTools) || managed.buildTools.length !== tools.size ||
       !Array.isArray(managed.candidates) || managed.candidates.length !== recipes.size) fail("scanner_managed_lock_invalid");
@@ -223,8 +225,10 @@ export function validateManagedImageLock(managed, official) {
         !digest(candidate.baseDigest) || candidate.baseDigest !== official?.images?.find((image) => image.role === candidate.role)?.platform?.digest) fail("scanner_managed_lock_invalid");
     seen.add(candidate.role);
   }
-  if (!keys(managed.gosu, ["version", "sourceCommit", "archiveBytes", "archiveSha256", "goModSha256", "goSumSha256", "buildInfoBytes", "buildInfoSha256", "binarySha256"]) ||
-      !keys(managed.opensearch, ["version", "profile", "sourceCommit", "gradleVersion", "gradleDistributionSha256", "gradleWrapperJarSha256", "jackson2", "jackson3", "runtimeJdk"]) ||
+  if (!isDeepStrictEqual(managed.seaweedfs, MANAGED_SEAWEED_MATERIAL) ||
+      !keys(managed.gosu, ["version", "sourceCommit", "archiveBytes", "archiveSha256", "goModSha256", "goSumSha256", "buildInfoBytes", "buildInfoSha256", "binarySha256"]) ||
+      !keys(managed.opensearch, ["version", "profile", "sourceCommit", "gradleVersion", "gradleDistributionSha256", "gradleWrapperJarSha256", "jackson2", "jackson3", "runtimeJdk",
+        "grpcGuava", "grpcFailureaccess", "grpcBuildOriginalSha256", "grpcBuildPatchedSha256", "grpcGuavaJarSha256", "grpcFailureaccessJarSha256"]) ||
       !keys(managed.amazonLinux, ["releasever", "repositoryGuid", "repomdSha256", "primarySha256"]) ||
       managed.gosu?.sourceCommit !== "29b939aa5bd4dc588af765b8248f6e39150d2565" || managed.gosu.version !== "1.20" || managed.gosu.archiveBytes !== 18160 ||
       managed.gosu.archiveSha256 !== "2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51" ||
@@ -237,6 +241,11 @@ export function validateManagedImageLock(managed, official) {
       managed.opensearch.gradleDistributionSha256 !== "92c1a136d76b5017732a66d2e0a648ebff00dd3687d8bff0d0047a1bd904fdf2" ||
       managed.opensearch.gradleWrapperJarSha256 !== "7a9ce74cff467ca1bf60a4fcd9f05185acceda4d0f382434d393e17864262c5d" ||
       managed.opensearch.jackson2 !== "2.22.3" || managed.opensearch.jackson3 !== "3.2.3" ||
+      managed.opensearch.grpcGuava !== "33.8.0-jre" || managed.opensearch.grpcFailureaccess !== "1.0.3" ||
+      managed.opensearch.grpcBuildOriginalSha256 !== "c77756ad3c96ad3345df98b038bed1e9f1bfbb5947af2e055bd719a3ed0a3e71" ||
+      managed.opensearch.grpcBuildPatchedSha256 !== "c8312d409ea46ecc3407bcbd555ef2551177e554ebda2c5ce2419cfefccd4323" ||
+      managed.opensearch.grpcGuavaJarSha256 !== "97b79ec3f2c0a6313a0c2df51ce1abdf8907e6531803467b81efcaaf99b35161" ||
+      managed.opensearch.grpcFailureaccessJarSha256 !== "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb" ||
       managed.opensearch.runtimeJdk !== "PRESERVE_EXACT_BASE_DIRECTORY_VERIFY_BEFORE_AFTER" ||
       managed.amazonLinux?.releasever !== "2023.12.20261026" || managed.amazonLinux.repositoryGuid !== "762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6" ||
       managed.amazonLinux.repomdSha256 !== "0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5" ||
@@ -246,14 +255,14 @@ export function validateManagedImageLock(managed, official) {
 
 export function validateManagedLocalImage(inspected, metadata, tag) {
   const image = inspected?.[0];
-  if (!/^auto-world-managed\/(?:postgres|opensearch|aws-cli):[a-f0-9]{40}$/u.test(tag ?? "") || !Array.isArray(inspected) || inspected.length !== 1 ||
+  if (!/^auto-world-managed\/(?:postgres|opensearch|aws-cli|seaweedfs):[a-f0-9]{40}$/u.test(tag ?? "") || !Array.isArray(inspected) || inspected.length !== 1 ||
       !digest(image?.Id) || image.Os !== "linux" || image.Architecture !== "amd64" || !Array.isArray(image.RepoTags) || !image.RepoTags.includes(tag) ||
       metadata?.["containerimage.config.digest"] !== image.Id || !digest(metadata["containerimage.digest"])) fail("scanner_managed_image_invalid");
   return { imageId: image.Id, os: image.Os, architecture: image.Architecture };
 }
 
 export function officialArchiveScanArguments(carrier, scanner, cache, archive, format = "json") {
-  if (!safePath(archive) || !/^managed-image-(?:postgres|opensearch|aws-cli)\.tar$/u.test(path.basename(archive))) fail("scanner_managed_archive_invalid");
+  if (!safePath(archive) || !/^managed-image-(?:postgres|opensearch|aws-cli|seaweedfs)\.tar$/u.test(path.basename(archive))) fail("scanner_managed_archive_invalid");
   const args = candidateDockerArguments({ carrier, scanner, cache, mode: "fs", target: archive, format,
     extra: ["--offline-scan", ...(format === "json" ? ["--severity", "HIGH,CRITICAL"] : [])] });
   args[args.indexOf(carrier) + 1] = "image";
@@ -370,7 +379,7 @@ export function validateOfficialImageSbom(report, sbom, image) {
 
 export function validateOfficialArchiveSbom(report, sbom, subject) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || !digest(subject.imageId) || report?.Metadata?.ImageID !== subject.imageId ||
-      !/^\/managed-image-(?:postgres|opensearch|aws-cli)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_managed_archive_invalid");
+      !/^\/managed-image-(?:postgres|opensearch|aws-cli|seaweedfs)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_managed_archive_invalid");
   return validateImageSbomInventory(report, sbom, subject.artifactName);
 }
 
@@ -433,10 +442,15 @@ function readOnlyTree(directory) {
 }
 
 export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imageReport, directory, limitDirectory = path.join(directory, "limit-control"),
-  name, owner, freeBytes }, operations) {
+  name, owner, freeBytes, localSubject }, operations) {
+  let subjectIdentity;
+  try { subjectIdentity = validateSeaweedRustSubject(metadata, localSubject); }
+  catch { fail("scanner_seaweed_rust_helper_arguments_invalid"); }
   const operationNames = ["softLimitControl", "create", "inspect", "copy", "measure", "listHostFiles", "remove", "proveAbsent"];
   if (!safePath(directory) || !safePath(limitDirectory) || !/^aw-seaweed-rust-[a-f0-9-]{36}$/u.test(name ?? "") || !/^[a-f0-9-]{36}$/u.test(owner ?? "") ||
-      !digest(imageId) || imageId !== metadata?.image?.configDigest || imageReport?.Metadata?.ImageID !== imageId ||
+      !digest(imageId) || imageId !== subjectIdentity.imageId || imageReport?.Metadata?.ImageID !== imageId ||
+      localSubject !== undefined && (imageReport?.ArtifactName !== localSubject.artifactName || imageReport?.ArtifactType !== "container_image" ||
+        imageReport?.Metadata?.ImageConfig?.os !== "linux" || imageReport?.Metadata?.ImageConfig?.architecture !== "amd64") ||
       !Number.isSafeInteger(freeBytes) || freeBytes < seaweedRustLimits.helperFreeBytes ||
       !operations || Object.keys(operations).length !== operationNames.length || operationNames.some((key) => typeof operations[key] !== "function")) {
     fail("scanner_seaweed_rust_helper_arguments_invalid");
@@ -474,7 +488,7 @@ export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imag
         }
         journal.push({ operation: `inspect_${role.role}`, result: "passed" });
         const measured = await operations.measure({ role: role.role, file: destination });
-        roleResults.set(role.role, validateSeaweedRustHelperMeasurement({ role: role.role, file: destination, ...measured, metadata }));
+        roleResults.set(role.role, validateSeaweedRustHelperMeasurement({ role: role.role, file: destination, ...measured, metadata, localSubject }));
         journal.push({ operation: `measure_${role.role}`, result: "passed" });
       } catch (error) {
         const failure = classifySeaweedRustSubjectFailure(error, "helper");
@@ -496,7 +510,7 @@ export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imag
       try {
         const file = path.join(directory, path.basename(role.helper.path));
         const measured = await operations.measure({ role: role.role, file });
-        const finalMeasurement = validateSeaweedRustHelperMeasurement({ role: role.role, file, ...measured, metadata });
+        const finalMeasurement = validateSeaweedRustHelperMeasurement({ role: role.role, file, ...measured, metadata, localSubject });
         if (JSON.stringify(finalMeasurement) !== JSON.stringify(first)) fail("scanner_seaweed_rust_helper_measurement_invalid");
         journal.push({ operation: `revalidate_${role.role}`, result: "passed" });
       } catch (error) {
@@ -526,6 +540,7 @@ export async function collectSeaweedRustHelperIdentity({ metadata, imageId, imag
   const measurements = metadata.roles.map(({ role }) => roleResults.get(role));
   return { result: measurements.every((item) => item.result === "passed") ? "passed" : "rejected",
     evidenceClass: "ARTIFACT_TO_IMAGE_IDENTITY", imageId, measurements, journal,
+    ...(localSubject ? { subject: subjectIdentity.subject, baseImage: subjectIdentity.baseImage } : {}),
     copiedBytes: measurements.filter((item) => item.result === "passed").reduce((sum, item) => sum + item.bytes, 0),
     intrinsicBinaryInventory: "NOT_ESTABLISHED", sourceToBinaryEquivalence: "NOT_ESTABLISHED" };
 }
@@ -856,8 +871,17 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             const inspected = JSON.parse(command(DOCKER, ["image", "inspect", tag], { file: inspectedFile }).toString("utf8"));
             const metadata = (await readBoundedJson(metadataFile, MiB)).value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
+            const identityFiles = [{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }];
+            if (candidate.role === "seaweedfs") {
+              const reference = `chrislusf/seaweedfs@${candidate.baseDigest}`;
+              command(DOCKER, ["pull", "--platform", "linux/amd64", reference], { timeout: 5 * 60_000 });
+              const baseFile = path.join(output, "managed-seaweedfs-base-inspect.json");
+              const base = JSON.parse(command(DOCKER, ["image", "inspect", reference], { file: baseFile }).toString("utf8"));
+              build.runtimeConfiguration = validateManagedSeaweedConfig(base, inspected);
+              identityFiles.push({ path: baseFile, cap: MiB });
+            }
             command(DOCKER, ["image", "save", "--output", archive, tag]); chmodSync(archive, 0o444);
-            const frozen = await captureFiles([{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }]);
+            const frozen = await captureFiles(identityFiles);
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
             await assertFilesUnchanged(frozen);
             build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: archiveSnapshot.sha256, archiveBytes: archiveSnapshot.size,
@@ -867,7 +891,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             build.reason = error.message;
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
           }
-          if (build.result !== "passed" && candidate.role !== "opensearch") {
+          if (build.result !== "passed" && !["opensearch", "seaweedfs"].includes(candidate.role)) {
             build.evidenceExport = "not_attempted_runtime_failed";
             await assertFilesUnchanged(inputs);
             continue;
@@ -880,6 +904,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             const published = path.join(output, "managed-public-evidence");
             if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
             build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
+            if (candidate.role === "seaweedfs") {
+              build.goTests = readManagedSeaweedTests(path.join(published, candidate.role));
+              build.goTestAcceptance = build.goTests.result === "passed" && build.goTests.runtimeEligible ? "passed" : "failed";
+            }
             if (candidate.role === "postgres" && build.result === "passed") {
               const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });
               const finalInventory = command(DOCKER, managedGosuHashArguments(build.subject),
@@ -947,6 +975,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             await assertFilesUnchanged(local.frozen);
             await assertManagedArchiveUnchanged(local.archiveSnapshot);
             validateOfficialArchiveSbom(report.json, report.sbom, local.subject);
+            if (image.role === "seaweedfs") validateManagedSeaweedGoInventory(report.json);
             if (image.role === "postgres" && !local.gosuEvidence) fail("scanner_gosu_source_evidence_invalid");
             const evaluated = evaluateArchiveImageReport(report.json, local.subject, new Date(), local.gosuEvidence);
             if (evaluated.sourceComponents) {
@@ -1058,10 +1087,15 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           }
         } finally { await globalCheck(); }
       }
-      const seaweed = config.images.find((image) => image.role === "seaweedfs");
-      const reference = `${seaweed.repository}@${seaweed.platform.digest}`;
-      command(DOCKER, ["pull", "--platform", "linux/amd64", reference], { timeout: 5 * 60_000 });
-      const inspected = JSON.parse(command(DOCKER, ["image", "inspect", reference],
+      const localSeaweed = localImages.get("seaweedfs");
+      if (!localSeaweed) {
+        const failure = new Error("scanner_managed_image_not_built");
+        receipt.seaweedRustHelpers = rustMetadata.roles.map(({ role }) => ({ role, result: "rejected", reason: failure.message }));
+        rustFailures.push(failure);
+      } else {
+      await assertFilesUnchanged(localSeaweed.frozen);
+      await assertManagedArchiveUnchanged(localSeaweed.archiveSnapshot);
+      const inspected = JSON.parse(command(DOCKER, ["image", "inspect", localSeaweed.subject.imageId],
         { file: path.join(output, "seaweed-rust-image-inspect.json") }).toString("utf8"));
       const imageReport = (await readBoundedJson(path.join(output, "image-seaweedfs.json"))).value;
       const imageId = validatePreparedRuntimeImage(inspected, imageReport);
@@ -1071,7 +1105,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       let helperReceipt, helperFailure;
       try {
         helperReceipt = await collectSeaweedRustHelperIdentity({ metadata: rustMetadata, imageId, imageReport, directory: helperRoot,
-          limitDirectory: limitRoot, name: `aw-seaweed-rust-${randomUUID()}`, owner, freeBytes }, {
+          limitDirectory: limitRoot, name: `aw-seaweed-rust-${randomUUID()}`, owner, freeBytes, localSubject: localSeaweed.subject }, {
           softLimitControl: async (spec) => {
             try { command(spec.command, spec.args, { timeout: spec.timeoutMs, env: spec.environment, expectedStdout: spec.expectedStdout }); }
             catch (error) {
@@ -1132,6 +1166,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           rustFailures.push(new Error(helperReceipt.measurements.find((entry) => entry.result === "rejected").reason));
         }
       }
+      await assertFilesUnchanged(localSeaweed.frozen);
+      await assertManagedArchiveUnchanged(localSeaweed.archiveSnapshot);
+      }
       await globalCheck();
       const controlEvidence = receipt.seaweedRustControls.map((entry) => entry.result === "passed" ? ({
         role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass, packageCount: entry.inventory.pairs.length,
@@ -1143,13 +1180,16 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         findingCount: entry.findings.length, blockerCount: entry.blockers.length,
       }) : ({ role: entry.role, result: "rejected", reason: entry.reason }));
       const helperEvidence = receipt.seaweedRustHelpers.map((entry) => entry.evidenceClass ? ({
-        role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass, imageDigest: entry.imageDigest, bytes: entry.bytes,
+        role: entry.role, result: entry.result, evidenceClass: entry.evidenceClass,
+        ...(entry.subject ? { subject: entry.subject, baseImage: entry.baseImage } : { imageDigest: entry.imageDigest }), bytes: entry.bytes,
         sha256: entry.sha256, hostCopyMode: entry.hostCopyMode, hostCopyNlink: entry.hostCopyNlink,
         intrinsicBinaryInventory: entry.intrinsicBinaryInventory, sourceToBinaryEquivalence: entry.sourceToBinaryEquivalence,
       }) : ({ role: entry.role, result: "rejected", reason: entry.reason }));
+      const localBinding = localSeaweed ? validateSeaweedRustSubject(rustMetadata, localSeaweed.subject) : undefined;
       const publicReceipt = { schemaVersion: 1, state: "diagnostic_only", admission: "NOT_AUTHORIZED", milestone2: "NOT_ESTABLISHED",
+        ...(localBinding ? { subject: localBinding.subject, baseImage: localBinding.baseImage } : {}),
         controls: controlEvidence, sourceAudits: sourceEvidence, helpers: helperEvidence, limitations: rustMetadata.limitations };
-      validateSeaweedRustPublicEvidence(publicReceipt, rustMetadata);
+      validateSeaweedRustPublicEvidence(publicReceipt, rustMetadata, localSeaweed?.subject);
       writeJson(path.join(publicRoot, "receipt.json"), publicReceipt);
       const published = path.join(output, "managed-public-evidence"); if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
       receipt.seaweedRustPublicEvidence = exportManagedTextEvidence(publicRoot, path.join(published, "seaweed-rust-source"));
@@ -1187,7 +1227,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             evidence.push({ path: path.join(output, "managed-public-evidence", group.name, entry.path), size: entry.size, sha256: entry.sha256 });
           }
         } else {
-          if (!["redis", "seaweedfs"].includes(image.role)) fail("scanner_managed_runtime_prerequisite_invalid");
+          if (image.role !== "redis") fail("scanner_managed_runtime_prerequisite_invalid");
           const reference = `${image.repository}@${image.platform.digest}`;
           command(DOCKER, ["pull", "--platform", "linux/amd64", reference], { timeout: 5 * 60_000 });
           const inspected = JSON.parse(command(DOCKER, ["image", "inspect", reference],

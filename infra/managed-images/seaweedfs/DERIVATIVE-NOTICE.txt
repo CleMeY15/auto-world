@@ -1,0 +1,28 @@
+Auto World diagnostic SeaweedFS derivative
+
+Component: auto-world-seaweedfs/4.51-ffa87c2-aw-go-5b789254
+Upstream source: https://github.com/seaweedfs/seaweedfs
+Source commit: ffa87c25fdf587178b1521ad87f2a4a72a02e584
+Source archive SHA256: d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9
+Compiler: Go 1.27.3, CGO_ENABLED=0, Linux/amd64
+Main Go module: github.com/seaweedfs/seaweedfs, truthful (devel) version
+VCS stamping: disabled; source provenance is bound by the original archive.
+Display commit marker: ffa87c2-aw-go-5b789254
+
+This is an internally compiled derivative, not the upstream release binary or
+an upstream signature claim. It changes only golang.org/x/net from v0.61.0 to
+v0.62.0 and github.com/go-jose/go-jose/v4 from v4.1.5 to v4.1.6 in the visible
+/usr/bin/weed executable. The marker above identifies this exact source and
+corrected go.mod material; it is not a source commit or Go module version.
+
+The final image starts from the exact current 4.51 base and overlays only the
+weed executable and these notices. The inherited weed-volume and weed-worker
+Rust helpers are not rebuilt or changed. The old executable remains present in
+an inherited image layer; this overlay does not claim erasure of those bytes.
+
+SeaweedFS and the corrected dependencies retain their upstream licences. The
+source, compiler and corrected dependency licence texts used by the build are
+included in the diagnostic evidence and the final image notice directory.
+
+Diagnostic only: no image admission, vulnerability exception, support
+activation, production authorization or reproducible-build claim is granted.

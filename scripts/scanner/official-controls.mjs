@@ -166,7 +166,7 @@ export function evaluateImageReport(report, pin, dispositions = [], now = new Da
 export function evaluateArchiveImageReport(report, subject, now = new Date(), gosuEvidence) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || !DIGEST.test(subject.imageId ?? "") ||
       !/^[a-f0-9]{64}$/u.test(subject.archiveSha256 ?? "") || !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1 ||
-      !/^\/managed-image-(?:postgres|opensearch|aws-cli)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_archive_subject_invalid");
+      !/^\/managed-image-(?:postgres|opensearch|aws-cli|seaweedfs)\.tar$/u.test(subject.artifactName ?? "")) fail("scanner_archive_subject_invalid");
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) fail("scanner_audit_clock_invalid");
   if (!object(report) || !validVersion(report, VERSION) || report.SchemaVersion !== 2 || report.ArtifactType !== "container_image" ||
       report.ArtifactName !== subject.artifactName || report.Metadata?.ImageID !== subject.imageId ||
