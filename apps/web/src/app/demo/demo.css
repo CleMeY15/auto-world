@@ -149,6 +149,7 @@
 .demo-rename-comparison-form .aw-field, .demo-rename-comparison-form input, .demo-rename-search-form .aw-field, .demo-rename-search-form input { min-width: 0; width: 100%; }
 .demo-saved-search-copy { flex: 1 1 18rem; min-width: 0; }
 .demo-saved-search-copy h3 { font-size: var(--aw-font-size-body); margin-bottom: var(--aw-space-3); overflow-wrap: anywhere; }
+.demo-saved-search .demo-card-actions .aw-button { overflow-wrap: normal; }
 .demo-saved-search-criteria { display: grid; gap: var(--aw-space-2); margin: 0; }
 .demo-saved-search-criteria div { display: grid; gap: var(--aw-space-1); min-width: 0; }
 .demo-saved-search-criteria dt { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); }
