@@ -1,5 +1,9 @@
 # Auto World delivery ledger
 
+## TASK-0005 M3B bootstrap outcome and read recovery, 2026-11-09
+
+[PR238's implementation acceptance](https://github.com/CleMeY15/auto-world/pull/238#issuecomment-6753219249) binds main `ff9edab3fb94417e216bdd70d93846ad32024ec8` and four successful source/main quality/managed runs. The sole [actual bootstrap42712603501](https://github.com/CleMeY15/auto-world/actions/runs/42712603501) failed after confirmed harmless publication and authenticated readback; the subsequent owned cleanup succeeded. Preserve that FAILURE and its digest; do not retry the writer. The package was restricted from Public to Private, with existing inherited access and Actions Admin unchanged. [The separately bound read-proof tranche](../docs/validation/TASK-0005-scanner-retention-read.md) remains under review/delivery, with no scanner archive, second-copy restoration, admission or support claim. Earlier pending implementation checkpoints remain historical.
+
 ## TASK-0121 local target checkpoint, 2026-11-09
 
 LOCAL_TARGET_VALIDATED / DELIVERY_PENDING: native root quality and136 web units pass;44 new Chromium/WebKit cases pass without exclusions/retries; code APPROVE, architecture CLEAR, actual-pixel APPROVE. [Validation](../docs/validation/TASK-0121.md) retains the two fixture-only failed runs and their bounded repairs. Full browser/persistent CI and exact-source/protected-main acceptance remain pending; no TASK-0005 qualification or next-task completion implied.

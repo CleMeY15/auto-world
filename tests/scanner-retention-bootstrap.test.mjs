@@ -137,7 +137,9 @@ test("bootstrap material and closed one-shot interface match the approved policy
     mode: "bootstrap",
     output: path.resolve("scanner-retention-bootstrap"),
   });
-  assert.throws(() => parseScannerRetentionArguments(["read-proof", "--output", path.resolve("x")]), /mode_not_implemented/u);
+  assert.deepEqual(parseScannerRetentionArguments(["read-proof", "--output", path.resolve("x")]), {
+    mode: "read-proof", output: path.resolve("x"),
+  });
   assert.throws(() => parseScannerRetentionArguments(["publish", "--output", path.resolve("x")]), /mode_not_implemented/u);
   assert.throws(() => parseScannerRetentionArguments(["bootstrap", "--output", "relative"]), /arguments_invalid/u);
   assert.equal(Buffer.byteLength(bootstrap.payload.text), 48);
@@ -235,6 +237,20 @@ test("bootstrap performs the exact bounded write, digest readback and redacted c
     assert.equal(call.options.redirect, "error");
     assert.equal(call.options.headers.Authorization, `Bearer ${item.env.GITHUB_TOKEN}`);
   }
+});
+
+test("bootstrap removes a just-created docker-driver local image before completing", async (context) => {
+  const item = fixture();
+  context.after(() => rmSync(item.runnerTemp, { recursive: true, force: true }));
+  const commands = commandHarness({ retained: true });
+  const receipt = await TEST_ONLY_runScannerRetentionBootstrap(options(item, commands, fetchRouter()));
+
+  assert.equal(receipt.result, "PASSED");
+  assert.deepEqual(receipt.cleanup, { state: "PASSED", ownedPathRemoved: true, ownedLocalImage: "REMOVED" });
+  assert.equal(receipt.phases.find(({ name }) => name === "no_local_image_retained").result, "PASSED");
+  const removals = commands.calls.filter(({ args }) => args[0] === "image" && args[1] === "rm");
+  assert.equal(removals.length, 1);
+  assert.deepEqual(removals[0].args.slice(0, 4), ["image", "rm", "--force", receipt.tag]);
 });
 
 test("an existing or ambiguous package version refuses before login or write", async (context) => {
