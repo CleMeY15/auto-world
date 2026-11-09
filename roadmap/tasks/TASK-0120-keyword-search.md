@@ -1,6 +1,6 @@
 # TASK-0120 — Recherche par mots dans le prototype
 
-Status: IN_PROGRESS, 2026-11-09. Priority P1. Owner: application lead, separate backend/frontend executors, independent reviewers. Branch `codex/task-0120-keyword-search`. DoR satisfied; sequential Architect APPROVE and distinct Critic approval before implementation.
+Status: LOCAL_VALIDATED / DELIVERY_PENDING, 2026-11-09. Priority P1. Owner: application lead, separate backend/frontend executors, independent reviewers. Branch `codex/task-0120-keyword-search`. DoR satisfied; sequential Architect APPROVE and distinct Critic approval before implementation. Local quality and532 browser cases pass (10 preexisting exclusions); source/architecture/pixel reviews approve. Real persistent services and exact-head/protected-main acceptance remain pending; see validation, no Done claim.
 
 ## Goal and dependencies
 

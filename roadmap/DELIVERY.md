@@ -1,5 +1,9 @@
 # Auto World delivery ledger
 
+## TASK-0120 local acceptance, 2026-11-09
+
+LOCAL_VALIDATED / DELIVERY_PENDING: native Linux quality,532 browser passes with10 preexisting exclusions, source code APPROVE, architecture CLEAR and independent input/result pixel APPROVE. [Validation](../docs/validation/TASK-0120.md) retains the initial test-selector failure and exact-source checkpoints. Real PostgreSQL/OpenSearch integration and final PR/protected-main acceptance remain pending. No image admission, real-data or next-task authority follows.
+
 ## Product checkpoint — TASK-0119 accepted, TASK-0120 started, 2026-11-09
 
 TASK-0119 is DONE_FOR_V1_PROTOTYPE at main `293a218c0750ee693ad1c426e91629816cfa238d`, tree `668a8619c4cd49a12cda578978c56044ec0a5c85`, by [PR229's authoritative checkpoint](https://github.com/CleMeY15/auto-world/pull/229#issuecomment-6730265143). Exact-source/main quality and persistent browser acceptance supersede its historical preacceptance records, which remain preserved. This satisfies the dependency of [TASK-0120 keyword search](tasks/TASK-0120-keyword-search.md), now IN_PROGRESS after independent plan review. TASK-0120 has no delivery acceptance yet. TASK-0005 qualification is separate, not passed by either product increment.
