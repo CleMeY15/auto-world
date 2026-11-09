@@ -22,6 +22,53 @@ RUN set -eu; \
     go mod download -json all > /out/evidence/module-download.json; \
     go mod verify > /out/evidence/module-verify.txt; \
     go list -m -json all > /out/evidence/module-inventory.json; \
+    module_proxy_output=/out/evidence/module-proxy-payloads.tsv; \
+    module_proxy_temporary="${module_proxy_output}.tmp"; \
+    test ! -e "$module_proxy_output"; \
+    test ! -e "$module_proxy_temporary"; \
+    : > "$module_proxy_temporary"; \
+    set -- \
+        'github.com/moby/sys/user|v0.4.1|info|cache/download/github.com/moby/sys/user/@v/v0.4.1.info' \
+        'github.com/moby/sys/user|v0.4.1|mod|cache/download/github.com/moby/sys/user/@v/v0.4.1.mod' \
+        'github.com/moby/sys/user|v0.4.1|zip|cache/download/github.com/moby/sys/user/@v/v0.4.1.zip' \
+        'golang.org/x/sys|v0.1.0|info|cache/download/golang.org/x/sys/@v/v0.1.0.info' \
+        'golang.org/x/sys|v0.1.0|mod|cache/download/golang.org/x/sys/@v/v0.1.0.mod' \
+        'golang.org/x/sys|v0.1.0|zip|cache/download/golang.org/x/sys/@v/v0.1.0.zip'; \
+    test "$#" = 6; \
+    module_proxy_total=0; \
+    module_proxy_rows=0; \
+    for module_proxy_spec do \
+        module_proxy_module=${module_proxy_spec%%|*}; \
+        module_proxy_remainder=${module_proxy_spec#*|}; \
+        module_proxy_version=${module_proxy_remainder%%|*}; \
+        module_proxy_remainder=${module_proxy_remainder#*|}; \
+        module_proxy_kind=${module_proxy_remainder%%|*}; \
+        module_proxy_relative=${module_proxy_remainder#*|}; \
+        module_proxy_file="$GOMODCACHE/$module_proxy_relative"; \
+        module_proxy_before=$(stat -c '%F|%h|%d|%i|%s|%y|%z' "$module_proxy_file"); \
+        module_proxy_remainder=${module_proxy_before#*|}; \
+        test "${module_proxy_before%%|*}" = 'regular file'; \
+        test "${module_proxy_remainder%%|*}" = 1; \
+        module_proxy_remainder=${module_proxy_remainder#*|}; \
+        module_proxy_remainder=${module_proxy_remainder#*|}; \
+        module_proxy_remainder=${module_proxy_remainder#*|}; \
+        module_proxy_bytes=${module_proxy_remainder%%|*}; \
+        case "$module_proxy_bytes" in 0|*[!0-9]*) exit 1;; esac; \
+        test "$module_proxy_bytes" -le 16777216; \
+        module_proxy_sha_line=$(sha256sum "$module_proxy_file"); \
+        module_proxy_sha256=${module_proxy_sha_line%% *}; \
+        test "$module_proxy_sha_line" = "$module_proxy_sha256  $module_proxy_file"; \
+        test "${#module_proxy_sha256}" = 64; \
+        case "$module_proxy_sha256" in *[!0-9a-f]*) exit 1;; esac; \
+        module_proxy_after=$(stat -c '%F|%h|%d|%i|%s|%y|%z' "$module_proxy_file"); \
+        test "$module_proxy_after" = "$module_proxy_before"; \
+        module_proxy_total=$((module_proxy_total + module_proxy_bytes)); \
+        test "$module_proxy_total" -le 33554432; \
+        printf '%s\t%s\t%s\t%s\t%s\n' "$module_proxy_module" "$module_proxy_version" "$module_proxy_kind" "$module_proxy_bytes" "$module_proxy_sha256" >> "$module_proxy_temporary"; \
+        module_proxy_rows=$((module_proxy_rows + 1)); \
+    done; \
+    test "$module_proxy_rows" = 6; \
+    mv "$module_proxy_temporary" "$module_proxy_output"; \
     cmp /materials/go.mod go.mod; \
     cmp /materials/go.sum go.sum
 

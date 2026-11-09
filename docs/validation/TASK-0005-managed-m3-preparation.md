@@ -26,6 +26,31 @@ remain same-job observations, not surviving retained archives. The approved
 may now enter implementation; no publication or retention acceptance follows. Follow the
 [M2 delivery plan](../../roadmap/plans/TASK-0005-managed-m2-delivery.md).
 
+## Implemented six-file measurement, pending delivery
+
+[PR237](https://github.com/CleMeY15/auto-world/pull/237) adds only the reviewed
+Gosu module-proxy measurement to the existing PostgreSQL build. Its six fixed
+files are measured after successful module verification and before the offline
+test/build stage. The recipe rejects absent, linked, non-regular, empty,
+oversized or changing files and atomically publishes the six-row TSV only
+after all rows pass. The existing text export captures that observation.
+
+The audit reads the captured public TSV, authenticates its exact byte length
+and SHA-256 against the same build's public evidence, validates canonical rows
+and derives the total. Its separate `gosuModulePayloads` field leaves the old
+Gosu source authority, exact-field controls and policy unchanged. A missing
+captured file produces a fixed failure code rather than exposing a local path.
+This records observed payload sizes and digests; it does not retain payloads
+or independently detect coordinated well-formed substitutions without them.
+
+Focused tests execute the actual shell measurement leaf and PostgreSQL caller,
+including file mutation, limits and captured-byte substitution. Complete local
+validation, actual Linux build evidence, independent review and protected
+source/main acceptance remain required; their final receipts will be linked
+in PR237. No workflow, permission, registry write or new dependency is added.
+Rollback is a normal revert of this bounded recipe/parser/test increment; it
+requires no database migration and changes no admitted or retained archive.
+
 The next prerequisite is a complete, measured retention inventory, followed by
 an approved concrete package/workflow/permission plan. Four local derivative
 image archives and green diagnostic jobs do not establish that inventory.
@@ -168,7 +193,7 @@ remain separate requirements. Preparation cannot satisfy them by assertion.
 
 ## Measurement feasibility correction, 9 November
 
-The initial M3A draft is not implementation-ready. Source inspection at
+The superseded initial broad M3A draft was not implementation-ready. Source inspection at
 `d34330c2ce29a3a948a11ff620e0718def1af86f` finds no explicit Buildx builder
 selection or private-directory handoff to a later step. The audited Go/JDK
 builder images are not a qualified Buildx backend. OpenSearch obtains its
@@ -190,4 +215,5 @@ from run 42637987348, not surviving archives, a complete closure, or current
 capacity acceptance. Fresh reviewed-main observations must replace them for
 the next gate; unmeasured sources, dependencies and inherited material remain
 explicitly unknown. No M3 implementation or archive transfer follows from this
-preparation finding.
+preparation finding. The separately approved six-file plan above replaces that
+draft's attempted cache-export approach, not the remaining closure requirements.
