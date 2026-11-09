@@ -188,3 +188,9 @@ Dernier incrément produit livré : [TASK-0113 — liens de comparaison synthét
 Point de suivi antérieur à la livraison de TASK-0113, conservé sans réécriture ; il ne représente pas l'état de livraison courant :
 
 Incrément produit indépendant : [TASK-0112 — liens de publication synthétique](roadmap/tasks/TASK-0112-synthetic-publication-links.md), implémentation et validation locale approuvées (291 tests navigateur réussis par plateforme Windows/Linux), livraison finale soumise aux CI de la tête de PR puis du main protégé. TASK-0111 est livré par [PR180 et son checkpoint](https://github.com/CleMeY15/auto-world/pull/180#issuecomment-6251833551), CI du main39140493041 SUCCESS. Les liens de publication pointent vers la lecture actuelle de la démo locale, sans figer les données ni identifier un véhicule réel. Cette voie n'admet aucune infrastructure et ne débloque pas TASK-0104 à0106.
+
+## Checkpoint courant — 9 novembre 2026, après TASK-0121
+
+TASK-0121 est `DONE_FOR_V1_PROTOTYPE` sur main `7ea0d333babb74dd993aaf14684d4e10f4852e3f`, par [PR232 et son checkpoint accepté](https://github.com/CleMeY15/auto-world/pull/232#issuecomment-6738946552). Qualité et parcours persistant réussis sur source et main ;576 scénarios navigateur réussis,10 exclusions préexistantes. Les anciens états pending ci-dessus restent historiques.
+
+[TASK-0122 — renommer une recherche enregistrée](roadmap/tasks/TASK-0122-rename-saved-searches.md) est `IN_PROGRESS`, DoR et revues Architect/Critic validées, sur une branche isolée. Réutiliser le mécanisme des comparaisons sans modifier les critères. Candidat suivant, seulement après acceptation0122 : présentation progressive des critères dans Mes listes. Aucune qualification TASK-0005 ni admission de données réelles n'est déduite de ces incréments.

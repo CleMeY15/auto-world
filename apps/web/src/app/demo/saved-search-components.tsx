@@ -1,4 +1,5 @@
-import { Banner, Button, Card } from "@auto-world/design-system/primitives";
+import type { FormEvent, KeyboardEvent } from "react";
+import { Banner, Button, Card, Field } from "@auto-world/design-system/primitives";
 import type { DemoCatalogResponseV2, DemoSearchSort } from "@auto-world/demo-search-contract";
 
 import {
@@ -44,9 +45,14 @@ export function SavedSearchesSection({
   catalogPending,
   enabled,
   readOnly,
+  renameDraft,
   emptyCopy,
   showCount,
   onLoad,
+  onRenameStart,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
   onRemove,
 }: {
   readonly searches: readonly SavedSearch[];
@@ -54,26 +60,44 @@ export function SavedSearchesSection({
   readonly catalogPending: boolean;
   readonly enabled: boolean;
   readonly readOnly: boolean;
+  readonly renameDraft?: { readonly key: string; readonly name: string; readonly error?: "invalid" };
   readonly emptyCopy?: string;
   readonly showCount: boolean;
   readonly onLoad: (search: SavedSearch, omitIdentity: boolean) => void;
+  readonly onRenameStart: (search: SavedSearch) => void;
+  readonly onRenameChange: (name: string) => void;
+  readonly onRenameSubmit: () => void;
+  readonly onRenameCancel: () => void;
   readonly onRemove: (search: SavedSearch, index: number) => void;
 }) {
+  function submitRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onRenameSubmit();
+  }
+
+  function handleRenameKeyDown(event: KeyboardEvent<HTMLFormElement>) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    onRenameCancel();
+  }
+
   return (
     <section aria-labelledby="demo-saved-searches-title" className="demo-saved-section">
       <div className="demo-section-heading">
         <h2 id="demo-saved-searches-title" tabIndex={-1}>Recherches enregistrées{showCount ? ` (${searches.length} sur ${SAVED_SEARCH_LIMIT})` : ""}</h2>
         <p>Chargez les critères, puis lancez vous-même la recherche.</p>
       </div>
-      {readOnly ? <p className="demo-field-hint">Ces recherches sont en lecture seule. Leur suppression est désactivée afin de préserver les données existantes.</p> : null}
+      {readOnly ? <p className="demo-field-hint">Ces recherches sont en lecture seule. Leur renommage et leur suppression sont désactivés afin de préserver les données existantes.</p> : null}
       {searches.length === 0 ? (emptyCopy ? <p className="demo-section-empty">{emptyCopy}</p> : null) : (
         <ol className="demo-saved-search-list">
           {searches.map((search, index) => {
             const hasIdentity = search.criteria.query.makeId !== undefined || search.criteria.query.modelId !== undefined;
             const compatibleCatalog = matchingSavedSearchCatalog(search.criteria, catalog);
             const identityUnavailable = hasIdentity && compatibleCatalog === undefined && !catalogPending;
+            const key = getSavedSearchKey(search.criteria);
+            const activeDraft = renameDraft?.key === key ? renameDraft : undefined;
             return (
-              <li key={getSavedSearchKey(search.criteria)}>
+              <li key={key}>
                 <Card className="demo-saved-search">
                   <div className="demo-saved-search-copy">
                     <h3 id={`demo-saved-search-name-${index}`} tabIndex={-1}>{search.name}</h3>
@@ -87,8 +111,26 @@ export function SavedSearchesSection({
                     ) : (
                       <Button disabled={!enabled || (hasIdentity && catalogPending)} id={`demo-saved-search-load-${index}`} onClick={() => onLoad(search, false)}>Charger les critères</Button>
                     )}
+                    <Button disabled={readOnly || activeDraft !== undefined} id={`demo-saved-search-rename-${index}`} variant="secondary" onClick={() => onRenameStart(search)}>Renommer</Button>
                     <Button disabled={readOnly} id={`demo-saved-search-remove-${index}`} variant="secondary" onClick={() => onRemove(search, index)}>Supprimer</Button>
                   </div>
+                  {activeDraft ? (
+                    <form className="demo-rename-search-form" noValidate onKeyDown={handleRenameKeyDown} onSubmit={submitRename}>
+                      <Field
+                        id="demo-rename-search-name"
+                        name="searchName"
+                        label="Nouveau nom"
+                        value={activeDraft.name}
+                        onChange={(event) => onRenameChange(event.target.value)}
+                        error={activeDraft.error === "invalid" ? "Choisissez un nom de 1 à 60 caractères, sans caractères de contrôle." : undefined}
+                        autoComplete="off"
+                      />
+                      <div className="demo-form-actions">
+                        <Button type="submit">Enregistrer</Button>
+                        <Button type="button" variant="secondary" onClick={onRenameCancel}>Annuler</Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </Card>
               </li>
             );

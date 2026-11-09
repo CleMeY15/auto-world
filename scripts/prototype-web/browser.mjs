@@ -223,6 +223,27 @@ async function renameComparison(page, name) {
   await expect(page.getByRole("heading", { name })).toBeVisible();
 }
 
+async function renameSearch(page, name) {
+  const before = await page.evaluate((keys) => Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, localStorage.getItem(value)])), PROTOTYPE_KEYS);
+  const calls = [];
+  const recordRequest = (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) calls.push(request.url()); };
+  page.on("request", recordRequest);
+  try {
+    await page.locator("#demo-saved-search-rename-0").click();
+    await page.getByLabel("Nouveau nom", { exact: true }).fill(name);
+    await page.locator(".demo-rename-search-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
+    await expect(page.locator("#demo-saved-search-name-0")).toHaveText(name);
+    await expect(page.locator("#demo-saved-search-rename-0")).toBeFocused();
+    const after = await page.evaluate((keys) => Object.fromEntries(Object.entries(keys).map(([key, value]) => [key, localStorage.getItem(value)])), PROTOTYPE_KEYS);
+    const expected = JSON.parse(before.searches);
+    expected.searches[0].name = name;
+    expect(JSON.parse(after.searches)).toEqual(expected);
+    expect(after.favorites).toBe(before.favorites);
+    expect(after.comparisons).toBe(before.comparisons);
+    expect(calls).toEqual([]);
+  } finally { page.off("request", recordRequest); }
+}
+
 async function openKeywordEngine(engine, browser, evidenceDirectory, metrics) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light", locale: "fr-FR" });
   const page = await context.newPage();
@@ -342,8 +363,11 @@ async function openEngine(engine, launcher, evidenceDirectory, metrics) {
     await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
     await renameComparison(page, "Duo persistant renommé");
+    await renameSearch(page, "Recherche persistante renommée");
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.getByRole("heading", { name: "Duo persistant renommé" })).toBeVisible();
+    await expect(page.locator("#demo-saved-search-name-0")).toHaveText("Recherche persistante renommée");
+    metrics.searchRenameEngines += 1;
     expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
     await assertSentinels(page);
     await capture(page, evidenceDirectory, engine, "phone-saved", metrics.screenshots);
@@ -400,6 +424,7 @@ async function verifyUnavailableEngine(state, evidenceDirectory, metrics) {
   await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Duo persistant renommé" })).toBeVisible();
   await renameComparison(page, "Duo hors ligne");
+  await renameSearch(page, "Recherche hors ligne");
   expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
   await assertSentinels(page);
   expect(externalRequests).toEqual([]);
@@ -411,6 +436,7 @@ async function verifyRestoredEngine(state, metrics) {
   await page.reload({ waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Mes listes" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Duo hors ligne" })).toBeVisible();
+  await expect(page.locator("#demo-saved-search-name-0")).toHaveText("Recherche hors ligne");
   expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
 
   const beforeLoad = searchRequests.length;
@@ -461,7 +487,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
-    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
+    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];
   let closed = false;

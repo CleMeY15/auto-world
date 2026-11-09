@@ -355,7 +355,7 @@ test("denied local storage keeps the saved-search interface in truthful session 
     get() { throw new DOMException("denied", "SecurityError"); },
   }));
   await page.goto("/demo#saved");
-  await expect(page.getByText("Le stockage local est inaccessible. Les recherches ajoutées restent limitées à cette session.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Le stockage local est inaccessible. Les modifications des recherches restent limitées à cette session.", { exact: true })).toBeVisible();
 });
 
 test("quota failure retains the newly saved search for this session without overwriting persistent bytes", async ({ page }) => {
@@ -371,7 +371,7 @@ test("quota failure retains the newly saved search for this session without over
   await saveAcceptedSearch(page, "Session seulement");
   await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
   await expect(page.locator(".demo-saved-search").filter({ hasText: "Session seulement" })).toBeVisible();
-  await expect(page.getByText("L’enregistrement local est plein. Les recherches ajoutées restent limitées à cette session.", { exact: true })).toBeVisible();
+  await expect(page.getByText("L’enregistrement local est plein. Les modifications des recherches restent limitées à cette session.", { exact: true })).toBeVisible();
   expect(await page.evaluate((key) => localStorage.getItem(key), savedSearchKey)).toBeNull();
 });
 
