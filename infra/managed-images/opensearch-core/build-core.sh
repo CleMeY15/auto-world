@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd /workspace/source
-mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed /evidence/test-output /evidence/test-output-validation /evidence/junit-transport-grpc
+mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed /evidence/controls/xcontent-string-boundary /evidence/test-output /evidence/test-output-validation /evidence/junit-transport-grpc
 printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' > /evidence/state.txt
 test "$(cat .git/HEAD)" = 4ee42a94e87f66fbf1e62a9871b1b87f91e02472
 cp .git/HEAD /evidence/source-commit.txt
@@ -45,10 +45,14 @@ fi
 bash /recipe/patch-snapshot-scope-test.sh "$PWD" > /evidence/snapshot-scope-test-preparation.txt 2>&1
 cp /recipe/patch-snapshot-scope-test.sh /evidence/patch-snapshot-scope-test.sh.txt
 cp /recipe/patch-snapshot-mock-repository.sh /evidence/patch-snapshot-mock-repository.sh.txt
+cp /recipe/patch-xcontent-yaml-string-boundary.sh /evidence/patch-xcontent-yaml-string-boundary.sh.txt
 cp /recipe/test-output-capture.gradle /evidence/test-output-capture.gradle.txt
 cp /recipe/verify-test-output-capture.sh /evidence/verify-test-output-capture.sh.txt
 cp /recipe/verify-test-output-manifest.gradle /evidence/verify-test-output-manifest.gradle.txt
 cp /recipe/snapshot-scope-test.patch /recipe/snapshot-scope-mock-repository.patch /evidence/
+bash /recipe/patch-xcontent-yaml-string-boundary.sh "$PWD" /evidence \
+  > /evidence/xcontent-yaml-string-boundary-preparation.txt 2>&1
+cp /recipe/xcontent-yaml-string-boundary.patch /evidence/
 sha256sum \
   server/src/internalClusterTest/java/org/opensearch/snapshots/SharedClusterSnapshotRestoreIT.java \
   test/framework/src/main/java/org/opensearch/snapshots/mockstore/MockRepository.java \
@@ -228,15 +232,54 @@ if [ "$preparation_status" -eq 0 ] && [ "$fixture_ok" -eq 1 ]; then
     printf '%s\n' "$fixed_control_ok" > /evidence/controls/seeded-fixed/success-verified.status
   fi
 
-  rm -rf server/build/test-results/internalClusterTest
-  if [ "$fixed_control_ok" -eq 1 ]; then
+  xcontent_control_xml=libs/x-content/build/test-results/test/TEST-org.opensearch.common.xcontent.XContentParserTests.xml
+  rm -rf libs/x-content/build/test-results/test
+  xcontent_control_status=0
+  bash ./gradlew "${gradle_options[@]}" \
+    -Dtests.seed=E4705740DC35C4BA \
+    -Dtests.security.manager=true \
+    '-Dtests.jvm.argline=-XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=64m' \
+    -Dtests.locale=nl-AW \
+    -Dtests.timezone=Antarctica/McMurdo \
+    -Druntime.java=25 \
+    :libs:opensearch-x-content:test --rerun \
+    --tests org.opensearch.common.xcontent.XContentParserTests.testString \
+    --tests org.opensearch.common.xcontent.XContentParserTests.testStringOffLimit \
+    > /evidence/controls/xcontent-string-boundary/gradle.log 2>&1 || xcontent_control_status=$?
+  printf '%s\n' "$xcontent_control_status" > /evidence/controls/xcontent-string-boundary/gradle.exit-code
+  if [ -f "$xcontent_control_xml" ]; then
+    cp "$xcontent_control_xml" /evidence/controls/xcontent-string-boundary/
+  fi
+
+  xcontent_control_ok=0
+  xcontent_control_evidence=/evidence/controls/xcontent-string-boundary/TEST-org.opensearch.common.xcontent.XContentParserTests.xml
+  if [ "$xcontent_control_status" -eq 0 ] \
+    && owned_regular_file /evidence/controls/xcontent-string-boundary/gradle.log \
+    && owned_regular_file /evidence/controls/xcontent-string-boundary/gradle.exit-code \
+    && owned_regular_file "$xcontent_control_evidence" \
+    && grep -Fq 'tests="2"' "$xcontent_control_evidence" \
+    && grep -Fq 'skipped="0"' "$xcontent_control_evidence" \
+    && grep -Fq 'failures="0"' "$xcontent_control_evidence" \
+    && grep -Fq 'errors="0"' "$xcontent_control_evidence" \
+    && [ "$(grep -Fo '<testcase ' "$xcontent_control_evidence" | wc -l)" -eq 2 ] \
+    && [ "$(grep -Fo 'name="testString"' "$xcontent_control_evidence" | wc -l)" -eq 1 ] \
+    && [ "$(grep -Fo 'name="testStringOffLimit"' "$xcontent_control_evidence" | wc -l)" -eq 1 ] \
+    && grep -Eq '<testcase name="testString" classname="org\.opensearch\.common\.xcontent\.XContentParserTests" time="[0-9.]+"/>' "$xcontent_control_evidence" \
+    && grep -Eq '<testcase name="testStringOffLimit" classname="org\.opensearch\.common\.xcontent\.XContentParserTests" time="[0-9.]+"/>' "$xcontent_control_evidence" \
+    && ! grep -Eq ':libs:opensearch-x-content:test (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/controls/xcontent-string-boundary/gradle.log; then
+    xcontent_control_ok=1
+  fi
+  printf '%s\n' "$xcontent_control_ok" > /evidence/controls/xcontent-string-boundary/success-verified.status
+
+  rm -rf server/build/test-results/internalClusterTest libs/x-content/build/test-results/test
+  if [ "$fixed_control_ok" -eq 1 ] && [ "$xcontent_control_ok" -eq 1 ]; then
     build_status=0
     bash ./gradlew "${gradle_options[@]}" "${capture_options[@]}" \
       -Dauto.world.test.output.phase=full --continue \
       :libs:opensearch-x-content:dependencyLicenses :libs:opensearch-x-content:thirdPartyAudit \
       :modules:ingest-geoip:dependencyLicenses :modules:ingest-geoip:thirdPartyAudit \
       :modules:transport-grpc:dependencyLicenses :modules:transport-grpc:thirdPartyAudit :modules:transport-grpc:check \
-      :libs:opensearch-x-content:test :modules:ingest-geoip:test \
+      :libs:opensearch-x-content:test --rerun :modules:ingest-geoip:test \
       :modules:ingest-geoip:yamlRestTest \
       :rest-api-spec:yamlRestTest \
       :server:internalClusterTest --rerun \
@@ -338,6 +381,9 @@ if [ "$full_report_count" -ne 16 ] || [ "$full_test_count" -lt 1736 ] \
   build_status=1
 fi
 if grep -Eq ':server:internalClusterTest (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/core-build-and-tests.log; then
+  build_status=1
+fi
+if grep -Eq ':libs:opensearch-x-content:test (UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)' /evidence/core-build-and-tests.log; then
   build_status=1
 fi
 if ! capture_complete full /evidence/core-build-and-tests.log; then
