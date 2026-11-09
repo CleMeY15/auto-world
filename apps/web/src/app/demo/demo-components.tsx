@@ -3,6 +3,7 @@ import { Banner, BookmarkIcon, Button, Card, ChevronLeftIcon, Skeleton } from "@
 import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchQueryV3 } from "@auto-world/demo-search-contract";
 import { resolveDescription } from "../../demo/catalog";
 import { formatExactNumber, formatObservedPrice } from "../../demo/observation-history";
+import type { SearchCriterion } from "../../demo/search-refinement";
 import { ObservationHistory } from "./history-components";
 
 export function SyntheticDisclosure({ persistent = false }: { readonly persistent?: boolean }) {
@@ -62,18 +63,48 @@ export function ResultSummary({ result, catalog }: { readonly result: DemoResult
   );
 }
 
-export function ActiveCriteria({ query, catalog }: { readonly query?: DemoSearchQueryV2 | DemoSearchQueryV3; readonly catalog?: DemoCatalogResponseV2 }) {
+export function ActiveCriteria({ query, catalog, busy = false, canRemove, onRemove }: {
+  readonly query?: DemoSearchQueryV2 | DemoSearchQueryV3;
+  readonly catalog?: DemoCatalogResponseV2;
+  readonly busy?: boolean;
+  readonly canRemove?: (criterion: SearchCriterion) => boolean;
+  readonly onRemove?: (criterion: SearchCriterion) => void;
+}) {
   if (query === undefined) return null;
-  const criteria: string[] = [];
+  const criteria: { readonly key: SearchCriterion; readonly summary: string; readonly action: string }[] = [];
   const make = catalog?.taxonomyRelease.makes.find((item) => item.makeId === query.makeId);
   const model = catalog?.taxonomyRelease.models.find((item) => item.makeId === query.makeId && item.modelId === query.modelId);
-  if (query.schemaVersion === 3 && query.text !== undefined) criteria.push(`Mots : ${query.text}`);
-  if (query.makeId !== undefined) criteria.push(make?.primaryName.value ?? "Marque : libellé indisponible");
-  if (query.modelId !== undefined) criteria.push(model?.primaryName.value ?? "Modèle : libellé indisponible");
-  if (query.firstRegistrationYear !== undefined) criteria.push(`Première immatriculation fictive : ${query.firstRegistrationYear}`);
-  if (query.priceMaxMinor !== undefined) criteria.push(`Budget ≤ ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(query.priceMaxMinor / 100)}`);
-  if (query.mileageMaxKm !== undefined) criteria.push(`Kilométrage ≤ ${new Intl.NumberFormat("fr-FR").format(query.mileageMaxKm)} km`);
-  return <p className="demo-field-hint">Critères appliqués : {criteria.length === 0 ? "aucun filtre" : criteria.join(" · ")}.</p>;
+  if (query.schemaVersion === 3 && query.text !== undefined) criteria.push({ key: "text", summary: `Mots : ${query.text}`, action: `Retirer les mots « ${query.text} »` });
+  if (query.makeId !== undefined) criteria.push({ key: "makeId", summary: make?.primaryName.value ?? "Marque : libellé indisponible", action: query.modelId === undefined ? "Retirer la marque" : "Retirer la marque et le modèle" });
+  if (query.modelId !== undefined) criteria.push({ key: "modelId", summary: model?.primaryName.value ?? "Modèle : libellé indisponible", action: "Retirer le modèle" });
+  if (query.firstRegistrationYear !== undefined) criteria.push({ key: "firstRegistrationYear", summary: `Première immatriculation fictive : ${query.firstRegistrationYear}`, action: "Retirer la première immatriculation fictive" });
+  if (query.priceMaxMinor !== undefined) criteria.push({ key: "priceMaxMinor", summary: `Budget ≤ ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(query.priceMaxMinor / 100)}`, action: "Retirer le budget maximum" });
+  if (query.mileageMaxKm !== undefined) criteria.push({ key: "mileageMaxKm", summary: `Kilométrage ≤ ${new Intl.NumberFormat("fr-FR").format(query.mileageMaxKm)} km`, action: "Retirer le kilométrage maximum" });
+  const unavailable = !busy && canRemove !== undefined && criteria.some(({ key }) => !canRemove(key));
+  return (
+    <div className="demo-active-criteria">
+      <p className="demo-field-hint" id="demo-active-criteria-summary">Critères appliqués : {criteria.length === 0 ? "aucun filtre" : criteria.map(({ summary }) => summary).join(" · ")}.</p>
+      {onRemove !== undefined && criteria.length > 0 ? (
+        <ul aria-label="Ajuster les critères appliqués" className="demo-criteria-actions">
+          {criteria.map(({ key, action }) => (
+            <li key={key}>
+              <Button
+                id={`demo-remove-${key}`}
+                type="button"
+                variant="secondary"
+                disabled={busy || canRemove?.(key) === false}
+                onClick={() => onRemove(key)}
+              >
+                {action}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {busy ? <p className="demo-field-hint">Les critères pourront être ajustés après la lecture en cours.</p> : null}
+      {unavailable ? <p className="demo-field-hint">Certains critères ne peuvent pas être ajustés tant que les libellés appliqués ne correspondent pas au catalogue actuel.</p> : null}
+    </div>
+  );
 }
 
 export function ResultCard({ index, result, catalog, saved, selectedForComparison, comparisonDisabled, onOpen, onToggleSaved, onToggleComparison }: {

@@ -124,6 +124,40 @@ async function assertKeywordSummary(page, canonicalText) {
   await expect(row.getByText(canonicalText, { exact: true })).toBeVisible();
 }
 
+async function verifySearchRefinement(page, evidenceDirectory, engine, searchRequests, metrics, canonicalText) {
+  const before = searchRequests.length;
+  const originalCards = await page.locator(".demo-result-card").allTextContents();
+  await page.locator("#demo-remove-text").click();
+  await expect(page.getByRole("heading", { name: "Explorer la démo" })).toBeFocused();
+  await expect(page.getByLabel("Recherche par mots")).toHaveValue("");
+  await expect(page.locator("#demo-refinement-cancel")).toBeVisible();
+  await audit(page); metrics.axeAudits += 1;
+  await capture(page, evidenceDirectory, engine, "phone-refinement-prepared", metrics.screenshots);
+  expect(searchRequests.length).toBe(before);
+  await page.locator("#demo-refinement-cancel").click();
+  await expect(page.locator("#demo-remove-text")).toBeFocused();
+  await expect(page.locator(".demo-result-card")).toHaveCount(40);
+  expect(await page.locator(".demo-result-card").allTextContents()).toEqual(originalCards);
+  expect(searchRequests.length).toBe(before);
+
+  await page.locator("#demo-remove-text").click();
+  const nextRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/demo/v2/search" && request.method() === "POST");
+  await submitSearchWithEnvelope(page, "/api/demo/v2/search", 2, undefined, metrics);
+  expect((await nextRequest).postDataJSON()).toEqual({ schemaVersion: 2, sort: "listing_asc" });
+  expect(searchRequests.length).toBe(before + 1);
+  await expect(page.locator(".demo-result-card")).toHaveCount(20);
+  await expect(page.locator("#demo-remove-text")).toHaveCount(0);
+
+  // Leave the existing keyword/save/restart journey on its original query.
+  await page.getByRole("button", { name: "Modifier les critères" }).click();
+  await expect(page.getByLabel("Recherche par mots")).toHaveValue("");
+  await page.getByLabel("Recherche par mots").fill(canonicalText);
+  await submitSearchWithEnvelope(page, "/api/demo/v3/search", 3, canonicalText, metrics);
+  await page.locator("#demo-load-more").click();
+  await expect(page.locator(".demo-result-card")).toHaveCount(40);
+  metrics.refinementEngines += 1;
+}
+
 async function verifyKeywordShare(page, evidenceDirectory, engine, searchRequests, metrics, modelName, canonicalText) {
   const beforeCreate = searchRequests.length;
   await page.locator("#demo-search-link-start").click();
@@ -249,6 +283,7 @@ async function openKeywordEngine(engine, browser, evidenceDirectory, metrics) {
     await page.getByLabel("Nom de la recherche").fill("Recherche par mots persistante");
     await page.locator(".demo-save-search-form").getByRole("button", { name: "Enregistrer", exact: true }).click();
     await verifyKeywordShare(page, evidenceDirectory, engine, searchRequests, metrics, modelName, canonicalText);
+    await verifySearchRefinement(page, evidenceDirectory, engine, searchRequests, metrics, canonicalText);
 
     await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
@@ -426,7 +461,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
-    keywordEngines: 0, keywordRestoredEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
+    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];
   let closed = false;

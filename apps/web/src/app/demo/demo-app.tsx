@@ -11,8 +11,9 @@ import { matchingCatalog, modelsForMake } from "../../demo/catalog";
 import { decodeComparisonLinkFragment, encodeComparisonLinkFragment, isComparisonLinkFragment, resolveComparisonBundle } from "../../demo/comparison-link";
 import { COMPARISON_LIMIT, selectComparisonEntries, toggleComparisonSelection, type ComparisonEntry } from "../../demo/comparison";
 import { createFavoritesStore, type FavoritesStorageStatus } from "../../demo/favorites";
-import { parseFilterInputV3 } from "../../demo/model";
+import { parseFilterInputV3, type DemoFilterInputV2 } from "../../demo/model";
 import { parsePublicListingId } from "../../demo/protocol";
+import { removeSearchCriterion, type SearchCriterion } from "../../demo/search-refinement";
 import type { DemoStorageNamespace } from "../../demo/storage-namespace";
 import { decodeSearchLinkFragment, isSearchLinkFragment } from "../../demo/search-link";
 import {
@@ -58,6 +59,17 @@ type SearchError = DemoClientErrorCode | "changed_snapshot" | "changed_state" | 
 type Theme = "system" | "light" | "dark";
 type SavedComparisonOrigin = { readonly name: string; readonly fragment: string; awaitingOpen: boolean };
 type SaveComparisonAuthority = { readonly screen: "compare" | "received-comparison"; readonly fragment: string; readonly rawHash: string };
+type SearchFieldError = { readonly field: "text" | "priceMaxEUR" | "mileageMaxKm" | "sort" | "makeId" | "modelId" | "firstRegistrationYear"; readonly message: string };
+type SearchDraftSnapshot = DemoFilterInputV2 & { readonly advanced: boolean; readonly fieldError?: SearchFieldError };
+type SearchRefinementContext = {
+  readonly criterion: SearchCriterion;
+  readonly previousDraft: SearchDraftSnapshot;
+  readonly acceptedCriteria: SavedSearchCriteria;
+  readonly response: DemoSearchResponseV2;
+  readonly catalog: CatalogState;
+  readonly sourceHash: string;
+  readonly awaitingSearch: boolean;
+};
 type SavedComparisonRenameDraft = {
   readonly fragment: string;
   readonly expectedSnapshot: SavedComparisonSnapshot;
@@ -166,10 +178,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [firstRegistrationYear, setFirstRegistrationYear] = useState("");
   const [sort, setSort] = useState<DemoSearchSort>("listing_asc");
   const [advanced, setAdvanced] = useState(false);
-  const [fieldError, setFieldError] = useState<{ readonly field: "text" | "priceMaxEUR" | "mileageMaxKm" | "sort" | "makeId" | "modelId" | "firstRegistrationYear"; readonly message: string }>();
+  const [fieldError, setFieldError] = useState<SearchFieldError>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
   const [comparisonIds, setComparisonIds] = useState<readonly string[]>([]);
-  const [resultQuery, setResultQuery] = useState<DemoSearchQueryV2 | DemoSearchQueryV3>();
   const [acceptedCriteria, setAcceptedCriteria] = useState<SavedSearchCriteria>();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
   const [saveSearchName, setSaveSearchName] = useState("");
@@ -197,6 +208,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [savedComparisonResetToken, setSavedComparisonResetToken] = useState<SavedComparisonSnapshot>();
   const [savedComparisonRenameDraft, setSavedComparisonRenameDraft] = useState<SavedComparisonRenameDraft>();
   const [savedComparisonOrigin, setSavedComparisonOrigin] = useState<SavedComparisonOrigin>();
+  const [searchRefinement, setSearchRefinement] = useState<SearchRefinementContext>();
   const searchAbort = useRef<AbortController | undefined>(undefined);
   const detailAbort = useRef<AbortController | undefined>(undefined);
   const savedAbort = useRef<AbortController | undefined>(undefined);
@@ -227,6 +239,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const savedComparisonResetConfirmFocused = useRef(false);
   const savedComparisonResetArmedRef = useRef(false);
   const savedComparisonResetTokenRef = useRef<SavedComparisonSnapshot | undefined>(undefined);
+  const searchRefinementRef = useRef<SearchRefinementContext | undefined>(undefined);
   const pendingResponseFocus = useRef<string | undefined>(undefined);
   const initialSearchFocus = useRef(true);
   const markHydrated = useCallback((node: HTMLElement | null) => { if (node) node.dataset.demoHydrated = "true"; }, []);
@@ -237,7 +250,15 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     else document.documentElement.dataset.awTheme = value;
   }, []);
 
+  const updateSearchRefinement = useCallback((next: SearchRefinementContext | undefined) => {
+    searchRefinementRef.current = next;
+    setSearchRefinement(next);
+  }, []);
+
+  const invalidateSearchRefinement = useCallback(() => updateSearchRefinement(undefined), [updateSearchRefinement]);
+
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
+    if (next !== "search") invalidateSearchRefinement();
     saveComparisonAuthorityRef.current = undefined;
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
@@ -245,7 +266,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
-  }, [screen]);
+  }, [invalidateSearchRefinement, screen]);
 
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); savedComparisons.hydrate(); }, [favorites, savedComparisons, savedSearches]);
   useEffect(() => {
@@ -334,6 +355,21 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
   }, [hash, screen]);
+
+  useEffect(() => {
+    const current = searchRefinementRef.current;
+    if (current === undefined) return;
+    if (current.acceptedCriteria !== acceptedCriteria || current.response !== response || current.catalog !== catalog) {
+      invalidateSearchRefinement();
+      return;
+    }
+    if (screen === "search" && hash === "#search") {
+      if (current.awaitingSearch) updateSearchRefinement(Object.freeze({ ...current, awaitingSearch: false }));
+      return;
+    }
+    if (current.awaitingSearch && screen === "results" && hash === current.sourceHash) return;
+    invalidateSearchRefinement();
+  }, [acceptedCriteria, catalog, hash, invalidateSearchRefinement, response, screen, updateSearchRefinement]);
 
   useEffect(() => {
     const cancelForReceivedLink = () => {
@@ -554,7 +590,6 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     if (append) pendingResponseFocus.current = next.nextCursor ? "demo-load-more" : `demo-result-open-${appendStartIndex.current}`;
     else if (focusAfter === "refresh") pendingResponseFocus.current = "demo-screen-title";
     setResponse(next);
-    setResultQuery(requestedQuery);
     if (!append) setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
     recordAnalyticsEvent({ eventName: "results_shown", screen: "results", outcome: outcomeForResponse(next) });
     if (!append && focusAfter !== "refresh") navigate("results");
@@ -562,6 +597,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    invalidateSearchRefinement();
     setLinkedCriteriaNotice(undefined);
     const parsed = parseFilterInputV3({ priceMaxEUR: price, mileageMaxKm: mileage, sort, text, makeId, modelId, firstRegistrationYear });
     if (!parsed.ok) {
@@ -576,9 +612,67 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }
 
   function resetFilters() {
+    invalidateSearchRefinement();
     setLinkedCriteriaNotice(undefined);
     setText(""); setPrice(""); setMileage(""); setMakeId(""); setModelId(""); setFirstRegistrationYear(""); setSort("listing_asc"); setFieldError(undefined);
     setAnnouncement("Les critères ont été réinitialisés.");
+  }
+
+  function removeAcceptedCriterion(criterion: SearchCriterion) {
+    if (screen !== "results" || hash !== "#results" || window.location.hash !== "#results" || acceptedCriteria === undefined || response === undefined || loading || loadingMore) return;
+    const input = removeSearchCriterion(acceptedCriteria, criterion, catalog.status === "ready" ? catalog.data : undefined);
+    if (input === undefined) {
+      setAnnouncement("Ce critère ne peut pas être ajusté avec le catalogue actuel.");
+      return;
+    }
+    const context = Object.freeze<SearchRefinementContext>({
+      criterion,
+      previousDraft: Object.freeze({ text, priceMaxEUR: price, mileageMaxKm: mileage, makeId, modelId, firstRegistrationYear, sort, advanced, ...(fieldError === undefined ? {} : { fieldError }) }),
+      acceptedCriteria,
+      response,
+      catalog,
+      sourceHash: hash,
+      awaitingSearch: true,
+    });
+    updateSearchRefinement(context);
+    setText(input.text); setPrice(input.priceMaxEUR); setMileage(input.mileageMaxKm); setMakeId(input.makeId); setModelId(input.modelId);
+    setFirstRegistrationYear(input.firstRegistrationYear); setSort(input.sort); setFieldError(undefined);
+    setAdvanced(input.mileageMaxKm !== "" || input.makeId !== "" || input.modelId !== "" || input.firstRegistrationYear !== "" || input.sort !== "listing_asc");
+    setLinkedCriteriaNotice(undefined);
+    const removed = criterion === "makeId" && acceptedCriteria.query.modelId !== undefined
+      ? "La marque et son modèle ont été retirés."
+      : criterion === "text" ? "Les mots ont été retirés."
+        : criterion === "makeId" ? "La marque a été retirée."
+          : criterion === "modelId" ? "Le modèle a été retiré."
+            : criterion === "firstRegistrationYear" ? "La première immatriculation fictive a été retirée."
+              : criterion === "priceMaxMinor" ? "Le budget maximum a été retiré."
+                : "Le kilométrage maximum a été retiré.";
+    setAnnouncement(`${removed} Vérifiez les critères, puis lancez la recherche.`);
+    navigate("search");
+  }
+
+  function cancelSearchRefinement() {
+    const current = searchRefinementRef.current;
+    if (current === undefined) return;
+    const authorityIsCurrent = screen === "search"
+      && hash === "#search"
+      && window.location.hash === "#search"
+      && current.acceptedCriteria === acceptedCriteria
+      && current.response === response
+      && current.catalog === catalog;
+    if (!authorityIsCurrent) {
+      invalidateSearchRefinement();
+      setAnnouncement("L’ajustement ne peut plus être annulé, car les résultats ou le catalogue ont changé.");
+      return;
+    }
+    const draft = current.previousDraft;
+    updateSearchRefinement(undefined);
+    setText(draft.text); setPrice(draft.priceMaxEUR); setMileage(draft.mileageMaxKm); setMakeId(draft.makeId); setModelId(draft.modelId);
+    setFirstRegistrationYear(draft.firstRegistrationYear); setSort(draft.sort); setAdvanced(draft.advanced); setFieldError(draft.fieldError);
+    setLinkedCriteriaNotice(undefined);
+    setAnnouncement("L’ajustement a été annulé. Les résultats et votre brouillon précédent sont inchangés.");
+    navigate("results");
+    focusAfterRender(`demo-remove-${current.criterion}`);
   }
 
   function loadMore() {
@@ -655,6 +749,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }
 
   function restoreSearchCriteria(criteria: SavedSearchCriteria, omitIdentity: boolean, message: string): boolean {
+    invalidateSearchRefinement();
     const input = savedSearchToFilterInput(criteria, catalogStateRef.current.status === "ready" ? catalogStateRef.current.data : undefined, omitIdentity);
     if (input === undefined) {
       setAnnouncement("La marque ou le modèle enregistré n’est pas disponible. Choisissez le chargement sans identité.");
@@ -669,7 +764,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     pendingResponseFocus.current = undefined;
     resultsReturnIndex.current = undefined;
     setLoading(false); setLoadingMore(false); setSlow(false); setSearchError(undefined); setPageFailure(false);
-    setResponse(undefined); setResultQuery(undefined); setAcceptedCriteria(undefined); lastQuery.current = undefined;
+    setResponse(undefined); setAcceptedCriteria(undefined); lastQuery.current = undefined;
     setText(input.text); setPrice(input.priceMaxEUR); setMileage(input.mileageMaxKm); setMakeId(input.makeId); setModelId(input.modelId);
     setFirstRegistrationYear(input.firstRegistrationYear); setSort(input.sort); setFieldError(undefined);
     setAdvanced(input.mileageMaxKm !== "" || input.makeId !== "" || input.modelId !== "" || input.firstRegistrationYear !== "" || input.sort !== "listing_asc");
@@ -1174,21 +1269,22 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Explorer la démo" description="Ajustez des critères déterministes, puis parcourez uniquement les publications synthétiques actives." />
           {linkedCriteriaNotice ? <p className="demo-loaded-link">{linkedCriteriaNotice}</p> : null}
+          {searchRefinement ? <div className="demo-refinement-notice"><Banner tone="info">Le critère est retiré du formulaire. Lancez Rechercher pour appliquer ce changement aux résultats.</Banner><Button id="demo-refinement-cancel" type="button" variant="secondary" onClick={cancelSearchRefinement}>Annuler l’ajustement</Button></div> : null}
           {location.invalid ? <Banner tone="warning">Le lien demandé n’est pas valide. La recherche est de nouveau disponible.</Banner> : null}
           {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
           <div className="demo-search-layout">
             <form className="demo-search-form" noValidate onSubmit={submitSearch}>
-              <Field id="demo-text" label="Recherche par mots" value={text} onChange={(event) => { setText(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "text" ? fieldError.message : undefined} hint="Marque ou modèle fictifs. Tous les mots sont recherchés." autoComplete="off" />
-              <Field id="demo-priceMaxEUR" label="Budget maximum (€)" inputMode="decimal" value={price} onChange={(event) => { setPrice(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "priceMaxEUR" ? fieldError.message : undefined} autoComplete="off" />
+              <Field id="demo-text" label="Recherche par mots" value={text} onChange={(event) => { invalidateSearchRefinement(); setText(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "text" ? fieldError.message : undefined} hint="Marque ou modèle fictifs. Tous les mots sont recherchés." autoComplete="off" />
+              <Field id="demo-priceMaxEUR" label="Budget maximum (€)" inputMode="decimal" value={price} onChange={(event) => { invalidateSearchRefinement(); setPrice(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "priceMaxEUR" ? fieldError.message : undefined} autoComplete="off" />
               <button className="demo-advanced-toggle" type="button" aria-expanded={advanced} onClick={() => setAdvanced((value) => !value)}><FilterIcon />{advanced ? "Masquer les critères avancés" : "Afficher les critères avancés"}</button>
               {advanced ? <div className="demo-advanced">
-                <Field id="demo-mileageMaxKm" label="Kilométrage maximum (km)" inputMode="decimal" value={mileage} onChange={(event) => { setMileage(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "mileageMaxKm" ? fieldError.message : undefined} autoComplete="off" />
-                <Field id="demo-firstRegistrationYear" label="Année de première immatriculation fictive" inputMode="numeric" value={firstRegistrationYear} onChange={(event) => { setFirstRegistrationYear(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "firstRegistrationYear" ? fieldError.message : undefined} hint="Quatre chiffres. Il ne s’agit pas d’une année-modèle vérifiée." autoComplete="off" />
+                <Field id="demo-mileageMaxKm" label="Kilométrage maximum (km)" inputMode="decimal" value={mileage} onChange={(event) => { invalidateSearchRefinement(); setMileage(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "mileageMaxKm" ? fieldError.message : undefined} autoComplete="off" />
+                <Field id="demo-firstRegistrationYear" label="Année de première immatriculation fictive" inputMode="numeric" value={firstRegistrationYear} onChange={(event) => { invalidateSearchRefinement(); setFirstRegistrationYear(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "firstRegistrationYear" ? fieldError.message : undefined} hint="Quatre chiffres. Il ne s’agit pas d’une année-modèle vérifiée." autoComplete="off" />
                 {catalog.status === "loading" || catalog.status === "idle" ? <div aria-busy="true" aria-live="polite" className="demo-catalog-loading"><span>{catalogSlow ? "Le catalogue prend plus de temps que prévu. Les filtres numériques restent disponibles." : "Chargement des libellés synthétiques…"}</span><Skeleton /><Skeleton /></div> : null}
-                <label htmlFor="demo-makeId">Marque fictive<select id="demo-makeId" value={makeId} disabled={catalogData === undefined} aria-describedby="demo-identity-hint" onChange={(event) => { const nextMake = event.target.value; setMakeId(nextMake); if (catalogData === undefined || !modelsForMake(catalogData, nextMake).some((model) => model.modelId === modelId)) { setModelId(""); if (modelId !== "") setAnnouncement("Le modèle a été réinitialisé pour correspondre à la nouvelle marque."); } setFieldError(undefined); }}><option value="">Toutes les marques fictives</option>{catalogData?.taxonomyRelease.makes.map((make) => <option key={make.makeId} value={make.makeId}>{make.primaryName.value}</option>)}</select></label>
-                <label htmlFor="demo-modelId">Modèle fictif<select id="demo-modelId" value={modelId} disabled={catalogData === undefined || makeId === ""} aria-describedby="demo-identity-hint" onChange={(event) => { setModelId(event.target.value); setFieldError(undefined); }}><option value="">Tous les modèles fictifs</option>{availableModels.map((model) => <option key={model.modelId} value={model.modelId}>{model.primaryName.value}</option>)}</select></label>
+                <label htmlFor="demo-makeId">Marque fictive<select id="demo-makeId" value={makeId} disabled={catalogData === undefined} aria-describedby="demo-identity-hint" onChange={(event) => { invalidateSearchRefinement(); const nextMake = event.target.value; setMakeId(nextMake); if (catalogData === undefined || !modelsForMake(catalogData, nextMake).some((model) => model.modelId === modelId)) { setModelId(""); if (modelId !== "") setAnnouncement("Le modèle a été réinitialisé pour correspondre à la nouvelle marque."); } setFieldError(undefined); }}><option value="">Toutes les marques fictives</option>{catalogData?.taxonomyRelease.makes.map((make) => <option key={make.makeId} value={make.makeId}>{make.primaryName.value}</option>)}</select></label>
+                <label htmlFor="demo-modelId">Modèle fictif<select id="demo-modelId" value={modelId} disabled={catalogData === undefined || makeId === ""} aria-describedby="demo-identity-hint" onChange={(event) => { invalidateSearchRefinement(); setModelId(event.target.value); setFieldError(undefined); }}><option value="">Tous les modèles fictifs</option>{availableModels.map((model) => <option key={model.modelId} value={model.modelId}>{model.primaryName.value}</option>)}</select></label>
                 <p className="demo-field-hint" id="demo-identity-hint">Libellés fournis par le catalogue de démonstration validé. Ils ne décrivent aucun véhicule réel.</p>
-                <label htmlFor="demo-sort">Trier les résultats<select id="demo-sort" value={sort} onChange={(event) => { setSort(event.target.value as DemoSearchSort); setFieldError(undefined); }}><option value="listing_asc">Ordre stable de publication</option><option value="price_asc">Prix croissant (EUR d’abord)</option><option value="price_desc">Prix décroissant (EUR d’abord)</option><option value="mileage_asc">Kilométrage croissant (km d’abord)</option><option value="mileage_desc">Kilométrage décroissant (km d’abord)</option></select></label>
+                <label htmlFor="demo-sort">Trier les résultats<select id="demo-sort" value={sort} onChange={(event) => { invalidateSearchRefinement(); setSort(event.target.value as DemoSearchSort); setFieldError(undefined); }}><option value="listing_asc">Ordre stable de publication</option><option value="price_asc">Prix croissant (EUR d’abord)</option><option value="price_desc">Prix décroissant (EUR d’abord)</option><option value="mileage_asc">Kilométrage croissant (km d’abord)</option><option value="mileage_desc">Kilométrage décroissant (km d’abord)</option></select></label>
               </div> : null}
               <div className="demo-form-actions"><Button type="submit" loading={loading}>{loading ? "Recherche…" : "Rechercher"}</Button><Button type="button" variant="secondary" onClick={resetFilters}>Réinitialiser les critères</Button></div>
               {slow && loading ? <p className="demo-slow" role="status">La lecture prend plus de temps que prévu. Vous pouvez continuer à parcourir la page.</p> : null}
@@ -1202,7 +1298,13 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       {screen === "results" && response ? (
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Résultats de la démo" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
-          <ActiveCriteria query={resultQuery} catalog={responseCatalog} />
+          <ActiveCriteria
+            query={acceptedCriteria?.query}
+            catalog={responseCatalog}
+            busy={loading || loadingMore}
+            canRemove={(criterion) => acceptedCriteria !== undefined && removeSearchCriterion(acceptedCriteria, criterion, catalogData) !== undefined}
+            onRemove={removeAcceptedCriterion}
+          />
           <div className="demo-comparison-controls" aria-live="polite">
             <p>{comparisonEntries.length} publication{comparisonEntries.length > 1 ? "s" : ""} sur {COMPARISON_LIMIT} sélectionnée{comparisonEntries.length > 1 ? "s" : ""}.</p>
             <Button id="demo-comparison-open" disabled={loading || comparisonEntries.length < 2} onClick={openComparison}>Comparer</Button>
