@@ -25,6 +25,12 @@
 .demo-advanced label { align-items: flex-start; flex-direction: column; }
 .demo-advanced select { width: 100%; }
 .demo-field-hint, .demo-provenance, .demo-description-unavailable { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); margin-bottom: 0; }
+.demo-active-criteria { display: grid; gap: var(--aw-space-3); margin-bottom: var(--aw-space-4); }
+.demo-criteria-actions { display: flex; flex-wrap: wrap; gap: var(--aw-space-2); list-style: none; margin: 0; padding: 0; }
+.demo-criteria-actions li { display: flex; min-width: 0; }
+.demo-criteria-actions .aw-button { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.demo-refinement-notice { align-items: center; display: flex; flex-wrap: wrap; gap: var(--aw-space-3); margin-bottom: var(--aw-space-4); }
+.demo-refinement-notice .aw-banner { flex: 1 1 24rem; margin-block: 0; }
 .demo-catalog-loading, .demo-catalog-error { display: grid; gap: var(--aw-space-3); }
 .demo-catalog-loading > span { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); }
 .demo-catalog-loading .aw-skeleton { min-height: var(--aw-size-touch); }
