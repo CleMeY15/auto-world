@@ -119,8 +119,8 @@ export function validateScannerRetentionBootstrapContext(env, platform = process
   ) fail("scanner_retention_bootstrap_environment_invalid");
   const workspace = path.resolve(env.GITHUB_WORKSPACE);
   const runnerTemp = path.resolve(env.RUNNER_TEMP);
-  directoryIdentity(workspace, "workspace_invalid");
-  directoryIdentity(runnerTemp, "runner_temp_invalid");
+  validateDirectory(workspace);
+  validateDirectory(runnerTemp);
   return {
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
@@ -187,10 +187,10 @@ function run(commandRunner, command, args, options, expectedStatuses = [0]) {
   return result;
 }
 
-function boundedIdentity(value) {
+function boundedIdentity(value, reason = "scanner_retention_bootstrap_tool_identity_invalid") {
   const result = value.trim();
   if (result.length < 1 || result.length > 512 || /[^\x20-\x7e]/u.test(result)) {
-    fail("scanner_retention_bootstrap_tool_identity_invalid");
+    fail(reason);
   }
   return result;
 }
@@ -818,8 +818,8 @@ function validateReadProofContext(env, readProof, platform = process.platform) {
   ) readFail("environment_invalid");
   const workspace = path.resolve(env.GITHUB_WORKSPACE);
   const runnerTemp = path.resolve(env.RUNNER_TEMP);
-  validateDirectory(workspace);
-  validateDirectory(runnerTemp);
+  directoryIdentity(workspace, "workspace_invalid");
+  directoryIdentity(runnerTemp, "runner_temp_invalid");
   return {
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
@@ -1125,8 +1125,8 @@ async function executeReadProof({
     });
     await phase("protected_main_identity", () => verifyReadProtectedMain(fetchImpl, context, receipt.headTree));
     await phase("managed_tool_identity", () => {
-      receipt.access.tools.docker = boundedIdentity(run(commandRunner, "docker", ["version", "--format", "{{.Client.Version}}|{{.Server.Version}}"], authOptions()).stdout);
-      receipt.access.tools.buildx = boundedIdentity(run(commandRunner, "docker", ["buildx", "version"], authOptions()).stdout);
+      receipt.access.tools.docker = boundedIdentity(run(commandRunner, "docker", ["version", "--format", "{{.Client.Version}}|{{.Server.Version}}"], authOptions()).stdout, "scanner_retention_read_proof_tool_identity_invalid");
+      receipt.access.tools.buildx = boundedIdentity(run(commandRunner, "docker", ["buildx", "version"], authOptions()).stdout, "scanner_retention_read_proof_tool_identity_invalid");
     });
     await phase("authorized_registry_login", () => run(commandRunner, "docker", ["login", "ghcr.io", "--username", PACKAGE_OWNER, "--password-stdin"], {
       ...authOptions(), input: `${context.token}\n`,

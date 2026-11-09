@@ -96,6 +96,16 @@ command/output/cleanup regressions pass. The expanded focused suite passes54/54,
 lint14/14 and Secretlint1391 files. Exact-commit re-review and complete native/remote
 validation still gate acceptance; the original failed native run is preserved.
 
+The subsequent architecture review of `2fc876c65f33ddf60eb2f34b3fbf29bca43e8d51`
+identified crossed directory validators between bootstrap and read modes. They
+now use their own mode's validator; the shared tool-identity check receives an
+explicit read-proof reason. Separate invalid-directory and tool-output regressions
+cover these failures before effects or with owned cleanup. A further deadline
+regression crosses the operation deadline, proves that Docker cleanup still has
+59500ms, removes the newly pulled image and restores the initial inventory. All42
+tests in the directly affected scanner/workflow subset pass on the repaired tree;
+the exact final source remains subject to independent review and native/remote gates.
+
 Rollback disables this read workflow and preserves the package and all evidence.
 No existing package, archive, volume or unrelated image is deleted. External fork
 testing remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`; retention, restoration

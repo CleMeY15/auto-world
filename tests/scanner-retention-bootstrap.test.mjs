@@ -60,6 +60,18 @@ function fixture() {
   };
 }
 
+test("invalid bootstrap directories keep the bootstrap failure classification", () => {
+  for (const key of ["GITHUB_WORKSPACE", "RUNNER_TEMP"]) {
+    const item = fixture();
+    try {
+      item.env[key] = path.join(item.runnerTemp, "missing");
+      assert.throws(() => validateScannerRetentionBootstrapContext(item.env, "linux"),
+        /^Error: scanner_retention_bootstrap_directory_invalid$/u);
+      assert.equal(existsSync(item.output), false);
+    } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+  }
+});
+
 function response(body, status = 200, headers = {}) {
   return new globalThis.Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
 }

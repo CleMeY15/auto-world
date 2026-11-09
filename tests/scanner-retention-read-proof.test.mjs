@@ -272,6 +272,19 @@ test("one missing actual binding refuses before commands or output", async () =>
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
 });
 
+test("invalid read directories use read-proof reasons before any side effect", async () => {
+  for (const [key, reason] of [["GITHUB_WORKSPACE", "workspace_invalid"], ["RUNNER_TEMP", "runner_temp_invalid"]]) {
+    const item = fixture();
+    try {
+      item.env[key] = path.join(item.runnerTemp, "missing");
+      await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(item, commandHarness(), {
+        commandRunner: () => assert.fail("must not run"),
+      })), { message: `scanner_retention_read_proof_${reason}` });
+      assert.equal(existsSync(item.output), false);
+    } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+  }
+});
+
 test("read proof accepts only the observed published failed-bootstrap recovery outcome", () => {
   const changed = [
     { failedPhase: "authenticated_digest_readback" },
@@ -398,6 +411,39 @@ test("a near-operation-deadline command stays bounded and owned cleanup still ru
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
 });
 
+test("cleanup removes the owned image after the operation deadline has elapsed", async () => {
+  const item = fixture();
+  const commands = commandHarness();
+  let clock = 0;
+  let fetchCalls = 0;
+  try {
+    await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(item, commands, {
+      fetchImpl: async (url) => {
+        const result = await fetchImpl(url);
+        if (++fetchCalls === 4) clock = SCANNER_RETENTION.readProof.operationTimeoutMs - 1_500;
+        return result;
+      },
+      now: () => clock,
+      commandRunner: (command, args, commandOptions) => {
+        const result = commands.commandRunner(command, args, commandOptions);
+        if (command === "docker" && args[0] === "pull") clock = SCANNER_RETENTION.readProof.operationTimeoutMs + 500;
+        return result;
+      },
+    })), /scanner_retention_read_proof_job_timeout/u);
+    const pullIndex = commands.calls.findIndex(({ args }) => args[0] === "pull");
+    assert.equal(commands.calls[pullIndex].timeout, 1_500);
+    const cleanupCalls = commands.calls.slice(pullIndex + 1).filter(({ command }) => command === "docker");
+    assert.ok(cleanupCalls.some(({ args }) => args[0] === "image" && args[1] === "rm"));
+    assert.ok(cleanupCalls.every(({ timeout }) => timeout === 59_500));
+    const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+    assert.equal(receipt.result, "FAILED");
+    assert.equal(receipt.phases.find(({ name }) => name === "exact_pulled_image").reason,
+      "scanner_retention_read_proof_job_timeout");
+    assert.deepEqual(receipt.cleanup, { state: "PASSED", container: "NOT_CREATED", image: "REMOVED", ownedPathRemoved: true });
+    assert.deepEqual(receipt.access.localInventoryAfter, receipt.access.localInventoryBefore);
+  } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
 test("oversized read command output uses the read-proof reason and still cleans owned paths", async () => {
   const item = fixture();
   try {
@@ -407,6 +453,22 @@ test("oversized read command output uses the read-proof reason and still cleans 
     const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
     assert.equal(receipt.phases.find(({ name }) => name === "managed_tool_identity").reason,
       "scanner_retention_read_proof_command_output_exceeded");
+    assert.equal(receipt.cleanup.ownedPathRemoved, true);
+  } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("an invalid managed tool identity has a read-proof reason", async () => {
+  const item = fixture();
+  const commands = commandHarness();
+  try {
+    await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(item, commands, {
+      commandRunner: (command, args, commandOptions) => command === "docker" && args[0] === "version"
+        ? { status: 0, stdout: "\u0000", stderr: "" }
+        : commands.commandRunner(command, args, commandOptions),
+    })), { message: "scanner_retention_read_proof_tool_identity_invalid" });
+    const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+    assert.equal(receipt.phases.find(({ name }) => name === "managed_tool_identity").reason,
+      "scanner_retention_read_proof_tool_identity_invalid");
     assert.equal(receipt.cleanup.ownedPathRemoved, true);
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
 });
