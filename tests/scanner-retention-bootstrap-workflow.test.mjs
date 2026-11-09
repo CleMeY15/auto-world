@@ -108,6 +108,6 @@ test("scanner bootstrap uploads only its public receipt and contains no broader 
 
   const upload = workflow.jobs.bootstrap.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
   assert.equal(upload.with.path, "${{ runner.temp }}/scanner-retention-bootstrap/receipt.json");
-  assert.doesNotMatch(upload.with.path, /[*?\[\]]|(?:^|\/)\.\.(?:\/|$)/u);
+  assert.doesNotMatch(upload.with.path, /[*?[\]]|(?:^|\/)\.\.(?:\/|$)/u);
   assert.equal(workflow.jobs.bootstrap.steps.filter((step) => step.uses?.startsWith("actions/upload-artifact@")).length, 1);
 });
