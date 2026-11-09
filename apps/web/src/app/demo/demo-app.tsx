@@ -85,6 +85,42 @@ type SavedSearchRenameDraft = {
   readonly error?: "invalid";
 };
 
+const RESULT_SORT_OPTIONS: readonly { readonly value: DemoSearchSort; readonly label: string }[] = Object.freeze([
+  { value: "listing_asc", label: "Ordre stable de publication" },
+  { value: "price_asc", label: "Prix croissant (EUR d’abord)" },
+  { value: "price_desc", label: "Prix décroissant (EUR d’abord)" },
+  { value: "mileage_asc", label: "Kilométrage croissant (km d’abord)" },
+  { value: "mileage_desc", label: "Kilométrage décroissant (km d’abord)" },
+]);
+
+function ResultsSortControl({ acceptedSort, disabled, disabledReason, onApply }: {
+  readonly acceptedSort: DemoSearchSort;
+  readonly disabled: boolean;
+  readonly disabledReason?: string;
+  readonly onApply: (sort: DemoSearchSort) => void;
+}) {
+  const [draftSort, setDraftSort] = useState<DemoSearchSort>(acceptedSort);
+  const unchanged = draftSort === acceptedSort;
+  const acceptedLabel = RESULT_SORT_OPTIONS.find((option) => option.value === acceptedSort)?.label;
+  const chosenLabel = RESULT_SORT_OPTIONS.find((option) => option.value === draftSort)?.label;
+  const descriptionIds = ["demo-results-sort-applied", unchanged ? undefined : "demo-results-sort-chosen", disabledReason ? "demo-results-sort-hint" : undefined].filter(Boolean).join(" ");
+
+  return (
+    <form className="demo-results-sort-control" onSubmit={(event) => { event.preventDefault(); onApply(draftSort); }}>
+      <label htmlFor="demo-results-sort">
+        Trier ces résultats
+        <select id="demo-results-sort" value={draftSort} disabled={disabled} aria-describedby={descriptionIds} onChange={(event) => setDraftSort(event.target.value as DemoSearchSort)}>
+          {RESULT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <Button id="demo-results-sort-apply" type="submit" disabled={disabled || unchanged}>Appliquer le tri</Button>
+      <p className="demo-field-hint" id="demo-results-sort-applied">Tri appliqué : {acceptedLabel}</p>
+      {!unchanged ? <p className="demo-field-hint" id="demo-results-sort-chosen">Tri choisi : {chosenLabel}</p> : null}
+      {disabledReason ? <p className="demo-field-hint" id="demo-results-sort-hint">{disabledReason}</p> : null}
+    </form>
+  );
+}
+
 const client = createDemoClientV2();
 
 function subscribeHash(listener: () => void) {
@@ -200,6 +236,8 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [resultsSortQuery, setResultsSortQuery] = useState<DemoSearchQueryV2 | DemoSearchQueryV3>();
+  const [resultsSortDraftGeneration, setResultsSortDraftGeneration] = useState(0);
   const [detail, setDetail] = useState<DetailState>({ status: "idle" });
   const acceptedDetail = detail.status === "ready" && detail.result.listingId === location.listingId ? detail : undefined;
   const [detailRetry, setDetailRetry] = useState(0);
@@ -218,6 +256,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [savedComparisonOrigin, setSavedComparisonOrigin] = useState<SavedComparisonOrigin>();
   const [searchRefinement, setSearchRefinement] = useState<SearchRefinementContext>();
   const searchAbort = useRef<AbortController | undefined>(undefined);
+  const resultsSortQueryRef = useRef<DemoSearchQueryV2 | DemoSearchQueryV3 | undefined>(undefined);
   const detailAbort = useRef<AbortController | undefined>(undefined);
   const savedAbort = useRef<AbortController | undefined>(undefined);
   const catalogAbort = useRef<AbortController | undefined>(undefined);
@@ -267,8 +306,28 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }, []);
 
   const invalidateSearchRefinement = useCallback(() => updateSearchRefinement(undefined), [updateSearchRefinement]);
+  const resetResultsSortDraft = useCallback(() => setResultsSortDraftGeneration((generation) => generation + 1), []);
+
+  const cancelResultsSort = useCallback(() => {
+    if (resultsSortQueryRef.current === undefined) return;
+    searchAbort.current?.abort();
+    searchAbort.current = undefined;
+    searchEpoch.current += 1;
+    resultsSortQueryRef.current = undefined;
+    pendingResponseFocus.current = undefined;
+    setResultsSortQuery(undefined);
+    setResponse(undefined);
+    setSearchError(undefined);
+    setPageFailure(false);
+    setLoading(false);
+    setLoadingMore(false);
+    setSlow(false);
+  }, []);
 
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
+    if (next !== "results") {
+      cancelResultsSort();
+    }
     if (next !== "search") invalidateSearchRefinement();
     saveComparisonAuthorityRef.current = undefined;
     renameFocusGeneration.current += 1;
@@ -280,7 +339,23 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
-  }, [invalidateSearchRefinement, screen]);
+  }, [cancelResultsSort, invalidateSearchRefinement, screen]);
+
+  useEffect(() => {
+    if (screen !== "results") cancelResultsSort();
+  }, [cancelResultsSort, screen]);
+
+  useEffect(() => {
+    const cancelResultsSortOnRouteChange = (event: HashChangeEvent) => {
+      const nextHash = event.newURL ? new URL(event.newURL).hash || "#search" : window.location.hash || "#search";
+      if (nextHash !== "#results") {
+        if (window.location.hash === "#results") resetResultsSortDraft();
+        cancelResultsSort();
+      }
+    };
+    window.addEventListener("hashchange", cancelResultsSortOnRouteChange);
+    return () => window.removeEventListener("hashchange", cancelResultsSortOnRouteChange);
+  }, [cancelResultsSort, resetResultsSortDraft]);
 
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); savedComparisons.hydrate(); }, [favorites, savedComparisons, savedSearches]);
   useEffect(() => {
@@ -609,7 +684,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(id)?.focus()));
   }, []);
 
-  const runSearch = useCallback(async (query: DemoSearchQueryV2 | DemoSearchQueryV3, append: boolean, focusAfter?: "refresh") => {
+  const runSearch = useCallback(async (query: DemoSearchQueryV2 | DemoSearchQueryV3, append: boolean, focusAfter?: "refresh" | "results-sort") => {
     if ((query.makeId !== undefined || query.modelId !== undefined) && catalogStateRef.current.status !== "ready") { navigate("search"); return; }
     const pageToken = append ? pagination.beginNext() : pagination.beginSearch();
     if (pageToken === undefined) return;
@@ -642,17 +717,37 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const slowTimer = window.setTimeout(() => { if (!controller.signal.aborted && epoch === searchEpoch.current) setSlow(true); }, 750);
     const outcome = await client.search(requestedQuery, { signal: controller.signal });
     window.clearTimeout(slowTimer);
-    if (controller.signal.aborted || epoch !== searchEpoch.current || isSearchLinkFragment(window.location.hash) || isComparisonLinkFragment(window.location.hash)) return;
+    if (controller.signal.aborted
+      || epoch !== searchEpoch.current
+      || isSearchLinkFragment(window.location.hash)
+      || isComparisonLinkFragment(window.location.hash)
+      || (focusAfter === "results-sort" && (window.location.hash !== "#results" || resultsSortQueryRef.current !== query))) return;
     setSlow(false); if (append) setLoadingMore(false); else setLoading(false);
-    if (!outcome.ok) { setPageFailure(append); setSearchError(outcome.code); if (append) focusAfterRender("demo-page-retry"); return; }
+    if (!outcome.ok) {
+      setPageFailure(append);
+      setSearchError(outcome.code);
+      if (append) focusAfterRender("demo-page-retry");
+      else if (focusAfter === "results-sort") focusAfterRender("demo-results-sort-retry");
+      return;
+    }
     const accepted = append ? pagination.acceptNext(pageToken, outcome.data) : pagination.acceptFirst(pageToken, outcome.data);
-    if (!accepted.ok) { setPageFailure(append); setSearchError(accepted.code); if (append) focusAfterRender("demo-page-retry"); return; }
+    if (!accepted.ok) {
+      setPageFailure(append);
+      setSearchError(accepted.code);
+      if (append) focusAfterRender("demo-page-retry");
+      else if (focusAfter === "results-sort") focusAfterRender("demo-results-sort-retry");
+      return;
+    }
     const next = accepted.data;
     ensureCatalogForResponse(next);
     if (append) pendingResponseFocus.current = next.nextCursor ? "demo-load-more" : `demo-result-open-${appendStartIndex.current}`;
-    else if (focusAfter === "refresh") pendingResponseFocus.current = "demo-screen-title";
+    else if (focusAfter === "refresh" || focusAfter === "results-sort") pendingResponseFocus.current = "demo-screen-title";
     setResponse(next);
     if (!append) setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
+    if (focusAfter === "results-sort") {
+      resultsSortQueryRef.current = undefined;
+      setResultsSortQuery(undefined);
+    }
     recordAnalyticsEvent({ eventName: "results_shown", screen: "results", outcome: outcomeForResponse(next) });
     if (!append && focusAfter !== "refresh") navigate("results");
   }, [ensureCatalogForResponse, focusAfterRender, navigate, pagination]);
@@ -748,6 +843,40 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     if (!lastQuery.current) { navigate("search"); return; }
     recordAnalyticsEvent({ eventName: "retry_clicked", screen: "results", outcome: searchError === "offline" ? "offline" : "error" });
     void runSearch(lastQuery.current, false);
+  }
+
+  function applyResultsSort(nextSort: DemoSearchSort) {
+    if (resultsSortQueryRef.current !== undefined || acceptedCriteria === undefined || response === undefined || loading || loadingMore || nextSort === acceptedCriteria.query.sort) return;
+    const hasIdentity = acceptedCriteria.query.makeId !== undefined || acceptedCriteria.query.modelId !== undefined;
+    if (hasIdentity && (catalog.status !== "ready" || responseCatalog === undefined)) return;
+    const query = Object.freeze({ ...acceptedCriteria.query, sort: nextSort }) as DemoSearchQueryV2 | DemoSearchQueryV3;
+    setSort(nextSort);
+    lastQuery.current = query;
+    resultsSortQueryRef.current = query;
+    setResultsSortQuery(query);
+    recordAnalyticsEvent({ eventName: "search_submitted", screen: "results", outcome: "success" });
+    if (!online) {
+      setComparisonIds([]);
+      setAcceptedCriteria(undefined);
+      setSaveSearchOpen(false);
+      setSaveSearchName("");
+      setSaveSearchError(undefined);
+      setSearchError("offline");
+      setPageFailure(false);
+      setLoading(false);
+      setLoadingMore(false);
+      setSlow(false);
+      focusAfterRender("demo-results-sort-retry");
+      return;
+    }
+    void runSearch(query, false, "results-sort");
+  }
+
+  function retryResultsSort() {
+    const query = resultsSortQueryRef.current;
+    if (query === undefined || loading || loadingMore) return;
+    recordAnalyticsEvent({ eventName: "retry_clicked", screen: "results", outcome: searchError === "offline" ? "offline" : "error" });
+    void runSearch(query, false, "results-sort");
   }
 
   function refreshProjection() {
@@ -1459,7 +1588,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
                 <label htmlFor="demo-makeId">Marque fictive<select id="demo-makeId" value={makeId} disabled={catalogData === undefined} aria-describedby="demo-identity-hint" onChange={(event) => { invalidateSearchRefinement(); const nextMake = event.target.value; setMakeId(nextMake); if (catalogData === undefined || !modelsForMake(catalogData, nextMake).some((model) => model.modelId === modelId)) { setModelId(""); if (modelId !== "") setAnnouncement("Le modèle a été réinitialisé pour correspondre à la nouvelle marque."); } setFieldError(undefined); }}><option value="">Toutes les marques fictives</option>{catalogData?.taxonomyRelease.makes.map((make) => <option key={make.makeId} value={make.makeId}>{make.primaryName.value}</option>)}</select></label>
                 <label htmlFor="demo-modelId">Modèle fictif<select id="demo-modelId" value={modelId} disabled={catalogData === undefined || makeId === ""} aria-describedby="demo-identity-hint" onChange={(event) => { invalidateSearchRefinement(); setModelId(event.target.value); setFieldError(undefined); }}><option value="">Tous les modèles fictifs</option>{availableModels.map((model) => <option key={model.modelId} value={model.modelId}>{model.primaryName.value}</option>)}</select></label>
                 <p className="demo-field-hint" id="demo-identity-hint">Libellés fournis par le catalogue de démonstration validé. Ils ne décrivent aucun véhicule réel.</p>
-                <label htmlFor="demo-sort">Trier les résultats<select id="demo-sort" value={sort} onChange={(event) => { invalidateSearchRefinement(); setSort(event.target.value as DemoSearchSort); setFieldError(undefined); }}><option value="listing_asc">Ordre stable de publication</option><option value="price_asc">Prix croissant (EUR d’abord)</option><option value="price_desc">Prix décroissant (EUR d’abord)</option><option value="mileage_asc">Kilométrage croissant (km d’abord)</option><option value="mileage_desc">Kilométrage décroissant (km d’abord)</option></select></label>
+                <label htmlFor="demo-sort">Trier les résultats<select id="demo-sort" value={sort} onChange={(event) => { invalidateSearchRefinement(); setSort(event.target.value as DemoSearchSort); setFieldError(undefined); }}>{RESULT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               </div> : null}
               <div className="demo-form-actions"><Button type="submit" loading={loading}>{loading ? "Recherche…" : "Rechercher"}</Button><Button type="button" variant="secondary" onClick={resetFilters}>Réinitialiser les critères</Button></div>
               {slow && loading ? <p className="demo-slow" role="status">La lecture prend plus de temps que prévu. Vous pouvez continuer à parcourir la page.</p> : null}
@@ -1470,7 +1599,18 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
         </section>
       ) : null}
 
-      {screen === "results" && response ? (
+      {screen === "results" && resultsSortQuery ? (
+        <section aria-labelledby="demo-screen-title">
+          <ScreenHeader title="Résultats de la démo" description="Le tri repart de la première page, sans modifier les critères." action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
+          {searchError ? (
+            <StatePanel tone="danger" title="Tri indisponible" action={<Button id="demo-results-sort-retry" onClick={retryResultsSort}>Réessayer le tri</Button>}>
+              <p>{errorCopy(searchError)} Le nouvel ordre n’a pas été appliqué.</p>
+            </StatePanel>
+          ) : <LoadingResults label={slow ? "Le nouveau tri prend plus de temps que prévu…" : "Application du tri…"} />}
+        </section>
+      ) : null}
+
+      {screen === "results" && response && resultsSortQuery === undefined ? (
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Résultats de la démo" description={response.state === "complete" ? `${response.totalCount} publication${response.totalCount > 1 ? "s" : ""} dans cet instant de démonstration.` : "Le nombre total ne peut pas être annoncé pour cet état."} action={<Button variant="secondary" onClick={() => navigate("search")}>Modifier les critères</Button>} />
           <ActiveCriteria
@@ -1480,6 +1620,15 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
             canRemove={(criterion) => acceptedCriteria !== undefined && removeSearchCriterion(acceptedCriteria, criterion, catalogData) !== undefined}
             onRemove={removeAcceptedCriterion}
           />
+          {acceptedCriteria ? (
+            <ResultsSortControl
+              key={`${acceptedSearchKey}:${resultsSortDraftGeneration}`}
+              acceptedSort={acceptedCriteria.query.sort}
+              disabled={loading || loadingMore || ((acceptedCriteria.query.makeId !== undefined || acceptedCriteria.query.modelId !== undefined) && (catalog.status !== "ready" || responseCatalog === undefined))}
+              disabledReason={(acceptedCriteria.query.makeId !== undefined || acceptedCriteria.query.modelId !== undefined) && (catalog.status !== "ready" || responseCatalog === undefined) ? "Le catalogue lié à ces résultats doit être disponible avant de les retrier." : undefined}
+              onApply={applyResultsSort}
+            />
+          ) : null}
           <div className="demo-comparison-controls" aria-live="polite">
             <p>{comparisonEntries.length} publication{comparisonEntries.length > 1 ? "s" : ""} sur {COMPARISON_LIMIT} sélectionnée{comparisonEntries.length > 1 ? "s" : ""}.</p>
             <Button id="demo-comparison-open" disabled={loading || comparisonEntries.length < 2} onClick={openComparison}>Comparer</Button>

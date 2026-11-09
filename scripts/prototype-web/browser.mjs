@@ -81,6 +81,49 @@ async function submitSearch(page) {
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
+async function verifyResultsSort(page, initialQuery, metrics) {
+  const isSearchResponse = (response) => new URL(response.url()).origin === ALLOWED_ORIGIN
+    && new URL(response.url()).pathname === "/api/demo/v2/search" && response.request().method() === "POST";
+  const requests = [];
+  const record = (request) => { if (new URL(request.url()).pathname === "/api/demo/v2/search") requests.push(request.postDataJSON()); };
+  page.on("request", record);
+  try {
+    await page.locator("#demo-results-sort").selectOption("mileage_desc");
+    expect(requests).toEqual([]);
+    await expect(page.locator(".demo-result-card")).toHaveCount(40);
+    const sortedResponsePromise = page.waitForResponse(isSearchResponse);
+    await page.locator("#demo-results-sort-apply").click();
+    const sortedResponse = await sortedResponsePromise;
+    expect(sortedResponse.status()).toBe(200);
+    const sortedQuery = { ...initialQuery, sort: "mileage_desc" };
+    expect(sortedResponse.request().postDataJSON()).toEqual(sortedQuery);
+    expect(sortedQuery.cursor).toBeUndefined();
+    const sorted = (await sortedResponse.json()).data;
+    await expect(page.locator(".demo-result-card")).toHaveCount(20);
+    await expect(page.locator("#demo-screen-title")).toBeFocused();
+    expect(sorted.results).toHaveLength(20);
+    expect(typeof sorted.nextCursor).toBe("string");
+    expect(sorted.nextCursor.length).toBeGreaterThan(0);
+    const pageResponsePromise = page.waitForResponse(isSearchResponse);
+    await page.locator("#demo-load-more").click();
+    const pageResponse = await pageResponsePromise;
+    expect(pageResponse.status()).toBe(200);
+    expect(pageResponse.request().postDataJSON()).toEqual({ ...sortedQuery, cursor: sorted.nextCursor });
+    const continuation = (await pageResponse.json()).data;
+    const expected = [...sorted.results, ...continuation.results];
+    expect(expected).toHaveLength(40);
+    await expect(page.locator(".demo-result-card")).toHaveCount(40);
+    // Check every rendered mileage in server order, not a client-sorted expectation.
+    const displayed = await page.locator(".demo-result-card .demo-facts > div:last-child dd").allTextContents();
+    expect(displayed.map((value) => value.replace(/\s/gu, "").replace(",", "."))).toEqual(expected.map((result) => {
+      expect(result.mileage.status).toBe("observed");
+      return `${result.mileage.value.amount}${result.mileage.value.unit}`;
+    }));
+    expect(requests).toHaveLength(2);
+    metrics.resultsSortEngines += 1;
+  } finally { page.off("request", record); }
+}
+
 async function submitSearchWithEnvelope(page, pathName, outerVersion, expectedText, metrics, measureFeedback = false) {
   const responsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
@@ -378,12 +421,16 @@ async function openEngine(engine, launcher, evidenceDirectory, metrics) {
     await expect(page.getByText("Prototype local persistant", { exact: true })).toBeVisible();
     await expect(page.getByText("Prototype local persistant sur données entièrement synthétiques. Aucun véhicule à vendre.")).toBeVisible();
     await selectPrototypeFilters(page);
+    const initialSearchPromise = page.waitForResponse((response) => new URL(response.url()).origin === ALLOWED_ORIGIN
+      && new URL(response.url()).pathname === "/api/demo/v2/search" && response.request().method() === "POST");
     await submitSearch(page);
+    const initialQuery = (await initialSearchPromise).request().postDataJSON();
     const initialResults = await page.locator(".demo-result-card").count();
     expect(initialResults).toBe(20);
     await page.locator("#demo-load-more").click();
     await expect(page.locator(".demo-result-card")).toHaveCount(40);
     const pagedResults = await page.locator(".demo-result-card").count();
+    await verifyResultsSort(page, initialQuery, metrics);
     await capture(page, evidenceDirectory, engine, "phone-results", metrics.screenshots);
     await saveInitialLists(page);
     await capture(page, evidenceDirectory, engine, "phone-detail", metrics.screenshots);
@@ -524,7 +571,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
-    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, savedCriteriaEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
+    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, savedCriteriaEngines: 0, resultsSortEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];
   let closed = false;

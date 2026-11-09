@@ -26,6 +26,10 @@
 .demo-advanced select { width: 100%; }
 .demo-field-hint, .demo-provenance, .demo-description-unavailable { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); margin-bottom: 0; }
 .demo-active-criteria { display: grid; gap: var(--aw-space-3); margin-bottom: var(--aw-space-4); }
+.demo-results-sort-control { align-items: end; display: flex; flex-wrap: wrap; gap: var(--aw-space-3); margin-bottom: var(--aw-space-4); }
+.demo-results-sort-control label { color: var(--aw-color-text-muted); display: grid; flex: 1 1 18rem; font-size: var(--aw-font-size-small); font-weight: 600; gap: var(--aw-space-2); max-width: 28rem; min-width: 0; }
+.demo-results-sort-control select { background: var(--aw-color-surface); border: 1px solid var(--aw-color-control-border); border-radius: var(--aw-radius-control); color: var(--aw-color-text); max-width: 100%; min-height: var(--aw-size-touch); min-width: 0; padding: var(--aw-space-2) var(--aw-space-3); width: 100%; }
+.demo-results-sort-control > .demo-field-hint { flex-basis: 100%; margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .demo-criteria-actions { display: flex; flex-wrap: wrap; gap: var(--aw-space-2); list-style: none; margin: 0; padding: 0; }
 .demo-criteria-actions li { display: flex; min-width: 0; }
 .demo-criteria-actions .aw-button { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
