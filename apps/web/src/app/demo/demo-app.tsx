@@ -357,6 +357,22 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }, [hash, screen]);
 
   useEffect(() => {
+    const reconcileSearchRefinementRoute = (event: HashChangeEvent) => {
+      const current = searchRefinementRef.current;
+      if (current === undefined) return;
+      const previousHash = new URL(event.oldURL).hash || "#search";
+      const nextHash = new URL(event.newURL).hash || "#search";
+      if (current.awaitingSearch && previousHash === current.sourceHash && nextHash === "#search") {
+        updateSearchRefinement(Object.freeze({ ...current, awaitingSearch: false }));
+        return;
+      }
+      invalidateSearchRefinement();
+    };
+    window.addEventListener("hashchange", reconcileSearchRefinementRoute);
+    return () => window.removeEventListener("hashchange", reconcileSearchRefinementRoute);
+  }, [invalidateSearchRefinement, updateSearchRefinement]);
+
+  useEffect(() => {
     const current = searchRefinementRef.current;
     if (current === undefined) return;
     if (current.acceptedCriteria !== acceptedCriteria || current.response !== response || current.catalog !== catalog) {
