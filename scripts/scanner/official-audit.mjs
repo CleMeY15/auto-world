@@ -608,6 +608,18 @@ export function evaluateManagedArchiveForRole(image, report, local, receipt, now
   return evaluated;
 }
 
+export function collectManagedRuntimeEvidence(build, output) {
+  const runtimeEvidence = build.role === "seaweedfs" ? build.runtimeSeaweedEvidence
+    : build.role === "postgres" ? build.runtimeGosuEvidence
+      : build.role === "opensearch" ? build.runtimeJdkEvidence : [];
+  if (build.role === "seaweedfs" && (!Array.isArray(runtimeEvidence) || runtimeEvidence.length !== 1 ||
+      runtimeEvidence[0]?.path !== "binary-sha256.txt")) fail("scanner_managed_runtime_prerequisite_invalid");
+  return [{ name: build.role, files: build.publicEvidence },
+    { name: `${build.role}-runtime`, files: runtimeEvidence ?? [] }].flatMap((group) => group.files.map((entry) => ({
+    path: path.join(output, "managed-public-evidence", group.name, entry.path), size: entry.size, sha256: entry.sha256,
+  })));
+}
+
 function validateImageSbomInventory(report, sbom, subject) {
   if (report?.ArtifactType !== "container_image" || report.ArtifactName !== subject || report.Metadata?.ImageConfig?.os !== "linux" ||
       report.Metadata.ImageConfig.architecture !== "amd64" || sbom?.bomFormat !== "CycloneDX" || !/^1\.[4-7]$/u.test(sbom.specVersion ?? "") ||
@@ -1483,11 +1495,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           await assertManagedArchiveUnchanged(local.archiveSnapshot);
           imageId = local.subject.imageId; subject = local.subject;
           const build = receipt.builds.find((entry) => entry.role === image.role);
-          const groups = [{ name: image.role, files: build.publicEvidence },
-            { name: `${image.role}-runtime`, files: build.runtimeGosuEvidence ?? build.runtimeJdkEvidence ?? [] }];
-          for (const group of groups) for (const entry of group.files) {
-            evidence.push({ path: path.join(output, "managed-public-evidence", group.name, entry.path), size: entry.size, sha256: entry.sha256 });
-          }
+          evidence.push(...collectManagedRuntimeEvidence(build, output));
         } else {
           if (image.role !== "redis") fail("scanner_managed_runtime_prerequisite_invalid");
           const reference = `${image.repository}@${image.platform.digest}`;
