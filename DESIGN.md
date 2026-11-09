@@ -211,3 +211,10 @@
 - Prefill/select the name; Enregistrer or Annuler/Escape. One editor across both collections. Invalid names stay editable; success/cancel returns focus to the current row. A common generation prevents stale deferred focus callbacks overriding a newer editor. Navigation discards drafts; external invalidation restores focus only when owned, locating by criteria identity.
 - Rename only the local label, never criteria/order/provenance. Same-name save does not write or emit mutation analytics. Read-only and session-only copy covers all modifications. Offline and disabled-demo editing stays local, with no artificial network loading state.
 - Preserve the existing tokens, keyboard/44px/axe/viewport/theme/enlarged-text and100ms responsiveness contracts. [TASK-0122](roadmap/tasks/TASK-0122-rename-saved-searches.md) requires independent actual-pixel and exact-source/main validation before acceptance.
+
+## TASK-0123 saved-search criteria disclosure
+
+- In Mes listes only, names and Charger/Renommer/Supprimer remain visible while exact criteria sit under a native Voir les critères summary, collapsed initially. This supersedes TASK-0122's always-visible criteria presentation, not its data or warning contract. Shared Results/received-link summaries stay unchanged.
+- Keep catalogue-loading, unavailable-identity and storage warnings outside. Native keyboard/pointer behavior, contextual accessible name,44px target and existing focus/color/spacing tokens; no custom accordion, menu, animation or decorative container.
+- Open state follows the existing criteria-key row, survives renaming/reordering that row, and resets on replacement/unmount/reload. No storage, query or analytics mutation from inspection. Rename editor stays outside; load remains explicit and never submits automatically.
+- Both-engine viewport/theme/enlarged-text/reduced-motion/axe checks, actual collapsed/expanded screenshots and100ms feedback measurements are required by [TASK-0123](roadmap/tasks/TASK-0123-saved-search-criteria.md). Local synthetic scope and all provenance/unknown qualifications remain unchanged.

@@ -1,5 +1,13 @@
 # ROADMAP MASTER — Auto World Search
 
+## Checkpoint courant — TASK-0123, 9 novembre 2026
+
+TASK-0122 est `DONE_FOR_V1_PROTOTYPE` sur main `43d3943dced0dc249fba0df49c5749426912e080`, par [PR233 et son checkpoint accepté](https://github.com/CleMeY15/auto-world/pull/233#issuecomment-6740879403). Les quatre validations source/main passent :608 tests navigateur réussis,10 exclusions préexistantes,10 phases persistantes sur deux moteurs ; revue finale indépendante PASS. Les états pending plus anciens sont historiques.
+
+[TASK-0123 — critères enregistrés à la demande](roadmap/tasks/TASK-0123-saved-search-criteria.md) est `IN_PROGRESS`, DoR satisfaite, sur une branche dédiée. Alléger Mes listes avec le composant natif de dépliage existant, sans modifier les critères ni masquer les avertissements. Pas de nouvelle dépendance ni d'infrastructure. Aucune tâche suivante avant son acceptation complète.
+
+Checkpoint local TASK-0123 : `LOCAL_VALIDATED / DELIVERY_PENDING`, qualité Linux et634 tests navigateur réussis (10 exclusions préexistantes), revues indépendantes code et20 captures approuvées. [Preuves et réparation visuelle à200%](docs/validation/TASK-0123.md). Les validations GitHub de la source finale et du main, dont le parcours persistant réel, restent requises.
+
 ## Point courant — 9 novembre 2026
 
 Checkpoint TASK-0121 : `LOCAL_TARGET_VALIDATED / DELIVERY_PENDING`,136 tests unitaires web et44 nouveaux scénarios navigateur réussis, qualité locale et revues source/pixels favorables. [Preuves et limites](docs/validation/TASK-0121.md). Suite navigateur complète, parcours persistant réel et acceptation GitHub/main encore requis.

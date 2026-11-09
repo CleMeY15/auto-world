@@ -189,6 +189,7 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
       window.dispatchEvent(new StorageEvent("storage", { key, newValue: value, storageArea: localStorage }));
     });
     await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
+    await page.locator("#demo-saved-search-criteria-toggle-0").click();
     await expect(page.locator(".demo-saved-search")).toContainText("90071992547409.91");
     await expect(page.locator(".demo-saved-search")).toContainText("0.0000001");
     await expect(page.locator(".demo-saved-search")).toContainText("<test>");
