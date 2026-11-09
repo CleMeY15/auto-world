@@ -178,6 +178,9 @@ test("long canonical words remain readable across the viewport and theme matrix"
       await page.goto(`/demo?keyword-visual=${width}-${theme}`);
       await page.getByLabel("Apparence").selectOption(theme);
       await page.getByLabel("Recherche par mots").fill(maximumCanonicalText);
+      if (theme === "light" && (width === 390 || width === 1440)) {
+        await capture(page, testInfo, `demo-keyword-input-${width}-${browserName}.png`);
+      }
       await page.getByRole("button", { name: "Rechercher", exact: true }).click();
       await expect(page.getByText(`Mots : ${maximumCanonicalText}`, { exact: false })).toBeVisible();
       await capture(page, testInfo, `demo-keyword-${width}-${theme}-${browserName}.png`);
