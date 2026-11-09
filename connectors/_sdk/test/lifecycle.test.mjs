@@ -430,13 +430,17 @@ test("finalization receives only the budget remaining after its authority rechec
   };
   let finalizedAt = null;
   h.ports.store.finalizeFullRun = (input) => new Promise((resolve) => {
-    h.time.scheduler.schedule(20, () => { finalizedAt = h.time.clock.nowMs(); resolve({ acknowledged: true, success: false, failure: { code: "store_failed", retryable: false } }); });
-    input.signal.addEventListener("abort", () => { finalizedAt = h.time.clock.nowMs(); });
+    const completion = h.time.scheduler.schedule(20, () => { finalizedAt = h.time.clock.nowMs(); resolve({ acknowledged: true, success: false, failure: { code: "store_failed", retryable: false } }); });
+    input.signal.addEventListener("abort", () => {
+      finalizedAt = h.time.clock.nowMs();
+      completion.cancel();
+    }, { once: true });
   });
   const result = await h.run(request({ limits: { maxRunMs: 100 } }));
   assert.equal(result.status, "failed");
   assert.equal(result.error.code, "mutation_indeterminate");
   assert.equal(finalizedAt, NOW + 100);
+  assert.equal(h.time.timers.size, 0);
 });
 
 test("a full page commit cannot masquerade as completed and skip reconciliation", async () => {
