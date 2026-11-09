@@ -53,12 +53,15 @@ function fail(reason) {
   throw new Error(reason);
 }
 
-function fixedReason(error) {
-  const message = error instanceof Error ? error.message : "scanner_retention_bootstrap_unknown_failure";
+function fixedReason(error, fallback = "scanner_retention_bootstrap_command_failed") {
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message;
   return /^scanner_retention_(?:bootstrap|read_proof|mode|arguments)_[a-z0-9_]+$/u.test(message)
     ? message
-    : "scanner_retention_bootstrap_command_failed";
+    : fallback;
 }
+
+const fixedReadReason = (error) => fixedReason(error, "scanner_retention_read_proof_command_failed");
 
 export function parseScannerRetentionArguments(argv) {
   if (argv.length === 3 && argv[0] === "read-proof" && argv[1] === "--output" && path.isAbsolute(argv[2])) {
@@ -159,24 +162,28 @@ function defaultCommandRunner(command, args, options) {
     env: options.env,
     input: options.input,
     maxBuffer: SCANNER_RETENTION.bootstrap.commandOutputCapBytes,
-    timeout: SCANNER_RETENTION.bootstrap.commandTimeoutMs,
+    timeout: options.timeout ?? SCANNER_RETENTION.bootstrap.commandTimeoutMs,
     windowsHide: true,
   });
 }
+
+export const TEST_ONLY_defaultCommandRunner = defaultCommandRunner;
 
 function observe(commandRunner, command, args, options) {
   const result = commandRunner(command, args, options);
   const stdout = typeof result?.stdout === "string" ? result.stdout : "";
   const stderr = typeof result?.stderr === "string" ? result.stderr : "";
   if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > SCANNER_RETENTION.bootstrap.commandOutputCapBytes) {
-    fail("scanner_retention_bootstrap_command_output_exceeded");
+    fail(`${options.failurePrefix ?? "scanner_retention_bootstrap"}_command_output_exceeded`);
   }
   return { error: result?.error, status: result?.status, stdout, stderr };
 }
 
 function run(commandRunner, command, args, options, expectedStatuses = [0]) {
   const result = observe(commandRunner, command, args, options);
-  if (result.error || !expectedStatuses.includes(result.status)) fail("scanner_retention_bootstrap_command_failed");
+  if (result.error || !expectedStatuses.includes(result.status)) {
+    fail(`${options.failurePrefix ?? "scanner_retention_bootstrap"}_command_failed`);
+  }
   return result;
 }
 
@@ -685,7 +692,8 @@ function exactKeys(value, keys, code) {
 export function validateScannerRetentionReadProofBinding(readProof = SCANNER_RETENTION.readProof) {
   exactKeys(readProof, [
     "workflow", "job", "platform", "outputDirectory", "firstRunNumber", "runAttempt", "payloadPath",
-    "registryCapBytes", "receiptCapBytes", "timeoutMs", "commandTimeoutMs", "commandOutputCapBytes",
+    "registryCapBytes", "receiptCapBytes", "operationTimeoutMs", "cleanupTimeoutMs", "receiptReserveMs",
+    "commandTimeoutMs", "commandOutputCapBytes",
     "bootstrap", "bootstrapOutcome", "packageSettings",
   ], "binding_invalid");
   const bootstrap = readProof.bootstrap;
@@ -722,7 +730,9 @@ export function validateScannerRetentionReadProofBinding(readProof = SCANNER_RET
     || readProof.payloadPath !== "/bootstrap.txt"
     || readProof.registryCapBytes !== SCANNER_RETENTION.bootstrap.registryCapBytes
     || readProof.receiptCapBytes !== SCANNER_RETENTION.bootstrap.receiptCapBytes
-    || readProof.timeoutMs !== SCANNER_RETENTION.bootstrap.timeoutMs
+    || readProof.operationTimeoutMs !== 240_000
+    || readProof.cleanupTimeoutMs !== 60_000
+    || readProof.receiptReserveMs !== 10_000
     || readProof.commandTimeoutMs !== SCANNER_RETENTION.bootstrap.commandTimeoutMs
     || readProof.commandOutputCapBytes !== SCANNER_RETENTION.bootstrap.commandOutputCapBytes
     || bootstrapOutcome.runConclusion !== "failure"
@@ -1064,15 +1074,18 @@ async function executeReadProof({
   if (process.platform === "linux" && [authConfig, anonymousConfig].some(
     (directory) => (lstatSync(directory).mode & 0o777) !== 0o700,
   )) readFail("docker_config_mode_invalid");
-  const deadline = started + readProof.timeoutMs;
+  const operationDeadline = started + readProof.operationTimeoutMs;
+  const cleanupDeadline = operationDeadline + readProof.cleanupTimeoutMs;
+  const receiptDeadline = cleanupDeadline + readProof.receiptReserveMs;
   const commandOptions = (dockerConfig, scopeRoot, cleanup = false) => {
     requireDirectoryIdentity(context.runnerTemp, runnerTempIdentity, "owned_path_replaced");
     requireDirectoryIdentity(work, workIdentity, "owned_path_replaced");
-    const remaining = deadline - now();
+    const remaining = (cleanup ? cleanupDeadline : operationDeadline) - now();
     if (!Number.isFinite(remaining) || remaining < 1_000) readFail(cleanup ? "cleanup_timeout" : "job_timeout");
     return {
       cwd: work,
       env: readChildEnvironment(context, dockerConfig, scopeRoot),
+      failurePrefix: "scanner_retention_read_proof",
       timeout: Math.floor(Math.min(readProof.commandTimeoutMs, remaining)),
     };
   };
@@ -1086,7 +1099,7 @@ async function executeReadProof({
       receipt.phases.push({ name, result: "PASSED", durationMs: Math.max(0, now() - phaseStarted) });
       return result;
     } catch (error) {
-      receipt.phases.push({ name, result: "FAILED", reason: fixedReason(error), durationMs: Math.max(0, now() - phaseStarted) });
+      receipt.phases.push({ name, result: "FAILED", reason: fixedReadReason(error), durationMs: Math.max(0, now() - phaseStarted) });
       throw error;
     }
   };
@@ -1302,15 +1315,16 @@ async function executeReadProof({
     if (existsSync(work)) readFail("cleanup_path_invalid");
     receipt.cleanup.ownedPathRemoved = true;
   } catch (error) { pathCleanupFailure = error; }
-  if (pathCleanupFailure) cleanupFailures.push(fixedReason(pathCleanupFailure));
+  if (pathCleanupFailure) cleanupFailures.push(fixedReadReason(pathCleanupFailure));
   receipt.phases.push({ name: "owned_path_cleanup", result: pathCleanupFailure ? "FAILED" : "PASSED",
-    ...(pathCleanupFailure ? { reason: fixedReason(pathCleanupFailure) } : {}),
+    ...(pathCleanupFailure ? { reason: fixedReadReason(pathCleanupFailure) } : {}),
     durationMs: Math.max(0, now() - pathCleanupStarted) });
+  if (now() >= receiptDeadline) cleanupFailures.push("scanner_retention_read_proof_receipt_timeout");
   receipt.cleanup.state = cleanupFailures.length ? "FAILED" : "PASSED";
   if (cleanupFailures.length) receipt.result = "FAILED";
   requireDirectoryIdentity(parsed.output, outputIdentity, "receipt_path_invalid");
   writeReceipt(parsed.output, receipt);
-  if (primaryFailure) fail(fixedReason(primaryFailure));
+  if (primaryFailure) fail(fixedReadReason(primaryFailure));
   if (cleanupFailures.length) fail(cleanupFailures[0]);
   return receipt;
 }
@@ -1358,7 +1372,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
     await main();
   } catch (error) {
     const operation = process.argv[2] === "read-proof" ? "read_proof" : "bootstrap";
-    console.error(`scanner_retention_${operation}_failed:${fixedReason(error)}`);
+    const reason = operation === "read_proof" ? fixedReadReason(error) : fixedReason(error);
+    console.error(`scanner_retention_${operation}_failed:${reason}`);
     process.exitCode = 1;
   }
 }

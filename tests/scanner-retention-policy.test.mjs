@@ -110,6 +110,10 @@ test("read proof fixes the reviewed bootstrap, outcome and package settings tupl
   assert.equal(readProof.payloadPath, "/bootstrap.txt");
   assert.equal(readProof.registryCapBytes, SCANNER_RETENTION.bootstrap.registryCapBytes);
   assert.equal(readProof.receiptCapBytes, 65536);
+  assert.equal(readProof.operationTimeoutMs, 240_000);
+  assert.equal(readProof.cleanupTimeoutMs, 60_000);
+  assert.equal(readProof.receiptReserveMs, 10_000);
+  assert.equal(readProof.operationTimeoutMs + readProof.cleanupTimeoutMs + readProof.receiptReserveMs, 310_000);
   assert.deepEqual(Object.keys(readProof.bootstrap), [
     "runId", "runAttempt", "headSha", "headTree", "artifactId", "artifactName", "artifactDigest",
     "receiptBytes", "receiptSha256", "tag", "subject", "manifestDigest", "manifestBytes",

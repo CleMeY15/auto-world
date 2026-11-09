@@ -61,6 +61,7 @@ The current tree contains these ten package-read jobs, including the new manual 
 | `postgres-candidate-remote-runtime-diagnostic-v2.yml` | runtime | 1/1 | Fixed audit ID11079393568/run36673766454/main5186a2… | Isolated audited diagnostic candidate execution and cleanup; exhausted/disabled. |
 | `postgres-package-bootstrap.yml` | verify | 2/1 | None | Fixed harmless bootstrap pulled into a stopped container; no candidate; exhausted. |
 | `private-package-proof.yml` | verify | Repo/main only | None | Fixed harmless bootstrap/canary and stopped container; no candidate; retired. |
+| `scanner-retention-package-read.yml` | read-proof | 1/1 | None | Fixed observed harmless scanner-package digest; authenticated/anonymous/authenticated reads and never-started container payload copy; no registry write, scanner execution or admission. [Separate proof](TASK-0005-scanner-retention-read.md). |
 | `seaweed-candidate-remote-audit.yml` | audit | 1/1 | Same-run/main scanner-build artifacts, needs:build | Pull/save/scan archive; candidate never started; exhausted. |
 | `seaweed-candidate-remote-runtime.yml` | runtime | 3/1 | Fixed audit run36325906357 | Isolated audited diagnostic candidate execution and cleanup; exhausted. |
 | `seaweed-package-bootstrap.yml` | verify | 2/1 | None | Fixed harmless bootstrap in a stopped container; no candidate; exhausted. |

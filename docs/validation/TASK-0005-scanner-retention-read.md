@@ -81,6 +81,21 @@ review, complete native local quality,
 final-source/protected-main quality and managed evidence, then the actual
 read-only workflow and independent receipt replay remain required.
 
+The initial native root suite on `ef16a6d1f8c159a475d57e05ce06d9e1aac8c6c4`
+failed the complete package-read workflow inventory: the new job was absent from
+its explicit reviewed list. The original result (3192 tests,3137 passed,54 skipped,
+one failure) is retained. Registering this job in that list and its documentation
+preserves every existing permission, dispatch, main and attempt assertion.
+The distinct Critic also required effective child-process timeouts, reserved
+cleanup/upload time and correct read-proof error classification. Those findings
+are repaired: the real spawn adapter honors the remaining timeout, read operations
+have240 seconds, cleanup60 seconds and receipt writing10 seconds within the
+10-minute job. Generic command/output/cleanup failures use safe read-proof reasons.
+A real blocked Node child is terminated by its50ms timeout; near-deadline and
+command/output/cleanup regressions pass. The expanded focused suite passes54/54,
+lint14/14 and Secretlint1391 files. Exact-commit re-review and complete native/remote
+validation still gate acceptance; the original failed native run is preserved.
+
 Rollback disables this read workflow and preserves the package and all evidence.
 No existing package, archive, volume or unrelated image is deleted. External fork
 testing remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`; retention, restoration

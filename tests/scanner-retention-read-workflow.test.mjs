@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { SCANNER_RETENTION } from "../scripts/scanner/retention-policy.mjs";
 
 const workflow = JSON.parse(await readFile(
   new URL("../.github/workflows/scanner-retention-package-read.yml", import.meta.url),
@@ -21,6 +22,10 @@ test("scanner retention read proof is a first-run no-input protected-main reader
   assert.equal(job.if, readGuard);
   assert.equal(job["runs-on"], "ubuntu-24.04");
   assert.equal(job["timeout-minutes"], 10);
+  const scriptBudget = SCANNER_RETENTION.readProof.operationTimeoutMs
+    + SCANNER_RETENTION.readProof.cleanupTimeoutMs + SCANNER_RETENTION.readProof.receiptReserveMs;
+  assert.equal(scriptBudget, 310_000);
+  assert.ok(scriptBudget <= (job["timeout-minutes"] - 4) * 60_000);
   assert.deepEqual(job.permissions, { contents: "read", packages: "read" });
   assert.equal(job.secrets, undefined);
   assert.equal(job.services, undefined);

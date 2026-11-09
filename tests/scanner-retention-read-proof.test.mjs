@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  TEST_ONLY_defaultCommandRunner,
   TEST_ONLY_runScannerRetentionReadProof,
   validateScannerRetentionReadProofBinding,
 } from "../scripts/scanner/retention-publish.mjs";
@@ -109,6 +110,8 @@ function commandHarness({
   copiedPayload = SCANNER_RETENTION.bootstrap.payload.text,
   direct = false,
   duplicateBaselineImage = false,
+  failPull = false,
+  oversizedCommandOutput = false,
 } = {}) {
   const calls = [];
   let imagePresent = false;
@@ -150,13 +153,18 @@ function commandHarness({
     Mounts: [],
   });
   const commandRunner = (command, args, options) => {
-    calls.push({ command, args: [...args], cwd: options.cwd, env: { ...options.env }, input: options.input });
+    calls.push({ command, args: [...args], cwd: options.cwd, env: { ...options.env }, input: options.input,
+      timeout: options.timeout, failurePrefix: options.failurePrefix });
     if (command === "git") {
       if (args[0] === "rev-parse" && args[1] === "HEAD") return { status: 0, stdout: `${sourceSha}\n`, stderr: "" };
       if (args[0] === "rev-parse" && args[1] === "HEAD^{tree}") return { status: 0, stdout: `${sourceTree}\n`, stderr: "" };
       if (args[0] === "status") return { status: 0, stdout: "", stderr: "" };
     }
-    if (command === "docker" && args[0] === "version") return { status: 0, stdout: "28.0.4|28.0.4\n", stderr: "" };
+    if (command === "docker" && args[0] === "version") return {
+      status: 0,
+      stdout: oversizedCommandOutput ? "x".repeat(SCANNER_RETENTION.readProof.commandOutputCapBytes + 1) : "28.0.4|28.0.4\n",
+      stderr: "",
+    };
     if (command === "docker" && args[0] === "buildx" && args[1] === "version") {
       return { status: 0, stdout: "github.com/docker/buildx v0.37.0\n", stderr: "" };
     }
@@ -187,6 +195,7 @@ function commandHarness({
         : { status: 1, stdout: "", stderr: "Error: No such container" };
     }
     if (command === "docker" && args[0] === "pull") {
+      if (failPull) return { status: 1, stdout: "", stderr: "simulated command failure" };
       imagePresent = true;
       return { status: 0, stdout: "pulled\n", stderr: "" };
     }
@@ -210,6 +219,15 @@ function commandHarness({
   };
   return { calls, commandRunner };
 }
+
+test("the process adapter enforces the caller's bounded timeout", () => {
+  const started = Date.now();
+  const result = TEST_ONLY_defaultCommandRunner(process.execPath, ["-e", "setTimeout(() => {}, 2000)"], {
+    cwd: process.cwd(), env: process.env, timeout: 50,
+  });
+  assert.equal(result.error?.code, "ETIMEDOUT");
+  assert.ok(Date.now() - started < 1_500);
+});
 
 function options(item, commands, extras = {}) {
   const { bindingValue = binding(), ...rest } = extras;
@@ -348,6 +366,61 @@ test("anonymous network ambiguity fails closed before pull and still removes own
     assert.equal(receipt.result, "FAILED");
     assert.equal(receipt.cleanup.ownedPathRemoved, true);
     assert.equal(receipt.phases.find(({ name }) => name === "anonymous_manifest_denied").result, "FAILED");
+  } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("a near-operation-deadline command stays bounded and owned cleanup still runs", async () => {
+  const item = fixture();
+  const commands = commandHarness({ failPull: true });
+  let clock = 0;
+  let fetchCalls = 0;
+  let pathCleanupRan = false;
+  const nearDeadlineFetch = async (url) => {
+    const result = await fetchImpl(url);
+    fetchCalls += 1;
+    if (fetchCalls === 4) clock = SCANNER_RETENTION.readProof.operationTimeoutMs - 1_500;
+    return result;
+  };
+  try {
+    await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(item, commands, {
+      fetchImpl: nearDeadlineFetch,
+      now: () => clock,
+      removeOwnedPath: (target) => { pathCleanupRan = true; rmSync(target, { recursive: true, force: false }); },
+    })), /scanner_retention_read_proof_command_failed/u);
+    const pull = commands.calls.find(({ args }) => args[0] === "pull");
+    assert.equal(pull.timeout, 1_500);
+    assert.equal(pull.failurePrefix, "scanner_retention_read_proof");
+    assert.equal(pathCleanupRan, true);
+    const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+    assert.equal(receipt.phases.find(({ name }) => name === "authorized_pinned_pull").reason,
+      "scanner_retention_read_proof_command_failed");
+    assert.equal(receipt.cleanup.ownedPathRemoved, true);
+  } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("oversized read command output uses the read-proof reason and still cleans owned paths", async () => {
+  const item = fixture();
+  try {
+    await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(
+      item, commandHarness({ oversizedCommandOutput: true }),
+    )), /scanner_retention_read_proof_command_output_exceeded/u);
+    const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+    assert.equal(receipt.phases.find(({ name }) => name === "managed_tool_identity").reason,
+      "scanner_retention_read_proof_command_output_exceeded");
+    assert.equal(receipt.cleanup.ownedPathRemoved, true);
+  } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
+});
+
+test("an unexpected read-proof cleanup error uses the read-proof fallback", async () => {
+  const item = fixture();
+  try {
+    await assert.rejects(TEST_ONLY_runScannerRetentionReadProof(options(item, commandHarness(), {
+      removeOwnedPath: () => { throw new Error("simulated unexpected cleanup failure"); },
+    })), /scanner_retention_read_proof_command_failed/u);
+    const receipt = JSON.parse(readFileSync(path.join(item.output, "receipt.json"), "utf8"));
+    assert.equal(receipt.phases.find(({ name }) => name === "owned_path_cleanup").reason,
+      "scanner_retention_read_proof_command_failed");
+    assert.equal(receipt.cleanup.state, "FAILED");
   } finally { rmSync(item.runnerTemp, { recursive: true, force: true }); }
 });
 
