@@ -223,6 +223,20 @@ test("the full applied and locally chosen sort labels stay distinct until submis
   expect(submitted).toHaveLength(1);
 });
 
+test("a batched departure and return discards the unsubmitted sort without a request", async ({ page }) => {
+  const submitted = await openResults(page);
+  await page.getByLabel("Trier ces résultats").selectOption("price_asc");
+  await expect(page.locator("#demo-results-sort-chosen")).toBeVisible();
+  await page.evaluate(() => {
+    window.location.hash = "#saved";
+    window.location.hash = "#results";
+  });
+  await expect(page.getByLabel("Trier ces résultats")).toHaveValue(acceptedQuery.sort);
+  await expect(page.locator("#demo-results-sort-chosen")).toHaveCount(0);
+  await expect(page.locator("#demo-results-sort-applied")).toHaveText("Tri appliqué : Kilométrage décroissant (km d’abord)");
+  expect(submitted).toHaveLength(1);
+});
+
 test("submitting clones accepted V3 criteria, ignores the unsent draft and resets comparison", async ({ page }) => {
   const submitted = await openResults(page);
   await page.locator("#demo-result-compare-0").click();

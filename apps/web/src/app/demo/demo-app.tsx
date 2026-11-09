@@ -326,7 +326,6 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
 
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
     if (next !== "results") {
-      resetResultsSortDraft();
       cancelResultsSort();
     }
     if (next !== "search") invalidateSearchRefinement();
@@ -340,7 +339,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
-  }, [cancelResultsSort, invalidateSearchRefinement, resetResultsSortDraft, screen]);
+  }, [cancelResultsSort, invalidateSearchRefinement, screen]);
 
   useEffect(() => {
     if (screen !== "results") cancelResultsSort();
@@ -350,7 +349,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     const cancelResultsSortOnRouteChange = (event: HashChangeEvent) => {
       const nextHash = event.newURL ? new URL(event.newURL).hash || "#search" : window.location.hash || "#search";
       if (nextHash !== "#results") {
-        resetResultsSortDraft();
+        if (window.location.hash === "#results") resetResultsSortDraft();
         cancelResultsSort();
       }
     };
