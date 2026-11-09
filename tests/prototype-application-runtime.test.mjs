@@ -21,15 +21,17 @@ test("V2 profile is verified before API construction, listening or seeding", asy
   assert.deepEqual(calls, ["profile", "search:close", "ingestion:close"]);
 });
 
-test("V2 runtime injects the durable read port and separate seed identity", async () => {
+test("V2 runtime injects durable structured and keyword read ports with separate seed identity", async () => {
   const calls = [];
   const readPortV2 = {};
+  const keywordReadPort = {};
   const adapter = {};
   const profile = { mapperVersion: "test-web-v2" };
   const runtime = createApplicationRuntime({ conditions, publishedPort: async () => 15432,
     loadModules: async () => ({ createPostgresPrototype: () => ({ close: async () => {} }),
-      createSearchPrototype: () => ({ readPort: {}, readPortV2, assertProfile: async () => calls.push("profile"), close: async () => {} }),
+      createSearchPrototype: () => ({ readPort: {}, readPortV2, keywordReadPort, assertProfile: async () => calls.push("profile"), close: async () => {} }),
       createDemoApi: (options) => { assert.equal(options.readPortV2, readPortV2);
+        assert.equal(options.keywordReadPort, keywordReadPort);
         return { listen: async () => calls.push("listen"), close: async () => {} }; },
       ingest: async (...args) => { assert.equal(args[1], adapter); assert.equal(args[2], "test-web-seed-v2");
         assert.equal(args[6].mapperVersion, profile.mapperVersion); calls.push("seed"); return { status: "completed" }; } }) });
