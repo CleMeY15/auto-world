@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
 
@@ -21,6 +21,12 @@ export const MANAGED_SEAWEED_MATERIAL = Object.freeze({
   licenseSha256: "d789d433cc11da163273d1e39be2e8fa67642f9a58ef220d3f258fa9c14ef613",
   goJose: "v4.1.6", xNet: "v0.62.0", displayCommit: "ffa87c2-aw-go-5b789254",
 });
+
+export const MANAGED_SEAWEED_IAM_FIXTURE_SOURCES = Object.freeze([
+  Object.freeze({ path: "weed/iamapi/iamapi_authz_test.go", bytes: 8153, sha256: "1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285" }),
+  Object.freeze({ path: "weed/iamapi/iamapi_management_handlers.go", bytes: 68613, sha256: "20c370620e0f15f342c90aad57a6b956e67b4ff4f43a7c486d242f9f2aa9e7a2" }),
+  Object.freeze({ path: "weed/iamapi/iamapi_handlers.go", bytes: 1854, sha256: "cb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966" }),
+]);
 
 export function validateManagedSeaweedConfig(base, candidate) {
   requireValue(Array.isArray(base) && base.length === 1 && Array.isArray(candidate) && candidate.length === 1);
@@ -60,48 +66,81 @@ const SEAWEED_STATUS_FILES = Object.freeze({
 
 // Read only the fixed numeric status surface from a canonical private evidence
 // root. This diagnostic does not inspect logs or imply runtime eligibility.
+function readStatuses(read) {
+  const statuses = {};
+  for (const [key, name] of Object.entries(SEAWEED_STATUS_FILES)) {
+    const bytes = read(name, 4);
+    requireValue(bytes.length >= 2 && bytes.length <= 4);
+    const text = utf8(bytes);
+    requireValue(/^(?:0|[1-9][0-9]{0,2})\n$/u.test(text));
+    const value = Number(text.slice(0, -1));
+    requireValue(value <= 255);
+    statuses[key] = value;
+  }
+  return Object.freeze(statuses);
+}
+
+function filesystemView(directory) {
+  requireValue(typeof directory === "string" && path.isAbsolute(directory) && !/[\0,\r\n]/u.test(directory) && path.resolve(directory) === directory);
+  const rootInfo = lstatSync(directory);
+  requireValue(rootInfo.isDirectory() && !rootInfo.isSymbolicLink() && realpathSync(directory) === directory);
+  return Object.freeze({
+    read(name, maxBytes = 4 * MiB) {
+      const file = path.join(directory, ...name.split("/")), info = lstatSync(file);
+      requireValue(path.relative(directory, file).replaceAll(path.sep, "/") === name && realpathSync(file) === file && info.isFile() &&
+        !info.isSymbolicLink() && info.nlink === 1 && Number.isSafeInteger(maxBytes) && maxBytes >= 0 && info.size <= maxBytes);
+      const bytes = readFileSync(file); requireValue(bytes.length === info.size);
+      return bytes;
+    },
+    list(name) {
+      const target = path.join(directory, name), info = lstatSync(target);
+      requireValue(path.relative(directory, target) === name && realpathSync(target) === target && info.isDirectory() && !info.isSymbolicLink());
+      return readdirSync(target).sort();
+    },
+    has(name) { return existsSync(path.join(directory, ...name.split("/"))); },
+  });
+}
+
 export function readManagedSeaweedStatuses(directory) {
   try {
-    requireValue(typeof directory === "string" && path.isAbsolute(directory) && !/[\0,\r\n]/u.test(directory) && path.resolve(directory) === directory);
-    const rootInfo = lstatSync(directory);
-    requireValue(rootInfo.isDirectory() && !rootInfo.isSymbolicLink() && realpathSync(directory) === directory);
-    const statuses = {};
-    for (const [key, name] of Object.entries(SEAWEED_STATUS_FILES)) {
-      const file = path.join(directory, name);
-      requireValue(path.dirname(file) === directory && path.relative(directory, file) === name && realpathSync(file) === file);
-      const info = lstatSync(file);
-      requireValue(info.isFile() && !info.isSymbolicLink() && info.nlink === 1 && info.size >= 2 && info.size <= 4);
-      const bytes = readFileSync(file);
-      requireValue(bytes.length === info.size);
-      const text = utf8(bytes);
-      requireValue(/^(?:0|[1-9][0-9]{0,2})\n$/u.test(text));
-      const value = Number(text.slice(0, -1));
-      requireValue(value <= 255);
-      statuses[key] = value;
-    }
-    return Object.freeze(statuses);
+    return readStatuses(filesystemView(directory).read);
   } catch {
     fail();
   }
 }
 
-// Read only an already bounded, exported text evidence tree. No command is run.
-export function readManagedSeaweedTests(directory) {
-  const read = (name) => {
-    const file = path.join(directory, name), info = lstatSync(file);
-    requireValue(info.isFile() && !info.isSymbolicLink() && info.nlink === 1 && info.size <= 4 * MiB);
-    const bytes = readFileSync(file); requireValue(bytes.length === info.size);
-    return bytes;
-  };
+export function inspectManagedSeaweedTests(view) {
+  requireValue(object(view) && typeof view.read === "function" && typeof view.list === "function" && typeof view.has === "function");
+  const read = view.read;
   const lines = (bytes) => {
     const text = utf8(bytes); requireValue(text.endsWith("\n") && !text.includes("\r") && !text.includes("\0"));
     return text.slice(0, -1).split("\n");
   };
-  const statuses = readManagedSeaweedStatuses(directory);
+  const statuses = readStatuses(read);
   requireValue(statuses.preparation === 0);
   const packageNames = lines(read("package-list.txt"));
   requireValue(statuses.packageList === 0 && packageNames.length <= 4096 && new Set(packageNames).size === packageNames.length &&
     packageNames.every((name) => /^github\.com\/seaweedfs\/seaweedfs\/weed(?:\/[A-Za-z0-9_.-]+)*$/u.test(name)));
+  if (statuses.build !== 0) {
+    const manifest = read("go-test-manifest.tsv"), emptyHash = hash(Buffer.alloc(0));
+    read("build.stdout.txt"); read("build.stderr.txt"); read("go-test.stderr.txt");
+    requireValue(statuses.tests === 125 && statuses.capture === 125 && statuses.buildValidation !== 0 && manifest.length === 0 &&
+      utf8(read("go-test-manifest-bytes.txt")) === "0\n" && utf8(read("go-test-manifest.sha256")) === `${emptyHash}  go-test-manifest.tsv\n` &&
+      utf8(read("go-test-stream.tsv")) === `0\t${emptyHash}\n` && utf8(read("go-test-concat.tsv")) === `0\t${emptyHash}\n` &&
+      view.list("go-test-events").length === 0 &&
+      !["binary-pre-test-sha256.txt", "binary-post-test-sha256.txt", "binary-sha256.txt"].some((name) => view.has(name)));
+    return Object.freeze({ summary: { schemaVersion: 1, statuses,
+      counts: { packages: { total: packageNames.length, pass: 0, fail: 0, skip: 0 }, tests: { total: 0, pass: 0, fail: 0, skip: 0 } },
+      skips: [], buildFailures: [], events: 0, streamBytes: 0, streamSha256: emptyHash, result: "failed", runtimeEligible: false,
+      skipReview: "NO_SKIPS", sourceMainCoverage: "GENERIC_POLICY_UNCHANGED" }, eventRecords: Object.freeze([]) });
+  }
+  const beforeBinary = utf8(read("binary-pre-test-sha256.txt"));
+  const afterBinary = utf8(read("binary-post-test-sha256.txt"));
+  requireValue(/^[a-f0-9]{64}\n$/u.test(beforeBinary) && /^[a-f0-9]{64}\n$/u.test(afterBinary));
+  const finalBinary = view.has("binary-sha256.txt") ? utf8(read("binary-sha256.txt")) : undefined;
+  if (finalBinary !== undefined) requireValue(/^[a-f0-9]{64} {2}\/out\/weed\n$/u.test(finalBinary));
+  requireValue((beforeBinary === afterBinary) === (finalBinary !== undefined));
+  requireValue(statuses.buildValidation !== 0 || finalBinary === `${beforeBinary.trimEnd()}  /out/weed\n`);
   const packages = new Map(packageNames.map((name) => [name, { started: false, status: null, tests: new Map() }]));
   const manifestBytes = read("go-test-manifest.tsv");
   requireValue(utf8(read("go-test-manifest-bytes.txt")) === `${manifestBytes.length}\n` &&
@@ -114,16 +153,16 @@ export function readManagedSeaweedTests(directory) {
   const [expectedBytes, expectedHash] = streamLine.trimEnd().split("\t");
   const streamHash = createHash("sha256");
   let streamBytes = 0, events = 0;
-  const names = [], skips = [], buildFailures = [];
+  const names = [], skips = [], buildFailures = [], eventRecords = [];
   for (const [index, row] of manifest.entries()) {
     const parts = row.split("\t"), expectedName = `chunk-${String(index).padStart(4, "0")}.json`;
     requireValue(parts.length === 3 && parts[0] === expectedName && /^[1-9][0-9]*$/u.test(parts[1]) && /^[a-f0-9]{64}$/u.test(parts[2]));
-    const bytes = read(path.join("go-test-events", expectedName));
+    const bytes = read(`go-test-events/${expectedName}`);
     requireValue(bytes.length === Number(parts[1]) && hash(bytes) === parts[2]);
     names.push(expectedName); streamHash.update(bytes); streamBytes += bytes.length;
     requireValue(streamBytes <= 64 * MiB);
     for (const line of lines(bytes)) {
-      const event = JSON.parse(line); events++;
+      const event = JSON.parse(line); events++; eventRecords.push(Object.freeze({ relative: `go-test-events/${expectedName}`, event: Object.freeze({ ...event }) }));
       requireValue(object(event) && typeof event.Action === "string");
       if (["build-output", "build-fail"].includes(event.Action)) {
         requireValue(typeof event.ImportPath === "string" && event.ImportPath.length > 0);
@@ -154,7 +193,7 @@ export function readManagedSeaweedTests(directory) {
       if (event.Action === "skip") skips.push({ package: event.Package, test: event.Test ?? null });
     }
   }
-  requireValue(isDeepStrictEqual(readdirSync(path.join(directory, "go-test-events")).sort(), names));
+  requireValue(isDeepStrictEqual(view.list("go-test-events"), names));
   requireValue(streamBytes === Number(expectedBytes) && streamHash.digest("hex") === expectedHash);
   const counts = { packages: { total: packages.size, pass: 0, fail: 0, skip: 0 }, tests: { total: 0, pass: 0, fail: 0, skip: 0 } };
   for (const entry of packages.values()) {
@@ -165,9 +204,19 @@ export function readManagedSeaweedTests(directory) {
   }
   requireValue(counts.tests.total > 0 && (statuses.tests === 0) ===
     (counts.tests.fail === 0 && counts.packages.fail === 0 && buildFailures.length === 0));
-  return { schemaVersion: 1, statuses, counts, skips, buildFailures, events, streamBytes, streamSha256: expectedHash,
+  const summary = { schemaVersion: 1, statuses, counts, skips, buildFailures, events, streamBytes, streamSha256: expectedHash,
     result: Object.values(statuses).every((value) => value === 0) ? "passed" : "failed",
     // Actual skip identities need independent review; none are guessed here.
     runtimeEligible: Object.values(statuses).every((value) => value === 0) && skips.length === 0,
     skipReview: skips.length ? "REQUIRED_NOT_ACCEPTED" : "NO_SKIPS", sourceMainCoverage: "GENERIC_POLICY_UNCHANGED" };
+  return Object.freeze({ summary, eventRecords: Object.freeze(eventRecords) });
+}
+
+export function readManagedSeaweedTestsFromCapture(view) {
+  return inspectManagedSeaweedTests(view).summary;
+}
+
+// Read only an already bounded, exported text evidence tree. No command is run.
+export function readManagedSeaweedTests(directory) {
+  return readManagedSeaweedTestsFromCapture(filesystemView(directory));
 }

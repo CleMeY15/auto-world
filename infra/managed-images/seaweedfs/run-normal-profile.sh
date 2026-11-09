@@ -81,8 +81,38 @@ package_status=0
 go list -mod=readonly ./... > "$evidence/package-list.txt" 2> "$evidence/package-list.stderr.txt" || package_status=$?
 printf '%s\n' "$package_status" > "$evidence/package-list.exit-code"
 
+: > "$output_root/weed"
+build_status=0
+go build -mod=readonly -trimpath -buildvcs=false \
+  -ldflags '-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=ffa87c2-aw-go-5b789254' \
+  -o "$work_directory/weed" . > "$evidence/build.stdout.txt" 2> "$evidence/build.stderr.txt" || build_status=$?
+printf '%s\n' "$build_status" > "$evidence/build.exit-code"
+
+if [ "$build_status" -ne 0 ]; then
+  : > "$evidence/go-test.stderr.txt"
+  : > "$evidence/go-test-manifest.tsv"
+  printf '%s\n' 0 > "$evidence/go-test-manifest-bytes.txt"
+  (
+    cd "$evidence" || exit 1
+    sha256sum go-test-manifest.tsv > go-test-manifest.sha256
+  )
+  : > "$work_directory/go-test-stream.json"
+  empty_sha256=$(sha256sum "$work_directory/go-test-stream.json" | cut -d ' ' -f 1)
+  printf '0\t%s\n' "$empty_sha256" > "$evidence/go-test-stream.tsv"
+  cp "$evidence/go-test-stream.tsv" "$evidence/go-test-concat.tsv"
+  printf '%s\n' 125 > "$evidence/go-test.exit-code"
+  printf '%s\n' 125 > "$evidence/go-test-capture.exit-code"
+  printf '%s\n' 1 > "$evidence/build-validation.exit-code"
+  cmp "$materials_root/corrected/go.mod" "$source_root/go.mod"
+  cmp "$materials_root/corrected/go.sum" "$source_root/go.sum"
+  cp "$source_root/go.mod" "$source_root/go.sum" "$evidence/"
+  copy_notices strict
+  exit 0
+fi
+
+sha256sum "$work_directory/weed" | cut -d ' ' -f 1 > "$evidence/binary-pre-test-sha256.txt"
 test_status=0
-go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m ./... \
+WEED_BINARY="$work_directory/weed" go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m ./... \
   > "$work_directory/go-test-stream.json" 2> "$evidence/go-test.stderr.txt" || test_status=$?
 printf '%s\n' "$test_status" > "$evidence/go-test.exit-code"
 
@@ -139,21 +169,25 @@ if ! cmp "$work_directory/go-test-stream.json" "$work_directory/go-test-concat.j
 fi
 printf '%s\n' "$capture_status" > "$evidence/go-test-capture.exit-code"
 
-: > "$output_root/weed"
-build_status=0
-go build -mod=readonly -trimpath -buildvcs=false \
-  -ldflags '-extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=ffa87c2-aw-go-5b789254' \
-  -o "$work_directory/weed" . > "$evidence/build.stdout.txt" 2> "$evidence/build.stderr.txt" || build_status=$?
-printf '%s\n' "$build_status" > "$evidence/build.exit-code"
+sha256sum "$work_directory/weed" | cut -d ' ' -f 1 > "$evidence/binary-post-test-sha256.txt"
 build_validation_status=1
-if [ "$build_status" -eq 0 ]; then
+if cmp "$evidence/binary-pre-test-sha256.txt" "$evidence/binary-post-test-sha256.txt"; then
   build_validation_status=0
   mv "$work_directory/weed" "$output_root/weed"
   go version -m "$output_root/weed" > "$evidence/build-info.txt" || build_validation_status=$?
   "$output_root/weed" version > "$evidence/weed-version.txt" 2> "$evidence/weed-version.stderr.txt" || build_validation_status=$?
   grep -F '4.51' "$evidence/weed-version.txt" > /dev/null || build_validation_status=1
   grep -F 'ffa87c2-aw-go-5b789254' "$evidence/weed-version.txt" > /dev/null || build_validation_status=1
-  sha256sum "$output_root/weed" > "$evidence/binary-sha256.txt" || build_validation_status=$?
+  if sha256sum "$output_root/weed" > "$evidence/binary-sha256.txt"; then
+    final_binary_sha256=$(cut -d ' ' -f 1 < "$evidence/binary-sha256.txt")
+    pre_test_sha256=$(cat "$evidence/binary-pre-test-sha256.txt")
+    post_test_sha256=$(cat "$evidence/binary-post-test-sha256.txt")
+    if [ "$final_binary_sha256" != "$pre_test_sha256" ] || [ "$final_binary_sha256" != "$post_test_sha256" ]; then
+      build_validation_status=1
+    fi
+  else
+    build_validation_status=$?
+  fi
 fi
 printf '%s\n' "$build_validation_status" > "$evidence/build-validation.exit-code"
 

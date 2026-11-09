@@ -8,7 +8,8 @@ import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
-import { MANAGED_SEAWEED_MATERIAL, readManagedSeaweedStatuses, readManagedSeaweedTests, validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
+import { MANAGED_SEAWEED_IAM_FIXTURE_SOURCES, MANAGED_SEAWEED_MATERIAL, inspectManagedSeaweedTests, readManagedSeaweedStatuses, readManagedSeaweedTests,
+  validateManagedSeaweedConfig, validateManagedSeaweedGoInventory } from "./managed-seaweed.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
@@ -275,7 +276,9 @@ export function officialArchiveScanArguments(carrier, scanner, cache, archive, f
   return args;
 }
 
-export function exportManagedTextEvidence(source, destination) {
+const MANAGED_CREDENTIAL_PATTERN = /(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|Authorization:\s*(?:Bearer|Basic)\s+\S+)/giu;
+
+function captureManagedTextEvidence(source, destination) {
   if (!safePath(source) || !safePath(destination)) refuseManagedEvidence("PATH_INVALID");
   if (existsSync(destination)) refuseManagedEvidence("DESTINATION_OCCUPIED");
   if (realpathSync(source) !== source) refuseManagedEvidence("SOURCE_IDENTITY");
@@ -302,19 +305,196 @@ export function exportManagedTextEvidence(source, destination) {
       if (bytes.includes(0)) refuseManagedEvidence("CONTENT_NUL", { relative });
       let text;
       try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { refuseManagedEvidence("CONTENT_UTF8", { relative }); }
-      if (/(?:gh[oprsu]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16}|Authorization:\s*(?:Bearer|Basic)\s+\S+)/iu.test(text)) refuseManagedEvidence("CREDENTIAL_PATTERN", { relative });
-      files.push({ relative, bytes, sha256: createHash("sha256").update(bytes).digest("hex") });
+      files.push(Object.freeze({ relative, text, base64: bytes.toString("base64"), size: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex") }));
     }
   };
   visit(source);
   if (!files.length) refuseManagedEvidence("EMPTY_SOURCE");
+  return Object.freeze(files);
+}
+
+function capturedView(files) {
+  const byPath = new Map(files.map((file) => [file.relative.replaceAll(path.sep, "/"), file]));
+  return Object.freeze({
+    read(name, maxBytes = 4 * MiB) {
+      if (typeof name !== "string" || name !== name.replaceAll("\\", "/") || !byPath.has(name)) fail("scanner_managed_seaweed_evidence_invalid");
+      const entry = byPath.get(name);
+      if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || entry.size > maxBytes) fail("scanner_managed_seaweed_evidence_invalid");
+      return Buffer.from(entry.base64, "base64");
+    },
+    list(name) {
+      if (typeof name !== "string" || !/^[A-Za-z0-9_.-]+$/u.test(name)) fail("scanner_managed_seaweed_evidence_invalid");
+      const prefix = `${name}/`;
+      return [...byPath.keys()].filter((entry) => entry.startsWith(prefix) && !entry.slice(prefix.length).includes("/"))
+        .map((entry) => entry.slice(prefix.length)).sort();
+    },
+    has(name) { return byPath.has(name); },
+  });
+}
+
+function writeManagedTextEvidence(files, destination) {
   mkdirSync(destination, { mode: 0o700 });
   for (const file of files) {
     const target = path.join(destination, file.relative);
     mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-    writeFileSync(target, file.bytes, { flag: "wx", mode: 0o400 });
+    writeFileSync(target, Buffer.from(file.base64, "base64"), { flag: "wx", mode: 0o400 });
   }
-  return files.map(({ relative, bytes, sha256 }) => ({ path: relative.replaceAll(path.sep, "/"), size: bytes.length, sha256 }));
+  return files.map(({ relative, size, sha256 }) => ({ path: relative.replaceAll(path.sep, "/"), size, sha256 }));
+}
+
+function scanCapturedCredentials(files, neutralized = new Map()) {
+  for (const file of files) {
+    const text = neutralized.get(file.relative) ?? file.text;
+    MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
+    if (MANAGED_CREDENTIAL_PATTERN.test(text)) refuseManagedEvidence("CREDENTIAL_PATTERN", { relative: file.relative });
+  }
+}
+
+export function exportManagedTextEvidence(source, destination) {
+  const files = captureManagedTextEvidence(source, destination);
+  scanCapturedCredentials(files);
+  return writeManagedTextEvidence(files, destination);
+}
+
+const SEAWEED_IAM_PUBLIC_FIXTURE_V1 = "SEAWEED_IAM_PUBLIC_FIXTURE_V1";
+const SEAWEED_IAM_PACKAGE = "github.com/seaweedfs/seaweedfs/weed/iamapi";
+const SEAWEED_IAM_PARENT = "TestImplicitUserNameUsesVerifiedIdentity";
+const SEAWEED_LIST_FIXTURE_SHA256 = "1a5d44a2dca19669d72edf4c4f1c27c4c1ca4b4408fbb17f6ce4ad452d78ddb3";
+const SEAWEED_UPDATE_FIXTURE_SHA256 = "700044f094b68554a5831fb859c2ea6c501d142bc5c9602d41dd6452f5212d52";
+const hashBytes = (value) => createHash("sha256").update(value).digest("hex");
+const escapeRegex = (value) => value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+const goRfc3339NanoUtc = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{0,8}[1-9]))?Z$/u.exec(value);
+  if (!match) return false;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
+  const year = Number(yearText), month = Number(monthText), day = Number(dayText);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const monthDays = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= monthDays[month - 1] &&
+    Number(hourText) <= 23 && Number(minuteText) <= 59 && Number(secondText) <= 59;
+};
+
+function validateSeaweedFixtureSources(view) {
+  const sourceRows = `${MANAGED_SEAWEED_IAM_FIXTURE_SOURCES.map((entry) => `${entry.path}\t${entry.bytes}\t${entry.sha256}`).join("\n")}\n`;
+  const sourceBytes = view.read("iam-public-fixture-source.tsv");
+  const archiveIdentity = view.read("source-sha256.txt").toString("utf8");
+  if (sourceBytes.toString("utf8") !== sourceRows || ![
+    `${MANAGED_SEAWEED_MATERIAL.archiveSha256}  /tmp/seaweedfs-source.tar.gz\n`,
+    `${MANAGED_SEAWEED_MATERIAL.archiveSha256}  /input/seaweedfs-source.tar.gz\n`,
+  ].includes(archiveIdentity) ||
+      view.read("original-module-sha256.txt").toString("utf8") !==
+        `${MANAGED_SEAWEED_MATERIAL.originalGoModSha256}  /materials/original/go.mod\n${MANAGED_SEAWEED_MATERIAL.originalGoSumSha256}  /materials/original/go.sum\n` ||
+      view.read("corrected-module-sha256.txt").toString("utf8") !==
+        `${MANAGED_SEAWEED_MATERIAL.goModSha256}  go.mod\n${MANAGED_SEAWEED_MATERIAL.goSumSha256}  go.sum\n` ||
+      hashBytes(view.read("go.mod")) !== MANAGED_SEAWEED_MATERIAL.goModSha256 ||
+      hashBytes(view.read("go.sum")) !== MANAGED_SEAWEED_MATERIAL.goSumSha256) {
+    refuseManagedEvidence("SEAWEED_FIXTURE_SOURCE_BINDING");
+  }
+  const before = view.read("binary-pre-test-sha256.txt").toString("utf8");
+  const after = view.read("binary-post-test-sha256.txt").toString("utf8");
+  if (!/^[a-f0-9]{64}\n$/u.test(before) || !/^[a-f0-9]{64}\n$/u.test(after)) refuseManagedEvidence("SEAWEED_FIXTURE_BINARY_BINDING");
+  return { sourceSha256: hashBytes(sourceBytes) };
+}
+
+function classifySeaweedIamFixture(files, view, inspection) {
+  const source = validateSeaweedFixtureSources(view);
+  const matches = [];
+  for (const [index, record] of inspection.eventRecords.entries()) {
+    const event = record.event;
+    if (typeof event.Output !== "string") continue;
+    MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
+    for (const match of event.Output.matchAll(MANAGED_CREDENTIAL_PATTERN)) matches.push({ index, record, match });
+  }
+  let totalMatches = 0;
+  for (const file of files) {
+    MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
+    totalMatches += [...file.text.matchAll(MANAGED_CREDENTIAL_PATTERN)].length;
+  }
+  if (matches.length !== 3 || totalMatches !== 3) refuseManagedEvidence("SEAWEED_FIXTURE_MATCH_COUNT", { observed: totalMatches, limit: 3 });
+
+  const classified = [];
+  for (const { index, record, match } of matches) {
+    const event = record.event;
+    if (!/^go-test-events\/chunk-[0-9]{4}\.json$/u.test(record.relative) || event.Package !== SEAWEED_IAM_PACKAGE || event.Action !== "output" ||
+        !goRfc3339NanoUtc(event.Time ?? "")) {
+      refuseManagedEvidence("SEAWEED_FIXTURE_EVENT_BINDING", { relative: record.relative });
+    }
+    const matched = match[0];
+    const next = event.Output.slice((match.index ?? -1) + matched.length, (match.index ?? -1) + matched.length + 1);
+    const full = next === "1" ? `${matched}1` : matched;
+    const fullSha256 = hashBytes(full);
+    const literal = escapeRegex(full);
+    let kind;
+    if (event.Test === `${SEAWEED_IAM_PARENT}/ListAccessKeys` && full.length === 20 && fullSha256 === SEAWEED_LIST_FIXTURE_SHA256 &&
+        new RegExp(`^        <ListAccessKeysResponse xmlns="https://iam\\.amazonaws\\.com/doc/2010-05-08/"><ListAccessKeysResult><AccessKeyMetadata><member><AccessKeyId>${literal}</AccessKeyId><Status>Active</Status><UserName>power_user</UserName></member></AccessKeyMetadata><IsTruncated>false</IsTruncated></ListAccessKeysResult><ResponseMetadata><RequestId>[A-F0-9]{24}</RequestId></ResponseMetadata></ListAccessKeysResponse>\\n$`, "u").test(event.Output)) {
+      kind = "LIST_ACCESS_KEYS_XML";
+    } else if (event.Test === `${SEAWEED_IAM_PARENT}/UpdateAccessKey` && full.length === 21 && fullSha256 === SEAWEED_UPDATE_FIXTURE_SHA256 &&
+        new RegExp(`^E\\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6} iamapi_handlers\\.go:30 Response the access key with id ${literal} for user power_user cannot be found\\n$`, "u").test(event.Output)) {
+      kind = "UPDATE_ACCESS_KEY_LOG";
+    } else if (event.Test === `${SEAWEED_IAM_PARENT}/UpdateAccessKey` && full.length === 21 && fullSha256 === SEAWEED_UPDATE_FIXTURE_SHA256 &&
+        new RegExp(`^        <ErrorResponse xmlns="https://iam\\.amazonaws\\.com/doc/2010-05-08/"><Error><Code>NoSuchEntity</Code><Message>the access key with id ${literal} for user power_user cannot be found</Message><Type>Sender</Type></Error><RequestId>[A-F0-9]{24}</RequestId></ErrorResponse>\\n$`, "u").test(event.Output)) {
+      kind = "UPDATE_ACCESS_KEY_XML";
+    } else {
+      refuseManagedEvidence("SEAWEED_FIXTURE_ENVELOPE", { relative: record.relative });
+    }
+    classified.push({ kind, index, relative: record.relative, sha256: hashBytes(Buffer.from(JSON.stringify(event))) });
+  }
+  if (new Set(classified.map((entry) => entry.kind)).size !== 3) refuseManagedEvidence("SEAWEED_FIXTURE_ENVELOPE_COUNT");
+  const uniqueIndex = (action, test) => {
+    const found = inspection.eventRecords.map(({ event }, index) => ({ event, index }))
+      .filter(({ event }) => event.Package === SEAWEED_IAM_PACKAGE && event.Action === action && event.Test === test);
+    if (found.length !== 1) refuseManagedEvidence("SEAWEED_FIXTURE_EVENT_ORDER");
+    return found[0].index;
+  };
+  const parentRun = uniqueIndex("run", SEAWEED_IAM_PARENT);
+  const listRun = uniqueIndex("run", `${SEAWEED_IAM_PARENT}/ListAccessKeys`);
+  const listOutput = classified.find((entry) => entry.kind === "LIST_ACCESS_KEYS_XML").index;
+  const listPass = uniqueIndex("pass", `${SEAWEED_IAM_PARENT}/ListAccessKeys`);
+  const updateRun = uniqueIndex("run", `${SEAWEED_IAM_PARENT}/UpdateAccessKey`);
+  const updateLog = classified.find((entry) => entry.kind === "UPDATE_ACCESS_KEY_LOG").index;
+  const updateXml = classified.find((entry) => entry.kind === "UPDATE_ACCESS_KEY_XML").index;
+  const updatePass = uniqueIndex("pass", `${SEAWEED_IAM_PARENT}/UpdateAccessKey`);
+  const parentPass = uniqueIndex("pass", SEAWEED_IAM_PARENT);
+  const packagePass = uniqueIndex("pass", undefined);
+  if (![parentRun, listRun, listOutput, listPass, updateRun, updateLog, updateXml, updatePass, parentPass, packagePass]
+    .every((value, index, values) => index === 0 || values[index - 1] < value)) refuseManagedEvidence("SEAWEED_FIXTURE_EVENT_ORDER");
+  const neutralized = new Map();
+  for (const relative of new Set(classified.map((entry) => entry.relative))) {
+    const file = files.find((entry) => entry.relative.replaceAll(path.sep, "/") === relative);
+    MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
+    neutralized.set(file.relative, file.text.replaceAll(MANAGED_CREDENTIAL_PATTERN, "[validated-public-fixture]"));
+  }
+  scanCapturedCredentials(files, neutralized);
+  const profileCore = { profile: SEAWEED_IAM_PUBLIC_FIXTURE_V1, sourceSha256: source.sourceSha256,
+    streamSha256: inspection.summary.streamSha256, streamBytes: inspection.summary.streamBytes,
+    eventCount: inspection.summary.events, credentialMatchCount: 3,
+    eventSha256: hashBytes(Buffer.from(classified.map((entry) => entry.sha256).sort().join("\n") + "\n")) };
+  return Object.freeze({ ...profileCore, profileSha256: hashBytes(Buffer.from(JSON.stringify(profileCore))) });
+}
+
+function exportManagedSeaweedCapturedEvidence(source, destination, afterCapture) {
+  const files = captureManagedTextEvidence(source, destination);
+  if (afterCapture) afterCapture();
+  let totalMatches = 0;
+  for (const file of files) {
+    MANAGED_CREDENTIAL_PATTERN.lastIndex = 0;
+    totalMatches += [...file.text.matchAll(MANAGED_CREDENTIAL_PATTERN)].length;
+  }
+  if (totalMatches === 0) return { files: writeManagedTextEvidence(files, destination), tests: undefined, profile: undefined };
+  const view = capturedView(files);
+  const inspection = inspectManagedSeaweedTests(view);
+  const profile = classifySeaweedIamFixture(files, view, inspection);
+  return { files: writeManagedTextEvidence(files, destination), tests: inspection.summary, profile };
+}
+
+export function exportManagedSeaweedTextEvidence(source, destination) {
+  return exportManagedSeaweedCapturedEvidence(source, destination);
+}
+
+export function TEST_ONLY_exportManagedSeaweedTextEvidenceAfterCapture(source, destination, afterCapture) {
+  if (typeof afterCapture !== "function") fail("scanner_managed_seaweed_evidence_invalid");
+  return exportManagedSeaweedCapturedEvidence(source, destination, afterCapture);
 }
 
 export function validateOfficialReleaseConfig(config) {
@@ -871,6 +1051,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           receipt.builds.push(build);
           try {
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
+              ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
               "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspected = JSON.parse(command(DOCKER, ["image", "inspect", tag], { file: inspectedFile }).toString("utf8"));
@@ -905,13 +1086,18 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           // build remains failed; its retained status cannot approve runtime.
           try {
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
+              ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
               "--target", "evidence", "--output", `type=local,dest=${evidence}`, ROOT], { timeout: 90 * 60_000 });
             const published = path.join(output, "managed-public-evidence");
             if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
-            build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
             if (candidate.role === "seaweedfs") {
-              build.goTests = readManagedSeaweedTests(path.join(published, candidate.role));
+              const exported = exportManagedSeaweedTextEvidence(evidence, path.join(published, candidate.role));
+              build.publicEvidence = exported.files;
+              build.goTests = exported.tests ?? readManagedSeaweedTests(path.join(published, candidate.role));
+              if (exported.profile) build.publicFixtureProfile = exported.profile;
               build.goTestAcceptance = build.goTests.result === "passed" && build.goTests.runtimeEligible ? "passed" : "failed";
+            } else {
+              build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
             }
             if (candidate.role === "postgres" && build.result === "passed") {
               const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });

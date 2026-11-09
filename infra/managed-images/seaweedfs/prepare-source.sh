@@ -33,6 +33,27 @@ verify_originals() {
   sha256sum "$materials_root/original/go.mod" "$materials_root/original/go.sum" > "$evidence/original-module-sha256.txt"
 }
 
+verify_iam_fixture_source() {
+  cd "$source_root"
+  authz_path=weed/iamapi/iamapi_authz_test.go
+  management_path=weed/iamapi/iamapi_management_handlers.go
+  handlers_path=weed/iamapi/iamapi_handlers.go
+  authz_bytes=$(wc -c < "$authz_path" | tr -d '[:space:]')
+  management_bytes=$(wc -c < "$management_path" | tr -d '[:space:]')
+  handlers_bytes=$(wc -c < "$handlers_path" | tr -d '[:space:]')
+  test "$authz_bytes" = 8153
+  test "$management_bytes" = 68613
+  test "$handlers_bytes" = 1854
+  printf '%s  %s\n' 1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285 "$authz_path" | sha256sum -c -
+  printf '%s  %s\n' 20c370620e0f15f342c90aad57a6b956e67b4ff4f43a7c486d242f9f2aa9e7a2 "$management_path" | sha256sum -c -
+  printf '%s  %s\n' cb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966 "$handlers_path" | sha256sum -c -
+  {
+    printf '%s\t%s\t%s\n' "$authz_path" "$authz_bytes" 1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285
+    printf '%s\t%s\t%s\n' "$management_path" "$management_bytes" 20c370620e0f15f342c90aad57a6b956e67b4ff4f43a7c486d242f9f2aa9e7a2
+    printf '%s\t%s\t%s\n' "$handlers_path" "$handlers_bytes" cb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966
+  } > "$evidence/iam-public-fixture-source.tsv"
+}
+
 apply_correction() {
   cd "$source_root"
   corrected_mod_bytes=$(wc -c < "$materials_root/corrected/go.mod" | tr -d '[:space:]')
@@ -116,6 +137,7 @@ run_phase() {
 run_phase archive-identity archive_identity
 run_phase source-extract extract_source
 run_phase original-material verify_originals
+run_phase iam-fixture-source verify_iam_fixture_source
 run_phase corrected-material apply_correction
 run_phase compiler-identity verify_compiler
 run_phase module-download download_modules

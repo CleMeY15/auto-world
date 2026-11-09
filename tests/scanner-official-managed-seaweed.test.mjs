@@ -37,6 +37,9 @@ function fixture(context, events = fixtureEvents(), testStatus = 0) {
   write("preparation.exit-code", "0\n");
   write("package-list.exit-code", "0\n"); write("go-test.exit-code", `${testStatus}\n`); write("build.exit-code", "0\n");
   write("go-test-capture.exit-code", "0\n"); write("build-validation.exit-code", "0\n");
+  write("build.stdout.txt", ""); write("build.stderr.txt", ""); write("go-test.stderr.txt", "");
+  write("binary-pre-test-sha256.txt", `${"a".repeat(64)}\n`); write("binary-post-test-sha256.txt", `${"a".repeat(64)}\n`);
+  write("binary-sha256.txt", `${"a".repeat(64)}  /out/weed\n`);
   return { directory, write };
 }
 
@@ -68,6 +71,7 @@ for (const [label, mutate] of [
   ["a missing fixed status", ({ directory }) => rmSync(path.join(directory, "go-test.exit-code"))],
   ["a multiline status", ({ write }) => write("go-test.exit-code", "0\n1\n")],
   ["a status without its newline", ({ write }) => write("go-test.exit-code", "0")],
+  ["a status larger than the four-byte pre-read limit", ({ write }) => write("go-test.exit-code", "0000\n")],
   ["a negative status", ({ write }) => write("go-test.exit-code", "-1\n")],
   ["a status above 255", ({ write }) => write("go-test.exit-code", "256\n")],
 ]) test(`Seaweed private status diagnostics refuse ${label}`, (context) => {
@@ -101,14 +105,64 @@ test("Seaweed retains an upstream skip identity but does not authorize unreviewe
 
 test("Seaweed retains a consistent test failure instead of promoting successful evidence export", (context) => {
   const events = fixtureEvents(); events[5].Action = "fail"; events[6].Action = "fail";
-  const data = fixture(context, events, 7); data.write("build.exit-code", "9\n");
+  const data = fixture(context, events, 7);
   const result = readManagedSeaweedTests(data.directory);
   assert.equal(result.result, "failed"); assert.equal(result.runtimeEligible, false);
-  assert.equal(result.statuses.tests, 7); assert.equal(result.statuses.build, 9);
+  assert.equal(result.statuses.tests, 7); assert.equal(result.statuses.build, 0);
   assert.equal(result.counts.tests.fail, 1); assert.equal(result.counts.packages.fail, 1);
 });
 
-for (const file of ["go-test-capture.exit-code", "build-validation.exit-code", "build.exit-code"]) {
+test("Seaweed retains the canonical failed prebuild shape without tests or runtime eligibility", (context) => {
+  const data = fixture(context);
+  rmSync(path.join(data.directory, "go-test-events"), { recursive: true }); mkdirSync(path.join(data.directory, "go-test-events"));
+  const emptyHash = hash(Buffer.alloc(0));
+  data.write("go-test-manifest.tsv", ""); data.write("go-test-manifest-bytes.txt", "0\n");
+  data.write("go-test-manifest.sha256", `${emptyHash}  go-test-manifest.tsv\n`);
+  data.write("go-test-stream.tsv", `0\t${emptyHash}\n`); data.write("go-test-concat.tsv", `0\t${emptyHash}\n`);
+  data.write("build.exit-code", "2\n"); data.write("go-test.exit-code", "125\n");
+  data.write("go-test-capture.exit-code", "125\n"); data.write("build-validation.exit-code", "1\n");
+  for (const name of ["binary-pre-test-sha256.txt", "binary-post-test-sha256.txt", "binary-sha256.txt"]) rmSync(path.join(data.directory, name));
+  const result = readManagedSeaweedTests(data.directory);
+  assert.equal(result.result, "failed"); assert.equal(result.runtimeEligible, false);
+  assert.equal(result.events, 0); assert.equal(result.counts.tests.total, 0);
+  data.write("go-test.exit-code", "0\n");
+  assert.throws(() => readManagedSeaweedTests(data.directory));
+});
+
+test("Seaweed failed prebuild refuses missing diagnostics and stale candidate hashes", (context) => {
+  const prepare = () => {
+    const data = fixture(context), emptyHash = hash(Buffer.alloc(0));
+    rmSync(path.join(data.directory, "go-test-events"), { recursive: true }); mkdirSync(path.join(data.directory, "go-test-events"));
+    data.write("go-test-manifest.tsv", ""); data.write("go-test-manifest-bytes.txt", "0\n");
+    data.write("go-test-manifest.sha256", `${emptyHash}  go-test-manifest.tsv\n`);
+    data.write("go-test-stream.tsv", `0\t${emptyHash}\n`); data.write("go-test-concat.tsv", `0\t${emptyHash}\n`);
+    data.write("build.exit-code", "2\n"); data.write("go-test.exit-code", "125\n"); data.write("go-test-capture.exit-code", "125\n");
+    data.write("build-validation.exit-code", "1\n");
+    for (const name of ["binary-pre-test-sha256.txt", "binary-post-test-sha256.txt", "binary-sha256.txt"]) rmSync(path.join(data.directory, name));
+    return data;
+  };
+  const missing = prepare(); rmSync(path.join(missing.directory, "build.stderr.txt"));
+  assert.throws(() => readManagedSeaweedTests(missing.directory));
+  const stale = prepare(); stale.write("binary-pre-test-sha256.txt", `${"a".repeat(64)}\n`);
+  assert.throws(() => readManagedSeaweedTests(stale.directory));
+});
+
+test("Seaweed binds the pre-test, post-test and final candidate hashes", (context) => {
+  for (const file of ["binary-post-test-sha256.txt", "binary-sha256.txt"]) {
+    const data = fixture(context); data.write(file, `${"b".repeat(64)}${file === "binary-sha256.txt" ? "  /out/weed" : ""}\n`);
+    assert.throws(() => readManagedSeaweedTests(data.directory));
+  }
+  const missing = fixture(context); rmSync(path.join(missing.directory, "binary-sha256.txt"));
+  assert.throws(() => readManagedSeaweedTests(missing.directory));
+  missing.write("build-validation.exit-code", "1\n");
+  assert.throws(() => readManagedSeaweedTests(missing.directory));
+  const impossibleFinal = fixture(context);
+  impossibleFinal.write("binary-post-test-sha256.txt", `${"b".repeat(64)}\n`);
+  impossibleFinal.write("build-validation.exit-code", "1\n");
+  assert.throws(() => readManagedSeaweedTests(impossibleFinal.directory));
+});
+
+for (const file of ["go-test-capture.exit-code", "build-validation.exit-code"]) {
   test(`Seaweed refuses runtime after ${file} fails despite otherwise successful tests`, (context) => {
     const data = fixture(context); data.write(file, "1\n");
     const result = readManagedSeaweedTests(data.directory);

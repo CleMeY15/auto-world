@@ -54,6 +54,17 @@ function assertRecipeBoundary(source, preparationSource) {
   assert.match(source, /GOPROXY=https:\/\/proxy\.golang\.org GOSUMDB=sum\.golang\.org/u);
   assert.match(preparationSource, /go mod download -json all/u);
   assert.match(preparationSource, /go mod verify/u);
+  for (const [sourcePath, bytes, hash] of [
+    ["weed/iamapi/iamapi_authz_test.go", "8153", "1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285"],
+    ["weed/iamapi/iamapi_management_handlers.go", "68613", "20c370620e0f15f342c90aad57a6b956e67b4ff4f43a7c486d242f9f2aa9e7a2"],
+    ["weed/iamapi/iamapi_handlers.go", "1854", "cb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966"],
+  ]) {
+    assert.ok(preparationSource.includes(sourcePath), sourcePath);
+    assert.ok(preparationSource.includes(bytes), bytes);
+    assert.ok(preparationSource.includes(hash), hash);
+  }
+  assert.ok(preparationSource.indexOf("run_phase original-material") < preparationSource.indexOf("run_phase iam-fixture-source"));
+  assert.ok(preparationSource.indexOf("run_phase iam-fixture-source") < preparationSource.indexOf("run_phase corrected-material"));
   assert.match(source, /^RUN --network=none \/bin\/sh \/materials\/run-normal-profile\.sh$/mu);
   assert.doesNotMatch(source, /^ARG\s|\bgit (?:clone|init|checkout)|(?:apt|apk|dnf)(?:-get)?\s+(?:add|install)/mu);
   assert.ok(source.indexOf("RUN /bin/sh /materials/prepare-source.sh") < source.indexOf("RUN --network=none /bin/sh /materials/run-normal-profile.sh"));
@@ -149,6 +160,13 @@ test("normal-profile tests retain the complete original JSON stream and independ
 
 test("the build keeps truthful main metadata and the exact derivative display marker", () => {
   assert.match(runner, /go build -mod=readonly -trimpath -buildvcs=false/u);
+  assert.equal([...runner.matchAll(/go build -mod=readonly -trimpath -buildvcs=false/gu)].length, 1);
+  assert.ok(runner.indexOf("go build -mod=readonly") < runner.indexOf("go test -json"));
+  assert.match(runner, /WEED_BINARY="\$work_directory\/weed" go test -json -count=1 -mod=readonly -trimpath -buildvcs=false -timeout=5m \.\/\.\.\./u);
+  assert.match(runner, /sha256sum "\$work_directory\/weed" \| cut -d ' ' -f 1 > "\$evidence\/binary-pre-test-sha256\.txt"/u);
+  assert.match(runner, /sha256sum "\$work_directory\/weed" \| cut -d ' ' -f 1 > "\$evidence\/binary-post-test-sha256\.txt"/u);
+  assert.match(runner, /if cmp "\$evidence\/binary-pre-test-sha256\.txt" "\$evidence\/binary-post-test-sha256\.txt"; then/u);
+  assert.match(runner, /if \[ "\$final_binary_sha256" != "\$pre_test_sha256" \] \|\| \[ "\$final_binary_sha256" != "\$post_test_sha256" \]; then/u);
   assert.match(runner, /github\.com\/seaweedfs\/seaweedfs\/weed\/util\/version\.COMMIT=ffa87c2-aw-go-5b789254/u);
   assert.match(runner, /go version -m "\$output_root\/weed" > "\$evidence\/build-info\.txt"/u);
   assert.match(runner, /"\$output_root\/weed" version > "\$evidence\/weed-version\.txt" 2> "\$evidence\/weed-version\.stderr\.txt"/u);
@@ -200,7 +218,7 @@ function shellPath(value) {
 
 const shellQuote = (value) => `'${value.replaceAll("'", `'\\''`)}'`;
 
-test("a failing fake Go test remains exportable with its original status and exact chunk reassembly", (t) => {
+test("the unique prebuilt candidate drives tests, preserves failed events, and detects mutation", (t) => {
   const fixture = mkdtempSync(path.join(os.tmpdir(), "aw-seaweed-runner-"));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   const source = path.join(fixture, "source");
@@ -226,63 +244,135 @@ test("a failing fake Go test remains exportable with its original status and exa
   const fixtureRunner = path.join(fixture, "run-normal-profile.sh");
   writeFileSync(fixtureRunner, runner);
   writeFileSync(fakeGo, `#!/bin/sh
+printf '%s\n' "$*" >> "$AW_FAKE_GO_LOG"
 case "$1" in
   list) printf '%s\\n' example.test/one example.test/two; exit 0 ;;
-  test) i=1; while [ "$i" -le 2001 ]; do printf '{"Action":"output","Package":"example.test/one","Output":"line-%s\\\\n"}\\n' "$i"; i=$((i + 1)); done; printf '%s\\n' 'intentional test failure' >&2; exit 7 ;;
-  build) printf '%s\\n' 'intentional build failure' >&2; exit 9 ;;
+  build)
+    if [ "\${AW_BUILD_FAIL-}" = 1 ]; then printf '%s\\n' 'intentional build failure' >&2; exit 9; fi
+    output=
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = -o ]; then shift; output=$1; fi
+      shift
+    done
+    printf '%s\\n' '#!/bin/sh' 'if [ "$1" = version ]; then if [ "\${AW_MUTATE_ON_VERSION-}" = 1 ]; then printf "%s\\n" "# finalization mutation" >> "$0"; fi; printf "%s\\n" "version 4.51 ffa87c2-aw-go-5b789254"; exit 0; fi' 'exit 97' > "$output"
+    chmod 755 "$output"
+    ;;
+  test)
+    test -n "\${WEED_BINARY-}" && test -f "$WEED_BINARY" || exit 96
+    if [ "\${AW_MUTATE_BINARY-}" = 1 ]; then printf '%s\\n' '# changed during tests' >> "$WEED_BINARY"; fi
+    if [ "\${AW_TEST_EMPTY-}" != 1 ]; then
+      i=1
+      while [ "$i" -le 2001 ]; do printf '{"Action":"output","Package":"example.test/one","Output":"line-%s\\\\n"}\\n' "$i"; i=$((i + 1)); done
+    fi
+    printf '%s\\n' 'intentional test failure' >&2
+    exit 7
+    ;;
+  version) printf '%s\\n' 'fixture build info'; exit 0 ;;
   *) exit 97 ;;
 esac
 `);
   chmodSync(fakeGo, 0o755);
   const executable = process.platform === "win32" ? "C:/Windows/System32/bash.exe" : "bash";
-  const runFixture = (target, preparationStatus = "0\n") => {
+  const runFixture = (target, variables = {}, preparationStatus = "0\n") => {
     mkdirSync(path.join(target, "evidence"), { recursive: true });
     writeFileSync(path.join(target, "evidence/preparation.exit-code"), preparationStatus);
+    const log = path.join(target, "go.log");
+    const environment = Object.entries({ AW_FAKE_GO_LOG: log, ...variables })
+      .map(([key, value]) => `${key}=${shellQuote(shellPath(String(value)))}`).join(" ");
     const values = [fixtureRunner, source, target, fixtureMaterials, modules, compiler]
       .map((value) => shellQuote(shellPath(value))).join(" ");
-    const command = `PATH=${shellQuote(shellPath(bin))}:/usr/bin:/bin /bin/bash --posix ${values}`;
-    return spawnSync(executable, ["--posix", "-c", command], { encoding: "utf8", timeout: 30_000, windowsHide: true });
+    const command = `PATH=${shellQuote(shellPath(bin))}:/usr/bin:/bin ${environment} /bin/bash --posix ${values}`;
+    const result = spawnSync(executable, ["--posix", "-c", command], { encoding: "utf8", timeout: 30_000, windowsHide: true });
+    return { result, log };
   };
-  const run = runFixture(output);
+  const { result: run, log } = runFixture(output);
   assert.equal(run.status, 0, run.stderr);
   const evidence = path.join(output, "evidence");
   assert.equal(readFileSync(path.join(evidence, "go-test.exit-code"), "utf8").trim(), "7");
   assert.equal(readFileSync(path.join(evidence, "go-test-capture.exit-code"), "utf8").trim(), "0");
-  assert.equal(readFileSync(path.join(evidence, "build.exit-code"), "utf8").trim(), "9");
-  assert.equal(readFileSync(path.join(evidence, "build-validation.exit-code"), "utf8").trim(), "1");
+  assert.equal(readFileSync(path.join(evidence, "build.exit-code"), "utf8").trim(), "0");
+  assert.equal(readFileSync(path.join(evidence, "build-validation.exit-code"), "utf8").trim(), "0");
+  const calls = readFileSync(log, "utf8").trim().split("\n");
+  assert.equal(calls.filter((call) => call.startsWith("build ")).length, 1);
+  assert.equal(calls.filter((call) => call.startsWith("test ")).length, 1);
+  assert.ok(calls.findIndex((call) => call.startsWith("build ")) < calls.findIndex((call) => call.startsWith("test ")));
+  const preHash = readFileSync(path.join(evidence, "binary-pre-test-sha256.txt"), "utf8");
+  const postHash = readFileSync(path.join(evidence, "binary-post-test-sha256.txt"), "utf8");
+  assert.match(preHash, /^[0-9a-f]{64}\n$/u);
+  assert.equal(postHash, preHash);
   const manifest = readFileSync(path.join(evidence, "go-test-manifest.tsv"), "utf8").trim().split("\n");
   assert.equal(manifest.length, 2);
   assert.match(manifest[0], /^chunk-0000\.json\t[1-9][0-9]*\t[0-9a-f]{64}$/u);
   assert.match(manifest[1], /^chunk-0001\.json\t[1-9][0-9]*\t[0-9a-f]{64}$/u);
   assert.equal(readFileSync(path.join(evidence, "go-test-stream.tsv"), "utf8"), readFileSync(path.join(evidence, "go-test-concat.tsv"), "utf8"));
+  const exportedRoot = path.join(fixture, "exported-test-evidence");
+  exportManagedTextEvidence(evidence, exportedRoot);
+  for (const entry of manifest) {
+    const [chunk] = entry.split("\t");
+    assert.deepEqual(readFileSync(path.join(exportedRoot, "go-test-events", chunk)), readFileSync(path.join(evidence, "go-test-events", chunk)));
+  }
 
-  writeFileSync(fakeGo, `#!/bin/sh
-case "$1" in
-  list) printf '%s\\n' example.test/one; exit 0 ;;
-  test) printf '%s\\n' 'intentional empty test failure' >&2; exit 7 ;;
-  build) printf '%s\\n' 'intentional build failure' >&2; exit 9 ;;
-  *) exit 97 ;;
-esac
-`);
-  chmodSync(fakeGo, 0o755);
   const emptyOutput = path.join(fixture, "empty-output");
-  const emptyRun = runFixture(emptyOutput);
+  const { result: emptyRun } = runFixture(emptyOutput, { AW_TEST_EMPTY: 1 });
   assert.equal(emptyRun.status, 0, emptyRun.stderr);
   const emptyEvidence = path.join(emptyOutput, "evidence");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test.exit-code"), "utf8").trim(), "7");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test-capture.exit-code"), "utf8").trim(), "1");
-  assert.equal(readFileSync(path.join(emptyEvidence, "build.exit-code"), "utf8").trim(), "9");
+  assert.equal(readFileSync(path.join(emptyEvidence, "build.exit-code"), "utf8").trim(), "0");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test-manifest.tsv"), "utf8"), "");
   assert.equal(readFileSync(path.join(emptyEvidence, "go-test-stream.tsv"), "utf8"), readFileSync(path.join(emptyEvidence, "go-test-concat.tsv"), "utf8"));
 
+  const changedOutput = path.join(fixture, "changed-output");
+  const { result: changedRun } = runFixture(changedOutput, { AW_MUTATE_BINARY: 1, AW_TEST_EMPTY: 1 });
+  assert.equal(changedRun.status, 0, changedRun.stderr);
+  const changedEvidence = path.join(changedOutput, "evidence");
+  assert.notEqual(readFileSync(path.join(changedEvidence, "binary-pre-test-sha256.txt"), "utf8"),
+    readFileSync(path.join(changedEvidence, "binary-post-test-sha256.txt"), "utf8"));
+  assert.equal(readFileSync(path.join(changedEvidence, "build-validation.exit-code"), "utf8").trim(), "1");
+  assert.equal(statSync(path.join(changedOutput, "weed")).size, 0);
+
+  const finalizationChangedOutput = path.join(fixture, "finalization-changed-output");
+  const { result: finalizationChangedRun } = runFixture(finalizationChangedOutput, { AW_MUTATE_ON_VERSION: 1, AW_TEST_EMPTY: 1 });
+  assert.equal(finalizationChangedRun.status, 0, finalizationChangedRun.stderr);
+  const finalizationChangedEvidence = path.join(finalizationChangedOutput, "evidence");
+  const finalizationPreHash = readFileSync(path.join(finalizationChangedEvidence, "binary-pre-test-sha256.txt"), "utf8").trim();
+  const finalizationPostHash = readFileSync(path.join(finalizationChangedEvidence, "binary-post-test-sha256.txt"), "utf8").trim();
+  const finalizationFinalHash = readFileSync(path.join(finalizationChangedEvidence, "binary-sha256.txt"), "utf8").split(" ")[0];
+  assert.equal(finalizationPostHash, finalizationPreHash);
+  assert.notEqual(finalizationFinalHash, finalizationPreHash);
+  assert.equal(readFileSync(path.join(finalizationChangedEvidence, "build-validation.exit-code"), "utf8").trim(), "1");
+  assert.match(readFileSync(path.join(finalizationChangedEvidence, "weed-version.txt"), "utf8"), /4\.51.*ffa87c2-aw-go-5b789254/u);
+  assert.ok(statSync(path.join(finalizationChangedOutput, "weed")).size > 0);
+
+  const failedBuildOutput = path.join(fixture, "failed-build-output");
+  const { result: failedBuildRun, log: failedBuildLog } = runFixture(failedBuildOutput, { AW_BUILD_FAIL: 1 });
+  assert.equal(failedBuildRun.status, 0, failedBuildRun.stderr);
+  const failedBuildEvidence = path.join(failedBuildOutput, "evidence");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "package-list.exit-code"), "utf8").trim(), "0");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "build.exit-code"), "utf8").trim(), "9");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "build.stderr.txt"), "utf8"), "intentional build failure\n");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test.exit-code"), "utf8").trim(), "125");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test-capture.exit-code"), "utf8").trim(), "125");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "build-validation.exit-code"), "utf8").trim(), "1");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test.stderr.txt"), "utf8"), "");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test-manifest.tsv"), "utf8"), "");
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test-manifest.sha256"), "utf8"), `${sha256(Buffer.alloc(0))}  go-test-manifest.tsv\n`);
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test-stream.tsv"), "utf8"), `0\t${sha256(Buffer.alloc(0))}\n`);
+  assert.equal(readFileSync(path.join(failedBuildEvidence, "go-test-concat.tsv"), "utf8"), `0\t${sha256(Buffer.alloc(0))}\n`);
+  assert.equal(existsSync(path.join(failedBuildEvidence, "go-test-events/chunk-0000.json")), false);
+  assert.equal(readFileSync(failedBuildLog, "utf8").split("\n").some((call) => call.startsWith("test ")), false);
+  assert.equal(statSync(path.join(failedBuildOutput, "weed")).size, 0);
+  const exportedFailedBuild = path.join(fixture, "exported-failed-build");
+  exportManagedTextEvidence(failedBuildEvidence, exportedFailedBuild);
+  assert.deepEqual(readFileSync(path.join(exportedFailedBuild, "build.stderr.txt")),
+    readFileSync(path.join(failedBuildEvidence, "build.stderr.txt")));
+
   const sentinel = path.join(fixture, "unexpected-go-call");
-  writeFileSync(fakeGo, `#!/bin/sh
-printf '%s\n' called > ${shellQuote(shellPath(sentinel))}
-exit 98
-`);
+  const sentinelGo = `#!/bin/sh\nprintf '%s\\n' called > ${shellQuote(shellPath(sentinel))}\nexit 98\n`;
+  writeFileSync(fakeGo, sentinelGo);
   chmodSync(fakeGo, 0o755);
   const blockedOutput = path.join(fixture, "blocked-output");
-  const blockedRun = runFixture(blockedOutput, "23\n");
+  const { result: blockedRun } = runFixture(blockedOutput, {}, "23\n");
   assert.equal(blockedRun.status, 0, blockedRun.stderr);
   const blockedEvidence = path.join(blockedOutput, "evidence");
   assert.equal(existsSync(sentinel), false);
@@ -296,7 +386,7 @@ exit 98
   assert.throws(() => readManagedSeaweedTests(exportedBlockedEvidence), /scanner_managed_seaweed_evidence_invalid/u);
 
   const malformedOutput = path.join(fixture, "malformed-output");
-  const malformedRun = runFixture(malformedOutput, "0\n\n");
+  const { result: malformedRun } = runFixture(malformedOutput, {}, "0\n\n");
   assert.equal(malformedRun.status, 0, malformedRun.stderr);
   assert.equal(existsSync(sentinel), false);
   assert.equal(readFileSync(path.join(malformedOutput, "evidence/go-test.exit-code"), "utf8").trim(), "125");
