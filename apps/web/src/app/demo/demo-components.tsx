@@ -71,31 +71,32 @@ export function ActiveCriteria({ query, catalog, busy = false, canRemove, onRemo
   readonly onRemove?: (criterion: SearchCriterion) => void;
 }) {
   if (query === undefined) return null;
-  const criteria: { readonly key: SearchCriterion; readonly summary: string; readonly action: string }[] = [];
+  const criteria: { readonly key: SearchCriterion; readonly label: string; readonly summary: string; readonly action: string }[] = [];
   const make = catalog?.taxonomyRelease.makes.find((item) => item.makeId === query.makeId);
   const model = catalog?.taxonomyRelease.models.find((item) => item.makeId === query.makeId && item.modelId === query.modelId);
-  if (query.schemaVersion === 3 && query.text !== undefined) criteria.push({ key: "text", summary: `Mots : ${query.text}`, action: `Retirer les mots « ${query.text} »` });
-  if (query.makeId !== undefined) criteria.push({ key: "makeId", summary: make?.primaryName.value ?? "Marque : libellé indisponible", action: query.modelId === undefined ? "Retirer la marque" : "Retirer la marque et le modèle" });
-  if (query.modelId !== undefined) criteria.push({ key: "modelId", summary: model?.primaryName.value ?? "Modèle : libellé indisponible", action: "Retirer le modèle" });
-  if (query.firstRegistrationYear !== undefined) criteria.push({ key: "firstRegistrationYear", summary: `Première immatriculation fictive : ${query.firstRegistrationYear}`, action: "Retirer la première immatriculation fictive" });
-  if (query.priceMaxMinor !== undefined) criteria.push({ key: "priceMaxMinor", summary: `Budget ≤ ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(query.priceMaxMinor / 100)}`, action: "Retirer le budget maximum" });
-  if (query.mileageMaxKm !== undefined) criteria.push({ key: "mileageMaxKm", summary: `Kilométrage ≤ ${new Intl.NumberFormat("fr-FR").format(query.mileageMaxKm)} km`, action: "Retirer le kilométrage maximum" });
+  if (query.schemaVersion === 3 && query.text !== undefined) criteria.push({ key: "text", label: "Mots", summary: `Mots : ${query.text}`, action: `Retirer les mots « ${query.text} »` });
+  if (query.makeId !== undefined) criteria.push({ key: "makeId", label: "Marque", summary: make?.primaryName.value ?? "Marque : libellé indisponible", action: query.modelId === undefined ? "Retirer la marque" : "Retirer la marque et le modèle" });
+  if (query.modelId !== undefined) criteria.push({ key: "modelId", label: "Modèle", summary: model?.primaryName.value ?? "Modèle : libellé indisponible", action: "Retirer le modèle" });
+  if (query.firstRegistrationYear !== undefined) criteria.push({ key: "firstRegistrationYear", label: "Année", summary: `Première immatriculation fictive : ${query.firstRegistrationYear}`, action: "Retirer l’année de première immatriculation fictive" });
+  if (query.priceMaxMinor !== undefined) criteria.push({ key: "priceMaxMinor", label: "Budget", summary: `Budget ≤ ${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(query.priceMaxMinor / 100)}`, action: "Retirer le budget maximum" });
+  if (query.mileageMaxKm !== undefined) criteria.push({ key: "mileageMaxKm", label: "Kilométrage", summary: `Kilométrage ≤ ${new Intl.NumberFormat("fr-FR").format(query.mileageMaxKm)} km`, action: "Retirer le kilométrage maximum" });
   const unavailable = !busy && canRemove !== undefined && criteria.some(({ key }) => !canRemove(key));
   return (
     <div className="demo-active-criteria">
       <p className="demo-field-hint" id="demo-active-criteria-summary">Critères appliqués : {criteria.length === 0 ? "aucun filtre" : criteria.map(({ summary }) => summary).join(" · ")}.</p>
       {onRemove !== undefined && criteria.length > 0 ? (
         <ul aria-label="Ajuster les critères appliqués" className="demo-criteria-actions">
-          {criteria.map(({ key, action }) => (
+          {criteria.map(({ key, label, action }) => (
             <li key={key}>
               <Button
                 id={`demo-remove-${key}`}
                 type="button"
                 variant="secondary"
+                aria-label={action}
                 disabled={busy || canRemove?.(key) === false}
                 onClick={() => onRemove(key)}
               >
-                {action}
+                {label}<span aria-hidden="true">×</span>
               </Button>
             </li>
           ))}

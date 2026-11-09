@@ -16,7 +16,7 @@ import {
 type SearchBody = Readonly<Record<string, unknown>> & { readonly cursor?: string };
 type SubmittedSearch = { readonly version: 2 | 3; readonly body: SearchBody };
 
-const nextCursor = `cur_${"r".repeat(64)}`;
+const nextCursor = `cur_${"e".repeat(64)}`;
 const expectedAcceptedQuery = {
   schemaVersion: 3,
   sort: "mileage_desc",
