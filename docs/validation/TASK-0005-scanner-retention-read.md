@@ -110,3 +110,20 @@ Rollback disables this read workflow and preserves the package and all evidence.
 No existing package, archive, volume or unrelated image is deleted. External fork
 testing remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`; retention, restoration
 and admission remain false and support dates null.
+
+## PR239 quality failure and fixture correction
+
+The exact `b301683eccc3b068c1a9513340e6fb4d3fb9a136` source passed its native
+root suite (3200 tests,3146 passed,54 skipped), lint and secret checks. GitHub
+[quality run42716984822](https://github.com/CleMeY15/auto-world/actions/runs/42716984822)
+then failed in the API workspace's existing no-egress demo test; the original
+failure log and API metadata are retained. Its root suite passed, but build,
+browser, secrets and dependency audit did not run. This is not an accepted CI run.
+
+The fixture driver counted20000 event-loop turns while waiting for native
+WebCrypto. It exhausted that count within235ms in the failing child process.
+The repair bounds the wait by a monotonic10-second deadline and preserves the
+virtual clock, scheduled-timer advancement and no-egress assertions. A regression
+resolves after20001 turns; separate cases verify the bounded pending-promise
+failure, timer cancellation, rejection propagation and invalid wait budgets.
+Fresh native and final-source/main CI validation remain required for this repair.
