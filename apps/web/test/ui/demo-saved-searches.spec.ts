@@ -103,6 +103,7 @@ test("an accepted real search persists across reload, restores editable criteria
   await page.reload();
   const row = page.locator(".demo-saved-search").filter({ hasText: "Très grand budget" });
   await expect(row).toBeVisible();
+  await row.locator("summary").click();
   await expect(row).toContainText("90071992547409.91");
   await expect(row).toContainText("0.0000001");
   const searchesBeforeRestore = submitted.length;

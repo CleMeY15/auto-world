@@ -124,6 +124,35 @@ async function assertKeywordSummary(page, canonicalText) {
   await expect(row.getByText(canonicalText, { exact: true })).toBeVisible();
 }
 
+async function inspectSavedSearchCriteria(page) {
+  const row = page.locator(".demo-saved-search").first();
+  const details = row.locator(".demo-saved-search-disclosure");
+  const summary = details.locator("summary");
+  const criteria = details.locator(".demo-saved-search-criteria");
+  const before = await page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), Object.values(PROTOTYPE_KEYS));
+  const beforeUrl = page.url();
+  const requests = [];
+  const recordRequest = (request) => { if (new URL(request.url()).pathname.startsWith("/api/")) requests.push(request.url()); };
+  page.on("request", recordRequest);
+  try {
+    await expect(details).toHaveJSProperty("open", false);
+    await expect(criteria).toBeHidden();
+    await expect(row.locator("#demo-saved-search-load-0")).toBeVisible();
+    await summary.focus();
+    await summary.press("Enter");
+    await expect(criteria).toBeVisible();
+    await expect(summary).toBeFocused();
+    await summary.press("Space");
+    await expect(criteria).toBeHidden();
+    await summary.press("Enter");
+    await expect(criteria).toBeVisible();
+    await expect(summary).toBeFocused();
+    expect(await page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), Object.values(PROTOTYPE_KEYS))).toEqual(before);
+    expect(page.url()).toBe(beforeUrl);
+    expect(requests).toEqual([]);
+  } finally { page.off("request", recordRequest); }
+}
+
 async function verifySearchRefinement(page, evidenceDirectory, engine, searchRequests, metrics, canonicalText) {
   const before = searchRequests.length;
   const originalCards = await page.locator(".demo-result-card").allTextContents();
@@ -308,6 +337,7 @@ async function openKeywordEngine(engine, browser, evidenceDirectory, metrics) {
 
     await page.getByRole("button", { name: "Enregistrés", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+    await inspectSavedSearchCriteria(page);
     await assertKeywordSummary(page, canonicalText);
     expect(await prototypeStorageSummary(page)).toEqual({ favorites: 0, searches: 1, comparisons: 0 });
     await capture(page, evidenceDirectory, engine, "phone-keyword-saved", metrics.screenshots);
@@ -317,6 +347,7 @@ async function openKeywordEngine(engine, browser, evidenceDirectory, metrics) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+    await inspectSavedSearchCriteria(page);
     await assertKeywordSummary(page, canonicalText);
     expect(externalRequests).toEqual([]);
     metrics.keywordEngines += 1;
@@ -371,6 +402,9 @@ async function openEngine(engine, launcher, evidenceDirectory, metrics) {
     expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
     await assertSentinels(page);
     await capture(page, evidenceDirectory, engine, "phone-saved", metrics.screenshots);
+    await inspectSavedSearchCriteria(page);
+    await capture(page, evidenceDirectory, engine, "phone-saved-criteria-open", metrics.screenshots);
+    metrics.savedCriteriaEngines += 1;
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await audit(page);
@@ -425,6 +459,7 @@ async function verifyUnavailableEngine(state, evidenceDirectory, metrics) {
   await expect(page.getByRole("heading", { name: "Duo persistant renommé" })).toBeVisible();
   await renameComparison(page, "Duo hors ligne");
   await renameSearch(page, "Recherche hors ligne");
+  await inspectSavedSearchCriteria(page);
   expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
   await assertSentinels(page);
   expect(externalRequests).toEqual([]);
@@ -438,6 +473,7 @@ async function verifyRestoredEngine(state, metrics) {
   await expect(page.getByRole("heading", { name: "Duo hors ligne" })).toBeVisible();
   await expect(page.locator("#demo-saved-search-name-0")).toHaveText("Recherche hors ligne");
   expect(await prototypeStorageSummary(page)).toEqual({ favorites: 1, searches: 1, comparisons: 1 });
+  await inspectSavedSearchCriteria(page);
 
   const beforeLoad = searchRequests.length;
   await page.locator("#demo-saved-search-load-0").click();
@@ -466,6 +502,7 @@ async function verifyRestoredEngine(state, metrics) {
   const keywordPage = state.keyword.page;
   await keywordPage.reload({ waitUntil: "networkidle" });
   await expect(keywordPage.getByRole("heading", { name: "Recherche par mots persistante" })).toBeVisible();
+  await inspectSavedSearchCriteria(keywordPage);
   await assertKeywordSummary(keywordPage, state.keyword.canonicalText);
   expect(await prototypeStorageSummary(keywordPage)).toEqual({ favorites: 0, searches: 1, comparisons: 0 });
   const beforeKeywordLoad = state.keyword.searchRequests.length;
@@ -487,7 +524,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
-    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
+    keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, savedCriteriaEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];
   let closed = false;
