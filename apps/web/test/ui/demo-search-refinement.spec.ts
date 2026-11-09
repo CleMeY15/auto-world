@@ -36,12 +36,12 @@ function result(index: number, observedAt: string) {
     listingId: `lst_refinement-${suffix}`,
     availability: "active",
     price: { status: "observed", value: { amountMinor: 3_100_000 + index * 10_000, currency: "EUR" }, evidenceId: priceEvidence },
-    mileage: { status: "observed", value: { amount: 20_000 + index * 1_000, unit: "km" }, evidenceId: mileageEvidence },
+    mileage: { status: "observed", value: { amount: 24_000 - index * 1_000, unit: "km" }, evidenceId: mileageEvidence },
     evidence: [
       { evidenceId: priceEvidence, field: "price", observedAt, confidenceBps: 8_800, value: { amountMinor: 3_100_000 + index * 10_000, currency: "EUR" } },
-      { evidenceId: mileageEvidence, field: "mileage", observedAt, confidenceBps: 9_200, value: { amount: 20_000 + index * 1_000, unit: "km" } },
+      { evidenceId: mileageEvidence, field: "mileage", observedAt, confidenceBps: 9_200, value: { amount: 24_000 - index * 1_000, unit: "km" } },
     ],
-    ...descriptionFields(1),
+    ...descriptionFields(index * 2 - 1),
   } as const;
 }
 
@@ -403,6 +403,11 @@ test("criterion controls remain accessible across the viewport and theme matrix"
       expect(targets.every(({ height, width: targetWidth }) => height >= 44 && targetWidth >= 44)).toBe(true);
       if ((width === 390 && theme === "light") || (width === 1440 && theme === "dark")) {
         await capture(page, testInfo, `demo-refinement-${width}-${theme}-${browserName}.png`);
+        await page.locator("#demo-remove-priceMaxMinor").click();
+        await expect(page.locator("#demo-refinement-cancel")).toBeVisible();
+        await capture(page, testInfo, `demo-refinement-prepared-${width}-${theme}-${browserName}.png`);
+        await page.locator("#demo-refinement-cancel").click();
+        await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
       } else {
         await expectNoHorizontalOverflow(page);
         expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
