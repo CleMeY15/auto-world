@@ -30,3 +30,6 @@ infra/managed-images/postgres/** -text
 infra/managed-images/Dockerfile* text eol=lf
 infra/managed-images/opensearch-core/fixtures/** -text
 infra/managed-images/seaweedfs/normal-skip-sources.tsv text eol=lf
+infra/scanner/retention.json text eol=lf
+infra/scanner/scanner-retention-qualification-zip-profile-v2.json text eol=lf
+roadmap/plans/TASK-0005-scanner-retention.md text eol=lf

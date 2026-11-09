@@ -1,6 +1,6 @@
 # TASK-0005 M3B — scanner retention bootstrap
 
-Status on 2026-11-09: `PLAN_APPROVED / IMPLEMENTATION_PENDING`.
+Status on 2026-11-09: `IMPLEMENTED / LOCAL_VALIDATION_PENDING`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`; no admission or support activation.
 
 PR237's [accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/237#issuecomment-6750591581)
@@ -50,9 +50,24 @@ fork testing remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`.
 
 ## Acceptance and rollback
 
-No tests, publication, retention or restoration are claimed by this planning
-record. Required local checks, independent implementation reviews, exact-head
-CI and protected-main CI remain pending. The bootstrap does not close M3B.
+The policy, bootstrap command and workflow are implemented. The 17 focused
+Windows tests pass on Node22.23.2. Independent policy/workflow review found
+one receipt-serialization issue; explicit Proxy refusal and a zero-trap
+regression repair it. The review then found no remaining issue in its bounded
+scope. Full native Linux checks, complete implementation and permission
+reviews, final-source CI and protected-main CI remain pending. No publication,
+retention or restoration is claimed; the bootstrap does not close M3B.
+
+The CLI supports only `bootstrap`. It rejects the later read-proof/publisher
+modes, checks the checkout and API main/tree identities, bounds the harmless
+context and observed registry descriptors, and records fixed phase outcomes.
+Credentials enter Docker login on stdin; child commands receive an explicit
+environment without registry tokens or proxy overrides. The workflow uploads
+only the capped public receipt. A confirmed digest remains recorded when a
+later cleanup fails; preexisting local images are never treated as owned.
+
+GitHub supplies `GITHUB_WORKFLOW_SHA` to steps as a default variable; the code
+checks it without overriding the reserved name. [GitHub variable reference](https://docs.github.com/en/actions/reference/workflows-and-actions/variables).
 
 Rollback disables the owned writer and preserves the package and all evidence.
 No deletion of existing packages, archives, volumes or unrelated data is
