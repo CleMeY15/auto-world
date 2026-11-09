@@ -7,11 +7,13 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { exportManagedTextEvidence, managedEvidenceDiagnostic } from "../scripts/scanner/official-audit.mjs";
+import { exportManagedSeaweedTextEvidence, exportManagedTextEvidence, managedEvidenceDiagnostic, managedSeaweedEvidenceStatusDiagnostic,
+  TEST_ONLY_exportManagedSeaweedTextEvidenceAfterCapture } from "../scripts/scanner/official-audit.mjs";
 
 const MiB = 1024 ** 2;
 const error = /^scanner_managed_evidence_invalid$/u;
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const officialAuditSource = readFileSync(new URL("../scripts/scanner/official-audit.mjs", import.meta.url), "utf8");
 
 function fixture(t) {
   const parent = realpathSync(tmpdir());
@@ -56,6 +58,54 @@ function refuses(source, destination) {
 const portableHash = (relative) => sha256(Buffer.from(relative.replaceAll(path.sep, "/")));
 const expectedDiagnostic = (guard, extra = {}) => Object.freeze({ schemaVersion: 1, guard, ...extra });
 
+function seaweedFixture(t) {
+  const value = fixture(t), packageName = "github.com/seaweedfs/seaweedfs/weed/iamapi";
+  const listKey = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
+  const updateKey = ["AKIA", "TESTFAKEADMIN0001"].join("");
+  const events = [
+    { Time: "2026-11-09T11:53:30.000000001Z", Action: "start", Package: packageName },
+    { Time: "2026-11-09T11:53:30.000000002Z", Action: "run", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity" },
+    { Time: "2026-11-09T11:53:30.000000003Z", Action: "run", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/ListAccessKeys" },
+    { Time: "2026-11-09T11:53:30.000000004Z", Action: "output", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/ListAccessKeys",
+      Output: `        <ListAccessKeysResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/"><ListAccessKeysResult><AccessKeyMetadata><member><AccessKeyId>${listKey}</AccessKeyId><Status>Active</Status><UserName>power_user</UserName></member></AccessKeyMetadata><IsTruncated>false</IsTruncated></ListAccessKeysResult><ResponseMetadata><RequestId>18E65E5287733EA3CFBD23AD</RequestId></ResponseMetadata></ListAccessKeysResponse>\n` },
+    { Time: "2026-11-09T11:53:30.000000005Z", Action: "pass", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/ListAccessKeys" },
+    { Time: "2026-11-09T11:53:30.000000006Z", Action: "run", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/UpdateAccessKey" },
+    { Time: "2026-11-09T11:53:30.000000007Z", Action: "output", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/UpdateAccessKey",
+      Output: `E1109 11:53:30.107530 iamapi_handlers.go:30 Response the access key with id ${updateKey} for user power_user cannot be found\n` },
+    { Time: "2026-11-09T11:53:30.000000008Z", Action: "output", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/UpdateAccessKey",
+      Output: `        <ErrorResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/"><Error><Code>NoSuchEntity</Code><Message>the access key with id ${updateKey} for user power_user cannot be found</Message><Type>Sender</Type></Error><RequestId>18E65E528781A110183657BE</RequestId></ErrorResponse>\n` },
+    { Time: "2026-11-09T11:53:30.000000009Z", Action: "pass", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity/UpdateAccessKey" },
+    { Time: "2026-11-09T11:53:30.000000010Z", Action: "pass", Package: packageName, Test: "TestImplicitUserNameUsesVerifiedIdentity" },
+    { Time: "2026-11-09T11:53:30.000000011Z", Action: "pass", Package: packageName },
+  ];
+  const writeEvents = () => {
+    const chunk = Buffer.from(`${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(path.join(value.source, "go-test-events/chunk-0000.json"), chunk);
+    const manifest = `chunk-0000.json\t${chunk.length}\t${sha256(chunk)}\n`;
+    writeFileSync(path.join(value.source, "go-test-manifest.tsv"), manifest);
+    writeFileSync(path.join(value.source, "go-test-manifest-bytes.txt"), `${Buffer.byteLength(manifest)}\n`);
+    writeFileSync(path.join(value.source, "go-test-manifest.sha256"), `${sha256(manifest)}  go-test-manifest.tsv\n`);
+    writeFileSync(path.join(value.source, "go-test-stream.tsv"), `${chunk.length}\t${sha256(chunk)}\n`);
+    writeFileSync(path.join(value.source, "go-test-concat.tsv"), `${chunk.length}\t${sha256(chunk)}\n`);
+  };
+  mkdirSync(path.join(value.source, "go-test-events"));
+  for (const name of ["preparation.exit-code", "package-list.exit-code", "go-test.exit-code", "go-test-capture.exit-code", "build.exit-code", "build-validation.exit-code"])
+    put(value.source, name, "0\n");
+  put(value.source, "package-list.txt", `${packageName}\n`);
+  const binary = "a".repeat(64);
+  put(value.source, "binary-pre-test-sha256.txt", `${binary}\n`); put(value.source, "binary-post-test-sha256.txt", `${binary}\n`);
+  put(value.source, "binary-sha256.txt", `${binary}  /out/weed\n`);
+  const material = new URL("../infra/managed-images/seaweedfs/corrected/", import.meta.url);
+  const goMod = readFileSync(new URL("go.mod", material)), goSum = readFileSync(new URL("go.sum", material));
+  put(value.source, "go.mod", goMod); put(value.source, "go.sum", goSum);
+  put(value.source, "source-sha256.txt", "d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9  /tmp/seaweedfs-source.tar.gz\n");
+  put(value.source, "original-module-sha256.txt", "4980945b680fa12c0457f0aa909926401860d66e816eccc6f8508c71a5290ee8  /materials/original/go.mod\n78c8b44110c4633c5721e0f7dad0fe99308116ebb7bdd5dafb160dc378f31d89  /materials/original/go.sum\n");
+  put(value.source, "corrected-module-sha256.txt", `${sha256(goMod)}  go.mod\n${sha256(goSum)}  go.sum\n`);
+  put(value.source, "iam-public-fixture-source.tsv", "weed/iamapi/iamapi_authz_test.go\t8153\t1bcd8c6bf19ff9727d5836ba3253c8291710122bb1068cfab8264ef77d2b0285\nweed/iamapi/iamapi_management_handlers.go\t68613\t20c370620e0f15f342c90aad57a6b956e67b4ff4f43a7c486d242f9f2aa9e7a2\nweed/iamapi/iamapi_handlers.go\t1854\tcb4ee02bb29825df0a27a8bf275f7db73da1d3ecbe415d6c22b02fe843af5966\n");
+  writeEvents();
+  return { ...value, events, writeEvents };
+}
+
 test("managed evidence exports exact original bytes and independently computed hashes with portable relative paths", (t) => {
   const { source, destination } = fixture(t);
   const originals = new Map([
@@ -86,6 +136,12 @@ test("managed evidence exports exact original bytes and independently computed h
     assert.notEqual(statSync(original).ino, statSync(output).ino, "exports are copies, not hardlinks");
     if (process.platform === "linux") assert.equal(statSync(output).mode & 0o777, 0o400);
   }
+});
+
+test("only both Seaweed Buildx invocations receive the fixed offline resolver mapping", () => {
+  const mapping = '...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : [])';
+  assert.equal(officialAuditSource.split(mapping).length - 1, 2);
+  assert.equal(officialAuditSource.match(/"buildx", "build"/gu)?.length, 2);
 });
 
 test("managed evidence accepts real prefixed licence basenames, Go manifests, statuses and allowed text extensions", (t) => {
@@ -158,6 +214,115 @@ test("managed evidence refuses recognizable GitHub, AWS and Authorization creden
       assert.deepEqual(readFileSync(path.join(source, "output.log")), original);
     });
   }
+});
+
+test("Seaweed exports only the three source-bound IAM fixture emissions without changing original bytes", (t) => {
+  const data = seaweedFixture(t);
+  const original = readFileSync(path.join(data.source, "go-test-events/chunk-0000.json"));
+  const result = exportManagedSeaweedTextEvidence(data.source, data.destination);
+  assert.equal(result.profile.profile, "SEAWEED_IAM_PUBLIC_FIXTURE_V1");
+  assert.equal(result.profile.credentialMatchCount, 3);
+  assert.equal(result.tests.events, data.events.length);
+  assert.deepEqual(readFileSync(path.join(data.destination, "go-test-events/chunk-0000.json")), original);
+  assert.equal(JSON.stringify(result.profile).includes("AKIA"), false);
+  assert.equal(result.tests.runtimeEligible, true);
+});
+
+test("Seaweed captured export cannot diverge when the source changes after the immutable snapshot", (t) => {
+  const data = seaweedFixture(t);
+  const original = readFileSync(path.join(data.source, "go-test-events/chunk-0000.json"));
+  const result = TEST_ONLY_exportManagedSeaweedTextEvidenceAfterCapture(data.source, data.destination, () => {
+    writeFileSync(path.join(data.source, "go-test-events/chunk-0000.json"), "changed after capture\n");
+  });
+  assert.equal(result.profile.profile, "SEAWEED_IAM_PUBLIC_FIXTURE_V1");
+  assert.deepEqual(readFileSync(path.join(data.destination, "go-test-events/chunk-0000.json")), original);
+});
+
+test("Seaweed exports a measured candidate hash mismatch only as failed non-runtime evidence", (t) => {
+  const data = seaweedFixture(t);
+  writeFileSync(path.join(data.source, "binary-post-test-sha256.txt"), `${"b".repeat(64)}\n`);
+  writeFileSync(path.join(data.source, "build-validation.exit-code"), "1\n");
+  rmSync(path.join(data.source, "binary-sha256.txt"));
+  const result = exportManagedSeaweedTextEvidence(data.source, data.destination);
+  assert.equal(result.tests.result, "failed"); assert.equal(result.tests.runtimeEligible, false);
+  assert.equal(result.profile.profile, "SEAWEED_IAM_PUBLIC_FIXTURE_V1");
+});
+
+test("Seaweed source archive binding accepts only the exact Buildx and bounded diagnostic paths", (t) => {
+  const diagnostic = seaweedFixture(t);
+  writeFileSync(path.join(diagnostic.source, "source-sha256.txt"), "d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9  /input/seaweedfs-source.tar.gz\n");
+  assert.equal(exportManagedSeaweedTextEvidence(diagnostic.source, diagnostic.destination).profile.profile, "SEAWEED_IAM_PUBLIC_FIXTURE_V1");
+  const foreign = seaweedFixture(t);
+  writeFileSync(path.join(foreign.source, "source-sha256.txt"), "d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9  /work/seaweedfs-source.tar.gz\n");
+  assert.throws(() => exportManagedSeaweedTextEvidence(foreign.source, foreign.destination));
+  assert.equal(existsSync(foreign.destination), false);
+});
+
+test("Seaweed accepts every canonical Go RFC3339Nano UTC precision", (t) => {
+  const timestamps = ["2026-11-09T12:35:20Z", ...Array.from({ length: 9 }, (_, index) =>
+    `2026-11-09T12:35:20.${"1".repeat(index + 1)}Z`), "2026-11-09T12:35:20.39944885Z"];
+  for (const timestamp of timestamps) {
+    const data = seaweedFixture(t);
+    for (const index of [3, 6, 7]) data.events[index].Time = timestamp;
+    data.writeEvents();
+    assert.equal(exportManagedSeaweedTextEvidence(data.source, data.destination).profile.profile, "SEAWEED_IAM_PUBLIC_FIXTURE_V1");
+  }
+});
+
+test("Seaweed refuses noncanonical or impossible Go event timestamps atomically", (t) => {
+  const invalid = [
+    "2026-11-09T12:35:20.Z", "2026-11-09T12:35:20.1234567890Z", "2026-11-09T12:35:20.120Z",
+    "2026-11-09T12:35:20+00:00", "2026-13-09T12:35:20Z", "2026-02-29T12:35:20Z",
+    "2024-02-30T12:35:20Z", "2026-11-09T24:35:20Z", "2026-11-09T12:60:20Z", "2026-11-09T12:35:60Z",
+  ];
+  for (const timestamp of invalid) {
+    const data = seaweedFixture(t);
+    data.events[3].Time = timestamp; data.writeEvents();
+    assert.throws(() => exportManagedSeaweedTextEvidence(data.source, data.destination));
+    assert.equal(existsSync(data.destination), false);
+  }
+});
+
+for (const [label, mutate] of [
+  ["source identity", (data) => writeFileSync(path.join(data.source, "iam-public-fixture-source.tsv"), "changed\n")],
+  ["archive identity", (data) => writeFileSync(path.join(data.source, "source-sha256.txt"), `${"0".repeat(64)}  /tmp/seaweedfs-source.tar.gz\n`)],
+  ["module identity", (data) => writeFileSync(path.join(data.source, "corrected-module-sha256.txt"), "changed\n")],
+  ["candidate identity", (data) => writeFileSync(path.join(data.source, "binary-post-test-sha256.txt"), `${"b".repeat(64)}\n`)],
+  ["match count", (data) => { data.events.splice(4, 0, { ...data.events[3] }); data.writeEvents(); }],
+  ["full fixture suffix", (data) => { data.events[6].Output = data.events[6].Output.replace("1 for user", "2 for user"); data.writeEvents(); }],
+  ["envelope", (data) => { data.events[3].Output = data.events[3].Output.replace("power_user", "other_user"); data.writeEvents(); }],
+  ["event field", (data) => { data.events[3].Action = "pass"; data.writeEvents(); }],
+  ["terminal", (data) => { data.events.splice(8, 1); data.writeEvents(); }],
+  ["event order", (data) => { const output = data.events.splice(7, 1)[0]; data.events.splice(9, 0, output); data.writeEvents(); }],
+  ["closed manifest", (data) => writeFileSync(path.join(data.source, "go-test-manifest-bytes.txt"), "1\n")],
+  ["other credential", (data) => put(data.source, "unrelated.log", `Authorization: Bearer ${"x".repeat(24)}\n`)],
+]) test(`Seaweed fixture profile refuses changed ${label} atomically`, (t) => {
+  const data = seaweedFixture(t); mutate(data);
+  assert.throws(() => exportManagedSeaweedTextEvidence(data.source, data.destination));
+  assert.equal(existsSync(data.destination), false);
+});
+
+test("authenticated Seaweed export refusal retains only strict numeric private statuses and publishes nothing", (t) => {
+  const { source, destination } = fixture(t);
+  const statuses = {
+    "preparation.exit-code": "0\n", "package-list.exit-code": "0\n", "go-test.exit-code": "7\n",
+    "go-test-capture.exit-code": "0\n", "build.exit-code": "9\n", "build-validation.exit-code": "1\n",
+  };
+  for (const [name, value] of Object.entries(statuses)) put(source, name, value);
+  put(source, "go-test-events/chunk-0005.json", `ordinary output\nAKIA${"A1".repeat(8)}\n`);
+  let failure;
+  assert.throws(() => exportManagedTextEvidence(source, destination), (value) => {
+    failure = value;
+    return error.test(value.message);
+  });
+  const diagnostic = managedSeaweedEvidenceStatusDiagnostic(failure, source);
+  assert.deepEqual(diagnostic, { schemaVersion: 1, statuses: {
+    preparation: 0, packageList: 0, tests: 7, capture: 0, build: 9, buildValidation: 1,
+  } });
+  assert.equal(Object.isFrozen(diagnostic), true);
+  assert.equal(existsSync(destination), false);
+  assert.equal(JSON.stringify(diagnostic).includes("AKIA"), false);
+  assert.equal(managedSeaweedEvidenceStatusDiagnostic(new Error("scanner_managed_evidence_invalid"), source), undefined);
 });
 
 test("managed evidence refuses an occupied directory or file without changing it", (t) => {

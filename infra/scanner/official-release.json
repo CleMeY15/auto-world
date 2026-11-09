@@ -1,22 +1,22 @@
 {
   "schemaVersion": 1,
   "state": "DIAGNOSTIC_ONLY_NOT_ADMITTED",
-  "resolvedAt": "2026-10-25T12:15:59.0675788Z",
+  "resolvedAt": "2026-11-09T07:21:40.3686192Z",
   "scanner": {
-    "version": "0.76.1",
-    "sourceCommit": "e713f67f7d54decdcd9b3132c9751833dcced698",
+    "version": "0.76.2",
+    "sourceCommit": "3f6334d223b52188324af3b9923b4249cd206652",
     "archive": {
-      "name": "trivy_0.76.1_Linux-64bit.tar.gz",
-      "bytes": 52676794,
-      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+      "name": "trivy_0.76.2_Linux-64bit.tar.gz",
+      "bytes": 52714130,
+      "sha256": "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"
     },
     "repository": "aquasecurity/trivy",
     "signerWorkflow": "aquasecurity/trivy/.github/workflows/reusable-release.yaml",
-    "sourceRef": "refs/tags/v0.76.1",
+    "sourceRef": "refs/tags/v0.76.2",
     "goVersion": "1.27.3",
-    "binarySha256": "d1dfca6ae10a1ad4540bb94e64f0510077c47008920a9b554986b39dca573d83",
-    "mainModuleVersion": "v0.76.1+dirty",
-    "vcsModified": true
+    "binarySha256": "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3",
+    "mainModuleVersion": "v0.76.2",
+    "vcsModified": false
   },
   "images": [
     {

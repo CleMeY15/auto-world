@@ -1,0 +1,2274 @@
+{
+  "schemaVersion": 1,
+  "profile": "NORMAL_LINUX_AMD64_SKIP_REVIEW_V1",
+  "provenance": {
+    "inventorySha256": "cdcc317b71cc9baadae2d8552b74376a17a105b108242e63f5a9a77388f9dfc8"
+  },
+  "sourceCommit": "ffa87c25fdf587178b1521ad87f2a4a72a02e584",
+  "sourceArchive": {
+    "bytes": 81881370,
+    "sha256": "d650e7a8a2cbec8a1725386f87f5eb803c95aa84417530aec58c1925fd23a2c9"
+  },
+  "packages": [
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed\t[no test files]"
+      },
+      "sourceDirectory": "weed",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/admin/internal/httputil",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/admin/internal/httputil\t[no test files]"
+      },
+      "sourceDirectory": "weed/admin/internal/httputil",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/admin/view/components",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/admin/view/components\t[no test files]"
+      },
+      "sourceDirectory": "weed/admin/view/components",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/admin/view/layout",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/admin/view/layout\t[no test files]"
+      },
+      "sourceDirectory": "weed/admin/view/layout",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/cluster/maintenance",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/cluster/maintenance\t[no test files]"
+      },
+      "sourceDirectory": "weed/cluster/maintenance",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/command/scaffold",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/command/scaffold\t[no test files]"
+      },
+      "sourceDirectory": "weed/command/scaffold",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/credential/postgres",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/credential/postgres\t[no test files]"
+      },
+      "sourceDirectory": "weed/credential/postgres",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/cassandra",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/cassandra\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/cassandra",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/cassandra2",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/cassandra2\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/cassandra2",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/elastic/v7",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/elastic/v7\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/elastic/v7",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/hbase",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/hbase\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/hbase",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/mongodb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/mongodb\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/mongodb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/mysql2",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/mysql2\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/mysql2",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/postgres2",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/postgres2\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/postgres2",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/sqlite",
+      "category": "PACKAGE_TEST_FILES_EXCLUDED_BY_BUILD_TAG",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/sqlite\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/sqlite",
+      "archiveDirectTestFileCount": 3,
+      "testSourceFiles": [
+        {
+          "path": "weed/filer/sqlite/sqlite_like_escape_test.go",
+          "bytes": 2058,
+          "sha256": "b44f2cf832c31d75dbce7b76f1affbefb03b0ee2792d269c4da17e9ba5ce58fa",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "sqlite"
+            }
+          ]
+        },
+        {
+          "path": "weed/filer/sqlite/sqlite_store_scan_test.go",
+          "bytes": 10695,
+          "sha256": "0b81cf6c289991d763a483768d06b7ddc6c5ca0ce8b320792c1960c5121f75db",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "(linux || darwin || windows) && sqlite"
+            }
+          ]
+        },
+        {
+          "path": "weed/filer/sqlite/sqlite_store_test.go",
+          "bytes": 3145,
+          "sha256": "15dfdf04487e4ecac0888b3bf4a24918e0cef52e6553eee1ba06297523ae011d",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "(linux || darwin || windows) && sqlite"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/store_test",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/store_test\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/store_test",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/tarantool",
+      "category": "PACKAGE_TEST_FILES_EXCLUDED_BY_BUILD_TAG",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/tarantool\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/tarantool",
+      "archiveDirectTestFileCount": 1,
+      "testSourceFiles": [
+        {
+          "path": "weed/filer/tarantool/tarantool_store_test.go",
+          "bytes": 539,
+          "sha256": "72a2c4038f192c157a8ee05ab84c4f540ff7ece53304d435f8cb9e7eceb46e22",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "tarantool"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/tikv",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/tikv\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/tikv",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/ydb",
+      "category": "PACKAGE_TEST_FILES_EXCLUDED_BY_BUILD_TAG",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer/ydb\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer/ydb",
+      "archiveDirectTestFileCount": 1,
+      "testSourceFiles": [
+        {
+          "path": "weed/filer/ydb/ydb_store_test.go",
+          "bytes": 421,
+          "sha256": "6709e7e7c7fba5a053207b1e13a963bd4948770a0feaf8e8d21413f826ed681a",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "ydb"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer_client",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/filer_client\t[no test files]"
+      },
+      "sourceDirectory": "weed/filer_client",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/iam/ldap",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/iam/ldap\t[no test files]"
+      },
+      "sourceDirectory": "weed/iam/ldap",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/iam/providers",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/iam/providers\t[no test files]"
+      },
+      "sourceDirectory": "weed/iam/providers",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/iam/util",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/iam/util\t[no test files]"
+      },
+      "sourceDirectory": "weed/iam/util",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/kms/aws",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/kms/aws\t[no test files]"
+      },
+      "sourceDirectory": "weed/kms/aws",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/kms/gcp",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/kms/gcp\t[no test files]"
+      },
+      "sourceDirectory": "weed/kms/gcp",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/kms/local",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/kms/local\t[no test files]"
+      },
+      "sourceDirectory": "weed/kms/local",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/kms/openbao",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/kms/openbao\t[no test files]"
+      },
+      "sourceDirectory": "weed/kms/openbao",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mount/unmount",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mount/unmount\t[no test files]"
+      },
+      "sourceDirectory": "weed/mount/unmount",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/agent",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/agent\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/agent",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/client/agent_client",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/client/agent_client\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/client/agent_client",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/client/pub_client",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/client/pub_client\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/client/pub_client",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/client/sub_client",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/client/sub_client\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/client/sub_client",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/kafka\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/kafka",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/segment",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/mq/segment\t[no test files]"
+      },
+      "sourceDirectory": "weed/mq/segment",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/notification",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/notification\t[no test files]"
+      },
+      "sourceDirectory": "weed/notification",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/notification/aws_sqs",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/notification/aws_sqs\t[no test files]"
+      },
+      "sourceDirectory": "weed/notification/aws_sqs",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/notification/gocdk_pub_sub",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/notification/gocdk_pub_sub\t[no test files]"
+      },
+      "sourceDirectory": "weed/notification/gocdk_pub_sub",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/notification/google_pub_sub",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/notification/google_pub_sub\t[no test files]"
+      },
+      "sourceDirectory": "weed/notification/google_pub_sub",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/notification/log",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/notification/log\t[no test files]"
+      },
+      "sourceDirectory": "weed/notification/log",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/iam_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/iam_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/iam_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/message_fbs",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/message_fbs\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/message_fbs",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/mount_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/mount_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/mount_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/mount_peer_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/mount_peer_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/mount_peer_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/mq_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/mq_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/mq_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/plugin_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/plugin_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/plugin_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/remote_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/remote_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/remote_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/s3_lifecycle_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/s3_lifecycle_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/s3_lifecycle_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/s3_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/s3_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/s3_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/volume_server_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/volume_server_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/volume_server_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/pb/worker_pb",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/pb/worker_pb\t[no test files]"
+      },
+      "sourceDirectory": "weed/pb/worker_pb",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/plugin/worker/handlers",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/plugin/worker/handlers\t[no test files]"
+      },
+      "sourceDirectory": "weed/plugin/worker/handlers",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/query/sqltypes",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/query/sqltypes\t[no test files]"
+      },
+      "sourceDirectory": "weed/query/sqltypes",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/replication/sink\t[no test files]"
+      },
+      "sourceDirectory": "weed/replication/sink",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/b2sink",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/replication/sink/b2sink\t[no test files]"
+      },
+      "sourceDirectory": "weed/replication/sink/b2sink",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/gcssink",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/replication/sink/gcssink\t[no test files]"
+      },
+      "sourceDirectory": "weed/replication/sink/gcssink",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api/s3tables/s3tablestest",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/s3api/s3tables/s3tablestest\t[no test files]"
+      },
+      "sourceDirectory": "weed/s3api/s3tables/s3tablestest",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/server/constants",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/server/constants\t[no test files]"
+      },
+      "sourceDirectory": "weed/server/constants",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/server/master_ui",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/server/master_ui\t[no test files]"
+      },
+      "sourceDirectory": "weed/server/master_ui",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/server/postgres",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/server/postgres\t[no test files]"
+      },
+      "sourceDirectory": "weed/server/postgres",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/sftpd/utils",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/sftpd/utils\t[no test files]"
+      },
+      "sourceDirectory": "weed/sftpd/utils",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/storage/backend/all",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/storage/backend/all\t[no test files]"
+      },
+      "sourceDirectory": "weed/storage/backend/all",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/storage/backend/rclone_backend",
+      "category": "PACKAGE_TEST_FILES_EXCLUDED_BY_BUILD_TAG",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/storage/backend/rclone_backend\t[no test files]"
+      },
+      "sourceDirectory": "weed/storage/backend/rclone_backend",
+      "archiveDirectTestFileCount": 1,
+      "testSourceFiles": [
+        {
+          "path": "weed/storage/backend/rclone_backend/rclone_backend_test.go",
+          "bytes": 3899,
+          "sha256": "3fe67f8c7dbb34c4dc443e4b2fea000d049739e69d33359f7bbf253938183b3f",
+          "buildConstraints": [
+            {
+              "line": 1,
+              "expression": "rclone"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/storage/volume_info",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/storage/volume_info\t[no test files]"
+      },
+      "sourceDirectory": "weed/storage/volume_info",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/buffered_writer",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/buffered_writer\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/buffered_writer",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/constants",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/constants\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/constants",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/fla9",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/fla9\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/fla9",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/grace",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/grace\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/grace",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/httpdown",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/httpdown\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/httpdown",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/util/version",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/util/version\t[no test files]"
+      },
+      "sourceDirectory": "weed/util/version",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/wdclient/exclusive_locks",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/wdclient/exclusive_locks\t[no test files]"
+      },
+      "sourceDirectory": "weed/wdclient/exclusive_locks",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/worker/tasks\t[no test files]"
+      },
+      "sourceDirectory": "weed/worker/tasks",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/base",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/worker/tasks/base\t[no test files]"
+      },
+      "sourceDirectory": "weed/worker/tasks/base",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/worker/tasks/util",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/worker/tasks/util\t[no test files]"
+      },
+      "sourceDirectory": "weed/worker/tasks/util",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/worker/types",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/worker/types\t[no test files]"
+      },
+      "sourceDirectory": "weed/worker/types",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/worker/types/base",
+      "category": "PACKAGE_WITHOUT_TEST_SOURCE_FILES",
+      "reasonEvent": {
+        "text": "?   \tgithub.com/seaweedfs/seaweedfs/weed/worker/types/base\t[no test files]"
+      },
+      "sourceDirectory": "weed/worker/types/base",
+      "archiveDirectTestFileCount": 0,
+      "testSourceFiles": []
+    }
+  ],
+  "tests": [
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/command",
+      "test": "TestParseScanTimeHonoursTimezone",
+      "category": "LOCAL_ENVIRONMENT_TIMEZONE",
+      "reasonEvent": {
+        "text": "filer_meta_scan_test.go:152: tzdata unavailable: unknown time zone America/Sao_Paulo"
+      },
+      "constraint": "IANA timezone America/Sao_Paulo available to time.LoadLocation",
+      "source": {
+        "path": "weed/command/filer_meta_scan_test.go",
+        "bytes": 5215,
+        "sha256": "70e2295442082ec7f878f9adca5628744dc1e58a5bc89ae21e9c7b86dea31f4b",
+        "testFunctionLine": 149,
+        "observedReportingLine": 152,
+        "skipStatementLine": 152,
+        "skipStatement": "t.Skipf(\"tzdata unavailable: %v\", err)"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/credential/test",
+      "test": "TestPolicyManagementWithFilerEtc",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "policy_test.go:140: Filer connection required for filer_etc store testing"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/credential/test/policy_test.go",
+        "bytes": 4533,
+        "sha256": "86b97eb193a9957e5036e034fcd429333e9e1737d58526a78e373d8cdbe0331c",
+        "testFunctionLine": 138,
+        "observedReportingLine": 140,
+        "skipStatementLine": 140,
+        "skipStatement": "t.Skip(\"Filer connection required for filer_etc store testing\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/credential/test",
+      "test": "TestPolicyManagementWithPostgres",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "policy_test.go:146: PostgreSQL connection required for postgres store testing"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/credential/test/policy_test.go",
+        "bytes": 4533,
+        "sha256": "86b97eb193a9957e5036e034fcd429333e9e1737d58526a78e373d8cdbe0331c",
+        "testFunctionLine": 144,
+        "observedReportingLine": 146,
+        "skipStatementLine": 146,
+        "skipStatement": "t.Skip(\"PostgreSQL connection required for postgres store testing\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestListDirectoryPrefixedEntriesAqlInjection",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:80: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 79,
+        "observedReportingLine": 80,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestListDirectoryPrefixedEntriesPrefixNotEvaluated",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:105: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 104,
+        "observedReportingLine": 105,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestListDirectoryPrefixedEntriesQuotedNames",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:122: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 121,
+        "observedReportingLine": 122,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestDeleteFolderChildrenAqlInjection",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:142: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 141,
+        "observedReportingLine": 142,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestDeleteFolderChildrenRemovesSubtree",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:160: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 159,
+        "observedReportingLine": 160,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/arangodb",
+      "test": "TestListDirectoryEntriesQuotedStartFileName",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "arangodb_store_test.go:178: arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529."
+      },
+      "constraint": "RUN_ARANGODB_TESTS=1 plus an ArangoDB service",
+      "source": {
+        "path": "weed/filer/arangodb/arangodb_store_test.go",
+        "bytes": 6548,
+        "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20",
+        "testFunctionLine": 177,
+        "observedReportingLine": 178,
+        "skipStatementLine": 19,
+        "skipStatement": "t.Skip(\"arangodb tests are disabled. Start an arangodb server and set RUN_ARANGODB_TESTS=1 to enable, ARANGODB_ADDR defaults to http://127.0.0.1:8529.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis",
+      "test": "TestListDirectoryEntriesRemovesOrphanedIndexMembers",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:93: redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis/universal_redis_store_test.go",
+        "bytes": 5520,
+        "sha256": "4f2276596696497b3167c450a3d9e2c4b9f37487494a91118d97db608dd85600",
+        "testFunctionLine": 92,
+        "observedReportingLine": 93,
+        "skipStatementLine": 21,
+        "skipStatement": "t.Skip(\"redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:112: redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis/universal_redis_store_test.go",
+        "bytes": 5520,
+        "sha256": "4f2276596696497b3167c450a3d9e2c4b9f37487494a91118d97db608dd85600",
+        "testFunctionLine": 111,
+        "observedReportingLine": 112,
+        "skipStatementLine": 21,
+        "skipStatement": "t.Skip(\"redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:128: redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis/universal_redis_store_test.go",
+        "bytes": 5520,
+        "sha256": "4f2276596696497b3167c450a3d9e2c4b9f37487494a91118d97db608dd85600",
+        "testFunctionLine": 127,
+        "observedReportingLine": 128,
+        "skipStatementLine": 21,
+        "skipStatement": "t.Skip(\"redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis",
+      "test": "TestDeleteFolderChildrenRemovesTheListing",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:158: redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis/universal_redis_store_test.go",
+        "bytes": 5520,
+        "sha256": "4f2276596696497b3167c450a3d9e2c4b9f37487494a91118d97db608dd85600",
+        "testFunctionLine": 157,
+        "observedReportingLine": 158,
+        "skipStatementLine": 21,
+        "skipStatement": "t.Skip(\"redis tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesRemovesOrphanedIndexMembers/keyPrefix=",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:93: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 90,
+        "observedReportingLine": 93,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesRemovesOrphanedIndexMembers/keyPrefix=sw:",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:93: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 90,
+        "observedReportingLine": 93,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry/keyPrefix=",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:116: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 113,
+        "observedReportingLine": 116,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsRecreatedEntry/keyPrefix=sw:",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:116: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 113,
+        "observedReportingLine": 116,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren/keyPrefix=",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:137: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 134,
+        "observedReportingLine": 137,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestRemoveOrphanedDirectoryListMemberKeepsDirectoryWithChildren/keyPrefix=sw:",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:137: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 134,
+        "observedReportingLine": 137,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestRemoveOrphanedDirectoryListMemberSkipsSuperLargeDirectory",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:169: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 168,
+        "observedReportingLine": 169,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesRemovesIndexMembersExpiredByRedis",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:193: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 192,
+        "observedReportingLine": 193,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesDeletesLogicallyExpiredEntries/keyPrefix=",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:239: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 236,
+        "observedReportingLine": 239,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesDeletesLogicallyExpiredEntries/keyPrefix=sw:",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:239: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 236,
+        "observedReportingLine": 239,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesSkipsMissingAndExpiredMembersInOrder/keyPrefix=",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:262: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 259,
+        "observedReportingLine": 262,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesSkipsMissingAndExpiredMembersInOrder/keyPrefix=sw:",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:262: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 259,
+        "observedReportingLine": 262,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesAcrossFetchBatches",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:285: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 284,
+        "observedReportingLine": 285,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestListDirectoryEntriesStopsAtUnreadableMember",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:319: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 318,
+        "observedReportingLine": 319,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestDeleteExpiredEntryKeepsRecreatedValue",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:349: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 348,
+        "observedReportingLine": 349,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestDeleteIfUnchangedScriptOnlyDeletesSameBytes",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:368: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 367,
+        "observedReportingLine": 368,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis2",
+      "test": "TestDeleteEntryKeepsChildListing",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:393: redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis2/universal_redis_store_test.go",
+        "bytes": 14366,
+        "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11",
+        "testFunctionLine": 392,
+        "observedReportingLine": 393,
+        "skipStatementLine": 20,
+        "skipStatement": "t.Skip(\"redis2 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis3",
+      "test": "TestDeleteEntryKeepsChildListing",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:70: redis3 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis3/universal_redis_store_test.go",
+        "bytes": 4063,
+        "sha256": "f9db3a65cc0113cdd5279d6aa869ea59b1a55925bd31e40df24f0561b1e72207",
+        "testFunctionLine": 69,
+        "observedReportingLine": 70,
+        "skipStatementLine": 22,
+        "skipStatement": "t.Skip(\"redis3 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/filer/redis3",
+      "test": "TestRemovingTheLastChildDropsTheListing",
+      "category": "CONDITIONAL_EXTERNAL_SERVICE_OPT_IN",
+      "reasonEvent": {
+        "text": "universal_redis_store_test.go:107: redis3 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379."
+      },
+      "constraint": "RUN_REDIS_TESTS=1 plus a Redis service",
+      "source": {
+        "path": "weed/filer/redis3/universal_redis_store_test.go",
+        "bytes": 4063,
+        "sha256": "f9db3a65cc0113cdd5279d6aa869ea59b1a55925bd31e40df24f0561b1e72207",
+        "testFunctionLine": 106,
+        "observedReportingLine": 107,
+        "skipStatementLine": 22,
+        "skipStatement": "t.Skip(\"redis3 tests are disabled. Start a redis-server and set RUN_REDIS_TESTS=1 to enable, REDIS_ADDR defaults to 127.0.0.1:6379.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_GetStoredRecords_EmptyTopic",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "record_retrieval_test.go:96: Test obsolete: ledgers removed, SMQ broker handles offset management"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/record_retrieval_test.go",
+        "bytes": 4538,
+        "sha256": "2c13f40d3de69a005b559fce23274194cc0511ee8546c79eb9dc6142294d8fa1",
+        "testFunctionLine": 93,
+        "observedReportingLine": 96,
+        "skipStatementLine": 96,
+        "skipStatement": "t.Skip(\"Test obsolete: ledgers removed, SMQ broker handles offset management\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_GetStoredRecords_EmptyPartition",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "record_retrieval_test.go:102: Test obsolete: ledgers removed, SMQ broker handles offset management"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/record_retrieval_test.go",
+        "bytes": 4538,
+        "sha256": "2c13f40d3de69a005b559fce23274194cc0511ee8546c79eb9dc6142294d8fa1",
+        "testFunctionLine": 99,
+        "observedReportingLine": 102,
+        "skipStatementLine": 102,
+        "skipStatement": "t.Skip(\"Test obsolete: ledgers removed, SMQ broker handles offset management\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_GetStoredRecords_OffsetBeyondHighWaterMark",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "record_retrieval_test.go:108: Test obsolete: ledgers removed, SMQ broker handles offset management"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/record_retrieval_test.go",
+        "bytes": 4538,
+        "sha256": "2c13f40d3de69a005b559fce23274194cc0511ee8546c79eb9dc6142294d8fa1",
+        "testFunctionLine": 105,
+        "observedReportingLine": 108,
+        "skipStatementLine": 108,
+        "skipStatement": "t.Skip(\"Test obsolete: ledgers removed, SMQ broker handles offset management\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_GetStoredRecords_MaxRecordsLimit",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "record_retrieval_test.go:114: Test obsolete: ledgers removed, SMQ broker handles offset management"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/record_retrieval_test.go",
+        "bytes": 4538,
+        "sha256": "2c13f40d3de69a005b559fce23274194cc0511ee8546c79eb9dc6142294d8fa1",
+        "testFunctionLine": 111,
+        "observedReportingLine": 114,
+        "skipStatementLine": 114,
+        "skipStatement": "t.Skip(\"Test obsolete: ledgers removed, SMQ broker handles offset management\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_MapSeaweedToKafkaOffsets",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:15: Test obsolete: ledger system removed, SMQ uses native offsets"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 12,
+        "observedReportingLine": 15,
+        "skipStatementLine": 15,
+        "skipStatement": "t.Skip(\"Test obsolete: ledger system removed, SMQ uses native offsets\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_MapSeaweedToKafkaOffsets_EmptyRecords",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:21: Test obsolete: ledger system removed, SMQ uses native offsets"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 19,
+        "observedReportingLine": 21,
+        "skipStatementLine": 21,
+        "skipStatement": "t.Skip(\"Test obsolete: ledger system removed, SMQ uses native offsets\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_Creation",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:171: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 169,
+        "observedReportingLine": 171,
+        "skipStatementLine": 171,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_TopicLifecycle",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:190: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 189,
+        "observedReportingLine": 190,
+        "skipStatementLine": 190,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_ProduceRecord",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:252: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 251,
+        "observedReportingLine": 252,
+        "skipStatementLine": 252,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_MultiplePartitions",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:297: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 296,
+        "observedReportingLine": 297,
+        "skipStatementLine": 297,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_FetchRecords",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:341: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 340,
+        "observedReportingLine": 341,
+        "skipStatementLine": 341,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_FetchRecords_ErrorHandling",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:435: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 434,
+        "observedReportingLine": 435,
+        "skipStatementLine": 435,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/integration",
+      "test": "TestSeaweedMQHandler_ErrorHandling",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "seaweedmq_handler_test.go:485: Integration test requires real SeaweedMQ Broker - run manually with broker available"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+        "bytes": 15788,
+        "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0",
+        "testFunctionLine": 484,
+        "observedReportingLine": 485,
+        "skipStatementLine": 485,
+        "skipStatement": "t.Skip(\"Integration test requires real SeaweedMQ Broker - run manually with broker available\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestHeartbeatResponseFormat_BugReproduce",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "heartbeat_response_format_test.go:157: This test documents the original bug - skip to avoid false failures"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/heartbeat_response_format_test.go",
+        "bytes": 5960,
+        "sha256": "0dc0d4477b28e2feb481eb336ef988c985bcb2e55cf6a154e54d84ad20075cf2",
+        "testFunctionLine": 156,
+        "observedReportingLine": 157,
+        "skipStatementLine": 157,
+        "skipStatement": "t.Skip(\"This test documents the original bug - skip to avoid false failures\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestMetadataRequestBlocking",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "metadata_blocking_test.go:22: This test documents the original bug. The fix is in the broker's ListTopics with filer timeout. Run TestMetadataRequestWithFastMock to verify fast path works."
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/metadata_blocking_test.go",
+        "bytes": 12710,
+        "sha256": "26536e2e6afbd2ad58244cad8ad5e7b750cfb40d7c4cdec7717e7a6721307d42",
+        "testFunctionLine": 21,
+        "observedReportingLine": 22,
+        "skipStatementLine": 22,
+        "skipStatement": "t.Skip(\"This test documents the original bug. The fix is in the broker's ListTopics with filer timeout. Run TestMetadataRequestWithFastMock to verify fast path works.\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestOffsetCommitFetchPattern",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "offset_fetch_pattern_test.go:18: Integration test - requires mock broker setup"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+        "bytes": 7094,
+        "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c",
+        "testFunctionLine": 17,
+        "observedReportingLine": 18,
+        "skipStatementLine": 18,
+        "skipStatement": "t.Skip(\"Integration test - requires mock broker setup\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestOffsetFetchAfterCommit",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "offset_fetch_pattern_test.go:98: Integration test - requires mock broker setup"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+        "bytes": 7094,
+        "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c",
+        "testFunctionLine": 97,
+        "observedReportingLine": 98,
+        "skipStatementLine": 98,
+        "skipStatement": "t.Skip(\"Integration test - requires mock broker setup\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestOffsetPersistencePattern",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "offset_fetch_pattern_test.go:126: Integration test - requires mock broker setup"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+        "bytes": 7094,
+        "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c",
+        "testFunctionLine": 125,
+        "observedReportingLine": 126,
+        "skipStatementLine": 126,
+        "skipStatement": "t.Skip(\"Integration test - requires mock broker setup\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestOffsetCommitConsistency",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "offset_fetch_pattern_test.go:167: Integration test - requires mock broker setup"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+        "bytes": 7094,
+        "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c",
+        "testFunctionLine": 166,
+        "observedReportingLine": 167,
+        "skipStatementLine": 167,
+        "skipStatement": "t.Skip(\"Integration test - requires mock broker setup\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestLongPollWithOffsetCommit",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "offset_fetch_pattern_test.go:200: Integration test - requires mock broker setup"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+        "bytes": 7094,
+        "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c",
+        "testFunctionLine": 199,
+        "observedReportingLine": 200,
+        "skipStatementLine": 200,
+        "skipStatement": "t.Skip(\"Integration test - requires mock broker setup\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestExtractAllRecords_CompressedBatch",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "record_extraction_test.go:157: Compressed batch test - implement after uncompressed works"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/record_extraction_test.go",
+        "bytes": 4837,
+        "sha256": "18037d60f4949a9ccc5778ce431e4699cbdcc7f0a18d55a2a86ecb8f65eaee6c",
+        "testFunctionLine": 154,
+        "observedReportingLine": 157,
+        "skipStatementLine": 157,
+        "skipStatement": "t.Skip(\"Compressed batch test - implement after uncompressed works\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestJoinGroupResponseStructure",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "response_validation_example_test.go:14: This is a demonstration test - shows what we SHOULD check"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/response_validation_example_test.go",
+        "bytes": 4550,
+        "sha256": "b51c49fc6bdf374e9e0bc64a0652cd703a8396384a18ded6d99cab4715d8332f",
+        "testFunctionLine": 13,
+        "observedReportingLine": 14,
+        "skipStatementLine": 14,
+        "skipStatement": "t.Skip(\"This is a demonstration test - shows what we SHOULD check\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestProduceResponseStructure",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "response_validation_example_test.go:48: This is a demonstration test - shows what we SHOULD check"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/response_validation_example_test.go",
+        "bytes": 4550,
+        "sha256": "b51c49fc6bdf374e9e0bc64a0652cd703a8396384a18ded6d99cab4715d8332f",
+        "testFunctionLine": 47,
+        "observedReportingLine": 48,
+        "skipStatementLine": 48,
+        "skipStatement": "t.Skip(\"This is a demonstration test - shows what we SHOULD check\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestCompareWithReferenceImplementation",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "response_validation_example_test.go:64: This would require a reference Kafka broker or client library"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/response_validation_example_test.go",
+        "bytes": 4550,
+        "sha256": "b51c49fc6bdf374e9e0bc64a0652cd703a8396384a18ded6d99cab4715d8332f",
+        "testFunctionLine": 63,
+        "observedReportingLine": 64,
+        "skipStatementLine": 64,
+        "skipStatement": "t.Skip(\"This would require a reference Kafka broker or client library\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/mq/kafka/protocol",
+      "test": "TestMetadataResponseHasBrokers",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "response_validation_example_test.go:105: Example of what a real field-level test would look like"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/mq/kafka/protocol/response_validation_example_test.go",
+        "bytes": 4550,
+        "sha256": "b51c49fc6bdf374e9e0bc64a0652cd703a8396384a18ded6d99cab4715d8332f",
+        "testFunctionLine": 104,
+        "observedReportingLine": 105,
+        "skipStatementLine": 105,
+        "skipStatement": "t.Skip(\"Example of what a real field-level test would look like\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/query/engine",
+      "test": "TestSQLEngine_SelectFromNonExistentTable",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "select_test.go:83: Skipping non-existent table test - table name parsing issue needs investigation"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/query/engine/select_test.go",
+        "bytes": 6226,
+        "sha256": "b572f4a910b23d062a518467898ae0ff7efd4e9f4ea11407adc10f1b45cea314",
+        "testFunctionLine": 82,
+        "observedReportingLine": 83,
+        "skipStatementLine": 83,
+        "skipStatement": "t.Skip(\"Skipping non-existent table test - table name parsing issue needs investigation\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/remote_storage/azure",
+      "test": "TestAzureStorageClientBasic",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_storage_client_test.go:29: Skipping Azure storage test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/remote_storage/azure/azure_storage_client_test.go",
+        "bytes": 14728,
+        "sha256": "afb63e0877fa92115d25716f5ca7a00f2aa03d0c3201ee9bdf5f1a36a0b934b4",
+        "testFunctionLine": 22,
+        "observedReportingLine": 29,
+        "skipStatementLine": 29,
+        "skipStatement": "t.Skip(\"Skipping Azure storage test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkInitialization",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:99: Skipping Azure sink test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 93,
+        "observedReportingLine": 99,
+        "skipStatementLine": 99,
+        "skipStatement": "t.Skip(\"Skipping Azure sink test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkInitializeFromConfig",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:132: Skipping Azure sink config test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 126,
+        "observedReportingLine": 132,
+        "skipStatementLine": 132,
+        "skipStatement": "t.Skip(\"Skipping Azure sink config test: AZURE_STORAGE_ACCOUNT or AZURE_STORAGE_ACCESS_KEY not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkEntryOperations",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:186: Skipping Azure sink entry test: credentials not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 180,
+        "observedReportingLine": 186,
+        "skipStatementLine": 186,
+        "skipStatement": "t.Skip(\"Skipping Azure sink entry test: credentials not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkPrecondition",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:281: Skipping Azure sink precondition test: credentials not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 275,
+        "observedReportingLine": 281,
+        "skipStatementLine": 281,
+        "skipStatement": "t.Skip(\"Skipping Azure sink precondition test: credentials not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkIdempotentCreate",
+      "category": "CONDITIONAL_EXTERNAL_CLOUD_CREDENTIALS",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:350: Skipping Azure sink idempotent create test: credentials not set"
+      },
+      "constraint": "AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY plus the test Azure environment",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 344,
+        "observedReportingLine": 350,
+        "skipStatementLine": 350,
+        "skipStatement": "t.Skip(\"Skipping Azure sink idempotent create test: credentials not set\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/replication/sink/azuresink",
+      "test": "TestAzureSinkInvalidCredentials",
+      "category": "EXPECTED_REJECTION_REPORTED_AS_SKIP",
+      "reasonEvent": {
+        "text": "azure_sink_test.go:465: Invalid credentials correctly rejected at initialization"
+      },
+      "constraint": "Upstream records early rejection of deliberately invalid credentials as SKIP",
+      "source": {
+        "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+        "bytes": 13404,
+        "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034",
+        "testFunctionLine": 460,
+        "observedReportingLine": 465,
+        "skipStatementLine": 465,
+        "skipStatement": "t.Skip(\"Invalid credentials correctly rejected at initialization\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api",
+      "test": "TestCheckGovernanceBypassPermissionIntegrationBehavior",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "s3api_governance_permissions_test.go:177: Documentation test - describes expected behavior with full IAM integration"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/s3api/s3api_governance_permissions_test.go",
+        "bytes": 21158,
+        "sha256": "e2d251f667a57bd654c20f4be2b43c91103086508c4dd4733f619c71b517cce0",
+        "testFunctionLine": 176,
+        "observedReportingLine": 177,
+        "skipStatementLine": 177,
+        "skipStatement": "t.Skip(\"Documentation test - describes expected behavior with full IAM integration\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api",
+      "test": "TestGovernanceBypassWithIAMPermission",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "s3api_governance_permissions_test.go:202: Integration test requires full IAM setup - demonstrates expected behavior"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/s3api/s3api_governance_permissions_test.go",
+        "bytes": 21158,
+        "sha256": "e2d251f667a57bd654c20f4be2b43c91103086508c4dd4733f619c71b517cce0",
+        "testFunctionLine": 198,
+        "observedReportingLine": 202,
+        "skipStatementLine": 202,
+        "skipStatement": "t.Skip(\"Integration test requires full IAM setup - demonstrates expected behavior\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api",
+      "test": "TestGovernancePermissionIntegration",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "s3api_governance_permissions_test.go:220: Integration test requires full IAM setup - demonstrates expected behavior"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/s3api/s3api_governance_permissions_test.go",
+        "bytes": 21158,
+        "sha256": "e2d251f667a57bd654c20f4be2b43c91103086508c4dd4733f619c71b517cce0",
+        "testFunctionLine": 215,
+        "observedReportingLine": 220,
+        "skipStatementLine": 220,
+        "skipStatement": "t.Skip(\"Integration test requires full IAM setup - demonstrates expected behavior\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api",
+      "test": "TestGovernancePermissionEndToEnd",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "s3api_governance_permissions_test.go:402: End-to-end testing requires full S3 API server setup - demonstrates expected behavior"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/s3api/s3api_governance_permissions_test.go",
+        "bytes": 21158,
+        "sha256": "e2d251f667a57bd654c20f4be2b43c91103086508c4dd4733f619c71b517cce0",
+        "testFunctionLine": 401,
+        "observedReportingLine": 402,
+        "skipStatementLine": 402,
+        "skipStatement": "t.Skip(\"End-to-end testing requires full S3 API server setup - demonstrates expected behavior\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/s3api",
+      "test": "TestImplicitDirectoryIntegration",
+      "category": "UPSTREAM_UNCONDITIONAL_SKIP",
+      "reasonEvent": {
+        "text": "s3api_implicit_directory_test.go:278: Integration test - run manually with: cd test/s3/parquet && make test-implicit-dir-with-server"
+      },
+      "constraint": "Unconditional t.Skip in pinned upstream source; provisioning alone does not enable this test.",
+      "source": {
+        "path": "weed/s3api/s3api_implicit_directory_test.go",
+        "bytes": 9044,
+        "sha256": "dc0227d292c6f2f9b19a464e4f50454dd3ff039dd5aab26fb7490cb53fe621a2",
+        "testFunctionLine": 273,
+        "observedReportingLine": 278,
+        "skipStatementLine": 278,
+        "skipStatement": "t.Skip(\"Integration test - run manually with: cd test/s3/parquet && make test-implicit-dir-with-server\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/storage",
+      "test": "TestValidateEcVolume_TransientStatErrorKeeps",
+      "category": "LOCAL_ENVIRONMENT_ROOT",
+      "reasonEvent": {
+        "text": "ec_startup_shard_safety_test.go:82: root bypasses directory permission checks"
+      },
+      "constraint": "Execute permission-sensitive test as non-root",
+      "source": {
+        "path": "weed/storage/ec_startup_shard_safety_test.go",
+        "bytes": 3933,
+        "sha256": "13caed6445c306a90b9b130a98475e2f47998518cc16cac369ef88a3c96016c6",
+        "testFunctionLine": 80,
+        "observedReportingLine": 82,
+        "skipStatementLine": 82,
+        "skipStatement": "t.Skip(\"root bypasses directory permission checks\")"
+      }
+    },
+    {
+      "package": "github.com/seaweedfs/seaweedfs/weed/storage",
+      "test": "TestRebuildIdx_UnwritableIdxDirSkipsOnlyThisVolume",
+      "category": "LOCAL_ENVIRONMENT_ROOT",
+      "reasonEvent": {
+        "text": "volume_idx_rebuild_test.go:235: root ignores directory permissions"
+      },
+      "constraint": "Execute permission-sensitive test as non-root",
+      "source": {
+        "path": "weed/storage/volume_idx_rebuild_test.go",
+        "bytes": 9027,
+        "sha256": "19c16d92bd96459fcaab2c8ef7c7f6a27a338cf0e2767825c17c7b2d71d57790",
+        "testFunctionLine": 233,
+        "observedReportingLine": 235,
+        "skipStatementLine": 235,
+        "skipStatement": "t.Skip(\"root ignores directory permissions\")"
+      }
+    }
+  ],
+  "sourceProofs": [
+    {
+      "path": "weed/command/filer_meta_scan_test.go",
+      "bytes": 5215,
+      "sha256": "70e2295442082ec7f878f9adca5628744dc1e58a5bc89ae21e9c7b86dea31f4b"
+    },
+    {
+      "path": "weed/credential/test/policy_test.go",
+      "bytes": 4533,
+      "sha256": "86b97eb193a9957e5036e034fcd429333e9e1737d58526a78e373d8cdbe0331c"
+    },
+    {
+      "path": "weed/filer/arangodb/arangodb_store_test.go",
+      "bytes": 6548,
+      "sha256": "4ec3f021224ce4478626daec694fc608159618a008d84202cf23f67dfc7fca20"
+    },
+    {
+      "path": "weed/filer/redis/universal_redis_store_test.go",
+      "bytes": 5520,
+      "sha256": "4f2276596696497b3167c450a3d9e2c4b9f37487494a91118d97db608dd85600"
+    },
+    {
+      "path": "weed/filer/redis2/universal_redis_store_test.go",
+      "bytes": 14366,
+      "sha256": "6c0a30bc97784bd684187a0f0114ebf6a1f9816e7c342c7038864525f9f93a11"
+    },
+    {
+      "path": "weed/filer/redis3/universal_redis_store_test.go",
+      "bytes": 4063,
+      "sha256": "f9db3a65cc0113cdd5279d6aa869ea59b1a55925bd31e40df24f0561b1e72207"
+    },
+    {
+      "path": "weed/filer/sqlite/sqlite_like_escape_test.go",
+      "bytes": 2058,
+      "sha256": "b44f2cf832c31d75dbce7b76f1affbefb03b0ee2792d269c4da17e9ba5ce58fa"
+    },
+    {
+      "path": "weed/filer/sqlite/sqlite_store_scan_test.go",
+      "bytes": 10695,
+      "sha256": "0b81cf6c289991d763a483768d06b7ddc6c5ca0ce8b320792c1960c5121f75db"
+    },
+    {
+      "path": "weed/filer/sqlite/sqlite_store_test.go",
+      "bytes": 3145,
+      "sha256": "15dfdf04487e4ecac0888b3bf4a24918e0cef52e6553eee1ba06297523ae011d"
+    },
+    {
+      "path": "weed/filer/tarantool/tarantool_store_test.go",
+      "bytes": 539,
+      "sha256": "72a2c4038f192c157a8ee05ab84c4f540ff7ece53304d435f8cb9e7eceb46e22"
+    },
+    {
+      "path": "weed/filer/ydb/ydb_store_test.go",
+      "bytes": 421,
+      "sha256": "6709e7e7c7fba5a053207b1e13a963bd4948770a0feaf8e8d21413f826ed681a"
+    },
+    {
+      "path": "weed/mq/kafka/integration/record_retrieval_test.go",
+      "bytes": 4538,
+      "sha256": "2c13f40d3de69a005b559fce23274194cc0511ee8546c79eb9dc6142294d8fa1"
+    },
+    {
+      "path": "weed/mq/kafka/integration/seaweedmq_handler_test.go",
+      "bytes": 15788,
+      "sha256": "6c20533f3ef1ff407cfca50342a43f94f07fb27a8902079d9c378626a1e7d2a0"
+    },
+    {
+      "path": "weed/mq/kafka/protocol/heartbeat_response_format_test.go",
+      "bytes": 5960,
+      "sha256": "0dc0d4477b28e2feb481eb336ef988c985bcb2e55cf6a154e54d84ad20075cf2"
+    },
+    {
+      "path": "weed/mq/kafka/protocol/metadata_blocking_test.go",
+      "bytes": 12710,
+      "sha256": "26536e2e6afbd2ad58244cad8ad5e7b750cfb40d7c4cdec7717e7a6721307d42"
+    },
+    {
+      "path": "weed/mq/kafka/protocol/offset_fetch_pattern_test.go",
+      "bytes": 7094,
+      "sha256": "a0c425be3bd85fd018739e76ae7c5dfc08eb45a60921f8c803df50f31149a16c"
+    },
+    {
+      "path": "weed/mq/kafka/protocol/record_extraction_test.go",
+      "bytes": 4837,
+      "sha256": "18037d60f4949a9ccc5778ce431e4699cbdcc7f0a18d55a2a86ecb8f65eaee6c"
+    },
+    {
+      "path": "weed/mq/kafka/protocol/response_validation_example_test.go",
+      "bytes": 4550,
+      "sha256": "b51c49fc6bdf374e9e0bc64a0652cd703a8396384a18ded6d99cab4715d8332f"
+    },
+    {
+      "path": "weed/query/engine/select_test.go",
+      "bytes": 6226,
+      "sha256": "b572f4a910b23d062a518467898ae0ff7efd4e9f4ea11407adc10f1b45cea314"
+    },
+    {
+      "path": "weed/remote_storage/azure/azure_storage_client_test.go",
+      "bytes": 14728,
+      "sha256": "afb63e0877fa92115d25716f5ca7a00f2aa03d0c3201ee9bdf5f1a36a0b934b4"
+    },
+    {
+      "path": "weed/replication/sink/azuresink/azure_sink_test.go",
+      "bytes": 13404,
+      "sha256": "9b8e37c118239428edff7a7ebc186f9919781b2d2576ec3d4d82bf6f0b6e8034"
+    },
+    {
+      "path": "weed/s3api/s3api_governance_permissions_test.go",
+      "bytes": 21158,
+      "sha256": "e2d251f667a57bd654c20f4be2b43c91103086508c4dd4733f619c71b517cce0"
+    },
+    {
+      "path": "weed/s3api/s3api_implicit_directory_test.go",
+      "bytes": 9044,
+      "sha256": "dc0227d292c6f2f9b19a464e4f50454dd3ff039dd5aab26fb7490cb53fe621a2"
+    },
+    {
+      "path": "weed/storage/backend/rclone_backend/rclone_backend_test.go",
+      "bytes": 3899,
+      "sha256": "3fe67f8c7dbb34c4dc443e4b2fea000d049739e69d33359f7bbf253938183b3f"
+    },
+    {
+      "path": "weed/storage/ec_startup_shard_safety_test.go",
+      "bytes": 3933,
+      "sha256": "13caed6445c306a90b9b130a98475e2f47998518cc16cac369ef88a3c96016c6"
+    },
+    {
+      "path": "weed/storage/volume_idx_rebuild_test.go",
+      "bytes": 9027,
+      "sha256": "19c16d92bd96459fcaab2c8ef7c7f6a27a338cf0e2767825c17c7b2d71d57790"
+    }
+  ]
+}

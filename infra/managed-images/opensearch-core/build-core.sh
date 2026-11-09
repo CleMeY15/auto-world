@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd /workspace/source
-mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed /evidence/test-output /evidence/test-output-validation
+mkdir -p /evidence/junit /evidence/licenses /evidence/controls/unfixed /evidence/controls/seeded-fixed /evidence/test-output /evidence/test-output-validation /evidence/junit-transport-grpc
 printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' > /evidence/state.txt
 test "$(cat .git/HEAD)" = 4ee42a94e87f66fbf1e62a9871b1b87f91e02472
 cp .git/HEAD /evidence/source-commit.txt
@@ -23,6 +23,25 @@ sha256sum gradle/wrapper/gradle-wrapper.jar > /evidence/wrapper-jar.sha256
 bash /recipe/patch-catalogue.sh "$PWD" > /evidence/catalogue-preparation.txt 2>&1
 cp gradle/libs.versions.toml /evidence/libs.versions.toml
 cp /recipe/jackson.patch /evidence/
+cp /recipe/patch-transport-grpc-guava.sh /evidence/patch-transport-grpc-guava.sh.txt
+cp /recipe/transport-grpc-guava.patch /evidence/
+preparation_status=0
+bash /recipe/patch-transport-grpc-guava.sh "$PWD" /evidence > /evidence/transport-grpc-guava-preparation.txt 2>&1 \
+  || preparation_status=$?
+transport_grpc_licenses=modules/transport-grpc/licenses
+if [ "$preparation_status" -eq 0 ]; then
+  test -d "$transport_grpc_licenses"
+  test -f "$transport_grpc_licenses/guava-33.2.1-jre.jar.sha1"
+  test -f "$transport_grpc_licenses/failureaccess-1.0.2.jar.sha1"
+  find "$transport_grpc_licenses" -maxdepth 1 -type f -printf '%f\n' | sort > /evidence/transport-grpc-license-files.before.txt
+  sed \
+    -e 's/^guava-33\.2\.1-jre\.jar\.sha1$/guava-33.8.0-jre.jar.sha1/' \
+    -e 's/^failureaccess-1\.0\.2\.jar\.sha1$/failureaccess-1.0.3.jar.sha1/' \
+    /evidence/transport-grpc-license-files.before.txt > /evidence/transport-grpc-license-files.expected-after.txt
+  find "$transport_grpc_licenses" -maxdepth 1 -type f \
+    ! -name 'guava-33.2.1-jre.jar.sha1' ! -name 'failureaccess-1.0.2.jar.sha1' \
+    -exec sha256sum '{}' + | sort -k 2 > /evidence/transport-grpc-unrelated-licenses.before.sha256
+fi
 bash /recipe/patch-snapshot-scope-test.sh "$PWD" > /evidence/snapshot-scope-test-preparation.txt 2>&1
 cp /recipe/patch-snapshot-scope-test.sh /evidence/patch-snapshot-scope-test.sh.txt
 cp /recipe/patch-snapshot-mock-repository.sh /evidence/patch-snapshot-mock-repository.sh.txt
@@ -75,10 +94,27 @@ capture_complete() {
 
 # Captured nonzero statuses remain exportable by target evidence. Target
 # runtime explicitly rejects them; an incomplete build never becomes an image.
-preparation_status=0
-bash ./gradlew "${gradle_options[@]}" \
-  :libs:opensearch-x-content:updateShas :modules:ingest-geoip:updateShas \
-  > /evidence/update-shas.log 2>&1 || preparation_status=$?
+if [ "$preparation_status" -eq 0 ]; then
+  bash ./gradlew "${gradle_options[@]}" \
+    :libs:opensearch-x-content:updateShas :modules:ingest-geoip:updateShas :modules:transport-grpc:updateShas \
+    > /evidence/update-shas.log 2>&1 || preparation_status=$?
+else
+  printf '%s\n' 'NOT_RUN_GUAVA_PATCH_FAILED' > /evidence/update-shas.log
+fi
+if [ "$preparation_status" -eq 0 ]; then
+  find "$transport_grpc_licenses" -maxdepth 1 -type f -printf '%f\n' | sort > /evidence/transport-grpc-license-files.after.txt
+  find "$transport_grpc_licenses" -maxdepth 1 -type f \
+    ! -name 'guava-33.8.0-jre.jar.sha1' ! -name 'failureaccess-1.0.3.jar.sha1' \
+    -exec sha256sum '{}' + | sort -k 2 > /evidence/transport-grpc-unrelated-licenses.after.sha256
+  if ! cmp -s /evidence/transport-grpc-license-files.expected-after.txt /evidence/transport-grpc-license-files.after.txt \
+    || ! cmp -s /evidence/transport-grpc-unrelated-licenses.before.sha256 /evidence/transport-grpc-unrelated-licenses.after.sha256 \
+    || [ "$(cat "$transport_grpc_licenses/guava-33.8.0-jre.jar.sha1")" != bb3b79346325315062192205fa6636dd5873151f ] \
+    || [ "$(cat "$transport_grpc_licenses/failureaccess-1.0.3.jar.sha1")" != aeaffd00d57023a2c947393ed251f0354f0985fc ] \
+    || [ -e "$transport_grpc_licenses/guava-33.2.1-jre.jar.sha1" ] \
+    || [ -e "$transport_grpc_licenses/failureaccess-1.0.2.jar.sha1" ]; then
+    preparation_status=1
+  fi
+fi
 printf '%s\n' "$preparation_status" > /evidence/preparation.exit-code
 build_status=$preparation_status
 fixture_status=1
@@ -199,6 +235,7 @@ if [ "$preparation_status" -eq 0 ] && [ "$fixture_ok" -eq 1 ]; then
       -Dauto.world.test.output.phase=full --continue \
       :libs:opensearch-x-content:dependencyLicenses :libs:opensearch-x-content:thirdPartyAudit \
       :modules:ingest-geoip:dependencyLicenses :modules:ingest-geoip:thirdPartyAudit \
+      :modules:transport-grpc:dependencyLicenses :modules:transport-grpc:thirdPartyAudit :modules:transport-grpc:check \
       :libs:opensearch-x-content:test :modules:ingest-geoip:test \
       :modules:ingest-geoip:yamlRestTest \
       :rest-api-spec:yamlRestTest \
@@ -217,6 +254,7 @@ fi
 for group in libs/x-content modules/ingest-geoip; do
   cp -a "$group/licenses" "/evidence/licenses/$(basename "$group")"
 done
+cp -a modules/transport-grpc/licenses /evidence/licenses/transport-grpc
 for result in \
   libs/x-content/build/test-results/test \
   modules/ingest-geoip/build/test-results/test \
@@ -231,6 +269,38 @@ for result in \
   fi
   printf '%s reports=%s\n' "$result" "$report_count" >> /evidence/junit-groups.txt
   if [ "$report_count" -eq 0 ]; then build_status=1; fi
+done
+for transport_group in test internalClusterTest; do
+  transport_result="modules/transport-grpc/build/test-results/$transport_group"
+  transport_evidence="/evidence/junit-transport-grpc/$transport_group"
+  mkdir -p "$transport_evidence"
+  transport_report_count=0
+  if [ -d "$transport_result" ]; then
+    transport_report_count=$(find "$transport_result" -maxdepth 1 -type f -name 'TEST-*.xml' | wc -l)
+    find "$transport_result" -maxdepth 1 -type f -name 'TEST-*.xml' \
+      -exec cp '{}' "$transport_evidence/" ';'
+  fi
+  transport_test_count=$({ find "$transport_evidence" -type f -name 'TEST-*.xml' -exec grep -ho 'tests="[0-9]*"' '{}' + 2>/dev/null || true; } \
+    | cut -d '"' -f 2 | awk '{ total += $1 } END { print total + 0 }')
+  transport_failure_count=$({ find "$transport_evidence" -type f -name 'TEST-*.xml' -exec grep -ho 'failures="[0-9]*"' '{}' + 2>/dev/null || true; } \
+    | cut -d '"' -f 2 | awk '{ total += $1 } END { print total + 0 }')
+  transport_error_count=$({ find "$transport_evidence" -type f -name 'TEST-*.xml' -exec grep -ho 'errors="[0-9]*"' '{}' + 2>/dev/null || true; } \
+    | cut -d '"' -f 2 | awk '{ total += $1 } END { print total + 0 }')
+  transport_skipped_count=$({ find "$transport_evidence" -type f -name 'TEST-*.xml' -exec grep -ho 'skipped="[0-9]*"' '{}' + 2>/dev/null || true; } \
+    | cut -d '"' -f 2 | awk '{ total += $1 } END { print total + 0 }')
+  printf '%s reports=%s tests=%s failures=%s errors=%s skipped=%s\n' \
+    "$transport_group" "$transport_report_count" "$transport_test_count" "$transport_failure_count" "$transport_error_count" "$transport_skipped_count" \
+    >> /evidence/transport-grpc-junit-groups.txt
+  find "$transport_evidence" -type f -name 'TEST-*.xml' \
+    -exec grep -H -B 1 -A 1 '<skipped' '{}' + >> /evidence/transport-grpc-skips.txt || true
+  find "$transport_evidence" -type f -name 'TEST-*.xml' \
+    -exec grep -H -E 'AssumptionViolatedException|got: <.*>, expected:' '{}' + \
+    >> /evidence/transport-grpc-skip-reasons.txt 2>/dev/null || true
+  if [ "$transport_report_count" -eq 0 ] || [ "$transport_test_count" -eq 0 ] \
+    || [ "$transport_failure_count" -ne 0 ] || [ "$transport_error_count" -ne 0 ] \
+    || [ "$transport_skipped_count" -ne 0 ]; then
+    build_status=1
+  fi
 done
 find /evidence/junit -type f -name 'TEST-*.xml' \
   -exec grep -H '<testsuite ' '{}' + > /evidence/junit-counts.txt || build_status=1
@@ -277,5 +347,28 @@ if [ ! -d /workspace/source/distribution/archives/no-jdk-linux-tar/build/install
   printf '%s\n' 'Required exploded core distribution is absent' >> /evidence/core-build-and-tests.log
   build_status=1
 fi
+distribution_module=/workspace/source/distribution/archives/no-jdk-linux-tar/build/install/opensearch-3.9.0/modules/transport-grpc
+distribution_jar_status=1
+if [ -d "$distribution_module" ]; then
+  shopt -s nullglob
+  guava_jars=("$distribution_module"/guava-*.jar)
+  failureaccess_jars=("$distribution_module"/failureaccess-*.jar)
+  if [ "${#guava_jars[@]}" -eq 1 ] \
+    && [ "$(basename "${guava_jars[0]}")" = guava-33.8.0-jre.jar ] \
+    && [ "${#failureaccess_jars[@]}" -eq 1 ] \
+    && [ "$(basename "${failureaccess_jars[0]}")" = failureaccess-1.0.3.jar ] \
+    && [ ! -e "$distribution_module/guava-33.2.1-jre.jar" ] \
+    && [ ! -e "$distribution_module/failureaccess-1.0.2.jar" ] \
+    && printf '%s  %s\n%s  %s\n' \
+      97b79ec3f2c0a6313a0c2df51ce1abdf8907e6531803467b81efcaaf99b35161 "${guava_jars[0]}" \
+      cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb "${failureaccess_jars[0]}" \
+      | sha256sum --check --strict; then
+    sha256sum "${guava_jars[0]}" "${failureaccess_jars[0]}" > /evidence/transport-grpc-distribution-jars.sha256
+    distribution_jar_status=0
+  fi
+  shopt -u nullglob
+fi
+printf '%s\n' "$distribution_jar_status" > /evidence/transport-grpc-distribution-jars.status
+if [ "$distribution_jar_status" -ne 0 ]; then build_status=1; fi
 printf '%s\n' "$build_status" > /evidence/build.exit-code
 printf 'OpenSearch diagnostic preparation=%s build=%s\n' "$preparation_status" "$build_status"

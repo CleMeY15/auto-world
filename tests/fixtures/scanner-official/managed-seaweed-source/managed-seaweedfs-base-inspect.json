@@ -1,0 +1,94 @@
+[
+    {
+        "Id": "sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6",
+        "RepoTags": [],
+        "RepoDigests": [
+            "chrislusf/seaweedfs@sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"
+        ],
+        "Parent": "",
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-26T05:01:37.454963186Z",
+        "DockerVersion": "",
+        "Author": "",
+        "Config": {
+            "Hostname": "",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "18080/tcp": {},
+                "18888/tcp": {},
+                "19333/tcp": {},
+                "7333/tcp": {},
+                "8080/tcp": {},
+                "8333/tcp": {},
+                "8888/tcp": {},
+                "9333/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Cmd": [
+                "mini",
+                "-dir=/data"
+            ],
+            "ArgsEscaped": true,
+            "Image": "",
+            "Volumes": {
+                "/data": {}
+            },
+            "WorkingDir": "/data",
+            "Entrypoint": [
+                "/entrypoint.sh"
+            ],
+            "OnBuild": null,
+            "Labels": {
+                "author": "Chris Lu",
+                "org.opencontainers.image.created": "2026-10-26T04:58:04.533Z",
+                "org.opencontainers.image.description": "SeaweedFS is a distributed storage system for blobs, objects, files, and data lake, to store and serve billions of files fast!",
+                "org.opencontainers.image.licenses": "Apache-2.0",
+                "org.opencontainers.image.revision": "ffa87c25fdf587178b1521ad87f2a4a72a02e584",
+                "org.opencontainers.image.source": "https://github.com/seaweedfs/seaweedfs",
+                "org.opencontainers.image.title": "seaweedfs",
+                "org.opencontainers.image.url": "https://github.com/seaweedfs/seaweedfs",
+                "org.opencontainers.image.vendor": "Chris Lu",
+                "org.opencontainers.image.version": "4.51"
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 536180504,
+        "GraphDriver": {
+            "Data": {
+                "LowerDir": "/var/lib/docker/overlay2/df5e51de7e19d706bd250bd44161b7db558761cd387794022dce938626134e2e/diff:/var/lib/docker/overlay2/61ac7f3b04cdab29735bae8e2a85b3a3205d55669b4d676394acf0afff505734/diff:/var/lib/docker/overlay2/a59beabca8879001a0f85d5fb6ece6357df271730160e23c7b813e69cd24af27/diff:/var/lib/docker/overlay2/7875111850b747b26a9e27873edeeb79b83fd354f2676cc9b99074271eea0fd3/diff:/var/lib/docker/overlay2/07e10d4252f7b30fa151172f86c705f95d437ddb3ac2e9f4a3c725b36b1568f5/diff:/var/lib/docker/overlay2/2a24aa146a17d0a52de23711b4e3d30b6f8babf2d54c58e6debb5e3e84b3755f/diff:/var/lib/docker/overlay2/53045be9d3846cb1e198f6f70fa1d3c3f12fda7b61d5327ea15dbdf28e90233c/diff:/var/lib/docker/overlay2/f7743d0680a947bab7f7d08eb5ec9d7e09abe48116757b6601fc92a4fb693e4a/diff:/var/lib/docker/overlay2/a263e4c5e32575644016a4736cc48939d454872126278d5a5a9a662c3b03d04d/diff",
+                "MergedDir": "/var/lib/docker/overlay2/5b8237c0e163cc8cd1b2473600b5ebbbfdc2ce2fd670f13ba1df42649e8bd086/merged",
+                "UpperDir": "/var/lib/docker/overlay2/5b8237c0e163cc8cd1b2473600b5ebbbfdc2ce2fd670f13ba1df42649e8bd086/diff",
+                "WorkDir": "/var/lib/docker/overlay2/5b8237c0e163cc8cd1b2473600b5ebbbfdc2ce2fd670f13ba1df42649e8bd086/work"
+            },
+            "Name": "overlay2"
+        },
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:75c137aedfb2760f88629236cb7b797630aed0c3d91d626d1d1bb694878fc2ba",
+                "sha256:14d28a8561c0323bfa76edd6bca302081ac63d3b0cb7ef45955a69e729ce0f06",
+                "sha256:5c2a12fbb0348e17e541422ab5639226008d4bfd0a133ea759470dc537cce42f",
+                "sha256:c9aac12923afabb4e0b0cd4c30c2c96f17aec00a258928880581d8861c59bcf6",
+                "sha256:18a6be0eab2649832a383d2ae3b92c11209078f4eb919717a5fbf9aabbd351fe",
+                "sha256:42664d44ed25abf36ba99eb50bd36916c7112c8b028b9ce64c4265664ba233ee",
+                "sha256:2bb9f79cd65bbdbc3eff10877e1752e8a6013f11e3d529455dd51025583b19a2",
+                "sha256:8b6ee38e2c0092bcce475079cfd98fac523f6bdb133eeae9bbab154d75d6a4ca",
+                "sha256:83f90d3184f33a3dc2d8a502016cd4a129354efaaae30ef8e48046e9371ac239",
+                "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "0001-01-01T00:00:00Z"
+        }
+    }
+]

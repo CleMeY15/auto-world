@@ -1,0 +1,6 @@
+**
+!infra/
+!infra/managed-images/
+!infra/managed-images/Dockerfile.seaweedfs
+!infra/managed-images/seaweedfs/
+!infra/managed-images/seaweedfs/**

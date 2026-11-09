@@ -62,6 +62,7 @@ for (const [label, file, role, options] of [
   ["unsafe cap", archivePath, "postgres", { cap: Number.MAX_SAFE_INTEGER + 1 }],
   ["raised PostgreSQL cap", archivePath, "postgres", { cap: 2 * GiB + 1 }],
   ["raised AWS cap", path.resolve(os.tmpdir(), "managed-image-aws-cli.tar"), "aws-cli", { cap: 2 * GiB + 1 }],
+  ["raised SeaweedFS cap", path.resolve(os.tmpdir(), "managed-image-seaweedfs.tar"), "seaweedfs", { cap: 2 * GiB + 1 }],
   ["raised OpenSearch cap", path.resolve(os.tmpdir(), "managed-image-opensearch.tar"), "opensearch", { cap: 4 * GiB + 1 }],
 ]) {
   test(`managed archive rejects ${label} before filesystem access`, async () => {
@@ -119,7 +120,7 @@ test("managed archive hashes every byte across chunks and retains a frozen JSON-
 });
 
 test("managed archive uses exact role caps with tiny files and allows only a lowered cap", linux, async (t) => {
-  for (const [role, cap] of [["postgres", 2 * GiB], ["opensearch", 4 * GiB], ["aws-cli", 2 * GiB]]) {
+  for (const [role, cap] of [["postgres", 2 * GiB], ["opensearch", 4 * GiB], ["aws-cli", 2 * GiB], ["seaweedfs", 2 * GiB]]) {
     const { file } = await fixture(t, Buffer.alloc(256, 97), role);
     assert.equal((await captureManagedArchive(file, role)).cap, cap);
     const bounded = await captureManagedArchive(file, role, { cap: 256 });

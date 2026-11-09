@@ -29,3 +29,4 @@ tests/fixtures/gosu-public-license/** -text
 infra/managed-images/postgres/** -text
 infra/managed-images/Dockerfile* text eol=lf
 infra/managed-images/opensearch-core/fixtures/** -text
+infra/managed-images/seaweedfs/normal-skip-sources.tsv text eol=lf

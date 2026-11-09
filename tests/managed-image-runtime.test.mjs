@@ -10,6 +10,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { CASE_NAMES, containerSignature, createRuntimeCompose, prepareRuntimeContext, readVerifiedRuntimeFile,
   validateRuntimeInput, verifyRuntimeReferences } from "./managed-image-runtime.integration.mjs";
+import { collectManagedRuntimeEvidence } from "../scripts/scanner/official-audit.mjs";
 
 const MiB = 1024 ** 2, GiB = 1024 ** 3;
 const root = path.resolve(os.tmpdir(), "aw-runtime-contract-fixture");
@@ -24,7 +25,7 @@ function fixture() {
   return { schemaVersion: 1, run: clone(run), ownerToken: "11111111-1111-4111-8111-111111111111", sourceInputs: [proof("bootstrap.sh")],
     roles: ["postgres", "opensearch", "redis", "seaweedfs", "aws-cli"].map((role, index) => ({ role, imageId: imageId(index), platform: "linux/amd64",
       reports: { json: proof(`${role}.json`), sbom: proof(`${role}.cdx.json`) }, evidence: [proof(`${role}-evidence.txt`)],
-      subject: ["postgres", "opensearch", "aws-cli"].includes(role)
+      subject: ["postgres", "opensearch", "aws-cli", "seaweedfs"].includes(role)
         ? { kind: "LOCAL_MANAGED_IMAGE_V1", imageId: imageId(index), os: "linux", architecture: "amd64", archiveSha256: hash,
           archiveBytes: 512, archiveCapBytes: (role === "opensearch" ? 4 : 2) * GiB, artifactName: `/managed-image-${role}.tar` }
         : { kind: "UPSTREAM_REGISTRY_SUBJECT", repository: role === "redis" ? "library/redis" : "chrislusf/seaweedfs",
@@ -132,6 +133,37 @@ test("runtime startup rejects cross-type references while preserving same-type e
     await assert.rejects(prepareRuntimeContext(environment));
   }
 });
+test("managed runtime collection requires the dedicated Seaweed binary proof", () => {
+  const output = path.join(root, "managed-output");
+  const publicEvidence = [{ path: "state.txt", size: 1, sha256: hash }];
+  assert.throws(() => collectManagedRuntimeEvidence({ role: "seaweedfs", publicEvidence }, output));
+  assert.throws(() => collectManagedRuntimeEvidence({ role: "seaweedfs", publicEvidence,
+    runtimeGosuEvidence: [{ path: "binary-sha256.txt", size: 1, sha256: hash }] }, output));
+});
+test("real runtime preparation retains Seaweed public and binary proofs and detects same-size mutation",
+  { skip: !linuxNonRoot }, async (context) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-seaweed-evidence-"));
+    context.after(() => fs.rm(directory, { recursive: true, force: true }));
+    await fs.chmod(directory, 0o700);
+    const output = path.join(directory, "output"), publicRoot = path.join(output, "managed-public-evidence");
+    const seaweedRoot = path.join(publicRoot, "seaweedfs"), runtimeRoot = path.join(publicRoot, "seaweedfs-runtime");
+    await fs.mkdir(seaweedRoot, { recursive: true, mode: 0o700 });
+    await fs.mkdir(runtimeRoot, { recursive: true, mode: 0o700 });
+    const publicProof = await writeProof(path.join(seaweedRoot, "state.txt"), Buffer.from("DIAGNOSTIC_ONLY_NOT_ADMITTED\n"));
+    const runtimeBytes = Buffer.from(`${"7".repeat(64)}  /usr/bin/weed\n`);
+    const runtimeProof = await writeProof(path.join(runtimeRoot, "binary-sha256.txt"), runtimeBytes);
+    const evidence = collectManagedRuntimeEvidence({ role: "seaweedfs",
+      publicEvidence: [{ path: "state.txt", size: publicProof.size, sha256: publicProof.sha256 }],
+      runtimeSeaweedEvidence: [{ path: "binary-sha256.txt", size: runtimeProof.size, sha256: runtimeProof.sha256 }] }, output);
+    assert.deepEqual(evidence, [publicProof, runtimeProof]);
+    const { environment } = await startupFixture(directory, (value) => {
+      value.roles.find((entry) => entry.role === "seaweedfs").evidence = evidence;
+    });
+    const runtime = await prepareRuntimeContext(environment);
+    await verifyRuntimeReferences(runtime);
+    await fs.writeFile(runtimeProof.path, Buffer.from(`${"8".repeat(64)}  /usr/bin/weed\n`));
+    await assert.rejects(verifyRuntimeReferences(runtime));
+  });
 for (const [name, mutate] of [
   ["top-level array", () => []], ["unknown field", (v) => { v.privateText = "not allowed"; }],
   ["coerced owner", (v) => { v.ownerToken = [v.ownerToken]; }], ["stale source", (v) => { v.run.sourceCommit = "e".repeat(40); }],
@@ -153,7 +185,7 @@ for (const [name, mutate] of [
   ["coerced archive hash", (v) => { v.roles[0].subject.archiveSha256 = [hash]; }],
 ]) test(`runtime input rejects ${name}`, () => { const value = fixture(); const replaced = mutate(value); assert.throws(() => validateRuntimeInput(replaced ?? value, run)); });
 test("runtime input requires each role's exact archive ceiling rather than an adjustable limit", () => {
-  for (const index of [0, 1, 4]) for (const delta of [-1, 1]) { const value = fixture(); value.roles[index].subject.archiveCapBytes += delta; assert.throws(() => validateRuntimeInput(value, run)); }
+  for (const index of [0, 1, 3, 4]) for (const delta of [-1, 1]) { const value = fixture(); value.roles[index].subject.archiveCapBytes += delta; assert.throws(() => validateRuntimeInput(value, run)); }
 });
 test("runtime run syntax remains strict even when an invalid value matches the parent binding", () => {
   for (const [key, invalid] of [["sourceCommit", "A".repeat(40)], ["runId", "01"], ["runId", "9".repeat(25)], ["attempt", "0"], ["attempt", ["2"]]]) {

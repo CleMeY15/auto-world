@@ -488,7 +488,8 @@ test("bounded native output capture is fixed to the three internal-cluster phase
 
   assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
-  assert.equal(sha256(officialAudit), "8f5f3cd777202ab5998af600c601589e9247220e0f3069101890f7bdd3e06b23");
+  // Reviewed fourth managed candidate; native output capture and its caps are unchanged.
+  assert.equal(sha256(officialAudit), "3151ace88b8ffffd43362c35705ad39b09919bded75f1bb1dc924d73b4c105a8");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);
@@ -753,14 +754,14 @@ test("JDK inventory preserves required fields and plugin absence rejects visible
 });
 
 test("all preparation scripts have valid Bash syntax without building or executing candidate code", () => {
-  for (const name of ["patch-catalogue.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh", "verify-test-output-capture.sh"]) {
+  for (const name of ["patch-catalogue.sh", "patch-transport-grpc-guava.sh", "patch-snapshot-scope-test.sh", "patch-snapshot-mock-repository.sh", "jdk-inventory.sh", "build-core.sh", "verify-test-output-capture.sh"]) {
     const result = spawnSync(bash, ["-n", path.join(directory, name).replaceAll("\\", "/")], { encoding: "utf8", windowsHide: true });
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
   }
 });
 
 test("the recipe pins source/build/base identities and preserves the original JDK rather than replacing it", () => {
-  assert.match(recipe, /^FROM eclipse-temurin@sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0 AS builder$/mu);
+  assert.match(recipe, /^FROM eclipse-temurin@sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3 AS builder$/mu);
   assert.match(recipe, /^FROM opensearchproject\/opensearch@sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84 AS prepared-base$/mu);
   assert.match(recipe, /ADD --keep-git-dir=true --chown=1000:1000 https:\/\/github\.com\/opensearch-project\/OpenSearch\.git#4ee42a94e87f66fbf1e62a9871b1b87f91e02472 /u);
   assert.doesNotMatch(recipe, /^ARG\s|apt(?:-get)? install|ADD https?:.*\.tar/mu);
@@ -798,6 +799,7 @@ test("core launch configuration and test gates preserve the selected limits and 
   assert.match(recipe, /CMD \[\]/u);
   assert.doesNotMatch(recipe, /DISABLE_INSTALL_DEMO_CONFIG|DISABLE_SECURITY_PLUGIN/u);
   for (const task of [":modules:ingest-geoip:updateShas", ":modules:ingest-geoip:dependencyLicenses", ":modules:ingest-geoip:thirdPartyAudit",
+    ":modules:transport-grpc:updateShas", ":modules:transport-grpc:dependencyLicenses", ":modules:transport-grpc:thirdPartyAudit", ":modules:transport-grpc:check",
     ":modules:ingest-geoip:test", ":modules:ingest-geoip:yamlRestTest", ":rest-api-spec:yamlRestTest",
     ":server:internalClusterTest", ":distribution:archives:buildNoJdkLinux", ":distribution:archives:no-jdk-linux-tar:assemble"]) assert.ok(build.includes(task), task);
   assertXContentProjectContract(build);

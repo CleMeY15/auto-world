@@ -9,13 +9,17 @@ const GiB = 1024 ** 3;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const SHA256 = /^[a-f0-9]{64}$/u;
 const SOURCE_COMMIT = "ffa87c25fdf587178b1521ad87f2a4a72a02e584";
+// These two retained Cargo.lock fixtures are historical 0.76.1 source material.
 const SCANNER_COMMIT = "e713f67f7d54decdcd9b3132c9751833dcced698";
-const SCANNER_VERSION = "0.76.1";
+const SCANNER_VERSION = "0.76.2";
 const RAW_HOST = "raw.githubusercontent.com";
 const RELATIONSHIPS = "unknown,root,workspace,direct,indirect";
 const SOURCE_ROLES = new Set(["volume", "worker"]);
 const CONTROL_ROLES = new Set(["cargo-lock-vulnerable", "cargo-lock-clean"]);
 const HELPER_PATHS = new Set(["/usr/bin/weed-volume", "/usr/bin/weed-worker"]);
+const MANAGED_ROLES = ["postgres", "opensearch", "aws-cli", "seaweedfs"];
+const SEAWEED_ARCHIVE_CAP = 2 * GiB;
+const SEAWEED_ARCHIVE_NAME = "/managed-image-seaweedfs.tar";
 const BASH = "/usr/bin/bash";
 const EXPECTED_FILES = new Map([
   ["docker/Dockerfile.go_build", [5807, "d76b78e50d32fecf00cf05179eae7b5c0a4dd8204a0dba3e508b2d29e2be755b", SOURCE_COMMIT]],
@@ -467,34 +471,73 @@ export function validateSeaweedRustHelperAbsence(result, name, anonymousVolumes 
   ]));
 }
 
-export function validateSeaweedRustHelperMeasurement({ role, file, info, identity, metadata }) {
+export function validateSeaweedRustSubject(metadata, localSubject) {
+  const baseImage = metadata?.image;
+  if (!exactKeys(baseImage, ["repository", "manifestDigest", "platformDigest", "configDigest", "os", "architecture"]) ||
+      baseImage.repository !== "chrislusf/seaweedfs" ||
+      baseImage.manifestDigest !== "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8" ||
+      baseImage.platformDigest !== "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707" ||
+      baseImage.configDigest !== "sha256:e9535759e270021cc18782c39e1dcc7977ad801edc4e3676a3d2f6c29bf598b6" ||
+      baseImage.os !== "linux" || baseImage.architecture !== "amd64") {
+    fail("scanner_seaweed_rust_subject_invalid");
+  }
+  if (localSubject === undefined) return { imageId: baseImage.configDigest, subject: undefined, baseImage: { ...baseImage } };
+  if (!exactKeys(localSubject, ["kind", "imageId", "os", "architecture", "archiveSha256", "archiveBytes", "archiveCapBytes", "artifactName"]) ||
+      localSubject.kind !== "LOCAL_MANAGED_IMAGE_V1" || typeof localSubject.imageId !== "string" || !DIGEST.test(localSubject.imageId) ||
+      [baseImage.manifestDigest, baseImage.platformDigest, baseImage.configDigest].includes(localSubject.imageId) ||
+      localSubject.os !== "linux" || localSubject.architecture !== "amd64" || typeof localSubject.archiveSha256 !== "string" ||
+      !SHA256.test(localSubject.archiveSha256) ||
+      !Number.isSafeInteger(localSubject.archiveBytes) || localSubject.archiveBytes < 1 ||
+      localSubject.archiveBytes > SEAWEED_ARCHIVE_CAP || localSubject.archiveCapBytes !== SEAWEED_ARCHIVE_CAP ||
+      localSubject.artifactName !== SEAWEED_ARCHIVE_NAME) {
+    fail("scanner_seaweed_rust_subject_invalid");
+  }
+  return {
+    imageId: localSubject.imageId,
+    subject: { ...localSubject },
+    baseImage: { ...baseImage },
+  };
+}
+
+export function validateSeaweedRustHelperMeasurement({ role, file, info, identity, metadata, localSubject }) {
   const entry = fixedEntry(metadata, role);
   if (!SOURCE_ROLES.has(role) || !safeAbsolute(file) || path.basename(file) !== path.basename(entry.helper.path) ||
       !object(info) || info.isFile !== true || info.isSymbolicLink !== false || info.nlink !== 1 || info.mode !== entry.helper.mode ||
       !object(identity) || identity.size !== entry.helper.bytes || identity.sha256 !== entry.helper.sha256) {
     fail("scanner_seaweed_rust_helper_measurement_invalid");
   }
-  return { role, result: "passed", evidenceClass: "ARTIFACT_TO_IMAGE_IDENTITY", imageDigest: metadata.image.platformDigest,
+  const measured = { role, result: "passed", evidenceClass: "ARTIFACT_TO_IMAGE_IDENTITY",
     helperPath: entry.helper.path, artifactName: entry.helper.artifactName, bytes: identity.size, sha256: identity.sha256,
     hostCopyMode: info.mode, hostCopyNlink: info.nlink, intrinsicBinaryInventory: "NOT_ESTABLISHED", sourceToBinaryEquivalence: "NOT_ESTABLISHED" };
+  if (localSubject === undefined) return { ...measured, imageDigest: metadata.image.platformDigest };
+  const bound = validateSeaweedRustSubject(metadata, localSubject);
+  return { ...measured, subject: bound.subject, baseImage: bound.baseImage };
 }
 
 export function combineSeaweedRustGate({ originalReports, controls, sourceAudits, helpers, managedBuilds }) {
   const passed = (entries, count) => Array.isArray(entries) && entries.length === count && entries.every((entry) => entry?.result === "passed");
+  const managedRoles = Array.isArray(managedBuilds) ? managedBuilds.map((entry) => entry?.role) : [];
+  const seaweed = Array.isArray(managedBuilds) ? managedBuilds.find((entry) => entry?.role === "seaweedfs") : undefined;
   if (!passed(originalReports, 5) || originalReports.some((entry) => entry.findingCount !== 0 || entry.blockerCount !== 0) ||
       !passed(controls, 2) || !passed(sourceAudits, 2) || sourceAudits.some((entry) => entry.blockers?.length !== 0) ||
-      !passed(helpers, 2) || !passed(managedBuilds, 3) || managedBuilds.some((entry) => entry.evidenceExport !== "passed")) {
+      !passed(helpers, 2) || !passed(managedBuilds, 4) || JSON.stringify(managedRoles) !== JSON.stringify(MANAGED_ROLES) ||
+      new Set(managedRoles).size !== MANAGED_ROLES.length || managedBuilds.some((entry) => entry.evidenceExport !== "passed") ||
+      seaweed?.goTests?.result !== "passed" || seaweed.goTests.runtimeEligible !== true) {
     fail("scanner_seaweed_rust_gate_incomplete");
   }
   return { result: "passed", runtimeEligibleDiagnosticOnly: true, admission: "NOT_AUTHORIZED", milestone2: "NOT_ESTABLISHED" };
 }
 
-export function validateSeaweedRustPublicEvidence(value, metadata) {
-  if (!exactKeys(value, ["schemaVersion", "state", "admission", "milestone2", "controls", "sourceAudits", "helpers", "limitations"]) ||
+export function validateSeaweedRustPublicEvidence(value, metadata, localSubject) {
+  const localBinding = localSubject === undefined ? undefined : validateSeaweedRustSubject(metadata, localSubject);
+  const subjectKeys = localBinding === undefined ? [] : ["subject", "baseImage"];
+  if (!exactKeys(value, ["schemaVersion", "state", "admission", "milestone2", "controls", "sourceAudits", "helpers", ...subjectKeys, "limitations"]) ||
       value.schemaVersion !== 1 || value.state !== "diagnostic_only" || value.admission !== "NOT_AUTHORIZED" ||
       value.milestone2 !== "NOT_ESTABLISHED" || !Array.isArray(value.controls) || value.controls.length !== 2 ||
       !Array.isArray(value.sourceAudits) || value.sourceAudits.length !== 2 || !Array.isArray(value.helpers) || value.helpers.length !== 2 ||
       JSON.stringify(value.limitations) !== JSON.stringify(metadata.limitations)) fail("scanner_seaweed_rust_public_evidence_invalid");
+  if (localBinding !== undefined && (JSON.stringify(value.subject) !== JSON.stringify(localBinding.subject) ||
+      JSON.stringify(value.baseImage) !== JSON.stringify(localBinding.baseImage))) fail("scanner_seaweed_rust_public_evidence_invalid");
   const rejected = (entry) => exactKeys(entry, ["role", "result", "reason"]) && entry.result === "rejected" &&
     /^scanner_[a-z0-9_]{1,120}$/u.test(entry.reason);
   for (const [index, role] of ["cargo-lock-vulnerable", "cargo-lock-clean"].entries()) {
@@ -526,12 +569,21 @@ export function validateSeaweedRustPublicEvidence(value, metadata) {
     const entry = value.helpers[index], expected = fixedEntry(metadata, role);
     if (entry?.role !== role) fail("scanner_seaweed_rust_public_evidence_invalid");
     if (rejected(entry)) continue;
-    if (!exactKeys(entry, ["role", "result", "evidenceClass", "imageDigest", "bytes", "sha256", "hostCopyMode", "hostCopyNlink",
+    const identityKeys = localSubject === undefined ? ["imageDigest"] : ["subject", "baseImage"];
+    if (!exactKeys(entry, ["role", "result", "evidenceClass", ...identityKeys, "bytes", "sha256", "hostCopyMode", "hostCopyNlink",
       "intrinsicBinaryInventory", "sourceToBinaryEquivalence"]) || entry.result !== "passed" ||
-        entry.evidenceClass !== "ARTIFACT_TO_IMAGE_IDENTITY" || entry.imageDigest !== metadata.image.platformDigest ||
+        entry.evidenceClass !== "ARTIFACT_TO_IMAGE_IDENTITY" ||
         entry.bytes !== expected.helper.bytes || entry.sha256 !== expected.helper.sha256 || entry.hostCopyMode !== expected.helper.mode ||
         entry.hostCopyNlink !== 1 || entry.intrinsicBinaryInventory !== "NOT_ESTABLISHED" ||
         entry.sourceToBinaryEquivalence !== "NOT_ESTABLISHED") fail("scanner_seaweed_rust_public_evidence_invalid");
+    if (localSubject === undefined) {
+      if (entry.imageDigest !== metadata.image.platformDigest) fail("scanner_seaweed_rust_public_evidence_invalid");
+    } else {
+      if (JSON.stringify(entry.subject) !== JSON.stringify(localBinding.subject) ||
+          JSON.stringify(entry.baseImage) !== JSON.stringify(localBinding.baseImage)) {
+        fail("scanner_seaweed_rust_public_evidence_invalid");
+      }
+    }
   }
   const measuredHelpers = value.helpers.filter((entry) => entry.result === "passed");
   if (measuredHelpers.length === 2 && measuredHelpers.reduce((sum, entry) => sum + entry.bytes, 0) !== 293121400) {

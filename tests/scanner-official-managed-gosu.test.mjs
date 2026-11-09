@@ -12,7 +12,11 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const originalReport = raw("image-postgres.json");
 const originalSbom = raw("image-postgres.cdx.json");
-const reportFixture = JSON.parse(originalReport);
+const historicalReportFixture = JSON.parse(originalReport);
+// Explicit synthetic adaptation for exercising the current evaluator. The raw
+// failed-run report above remains byte-bound historical evidence.
+const reportFixture = clone(historicalReportFixture);
+reportFixture.Trivy.Version = "0.76.2";
 const sbomFixture = JSON.parse(originalSbom);
 const binarySha256 = "8c12961ed59dc9c662d5b5150a8f8e7ab66ef59d5796a0abdb8778b885247b8e";
 const now = new Date("2026-10-25T14:46:00.000Z");
@@ -64,8 +68,8 @@ test("managed gosu fixtures retain the exact failed-run originals and frozen eva
 });
 
 test("the raw devel main remains rejected by the frozen policy and the generic archive API without context", () => {
-  assert.equal(Object.hasOwn(mainPackage(reportFixture), "Version"), false);
-  assert.throws(() => evaluateImageResults(reportFixture.Results, { imageDigest: subjectFixture.imageId, now }),
+  assert.equal(Object.hasOwn(mainPackage(historicalReportFixture), "Version"), false);
+  assert.throws(() => evaluateImageResults(historicalReportFixture.Results, { imageDigest: subjectFixture.imageId, now }),
     /scanner_image_report_invalid/u);
   assert.throws(() => evaluateArchiveImageReport(reportFixture, subjectFixture, now), /scanner_image_report_invalid/u);
 });
