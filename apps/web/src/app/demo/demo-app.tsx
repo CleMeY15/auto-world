@@ -101,16 +101,21 @@ function ResultsSortControl({ acceptedSort, disabled, disabledReason, onApply }:
 }) {
   const [draftSort, setDraftSort] = useState<DemoSearchSort>(acceptedSort);
   const unchanged = draftSort === acceptedSort;
+  const acceptedLabel = RESULT_SORT_OPTIONS.find((option) => option.value === acceptedSort)?.label;
+  const chosenLabel = RESULT_SORT_OPTIONS.find((option) => option.value === draftSort)?.label;
+  const descriptionIds = ["demo-results-sort-applied", unchanged ? undefined : "demo-results-sort-chosen", disabledReason ? "demo-results-sort-hint" : undefined].filter(Boolean).join(" ");
 
   return (
     <form className="demo-results-sort-control" onSubmit={(event) => { event.preventDefault(); onApply(draftSort); }}>
       <label htmlFor="demo-results-sort">
         Trier ces résultats
-        <select id="demo-results-sort" value={draftSort} disabled={disabled} aria-describedby={disabledReason ? "demo-results-sort-hint" : undefined} onChange={(event) => setDraftSort(event.target.value as DemoSearchSort)}>
+        <select id="demo-results-sort" value={draftSort} disabled={disabled} aria-describedby={descriptionIds} onChange={(event) => setDraftSort(event.target.value as DemoSearchSort)}>
           {RESULT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
       <Button id="demo-results-sort-apply" type="submit" disabled={disabled || unchanged}>Appliquer le tri</Button>
+      <p className="demo-field-hint" id="demo-results-sort-applied">Tri appliqué : {acceptedLabel}</p>
+      {!unchanged ? <p className="demo-field-hint" id="demo-results-sort-chosen">Tri choisi : {chosenLabel}</p> : null}
       {disabledReason ? <p className="demo-field-hint" id="demo-results-sort-hint">{disabledReason}</p> : null}
     </form>
   );
