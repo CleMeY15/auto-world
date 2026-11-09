@@ -39,9 +39,9 @@ apply_correction() {
   corrected_sum_bytes=$(wc -c < "$materials_root/corrected/go.sum" | tr -d '[:space:]')
   printf 'corrected-go-mod-bytes=%s\ncorrected-go-sum-bytes=%s\n' "$corrected_mod_bytes" "$corrected_sum_bytes"
   test "$corrected_mod_bytes" = 26652
-  test "$corrected_sum_bytes" = 167933
+  test "$corrected_sum_bytes" = 232835
   printf '%s  %s\n' 5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9 "$materials_root/corrected/go.mod" | sha256sum -c -
-  printf '%s  %s\n' 5f5cee2acd51c8fb55a16dc372520e3f8cf3aebb5dc873b150e5d15624a29b02 "$materials_root/corrected/go.sum" | sha256sum -c -
+  printf '%s  %s\n' abd0d0de5302a1a571dcff5527f8bc929380f9d80abd0593416e9129dde0e96a "$materials_root/corrected/go.sum" | sha256sum -c -
   cp "$materials_root/corrected/go.mod" "$materials_root/corrected/go.sum" .
   cmp "$materials_root/corrected/go.mod" go.mod
   cmp "$materials_root/corrected/go.sum" go.sum

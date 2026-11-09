@@ -74,6 +74,9 @@ case "$*" in
       printf '%s\n' 'module download failed' >&2
       exit 17
     fi
+    if [ "\${AW_MUTATE_DOWNLOAD-}" = 1 ]; then
+      printf '%s\n' 'example.test/unexpected v1.0.0 h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' >> go.sum
+    fi
     ;;
   'mod verify') printf '%s\n' 'all modules verified' ;;
   'list -m -json all') printf '%s\n' '{"Path":"github.com/seaweedfs/seaweedfs"}' ;;
@@ -136,6 +139,28 @@ test("preparation preserves module-download output and stops subsequent Go phase
   assert.equal(read(evidence, "preparation/module-download.stderr.txt"), "module download failed\n");
   assert.equal(read(evidence, "preparation/module-verify.exit-code").trim(), "125");
   assert.deepEqual(readFileSync(log, "utf8").trim().split("\n"), ["version", "mod download -json all"]);
+});
+
+test("preparation rejects a successful download that changes the frozen go.sum", (t) => {
+  const { fixture, run } = createFixture(t);
+  const { result, evidence, log } = run("download-mutates-material", { AW_MUTATE_DOWNLOAD: 1 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(read(evidence, "preparation.exit-code").trim(), "1");
+  assert.equal(read(evidence, "preparation-first-failed-phase.txt").trim(), "final-material");
+  for (const phase of ["module-download", "module-verify", "module-inventory"])
+    assert.equal(read(evidence, `preparation/${phase}.exit-code`).trim(), "0", phase);
+  assert.equal(read(evidence, "preparation/final-material.exit-code").trim(), "1");
+  assert.match(read(evidence, "preparation/final-material.stderr.txt"), /corrected\/go\.sum/u);
+  assert.equal(read(evidence, "module-download.json"), '{"Path":"partial.example"}\n');
+  assert.equal(read(evidence, "module-verify.txt"), "all modules verified\n");
+  assert.equal(read(evidence, "module-inventory.json"), '{"Path":"github.com/seaweedfs/seaweedfs"}\n');
+  assert.deepEqual(readFileSync(log, "utf8").trim().split("\n"), ["version", "mod download -json all", "mod verify", "list -m -json all"]);
+  const exportedRoot = path.join(fixture, "exported-final-material-evidence");
+  const exported = exportManagedTextEvidence(evidence, exportedRoot);
+  for (const evidencePath of ["preparation/final-material.exit-code", "preparation/final-material.stderr.txt"]) {
+    assert.ok(exported.some(({ path: exportedPath }) => exportedPath === evidencePath), evidencePath);
+    assert.deepEqual(readFileSync(path.join(exportedRoot, evidencePath)), readFileSync(path.join(evidence, evidencePath)));
+  }
 });
 
 test("successful preparation accepts padded wc output and retains all phase evidence", (t) => {

@@ -32,7 +32,7 @@
     "originalGoModSha256": "4980945b680fa12c0457f0aa909926401860d66e816eccc6f8508c71a5290ee8",
     "originalGoSumSha256": "78c8b44110c4633c5721e0f7dad0fe99308116ebb7bdd5dafb160dc378f31d89",
     "goModSha256": "5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9",
-    "goSumSha256": "5f5cee2acd51c8fb55a16dc372520e3f8cf3aebb5dc873b150e5d15624a29b02",
+    "goSumSha256": "abd0d0de5302a1a571dcff5527f8bc929380f9d80abd0593416e9129dde0e96a",
     "licenseSha256": "d789d433cc11da163273d1e39be2e8fa67642f9a58ef220d3f258fa9c14ef613",
     "goJose": "v4.1.6",
     "xNet": "v0.62.0",

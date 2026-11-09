@@ -30,7 +30,7 @@ const identities = Object.freeze({
   originalMod: "4980945b680fa12c0457f0aa909926401860d66e816eccc6f8508c71a5290ee8",
   originalSum: "78c8b44110c4633c5721e0f7dad0fe99308116ebb7bdd5dafb160dc378f31d89",
   correctedMod: "5b7892540b197eb5156333ffc9ae108084849db07d0dea57b7060339f840a1a9",
-  correctedSum: "5f5cee2acd51c8fb55a16dc372520e3f8cf3aebb5dc873b150e5d15624a29b02",
+  correctedSum: "abd0d0de5302a1a571dcff5527f8bc929380f9d80abd0593416e9129dde0e96a",
   license: "d789d433cc11da163273d1e39be2e8fa67642f9a58ef220d3f258fa9c14ef613",
 });
 
@@ -87,11 +87,11 @@ test("SeaweedFS materials retain exact original and corrected bytes", () => {
   assert.equal(originalMod.byteLength, 26652);
   assert.equal(originalSum.byteLength, 167603);
   assert.equal(correctedMod.byteLength, 26652);
-  assert.equal(correctedSum.byteLength, 167933);
+  assert.equal(correctedSum.byteLength, 232835);
   assert.equal(license.byteLength, 11337);
 });
 
-test("the correction changes exactly two module versions and adds exactly four checksums", () => {
+test("the correction changes exactly two module versions and retains the authenticated checksum closure", () => {
   const originalModLines = originalMod.toString("utf8").split("\n");
   const correctedModLines = correctedMod.toString("utf8").split("\n");
   const removedMod = originalModLines.filter((line) => !correctedModLines.includes(line));
@@ -99,15 +99,21 @@ test("the correction changes exactly two module versions and adds exactly four c
   assert.deepEqual(removedMod, ["\tgolang.org/x/net v0.61.0", "\tgithub.com/go-jose/go-jose/v4 v4.1.5 // indirect"]);
   assert.deepEqual(addedMod, ["\tgolang.org/x/net v0.62.0", "\tgithub.com/go-jose/go-jose/v4 v4.1.6 // indirect"]);
 
-  const originalSumLines = new Set(originalSum.toString("utf8").split("\n"));
-  const correctedSumLines = correctedSum.toString("utf8").split("\n");
-  assert.equal([...originalSumLines].filter((line) => !correctedSumLines.includes(line)).length, 0);
-  assert.deepEqual(correctedSumLines.filter((line) => !originalSumLines.has(line)), [
+  const originalSumLines = originalSum.toString("utf8").trimEnd().split("\n");
+  const correctedSumLines = correctedSum.toString("utf8").trimEnd().split("\n");
+  const originalSumSet = new Set(originalSumLines);
+  const correctedSumSet = new Set(correctedSumLines);
+  assert.equal(originalSumSet.size, originalSumLines.length);
+  assert.equal(correctedSumSet.size, correctedSumLines.length);
+  assert.deepEqual(originalSumLines.filter((line) => !correctedSumSet.has(line)), []);
+  const addedSums = correctedSumLines.filter((line) => !originalSumSet.has(line));
+  assert.equal(addedSums.length, 678);
+  for (const fixedModuleSum of [
     "github.com/go-jose/go-jose/v4 v4.1.6 h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=",
     "github.com/go-jose/go-jose/v4 v4.1.6/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=",
     "golang.org/x/net v0.62.0 h1:18ELalfM5+XNRwzM2nYqXsZQ9ByS1uhj2O/U7+5jqRY=",
     "golang.org/x/net v0.62.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=",
-  ]);
+  ]) assert.ok(addedSums.includes(fixedModuleSum), fixedModuleSum);
 });
 
 test("the recipe binds the exact source, builder, base and authenticated then offline phases", () => {
