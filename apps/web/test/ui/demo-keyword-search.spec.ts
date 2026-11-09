@@ -154,14 +154,14 @@ test("keyword zero-result and offline retry states preserve the accepted words",
   await page.goto("/demo");
   await page.getByLabel("Recherche par mots").fill("Modèle Alpha");
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Recherche indisponible" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Recherche indisponible" })).toBeVisible();
   mode = "success";
   await page.getByRole("button", { name: "Réessayer", exact: true }).click();
   await expect(page.getByText(/Mots : alpha modele/u)).toBeVisible();
   mode = "empty";
   await page.getByRole("button", { name: "Modifier les critères" }).click();
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Aucun résultat synthétique" })).toBeVisible();
+  await expect(page.getByText("Aucun résultat synthétique", { exact: true })).toBeVisible();
   await expect(page.getByText(/Mots : alpha modele/u)).toBeVisible();
 });
 
