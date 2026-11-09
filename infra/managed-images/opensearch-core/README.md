@@ -115,6 +115,27 @@ required before any of those causal/full gates can pass.
 The auxiliary-write amendment remains unaccepted until fresh complete Linux
 source and main proof; previous successful runs do not transfer.
 
+The pinned x-content fixture is an exact copy of
+`libs/x-content/src/test/java/org/opensearch/common/xcontent/XContentParserTests.java`
+at the same OpenSearch commit (44,221 bytes, SHA-256
+`e45a76b389275584674a9458d573d2e13f19c65f36fdc00f6300d9a911f822e7`).
+The authenticated preparation applies only OpenSearch PR23227's YAML generator
+bound and requires the resulting 44,306-byte SHA-256
+`2b0c7153b492ac3a701fe51d21ac2f6f3af79421abc5f3477e002ceb790a6f52`.
+Production parser limits and sources are unchanged. The original and patched
+test sources, readable patch, helper and preparation log are retained as text
+evidence.
+
+Before the complete selected suite, the patched source must pass `testString`
+and `testStringOffLimit` together under seed `E4705740DC35C4BA`, locale `nl-AW`,
+timezone `Antarctica/McMurdo`, Java 25 and the existing heap/JVM arguments. Its
+native two-case JUnit XML, Gradle log, exit status and verified gate are retained
+under `controls/xcontent-string-boundary/`. The owned x-content test-result
+directory is then removed so the full suite re-executes without focused filters
+or a fixed seed. The complete x-content task is forced with its task-local
+`--rerun` option and rejects cached, skipped or no-source states; the existing
+16-report, 1,736-test, 1,688-pass and 48-exclusion gates remain unchanged.
+
 On 25 October 2026 the three initial Windows fixture executions failed before
 functional validation: Git Bash could not fork (`0xC0000142`, resource temporarily
 unavailable), and each invocation timed out. No Windows repair was attempted.
