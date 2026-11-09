@@ -175,7 +175,7 @@ test("toggling criteria performs no storage, clipboard, API, navigation or annou
   expect(requests).toEqual([]);
 });
 
-test("catalogue pending and mismatch warnings stay visible outside collapsed criteria", async ({ page, context }) => {
+test("catalogue pending and mismatch warnings stay visible outside collapsed criteria", async ({ page, context, browserName }, info) => {
   await seed(context, [entry("Famille", exactCriteria)]);
   let release: (() => void) | undefined;
   const held = new Promise<void>((resolve) => { release = resolve; });
@@ -190,9 +190,11 @@ test("catalogue pending and mismatch warnings stay visible outside collapsed cri
   await expect(pending).toBeVisible();
   await expect(disclosure(page, "Famille")).not.toHaveAttribute("open", "");
   expect(await pending.evaluate((node) => node.closest("details"))).toBeNull();
+  await capture(page, info, `saved-criteria-catalog-pending-${browserName}.png`);
   release?.();
   await expect(savedRow.getByText("La marque ou le modèle de cette recherche n’est plus disponible dans le catalogue validé.")).toBeVisible();
   expect(await savedRow.getByText("La marque ou le modèle de cette recherche n’est plus disponible dans le catalogue validé.").evaluate((node) => node.closest("details"))).toBeNull();
+  await capture(page, info, `saved-criteria-catalog-mismatch-${browserName}.png`);
 });
 
 test("criteria inspection remains available offline, in disabled demo and for a read-only snapshot", async ({ page, context }, info) => {
@@ -307,6 +309,28 @@ test("200 percent platform and Verdana text remain usable with reduced motion", 
     await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
     await open(page, "Famille");
     await capture(page, info, `saved-criteria-200-${font}-${browserName}.png`);
+    const actionLayout = await row(page, "Famille").locator("#demo-saved-search-rename-0, #demo-saved-search-remove-0").evaluateAll((buttons) => buttons.map((button) => {
+      const text = button.firstChild;
+      if (!(text instanceof Text)) throw new Error("Expected a plain action label");
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const textBounds = range.getBoundingClientRect();
+      const buttonBounds = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return {
+        label: text.data,
+        lineRects: range.getClientRects().length,
+        contentFits: button.scrollWidth <= button.clientWidth + 1 && button.scrollHeight <= button.clientHeight + 1,
+        insideButton: textBounds.left >= buttonBounds.left - 0.5
+          && textBounds.right <= buttonBounds.right + 0.5
+          && textBounds.top >= buttonBounds.top - 0.5
+          && textBounds.bottom <= buttonBounds.bottom + 0.5,
+        button: { width: buttonBounds.width, height: buttonBounds.height, clientWidth: button.clientWidth, scrollWidth: button.scrollWidth, clientHeight: button.clientHeight, scrollHeight: button.scrollHeight },
+        text: { left: textBounds.left, right: textBounds.right, top: textBounds.top, bottom: textBounds.bottom },
+        computed: { font: style.font, paddingInline: `${style.paddingInlineStart} ${style.paddingInlineEnd}`, whiteSpace: style.whiteSpace, overflowWrap: style.overflowWrap, wordBreak: style.wordBreak },
+      };
+    }));
+    expect(actionLayout.every(({ lineRects, contentFits, insideButton }) => lineRects === 1 && contentFits && insideButton), JSON.stringify(actionLayout, null, 2)).toBe(true);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
 });
