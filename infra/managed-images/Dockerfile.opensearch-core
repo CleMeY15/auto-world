@@ -1,4 +1,4 @@
-FROM eclipse-temurin@sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0 AS builder
+FROM eclipse-temurin@sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3 AS builder
 
 USER 0
 RUN mkdir -p /workspace /evidence /recipe && chown 1000:1000 /workspace /evidence

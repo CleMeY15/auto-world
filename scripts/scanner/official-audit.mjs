@@ -198,10 +198,10 @@ export function parseOfficialAuditArguments(argv) {
 export function validateManagedImageLock(managed, official) {
   const keys = (value, expected) => value && typeof value === "object" && !Array.isArray(value) &&
     Object.keys(value).length === expected.length && expected.every((key) => Object.hasOwn(value, key));
-  const tools = new Map([["go-builder", ["library/golang", "1.27.3-alpine3.24"]], ["jdk-builder", ["library/eclipse-temurin", "25.0.4.1_1-jdk-noble"]]]);
+  const tools = new Map([["go-builder", ["library/golang", "1.27.3-alpine3.24"]], ["jdk-builder", ["library/eclipse-temurin", "25.0.5_8-jdk-ubi10-minimal"]]]);
   const toolPins = new Map([
     ["go-builder", ["sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c", "sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747"]],
-    ["jdk-builder", ["sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e", "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0"]],
+    ["jdk-builder", ["sha256:6d870f0c9a54ea090e1ed8396a4926f183b1d379934248b0d335567282417517", "sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3"]],
   ]);
   const recipes = new Map([["postgres", "Dockerfile.postgres"], ["opensearch", "Dockerfile.opensearch-core"], ["aws-cli", "Dockerfile.aws-cli"]]);
   if (!keys(managed, ["schemaVersion", "state", "platform", "buildTools", "candidates", "gosu", "opensearch", "amazonLinux"]) ||

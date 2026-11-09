@@ -151,6 +151,13 @@ test("managed lock refuses substituted source, compiler, catalogue, repository a
     (value) => { value.buildTools[1].manifestDigest = `sha256:${"e".repeat(64)}`; },
     (value) => { value.buildTools[1].platform.digest = `sha256:${"e".repeat(64)}`; },
     (value) => { value.buildTools[1].platform.architecture = "arm64"; },
+    (value) => { value.buildTools[1].version = "25.0.4.1_1-jdk-noble"; },
+    (value) => { Object.assign(value.buildTools[1], {
+      version: "25.0.4.1_1-jdk-noble",
+      manifestDigest: "sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e",
+      platform: { os: "linux", architecture: "amd64", variant: null,
+        digest: "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0" },
+    }); },
     (value) => { value.gosu.sourceCommit = "e".repeat(40); },
     (value) => { value.gosu.archiveSha256 = "e".repeat(64); },
     (value) => { value.gosu.archiveBytes--; },

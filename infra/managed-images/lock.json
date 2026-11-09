@@ -13,9 +13,9 @@
     {
       "role": "jdk-builder",
       "repository": "library/eclipse-temurin",
-      "version": "25.0.4.1_1-jdk-noble",
-      "manifestDigest": "sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e",
-      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:bb022f5eb485497a672821166e469ce4e2289593d74356b6b327cd43d46e3ff0"}
+      "version": "25.0.5_8-jdk-ubi10-minimal",
+      "manifestDigest": "sha256:6d870f0c9a54ea090e1ed8396a4926f183b1d379934248b0d335567282417517",
+      "platform": {"os": "linux", "architecture": "amd64", "variant": null, "digest": "sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3"}
     }
   ],
   "candidates": [
