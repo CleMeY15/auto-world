@@ -1,6 +1,6 @@
 # TASK-0005 M3B — scanner retention bootstrap
 
-Status on 2026-11-09: `IMPLEMENTED / LOCAL_VALIDATION_PENDING`.
+Status on 2026-11-09: `LOCAL_VALIDATION_PASS / FINAL_SOURCE_CI_PENDING`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`; no admission or support activation.
 
 PR237's [accepted checkpoint](https://github.com/CleMeY15/auto-world/pull/237#issuecomment-6750591581)
@@ -39,8 +39,9 @@ contains only the fixed 48-byte `bootstrap.txt`; the two-file build context is
 Source execution identity is bound without a self-referential commit literal:
 external actual review records the merged commit, tree and source/workflow
 hashes; runtime checks checkout identity against `GITHUB_SHA` and the GitHub
-main reference. Actual code/workflow review and protected-main delivery are
-still required before the first write.
+main reference. Actual code/workflow reviews have passed; protected-main
+delivery and binding of the merged source are still required before the first
+write.
 
 Read proof follows only after the real harmless digest is observed. The full
 publisher, Windows copy/restore and shared TAR/ZIP/environment extensions are
@@ -50,13 +51,29 @@ fork testing remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`.
 
 ## Acceptance and rollback
 
-The policy, bootstrap command and workflow are implemented. The 17 focused
-Windows tests pass on Node22.23.2. Independent policy/workflow review found
-one receipt-serialization issue; explicit Proxy refusal and a zero-trap
-regression repair it. The review then found no remaining issue in its bounded
-scope. Full native Linux checks, complete implementation and permission
-reviews, final-source CI and protected-main CI remain pending. No publication,
-retention or restoration is claimed; the bootstrap does not close M3B.
+The policy, bootstrap command and workflow are implemented. Independent review
+found one receipt-serialization issue; explicit Proxy refusal and a zero-trap
+regression repair it. Complete code review then returned `PASS / APPROVE`,
+Architect `scanner_bootstrap_concrete_architect` returned `APPROVE / CLEAR`,
+and the subsequent distinct Critic `scanner_bootstrap_concrete_critic` returned
+`OKAY`, all without material findings on commit
+`e023fd037f09269d90ca6ad5ff0e050e3ab964e4`, tree
+`4699bcfa6504546a6c19e07ac35f749a1ae9d74b`.
+
+Fresh native Ubuntu-24.04 validation uses Node22.23.2, pnpm10.15.0 and the frozen
+lockfile in an isolated ext4 checkout. Focused tests pass 33/33, including all
+17 new tests. Lint passes 14 tasks, typecheck 23, package tests 28 and build 14,
+all with zero cached tasks. Package tests pass 771/771; secrets cover all 1387
+tracked repository files; the dependency audit reports no known vulnerability.
+The root suite passes 3125 tests with 54 existing exclusions and no failure on
+tree `a10be414560036a3f88c5f59b5a6541bfbc222ca`. Its only later code difference
+is an equivalent regex escape removal in a workflow test required by lint;
+the production and workflow bytes are unchanged. Final-source CI must rerun
+the root suite and browser tests on the delivered source.
+
+Final-source CI, protected-main CI and the real harmless registry write remain
+pending. No publication, retention or restoration is claimed; this bootstrap
+does not close M3B.
 
 The CLI supports only `bootstrap`. It rejects the later read-proof/publisher
 modes, checks the checkout and API main/tree identities, bounds the harmless
