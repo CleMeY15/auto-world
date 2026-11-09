@@ -41,6 +41,9 @@ export interface SavedSearchStore {
   subscribe(listener: () => void): () => void;
   hydrate(): SavedSearchSnapshot;
   add(name: unknown, criteria: unknown): { readonly ok: true } | { readonly ok: false; readonly reason: "invalid" | "duplicate" | "full" | "readonly" };
+  rename(key: unknown, name: unknown, expectedSnapshot: SavedSearchSnapshot):
+    | { readonly ok: true; readonly outcome: "renamed" | "unchanged" }
+    | { readonly ok: false; readonly reason: "invalid" | "stale" | "readonly" };
   remove(key: string): boolean;
   undo(): SavedSearch | undefined;
   reset(): { readonly ok: true; readonly scope: "persisted" | "session" } | { readonly ok: false };
@@ -169,6 +172,14 @@ export function getSavedSearchKey(criteria: SavedSearchCriteria): string {
   return JSON.stringify({ query, ...(parsed.binding === undefined ? {} : { binding: parsed.binding }) });
 }
 
+function canonicalSavedSearchKey(input: unknown): string | undefined {
+  if (typeof input !== "string") return undefined;
+  let criteria: unknown;
+  try { criteria = parseStrictJson(input); } catch { return undefined; }
+  const parsed = parseSavedSearchCriteria(criteria);
+  return parsed !== undefined && getSavedSearchKey(parsed) === input ? input : undefined;
+}
+
 export function captureSavedSearchCriteria(query: DemoSearchQueryV2 | DemoSearchQueryV3, response: DemoSearchResponseV2, receivedAt: string = new Date().toISOString()): SavedSearchCriteria | undefined {
   const parsedQuery = query.schemaVersion === 3 ? parseDemoSearchQueryV3(query) : parseDemoSearchQueryV2(query);
   const parsedResponse = parseDemoSearchResponseV2(response, receivedAt);
@@ -264,6 +275,20 @@ export function createSavedSearchStore(options: { readonly storageProvider?: () 
       if (name === undefined || criteria === undefined) return { ok: false, reason: "invalid" };
       const result = engine.addPrepared(Object.freeze({ name, criteria }));
       return result === "added" ? { ok: true } : { ok: false, reason: result };
+    },
+    rename(keyInput: unknown, nameInput: unknown, expectedSnapshot: SavedSearchSnapshot) {
+      if (!engine.prepareMutation()) return { ok: false, reason: "readonly" };
+      const currentSnapshot = engine.getSnapshot();
+      if (currentSnapshot !== expectedSnapshot) return { ok: false, reason: "stale" };
+      const key = canonicalSavedSearchKey(keyInput);
+      const name = normalizeNamedCollectionName(nameInput);
+      if (key === undefined || name === undefined) return { ok: false, reason: "invalid" };
+      const current = currentSnapshot.searches.find((search) => getSavedSearchKey(search.criteria) === key);
+      if (current === undefined) return { ok: false, reason: "stale" };
+      if (current.name === name) return { ok: true, outcome: "unchanged" };
+      return engine.replacePrepared(key, Object.freeze({ name, criteria: current.criteria }))
+        ? { ok: true, outcome: "renamed" }
+        : { ok: false, reason: "stale" };
     },
     remove: engine.remove,
     undo: engine.undo,

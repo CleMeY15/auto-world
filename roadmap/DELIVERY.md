@@ -432,3 +432,9 @@ The separately reviewed current-only BASE keyset failure and the pinned official
 ## TASK0005A — bounded image-layer hardlinks, 2026-10-18
 
 [PR182](https://github.com/CleMeY15/auto-world/pull/182) follows the accepted current BASE type-only observation: byte49 (TAR hardlink), layer4, offset288330752, headerSHA6fb4689d50b4294738e0995c3688dd20dc7282c26e2f35f3c366e7a2a37b3b91. The Architect/then-Critic [plan](plans/TASK-0005A-gosu-layer-hardlinks.md) was committed before implementation and integrates PR181/main1d0133e. Only the observer's raw/gzip image-layer hardlink opt-ins are owned; shared scanner, outer archive and build context remain strict. [Validation](../docs/validation/TASK-0005A-gosu-layer-hardlinks.md) tracks source gates, reviews, exact-head/merge/main delivery and the separate next current-archive observation. Complete image/function/CVE/provenance/admission/support claims remain unestablished; TASK0005A/0005 IN_PROGRESS and TASK0006 blocked.
+
+## Product acceptance — TASK-0121, next TASK-0122, 2026-11-09
+
+TASK-0121 DONE_FOR_V1_PROTOTYPE: source969615fd047fcef49e1b0eee0ae4c5d0cfe786a9, main7ea0d333babb74dd993aaf14684d4e10f4852e3f, identical tree113ec49747dfb9331ff45a22b05a2e71805494ce. [Authoritative PR232 checkpoint](https://github.com/CleMeY15/auto-world/pull/232#issuecomment-6738946552). Source quality42602391723/persistent42602391842 and main quality42606305185/persistent42606305101 SUCCESS;576 browser passes/10 existing exclusions,136 web units, real persistent10/10 phases with cleanup. Independent source/pixels/final delivery accepted. Historical pending records preserved.
+
+[TASK-0122](tasks/TASK-0122-rename-saved-searches.md) starts only after that acceptance, DoR and sequential Architect/Critic APPROVE. Its own feature validation and delivery remain pending. No TASK-0005 qualification or production authorization follows.

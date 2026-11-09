@@ -77,6 +77,13 @@ type SavedComparisonRenameDraft = {
   readonly name: string;
   readonly error?: "invalid";
 };
+type SavedSearchRenameDraft = {
+  readonly key: string;
+  readonly expectedSnapshot: SavedSearchSnapshot;
+  readonly rawHash: string;
+  readonly name: string;
+  readonly error?: "invalid";
+};
 
 const client = createDemoClientV2();
 
@@ -138,8 +145,8 @@ function storageCopy(status: FavoritesStorageStatus) {
 
 function savedSearchStorageCopy(status: SavedSearchStorageStatus) {
   if (status === "session") return "Les recherches enregistrées restent disponibles dans cette session, mais elles ne sont pas enregistrées sur cet appareil.";
-  if (status === "quota") return "L’enregistrement local est plein. Les recherches ajoutées restent limitées à cette session.";
-  if (status === "denied") return "Le stockage local est inaccessible. Les recherches ajoutées restent limitées à cette session.";
+  if (status === "quota") return "L’enregistrement local est plein. Les modifications des recherches restent limitées à cette session.";
+  if (status === "denied") return "Le stockage local est inaccessible. Les modifications des recherches restent limitées à cette session.";
   if (status === "corrupt") return "Les recherches enregistrées sont illisibles. Vous pouvez les réinitialiser explicitement.";
   if (status === "future") return "Ces recherches enregistrées proviennent d’une version plus récente. Elles sont préservées et ne seront pas modifiées.";
   return undefined;
@@ -204,6 +211,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [resetArmed, setResetArmed] = useState(false);
   const [savedSearchResetArmed, setSavedSearchResetArmed] = useState(false);
   const [savedSearchResetToken, setSavedSearchResetToken] = useState<SavedSearchSnapshot>();
+  const [savedSearchRenameDraft, setSavedSearchRenameDraft] = useState<SavedSearchRenameDraft>();
   const [savedComparisonResetArmed, setSavedComparisonResetArmed] = useState(false);
   const [savedComparisonResetToken, setSavedComparisonResetToken] = useState<SavedComparisonSnapshot>();
   const [savedComparisonRenameDraft, setSavedComparisonRenameDraft] = useState<SavedComparisonRenameDraft>();
@@ -232,6 +240,8 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const removedFavoriteIndex = useRef<number | undefined>(undefined);
   const removedSavedSearchIndex = useRef<number | undefined>(undefined);
   const removedSavedComparisonIndex = useRef<number | undefined>(undefined);
+  const savedSearchRenameDraftRef = useRef<SavedSearchRenameDraft | undefined>(undefined);
+  const savedSearchRenameCommit = useRef(false);
   const savedComparisonOriginRef = useRef<SavedComparisonOrigin | undefined>(undefined);
   const saveComparisonAuthorityRef = useRef<SaveComparisonAuthority | undefined>(undefined);
   const savedComparisonRenameDraftRef = useRef<SavedComparisonRenameDraft | undefined>(undefined);
@@ -239,6 +249,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const savedComparisonResetConfirmFocused = useRef(false);
   const savedComparisonResetArmedRef = useRef(false);
   const savedComparisonResetTokenRef = useRef<SavedComparisonSnapshot | undefined>(undefined);
+  const renameFocusGeneration = useRef(0);
   const searchRefinementRef = useRef<SearchRefinementContext | undefined>(undefined);
   const pendingResponseFocus = useRef<string | undefined>(undefined);
   const initialSearchFocus = useRef(true);
@@ -260,6 +271,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const navigate = useCallback((next: Screen, listingId?: ListingId) => {
     if (next !== "search") invalidateSearchRefinement();
     saveComparisonAuthorityRef.current = undefined;
+    renameFocusGeneration.current += 1;
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
     if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
@@ -294,18 +308,44 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     return () => window.removeEventListener("storage", listener);
   }, [favorites, savedComparisons, savedSearches]);
 
+  useEffect(() => savedSearches.subscribe(() => {
+    const current = savedSearches.getSnapshot();
+    const renameDraft = savedSearchRenameDraftRef.current;
+    if (savedSearchRenameCommit.current || renameDraft === undefined || renameDraft.expectedSnapshot === current) return;
+    const editor = document.querySelector(".demo-rename-search-form");
+    const restoreRenameFocus = editor?.contains(document.activeElement) === true;
+    renameFocusGeneration.current += 1;
+    const focusGeneration = renameFocusGeneration.current;
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
+    setAnnouncement("Les recherches enregistrées ont changé. Le renommage a été annulé.");
+    if (!restoreRenameFocus) return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (renameFocusGeneration.current !== focusGeneration || savedSearchRenameDraftRef.current !== undefined || savedComparisonRenameDraftRef.current !== undefined || window.location.hash !== renameDraft.rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
+      const latest = savedSearches.getSnapshot();
+      const index = latest.searches.findIndex((search) => getSavedSearchKey(search.criteria) === renameDraft.key);
+      const rename = index < 0 ? null : document.getElementById(`demo-saved-search-rename-${index}`) as HTMLButtonElement | null;
+      const target = rename?.disabled === false
+        ? rename
+        : document.getElementById("demo-saved-searches-title") ?? document.getElementById("demo-screen-title");
+      target?.focus();
+    }));
+  }), [enabled, savedSearches]);
+
   useEffect(() => savedComparisons.subscribe(() => {
     const current = savedComparisons.getSnapshot();
     const renameDraft = savedComparisonRenameDraftRef.current;
     if (!savedComparisonRenameCommit.current && renameDraft !== undefined && renameDraft.expectedSnapshot !== current) {
       const editor = document.querySelector(".demo-rename-comparison-form");
       const restoreRenameFocus = editor?.contains(document.activeElement) === true;
+      renameFocusGeneration.current += 1;
+      const focusGeneration = renameFocusGeneration.current;
       savedComparisonRenameDraftRef.current = undefined;
       setSavedComparisonRenameDraft(undefined);
       setAnnouncement("Les comparaisons enregistrées ont changé. Le renommage a été annulé.");
       if (restoreRenameFocus) {
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-          if (savedComparisonRenameDraftRef.current !== undefined || window.location.hash !== renameDraft.rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
+          if (renameFocusGeneration.current !== focusGeneration || savedSearchRenameDraftRef.current !== undefined || savedComparisonRenameDraftRef.current !== undefined || window.location.hash !== renameDraft.rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
           const latest = savedComparisons.getSnapshot();
           const index = latest.comparisons.findIndex((comparison) => comparison.fragment === renameDraft.fragment);
           const rename = index < 0 ? null : document.getElementById(`demo-saved-comparison-rename-${index}`) as HTMLButtonElement | null;
@@ -350,8 +390,14 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }, []);
 
   useEffect(() => {
-    const draft = savedComparisonRenameDraftRef.current;
-    if (draft === undefined || (screen === "saved" && draft.rawHash === hash)) return;
+    const searchDraft = savedSearchRenameDraftRef.current;
+    const comparisonDraft = savedComparisonRenameDraftRef.current;
+    const searchStillCurrent = searchDraft === undefined || (screen === "saved" && searchDraft.rawHash === hash);
+    const comparisonStillCurrent = comparisonDraft === undefined || (screen === "saved" && comparisonDraft.rawHash === hash);
+    if (searchStillCurrent && comparisonStillCurrent) return;
+    renameFocusGeneration.current += 1;
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
   }, [hash, screen]);
@@ -936,6 +982,113 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     focusAfterRender("demo-saved-searches-title");
   }
 
+  function focusSavedSearchRename(key: string, rawHash: string, select = false, expectedDraft?: SavedSearchRenameDraft) {
+    renameFocusGeneration.current += 1;
+    const focusGeneration = renameFocusGeneration.current;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (renameFocusGeneration.current !== focusGeneration || window.location.hash !== rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
+      if (select) {
+        if (savedSearchRenameDraftRef.current !== expectedDraft || savedComparisonRenameDraftRef.current !== undefined) return;
+        const input = document.getElementById("demo-rename-search-name") as HTMLInputElement | null;
+        input?.focus();
+        input?.select();
+        return;
+      }
+      if (savedSearchRenameDraftRef.current !== undefined || savedComparisonRenameDraftRef.current !== undefined) return;
+      const current = savedSearches.getSnapshot();
+      const index = current.searches.findIndex((search) => getSavedSearchKey(search.criteria) === key);
+      const rename = index < 0 ? null : document.getElementById(`demo-saved-search-rename-${index}`) as HTMLButtonElement | null;
+      const target = rename?.disabled === false
+        ? rename
+        : document.getElementById("demo-saved-searches-title") ?? document.getElementById("demo-screen-title");
+      target?.focus();
+    }));
+  }
+
+  function startSavedSearchRename(search: SavedSearch) {
+    if (enabled && parseLocation(window.location.hash).screen !== "saved") return;
+    renameFocusGeneration.current += 1;
+    savedComparisonRenameDraftRef.current = undefined;
+    setSavedComparisonRenameDraft(undefined);
+    savedSearches.reconcileStorageEvent({ key: savedSearches.storageKey, newValue: null });
+    const current = savedSearches.getSnapshot();
+    const key = getSavedSearchKey(search.criteria);
+    const stored = current.searches.find((candidate) => getSavedSearchKey(candidate.criteria) === key && candidate.name === search.name);
+    if (stored === undefined || current.storageStatus === "unhydrated" || current.storageStatus === "corrupt" || current.storageStatus === "future") {
+      setAnnouncement("Cette recherche a changé ou ne peut pas être renommée. La liste a été actualisée.");
+      focusSavedSearchRename(key, window.location.hash);
+      return;
+    }
+    const draft: SavedSearchRenameDraft = {
+      key,
+      expectedSnapshot: current,
+      rawHash: window.location.hash,
+      name: stored.name,
+    };
+    savedSearchRenameDraftRef.current = draft;
+    setSavedSearchRenameDraft(draft);
+    focusSavedSearchRename(key, draft.rawHash, true, draft);
+  }
+
+  function changeSavedSearchRename(name: string) {
+    const draft = savedSearchRenameDraftRef.current;
+    if (draft === undefined) return;
+    const next = { ...draft, name, error: undefined };
+    savedSearchRenameDraftRef.current = next;
+    setSavedSearchRenameDraft(next);
+  }
+
+  function cancelSavedSearchRename() {
+    const draft = savedSearchRenameDraftRef.current;
+    if (draft === undefined) return;
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
+    focusSavedSearchRename(draft.key, draft.rawHash);
+  }
+
+  function submitSavedSearchRename() {
+    const draft = savedSearchRenameDraftRef.current;
+    if (draft === undefined) return;
+    renameFocusGeneration.current += 1;
+    if (screen !== "saved" || window.location.hash !== draft.rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) {
+      savedSearchRenameDraftRef.current = undefined;
+      setSavedSearchRenameDraft(undefined);
+      return;
+    }
+    const result = (() => {
+      savedSearchRenameCommit.current = true;
+      try {
+        return savedSearches.rename(draft.key, draft.name, draft.expectedSnapshot);
+      } finally {
+        savedSearchRenameCommit.current = false;
+      }
+    })();
+    if (!result.ok && result.reason === "invalid") {
+      const invalidDraft = { ...draft, error: "invalid" as const };
+      savedSearchRenameDraftRef.current = invalidDraft;
+      setSavedSearchRenameDraft(invalidDraft);
+      focusSavedSearchRename(draft.key, draft.rawHash, true, invalidDraft);
+      return;
+    }
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
+    if (!result.ok) {
+      setAnnouncement(result.reason === "readonly"
+        ? "Le renommage a été annulé car ces recherches sont maintenant en lecture seule."
+        : "Le renommage a été annulé car les recherches enregistrées ont changé.");
+      focusSavedSearchRename(draft.key, draft.rawHash);
+      return;
+    }
+    if (result.outcome === "renamed") {
+      const status = savedSearches.getSnapshot().storageStatus;
+      setAnnouncement(status === "persisted" ? "Recherche renommée sur cet appareil." : "Recherche renommée pour cette session.");
+      recordAnalyticsEvent({ eventName: "saved_search_renamed", screen: "saved", outcome: "success" });
+    } else {
+      setAnnouncement("Le nom de la recherche est inchangé.");
+    }
+    focusSavedSearchRename(draft.key, draft.rawHash);
+  }
+
   function saveComparison(name: string, fragment: string, sourceScreen: "compare" | "received-comparison"): SaveComparisonResult {
     const authority = saveComparisonAuthorityRef.current;
     if (!enabled || authority?.screen !== sourceScreen || authority.fragment !== fragment || authority.rawHash !== window.location.hash) return "stale";
@@ -955,16 +1108,18 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }
 
   function focusSavedComparisonRename(fragment: string, rawHash: string, select = false, expectedDraft?: SavedComparisonRenameDraft) {
+    renameFocusGeneration.current += 1;
+    const focusGeneration = renameFocusGeneration.current;
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      if (window.location.hash !== rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
+      if (renameFocusGeneration.current !== focusGeneration || window.location.hash !== rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) return;
       if (select) {
-        if (savedComparisonRenameDraftRef.current !== expectedDraft) return;
+        if (savedComparisonRenameDraftRef.current !== expectedDraft || savedSearchRenameDraftRef.current !== undefined) return;
         const input = document.getElementById("demo-rename-comparison-name") as HTMLInputElement | null;
         input?.focus();
         input?.select();
         return;
       }
-      if (savedComparisonRenameDraftRef.current !== undefined) return;
+      if (savedSearchRenameDraftRef.current !== undefined || savedComparisonRenameDraftRef.current !== undefined) return;
       const current = savedComparisons.getSnapshot();
       const index = current.comparisons.findIndex((comparison) => comparison.fragment === fragment);
       const rename = index < 0 ? null : document.getElementById(`demo-saved-comparison-rename-${index}`) as HTMLButtonElement | null;
@@ -977,6 +1132,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
 
   function startSavedComparisonRename(comparison: SavedComparison) {
     if (enabled && parseLocation(window.location.hash).screen !== "saved") return;
+    renameFocusGeneration.current += 1;
+    savedSearchRenameDraftRef.current = undefined;
+    setSavedSearchRenameDraft(undefined);
     savedComparisons.reconcileStorageEvent({ key: savedComparisons.storageKey, newValue: null });
     const current = savedComparisons.getSnapshot();
     const stored = current.comparisons.find((candidate) => candidate.fragment === comparison.fragment && candidate.name === comparison.name);
@@ -1015,6 +1173,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   function submitSavedComparisonRename() {
     const draft = savedComparisonRenameDraftRef.current;
     if (draft === undefined) return;
+    renameFocusGeneration.current += 1;
     if (screen !== "saved" || window.location.hash !== draft.rawHash || (enabled && parseLocation(window.location.hash).screen !== "saved")) {
       savedComparisonRenameDraftRef.current = undefined;
       setSavedComparisonRenameDraft(undefined);
@@ -1406,7 +1565,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
           {savedCollectionsHydrating ? <LoadingResults label="Chargement des éléments enregistrés…" /> : null}
           {showAuthoritativeSavedEmpty ? <StatePanel title="Aucun élément enregistré"><p>Enregistrez une recherche ou une comparaison, ou ajoutez une publication synthétique aux favoris pour la retrouver ici.</p>{enabled ? <Button onClick={() => navigate(response ? "results" : "search")}>Rechercher</Button> : null}</StatePanel> : null}
           {savedSearchSnapshot.canUndo ? <div className="demo-undo"><span>Une recherche enregistrée vient d’être supprimée.</span><Button id="demo-saved-search-undo" variant="secondary" onClick={undoSavedSearch}>Annuler la suppression</Button></div> : null}
-          {showSavedSections ? <SavedSearchesSection searches={savedSearchSnapshot.searches} catalog={catalogData} catalogPending={enabled && (catalog.status === "idle" || catalog.status === "loading")} enabled={enabled} readOnly={savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt"} emptyCopy={showAuthoritativeSavedEmpty ? undefined : savedSearchEmptyCopy} showCount={savedSearchSnapshot.searches.length > 0 || savedSearchSnapshot.storageStatus === "persisted"} onLoad={loadSavedSearch} onRemove={removeSavedSearch} /> : null}
+          {showSavedSections ? <SavedSearchesSection searches={savedSearchSnapshot.searches} catalog={catalogData} catalogPending={enabled && (catalog.status === "idle" || catalog.status === "loading")} enabled={enabled} readOnly={savedSearchSnapshot.storageStatus === "future" || savedSearchSnapshot.storageStatus === "corrupt"} renameDraft={savedSearchRenameDraft} emptyCopy={showAuthoritativeSavedEmpty ? undefined : savedSearchEmptyCopy} showCount={savedSearchSnapshot.searches.length > 0 || savedSearchSnapshot.storageStatus === "persisted"} onLoad={loadSavedSearch} onRenameStart={startSavedSearchRename} onRenameChange={changeSavedSearchRename} onRenameSubmit={submitSavedSearchRename} onRenameCancel={cancelSavedSearchRename} onRemove={removeSavedSearch} /> : null}
           {(savedSearchSnapshot.searches.length > 0 || savedSearchStorageMessage) && savedSearchSnapshot.storageStatus !== "future" ? <div className="demo-reset">{savedSearchResetActive ? <><p>{savedSearchResetIsSession ? "Confirmez la suppression des recherches conservées pour cette session uniquement." : "Confirmez la suppression des recherches enregistrées dans ce navigateur."}</p><Button id="demo-saved-search-reset-confirm" onClick={confirmSavedSearchReset}>Confirmer la réinitialisation</Button><Button variant="secondary" onClick={cancelSavedSearchReset}>Conserver</Button></> : <Button id="demo-saved-search-reset-start" variant="secondary" onClick={armSavedSearchReset}>{savedSearchResetIsSession ? "Effacer les recherches de cette session" : "Effacer les recherches enregistrées"}</Button>}</div> : null}
           {showSavedSections || savedComparisonSnapshot.canUndo ? (
             <SavedComparisonsSection

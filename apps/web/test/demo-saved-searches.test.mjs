@@ -8,6 +8,7 @@ import {
   DEMO_SAVED_SEARCHES_KEY,
   getSavedSearchKey,
   matchingSavedSearchCatalog,
+  PROTOTYPE_SAVED_SEARCHES_KEY,
   SAVED_SEARCH_LIMIT,
   savedSearchToFilterInput,
 } from "../.test-dist/src/demo/saved-searches.js";
@@ -41,6 +42,19 @@ const response = {
 };
 const numericCriteria = { query: { schemaVersion: 2, sort: "listing_asc", priceMaxMinor: 12345, mileageMaxKm: 123.5 } };
 const identityCriteria = { query: { schemaVersion: 2, sort: "price_asc", makeId, modelId, firstRegistrationYear: 2022 }, binding: { fixtureVersion: "saved-v1", taxonomyRelease: release } };
+const richCriteria = {
+  query: {
+    schemaVersion: 3,
+    sort: "mileage_desc",
+    text: "etoile modele",
+    priceMaxMinor: 9876543,
+    mileageMaxKm: 456.75,
+    makeId,
+    modelId,
+    firstRegistrationYear: 2022,
+  },
+  binding: { fixtureVersion: "saved-v1", taxonomyRelease: release },
+};
 
 function memory(initial = null) {
   let value = initial;
@@ -126,6 +140,105 @@ test("store hydrates without server reads, normalizes names, persists canonical 
   assert.equal(Object.isFrozen(store.getSnapshot().searches[0].criteria.query), true);
 });
 
+test("rename changes only the selected name at its original position, including in a full collection", () => {
+  const storage = memory();
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  const server = store.getServerSnapshot();
+  assert.deepEqual(store.rename(getSavedSearchKey(richCriteria), "Trop tôt", server), { ok: false, reason: "readonly" });
+  store.hydrate();
+  assert.deepEqual(store.add("Complète", richCriteria), { ok: true });
+  for (let index = 1; index < SAVED_SEARCH_LIMIT; index += 1) {
+    assert.deepEqual(store.add(`Recherche ${index}`, { query: { schemaVersion: 2, sort: "listing_asc", mileageMaxKm: index } }), { ok: true });
+  }
+  const before = store.getSnapshot();
+  const preservedCriteria = globalThis.structuredClone(before.searches[0].criteria);
+  const key = getSavedSearchKey(before.searches[0].criteria);
+
+  assert.deepEqual(store.rename(key, "  E\u0301lectriques  ", before), { ok: true, outcome: "renamed" });
+
+  const after = store.getSnapshot();
+  assert.notStrictEqual(after, before);
+  assert.deepEqual(before.searches[0], { name: "Complète", criteria: richCriteria });
+  assert.equal(after.searches[0].name, "Électriques");
+  assert.deepEqual(after.searches[0].criteria, preservedCriteria);
+  assert.equal(getSavedSearchKey(after.searches[0].criteria), key);
+  assert.deepEqual(after.searches.slice(1), before.searches.slice(1));
+  assert.equal(after.searches.length, SAVED_SEARCH_LIMIT);
+  assert.equal(Object.isFrozen(after), true);
+  assert.equal(Object.isFrozen(after.searches[0]), true);
+  assert.equal(Object.isFrozen(after.searches[0].criteria.query), true);
+  assert.deepEqual(JSON.parse(storage.value).searches[0], { name: "Électriques", criteria: richCriteria });
+});
+
+test("rename accepts duplicate Unicode labels and returns an immutable zero-write normalized no-op", () => {
+  const storage = memory();
+  let writes = 0;
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => { writes += 1; setItem.call(storage, key, value); };
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  store.hydrate();
+  store.add("Électriques", numericCriteria);
+  store.add("Famille", identityCriteria);
+  const expected = store.getSnapshot();
+  const writesBefore = writes;
+  const firstKey = getSavedSearchKey(numericCriteria);
+  const secondKey = getSavedSearchKey(identityCriteria);
+
+  assert.deepEqual(store.rename(firstKey, "  E\u0301lectriques  ", expected), { ok: true, outcome: "unchanged" });
+  assert.strictEqual(store.getSnapshot(), expected);
+  assert.equal(writes, writesBefore);
+  assert.deepEqual(store.rename(secondKey, "Électriques", expected), { ok: true, outcome: "renamed" });
+  assert.deepEqual(store.getSnapshot().searches.map(({ name }) => name), ["Électriques", "Électriques"]);
+});
+
+test("rename rejects hostile keys and names, missing targets and stale snapshots without coercion or writes", () => {
+  const storage = memory();
+  let writes = 0;
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => { writes += 1; setItem.call(storage, key, value); };
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  store.hydrate();
+  store.add("Initiale", richCriteria);
+  const expected = store.getSnapshot();
+  const key = getSavedSearchKey(richCriteria);
+  const writesBefore = writes;
+  let coercions = 0;
+  const hostile = { toString() { coercions += 1; throw new Error("must not coerce"); } };
+
+  for (const [candidateKey, name] of [
+    [key, ""],
+    [key, "\u0000"],
+    [key, "\u202etest"],
+    [key, "\ud800"],
+    [key, "x".repeat(61)],
+    [hostile, "Objet"],
+    [key, hostile],
+  ]) assert.deepEqual(store.rename(candidateKey, name, expected), { ok: false, reason: "invalid" });
+  assert.deepEqual(store.rename(getSavedSearchKey(numericCriteria), "Absente", expected), { ok: false, reason: "stale" });
+  store.add("Deuxième", numericCriteria);
+  assert.deepEqual(store.rename(key, "Obsolète", expected), { ok: false, reason: "stale" });
+  assert.equal(coercions, 0);
+  assert.equal(writes, writesBefore + 1);
+  assert.equal(store.getSnapshot().searches[0].name, "Initiale");
+});
+
+test("rename preserves an unrelated local removal undo and its original insertion index", () => {
+  const storage = memory();
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  store.hydrate();
+  store.add("A", numericCriteria);
+  store.add("B", identityCriteria);
+  store.add("C", richCriteria);
+  assert.equal(store.remove(getSavedSearchKey(numericCriteria)), true);
+  const expected = store.getSnapshot();
+  assert.equal(expected.canUndo, true);
+
+  assert.deepEqual(store.rename(getSavedSearchKey(identityCriteria), "B renommée", expected), { ok: true, outcome: "renamed" });
+  assert.equal(store.getSnapshot().canUndo, true);
+  assert.deepEqual(store.undo(), { name: "A", criteria: numericCriteria });
+  assert.deepEqual(store.getSnapshot().searches.map(({ name }) => name), ["A", "B renommée", "C"]);
+});
+
 test("store rejects hostile direct values, invalid names, cursor, missing bindings and capacity overflow", () => {
   const storage = memory();
   const store = createSavedSearchStore({ storageProvider: () => storage });
@@ -195,6 +308,128 @@ test("persisted mutations reread latest state and actual events ignore stale pay
   assert.equal(store.getSnapshot().searches.length, 1);
   store.reconcileStorageEvent({ key: null, newValue: null, storageArea: storage });
   assert.equal(store.getSnapshot().searches.length, 0);
+});
+
+test("rename rejects every externally changed snapshot without overwriting or resurrecting data", () => {
+  const externalCases = [
+    ["renamed target", [{ name: "Externe", criteria: numericCriteria }, { name: "B", criteria: identityCriteria }]],
+    ["removed target", [{ name: "B", criteria: identityCriteria }]],
+    ["reordered collection", [{ name: "B", criteria: identityCriteria }, { name: "A", criteria: numericCriteria }]],
+    ["unrelated changed bytes", [{ name: "A", criteria: numericCriteria }, { name: "B externe", criteria: identityCriteria }]],
+  ];
+  for (const [label, searches] of externalCases) {
+    const storage = memory();
+    const store = createSavedSearchStore({ storageProvider: () => storage });
+    store.hydrate();
+    store.add("A", numericCriteria);
+    store.add("B", identityCriteria);
+    const expected = store.getSnapshot();
+    const externalBytes = JSON.stringify({ schemaVersion: 2, searches });
+    storage.value = externalBytes;
+
+    assert.deepEqual(store.rename(getSavedSearchKey(numericCriteria), `Locale ${label}`, expected), { ok: false, reason: "stale" }, label);
+    assert.equal(storage.value, externalBytes, label);
+    assert.deepEqual(store.getSnapshot().searches, searches, label);
+  }
+
+  const resetStorage = memory();
+  const resetStore = createSavedSearchStore({ storageProvider: () => resetStorage });
+  resetStore.hydrate();
+  resetStore.add("A", numericCriteria);
+  const resetExpected = resetStore.getSnapshot();
+  resetStorage.value = null;
+  assert.deepEqual(resetStore.rename(getSavedSearchKey(numericCriteria), "Locale", resetExpected), { ok: false, reason: "stale" });
+  assert.equal(resetStorage.value, null);
+  assert.deepEqual(resetStore.getSnapshot().searches, []);
+});
+
+test("rename preserves corrupt and future replacements as readonly", () => {
+  for (const [expectedStatus, protectedBytes] of [
+    ["corrupt", '{"schemaVersion":2,"searches":[{"name":"bad"}]}'],
+    ["future", '{"schemaVersion":3,"searches":[],"policy":"external"}'],
+  ]) {
+    const storage = memory();
+    const store = createSavedSearchStore({ storageProvider: () => storage });
+    store.hydrate();
+    store.add("A", numericCriteria);
+    const expected = store.getSnapshot();
+    storage.value = protectedBytes;
+
+    assert.deepEqual(store.rename(getSavedSearchKey(numericCriteria), "Locale", expected), { ok: false, reason: "readonly" });
+    assert.equal(store.getSnapshot().storageStatus, expectedStatus);
+    assert.equal(storage.value, protectedBytes);
+  }
+});
+
+test("a persisted read failure invalidates the old snapshot before an explicit memory-only rename", () => {
+  const storage = memory();
+  const persistedGet = storage.getItem;
+  let denyReads = false;
+  storage.getItem = (key) => {
+    if (denyReads) throw new DOMException("denied", "SecurityError");
+    return persistedGet.call(storage, key);
+  };
+  const store = createSavedSearchStore({ storageProvider: () => storage });
+  store.hydrate();
+  store.add("A", richCriteria);
+  const persisted = store.getSnapshot();
+  const persistedBytes = storage.value;
+  denyReads = true;
+
+  assert.deepEqual(store.rename(getSavedSearchKey(richCriteria), "Session", persisted), { ok: false, reason: "stale" });
+  const denied = store.getSnapshot();
+  assert.equal(denied.storageStatus, "denied");
+  assert.deepEqual(store.rename(getSavedSearchKey(richCriteria), "Session", denied), { ok: true, outcome: "renamed" });
+  assert.equal(store.getSnapshot().storageStatus, "denied");
+  assert.equal(store.getSnapshot().searches[0].name, "Session");
+  assert.equal(storage.value, persistedBytes);
+});
+
+test("rename remains memory-only in quota and denied modes", () => {
+  const original = JSON.stringify({ schemaVersion: 2, searches: [{ name: "Originale", criteria: richCriteria }] });
+  const quotaStorage = memory(original);
+  quotaStorage.setItem = () => { throw new DOMException("quota", "QuotaExceededError"); };
+  const quota = createSavedSearchStore({ storageProvider: () => quotaStorage });
+  const quotaSnapshot = quota.hydrate();
+  assert.deepEqual(quota.rename(getSavedSearchKey(richCriteria), "Quota", quotaSnapshot), { ok: true, outcome: "renamed" });
+  assert.equal(quota.getSnapshot().storageStatus, "quota");
+  assert.equal(quota.getSnapshot().searches[0].name, "Quota");
+  assert.equal(quotaStorage.value, original);
+
+  const denied = createSavedSearchStore({ storageProvider() { throw new DOMException("denied", "SecurityError"); } });
+  denied.hydrate();
+  denied.add("Session", richCriteria);
+  const deniedSnapshot = denied.getSnapshot();
+  assert.deepEqual(denied.rename(getSavedSearchKey(richCriteria), "Mémoire", deniedSnapshot), { ok: true, outcome: "renamed" });
+  assert.equal(denied.getSnapshot().storageStatus, "denied");
+  assert.equal(denied.getSnapshot().searches[0].name, "Mémoire");
+});
+
+test("offline and prototype saved-search renames remain isolated by storage key", () => {
+  const values = new Map([
+    [DEMO_SAVED_SEARCHES_KEY, JSON.stringify({ schemaVersion: 2, searches: [{ name: "Hors ligne", criteria: numericCriteria }] })],
+    [PROTOTYPE_SAVED_SEARCHES_KEY, JSON.stringify({ schemaVersion: 2, searches: [{ name: "Prototype", criteria: richCriteria }] })],
+    ["auto-world.demo.saved-comparisons.v1", "comparison sentinel"],
+    ["auto-world.demo.favorites.v1", "favorite sentinel"],
+  ]);
+  const writes = [];
+  const storage = {
+    getItem(key) { return values.get(key) ?? null; },
+    setItem(key, value) { writes.push(key); values.set(key, value); },
+    removeItem(key) { writes.push(key); values.delete(key); },
+  };
+  const offline = createSavedSearchStore({ storageProvider: () => storage, namespace: "offline" });
+  const prototype = createSavedSearchStore({ storageProvider: () => storage, namespace: "prototype" });
+  const offlineSnapshot = offline.hydrate();
+  const prototypeSnapshot = prototype.hydrate();
+
+  assert.deepEqual(offline.rename(getSavedSearchKey(numericCriteria), "Locale", offlineSnapshot), { ok: true, outcome: "renamed" });
+  assert.deepEqual(prototype.rename(getSavedSearchKey(richCriteria), "Démo", prototypeSnapshot), { ok: true, outcome: "renamed" });
+  assert.deepEqual(writes, [DEMO_SAVED_SEARCHES_KEY, PROTOTYPE_SAVED_SEARCHES_KEY]);
+  assert.equal(JSON.parse(values.get(DEMO_SAVED_SEARCHES_KEY)).searches[0].name, "Locale");
+  assert.equal(JSON.parse(values.get(PROTOTYPE_SAVED_SEARCHES_KEY)).searches[0].name, "Démo");
+  assert.equal(values.get("auto-world.demo.saved-comparisons.v1"), "comparison sentinel");
+  assert.equal(values.get("auto-world.demo.favorites.v1"), "favorite sentinel");
 });
 
 test("noncanonical valid JSON is accepted and canonicalized by the next explicit mutation", () => {
