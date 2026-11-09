@@ -3,6 +3,7 @@ import {
   parseDemoCatalogHttpOutcomeV2,
   parseDemoHttpOutcome,
   parseDemoHttpOutcomeV2,
+  parseDemoHttpOutcomeV3,
   parsePublicListingId,
   statusForDemoError,
   type DemoHttpErrorCode,
@@ -16,7 +17,7 @@ export interface DemoProxyTelemetryEvent { readonly route: "catalog" | "search" 
 export type DemoProxyTelemetrySink = (event: DemoProxyTelemetryEvent) => void;
 export interface DemoProxyOptions {
   readonly route: "catalog" | "search" | "detail";
-  readonly schemaVersion?: 1 | 2;
+  readonly schemaVersion?: 1 | 2 | 3;
   readonly fetchImpl?: typeof fetch;
   readonly clock?: () => Date;
   readonly telemetry?: DemoProxyTelemetrySink;
@@ -37,7 +38,7 @@ function localRequestId(): string { return `req_${randomBytes(16).toString("hex"
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 }
-function localError(code: DemoHttpErrorCode, schemaVersion: 1 | 2): Response {
+function localError(code: DemoHttpErrorCode, schemaVersion: 1 | 2 | 3): Response {
   return jsonResponse({ schemaVersion, requestId: localRequestId(), error: { code } }, statusForDemoError(code));
 }
 function validInbound(request: Request): boolean {
@@ -84,6 +85,7 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
   const clock = options.clock ?? (() => new Date());
   const schemaVersion = options.schemaVersion ?? 1;
   if (options.route === "catalog" && schemaVersion !== 2) throw new TypeError("catalog requires schemaVersion 2");
+  if (schemaVersion === 3 && options.route !== "search") throw new TypeError("schemaVersion 3 is search-only");
   return async (request, listingIdInput) => {
     const startedAt = clock().getTime();
     let recorded = false;
@@ -123,7 +125,7 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
       }
       try { decodeUtf8(body); }
       catch { return finish(localError("invalid_request", schemaVersion), "invalid_request"); }
-      path = schemaVersion === 1 ? "/v1/demo/search" : "/v2/demo/search";
+      path = schemaVersion === 1 ? "/v1/demo/search" : schemaVersion === 2 ? "/v2/demo/search" : "/v3/demo/search";
     } else if (options.route === "detail") {
       expectedListingId = parsePublicListingId(listingIdInput);
       if (expectedListingId === undefined) return finish(localError("invalid_request", schemaVersion), "invalid_request");
@@ -162,7 +164,9 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
         ? parseDemoCatalogHttpOutcomeV2(source, upstream.status)
         : schemaVersion === 1
           ? parseDemoHttpOutcome(source, upstream.status, clock().toISOString(), expectedListingId)
-          : parseDemoHttpOutcomeV2(source, upstream.status, clock().toISOString(), expectedListingId);
+          : schemaVersion === 2
+            ? parseDemoHttpOutcomeV2(source, upstream.status, clock().toISOString(), expectedListingId)
+            : parseDemoHttpOutcomeV3(source, upstream.status, clock().toISOString());
       if (parsed === undefined) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
       if (parsed.ok) return finish(jsonResponse({ schemaVersion, requestId: parsed.requestId, data: parsed.data }, 200));
       return finish(jsonResponse({ schemaVersion, requestId: parsed.requestId, error: { code: parsed.code } }, statusForDemoError(parsed.code)), parsed.code);

@@ -6,8 +6,10 @@ import {
   DEMO_PAGE_SIZE,
   parseDemoCatalogResponseV2,
   parseDemoSearchQueryV2,
+  parseDemoSearchQueryV3,
   parseDemoSearchResponse,
   parseDemoSearchResponseV2,
+  resolveDemoSearchModels,
 } from "@auto-world/demo-search-contract";
 import { parseConnectorCheckpoint } from "@auto-world/connector-sdk";
 import { parseListingId } from "@auto-world/vehicle-schema";
@@ -669,7 +671,7 @@ function validateDescriptionPage(results) {
   }
 }
 
-export async function createSyntheticDemoReadPortV2(options = {}) {
+async function createSyntheticDescriptionReadPort(options = {}, mode = "v2") {
   if (process.env.NODE_ENV === "production") throw new Error("demo_api_unavailable_in_production");
   const nowMs = options.nowMs ?? (() => Date.now());
   const randomBytes = options.randomBytes ?? systemRandomBytes;
@@ -691,7 +693,8 @@ export async function createSyntheticDemoReadPortV2(options = {}) {
     if (baseline.status !== "completed" || delta.status !== "completed") throw new Error("demo_fixture_unavailable");
   }
   const snapshotProvider = options.snapshotProvider ?? (() => harness.storage.snapshot());
-  const cursorSession = createCursorSession(randomBytes, cursorCapacity, "aw-demo-cursor-v2\0");
+  const cursorSession = createCursorSession(randomBytes, cursorCapacity,
+    mode === "v3" ? "aw-demo-cursor-v3\0" : "aw-demo-cursor-v2\0");
 
   function capture() {
     const at = nowMs();
@@ -729,7 +732,7 @@ export async function createSyntheticDemoReadPortV2(options = {}) {
 
   async function search(input, context) {
     if (cancelled(context.signal)) return failure("cancelled");
-    const parsedQuery = parseDemoSearchQueryV2(input);
+    const parsedQuery = mode === "v3" ? parseDemoSearchQueryV3(input) : parseDemoSearchQueryV2(input);
     if (!parsedQuery.success) return failure("invalid_query");
     const query = parsedQuery.data;
     const make = query.makeId === undefined ? undefined : findDescriptionMake(query.makeId);
@@ -740,7 +743,11 @@ export async function createSyntheticDemoReadPortV2(options = {}) {
     try {
       const captured = capture();
       const active = captured.results.filter((item) => item.availability === "active");
-      const matches = filterAndSortV2(active, query);
+      const allowedModels = mode === "v3" && query.text !== undefined
+        ? new Set(resolveDemoSearchModels(SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE, query.text))
+        : undefined;
+      const matches = filterAndSortV2(active, query).filter((item) => allowedModels === undefined ||
+        item.description.status === "authored_synthetic" && allowedModels.has(item.description.value.modelId));
       if (matches.length > MAX_RESULTS) throw new Error("result_limit");
       const binding = createHash("sha256").update(stable({
         epoch: cursorSession.epoch,
@@ -753,6 +760,7 @@ export async function createSyntheticDemoReadPortV2(options = {}) {
         makeId: query.makeId ?? null,
         modelId: query.modelId ?? null,
         firstRegistrationYear: query.firstRegistrationYear ?? null,
+        ...(mode === "v3" ? { schemaVersion: 3, text: query.text ?? null } : {}),
       })).digest("hex");
       let position = 0;
       if (query.cursor !== undefined) {
@@ -791,6 +799,34 @@ export async function createSyntheticDemoReadPortV2(options = {}) {
   }
 
   return Object.freeze({ catalog, search, getListing });
+}
+
+export async function createSyntheticDemoReadPortV2(options = {}) {
+  return createSyntheticDescriptionReadPort(options, "v2");
+}
+
+export async function createSyntheticDemoKeywordReadPort(options = {}) {
+  const port = await createSyntheticDescriptionReadPort(options, "v3");
+  return Object.freeze({ search: port.search });
+}
+
+export async function createSyntheticDemoReadPortsV2V3(options = {}) {
+  const nowMs = options.nowMs ?? (() => Date.now());
+  let harness = options.harness;
+  if (!harness && !options.snapshotProvider) {
+    const initialTime = nowMs();
+    if (!Number.isFinite(initialTime)) throw new Error("clock_invalid");
+    harness = createSyntheticDescriptionHarness({ initialTime: initialTime - 1_000 });
+    const baseline = await harness.run("descriptionBaseline");
+    const delta = baseline.status === "completed"
+      ? await harness.run("descriptionDelta", { mode: "incremental" })
+      : baseline;
+    if (baseline.status !== "completed" || delta.status !== "completed") throw new Error("demo_fixture_unavailable");
+  }
+  const shared = { ...options, nowMs, ...(harness === undefined ? {} : { harness }) };
+  const readPortV2 = await createSyntheticDescriptionReadPort(shared, "v2");
+  const keyword = await createSyntheticDescriptionReadPort(shared, "v3");
+  return Object.freeze({ readPortV2, keywordReadPort: Object.freeze({ search: keyword.search }) });
 }
 
 export const DEMO_CURSOR_CAPACITY = DEFAULT_CURSOR_CAPACITY;

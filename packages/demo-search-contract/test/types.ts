@@ -5,10 +5,12 @@ import type {
   DemoReadOutcome,
   DemoReadPort,
   DemoReadPortV2,
+  DemoKeywordReadPort,
   DemoResultV1,
   DemoSearchQueryV1,
   DemoSearchResponseV1,
   DemoSearchQueryV2,
+  DemoSearchQueryV3,
   DemoSearchResponseV2,
 } from "../src/index.js";
 import type { MakeId, ModelId } from "../src/index.js";
@@ -127,3 +129,14 @@ void portV2.catalog(context);
 void portV2.search(queryV2, context);
 // @ts-expect-error V1 ports do not accept V2 queries
 void port.search(queryV2, context);
+
+const queryV3: DemoSearchQueryV3 = { ...queryV2, schemaVersion: 3, text: "alpha one" };
+declare const keywordPort: DemoKeywordReadPort;
+void keywordPort.search(queryV3, context);
+// @ts-expect-error keyword requests cannot be sent to a V2 read port
+void portV2.search(queryV3, context);
+// @ts-expect-error V3 text is immutable
+queryV3.text = "changed";
+// @ts-expect-error V2 remains a closed query contract
+const invalidV2: DemoSearchQueryV2 = { ...queryV2, text: "alpha" };
+void invalidV2;

@@ -69,18 +69,19 @@ test("the real local API supports search, detail, persisted favorite, removal an
   expect(external).toEqual([]);
 });
 
-test("unsupported free text stays editable and never calls the search route", async ({ page }) => {
+test("invalid keyword text stays editable and never calls a search route", async ({ page }) => {
   await mockDemoCatalog(page);
   let calls = 0;
   await page.route("**/api/demo/v2/search", async (route) => { calls += 1; await route.abort(); });
+  await page.route("**/api/demo/v3/search", async (route) => { calls += 1; await route.abort(); });
   await page.goto("/demo");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
-  const input = page.getByLabel("Recherche libre");
-  await input.fill("un véhicule précis");
+  const input = page.getByLabel("Recherche par mots");
+  await input.fill("***");
   await page.getByRole("button", { name: "Rechercher", exact: true }).click();
   await expect(input).toBeFocused();
   await expect(input).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByText(/n’est pas encore prise en charge/)).toBeVisible();
+  await expect(page.getByText(/1 à 8 mots simples/)).toBeVisible();
   expect(calls).toBe(0);
 });
 
@@ -156,7 +157,7 @@ test("search activity, active navigation and keyboard focus remain explicit", as
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
   await expect(page.getByRole("button", { name: "Recherche", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("button", { name: "Enregistrés", exact: true })).not.toHaveAttribute("aria-current", "page");
-  await page.getByLabel("Recherche libre").focus();
+  await page.getByLabel("Recherche par mots").focus();
   await page.keyboard.press("Tab");
   const budget = page.getByLabel("Budget maximum (€)");
   await expect(budget).toBeFocused();

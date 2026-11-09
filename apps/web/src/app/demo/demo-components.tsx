@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Banner, BookmarkIcon, Button, Card, ChevronLeftIcon, Skeleton } from "@auto-world/design-system/primitives";
-import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2 } from "@auto-world/demo-search-contract";
+import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchQueryV3 } from "@auto-world/demo-search-contract";
 import { resolveDescription } from "../../demo/catalog";
 import { formatExactNumber, formatObservedPrice } from "../../demo/observation-history";
 import { ObservationHistory } from "./history-components";
@@ -62,11 +62,12 @@ export function ResultSummary({ result, catalog }: { readonly result: DemoResult
   );
 }
 
-export function ActiveCriteria({ query, catalog }: { readonly query?: DemoSearchQueryV2; readonly catalog?: DemoCatalogResponseV2 }) {
+export function ActiveCriteria({ query, catalog }: { readonly query?: DemoSearchQueryV2 | DemoSearchQueryV3; readonly catalog?: DemoCatalogResponseV2 }) {
   if (query === undefined) return null;
   const criteria: string[] = [];
   const make = catalog?.taxonomyRelease.makes.find((item) => item.makeId === query.makeId);
   const model = catalog?.taxonomyRelease.models.find((item) => item.makeId === query.makeId && item.modelId === query.modelId);
+  if (query.schemaVersion === 3 && query.text !== undefined) criteria.push(`Mots : ${query.text}`);
   if (query.makeId !== undefined) criteria.push(make?.primaryName.value ?? "Marque : libellé indisponible");
   if (query.modelId !== undefined) criteria.push(model?.primaryName.value ?? "Modèle : libellé indisponible");
   if (query.firstRegistrationYear !== undefined) criteria.push(`Première immatriculation fictive : ${query.firstRegistrationYear}`);

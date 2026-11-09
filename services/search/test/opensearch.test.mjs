@@ -145,6 +145,28 @@ test("V2 search validates exact derived taxonomy fields and sends all public fil
     { term: { modelId: document.description.value.modelId } }, { term: { firstRegistrationYear: 2024 } }]);
 });
 
+test("V3 keyword search applies bounded model terms before paging and explicit match-none", async () => {
+  const index = `aw-v2-search-${"b".repeat(32)}`;
+  const document = resultV2();
+  const sent = [];
+  await withServer(async (request, response) => {
+    sent.push(JSON.parse(await body(request)));
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ timed_out: false, _shards: { failed: 0 }, hits: { total: { value: 1, relation: "eq" },
+      hits: [{ _id: document.listingId, _source: indexedV2(document) }] } }));
+  }, async (port) => {
+    const search = createOpenSearch({ port });
+    await search.searchKeyword(index, { schemaVersion: 3, sort: "listing_asc", text: "fixture" },
+      [document.description.value.modelId], 0, new globalThis.AbortController().signal);
+    await search.searchKeyword(index, { schemaVersion: 3, sort: "listing_asc", text: "absent" },
+      [], 0, new globalThis.AbortController().signal);
+  });
+  assert.deepEqual(sent[0].query.bool.filter.slice(-1), [{ terms: { modelId: [document.description.value.modelId] } }]);
+  assert.deepEqual(sent[1].query.bool.filter.slice(-1), [{ match_none: {} }]);
+  assert.equal(sent[0].from, 0);
+  assert.equal(sent[0].size, 20);
+});
+
 test("V2 build seals a distinct mapping with exact profile and derived taxonomy fields", async () => {
   const index = `aw-v2-search-${"b".repeat(32)}`;
   const profile = `prf_${"c".repeat(64)}`;

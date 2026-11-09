@@ -1,8 +1,10 @@
 import {
   parseDemoSearchQuery,
   parseDemoSearchQueryV2,
+  parseDemoSearchQueryV3,
   type DemoSearchQueryV1,
   type DemoSearchQueryV2,
+  type DemoSearchQueryV3,
   type DemoSearchSort,
 } from "@auto-world/demo-search-contract";
 
@@ -28,6 +30,14 @@ export type FilterInputResultV2 =
   | {
       readonly ok: false;
       readonly code: "invalid_filter" | "unsupported_text";
+      readonly field: "priceMaxEUR" | "mileageMaxKm" | "sort" | "text" | "makeId" | "modelId" | "firstRegistrationYear";
+    };
+
+export type FilterInputResultV3 =
+  | { readonly ok: true; readonly query: DemoSearchQueryV2 | DemoSearchQueryV3 }
+  | {
+      readonly ok: false;
+      readonly code: "invalid_filter" | "invalid_text";
       readonly field: "priceMaxEUR" | "mileageMaxKm" | "sort" | "text" | "makeId" | "modelId" | "firstRegistrationYear";
     };
 
@@ -89,6 +99,18 @@ export function parseFilterInputV2(input: DemoFilterInputV2): FilterInputResultV
   const parsed = parseDemoSearchQueryV2(candidate);
   if (parsed.success) return { ok: true, query: parsed.data };
   const path = parsed.issues[0]?.path ?? "";
+  const field = path.endsWith(".makeId") ? "makeId" : path.endsWith(".modelId") ? "modelId" : path.endsWith(".firstRegistrationYear") ? "firstRegistrationYear" : "sort";
+  return { ok: false, code: "invalid_filter", field };
+}
+
+export function parseFilterInputV3(input: DemoFilterInputV2): FilterInputResultV3 {
+  const structured = parseFilterInputV2({ ...input, text: "" });
+  if (!structured.ok) return { ok: false, code: "invalid_filter", field: structured.field };
+  if (input.text.trim() === "") return structured;
+  const parsed = parseDemoSearchQueryV3({ ...structured.query, schemaVersion: 3, text: input.text });
+  if (parsed.success) return { ok: true, query: parsed.data };
+  const path = parsed.issues[0]?.path ?? "";
+  if (path.endsWith(".text")) return { ok: false, code: "invalid_text", field: "text" };
   const field = path.endsWith(".makeId") ? "makeId" : path.endsWith(".modelId") ? "modelId" : path.endsWith(".firstRegistrationYear") ? "firstRegistrationYear" : "sort";
   return { ok: false, code: "invalid_filter", field };
 }

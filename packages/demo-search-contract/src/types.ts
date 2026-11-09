@@ -137,6 +137,11 @@ export interface DemoSearchQueryV2 {
   readonly cursor?: string;
 }
 
+export interface DemoSearchQueryV3 extends Omit<DemoSearchQueryV2, "schemaVersion"> {
+  readonly schemaVersion: 3;
+  readonly text?: string;
+}
+
 export interface DemoDescriptionAttributionV2 {
   readonly kind: "synthetic_fixture";
   readonly fixtureRef: string;
@@ -228,6 +233,14 @@ export interface DemoReadPortV2 {
   ): Promise<DemoReadOutcomeV2>;
   getListing(
     listingId: ListingId,
+    context: DemoReadContext,
+  ): Promise<DemoReadOutcomeV2>;
+}
+
+/** Keyword requests version independently from their unchanged V2 result data. */
+export interface DemoKeywordReadPort {
+  search(
+    query: DemoSearchQueryV3,
     context: DemoReadContext,
   ): Promise<DemoReadOutcomeV2>;
 }

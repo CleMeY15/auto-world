@@ -136,7 +136,7 @@ export function createApplicationRuntime(dependencies = {}) {
       ...(options.projectionV2 === undefined ? {} : { targetMappingVersion: 2, projectionV2: options.projectionV2 }) });
       if (options.projectionV2 !== undefined) await search.assertProfile();
       app = modules.createDemoApi({ readPort: search.readPort, loopbackPolicy: { boundPort },
-        ...(options.projectionV2 === undefined ? {} : { readPortV2: search.readPortV2 }),
+        ...(options.projectionV2 === undefined ? {} : { readPortV2: search.readPortV2, keywordReadPort: search.keywordReadPort }),
         ...(options.onEvent === undefined ? {} : { telemetry: {
           metric: emit, log: emit, span: emit, alert: emit,
         } }) });

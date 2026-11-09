@@ -8,6 +8,7 @@ import {
   type DemoResultV2,
   type DemoSearchQueryV1,
   type DemoSearchQueryV2,
+  type DemoSearchQueryV3,
 } from "@auto-world/demo-search-contract";
 import { PROFILE, ProjectionRejected, ascii, stable } from "./model.js";
 
@@ -29,6 +30,7 @@ export interface OpenSearchTransport {
   remove(indexName: string, signal: AbortSignal, profileFingerprint?: string): Promise<void>;
   buildV2(indexName: string, documents: readonly DemoResultV2[], profileFingerprint: string, signal: AbortSignal): Promise<void>;
   searchV2(indexName: string, query: DemoSearchQueryV2, offset: number, signal: AbortSignal): Promise<{ readonly results: readonly DemoResultV2[]; readonly total: number }>;
+  searchKeyword(indexName: string, query: DemoSearchQueryV3, modelIds: readonly string[] | undefined, offset: number, signal: AbortSignal): Promise<{ readonly results: readonly DemoResultV2[]; readonly total: number }>;
   detailV2(indexName: string, listingId: string, signal: AbortSignal): Promise<DemoResultV2 | null>;
   verifyV2(indexName: string, documents: readonly DemoResultV2[], profileFingerprint: string, signal: AbortSignal): Promise<boolean>;
 }
@@ -156,7 +158,7 @@ function inspectSearchV2(value: unknown, reconciliation = false): { readonly res
   return { results, total };
 }
 
-function sortFor(query: DemoSearchQueryV1 | DemoSearchQueryV2): readonly unknown[] {
+function sortFor(query: DemoSearchQueryV1 | DemoSearchQueryV2 | DemoSearchQueryV3): readonly unknown[] {
   switch (query.sort) {
     case "listing_asc": return [{ listingId: { order: "asc" } }];
     case "price_asc": return [{ priceEUR: { order: "asc", missing: "_last" } }, { listingId: { order: "asc" } }];
@@ -180,6 +182,14 @@ function filtersForV2(query: DemoSearchQueryV2): readonly unknown[] {
     ...(query.makeId === undefined ? [] : [{ term: { makeId: query.makeId } }]),
     ...(query.modelId === undefined ? [] : [{ term: { modelId: query.modelId } }]),
     ...(query.firstRegistrationYear === undefined ? [] : [{ term: { firstRegistrationYear: query.firstRegistrationYear } }]),
+  ];
+}
+
+function filtersForKeyword(query: DemoSearchQueryV3, modelIds: readonly string[] | undefined): readonly unknown[] {
+  if (modelIds !== undefined && (modelIds.length > 16_384 || modelIds.some((modelId) => !/^model_[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(modelId)))) reject();
+  return [
+    ...filtersForV2({ ...query, schemaVersion: 2 }),
+    ...(modelIds === undefined ? [] : modelIds.length === 0 ? [{ match_none: {} }] : [{ terms: { modelId: modelIds } }]),
   ];
 }
 
@@ -436,6 +446,17 @@ export function createOpenSearch(options: { readonly port: number }): OpenSearch
     return result;
   }
 
+  async function searchKeyword(indexName: string, query: DemoSearchQueryV3, modelIds: readonly string[] | undefined, offset: number, signal: AbortSignal) {
+    if (!/^aw-v2-search-[a-f0-9]{32}$/u.test(indexName) || !Number.isSafeInteger(offset) || offset < 0 || offset + DEMO_PAGE_SIZE > PROFILE.maxDocuments) reject();
+    const body = JSON.stringify({ from: offset, size: DEMO_PAGE_SIZE, track_total_hits: true, timeout: `${REQUEST_TIMEOUT_MS - 250}ms`,
+      query: { bool: { filter: filtersForKeyword(query, modelIds) } }, sort: sortFor(query),
+      _source: ["publicDto", "listingId", "availability", "priceEUR", "mileageKm", "makeId", "modelId", "firstRegistrationYear"] });
+    const result = inspectSearchV2(await request(`/${indexName}/_search?allow_partial_search_results=false`, signal,
+      { method: "POST", body, maxBytes: MAX_RESPONSE_BYTES }));
+    if (result.results.length !== Math.min(DEMO_PAGE_SIZE, Math.max(0, result.total - offset))) reject();
+    return result;
+  }
+
   async function detailV2(indexName: string, listingId: string, signal: AbortSignal): Promise<DemoResultV2 | null> {
     if (!/^aw-v2-search-[a-f0-9]{32}$/u.test(indexName)) reject();
     const body = JSON.stringify({ size: 1, track_total_hits: true, timeout: `${REQUEST_TIMEOUT_MS - 250}ms`, query: { term: { listingId } },
@@ -503,5 +524,5 @@ export function createOpenSearch(options: { readonly port: number }): OpenSearch
     if (!await verifyV2(indexName, documents, profileFingerprint, signal)) reject();
   }
 
-  return Object.freeze({ build, search, detail, verify, remove, buildV2, searchV2, detailV2, verifyV2 });
+  return Object.freeze({ build, search, detail, verify, remove, buildV2, searchV2, searchKeyword, detailV2, verifyV2 });
 }

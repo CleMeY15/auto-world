@@ -1,9 +1,11 @@
 import {
   parseDemoCatalogResponseV2,
   parseDemoSearchQueryV2,
+  parseDemoSearchQueryV3,
   parseDemoSearchResponseV2,
   type DemoCatalogResponseV2,
   type DemoSearchQueryV2,
+  type DemoSearchQueryV3,
   type DemoSearchResponseV2,
   type TaxonomyReleaseReferenceV1,
 } from "@auto-world/demo-search-contract";
@@ -25,7 +27,7 @@ const BYTE_LIMIT = 16_384;
 
 export type SavedSearchStorageStatus = NamedCollectionStorageStatus;
 export interface SavedSearchCriteria {
-  readonly query: Omit<DemoSearchQueryV2, "cursor">;
+  readonly query: Omit<DemoSearchQueryV2, "cursor"> | Omit<DemoSearchQueryV3, "cursor">;
   readonly binding?: { readonly fixtureVersion: string; readonly taxonomyRelease: TaxonomyReleaseReferenceV1 };
 }
 export interface SavedSearch { readonly name: string; readonly criteria: SavedSearchCriteria }
@@ -87,18 +89,21 @@ function parseBinding(input: unknown): SavedSearchCriteria["binding"] | undefine
   });
 }
 
-function canonicalQuery(input: unknown, rejectCursor = true): Omit<DemoSearchQueryV2, "cursor"> | undefined {
-  const parsed = parseDemoSearchQueryV2(normalizeNegativeZeroQuery(input));
-  if (!parsed.success || (rejectCursor && parsed.data.cursor !== undefined)) return undefined;
-  const query = parsed.data;
+function canonicalQuery(input: unknown, rejectCursor = true): SavedSearchCriteria["query"] | undefined {
+  const normalized = normalizeNegativeZeroQuery(input);
+  const parsedV2 = parseDemoSearchQueryV2(normalized);
+  const parsedV3 = parsedV2.success ? undefined : parseDemoSearchQueryV3(normalized);
+  const query = parsedV2.success ? parsedV2.data : parsedV3?.success ? parsedV3.data : undefined;
+  if (query === undefined || (rejectCursor && query.cursor !== undefined)) return undefined;
   return Object.freeze({
-    schemaVersion: 2 as const,
+    schemaVersion: query.schemaVersion,
     sort: query.sort,
     ...(query.priceMaxMinor === undefined ? {} : { priceMaxMinor: Object.is(query.priceMaxMinor, -0) ? 0 : query.priceMaxMinor }),
     ...(query.mileageMaxKm === undefined ? {} : { mileageMaxKm: Object.is(query.mileageMaxKm, -0) ? 0 : query.mileageMaxKm }),
     ...(query.makeId === undefined ? {} : { makeId: query.makeId }),
     ...(query.modelId === undefined ? {} : { modelId: query.modelId }),
     ...(query.firstRegistrationYear === undefined ? {} : { firstRegistrationYear: query.firstRegistrationYear }),
+    ...(query.schemaVersion === 3 && query.text !== undefined ? { text: query.text } : {}),
   });
 }
 
@@ -126,7 +131,7 @@ function canonicalEntry(search: SavedSearch): object {
 }
 
 function encode(searches: readonly SavedSearch[]): string | undefined {
-  const value = JSON.stringify({ schemaVersion: 1, searches: searches.map(canonicalEntry) });
+  const value = JSON.stringify({ schemaVersion: 2, searches: searches.map(canonicalEntry) });
   return new TextEncoder().encode(value).byteLength <= BYTE_LIMIT ? value : undefined;
 }
 
@@ -136,7 +141,7 @@ function decode(source: string): Decoded {
   try { input = parseStrictJson(source); } catch { return { kind: "corrupt" }; }
   if (typeof input !== "object" || input === null || Array.isArray(input)) return { kind: "corrupt" };
   const value = input as Record<string, unknown>;
-  if (value.schemaVersion !== 1) return typeof value.schemaVersion === "number" && value.schemaVersion > 1 ? { kind: "future" } : { kind: "corrupt" };
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) return typeof value.schemaVersion === "number" && value.schemaVersion > 2 ? { kind: "future" } : { kind: "corrupt" };
   if (Object.keys(value).sort().join() !== "schemaVersion,searches" || !Array.isArray(value.searches) || value.searches.length > SAVED_SEARCH_LIMIT) return { kind: "corrupt" };
   const searches: SavedSearch[] = [];
   const keys = new Set<string>();
@@ -146,6 +151,7 @@ function decode(source: string): Decoded {
     const name = normalizeNamedCollectionName(entry.name, true);
     const criteria = parseSavedSearchCriteria(entry.criteria);
     if (name === undefined || criteria === undefined) return { kind: "corrupt" };
+    if (value.schemaVersion === 1 && criteria.query.schemaVersion !== 2) return { kind: "corrupt" };
     const key = getSavedSearchKey(criteria);
     if (keys.has(key)) return { kind: "corrupt" };
     keys.add(key);
@@ -157,11 +163,14 @@ function decode(source: string): Decoded {
 export function getSavedSearchKey(criteria: SavedSearchCriteria): string {
   const parsed = parseSavedSearchCriteria(criteria);
   if (parsed === undefined) return "";
-  return JSON.stringify(parsed);
+  const query = parsed.query.schemaVersion === 3 && parsed.query.text === undefined
+    ? Object.freeze({ ...parsed.query, schemaVersion: 2 as const })
+    : parsed.query;
+  return JSON.stringify({ query, ...(parsed.binding === undefined ? {} : { binding: parsed.binding }) });
 }
 
-export function captureSavedSearchCriteria(query: DemoSearchQueryV2, response: DemoSearchResponseV2, receivedAt: string = new Date().toISOString()): SavedSearchCriteria | undefined {
-  const parsedQuery = parseDemoSearchQueryV2(query);
+export function captureSavedSearchCriteria(query: DemoSearchQueryV2 | DemoSearchQueryV3, response: DemoSearchResponseV2, receivedAt: string = new Date().toISOString()): SavedSearchCriteria | undefined {
+  const parsedQuery = query.schemaVersion === 3 ? parseDemoSearchQueryV3(query) : parseDemoSearchQueryV2(query);
   const parsedResponse = parseDemoSearchResponseV2(response, receivedAt);
   if (!parsedQuery.success || !parsedResponse.success) return undefined;
   const cursorless = { ...parsedQuery.data };
@@ -218,7 +227,7 @@ export function savedSearchToFilterInput(criteria: SavedSearchCriteria, catalog?
     priceMaxEUR: parsed.query.priceMaxMinor === undefined ? "" : centsToDecimal(parsed.query.priceMaxMinor),
     mileageMaxKm: parsed.query.mileageMaxKm === undefined ? "" : finiteToPlainDecimal(parsed.query.mileageMaxKm),
     sort: parsed.query.sort,
-    text: "",
+    text: parsed.query.schemaVersion === 3 ? parsed.query.text ?? "" : "",
     makeId: omitIdentity ? "" : parsed.query.makeId ?? "",
     modelId: omitIdentity ? "" : parsed.query.modelId ?? "",
     firstRegistrationYear: parsed.query.firstRegistrationYear?.toString() ?? "",

@@ -9,6 +9,7 @@ import {
 export const WEB_FIXTURE_VERSION = "synthetic-prototype-web-v2";
 export const WEB_MAPPER_VERSION = "synthetic-prototype-web-mapper-v2";
 export const WEB_SEED_INVOCATION = "prototype-web-seed-v2";
+export const WEB_KEYWORD_QUERIES = Object.freeze({ broad: "modele", equivalent: " MODÈLE modele ", different: "fictif modele" });
 const release = SYNTHETIC_DESCRIPTION_CORPUS_MANIFEST.taxonomyRelease;
 const pageSize = 50;
 const models = SYNTHETIC_DESCRIPTION_TAXONOMY_RELEASE.models;

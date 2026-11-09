@@ -2,7 +2,7 @@
 
 Scope: TASK-0119 under [ADR-0032](decisions/ADR-0032-persistent-web-prototype.md). This is a local, loopback-only prototype using fabricated data. PostgreSQL remains authoritative, OpenSearch remains a rebuildable projection, and browser-saved searches and comparisons remain local to the browser. These instructions do not authorize production use, public exposure, or any real data source.
 
-TASK-0119 is locally validated; [the evidence record](validation/TASK-0119.md) distinguishes those results from pending PR/protected-main delivery. This runbook is not a production acceptance record.
+TASK-0119 is accepted for the isolated V1 prototype by [PR229's checkpoint](https://github.com/CleMeY15/auto-world/pull/229#issuecomment-6730265143); [the evidence record](validation/TASK-0119.md) preserves its earlier preacceptance results. TASK-0120 keyword-search acceptance is recorded separately in [its validation record](validation/TASK-0120.md). This runbook is not a production acceptance record.
 
 ## Fixed boundaries
 
@@ -12,6 +12,14 @@ TASK-0119 is locally validated; [the evidence record](validation/TASK-0119.md) d
 - Prototype mode is an explicit closed opt-in. It does not accept arbitrary upstream endpoints and has no fallback to the offline fixture or a remote backend.
 - The seed contains exactly 1000 deterministic synthetic listings. Exactly 900 expose an authored synthetic vehicle description; every tenth listing deliberately exposes `description.status = "unavailable"`.
 - Browser state uses the prototype-only keys `auto-world.prototype.favorites.v1`, `auto-world.prototype.saved-searches.v1` and `auto-world.prototype.saved-comparisons.v1`. It does not overwrite the offline preview's `auto-world.demo.*` keys. Browser storage is not server-side account persistence.
+
+## Search words and local criteria
+
+The existing « Recherche par mots » field matches whole words in current fictitious make/model labels, for example `alpha`. All words must match; case, accents, punctuation, word order and repetitions do not matter. It is not natural-language interpretation, a real-world catalog, alias/fuzzy matching or a search of historical descriptions. Combine words with the existing budget, mileage, make/model/year and sort controls, then explicitly select « Rechercher ».
+
+Blank text keeps the V2 search path. Nonempty text uses the strict V3 search route with the same V2 result/provenance data. No SQL, index or seed migration is required. Invalid input stays editable; an unmatched word returns no results, never a broader search. Word searches do not include records whose current authored description is unavailable.
+
+Saved searches and shared links retain accepted words, not later draft changes or frozen results. Loading them only fills the form; submit explicitly to search the current catalog. Existing saved searches and V1 links remain readable. A successful saved-search mutation writes envelope2 in the existing mode-specific key; merely opening the app does not migrate bytes. Older code preserves that newer format read-only. Do not delete local data to roll back.
 
 ## Start and seed a distinct project
 
