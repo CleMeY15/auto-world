@@ -1,5 +1,13 @@
 # TASK-0005 M3B — scanner retention bootstrap
 
+Current checkpoint, 2026-11-09: [PR238's implementation is accepted on protected
+main](https://github.com/CleMeY15/auto-world/pull/238#issuecomment-6753219249).
+The sole actual bootstrap run42712603501 remains **FAILED** after confirmed
+publication/readback and successful cleanup. The existing harmless package is
+now Private. [The separate read-proof recovery](TASK-0005-scanner-retention-read.md)
+preserves that failure and forbids a second write. Older pending notes below
+describe the implementation's pre-delivery checkpoint.
+
 Status on 2026-11-09: `LOCAL_VALIDATION_PASS / FINAL_SOURCE_CI_PENDING`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`; no admission or support activation.
 

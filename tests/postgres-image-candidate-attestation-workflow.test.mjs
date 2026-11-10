@@ -114,6 +114,7 @@ test("the complete package-read inventory contains only reviewed manual main job
     ["postgres-candidate-remote-audit.yml", "audit", 1], ["postgres-candidate-remote-read-v2.yml", "read", 1],
     ["postgres-candidate-remote-read.yml", "read", 1], ["postgres-candidate-remote-runtime-diagnostic-v2.yml", "runtime", 1],
     ["postgres-package-bootstrap.yml", "verify", 2], ["private-package-proof.yml", "verify", null],
+    ["scanner-retention-package-read.yml", "read-proof", 1],
     ["seaweed-candidate-remote-audit.yml", "audit", 1], ["seaweed-candidate-remote-runtime.yml", "runtime", 3],
     ["seaweed-package-bootstrap.yml", "verify", 2],
   ];

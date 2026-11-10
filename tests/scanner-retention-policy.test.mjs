@@ -16,7 +16,12 @@ test("retention policy rejects substitutions and cannot grant authority through 
   }
   assert.throws(() => { SCANNER_RETENTION.claims.admitted = true; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.observations.bootstrapSubject = "chosen"; }, TypeError);
-  assert.ok(Object.values(SCANNER_RETENTION.observations).every((value) => value === null));
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(SCANNER_RETENTION.observations).filter(([, value]) => value === null)),
+    { anonymousRead: null, authorizedRead: null, publisher: null, localCopy: null, localRestore: null },
+  );
+  assert.throws(() => { SCANNER_RETENTION.readProof.packageSettings.visibility = "Private"; }, TypeError);
+  assert.throws(() => { SCANNER_RETENTION.readProof.bootstrapOutcome.cleanup = "FAILED"; }, TypeError);
   assert.equal(SCANNER_RETENTION.claims.forkAccessTest, "SKIPPED_BY_USER");
   assert.equal(SCANNER_RETENTION.claims.forkIsolation, "NOT_VERIFIED");
   for (const key of ["retained", "restored", "admitted", "scannerExecuted"]) assert.equal(SCANNER_RETENTION.claims[key], false);
@@ -95,6 +100,79 @@ test("bootstrap is the fixed harmless two-file context with bounded resource pro
   assert.equal(bootstrap.contextCapBytes, 4096);
   assert.equal(bootstrap.registryCapBytes, 4194304);
   assert.equal(bootstrap.receiptCapBytes, 65536);
+});
+
+test("read proof fixes the reviewed bootstrap, outcome and package settings tuple", () => {
+  const readProof = SCANNER_RETENTION.readProof;
+  assert.equal(readProof.workflow, ".github/workflows/scanner-retention-package-read.yml");
+  assert.equal(readProof.job, "read-proof");
+  assert.equal(readProof.platform, "linux/amd64");
+  assert.equal(readProof.payloadPath, "/bootstrap.txt");
+  assert.equal(readProof.registryCapBytes, SCANNER_RETENTION.bootstrap.registryCapBytes);
+  assert.equal(readProof.receiptCapBytes, 65536);
+  assert.equal(readProof.operationTimeoutMs, 240_000);
+  assert.equal(readProof.cleanupTimeoutMs, 60_000);
+  assert.equal(readProof.receiptReserveMs, 10_000);
+  assert.equal(readProof.operationTimeoutMs + readProof.cleanupTimeoutMs + readProof.receiptReserveMs, 310_000);
+  assert.deepEqual(Object.keys(readProof.bootstrap), [
+    "runId", "runAttempt", "headSha", "headTree", "artifactId", "artifactName", "artifactDigest",
+    "receiptBytes", "receiptSha256", "tag", "subject", "manifestDigest", "manifestBytes",
+    "childManifestDigest", "childManifestBytes", "configBytes", "layerBytes",
+  ]);
+  assert.deepEqual(readProof.bootstrap, {
+    runId: "42712603501",
+    runAttempt: 1,
+    headSha: "ff9edab3fb94417e216bdd70d93846ad32024ec8",
+    headTree: "2ecf1c4c2f258376f2d59bcc3b8eb3f81674f032",
+    artifactId: 13717120609,
+    artifactName: "scanner-retention-bootstrap-42712603501-1",
+    artifactDigest: "sha256:ecefba4de8786320599da58450a79347d1e224a2416297a2ae2e7bac474cbc33",
+    receiptBytes: 2665,
+    receiptSha256: "d80c35dec4b7938fdb57b1c3028f850431c0fc54768ff4f40b3a4218fed96e03",
+    tag: "ghcr.io/clemey15/auto-world-scanner-closure:bootstrap-v1-run-42712603501",
+    subject: "ghcr.io/clemey15/auto-world-scanner-closure@sha256:4d3bbf4b6b397254a470193dadd6265989379a472e0508adb05ede68dca4786f",
+    manifestDigest: "sha256:4d3bbf4b6b397254a470193dadd6265989379a472e0508adb05ede68dca4786f",
+    manifestBytes: 524,
+    childManifestDigest: null,
+    childManifestBytes: null,
+    configBytes: 1037,
+    layerBytes: 145,
+  });
+  assert.deepEqual(readProof.bootstrapOutcome, {
+    runConclusion: "failure",
+    receiptResult: "FAILED",
+    publication: "PUBLISHED_UNADMITTED",
+    authenticatedReadback: "PASSED",
+    cleanup: "PASSED",
+    failedPhase: "no_local_image_retained",
+  });
+  assert.deepEqual(Object.keys(readProof.packageSettings), [
+    "packageId", "visibility", "repository", "inheritance", "actionsGrant", "proofSha256",
+  ]);
+  assert.deepEqual(readProof.packageSettings, {
+    packageId: 16732127,
+    visibility: "Private",
+    repository: "CleMeY15/auto-world",
+    inheritance: true,
+    actionsGrant: "ADMIN",
+    proofSha256: "799071c5ed9453d11bf2a7df2195c584fbdd6cd8e46f54aabceee54b97493a84",
+  });
+  assert.deepEqual(SCANNER_RETENTION.observations, {
+    bootstrapSubject: readProof.bootstrap.subject,
+    packageId: readProof.packageSettings.packageId,
+    packageVisibility: readProof.packageSettings.visibility,
+    packageConfiguration: {
+      repository: readProof.packageSettings.repository,
+      inheritance: readProof.packageSettings.inheritance,
+      actionsGrant: readProof.packageSettings.actionsGrant,
+      proofSha256: readProof.packageSettings.proofSha256,
+    },
+    anonymousRead: null,
+    authorizedRead: null,
+    publisher: null,
+    localCopy: null,
+    localRestore: null,
+  });
 });
 
 test("canonical receipts retain field order, exact UTF-8 and one LF and refuse lossy values", () => {

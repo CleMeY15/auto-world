@@ -1,5 +1,6 @@
 import "./guard.mjs";
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import { setImmediate as nextTurn } from "node:timers";
 import { parseSourceRegistry } from "@auto-world/source-registry";
 import { parseSourceId } from "@auto-world/vehicle-schema";
@@ -109,21 +110,25 @@ export function fakeTime(initial = NOW) {
     }
     current = target;
   }
-  async function drive(promise, { autoAdvance = true } = {}) {
+  async function drive(promise, { autoAdvance = true, timeoutMs = 10_000 } = {}) {
+    assert.ok(Number.isInteger(timeoutMs) && timeoutMs >= 1 && timeoutMs <= 10_000,
+      "invalid fixture driver timeout");
+    const deadline = performance.now() + timeoutMs;
     let settled = false;
     let value;
     let error;
     promise.then((result) => { settled = true; value = result; },
       (reason) => { settled = true; error = reason; });
-    // Event-loop yields let native WebCrypto finish; this is not a wall-clock sleep.
-    for (let turn = 0; turn < 20000 && !settled; turn += 1) {
+    // Native WebCrypto can remain pending across many fast event-loop turns.
+    // Bound the real wait independently of the virtual clock and timer cadence.
+    for (let turn = 0; !settled && performance.now() < deadline; turn += 1) {
       await new Promise(nextTurn);
       if (!settled && autoAdvance && turn % 20 === 19 && timers.size) {
         const next = Math.min(...[...timers.values()].map((timer) => timer.at));
         advance(next - current);
       }
     }
-    assert.ok(settled, "synthetic run did not settle within bounded event-loop turns");
+    assert.ok(settled, "synthetic run did not settle within the fixture driver timeout");
     if (error) throw error;
     return value;
   }
