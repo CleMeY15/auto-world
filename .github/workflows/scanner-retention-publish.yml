@@ -36,6 +36,12 @@
           }
         },
         {
+          "name": "Provision the exact qualified Buildx binary without creating a builder",
+          "timeout-minutes": 5,
+          "shell": "bash",
+          "run": "bash scripts/scanner/retention-setup-buildx.sh"
+        },
+        {
           "name": "Reconstruct official provenance without executing Trivy",
           "id": "provenance",
           "timeout-minutes": 10,

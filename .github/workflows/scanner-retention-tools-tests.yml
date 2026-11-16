@@ -1,0 +1,70 @@
+{
+  "name": "Scanner retention publisher tool tests",
+  "on": {
+    "pull_request": {
+      "paths": [
+        ".github/workflows/scanner-retention-tools-tests.yml",
+        ".github/workflows/scanner-retention-publish.yml",
+        "scripts/scanner/retention-*.mjs",
+        "scripts/scanner/retention-setup-buildx.sh",
+        "infra/scanner/retention.json",
+        "tests/scanner-retention-*.test.mjs"
+      ]
+    },
+    "push": {
+      "branches": [
+        "main"
+      ],
+      "paths": [
+        ".github/workflows/scanner-retention-tools-tests.yml",
+        ".github/workflows/scanner-retention-publish.yml",
+        "scripts/scanner/retention-*.mjs",
+        "scripts/scanner/retention-setup-buildx.sh",
+        "infra/scanner/retention.json",
+        "tests/scanner-retention-*.test.mjs"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "scanner-retention-tools-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "buildx-discovery": {
+      "name": "Verify qualified Buildx in the publisher environment",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "steps": [
+        {
+          "name": "Check out source without persistent credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Provision exact managed Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {
+            "node-version": "22.23.4",
+            "package-manager-cache": false,
+            "cache": ""
+          }
+        },
+        {
+          "name": "Exercise installer context refusals",
+          "shell": "bash",
+          "run": "node --test tests/scanner-retention-setup-buildx.test.mjs"
+        },
+        {
+          "name": "Install and probe without registry authority or builder creation",
+          "shell": "bash",
+          "run": "set -euo pipefail\nnode --input-type=module <<'NODE'\nimport assert from \"node:assert/strict\";\nimport { spawnSync } from \"node:child_process\";\nimport { mkdirSync, mkdtempSync, rmSync } from \"node:fs\";\nimport path from \"node:path\";\nimport { scannerRetentionPublisherChildEnvironment } from \"./scripts/scanner/retention-publish.mjs\";\n\nassert.equal(process.platform, \"linux\");\nassert.equal(process.versions.node, \"22.23.4\");\nassert.equal(process.env.RUNNER_TEMP, \"/home/runner/work/_temp\");\nconst work = mkdtempSync(path.join(process.env.RUNNER_TEMP, \"scanner-retention-tools-probe-\"));\nconst config = path.join(work, \"docker\");\nmkdirSync(config, { mode: 0o700 });\nconst context = { workspace: process.cwd(), runnerTemp: process.env.RUNNER_TEMP, path: process.env.PATH };\nconst env = scannerRetentionPublisherChildEnvironment(context, config, work);\nconst run = (command, args, options = {}) => {\n  const result = spawnSync(command, args, { env, encoding: \"utf8\", timeout: 30_000,\n    maxBuffer: 1024 * 1024, ...options });\n  assert.equal(result.error, undefined, result.error?.message);\n  assert.equal(result.signal, null);\n  assert.equal(result.status, 0, result.stderr);\n  return result.stdout.trim();\n};\nconst inventory = () => Object.fromEntries([\"image\", \"container\"].map((kind) =>\n  [kind, run(\"docker\", [kind, \"ls\", \"--all\", \"--quiet\", \"--no-trunc\"]).split(\"\\n\").filter(Boolean).sort()]));\ntry {\n  const before = inventory();\n  const setupEnv = Object.fromEntries([\"GITHUB_ACTIONS\", \"RUNNER_ENVIRONMENT\", \"RUNNER_OS\",\n    \"RUNNER_TEMP\", \"GITHUB_REPOSITORY\"].map((key) => [key, process.env[key]]));\n  console.log(run(\"/bin/bash\", [\"scripts/scanner/retention-setup-buildx.sh\"],\n    { env: setupEnv, timeout: 240_000 }));\n  const expected = \"github.com/docker/buildx v0.38.1 0dbe87f36ed472fe36b6796c3f70b4210a731fc5\";\n  const actual = run(\"docker\", [\"buildx\", \"version\"]);\n  assert.equal(actual, expected);\n  console.log(actual);\n  const go = run(\"go\", [\"version\"]);\n  assert.equal(go, \"go version go1.24.13 linux/amd64\");\n  console.log(go);\n  console.log(run(\"docker\", [\"version\", \"--format\", \"{{json .}}\"]));\n  assert.deepEqual(inventory(), before);\n  console.log(\"Buildx discovery PASS; image and container inventories unchanged; no builder created.\");\n} finally {\n  rmSync(work, { recursive: true });\n}\nNODE"
+        }
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # TASK-0005 M3B — scanner archive publication and local byte restoration
 
-Status on 16 November 2026: `SOURCE_REVIEWED / NATIVE_CI_PENDING`.
+Status on 16 November 2026: `NATIVE_CI_VERIFIED / PUBLISHER_TOOL_PREPARATION`.
 TASK-0005/0005A remain `IN_PROGRESS`. No actual scanner archive publication,
 second copy or restoration is claimed by this implementation checkpoint.
 
@@ -160,6 +160,62 @@ Before consuming the single publisher dispatch, compare fresh managed-job tool
 observations with the fixed qualification: the publisher requires Go1.24.13
 and exact Docker/Buildx observations. Hosted-runner drift must be resolved and
 reviewed before dispatch, not by rerunning a consumed first attempt.
+
+## 16 November — actual Windows CI and hosted-tool drift
+
+The [Windows run43915611898](https://github.com/CleMeY15/auto-world/actions/runs/43915611898),
+attempt1/job133468781379, passed all10 tests with zero failures or exclusions.
+Independent review of its original API responses and log returned **APPROVE**.
+Source83585cddc2b4a8549fbdac137ca49f8329c8ebca and its merge checkout
+8c43decd9a939ce2cb26b7347d2d4ecdb8569334 share tree
+f0103aefc629cf8731be8f1bd387f15536886a27; the other parent is the expected
+protected main cc8ea880. The runner was Windows Server2025/image20261103.298.1,
+with PowerShell7.6.9 and Node22.23.2. Every step succeeded. The original log is
+22844bytes/SHA256`d6b518603b35442bbc753b4de16967c8d2e6c6252a8de89d1670073d16969155`.
+The seven native cases compiled the actual helper and exercised the NTFS
+copy/restore fixtures, including legitimate empty provenance outputs.
+This accepts the fixture execution, not a real NexusLite archive copy.
+
+The user clarified that SSH currently connects NexusLite to the VPS only;
+there is no reverse access. A local NexusLite execution will therefore be
+needed unless remote access becomes available. No new SSH server was installed.
+
+Independent pre-dispatch inspection of the original artifact14248574952 from
+[cancelled run43913864964](https://github.com/CleMeY15/auto-world/actions/runs/43913864964)
+found a real tool mismatch. The run's whole diagnostic is not accepted; its
+tool-recording and upload steps succeeded, and its518618-byte ZIP has API-bound
+SHA256`04ca6fff3d8ed8d13b02b0979c6f762cccae8ec8a91f5413ad82df9aa6347651`.
+Go1.24.13 and the full Docker28.0.4 JSON match PR237 exactly. Buildx changed from
+v0.38.1/0dbe87f36ed472fe36b6796c3f70b4210a731fc5 to
+v0.38.2/3c4cbd35852fc1a476923627a780a7836c28b654 on
+ubuntu24/20261111.370. The unchanged publisher correctly refuses that mismatch.
+
+Preparation now pins the already qualified official Buildx0.38.1 binary on the
+disposable runner, without creating a builder or changing the strict publisher
+comparison. The [official release](https://github.com/docker/buildx/releases/tag/v0.38.1)
+API asset660618355 and its checksums agree on68366498bytes/SHA256
+`e25d5cd675092bb5d1d03632fdc46cdf3fede7b514dc5f023a105e00d3ce5ad4`.
+Downloaded bytes were verified without execution on the VPS. Docker's
+[documented system plugin search](https://github.com/docker/cli/blob/v28.0.4/cli-plugins/manager/manager_unix.go)
+supports discovery even with the publisher's fresh HOME/DOCKER_CONFIG.
+An independent source review and actual read-only hosted probe are required
+before this preparation is accepted. No publisher dispatch has been consumed.
+
+The preparation uses one CI-only installer in both workflows. It refuses local
+or self-hosted contexts and existing destinations, authenticates the bounded
+download, rechecks the root-owned staged copy, then uses an exclusive hard link
+to install it. The probe imports the real publisher child-environment factory,
+uses fresh HOME/config directories and compares the before/after Docker image
+and container inventories. It has no package/OIDC permission. The unchanged
+publisher still compares its actual Docker/Buildx observations to PR237.
+All86 portable retention tests pass, with seven explicit Windows exclusions;
+Bash syntax, focused ESLint and whitespace checks pass. Native Windows success
+above remains bound to83585cdd; the new preparation requires fresh branch/main CI.
+The independent setup source/security review returned **APPROVE**, reproduced
+15 focused passes without exclusions and independently rehashed the downloaded
+binary against the official API/checksum. No production publisher JS, policy,
+shared primitive or admission execution pin changed. The probe logs the actual
+Docker JSON; comparing that original with PR237 before dispatch remains required.
 
 ## Authority and scope
 
