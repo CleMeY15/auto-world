@@ -133,6 +133,13 @@ export function scannerRetentionLinuxCreateArguments(name, subject) {
     SCANNER_RETENTION.publisher.contextPayloadPath];
 }
 
+export function scannerRetentionLinuxImageAbsent(result) {
+  if (result.error || result.signal || !Buffer.isBuffer(result.stdout) || !Buffer.isBuffer(result.stderr)) fail("image_inspect_failed");
+  if (result.status === 0) return false;
+  if (result.status === 1 && /no such (?:image|object)/iu.test(result.stderr.toString("utf8"))) return true;
+  fail("image_inspect_failed");
+}
+
 export function scannerRetentionLinuxCopyPlan(envelopeBytes, observation = SCANNER_RETENTION.observations.publisher) {
   const parsed = parseEnvelope(envelopeBytes, observation);
   return Object.freeze({ subject: parsed.subject, innerTar: parsed.receipt.innerTar,
@@ -151,7 +158,7 @@ export function runScannerRetentionLinuxCopy(envelopeBytes = readBoundedStdin())
     let versions; try { versions = JSON.parse(version.stdout.toString("utf8")); } catch { fail("docker_version"); }
     if (versions?.Client?.Version !== "28.0.4" || versions?.Server?.Version !== "28.0.4") fail("docker_version");
     const before = command(["image", "inspect", parsed.subject], { env: environment, accept: [0, 1] });
-    if (before.status === 0) fail("preexisting_image");
+    if (!scannerRetentionLinuxImageAbsent(before)) fail("preexisting_image");
     command(["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
       { input: Buffer.from(`${parsed.token}\n`, "utf8"), env: environment });
     command(["pull", "--platform", "linux/amd64", parsed.subject], { env: environment, cap: 4 * 1024 ** 2 }); pulled = true;

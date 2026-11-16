@@ -12,7 +12,7 @@ import { TEST_ONLY_verifyScannerRetentionQualificationApi, TEST_ONLY_parseScanne
   from "../scripts/scanner/retention-publish.mjs";
 import { authenticateScannerRetentionPublisherArtifact, runScannerRetentionCopy,
   validateScannerRetentionCopyRoot } from "../scripts/scanner/retention-copy.mjs";
-import { scannerRetentionLinuxCreateArguments } from "../scripts/scanner/retention-copy-linux.mjs";
+import { scannerRetentionLinuxCreateArguments, scannerRetentionLinuxImageAbsent } from "../scripts/scanner/retention-copy-linux.mjs";
 
 const q = P.qualification;
 const now = () => Date.parse("2026-11-16T12:00:00Z");
@@ -245,4 +245,16 @@ test("scratch archive copy has an explicit inert command and never pulls a fallb
   assert.throws(() => scannerRetentionLinuxCreateArguments("foreign", subject), /container_identity/u);
   assert.throws(() => scannerRetentionLinuxCreateArguments("aw-scanner-retention-copy-0123456789abcdef",
     `${P.package}:latest`), /container_identity/u);
+});
+
+test("Linux copy refuses ambiguous image inspection before login, pull and cleanup", () => {
+  const absent = { status: 1, signal: null, stdout: Buffer.from("[]\n"),
+    stderr: Buffer.from("Error response from daemon: No such image: ghcr.io/example@sha256:abc\n") };
+  assert.equal(scannerRetentionLinuxImageAbsent(absent), true);
+  assert.equal(scannerRetentionLinuxImageAbsent({ ...absent, status: 0 }), false);
+  for (const changed of [{ ...absent, stderr: Buffer.from("Cannot connect to the Docker daemon") },
+    { ...absent, signal: "SIGTERM" }, { ...absent, error: new Error("failure") },
+    { ...absent, status: 2 }, { ...absent, stderr: "not a byte buffer" }]) {
+    assert.throws(() => scannerRetentionLinuxImageAbsent(changed), /scanner_retention_copy_linux_image_inspect_failed/u);
+  }
 });

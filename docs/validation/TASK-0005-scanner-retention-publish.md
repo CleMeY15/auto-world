@@ -118,6 +118,24 @@ transport and owned reader completed successfully:689 entries fully verified,
 lazy scanner-profile path; it is not a new qualification scan or archive publication.
 Fresh corrected-source reviews and branch/main CI remain required.
 
+The independent generation6 review on`f86d45bd` returned **APPROVE** for source
+only after rehashing all74 files, reproducing the historical locator binding,
+checking the exact gen5 fixture and running10 tests without exclusions. No
+native installation, archive migration or admission was approved.
+
+The independent publisher re-review on`f86d45bd` also returned **APPROVE** for
+its source scope, including the workflow/policy and three shared primitives.
+All six prior publisher findings were verified corrected;85 pure tests passed
+without exclusions. This does not establish actual private publication/readback.
+
+The independent restore re-review on the same revision confirmed the three
+previous fixes but returned **REQUEST_CHANGES** for the Linux copy's own image
+inspection: status1 alone could mean a daemon failure, not absence. That caller
+now requires explicit `No such image/object` output before login/pull; errors,
+signals and other statuses refuse before any image acquisition. A regression
+covers absence, an existing image and ambiguous daemon/error/signal results.
+This correction does not change the generation6 execution pins or native helper.
+
 ## Authority and scope
 
 The [private read prerequisite](TASK-0005-scanner-retention-read.md) is accepted
