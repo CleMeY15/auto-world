@@ -2,6 +2,17 @@
 
 This repository is orchestrated from `ROADMAP.md`. Codex must treat this file as the execution contract.
 
+## Development operating mode — full Codex
+
+After `ROADMAP.md`, read [the current handoff](roadmap/CURRENT.md) and [the development workflow](docs/DEVELOPMENT_WORKFLOW.md). The handoff is a dated evidence index, not a replacement for task contracts or accepted delivery checkpoints. Reconcile stale or conflicting state before selecting work.
+
+- Use **Codex exclusively** for coordination, implementation, research and independent review until the user changes this preference. Do not silently fall back to another provider or install one.
+- Keep one accountable owner per task and one admissible task per independent lane. A small task can combine coordination and implementation; its required independent review uses a distinct Codex context.
+- Reuse the [task brief](roadmap/templates/TASK.md) and [validation record](docs/validation/TEMPLATE.md), linking existing criteria instead of duplicating them. Record actual model/effort, scope, dependencies, checks and resources before execution.
+- Use targeted checks and early visual inspection during iteration, then all applicable final gates. Freeze the validation revision, serialize quality commands within each checkout, and keep reviewers read-only there.
+- After two attempts at the same failure without new evidence, change the diagnostic hypothesis before retrying. Continue authorized reversible work autonomously; ask only for a material unresolved decision, new authority or indispensable input.
+- Maintain [the pilot](roadmap/pilots/FULL_CODEX.md) without inventing costs or claiming unmeasured savings. These rules never weaken the Definition of Done or ADR-0028.
+
 ## Mission
 Build a global, mobile-first automotive search platform aggregating permitted/contracted vehicle listings, normalizing them into one canonical vehicle model, deduplicating identical vehicles, adding price/history/import intelligence, and exposing search through web, mobile and AI interfaces.
 

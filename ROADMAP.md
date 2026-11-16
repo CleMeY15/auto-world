@@ -1,5 +1,13 @@
 # ROADMAP MASTER — Auto World Search
 
+## Point d'entrée courant — 16 novembre 2026
+
+Lire [CURRENT](roadmap/CURRENT.md) pour la passation courte, ses sources et la prochaine action. Les checkpoints datés ci-dessous conservent leur état historique ; leurs intitulés « courant » ne remplacent pas un checkpoint final accepté plus récent.
+
+TASK-0124 est `DONE_FOR_V1_PROTOTYPE` selon le [checkpoint final PR235](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896), vérifié le 16 novembre : main `f554c475b6748fb1b53281985588fab287c811ed`. Ce constat ne valide pas les révisions ultérieures du dépôt.
+
+À la demande de l'utilisateur, [TASK-0125 — fonctionnement full Codex](roadmap/tasks/TASK-0125-full-codex-workflow.md) installe le mode opératoire et prépare un pilote de six tâches produit admissibles. C'est une tâche de processus distincte, sans nouveau parcours produit, fournisseur, service ou modification des gates. Sa propre livraison reste à vérifier. Les voies VPS et TASK-0005 gardent leurs propriétaires et leurs validations séparées.
+
 ## Checkpoint courant — TASK-0123, 9 novembre 2026
 
 TASK-0122 est `DONE_FOR_V1_PROTOTYPE` sur main `43d3943dced0dc249fba0df49c5749426912e080`, par [PR233 et son checkpoint accepté](https://github.com/CleMeY15/auto-world/pull/233#issuecomment-6740879403). Les quatre validations source/main passent :608 tests navigateur réussis,10 exclusions préexistantes,10 phases persistantes sur deux moteurs ; revue finale indépendante PASS. Les états pending plus anciens sont historiques.
