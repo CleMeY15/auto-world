@@ -165,7 +165,10 @@ cleanup pass; scanner, two builders and five produced images report zero
 findings/blockers. OpenSearch passes1688/1736 with48 explicitly allowed
 exclusions (47 REST API cases and one YAML depth-limit case); gRPC passes1427.
 SeaweedFS passes14218 with148 reviewed exclusions and all three supplemental
-cases; the two Rust suites pass all498 and590 tests respectively.
+cases. The Rust source Cargo.lock inventories cover 498 packages for the volume
+role and 590 for the worker role; both dependency audits report zero findings
+and blockers. Binary inventory, source-to-binary equivalence and signer trust
+remain unestablished.
 The original archive14274114356 is5113482bytes,689 members, SHA256
 587624c0628bc17219fde832e8cbcdd3a6462b3a872b98aad9de680702ab3fa4.
 The715-file evidence manifest verifies without divergence; review SHA256
