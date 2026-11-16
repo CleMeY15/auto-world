@@ -8,6 +8,7 @@ export default defineConfig({
   workers: 1,
   metadata: { demoDisabledBaseURL: "http://127.0.0.1:3110" },
   retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: Boolean(process.env.CI),
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:3107",

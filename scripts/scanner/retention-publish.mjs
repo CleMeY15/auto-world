@@ -31,6 +31,8 @@ import { parseBuildKitVersions } from "../package-bootstrap/prepare.mjs";
 import { streamGitHubArtifactZip } from "../seaweed-image/download-artifact-zip.mjs";
 import { scanRawUstar } from "../seaweed-image/archive.mjs";
 import { githubArtifactZipProfiles, scanOwnedGitHubArtifactZip } from "../seaweed-image/read-artifact-zip.mjs";
+import { validateScannerRetentionPublisherTools, validateScannerRetentionQualificationTools }
+  from "./retention-tool-identity.mjs";
 import {
   SCANNER_RETENTION,
   canonicalJsonBytes,
@@ -455,9 +457,57 @@ function parseDockerManifest(raw) {
 
 export const TEST_ONLY_parseScannerRetentionPublisherManifest = parseDockerManifest;
 
+function validatePublisherCurrentTools(state, context, commandRunner, options, checkpoint, log) {
+  validateScannerRetentionQualificationTools(readFileSync(
+    path.join(state.stage, "scanner-closure/qualification/runner-tools.txt"),
+  ));
+  const identity = validateScannerRetentionPublisherTools({
+    docker: publishRun(commandRunner, context, "docker", ["version", "--format", "{{json .}}"], options()).stdout,
+    buildx: publishRun(commandRunner, context, "docker", ["buildx", "version"], options()).stdout,
+    go: publishRun(commandRunner, context, "go", ["version"], options()).stdout,
+  });
+  log(`${JSON.stringify({ event: "scanner_retention_publish_tools", checkpoint, ...identity })}\n`);
+  return identity;
+}
+
+function publishOciCandidate(state, context, commandRunner, options, log) {
+  const contextRoot = path.join(state.work, "oci-context"); mkdirSync(contextRoot, { mode: 0o700 });
+  writeExclusive(path.join(contextRoot, "Dockerfile"), Buffer.from("FROM scratch\nCOPY scanner-closure.tar /closure/scanner-closure.tar\n", "utf8"));
+  writeExclusive(path.join(contextRoot, "scanner-closure.tar"), readFileSync(state.archive));
+  const initialTools = validatePublisherCurrentTools(state, context, commandRunner, options, "before_login", log);
+  publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
+    { ...options(), input: `${context.token}\n` });
+  state.builderBaseline = publishDockerInventory(commandRunner, context, options());
+  const builder = `aw-scanner-retention-${context.runId}`;
+  publishRun(commandRunner, context, "docker", ["buildx", "create", "--name", builder,
+    "--driver", "docker-container", "--use"], options());
+  state.builder = builder;
+  state.builderAcquired = true;
+  const builderInspection = publishRun(commandRunner, context, "docker", ["buildx", "inspect", "--bootstrap", state.builder], options()).stdout;
+  state.buildKitBackendVersions = parseBuildKitVersions(builderInspection);
+  if (!Array.isArray(state.buildKitBackendVersions) || state.buildKitBackendVersions.length < 1) {
+    fail("scanner_retention_publish_tool_identity_invalid");
+  }
+  const beforePush = validatePublisherCurrentTools(state, context, commandRunner, options, "before_push", log);
+  if (JSON.stringify(beforePush) !== JSON.stringify(initialTools)) {
+    fail("scanner_retention_publish_tool_identity_changed");
+  }
+  publishRun(commandRunner, context, "docker", ["buildx", "build", "--builder", state.builder,
+    "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "--pull=false",
+    "--no-cache", "--output", `type=registry,name=${state.tag},push=true`, contextRoot], options());
+  const raw = publishRun(commandRunner, context, "docker", ["buildx", "imagetools", "inspect", "--raw", state.tag], options()).stdout;
+  state.manifest = parseDockerManifest(raw); state.subject = `${SCANNER_RETENTION.package}@${state.manifest.digest}`;
+  return { values: { ghcrManifestDigest: state.manifest.digest, oci: { manifest: {
+    mediaType: state.manifest.mediaType, bytes: state.manifest.bytes.length, sha256: sha256(state.manifest.bytes) },
+    config: state.manifest.config, layer: state.manifest.layer, readback: null } } };
+}
+
+export const TEST_ONLY_publishScannerRetentionCandidate = publishOciCandidate;
+
 function createProductionPublisherRunner(parsed, {
   commandRunner = defaultCommandRunner, fetchImpl = globalThis.fetch, now = Date.now,
   download = streamGitHubArtifactZip, scan = scanOwnedGitHubArtifactZip, statfs = statfsSync,
+  log = (record) => process.stdout.write(record),
 } = {}) {
   const state = { parsed, commandRunner, fetchImpl, now, download, scan };
   const phase = async (name, { context }) => {
@@ -611,39 +661,7 @@ function createProductionPublisherRunner(parsed, {
       state.tag = `${SCANNER_RETENTION.package}:${SCANNER_RETENTION.publisher.tagPrefix}${state.innerTar.sha256}`;
       return { values: { innerTar: state.innerTar, tag: state.tag } };
     }
-    if (name === "oci_candidate_push") {
-      const contextRoot = path.join(state.work, "oci-context"); mkdirSync(contextRoot, { mode: 0o700 });
-      writeExclusive(path.join(contextRoot, "Dockerfile"), Buffer.from("FROM scratch\nCOPY scanner-closure.tar /closure/scanner-closure.tar\n", "utf8"));
-      writeExclusive(path.join(contextRoot, "scanner-closure.tar"), readFileSync(state.archive));
-      publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
-        { ...options(), input: `${context.token}\n` });
-      const qualifiedTools = readFileSync(path.join(state.stage, "scanner-closure/qualification/runner-tools.txt"), "utf8");
-      const dockerIdentity = publishRun(commandRunner, context, "docker", ["version", "--format", "{{json .}}"], options()).stdout.trim();
-      const buildxIdentity = boundedIdentity(publishRun(commandRunner, context, "docker", ["buildx", "version"], options()).stdout,
-        "scanner_retention_publish_tool_identity_invalid");
-      if (dockerIdentity.length < 1 || dockerIdentity.length > 65536 || /[\r\n\0]/u.test(dockerIdentity)
-        || !qualifiedTools.split(/\r?\n/u).includes(dockerIdentity)
-        || !qualifiedTools.split(/\r?\n/u).includes(buildxIdentity)) fail("scanner_retention_publish_tool_identity_invalid");
-      state.builderBaseline = publishDockerInventory(commandRunner, context, options());
-      const builder = `aw-scanner-retention-${context.runId}`;
-      publishRun(commandRunner, context, "docker", ["buildx", "create", "--name", builder,
-        "--driver", "docker-container", "--use"], options());
-      state.builder = builder;
-      state.builderAcquired = true;
-      const builderInspection = publishRun(commandRunner, context, "docker", ["buildx", "inspect", "--bootstrap", state.builder], options()).stdout;
-      state.buildKitBackendVersions = parseBuildKitVersions(builderInspection);
-      if (!Array.isArray(state.buildKitBackendVersions) || state.buildKitBackendVersions.length < 1) {
-        fail("scanner_retention_publish_tool_identity_invalid");
-      }
-      publishRun(commandRunner, context, "docker", ["buildx", "build", "--builder", state.builder,
-        "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "--pull=false",
-        "--no-cache", "--output", `type=registry,name=${state.tag},push=true`, contextRoot], options());
-      const raw = publishRun(commandRunner, context, "docker", ["buildx", "imagetools", "inspect", "--raw", state.tag], options()).stdout;
-      state.manifest = parseDockerManifest(raw); state.subject = `${SCANNER_RETENTION.package}@${state.manifest.digest}`;
-      return { values: { ghcrManifestDigest: state.manifest.digest, oci: { manifest: {
-        mediaType: state.manifest.mediaType, bytes: state.manifest.bytes.length, sha256: sha256(state.manifest.bytes) },
-        config: state.manifest.config, layer: state.manifest.layer, readback: null } } };
-    }
+    if (name === "oci_candidate_push") return publishOciCandidate(state, context, commandRunner, options, log);
     if (name === "owned_local_state_removed") {
       publishRun(commandRunner, context, "docker", ["buildx", "rm", state.builder], options());
       const builderAbsent = observe(commandRunner, "docker", ["buildx", "inspect", state.builder], {

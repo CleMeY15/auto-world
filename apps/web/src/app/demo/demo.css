@@ -185,4 +185,5 @@
   .demo-form-actions .aw-button { width: 100%; }
   .demo-comparison-controls .aw-button, .demo-comparison-remove .aw-button { width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .demo-main *, .demo-main *::before, .demo-main *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; } }
+/* Apply inherited text sizing immediately when motion is reduced. */
+@media (prefers-reduced-motion: reduce) { .demo-main *, .demo-main *::before, .demo-main *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }

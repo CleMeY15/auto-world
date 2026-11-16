@@ -43,8 +43,14 @@ test("Buildx probe and publisher use the same setup before publisher provenance"
   const probe = readWorkflow("scanner-retention-tools-tests.yml");
   assert.deepEqual(probe.permissions, { contents: "read" });
   assert.equal(probe.on.workflow_dispatch, undefined);
-  const body = probe.jobs["buildx-discovery"].steps.at(-1).run;
-  assert.match(body, /scannerRetentionPublisherChildEnvironment/u);
-  assert.match(body, /scripts\/scanner\/retention-setup-buildx\.sh/u);
-  assert.match(body, /assert\.deepEqual\(inventory\(\), before\)/u);
+  const steps = probe.jobs["buildx-discovery"].steps;
+  assert.equal(steps.at(-2).run, "bash scripts/scanner/retention-setup-buildx.sh");
+  assert.equal(steps.at(-1).run, "node scripts/scanner/retention-tools-probe.mjs");
+  assert.equal(probe.jobs["buildx-discovery"]["timeout-minutes"], 10);
+  for (const event of ["pull_request", "push"]) {
+    assert.ok(probe.on[event].paths.includes("infra/scanner/retention-publisher-tools.json"));
+  }
+  const module = readFileSync(new URL("../scripts/scanner/retention-tools-probe.mjs", import.meta.url), "utf8");
+  assert.match(module, /scannerRetentionPublisherChildEnvironment\(context, config, work\)/u);
+  assert.match(module, /validateScannerRetentionPublisherTools/u);
 });
