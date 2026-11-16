@@ -20,7 +20,7 @@ Par run : début/fin, code de sortie, nombres de tests, échecs, exclusions, ret
 
 ## Première présentation et reprises
 
-- Première proposition complète : heure, source et critères revendiqués, ou `not_yet_presented`.
+- Première proposition complète : heure et source avant la première revue, preuves des critères de réalisation locaux ; revue/gates de livraison attendus séparément, ou `not_yet_presented`. Une revue anticipée d'un travail incomplet reste étiquetée comme telle.
 - Défauts avant présentation : cause et réparation, sans les masquer dans la mesure.
 - Revue indépendante : contexte Codex, source, verdict, constatations et limites.
 - Cycles correctifs après présentation : cause (cadrage/code/test/environnement/preuve/demande), contrôles refaits et résultat.
