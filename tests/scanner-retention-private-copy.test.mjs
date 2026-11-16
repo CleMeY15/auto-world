@@ -10,7 +10,10 @@ const windows = process.platform === "win32";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = path.join(root, "scripts", "scanner", "retention-private-copy-windows.cs");
 const wrapper = path.join(root, "scripts", "scanner", "retention-private-copy-windows.ps1");
-const pwsh = "C:\\Users\\Administrator\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe";
+// Only the synthetic fixture host may vary in CI. Production retains its exact pinned host.
+const pwsh = process.env.AUTO_WORLD_TEST_PWSH
+  ?? "C:\\Users\\Administrator\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe";
+if (windows && !path.win32.isAbsolute(pwsh)) throw new Error("scanner_retention_test_host_invalid");
 const sidSystem = "S-1-5-18";
 
 const fixture = String.raw`param(

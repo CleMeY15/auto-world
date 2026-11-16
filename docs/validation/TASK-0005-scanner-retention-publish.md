@@ -1,6 +1,6 @@
 # TASK-0005 M3B — scanner archive publication and local byte restoration
 
-Status on 16 November 2026: `IMPLEMENTATION_AND_REVIEW_IN_PROGRESS`.
+Status on 16 November 2026: `SOURCE_REVIEWED / NATIVE_CI_PENDING`.
 TASK-0005/0005A remain `IN_PROGRESS`. No actual scanner archive publication,
 second copy or restoration is claimed by this implementation checkpoint.
 
@@ -135,6 +135,31 @@ now requires explicit `No such image/object` output before login/pull; errors,
 signals and other statuses refuse before any image acquisition. A regression
 covers absence, an existing image and ambiguous daemon/error/signal results.
 This correction does not change the generation6 execution pins or native helper.
+
+The independent delta review on`1f7f50aa` returned **APPROVE** for the correction
+and confirmed that the previously approved publisher, workflow, policy, shared
+primitives and generation6 files are unchanged. Its source tests passed26 cases,
+with seven native Windows exclusions. Combined targeted checks on this commit
+passed142 cases, with the same seven exclusions.
+
+To exercise those native cases before delivery, a dedicated `contents:read` CI
+job uses the documented [GitHub Windows2025 runner](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md)
+and Node22.23.2. Only the synthetic test harness accepts the runner's absolute
+PowerShell executable path. Production host/hash/path checks are unchanged.
+The job compiles and exercises the actual C# helper in newly owned temporary NTFS
+fixtures, including empty provenance files, collisions, ACL/identity checks and
+cleanup refusals. It has no package/OIDC authority and never invokes the real
+copy entrypoint, scanner, publisher, private archive or service lifecycle.
+Its independent source review returned **APPROVE**, including LF preservation
+before checkout and the fixture-only host override. The reviewer reproduced
+three portable passes/seven Windows exclusions, lint and whitespace checks.
+Acceptance requires the actual Windows run to pass all ten tests with no skips;
+it cannot replace the real fixed-host NexusLite copy/offline-restore proof.
+
+Before consuming the single publisher dispatch, compare fresh managed-job tool
+observations with the fixed qualification: the publisher requires Go1.24.13
+and exact Docker/Buildx observations. Hosted-runner drift must be resolved and
+reviewed before dispatch, not by rerunning a consumed first attempt.
 
 ## Authority and scope
 
