@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "kind": "POSTGRES_ADMISSION_INVENTORY_V1",
   "repository": "CleMeY15/auto-world",
-  "admissionGeneration": 5,
+  "admissionGeneration": 6,
   "generationRoot": {
     "schemaVersion": 1,
     "kind": "POSTGRES_ADMISSION_GENERATION_ROOT_V1",
-    "admissionGeneration": 5,
+    "admissionGeneration": 6,
     "image": {
       "subject": "ghcr.io/clemey15/auto-world-postgres-gosu@sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
       "manifestDigest": "sha256:0045bdab5483336d93550ccae8a2cfb359fc62d0fb4e5617837e08bbb99f8c93",
@@ -204,7 +204,7 @@
     "archiveLocator": {
       "schemaVersion": 1,
       "size": 448048,
-      "sha256": "7ea3950a9de95e46bd0e7b613e293e8abb5788fe03a258034e27b6e6b71b9b07"
+      "sha256": "5b3adcf8e8497bd1c6072ba4c1123bb568ae8e2747e4b469a262a6381d1c25fc"
     },
     "executionFiles": [
       {
@@ -414,8 +414,8 @@
       },
       {
         "path": "scripts/seaweed-image/archive.mjs",
-        "size": 15650,
-        "sha256": "26bfc47246469723ff496a3a527cb7c5f27020f1956b3d2ac42060cc8f65a466"
+        "size": 16131,
+        "sha256": "8649d9702a222fc75fc2e2c2298a7ca3898cd023ceb98160d0f47b685572ec6b"
       },
       {
         "path": "scripts/seaweed-image/backup-restore.mjs",
@@ -449,8 +449,8 @@
       },
       {
         "path": "scripts/seaweed-image/download-artifact-zip.mjs",
-        "size": 6663,
-        "sha256": "ebc304cb415565ecf226aa6c01bc29d47b333d6caed8d9a8f5f4753ce8b054aa"
+        "size": 9610,
+        "sha256": "3bd6b3121f842e5e7b690b166724e67fd840583e73897169a8d6462f92e1f41f"
       },
       {
         "path": "scripts/seaweed-image/download-source-zips.mjs",
@@ -504,8 +504,8 @@
       },
       {
         "path": "scripts/seaweed-image/read-artifact-zip.mjs",
-        "size": 24471,
-        "sha256": "d06d703079d5c8344f8ba18add5b3691b81d5718fa013b138de87a9bb04180fe"
+        "size": 30847,
+        "sha256": "f476a7ae6475a6c8d998b44759b083f756392399464f85d763ee34e96c575116"
       },
       {
         "path": "scripts/seaweed-image/registry-base.mjs",
@@ -611,13 +611,20 @@
       "authorityRevision": 1,
       "currentRevisionSha256": "5cda8a56b4df41c8bdc615753f436ff8025ab857678cc104f2a6579e3f841ca9",
       "state": "PENDING"
+    },
+    {
+      "admissionGeneration": 5,
+      "generationRootSha256": "3d89d49e344d58b03a7f82740fb58ea8bc437c7c08452ca83b39e5330784c282",
+      "authorityRevision": 1,
+      "currentRevisionSha256": "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a",
+      "state": "PENDING"
     }
   ],
   "authorityRevisions": [
     {
       "authorityRevision": 1,
       "previousRevisionSha256": null,
-      "generationRootSha256": "3d89d49e344d58b03a7f82740fb58ea8bc437c7c08452ca83b39e5330784c282",
+      "generationRootSha256": "695eb186f69faf1d4fb3fe653b5255c6d552b627fe1e123562310090eaf6e6d1",
       "state": "PENDING",
       "supportStartedAt": null,
       "supportEndsAt": null,
@@ -630,8 +637,8 @@
     }
   ],
   "revisionHashes": [
-    "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a"
+    "500ea501201afcb20c78c6e3bfaa1821b8408004c931e740fbc426274c27a5d0"
   ],
   "authorityRevision": 1,
-  "currentRevisionSha256": "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a"
+  "currentRevisionSha256": "500ea501201afcb20c78c6e3bfaa1821b8408004c931e740fbc426274c27a5d0"
 }

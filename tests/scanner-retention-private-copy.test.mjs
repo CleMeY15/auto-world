@@ -256,7 +256,7 @@ test("InspectRestore creates one derived empty directory then validates the exac
   const policy = JSON.parse(readFileSync(path.join(root, "infra", "scanner", "retention.json"), "utf8"));
   const paths = policy.closure.members.map((member) => member.path).filter((item) => item !== "scanner-closure/restore-manifest.json");
   const files = paths.map((item) => {
-    const content = Buffer.from(`fixture:${item}\n`, "utf8");
+    const content = item.endsWith(".stdout.txt") ? Buffer.alloc(0) : Buffer.from(`fixture:${item}\n`, "utf8");
     return { path: item, class: "TEST_ONLY", bytes: content.length, sha256: sha256(content), content };
   });
   const manifestRecords = files.map((file) => ({ path: file.path, class: file.class, bytes: file.bytes, sha256: file.sha256 }));

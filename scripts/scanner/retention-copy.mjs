@@ -1,5 +1,7 @@
 import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { lstatSync, realpathSync } from "node:fs";
+import path from "node:path";
 
 import { streamGitHubArtifactZip } from "../seaweed-image/download-artifact-zip.mjs";
 import { githubArtifactZipProfiles, scanGitHubArtifactZip } from "../seaweed-image/read-artifact-zip.mjs";
@@ -18,10 +20,30 @@ const API = `https://api.github.com/repos/${SCANNER_RETENTION.repository}`;
 const WSL = "C:\\Windows\\System32\\wsl.exe";
 const LINUX_NODE = "/opt/auto-world/toolchains/node-v22.23.2-linux-x64/bin/node";
 const LINUX_SCRIPT = "/mnt/c/Users/Administrator/Documents/ChatGPT/Auto-world/scripts/scanner/retention-copy-linux.mjs";
+const WINDOWS_ROOT = "C:\\Users\\Administrator\\Documents\\ChatGPT\\Auto-world";
 const RESPONSE_CAP = 1024 ** 2;
 const TOKEN = /^[\x21-\x7e]{1,4096}$/u;
 
 function fail(code) { throw new Error(`scanner_retention_copy_${code}`); }
+
+export function validateScannerRetentionCopyRoot(root, realRoot, realScript) {
+  const expectedScript = `${WINDOWS_ROOT}\\scripts\\scanner\\retention-copy-linux.mjs`;
+  if ([root, realRoot, realScript].some((value) => typeof value !== "string" || !/^[a-z]:\\/iu.test(value))
+    || path.win32.normalize(root).toLowerCase() !== WINDOWS_ROOT.toLowerCase()
+    || path.win32.normalize(realRoot).toLowerCase() !== WINDOWS_ROOT.toLowerCase()
+    || path.win32.normalize(realScript).toLowerCase() !== expectedScript.toLowerCase()) fail("checkout_invalid");
+}
+
+function assertProductionCopyRoot() {
+  if (process.platform !== "win32") fail("checkout_invalid");
+  const root = path.resolve(import.meta.dirname, "../..");
+  const script = path.join(root, "scripts/scanner/retention-copy-linux.mjs");
+  validateScannerRetentionCopyRoot(root, realpathSync(root), realpathSync(script));
+  for (let current = script; ; current = path.dirname(current)) {
+    if (lstatSync(current).isSymbolicLink()) fail("checkout_invalid");
+    if (path.dirname(current) === current) break;
+  }
+}
 
 async function responseBytes(response, cap = RESPONSE_CAP) {
   if (!response?.body || typeof response.body.getReader !== "function") fail("api_invalid");
@@ -110,6 +132,7 @@ function memoryHandle(size) {
 async function downloadReceipt(authenticated, token, dependencies) {
   const handle = memoryHandle(authenticated.artifact.size);
   await dependencies.download({ artifact: authenticated.artifact, handle,
+    timeoutMs: SCANNER_RETENTION.local.operationTimeoutMs,
     env: { SystemRoot: "C:\\Windows", WINDIR: "C:\\Windows", PATH: "C:\\Windows\\System32;C:\\Windows",
       GH_TOKEN: token, GH_PROMPT_DISABLED: "1", GH_DEBUG: "" } });
   const source = Object.freeze({ size: handle.bytes.length, async readAt(position, length) {
@@ -179,6 +202,7 @@ function defaults(options = {}) {
 }
 
 export async function runScannerRetentionCopy(options = {}) {
+  assertProductionCopyRoot();
   const binding = validateScannerRetentionPublisherObservation(SCANNER_RETENTION.observations.publisher);
   return execute(binding, defaults(options));
 }

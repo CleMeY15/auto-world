@@ -278,7 +278,7 @@ namespace AutoWorld.ScannerRetentionPrivateCopy {
           JsonElement pathValue=default(JsonElement),bytesValue=default(JsonElement),shaValue=default(JsonElement),classValue=default(JsonElement);long size=0;string path,sha;
           if(file.ValueKind!=JsonValueKind.Object||!file.TryGetProperty("path",out pathValue)||pathValue.ValueKind!=JsonValueKind.String
             ||!file.TryGetProperty("class",out classValue)||classValue.ValueKind!=JsonValueKind.String||String.IsNullOrEmpty(classValue.GetString())
-            ||!file.TryGetProperty("bytes",out bytesValue)||!bytesValue.TryGetInt64(out size)||size<1||size>TarCap
+            ||!file.TryGetProperty("bytes",out bytesValue)||!bytesValue.TryGetInt64(out size)||size<0||size>TarCap
             ||!file.TryGetProperty("sha256",out shaValue)||shaValue.ValueKind!=JsonValueKind.String)Fail("manifest_invalid");
           path=pathValue.GetString();sha=shaValue.GetString();if(path!=RestorePaths[index])Fail("manifest_invalid_path_"+index.ToString());index++;
           if(!seen.Add(path)||!Hex(sha,64))Fail("manifest_invalid");records.Add(new RestoreRecord(path,size,sha));

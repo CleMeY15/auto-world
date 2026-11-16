@@ -207,10 +207,17 @@ export async function TEST_ONLY_runScannerRetentionPublish(options = {}) {
   const values = {};
   for (const name of PUBLISH_PHASES) {
     const started = (options.now ?? Date.now)();
-    const result = await options.runPhase(name, Object.freeze({ context, values: Object.freeze({ ...values }) }));
-    if (!result || typeof result !== "object" || Array.isArray(result)) fail("scanner_retention_publish_phase_invalid");
-    Object.assign(values, result.values ?? {});
-    phases.push({ name, result: "PASSED", durationMs: Math.max(0, (options.now ?? Date.now)() - started) });
+    try {
+      const result = await options.runPhase(name, Object.freeze({ context, values: Object.freeze({ ...values }) }));
+      if (!result || typeof result !== "object" || Array.isArray(result)) fail("scanner_retention_publish_phase_invalid");
+      Object.assign(values, result.values ?? {});
+      phases.push({ name, result: "PASSED", durationMs: Math.max(0, (options.now ?? Date.now)() - started) });
+    } catch (error) {
+      phases.push({ name, result: "FAILED", durationMs: Math.max(0, (options.now ?? Date.now)() - started) });
+      const failure = new Error(fixedReason(error, "scanner_retention_publish_command_failed"));
+      failure.publisherProgress = { context, values, phases };
+      throw failure;
+    }
   }
   return createScannerRetentionPublisherReceipt(context, { ...values, state: "PUBLISHED_UNADMITTED",
     result: "PASSED", phases });
@@ -256,11 +263,47 @@ function writeExclusive(filename, bytes, mode = 0o400) {
   }
 }
 
+function writePublisherReceipt(output, bytes) {
+  // This is the sole public payload. Its ZIP profile requires the producer's 0644 mode.
+  writeExclusive(path.join(output, "publisher-receipt.json"), bytes, 0o644);
+}
+
+export const TEST_ONLY_writeScannerRetentionPublisherReceipt = writePublisherReceipt;
+
 function securePublishDirectory(directory) {
   const info = lstatSync(directory);
   if (!info.isDirectory() || info.isSymbolicLink() || realpathSync(directory) !== directory
     || (info.mode & 0o077) !== 0) fail("scanner_retention_publish_directory_invalid");
 }
+
+function publishDirectoryIdentity(directory) {
+  securePublishDirectory(directory);
+  const info = lstatSync(directory);
+  return { dev: info.dev, ino: info.ino, uid: info.uid };
+}
+
+function removePublishDirectory(directory, identity) {
+  if (!identity) fail("scanner_retention_publish_directory_unowned");
+  const current = publishDirectoryIdentity(directory);
+  if (current.dev !== identity.dev || current.ino !== identity.ino || current.uid !== identity.uid) {
+    fail("scanner_retention_publish_directory_changed");
+  }
+  rmSync(directory, { recursive: true, force: false });
+}
+
+function publisherAbsent(result, type, identity) {
+  if (type !== "builder") {
+    try { return exactReadAbsent(result, type); }
+    catch { fail("scanner_retention_publish_cleanup_inspect_failed"); }
+  }
+  if (result.error || result.signal || result.status !== 1
+    || !result.stderr.includes(`no builder "${identity}" found`)) {
+    fail("scanner_retention_publish_cleanup_inspect_failed");
+  }
+  return true;
+}
+
+export const TEST_ONLY_scannerRetentionPublisherAbsent = publisherAbsent;
 
 function publishEntrySink(stage, mappings) {
   const selected = new Map(mappings.map((mapping) => [mapping.sourcePath, mapping]));
@@ -383,13 +426,26 @@ function stageVerifiedBytes(state, closurePath, bytes, expected = {}) {
   writeExclusive(output, bytes, closurePath === "scanner-closure/binary/trivy" ? 0o500 : 0o400);
 }
 
+function publisherDescriptor(value, allowedMediaTypes, cap) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || !allowedMediaTypes.has(value.mediaType) || typeof value.digest !== "string" || !DIGEST.test(value.digest)
+    || !Number.isSafeInteger(value.size) || value.size < 1 || value.size > cap) {
+    fail("scanner_retention_publish_manifest_invalid");
+  }
+  return value;
+}
+
 function parseDockerManifest(raw) {
+  if (typeof raw !== "string" || Buffer.byteLength(raw) > SCANNER_RETENTION.publisher.registryCapBytes) {
+    fail("scanner_retention_publish_manifest_invalid");
+  }
   const bytes = Buffer.from(raw, "utf8"); const body = parseJson(bytes);
   if (body?.schemaVersion !== 2 || !MANIFEST_MEDIA_TYPES.has(body.mediaType)
     || !body.config || !Array.isArray(body.layers) || body.layers.length !== 1) {
     fail("scanner_retention_publish_manifest_invalid");
   }
-  const rawConfig = readDescriptor(body.config, CONFIG_MEDIA_TYPES); const rawLayer = readDescriptor(body.layers[0], LAYER_MEDIA_TYPES);
+  const rawConfig = publisherDescriptor(body.config, CONFIG_MEDIA_TYPES, SCANNER_RETENTION.publisher.registryCapBytes);
+  const rawLayer = publisherDescriptor(body.layers[0], LAYER_MEDIA_TYPES, SCANNER_RETENTION.closure.tarCapBytes + 1024 ** 2);
   const config = { digest: rawConfig.digest, mediaType: rawConfig.mediaType, bytes: rawConfig.size,
     sha256: rawConfig.digest.slice("sha256:".length) };
   const layer = { digest: rawLayer.digest, mediaType: rawLayer.mediaType, bytes: rawLayer.size,
@@ -397,9 +453,11 @@ function parseDockerManifest(raw) {
   return { bytes, digest: `sha256:${sha256(bytes)}`, mediaType: body.mediaType, config, layer };
 }
 
+export const TEST_ONLY_parseScannerRetentionPublisherManifest = parseDockerManifest;
+
 function createProductionPublisherRunner(parsed, {
   commandRunner = defaultCommandRunner, fetchImpl = globalThis.fetch, now = Date.now,
-  download = streamGitHubArtifactZip, scan = scanOwnedGitHubArtifactZip,
+  download = streamGitHubArtifactZip, scan = scanOwnedGitHubArtifactZip, statfs = statfsSync,
 } = {}) {
   const state = { parsed, commandRunner, fetchImpl, now, download, scan };
   const phase = async (name, { context }) => {
@@ -420,7 +478,8 @@ function createProductionPublisherRunner(parsed, {
         fail("scanner_retention_publish_output_invalid");
       }
       securePublishDirectory(parsed.output);
-      const available = statfsSync(context.runnerTemp).bavail * statfsSync(context.runnerTemp).bsize;
+      const capacity = statfs(context.runnerTemp);
+      const available = capacity.bavail * capacity.bsize;
       if (!Number.isSafeInteger(available) || available < SCANNER_RETENTION.closure.publisherRequiredFreeBytes) {
         fail("scanner_retention_publish_capacity_invalid");
       }
@@ -428,7 +487,9 @@ function createProductionPublisherRunner(parsed, {
       state.provenanceRoot = path.join(context.runnerTemp, "trivy-provenance");
       state.stage = path.join(state.work, "stage"); state.downloadRoot = path.join(state.work, "qualification-download");
       state.dockerConfig = path.join(state.work, "docker-auth"); state.readDockerConfig = path.join(state.work, "docker-readback");
-      for (const directory of [state.work, state.stage, state.downloadRoot, state.dockerConfig, state.readDockerConfig]) {
+      mkdirSync(state.work, { mode: 0o700 });
+      state.workIdentity = publishDirectoryIdentity(state.work);
+      for (const directory of [state.stage, state.downloadRoot, state.dockerConfig, state.readDockerConfig]) {
         mkdirSync(directory, { recursive: false, mode: 0o700 }); securePublishDirectory(directory);
       }
       return { values: {} };
@@ -469,6 +530,7 @@ function createProductionPublisherRunner(parsed, {
       try {
         handle = await open(zip, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
         await download({ artifact: state.qualificationArtifact, handle,
+          timeoutMs: Math.max(1, state.operationDeadline - now()),
           env: { ...scannerRetentionPublisherChildEnvironment(context, state.dockerConfig, state.work), GH_TOKEN: context.token } });
         await handle.sync(); await handle.close(); handle = undefined;
         state.qualificationScan = await scan({ file: zip, root: state.downloadRoot,
@@ -478,7 +540,7 @@ function createProductionPublisherRunner(parsed, {
       return { values: {} };
     }
     if (name === "official_provenance") {
-      const root = state.provenanceRoot; securePublishDirectory(root);
+      const root = state.provenanceRoot; state.provenanceIdentity = publishDirectoryIdentity(root);
       const fresh = [
         ["scanner-closure/upstream/trivy_0.76.2_Linux-64bit.tar.gz", "download/trivy_0.76.2_Linux-64bit.tar.gz", 52714130, "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"],
         ["scanner-closure/binary/trivy", "bin/trivy", 176386208, "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3"],
@@ -563,9 +625,11 @@ function createProductionPublisherRunner(parsed, {
         || !qualifiedTools.split(/\r?\n/u).includes(dockerIdentity)
         || !qualifiedTools.split(/\r?\n/u).includes(buildxIdentity)) fail("scanner_retention_publish_tool_identity_invalid");
       state.builderBaseline = publishDockerInventory(commandRunner, context, options());
-      state.builder = `aw-scanner-retention-${context.runId}`;
-      publishRun(commandRunner, context, "docker", ["buildx", "create", "--name", state.builder,
+      const builder = `aw-scanner-retention-${context.runId}`;
+      publishRun(commandRunner, context, "docker", ["buildx", "create", "--name", builder,
         "--driver", "docker-container", "--use"], options());
+      state.builder = builder;
+      state.builderAcquired = true;
       const builderInspection = publishRun(commandRunner, context, "docker", ["buildx", "inspect", "--bootstrap", state.builder], options()).stdout;
       state.buildKitBackendVersions = parseBuildKitVersions(builderInspection);
       if (!Array.isArray(state.buildKitBackendVersions) || state.buildKitBackendVersions.length < 1) {
@@ -584,7 +648,7 @@ function createProductionPublisherRunner(parsed, {
       publishRun(commandRunner, context, "docker", ["buildx", "rm", state.builder], options());
       const builderAbsent = observe(commandRunner, "docker", ["buildx", "inspect", state.builder], {
         ...options(), failurePrefix: "scanner_retention_publish" });
-      if (builderAbsent.error || builderAbsent.status === 0) fail("scanner_retention_publish_builder_cleanup_invalid");
+      publisherAbsent(builderAbsent, "builder", state.builder);
       state.builder = undefined;
       let current = publishDockerInventory(commandRunner, context, options());
       if (addedInventory(current.containers, state.builderBaseline.containers).length !== 0
@@ -608,9 +672,13 @@ function createProductionPublisherRunner(parsed, {
       return { values: {} };
     }
     if (name === "authenticated_digest_readback") {
+      const before = observe(commandRunner, "docker", ["image", "inspect", state.manifest.config.digest], {
+        ...options(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
+      if (!publisherAbsent(before, "image")) fail("scanner_retention_publish_preexisting_image");
       publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
         { ...options(state.readDockerConfig), input: `${context.token}\n` });
       publishRun(commandRunner, context, "docker", ["pull", "--platform", "linux/amd64", state.subject], options(state.readDockerConfig));
+      state.pulled = true;
       state.container = `aw-scanner-retention-readback-${context.runId}`;
       const created = publishRun(commandRunner, context, "docker", ["create", "--name", state.container, "--network", "none",
         "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--pull", "never",
@@ -636,23 +704,26 @@ function createProductionPublisherRunner(parsed, {
         layer: state.manifest.layer, readback: state.ociReadback } } };
     }
     if (name === "owned_docker_cleanup") {
-      publishRun(commandRunner, context, "docker", ["rm", state.container], options(state.readDockerConfig));
+      publishRun(commandRunner, context, "docker", ["rm", state.containerId], options(state.readDockerConfig));
       publishRun(commandRunner, context, "docker", ["image", "rm", state.subject], options(state.readDockerConfig));
       const containerAbsent = observe(commandRunner, "docker", ["container", "inspect", state.containerId], {
         ...options(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
       const imageAbsent = observe(commandRunner, "docker", ["image", "inspect", state.manifest.config.digest], {
         ...options(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
-      if (containerAbsent.error || containerAbsent.status === 0 || imageAbsent.error || imageAbsent.status === 0) {
+      if (!publisherAbsent(containerAbsent, "container") || !publisherAbsent(imageAbsent, "image")) {
         fail("scanner_retention_publish_docker_cleanup_invalid");
       }
+      if (JSON.stringify(publishDockerInventory(commandRunner, context, options(state.readDockerConfig)))
+        !== JSON.stringify(state.builderBaseline)) fail("scanner_retention_publish_docker_cleanup_invalid");
+      state.containerId = undefined; state.pulled = false;
       return { values: { cleanup: { state: "PASSED", image: "REMOVED", container: "REMOVED",
         buildCache: "REMOVED", authenticatedDockerConfig: "REMOVED", ownedPathRemoved: false } } };
     }
     if (name === "owned_path_cleanup") {
       const finalValues = { cleanup: { state: "PASSED", image: "REMOVED", container: "REMOVED",
         buildCache: "REMOVED", authenticatedDockerConfig: "REMOVED", ownedPathRemoved: true } };
-      rmSync(state.work, { recursive: true, force: false });
-      rmSync(state.provenanceRoot, { recursive: true, force: false });
+      removePublishDirectory(state.work, state.workIdentity); state.workIdentity = undefined;
+      removePublishDirectory(state.provenanceRoot, state.provenanceIdentity); state.provenanceIdentity = undefined;
       return { values: finalValues };
     }
     fail("scanner_retention_publish_phase_invalid");
@@ -664,11 +735,11 @@ function createProductionPublisherRunner(parsed, {
     const cleanupOptions = (dockerConfig) => ({ cwd: context.workspace,
       env: scannerRetentionPublisherChildEnvironment(context, dockerConfig, state.work),
       timeout: Math.max(1, cleanupDeadline - now()) });
-    if (state.container && state.readDockerConfig && existsSync(state.readDockerConfig)) {
-      observe(commandRunner, "docker", ["rm", "--force", state.container], {
+    if (CONTAINER_ID.test(state.containerId ?? "") && state.readDockerConfig && existsSync(state.readDockerConfig)) {
+      observe(commandRunner, "docker", ["rm", "--force", state.containerId], {
         ...cleanupOptions(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
     }
-    if (state.subject && state.readDockerConfig && existsSync(state.readDockerConfig)) {
+    if (state.pulled && state.subject && state.readDockerConfig && existsSync(state.readDockerConfig)) {
       observe(commandRunner, "docker", ["image", "rm", state.subject], {
         ...cleanupOptions(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
     }
@@ -676,7 +747,7 @@ function createProductionPublisherRunner(parsed, {
       observe(commandRunner, "docker", ["buildx", "rm", state.builder], {
         ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
     }
-    if (state.builderBaseline && state.dockerConfig && existsSync(state.dockerConfig)) {
+    if (state.builderAcquired && state.builderBaseline && state.dockerConfig && existsSync(state.dockerConfig)) {
       try {
         let current = publishDockerInventory(commandRunner, context, cleanupOptions(state.dockerConfig));
         for (const id of addedInventory(current.containers, state.builderBaseline.containers)) {
@@ -706,15 +777,20 @@ function createProductionPublisherRunner(parsed, {
         }
       } catch { /* failed best-effort cleanup remains a failed publication */ }
     }
-    if (state.work && existsSync(state.work)) {
-      try { rmSync(state.work, { recursive: true, force: false }); } catch { /* failure receipt remains authoritative */ }
+    if (state.workIdentity) {
+      try { removePublishDirectory(state.work, state.workIdentity); } catch { /* failure receipt remains authoritative */ }
     }
-    if (state.provenanceRoot && existsSync(state.provenanceRoot)) {
-      try { rmSync(state.provenanceRoot, { recursive: true, force: false }); } catch { /* failure receipt remains authoritative */ }
+    if (state.provenanceIdentity) {
+      try { removePublishDirectory(state.provenanceRoot, state.provenanceIdentity); } catch { /* failure receipt remains authoritative */ }
     }
+    return { state: "UNKNOWN", image: state.pulled ? "UNKNOWN" : "NOT_ACQUIRED",
+      container: state.containerId ? "UNKNOWN" : "NOT_ACQUIRED", buildCache: state.builderAcquired ? "UNKNOWN" : "NOT_ACQUIRED",
+      authenticatedDockerConfig: "UNKNOWN", ownedPathRemoved: state.workIdentity ? !existsSync(state.work) : false };
   };
   return phase;
 }
+
+export const TEST_ONLY_createScannerRetentionPublisherRunner = createProductionPublisherRunner;
 
 function validateDirectory(directory) {
   if (!existsSync(directory)) fail("scanner_retention_bootstrap_directory_invalid");
@@ -1994,14 +2070,16 @@ async function main() {
         runPhase: productionRunner });
       validateScannerRetentionPublisherReceiptBytes(result.bytes, { headSha: result.receipt.headSha,
         headTree: result.receipt.headTree, runId: result.receipt.runId });
-      writeExclusive(path.join(parsed.output, "publisher-receipt.json"), result.bytes, 0o400);
+      writePublisherReceipt(parsed.output, result.bytes);
       return result;
     } catch (error) {
-      await productionRunner.cleanup();
+      const cleanup = await productionRunner.cleanup();
       try {
         const context = validateScannerRetentionPublishContext(process.env, process.platform);
-        const failed = createScannerRetentionPublisherReceipt(context, { result: "FAILED" });
-        writeExclusive(path.join(parsed.output, "publisher-receipt.json"), failed.bytes, 0o400);
+        const progress = error.publisherProgress;
+        const failed = createScannerRetentionPublisherReceipt(context, { ...progress?.values,
+          phases: progress?.phases ?? [], cleanup, result: "FAILED" });
+        writePublisherReceipt(parsed.output, failed.bytes);
       } catch { /* the original refusal remains authoritative */ }
       throw error;
     }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, readFileSync } from "node:fs";
-import { chmod, link, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdtemp, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -11,8 +11,23 @@ import { crc32, deflateRawSync } from "node:zlib";
 import {
   githubArtifactZipProfiles, scanGitHubArtifactZip, scanOwnedGitHubArtifactZip,
 } from "../scripts/seaweed-image/read-artifact-zip.mjs";
+import { TEST_ONLY_writeScannerRetentionPublisherReceipt } from "../scripts/scanner/retention-publish.mjs";
 
 const sha = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+
+test("publisher receipt producer mode is accepted by its ZIP consumer", { skip: process.platform === "win32" }, async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "scanner-public-receipt-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const content = Buffer.from('{"result":"fixture"}\n');
+  TEST_ONLY_writeScannerRetentionPublisherReceipt(root, content);
+  const mode = (await stat(path.join(root, "publisher-receipt.json"))).mode;
+  assert.equal(mode & 0o777, 0o644);
+  const outputs = new Map();
+  const bytes = zip([{ path: "publisher-receipt.json", content, mode, method: 8 }]);
+  const result = await scan(bytes, githubArtifactZipProfiles.scannerRetentionPublisherReceipt, sinks(outputs));
+  assert.equal(result.state, "COMPLETE");
+  assert.deepEqual(outputs.get("publisher-receipt.json"), content);
+});
 
 function zip(entries, overrides = {}) {
   const locals = [];

@@ -61,7 +61,7 @@ function snapshot(input, allowInjection) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw downloadError("seaweed_artifact_download_options_invalid");
   const properties = Object.getOwnPropertyDescriptors(input);
   const allowed = new Set(["artifact", "handle", "signal", "timeoutMs", "env",
-    ...(allowInjection ? ["spawn", "now", "executable"] : [])]);
+    ...(allowInjection ? ["spawn", "now", "executable", "cleanupTimeoutMs"] : [])]);
   if (Reflect.ownKeys(properties).some((key) => !allowed.has(key) || !("value" in properties[key]))) {
     throw downloadError("seaweed_artifact_download_options_invalid");
   }
@@ -81,8 +81,10 @@ function snapshot(input, allowInjection) {
   }
   const signal = value("signal");
   const timeoutMs = value("timeoutMs") ?? MAX_TIMEOUT_MS;
+  const cleanupTimeoutMs = value("cleanupTimeoutMs") ?? 5000;
   if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)
-    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS) {
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_TIMEOUT_MS
+    || !Number.isSafeInteger(cleanupTimeoutMs) || cleanupTimeoutMs < 1 || cleanupTimeoutMs > 5000) {
     throw downloadError("seaweed_artifact_download_options_invalid");
   }
   const spawn = value("spawn") ?? nodeSpawn;
@@ -91,12 +93,12 @@ function snapshot(input, allowInjection) {
   if (typeof spawn !== "function" || typeof now !== "function" || typeof executable !== "string" || executable.length < 1
     || (!allowInjection && GH_EXECUTABLE === undefined)) throw downloadError("seaweed_artifact_download_options_invalid");
   const env = value("env");
-  return Object.freeze({ artifact: Object.freeze({ id, size, digest }), handle, signal, timeoutMs, spawn, now, executable,
+  return Object.freeze({ artifact: Object.freeze({ id, size, digest }), handle, signal, timeoutMs, cleanupTimeoutMs, spawn, now, executable,
     ...(env === undefined ? {} : { env: snapshotEnvironment(env) }) });
 }
 
 async function stream(options) {
-  const { artifact, handle, signal, timeoutMs, spawn, now, executable, env } = options;
+  const { artifact, handle, signal, timeoutMs, cleanupTimeoutMs, spawn, now, executable, env } = options;
   if (signal?.aborted) throw downloadError("seaweed_artifact_download_aborted");
   const deadline = now() + timeoutMs;
   const endpoint = `repos/${REPOSITORY}/actions/artifacts/${artifact.id}/zip`;
@@ -123,16 +125,22 @@ async function stream(options) {
     if (!closed) {
       try { child.kill("SIGKILL"); } catch { /* the close event still determines completion */ }
     }
+    child.stdout?.destroy();
+    child.stderr?.destroy();
   };
-  const onAbort = () => { aborted = true; stop(); };
-  const timer = setTimeout(() => { timedOut = true; stop(); }, timeoutMs);
+  let rejectInterrupted;
+  const interrupted = new Promise((_resolve, reject) => { rejectInterrupted = reject; });
+  const onAbort = () => { aborted = true; stop(); rejectInterrupted(downloadError("seaweed_artifact_download_aborted")); };
+  const timer = setTimeout(() => {
+    timedOut = true; stop(); rejectInterrupted(downloadError("seaweed_artifact_download_timeout"));
+  }, timeoutMs);
   signal?.addEventListener("abort", onAbort, { once: true });
   child.stderr?.on("error", () => { stderrFailed = true; stop(); });
   child.stderr?.resume();
   const hash = createHash("sha256");
   let bytes = 0;
   let failure;
-  try {
+  const transfer = async () => {
     if (child.stdout === null || child.stdout === undefined) throw downloadError("seaweed_artifact_download_command_failed");
     for await (const chunk of child.stdout) {
       if (aborted || signal?.aborted) throw downloadError("seaweed_artifact_download_aborted");
@@ -156,6 +164,9 @@ async function stream(options) {
     if (spawnFailed || stderrFailed || code !== 0) throw downloadError("seaweed_artifact_download_command_failed");
     if (bytes !== artifact.size) throw downloadError("seaweed_artifact_download_size_invalid");
     if (`sha256:${hash.digest("hex")}` !== artifact.digest) throw downloadError("seaweed_artifact_download_digest_invalid");
+  };
+  try {
+    await Promise.race([transfer(), interrupted]);
   } catch (error) {
     failure = error?.code?.startsWith("seaweed_artifact_download_") ? error
       : downloadError("seaweed_artifact_download_stream_failed");
@@ -163,7 +174,12 @@ async function stream(options) {
   } finally {
     signal?.removeEventListener("abort", onAbort);
     globalThis.clearTimeout(timer);
-    await close;
+    let cleanupTimer;
+    try {
+      await Promise.race([close, new Promise((_resolve, reject) => {
+        cleanupTimer = setTimeout(() => reject(downloadError("seaweed_artifact_download_cleanup_uncertain")), cleanupTimeoutMs);
+      })]);
+    } finally { globalThis.clearTimeout(cleanupTimer); }
   }
   if (failure !== undefined) throw failure;
   return Object.freeze({ id: artifact.id, size: bytes, digest: artifact.digest,

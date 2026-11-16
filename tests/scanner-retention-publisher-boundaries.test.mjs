@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { SCANNER_RETENTION as P } from "../scripts/scanner/retention-policy.mjs";
-import { TEST_ONLY_verifyScannerRetentionQualificationApi, validateScannerRetentionReadbackState }
+import { TEST_ONLY_verifyScannerRetentionQualificationApi, TEST_ONLY_parseScannerRetentionPublisherManifest,
+  TEST_ONLY_createScannerRetentionPublisherRunner, TEST_ONLY_runScannerRetentionPublish,
+  TEST_ONLY_scannerRetentionPublisherAbsent,
+  validateScannerRetentionReadbackState }
   from "../scripts/scanner/retention-publish.mjs";
-import { authenticateScannerRetentionPublisherArtifact } from "../scripts/scanner/retention-copy.mjs";
+import { authenticateScannerRetentionPublisherArtifact, runScannerRetentionCopy,
+  validateScannerRetentionCopyRoot } from "../scripts/scanner/retention-copy.mjs";
 import { scannerRetentionLinuxCreateArguments } from "../scripts/scanner/retention-copy-linux.mjs";
 
 const q = P.qualification;
@@ -24,6 +30,100 @@ test("local tool policy binds the exact wrapper and native helper source bytes",
     assert.equal(tool.bytes, bytes.length);
     assert.equal(tool.sha256, createHash("sha256").update(bytes).digest("hex"));
   }
+});
+
+test("copy refuses alternate checkouts before intake or credential transfer", async () => {
+  const root = "C:\\Users\\Administrator\\Documents\\ChatGPT\\Auto-world";
+  const script = `${root}\\scripts\\scanner\\retention-copy-linux.mjs`;
+  validateScannerRetentionCopyRoot(root, root, script);
+  for (const values of [["C:\\worktree", root, script], [root, "C:\\replacement", script],
+    [root, root, "C:\\other\\retention-copy-linux.mjs"], ["\\\\host\\share", root, script]]) {
+    assert.throws(() => validateScannerRetentionCopyRoot(...values), /checkout_invalid/u);
+  }
+  if (process.platform !== "win32") {
+    let effects = 0;
+    await assert.rejects(runScannerRetentionCopy({ fetchImpl: () => { effects++; } }), /checkout_invalid/u);
+    assert.equal(effects, 0);
+  }
+});
+
+test("production cleanup preserves colliding and replaced directories", async (t) => {
+  for (const scenario of ["collision", "replacement", "owned"]) {
+    const root = mkdtempSync(path.join(tmpdir(), "scanner-publisher-cleanup-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const output = path.join(root, "scanner-retention-publisher-public"); mkdirSync(output, { mode: 0o700 });
+    const provenance = path.join(root, "trivy-provenance"); mkdirSync(provenance, { mode: 0o700 });
+    writeFileSync(path.join(provenance, "foreign"), "preserve");
+    const work = path.join(root, "scanner-retention-publish-42");
+    if (scenario === "collision") { mkdirSync(work, { mode: 0o700 }); writeFileSync(path.join(work, "foreign"), "preserve"); }
+    let commands = 0;
+    const runner = TEST_ONLY_createScannerRetentionPublisherRunner({ output }, {
+      statfs: () => ({ bavail: P.closure.publisherRequiredFreeBytes, bsize: 1 }),
+      commandRunner: () => { commands++; throw new Error("unexpected command"); },
+    });
+    const context = { runnerTemp: root, workspace: root, runId: "42", publisher: P.publisher, path: process.env.PATH };
+    if (scenario === "collision") await assert.rejects(runner("context_and_capacity", { context }), { code: "EEXIST" });
+    else await runner("context_and_capacity", { context });
+    if (scenario === "replacement") {
+      renameSync(work, `${work}-original`); mkdirSync(work, { mode: 0o700 });
+      writeFileSync(path.join(work, "foreign"), "preserve");
+    }
+    await runner.cleanup();
+    assert.equal(readFileSync(path.join(provenance, "foreign"), "utf8"), "preserve");
+    assert.equal(commands, 0);
+    if (scenario === "owned") assert.equal(existsSync(work), false);
+    else assert.equal(readFileSync(path.join(work, "foreign"), "utf8"), "preserve");
+  }
+});
+
+test("publication failure retains completed phases, known digest and failed phase without private error text", async () => {
+  await assert.rejects(TEST_ONLY_runScannerRetentionPublish({
+    validateContext: () => ({ runId: "42", headSha: "a".repeat(40) }),
+    runPhase: async (name) => {
+      if (name === "authenticated_digest_readback") throw new Error("credential-shaped private failure");
+      return { values: name === "oci_candidate_push" ? { ghcrManifestDigest: `sha256:${"b".repeat(64)}` } : {} };
+    },
+  }), (error) => {
+    assert.equal(error.message, "scanner_retention_publish_command_failed");
+    assert.equal(error.publisherProgress.values.ghcrManifestDigest, `sha256:${"b".repeat(64)}`);
+    assert.equal(error.publisherProgress.phases.at(-1).name, "authenticated_digest_readback");
+    assert.equal(error.publisherProgress.phases.at(-1).result, "FAILED");
+    assert.ok(error.publisherProgress.phases.slice(0, -1).every((phase) => phase.result === "PASSED"));
+    return true;
+  });
+});
+
+test("cleanup accepts only explicit absence, not daemon errors or interrupted inspections", () => {
+  const result = { status: 1, stdout: "", stderr: "Error: No such image: sha256:abc", signal: null };
+  assert.equal(TEST_ONLY_scannerRetentionPublisherAbsent(result, "image"), true);
+  assert.equal(TEST_ONLY_scannerRetentionPublisherAbsent({ ...result, status: 0 }, "image"), false);
+  assert.equal(TEST_ONLY_scannerRetentionPublisherAbsent({ ...result,
+    stderr: 'ERROR: no builder "aw-scanner-retention-42" found' }, "builder", "aw-scanner-retention-42"), true);
+  for (const changed of [{ ...result, stderr: "Cannot connect to the Docker daemon" },
+    { ...result, signal: "SIGTERM" }, { ...result, error: new Error("private detail") },
+    { ...result, status: 2 }]) {
+    assert.throws(() => TEST_ONLY_scannerRetentionPublisherAbsent(changed, "image"), /cleanup_inspect_failed/u);
+  }
+  assert.throws(() => TEST_ONLY_scannerRetentionPublisherAbsent({ ...result,
+    stderr: "Cannot connect to the Docker daemon" }, "builder", "aw-scanner-retention-42"), /cleanup_inspect_failed/u);
+});
+
+test("publisher accepts bounded archive layers larger than the harmless bootstrap payload", () => {
+  const value = { schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
+    config: { mediaType: "application/vnd.oci.image.config.v1+json", digest: `sha256:${"a".repeat(64)}`, size: 1024 },
+    layers: [{ mediaType: "application/vnd.oci.image.layer.v1.tar+gzip", digest: `sha256:${"b".repeat(64)}`,
+      size: 60 * 1024 ** 2 }] };
+  const parse = () => TEST_ONLY_parseScannerRetentionPublisherManifest(JSON.stringify(value));
+  assert.equal(parse().layer.bytes, 60 * 1024 ** 2);
+  const layerCap = P.closure.tarCapBytes + 1024 ** 2;
+  value.layers[0].size = layerCap; assert.equal(parse().layer.bytes, layerCap);
+  for (const size of [0, -1, 1.5, layerCap + 1, "100"]) {
+    value.layers[0].size = size;
+    assert.throws(parse, /scanner_retention_publish_manifest_invalid/u);
+  }
+  value.layers[0].size = 60 * 1024 ** 2;
+  value.config.size = P.publisher.registryCapBytes + 1;
+  assert.throws(parse, /scanner_retention_publish_manifest_invalid/u);
 });
 
 function qualification() {

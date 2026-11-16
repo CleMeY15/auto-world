@@ -32,44 +32,44 @@ const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const ZIP_ERROR_CODES = new WeakMap();
 const SCANNER_RETENTION_PROFILE_SHA256 = "f22ed73c4635aec579a550e1043d62feab0b57bd73a00ac343e696ec5b246513";
 
-const scannerRetentionProfileBytes = readFileSync(new URL(
-  "../../infra/scanner/scanner-retention-qualification-zip-profile-v2.json", import.meta.url,
-));
-if (createHash("sha256").update(scannerRetentionProfileBytes).digest("hex") !== SCANNER_RETENTION_PROFILE_SHA256) {
-  throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
-}
-const scannerRetentionProfile = (() => {
-  let value;
-  try { value = JSON.parse(scannerRetentionProfileBytes.toString("utf8")); } catch {
+function loadScannerRetentionProfile() {
+  const scannerRetentionProfileBytes = readFileSync(new URL(
+    "../../infra/scanner/scanner-retention-qualification-zip-profile-v2.json", import.meta.url,
+  ));
+  if (createHash("sha256").update(scannerRetentionProfileBytes).digest("hex") !== SCANNER_RETENTION_PROFILE_SHA256) {
     throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
   }
-  if (value?.schemaVersion !== 2 || value?.zipBytes !== 5_119_275 || value?.expandedBytes !== 49_888_165
-    || value?.entryCount !== 689 || !Array.isArray(value?.entries) || value.entries.length !== value.entryCount
-    || !Array.isArray(value?.scannerRetentionAllowedModes)
-    || value.scannerRetentionAllowedModes.length !== 2
-    || value.scannerRetentionAllowedModes[0] !== 0o100400
-    || value.scannerRetentionAllowedModes[1] !== 0o100600) {
-    throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
-  }
-  const paths = new Set();
-  const entries = value.entries.map((entry) => {
-    if (entry === null || typeof entry !== "object" || Array.isArray(entry)
-      || typeof entry.path !== "string" || paths.has(entry.path) || entry.method !== 8
-      || !value.scannerRetentionAllowedModes.includes(entry.mode)
-      || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > MAX_SCANNER_RETENTION_ENTRY_BYTES
-      || typeof entry.sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(entry.sha256)) {
+    let value;
+    try { value = JSON.parse(scannerRetentionProfileBytes.toString("utf8")); } catch {
       throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
     }
-    paths.add(entry.path);
-    return Object.freeze({ path: entry.path, method: entry.method, mode: entry.mode,
-      bytes: entry.bytes, sha256: entry.sha256 });
-  });
-  if (entries.reduce((total, entry) => total + entry.bytes, 0) !== value.expandedBytes) {
-    throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
-  }
-  return Object.freeze({ zipBytes: value.zipBytes, expandedBytes: value.expandedBytes,
-    entryCount: value.entryCount, entries: Object.freeze(entries) });
-})();
+    if (value?.schemaVersion !== 2 || value?.zipBytes !== 5_119_275 || value?.expandedBytes !== 49_888_165
+      || value?.entryCount !== 689 || !Array.isArray(value?.entries) || value.entries.length !== value.entryCount
+      || !Array.isArray(value?.scannerRetentionAllowedModes)
+      || value.scannerRetentionAllowedModes.length !== 2
+      || value.scannerRetentionAllowedModes[0] !== 0o100400
+      || value.scannerRetentionAllowedModes[1] !== 0o100600) {
+      throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+    }
+    const paths = new Set();
+    const entries = value.entries.map((entry) => {
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)
+        || typeof entry.path !== "string" || paths.has(entry.path) || entry.method !== 8
+        || !value.scannerRetentionAllowedModes.includes(entry.mode)
+        || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > MAX_SCANNER_RETENTION_ENTRY_BYTES
+        || typeof entry.sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(entry.sha256)) {
+        throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+      }
+      paths.add(entry.path);
+      return Object.freeze({ path: entry.path, method: entry.method, mode: entry.mode,
+        bytes: entry.bytes, sha256: entry.sha256 });
+    });
+    if (entries.reduce((total, entry) => total + entry.bytes, 0) !== value.expandedBytes) {
+      throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+    }
+    return Object.freeze({ zipBytes: value.zipBytes, expandedBytes: value.expandedBytes,
+      entryCount: value.entryCount, entries: Object.freeze(entries) });
+}
 
 const SCANNER_RETENTION_SELECTED_PATHS = new Set([
   "data-foundation-audit/fixture-gomod-vulnerable-baseline.json",
@@ -151,7 +151,7 @@ function canonicalPath(value) {
   return !value.split("/").some((part) => part === "" || part === "." || part === "..");
 }
 
-function profilePaths(profile, paths) {
+function profilePaths(profile, paths, scannerRetentionProfile) {
   if (profile === githubArtifactZipProfiles.scannerRetention) {
     if (paths.length !== scannerRetentionProfile.entryCount
       || paths.some((value, index) => value !== scannerRetentionProfile.entries[index].path)) {
@@ -422,6 +422,7 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
       || profile === githubArtifactZipProfiles.comparison || publisherReceipt;
     const postgresAttestationProfile = POSTGRES_ATTESTATION_PATHS[profile] !== undefined;
     const scannerRetention = profile === githubArtifactZipProfiles.scannerRetention;
+    const scannerRetentionProfile = scannerRetention ? loadScannerRetentionProfile() : undefined;
     if (profile !== githubArtifactZipProfiles.build && !jsonProfile && !postgresAttestationProfile && !scannerRetention) {
       throw zipError("seaweed_artifact_zip_profile_invalid");
     }
@@ -464,7 +465,7 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
       throw zipError("seaweed_artifact_zip_profile_limit");
     }
     const entries = await validateLocalLayout(source, metadata, signal);
-    profilePaths(profile, entries.map((entry) => entry.path));
+    profilePaths(profile, entries.map((entry) => entry.path), scannerRetentionProfile);
     const expectedMethod = profile === githubArtifactZipProfiles.build
       || profile === githubArtifactZipProfiles.postgresAttestationAudit ? 0 : 8;
     if (entries.some((entry, index) => scannerRetention

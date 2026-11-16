@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn as nodeSpawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { open, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import { TEST_ONLY_streamGitHubArtifactZip, streamGitHubArtifactZip } from "../scripts/seaweed-image/download-artifact-zip.mjs";
@@ -144,6 +146,22 @@ test("external abort stops the child and returns no receipt", async () => {
     setTimeout(() => controller.abort(), 100);
     await assert.rejects(pending, { code: "seaweed_artifact_download_aborted" });
   });
+});
+
+test("unknown child closure is a bounded refusal both before output and after all bytes", async () => {
+  for (const completeOutput of [false, true]) {
+    await withSink(async (handle) => {
+      let killed = false;
+      const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
+      child.kill = () => { killed = true; return false; };
+      const pending = TEST_ONLY_streamGitHubArtifactZip({ artifact, handle, executable: "TEST_ONLY_gh",
+        timeoutMs: 30, cleanupTimeoutMs: 30, spawn: () => child });
+      if (completeOutput) child.stdout.end(bytes);
+      await assert.rejects(pending, { code: "seaweed_artifact_download_cleanup_uncertain" });
+      assert.equal(killed, true);
+      assert.equal(child.stdout.destroyed, true);
+    });
+  }
 });
 
 test("spawn failure and child stderr never leak command output", async () => {

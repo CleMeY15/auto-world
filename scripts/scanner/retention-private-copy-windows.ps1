@@ -18,7 +18,7 @@ try {
   if ((Get-Item -LiteralPath $expectedHost).Length -ne 301360 -or
       (Get-Sha256 $expectedHost) -cne '2a6769a3330dc1084d0154bfde7d164ab750ca7f700f313f9d417c1be78b2233' -or
       (Get-Item -LiteralPath $expectedSource).Length -ne 40272 -or
-      (Get-Sha256 $expectedSource) -cne '1bbc643a6316a8098a48e451cec308e0abf3ac05489a3f35403c7a334531b804') { throw 'invalid' }
+      (Get-Sha256 $expectedSource) -cne 'dcb3556580eba223820d0ef7edcb5e9a7f005519c186d32f0d432f573f1fe5e2') { throw 'invalid' }
 
   if (($args.Count % 2) -ne 0) { throw 'invalid' }
   $parameters = @{}

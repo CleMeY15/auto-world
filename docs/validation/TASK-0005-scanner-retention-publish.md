@@ -59,12 +59,64 @@ Current closure dependencies:
 4. Actual second-copy/offline-restore proof, then service-image closure, current
    vulnerability checks, signing/admission and final four-service acceptance.
 
-No independent review was fabricated and no subagent was started, in accordance
-with the user's standing preference. A future VPS archive migration must preserve
+At that initial checkpoint no independent review was claimed and no subagent had
+been started. The user subsequently authorized agents; the actual reviews and
+corrections are recorded below. A future VPS archive migration must preserve
 the Windows originals and prove private ownership, byte identity, complete local
 restoration and retention before replacing that copy's role. Approved plan bytes
 (including Markdown trailing spaces) remain intact; these source fixes do not
 amend its acceptance thresholds or previously recorded approval identity.
+
+## 16 November — PR241 reviews and integration corrections
+
+[PR241](https://github.com/CleMeY15/auto-world/pull/241) was opened as a draft on
+`a77fcbb8ac2bca4b25456860e33c5bf6d9510984`, after the user completed the GitHub
+workflow authorization. Two independent source reviews returned **REQUEST_CHANGES**
+on that revision. Their findings are not approvals of the following corrections.
+
+Publisher review found the4MiB bootstrap cap incorrectly applied to the scanner
+layer, a public receipt0400/profile100644 mismatch, cleanup of unacquired paths or
+container names, ambiguous nonzero inspection statuses counted as absence,
+unbounded download closure, and loss of known facts in failed receipts. Restore
+review found rejection of legitimate zero-byte provenance stdout files, a WSL
+target from another checkout, and the same download deadline issue.
+
+Corrections prepared:
+
+- Publisher descriptors use their separate archive-layer cap; bootstrap/read caps
+  remain unchanged. Public receipts are explicitly0644 and tested through the
+  ZIP consumer using the actual producer file mode.
+- Cleanup tracks acquired directory identities and successful container IDs;
+  collisions and substituted paths are preserved. Docker absence requires the
+  expected refusal, and final inventory must match the baseline. Failed receipts
+  retain completed phases, the failed phase and known publication identities;
+  uncertain cleanup remains unknown, never a successful claim.
+- Both download callers pass their bounded budget. The shared transport races
+  timeout/abort and refuses unknown child closure after at most five additional
+  seconds. Tests cover suspension both before output and after all bytes.
+- Native restore accepts zero-byte files under the authenticated manifest and
+  retains all hashes/inventory checks. The native fixture now includes the four
+  empty stdout files. Helper/wrapper/policy pins change together; native Windows
+  execution remains pending.
+- Production copying requires the exact Windows checkout used by the fixed WSL
+  command before API intake or credential transfer; worktrees, UNC and substituted
+  paths are refused. Delivery must update that checkout, not execute another tree.
+
+The first [quality run43909367783](https://github.com/CleMeY15/auto-world/actions/runs/43909367783)
+failed with3077 passes, four failures and67 exclusions. Two failures detect changed
+shared-library pins in generation5; two isolated native bootstraps lack the newly
+eager-loaded scanner profile. These are actual source integration defects, distinct
+from the earlier local tmpfs failures. The scanner ZIP profile is now loaded only
+when that profile is selected. A new **PENDING** admission generation preserves the
+historical generation5 instead of rewriting its pins; its separate evidence and
+ADR record no installation, support activation or image admission.
+
+The corrected focused suites pass131 tests/seven Windows exclusions. An actual
+download of the fixed5119275-byte qualification ZIP through the production
+transport and owned reader completed successfully:689 entries fully verified,
+11 selected sinks, original digest unchanged. This read-only replay validates the
+lazy scanner-profile path; it is not a new qualification scan or archive publication.
+Fresh corrected-source reviews and branch/main CI remain required.
 
 ## Authority and scope
 
