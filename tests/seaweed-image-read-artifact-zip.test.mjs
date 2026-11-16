@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync } from "node:fs";
+import { chmodSync, readFileSync } from "node:fs";
 import { chmod, link, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -149,6 +149,24 @@ test("streams the exact deflated gate and comparison profiles", async () => {
     assert.deepEqual(outputs.get(name), content);
     assert.equal(receipt.entries[0].method, 8);
   }
+});
+
+test("registers the closed scanner-retention profile without changing existing profile identities", async () => {
+  assert.equal(githubArtifactZipProfiles.scannerRetention, "scanner-retention");
+  assert.equal(githubArtifactZipProfiles.build, "build");
+  const profile = readFileSync(new URL(
+    "../infra/scanner/scanner-retention-qualification-zip-profile-v2.json", import.meta.url,
+  ));
+  assert.equal(sha(profile), "sha256:f22ed73c4635aec579a550e1043d62feab0b57bd73a00ac343e696ec5b246513");
+});
+
+test("scanner-retention rejects any non-pinned ZIP before opening caller sinks", async () => {
+  const bytes = zip([{ path: "trivy-provenance/public/verification-workflow.json", content: "{}", method: 8,
+    mode: 0o100600 }]);
+  let calls = 0;
+  await rejectsCode(scan(bytes, githubArtifactZipProfiles.scannerRetention,
+    () => { calls += 1; return new Writable(); }), "seaweed_artifact_zip_profile_limit");
+  assert.equal(calls, 0);
 });
 
 test("rejects traversal, duplicates, wrong profile method and non-allowlisted build paths before opening sinks", async () => {

@@ -1,5 +1,21 @@
 # TASK-0005 M3B — private scanner-package read proof
 
+Accepted checkpoint, 10 November 2026: [PR239 and its independently verified
+actual read](https://github.com/CleMeY15/auto-world/pull/239#issuecomment-6755896458)
+bind protected main `cc8ea880ef49f87cc5cf63fe211e072e845493a0`, tree
+`c0bea888a1c8b3702867ec981291dd7be2d8f4b4`. Source/main quality, managed
+qualification and the required prototype integration checks passed. Actual
+read-only run `42732415577`, job `129553468340`, passed all16 phases:
+authenticated reads before/after, anonymous authorization denial, exact48-byte
+payload and owned cleanup. Artifact `13725082501` contains only the5407-byte
+receipt, SHA-256 `40895136ff72d9d0fb39c3192bd137372780f557e5a89d1be55573a950b18c60`.
+The independent actual-review receipt is bound by SHA-256
+`67c598208030acc3ab8ebef0f4fdf40ed76ee21ec75c02e132dde4e1891d2816`.
+The external fork remains `SKIPPED_BY_USER`, isolation `NOT_VERIFIED`.
+This closes the harmless private-read prerequisite only; the
+[scanner archive publisher and C copy](TASK-0005-scanner-retention-publish.md)
+remain a separate delivery. Earlier pending states below are historical.
+
 Status on 2026-11-09: `IMPLEMENTED / REVIEW_AND_DELIVERY_PENDING`.
 TASK-0005/0005A remain `IN_PROGRESS`. This tranche validates only the harmless
 bootstrap package. Scanner retention, second-copy restore, admission and support

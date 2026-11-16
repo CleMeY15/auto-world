@@ -1,0 +1,82 @@
+{
+  "name": "Publish private scanner retention candidate",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read",
+    "actions": "read",
+    "packages": "write"
+  },
+  "concurrency": {
+    "group": "scanner-retention-publish",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "publish": {
+      "name": "Publish exact private scanner retention candidate",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 45,
+      "steps": [
+        {
+          "name": "Check out source without persistent credentials",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Provision exact managed Node.js",
+          "uses": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+          "with": {
+            "node-version": "22.23.4",
+            "package-manager-cache": false,
+            "cache": ""
+          }
+        },
+        {
+          "name": "Reconstruct official provenance without executing Trivy",
+          "id": "provenance",
+          "timeout-minutes": 10,
+          "shell": "bash",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GH_DEBUG": "",
+            "GH_PROMPT_DISABLED": "1"
+          },
+          "run": "set -euo pipefail\numask 077\nroot=\"$RUNNER_TEMP/trivy-provenance\"\ntest ! -e \"$root\"\nmkdir -m 0700 -- \"$root\" \"$root/download\" \"$root/public\" \"$root/bin\" \"$root/negative\"\nversion=0.76.2\narchive=\"$root/download/trivy_0.76.2_Linux-64bit.tar.gz\"\nbundle=\"$root/public/trivy.attestation.jsonl\"\ngh release download v0.76.2 --repo aquasecurity/trivy --pattern trivy_0.76.2_Linux-64bit.tar.gz --dir \"$root/download\"\ntest \"$(stat --printf=%s -- \"$archive\")\" = 52714130\nprintf '%s  %s\\n' bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf \"$archive\" | sha256sum --check --strict -\n(cd \"$root/download\" && gh attestation download \"$archive\" --repo aquasecurity/trivy --predicate-type https://slsa.dev/provenance/v1)\nmv -- \"$root/download/sha256:bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf.jsonl\" \"$bundle\"\nidentity=https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v0.76.2\nverify() { gh attestation verify \"$1\" --bundle \"$bundle\" --repo aquasecurity/trivy --cert-identity \"$4\" --cert-oidc-issuer https://token.actions.githubusercontent.com --source-digest \"$2\" --source-ref \"$3\" --deny-self-hosted-runners --format json; }\ngh attestation verify \"$archive\" --bundle \"$bundle\" --repo aquasecurity/trivy --signer-workflow aquasecurity/trivy/.github/workflows/reusable-release.yaml --source-digest 3f6334d223b52188324af3b9923b4249cd206652 --source-ref refs/tags/v0.76.2 --deny-self-hosted-runners --format json > \"$root/public/verification-workflow.json\"\nverify \"$archive\" 3f6334d223b52188324af3b9923b4249cd206652 refs/tags/v0.76.2 \"$identity\" > \"$root/public/verification-identity.json\"\nexpect_refusal() { name=\"$1\"; expected=\"$2\"; shift 2; if verify \"$@\" > \"$root/public/$name.stdout.txt\" 2> \"$root/public/$name.stderr.txt\"; then exit 1; else status=$?; fi; test \"$status\" = 1; grep -Fq -- \"$expected\" \"$root/public/$name.stderr.txt\"; printf '%s\\t%s\\n' \"$name\" \"$status\" >> \"$root/public/provenance-controls.tsv\"; }\ncp -- \"$archive\" \"$root/negative/changed-bytes.tar.gz\"\nprintf '\\000' >> \"$root/negative/changed-bytes.tar.gz\"\nexpect_refusal changed-bytes 'Error: verifying with issuer' \"$root/negative/changed-bytes.tar.gz\" 3f6334d223b52188324af3b9923b4249cd206652 refs/tags/v0.76.2 \"$identity\"\nexpect_refusal wrong-source 'expected SourceRepositoryDigest' \"$archive\" 0000000000000000000000000000000000000000 refs/tags/v0.76.2 \"$identity\"\nexpect_refusal wrong-workflow 'Error: verifying with issuer' \"$archive\" 3f6334d223b52188324af3b9923b4249cd206652 refs/tags/v0.76.2 https://github.com/aquasecurity/trivy/.github/workflows/untrusted-release.yaml@refs/tags/v0.76.2\nexpect_refusal wrong-ref 'expected SourceRepositoryRef' \"$archive\" 3f6334d223b52188324af3b9923b4249cd206652 refs/tags/v0.0.0 \"$identity\"\nverify \"$archive\" 3f6334d223b52188324af3b9923b4249cd206652 refs/tags/v0.76.2 \"$identity\" > \"$root/public/verification-after-controls.json\"\ntar --extract --gzip --file \"$archive\" --directory \"$root/bin\" --no-same-owner --no-same-permissions -- trivy\nchmod 0500 \"$root/bin/trivy\"\ntest \"$(env GOTOOLCHAIN=local go version)\" = \"go version go1.24.13 linux/amd64\"\nenv GOTOOLCHAIN=local go version -m \"$root/bin/trivy\" > \"$root/public/go-build-info.txt\"\nsha256sum -- \"$archive\" \"$bundle\" \"$root/bin/trivy\" > \"$root/public/received-sha256.txt\""
+        },
+        {
+          "name": "Publish exact candidate and prove authenticated readback",
+          "id": "publish",
+          "timeout-minutes": 35,
+          "shell": "bash",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "GITHUB_TOKEN": "${{ github.token }}"
+          },
+          "run": "set -euo pipefail\numask 077\ntest \"$(node --version)\" = v22.23.4\noutput=\"$RUNNER_TEMP/scanner-retention-publisher-public\"\nmkdir -- \"$output\"\nnode scripts/scanner/retention-publish.mjs publish --output \"$output\""
+        },
+        {
+          "name": "Preserve public publisher receipt only",
+          "if": "${{ always() }}",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "with": {
+            "name": "scanner-retention-publisher-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/scanner-retention-publisher-public/publisher-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 6
+          }
+        },
+        {
+          "name": "Enforce complete publication success",
+          "if": "${{ always() && steps.publish.outcome != 'success' }}",
+          "shell": "bash",
+          "run": "exit 1"
+        }
+      ]
+    }
+  }
+}

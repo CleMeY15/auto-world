@@ -1,21 +1,67 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { types } from "node:util";
 
 const GH_EXECUTABLE = process.platform === "win32" ? "C:\\Program Files\\GitHub CLI\\gh.exe"
   : process.platform === "linux" ? "/usr/bin/gh" : undefined;
 const REPOSITORY = "CleMeY15/auto-world";
 const MAX_ZIP_BYTES = 2 * 1024 ** 3;
 const MAX_TIMEOUT_MS = 60 * 60_000;
+const MAX_ENV_ENTRIES = 64;
+const MAX_ENV_KEY_BYTES = 128;
+const MAX_ENV_VALUE_BYTES = 8 * 1024;
+const MAX_ENV_BYTES = 64 * 1024;
+const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 
 function downloadError(code) {
   return Object.assign(new Error(code), { code, state: "INCOMPLETE", stage: "DOWNLOAD" });
 }
 
+function snapshotEnvironment(candidate) {
+  if (candidate === null || typeof candidate !== "object" || types.isProxy(candidate)) {
+    throw downloadError("seaweed_artifact_download_environment_invalid");
+  }
+  let prototype;
+  let descriptors;
+  try {
+    prototype = Object.getPrototypeOf(candidate);
+    descriptors = Object.getOwnPropertyDescriptors(candidate);
+  } catch {
+    throw downloadError("seaweed_artifact_download_environment_invalid");
+  }
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw downloadError("seaweed_artifact_download_environment_invalid");
+  }
+  const keys = Reflect.ownKeys(descriptors);
+  if (keys.length > MAX_ENV_ENTRIES || keys.some((key) => typeof key !== "string")) {
+    throw downloadError("seaweed_artifact_download_environment_invalid");
+  }
+  let totalBytes = 0;
+  const copy = Object.create(null);
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    const value = descriptor?.value;
+    const keyBytes = Buffer.byteLength(key, "utf8");
+    if (!("value" in descriptor) || typeof value !== "string" || !ENV_KEY.test(key)
+      || key.includes("\0") || value.includes("\0") || keyBytes > MAX_ENV_KEY_BYTES) {
+      throw downloadError("seaweed_artifact_download_environment_invalid");
+    }
+    const valueBytes = Buffer.byteLength(value, "utf8");
+    totalBytes += keyBytes + valueBytes;
+    if (valueBytes > MAX_ENV_VALUE_BYTES || totalBytes > MAX_ENV_BYTES) {
+      throw downloadError("seaweed_artifact_download_environment_invalid");
+    }
+    Object.defineProperty(copy, key, { value, enumerable: true, writable: false, configurable: false });
+  }
+  return Object.freeze(copy);
+}
+
 function snapshot(input, allowInjection) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw downloadError("seaweed_artifact_download_options_invalid");
   const properties = Object.getOwnPropertyDescriptors(input);
-  const allowed = new Set(["artifact", "handle", "signal", "timeoutMs", ...(allowInjection ? ["spawn", "now", "executable"] : [])]);
+  const allowed = new Set(["artifact", "handle", "signal", "timeoutMs", "env",
+    ...(allowInjection ? ["spawn", "now", "executable"] : [])]);
   if (Reflect.ownKeys(properties).some((key) => !allowed.has(key) || !("value" in properties[key]))) {
     throw downloadError("seaweed_artifact_download_options_invalid");
   }
@@ -44,11 +90,13 @@ function snapshot(input, allowInjection) {
   const executable = value("executable") ?? GH_EXECUTABLE;
   if (typeof spawn !== "function" || typeof now !== "function" || typeof executable !== "string" || executable.length < 1
     || (!allowInjection && GH_EXECUTABLE === undefined)) throw downloadError("seaweed_artifact_download_options_invalid");
-  return Object.freeze({ artifact: Object.freeze({ id, size, digest }), handle, signal, timeoutMs, spawn, now, executable });
+  const env = value("env");
+  return Object.freeze({ artifact: Object.freeze({ id, size, digest }), handle, signal, timeoutMs, spawn, now, executable,
+    ...(env === undefined ? {} : { env: snapshotEnvironment(env) }) });
 }
 
 async function stream(options) {
-  const { artifact, handle, signal, timeoutMs, spawn, now, executable } = options;
+  const { artifact, handle, signal, timeoutMs, spawn, now, executable, env } = options;
   if (signal?.aborted) throw downloadError("seaweed_artifact_download_aborted");
   const deadline = now() + timeoutMs;
   const endpoint = `repos/${REPOSITORY}/actions/artifacts/${artifact.id}/zip`;
@@ -57,7 +105,8 @@ async function stream(options) {
     "--header", "X-GitHub-Api-Version: 2022-11-28", endpoint];
   let child;
   try {
-    child = spawn(executable, args, { windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    child = spawn(executable, args, { windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"],
+      ...(env === undefined ? {} : { env }) });
   } catch {
     throw downloadError("seaweed_artifact_download_command_failed");
   }

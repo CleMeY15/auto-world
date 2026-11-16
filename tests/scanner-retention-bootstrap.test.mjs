@@ -152,7 +152,9 @@ test("bootstrap material and closed one-shot interface match the approved policy
   assert.deepEqual(parseScannerRetentionArguments(["read-proof", "--output", path.resolve("x")]), {
     mode: "read-proof", output: path.resolve("x"),
   });
-  assert.throws(() => parseScannerRetentionArguments(["publish", "--output", path.resolve("x")]), /mode_not_implemented/u);
+  assert.deepEqual(parseScannerRetentionArguments(["publish", "--output", path.resolve("x")]), {
+    mode: "publish", output: path.resolve("x"),
+  });
   assert.throws(() => parseScannerRetentionArguments(["bootstrap", "--output", "relative"]), /arguments_invalid/u);
   assert.equal(Buffer.byteLength(bootstrap.payload.text), 48);
   assert.equal(Buffer.byteLength(bootstrap.recipe.text), 227);

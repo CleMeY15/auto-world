@@ -1,24 +1,47 @@
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
+  closeSync,
+  constants,
+  createReadStream,
   existsSync,
+  fstatSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
   statfsSync,
+  writeSync,
   writeFileSync,
 } from "node:fs";
+import { open } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { Writable } from "node:stream";
 import {
   classifyAnonymousRemoteRead,
   parsePublishedDigest,
   validateRemoteManifest,
 } from "../package-bootstrap/registry-proof.mjs";
 import { parseBuildKitVersions } from "../package-bootstrap/prepare.mjs";
-import { SCANNER_RETENTION, canonicalJsonBytes, sha256 } from "./retention-policy.mjs";
+import { streamGitHubArtifactZip } from "../seaweed-image/download-artifact-zip.mjs";
+import { scanRawUstar } from "../seaweed-image/archive.mjs";
+import { githubArtifactZipProfiles, scanOwnedGitHubArtifactZip } from "../seaweed-image/read-artifact-zip.mjs";
+import {
+  SCANNER_RETENTION,
+  canonicalJsonBytes,
+  createScannerRetentionPublicationBinding,
+  createScannerRetentionQualificationBinding,
+  createScannerRetentionRestoreManifest,
+  scannerRetentionPublisherPhases,
+  sha256,
+  validateScannerRetentionPublisherBinding,
+  validateScannerRetentionPublisherReceiptBytes,
+} from "./retention-policy.mjs";
 
 const REVISION = /^[a-f0-9]{40}$/u;
 const DIGEST = /^sha256:[a-f0-9]{64}$/u;
@@ -56,7 +79,7 @@ function fail(reason) {
 function fixedReason(error, fallback = "scanner_retention_bootstrap_command_failed") {
   if (!(error instanceof Error)) return fallback;
   const message = error.message;
-  return /^scanner_retention_(?:bootstrap|read_proof|mode|arguments)_[a-z0-9_]+$/u.test(message)
+  return /^scanner_retention_(?:bootstrap|read_proof|publish|mode|arguments)_[a-z0-9_]+$/u.test(message)
     ? message
     : fallback;
 }
@@ -67,11 +90,630 @@ export function parseScannerRetentionArguments(argv) {
   if (argv.length === 3 && argv[0] === "read-proof" && argv[1] === "--output" && path.isAbsolute(argv[2])) {
     return { mode: "read-proof", output: path.resolve(argv[2]) };
   }
-  if (argv[0] === "publish") fail("scanner_retention_mode_not_implemented");
+  if (argv.length === 3 && argv[0] === "publish" && argv[1] === "--output" && path.isAbsolute(argv[2])) {
+    return { mode: "publish", output: path.resolve(argv[2]) };
+  }
   if (argv.length === 3 && argv[0] === "bootstrap" && argv[1] === "--output" && path.isAbsolute(argv[2])) {
     return { mode: "bootstrap", output: path.resolve(argv[2]) };
   }
   fail("scanner_retention_arguments_invalid");
+}
+
+const PUBLISH_WORKFLOW = ".github/workflows/scanner-retention-publish.yml";
+const PUBLISH_WORKFLOW_REF = `${SCANNER_RETENTION.repository}/${PUBLISH_WORKFLOW}@refs/heads/main`;
+const PUBLISH_PHASES = scannerRetentionPublisherPhases;
+
+export function validateScannerRetentionClosurePolicy(closure = SCANNER_RETENTION.closure) {
+  if (!closure || closure.format !== "ustar" || closure.blockingFactor !== 1
+    || closure.tarCapBytes !== 468374629 || closure.expandedCapBytes !== 468322405
+    || closure.publisherPeakBytes !== 4016376616 || closure.publisherRequiredFreeBytes !== 5020470770
+    || !Array.isArray(closure.members) || closure.members.length !== 50) {
+    fail("scanner_retention_publish_policy_invalid");
+  }
+  const paths = closure.members.map((member) => member?.path);
+  if (new Set(paths).size !== 50 || paths.some((entry) => typeof entry !== "string"
+    || !/^scanner-closure\/[\x21-\x7e]+$/u.test(entry))
+    || paths.some((entry, index) => index > 0 && Buffer.compare(Buffer.from(paths[index - 1]), Buffer.from(entry)) >= 0)) {
+    fail("scanner_retention_publish_policy_invalid");
+  }
+  for (const member of closure.members) {
+    if (!Object.hasOwn(member, "origin") || !Object.hasOwn(member, "sourcePath")
+      || !Object.hasOwn(member, "producer") || !Object.hasOwn(member, "bytes")
+      || !Object.hasOwn(member, "sha256") || !Object.hasOwn(member, "capBytes")
+      || !Object.hasOwn(member, "headerMode") || !Number.isSafeInteger(member.capBytes)
+      || member.capBytes < 1 || ![0o444, 0o555].includes(member.headerMode)
+      || (member.path === "scanner-closure/binary/trivy") !== (member.headerMode === 0o555)
+      || (member.bytes !== null && (!Number.isSafeInteger(member.bytes) || member.bytes < 0 || member.bytes > member.capBytes))
+      || (member.sha256 !== null && !HEX_SHA256.test(member.sha256))) {
+      fail("scanner_retention_publish_policy_invalid");
+    }
+  }
+  return closure;
+}
+
+export function scannerRetentionTarInvocation({ archive, stage, memberList }) {
+  if (![archive, stage, memberList].every((entry) => typeof entry === "string"
+    && (path.posix.isAbsolute(entry) || path.win32.isAbsolute(entry)))) {
+    fail("scanner_retention_publish_tar_arguments_invalid");
+  }
+  validateScannerRetentionClosurePolicy();
+  return Object.freeze(["--create", `--file=${archive}`, "--format=ustar", "--blocking-factor=1",
+    "--no-recursion", "--sort=name", "--mtime=@0", "--owner=0", "--group=0", "--numeric-owner",
+    "--no-acls", "--no-selinux", "--no-xattrs", `--directory=${stage}`, "--null",
+    "--verbatim-files-from", `--files-from=${memberList}`]);
+}
+
+export function validateScannerRetentionPublishContext(env, platform = process.platform) {
+  const publisher = SCANNER_RETENTION.publisher;
+  const token = env.GITHUB_TOKEN;
+  if (!publisher || platform !== "linux" || env.GITHUB_ACTIONS !== "true"
+    || env.RUNNER_OS !== "Linux" || env.RUNNER_ENVIRONMENT !== "github-hosted"
+    || env.GITHUB_EVENT_NAME !== "workflow_dispatch"
+    || env.GITHUB_REPOSITORY !== SCANNER_RETENTION.repository || env.GITHUB_REF !== "refs/heads/main"
+    || env.GITHUB_WORKFLOW_REF !== PUBLISH_WORKFLOW_REF || env.GITHUB_JOB !== publisher.job
+    || env.GITHUB_RUN_NUMBER !== "1" || env.GITHUB_RUN_ATTEMPT !== "1"
+    || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "") || !REVISION.test(env.GITHUB_SHA ?? "")
+    || env.GITHUB_WORKFLOW_SHA !== env.GITHUB_SHA
+    || env.RUNNER_TEMP !== "/home/runner/work/_temp" || typeof env.GITHUB_WORKSPACE !== "string"
+    || !path.posix.isAbsolute(env.GITHUB_WORKSPACE) || path.posix.normalize(env.GITHUB_WORKSPACE) !== env.GITHUB_WORKSPACE
+    || typeof token !== "string" || token.length < 1 || token.length > 8192 || /\s/u.test(token)
+    || env.GH_TOKEN !== token || typeof env.PATH !== "string" || env.PATH.length < 1 || env.PATH.length > 32768
+    || /[\r\n\0]/u.test(env.PATH)) fail("scanner_retention_publish_context_invalid");
+  return Object.freeze({ publisher, token, runId: env.GITHUB_RUN_ID, headSha: env.GITHUB_SHA,
+    workspace: env.GITHUB_WORKSPACE, runnerTemp: env.RUNNER_TEMP, path: env.PATH });
+}
+
+export function scannerRetentionPublisherChildEnvironment(context, dockerConfig, work) {
+  for (const value of [dockerConfig, work]) if (typeof value !== "string"
+    || (!path.posix.isAbsolute(value) && !path.win32.isAbsolute(value))) {
+    fail("scanner_retention_publish_environment_invalid");
+  }
+  return Object.freeze({ CI: "true", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC",
+    HOME: work, TMPDIR: work, RUNNER_TEMP: context.runnerTemp, GITHUB_WORKSPACE: context.workspace,
+    GH_PROMPT_DISABLED: "1", GH_DEBUG: "", DOCKER_CONFIG: dockerConfig,
+    GOTOOLCHAIN: "local", PATH: context.path });
+}
+
+export function createScannerRetentionPublisherReceipt(context, values = {}) {
+  const receipt = {
+    schemaVersion: 1, state: values.state ?? "PUBLISHED_UNADMITTED", result: values.result ?? "FAILED",
+    repository: SCANNER_RETENTION.repository, workflow: PUBLISH_WORKFLOW, runId: context.runId,
+    runAttempt: 1, headSha: context.headSha, headTree: values.headTree ?? null,
+    qualificationArtifact: values.qualificationArtifact ?? null, package: SCANNER_RETENTION.package,
+    tag: values.tag ?? null, ghcrManifestDigest: values.ghcrManifestDigest ?? null,
+    innerTar: values.innerTar ?? null, restoreManifest: values.restoreManifest ?? null,
+    oci: values.oci ?? null, phases: values.phases ?? [],
+    cleanup: values.cleanup ?? { state: "PENDING", image: "NOT_CREATED", container: "NOT_CREATED",
+      buildCache: "NOT_CREATED", authenticatedDockerConfig: "NOT_CREATED", ownedPathRemoved: false },
+    claims: { forkAccessTest: "SKIPPED_BY_USER", forkIsolation: "NOT_VERIFIED", scannerExecuted: false,
+      retained: false, restored: false, admitted: false, supportStart: null, supportEnd: null },
+  };
+  let bytes;
+  try { bytes = canonicalJsonBytes(receipt, 262144); }
+  catch (error) {
+    if (error?.message === "scanner_retention_json_cap_exceeded") fail("scanner_retention_publish_receipt_too_large");
+    throw error;
+  }
+  if (bytes.length > 262144) fail("scanner_retention_publish_receipt_too_large");
+  return Object.freeze({ receipt: Object.freeze(receipt), bytes });
+}
+
+export async function TEST_ONLY_runScannerRetentionPublish(options = {}) {
+  const context = (options.validateContext ?? validateScannerRetentionPublishContext)(options.env ?? process.env,
+    options.platform ?? process.platform);
+  validateScannerRetentionClosurePolicy(options.closure ?? SCANNER_RETENTION.closure);
+  if (typeof options.runPhase !== "function") fail("scanner_retention_publish_dependencies_invalid");
+  const phases = [];
+  const values = {};
+  for (const name of PUBLISH_PHASES) {
+    const started = (options.now ?? Date.now)();
+    const result = await options.runPhase(name, Object.freeze({ context, values: Object.freeze({ ...values }) }));
+    if (!result || typeof result !== "object" || Array.isArray(result)) fail("scanner_retention_publish_phase_invalid");
+    Object.assign(values, result.values ?? {});
+    phases.push({ name, result: "PASSED", durationMs: Math.max(0, (options.now ?? Date.now)() - started) });
+  }
+  return createScannerRetentionPublisherReceipt(context, { ...values, state: "PUBLISHED_UNADMITTED",
+    result: "PASSED", phases });
+}
+
+function publishRun(commandRunner, context, command, args, { input, env, cwd = context.workspace, timeout } = {}) {
+  return run(commandRunner, command, args, { cwd, env, input, timeout: context.publisher.operationTimeoutMs,
+    ...(timeout === undefined ? {} : { timeout }),
+    failurePrefix: "scanner_retention_publish" });
+}
+
+function publishDockerInventory(commandRunner, context, options) {
+  const read = (args) => [...new Set(publishRun(commandRunner, context, "docker", args, options).stdout
+    .split(/\r?\n/u).map((value) => value.trim()).filter(Boolean))].sort();
+  return Object.freeze({
+    images: read(["image", "ls", "--all", "--no-trunc", "--quiet"]),
+    containers: read(["container", "ls", "--all", "--no-trunc", "--quiet"]),
+    volumes: read(["volume", "ls", "--quiet"]),
+  });
+}
+
+function addedInventory(current, baseline) {
+  return current.filter((identity) => !baseline.includes(identity));
+}
+
+function writeExclusive(filename, bytes, mode = 0o400) {
+  let descriptor;
+  try {
+    descriptor = openSync(filename, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const written = writeSync(descriptor, bytes, offset, bytes.length - offset);
+      if (!Number.isSafeInteger(written) || written < 1) fail("scanner_retention_publish_write_failed");
+      offset += written;
+    }
+    fsyncSync(descriptor); const info = fstatSync(descriptor);
+    if (!info.isFile() || info.nlink !== 1 || info.size !== bytes.length) fail("scanner_retention_publish_write_failed");
+    closeSync(descriptor); descriptor = undefined; chmodSync(filename, mode);
+  } catch (error) {
+    if (descriptor !== undefined) try { closeSync(descriptor); } catch { /* original failure wins */ }
+    if (/^scanner_retention_publish_/u.test(error?.message ?? "")) throw error;
+    fail("scanner_retention_publish_write_failed");
+  }
+}
+
+function securePublishDirectory(directory) {
+  const info = lstatSync(directory);
+  if (!info.isDirectory() || info.isSymbolicLink() || realpathSync(directory) !== directory
+    || (info.mode & 0o077) !== 0) fail("scanner_retention_publish_directory_invalid");
+}
+
+function publishEntrySink(stage, mappings) {
+  const selected = new Map(mappings.map((mapping) => [mapping.sourcePath, mapping]));
+  return (entry) => {
+    const mapping = selected.get(entry.path);
+    if (!mapping) return new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+    const output = path.join(stage, ...mapping.closurePath.split("/"));
+    mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
+    let descriptor = openSync(output, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
+      | constants.O_NOFOLLOW, 0o600); let bytes = 0; const chunks = [];
+    return new Writable({
+      write(chunk, _encoding, callback) {
+        try { bytes += chunk.length; chunks.push(Buffer.from(chunk)); let offset = 0;
+          while (offset < chunk.length) { const written = writeSync(descriptor, chunk, offset, chunk.length - offset);
+            if (written < 1) fail("scanner_retention_publish_write_failed"); offset += written; } callback(); }
+        catch (error) { callback(error); }
+      },
+      final(callback) {
+        try { fsyncSync(descriptor); closeSync(descriptor); descriptor = undefined;
+          const value = Buffer.concat(chunks, bytes);
+          if (bytes !== mapping.bytes || sha256(value) !== mapping.sha256) fail("scanner_retention_publish_qualification_member_invalid");
+          chmodSync(output, 0o444); callback(); } catch (error) { callback(error); }
+      },
+      destroy(error, callback) { try { if (descriptor !== undefined) closeSync(descriptor); callback(error); }
+        catch (closeError) { callback(error ?? closeError); } },
+    });
+  };
+}
+
+async function verifyQualificationApi(context, fetchImpl, now) {
+  const q = SCANNER_RETENTION.qualification; const base = `https://api.github.com/repos/${q.repository}`;
+  const [runResult, jobsResult, artifactResult, commitResult] = await Promise.all([
+    requestApi(fetchImpl, `${base}/actions/runs/${q.runId}`, context.token, [200]),
+    requestApi(fetchImpl, `${base}/actions/runs/${q.runId}/attempts/${q.runAttempt}/jobs?per_page=100&page=1`, context.token, [200]),
+    requestApi(fetchImpl, `${base}/actions/artifacts/${q.artifact.id}`, context.token, [200]),
+    requestApi(fetchImpl, `${base}/git/commits/${q.headSha}`, context.token, [200]),
+  ]);
+  const runBody = parseJson(runResult.bytes); const jobsBody = parseJson(jobsResult.bytes);
+  const artifact = parseJson(artifactResult.bytes); const commit = parseJson(commitResult.bytes);
+  const jobs = Array.isArray(jobsBody?.jobs) ? jobsBody.jobs.filter((job) => job?.id === q.jobId) : [];
+  const requiredSteps = [
+    "Check out source without persistent credentials", "Provision exact managed Node.js",
+    "Run pure scanner and workflow regression tests", "Verify official scanner provenance before extraction",
+    "Qualify tools, build and audit all five managed runtime roles",
+    "Preserve public reports and provenance, including failures",
+  ];
+  const steps = Array.isArray(jobs[0]?.steps) ? jobs[0].steps : [];
+  const observedAt = now();
+  if (runBody?.id !== q.runId || runBody.run_attempt !== 1 || runBody.path !== q.workflow
+    || runBody.event !== "push" || runBody.head_branch !== "main" || runBody.head_sha !== q.headSha
+    || runBody.repository?.full_name !== q.repository || runBody.status !== "completed" || runBody.conclusion !== "success"
+    || commit?.sha !== q.headSha || commit?.tree?.sha !== q.headTree || jobsBody.total_count !== 1
+    || jobsBody.jobs?.length !== 1 || jobs.length !== 1
+    || jobs[0].name !== "Audit builders, construct and audit managed subjects" || jobs[0].status !== "completed"
+    || jobs[0].run_id !== q.runId || jobs[0].run_attempt !== q.runAttempt || jobs[0].head_sha !== q.headSha
+    || requiredSteps.some((name) => {
+      const matches = steps.filter((step) => step?.name === name);
+      return matches.length !== 1 || matches[0].status !== "completed" || matches[0].conclusion !== "success";
+    })
+    || jobs[0].conclusion !== "success" || artifact?.id !== q.artifact.id || artifact.name !== q.artifact.name
+    || artifact.expired !== false || artifact.size_in_bytes !== q.artifact.sizeInBytes
+    || artifact.digest !== q.artifact.digest || artifact.url !== q.artifact.url
+    || artifact.archive_download_url !== q.artifact.archiveDownloadUrl
+    || artifact.workflow_run?.id !== q.runId || artifact.workflow_run?.head_sha !== q.headSha
+    || artifact.created_at !== q.artifact.createdAt || artifact.updated_at !== q.artifact.updatedAt
+    || artifact.expires_at !== q.artifact.expiresAt || !Number.isFinite(observedAt)
+    || !Number.isFinite(Date.parse(artifact.expires_at))
+    || Date.parse(artifact.expires_at) <= observedAt) fail("scanner_retention_publish_qualification_api_invalid");
+  return Object.freeze({ id: artifact.id, name: artifact.name, size: artifact.size_in_bytes,
+    digest: artifact.digest, expiresAt: artifact.expires_at });
+}
+
+export const TEST_ONLY_verifyScannerRetentionQualificationApi = verifyQualificationApi;
+
+export function validateScannerRetentionReadbackState(image, container, expected) {
+  const state = container?.State;
+  if (image?.Id !== expected.imageId || image?.Os !== "linux" || image?.Architecture !== "amd64"
+    || !Array.isArray(image.RepoDigests) || !image.RepoDigests.includes(expected.subject)
+    || container?.Id !== expected.containerId || container?.Image !== expected.imageId
+    || container?.Name !== `/${expected.containerName}` || container?.Config?.Image !== expected.subject
+    || state?.Status !== "created" || state?.Running !== false || state?.Paused !== false
+    || state?.Restarting !== false || state?.Dead !== false
+    || state?.StartedAt !== "0001-01-01T00:00:00Z" || state?.FinishedAt !== "0001-01-01T00:00:00Z") {
+    fail("scanner_retention_publish_readback_invalid");
+  }
+  return Object.freeze({ imageId: image.Id, containerId: container.Id, stoppedNeverStarted: true });
+}
+
+async function readQualifiedRepositoryBlob(context, fetchImpl, item) {
+  const endpoint = `https://api.github.com/repos/${SCANNER_RETENTION.repository}/contents/${item.sourcePath
+    .split("/").map(encodeURIComponent).join("/")}?ref=${SCANNER_RETENTION.qualification.headSha}`;
+  const body = parseJson((await requestApi(fetchImpl, endpoint, context.token, [200])).bytes);
+  if (body?.type !== "file" || body.path !== item.sourcePath || body.size !== item.bytes
+    || body.encoding !== "base64" || typeof body.content !== "string") fail("scanner_retention_publish_source_blob_invalid");
+  const bytes = Buffer.from(body.content.replaceAll("\n", ""), "base64");
+  if (bytes.length !== item.bytes || sha256(bytes) !== item.sha256) fail("scanner_retention_publish_source_blob_invalid");
+  return bytes;
+}
+
+function validateStagedClosure(stage, allowGenerated = false) {
+  const members = validateScannerRetentionClosurePolicy().members;
+  for (const member of members) {
+    if (!allowGenerated && member.origin === "GENERATED_POSTCONDITION") continue;
+    const file = path.join(stage, ...member.path.split("/"));
+    const info = lstatSync(file); const bytes = readFileSync(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || bytes.length > member.capBytes
+      || (member.bytes !== null && bytes.length !== member.bytes)
+      || (member.sha256 !== null && sha256(bytes) !== member.sha256)) fail("scanner_retention_publish_staged_member_invalid");
+    chmodSync(file, member.headerMode);
+  }
+}
+
+function stageVerifiedBytes(state, closurePath, bytes, expected = {}) {
+  if (!Buffer.isBuffer(bytes) || (expected.bytes !== undefined && bytes.length !== expected.bytes)
+    || (expected.sha256 !== undefined && sha256(bytes) !== expected.sha256)) {
+    fail("scanner_retention_publish_staged_member_invalid");
+  }
+  const output = path.join(state.stage, ...closurePath.split("/"));
+  mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
+  writeExclusive(output, bytes, closurePath === "scanner-closure/binary/trivy" ? 0o500 : 0o400);
+}
+
+function parseDockerManifest(raw) {
+  const bytes = Buffer.from(raw, "utf8"); const body = parseJson(bytes);
+  if (body?.schemaVersion !== 2 || !MANIFEST_MEDIA_TYPES.has(body.mediaType)
+    || !body.config || !Array.isArray(body.layers) || body.layers.length !== 1) {
+    fail("scanner_retention_publish_manifest_invalid");
+  }
+  const rawConfig = readDescriptor(body.config, CONFIG_MEDIA_TYPES); const rawLayer = readDescriptor(body.layers[0], LAYER_MEDIA_TYPES);
+  const config = { digest: rawConfig.digest, mediaType: rawConfig.mediaType, bytes: rawConfig.size,
+    sha256: rawConfig.digest.slice("sha256:".length) };
+  const layer = { digest: rawLayer.digest, mediaType: rawLayer.mediaType, bytes: rawLayer.size,
+    sha256: rawLayer.digest.slice("sha256:".length) };
+  return { bytes, digest: `sha256:${sha256(bytes)}`, mediaType: body.mediaType, config, layer };
+}
+
+function createProductionPublisherRunner(parsed, {
+  commandRunner = defaultCommandRunner, fetchImpl = globalThis.fetch, now = Date.now,
+  download = streamGitHubArtifactZip, scan = scanOwnedGitHubArtifactZip,
+} = {}) {
+  const state = { parsed, commandRunner, fetchImpl, now, download, scan };
+  const phase = async (name, { context }) => {
+    state.context = context;
+    if (state.operationDeadline !== undefined && now() >= state.operationDeadline) {
+      fail("scanner_retention_publish_timeout");
+    }
+    const options = (dockerConfig = state.dockerConfig) => ({
+      cwd: context.workspace,
+      env: scannerRetentionPublisherChildEnvironment(context, dockerConfig, state.work),
+      timeout: state.operationDeadline === undefined ? context.publisher.operationTimeoutMs
+        : Math.max(1, state.operationDeadline - now()),
+    });
+    if (name === "context_and_capacity") {
+      validateScannerRetentionPublisherBinding();
+      state.operationDeadline = now() + context.publisher.operationTimeoutMs;
+      if (parsed.output !== path.join(context.runnerTemp, "scanner-retention-publisher-public")) {
+        fail("scanner_retention_publish_output_invalid");
+      }
+      securePublishDirectory(parsed.output);
+      const available = statfsSync(context.runnerTemp).bavail * statfsSync(context.runnerTemp).bsize;
+      if (!Number.isSafeInteger(available) || available < SCANNER_RETENTION.closure.publisherRequiredFreeBytes) {
+        fail("scanner_retention_publish_capacity_invalid");
+      }
+      state.work = path.join(context.runnerTemp, `scanner-retention-publish-${context.runId}`);
+      state.provenanceRoot = path.join(context.runnerTemp, "trivy-provenance");
+      state.stage = path.join(state.work, "stage"); state.downloadRoot = path.join(state.work, "qualification-download");
+      state.dockerConfig = path.join(state.work, "docker-auth"); state.readDockerConfig = path.join(state.work, "docker-readback");
+      for (const directory of [state.work, state.stage, state.downloadRoot, state.dockerConfig, state.readDockerConfig]) {
+        mkdirSync(directory, { recursive: false, mode: 0o700 }); securePublishDirectory(directory);
+      }
+      return { values: {} };
+    }
+    if (name === "protected_main") {
+      if (readdirSync(context.workspace).length < 1) fail("scanner_retention_publish_checkout_invalid");
+      const status = publishRun(commandRunner, context, "git", ["status", "--porcelain=v1"], options());
+      if (status.stdout !== "") fail("scanner_retention_publish_checkout_invalid");
+      const sha = boundedIdentity(publishRun(commandRunner, context, "git", ["rev-parse", "HEAD"], options()).stdout,
+        "scanner_retention_publish_checkout_invalid");
+      const tree = boundedIdentity(publishRun(commandRunner, context, "git", ["rev-parse", "HEAD^{tree}"], options()).stdout,
+        "scanner_retention_publish_checkout_invalid");
+      if (sha !== context.headSha || !REVISION.test(tree)) fail("scanner_retention_publish_checkout_invalid");
+      await verifyProtectedMain(fetchImpl, { token: context.token, sourceSha: context.headSha }, tree);
+      state.headTree = tree; return { values: { headTree: tree } };
+    }
+    if (name === "package_controls") {
+      const packageResult = parseJson((await requestApi(fetchImpl, PACKAGE_URL, context.token, [200])).bytes);
+      const versions = parseJson((await requestApi(fetchImpl, PACKAGE_VERSIONS_URL, context.token, [200])).bytes);
+      const bootstrap = SCANNER_RETENTION.readProof.bootstrap;
+      const bootstrapTag = bootstrap.tag.slice(`${SCANNER_RETENTION.package}:`.length);
+      if (packageResult?.id !== SCANNER_RETENTION.observations.packageId || packageResult.visibility !== "private"
+        || packageResult.repository?.full_name !== SCANNER_RETENTION.repository || !Array.isArray(versions)
+        || versions.length !== 1 || versions[0]?.name !== bootstrap.manifestDigest
+        || !Array.isArray(versions[0]?.metadata?.container?.tags)
+        || versions[0].metadata.container.tags.length !== 1
+        || versions[0].metadata.container.tags[0] !== bootstrapTag) fail("scanner_retention_publish_package_controls_invalid");
+      return { values: {} };
+    }
+    if (name === "qualification_api") {
+      state.qualificationArtifact = await verifyQualificationApi(context, fetchImpl, now);
+      return { values: { qualificationArtifact: { id: state.qualificationArtifact.id,
+        name: state.qualificationArtifact.name, digest: state.qualificationArtifact.digest,
+        bytes: state.qualificationArtifact.size, expiresAt: state.qualificationArtifact.expiresAt } } };
+    }
+    if (name === "qualification_zip") {
+      const zip = path.join(state.downloadRoot, "artifact.zip"); let handle;
+      try {
+        handle = await open(zip, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+        await download({ artifact: state.qualificationArtifact, handle,
+          env: { ...scannerRetentionPublisherChildEnvironment(context, state.dockerConfig, state.work), GH_TOKEN: context.token } });
+        await handle.sync(); await handle.close(); handle = undefined;
+        state.qualificationScan = await scan({ file: zip, root: state.downloadRoot,
+          descriptor: state.qualificationArtifact, profile: githubArtifactZipProfiles.scannerRetention,
+          openEntrySink: publishEntrySink(state.stage, SCANNER_RETENTION.qualification.sourceMappings) });
+      } finally { try { await handle?.close(); } catch { /* original failure wins */ } }
+      return { values: {} };
+    }
+    if (name === "official_provenance") {
+      const root = state.provenanceRoot; securePublishDirectory(root);
+      const fresh = [
+        ["scanner-closure/upstream/trivy_0.76.2_Linux-64bit.tar.gz", "download/trivy_0.76.2_Linux-64bit.tar.gz", 52714130, "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"],
+        ["scanner-closure/binary/trivy", "bin/trivy", 176386208, "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3"],
+        ["scanner-closure/inventory/go-build-info.txt", "public/go-build-info.txt", 37019, "a3049a3271abec48a51c86d64b68847e9e382f1039975556d8a5e4c1887d975b"],
+        ["scanner-closure/provenance/trivy.attestation.jsonl", "public/trivy.attestation.jsonl"],
+        ...["verification-workflow.json", "verification-identity.json", "verification-after-controls.json",
+          "provenance-controls.tsv", "changed-bytes.stdout.txt", "changed-bytes.stderr.txt",
+          "wrong-source.stdout.txt", "wrong-source.stderr.txt", "wrong-workflow.stdout.txt",
+          "wrong-workflow.stderr.txt", "wrong-ref.stdout.txt", "wrong-ref.stderr.txt", "received-sha256.txt"]
+          .map((file) => [`scanner-closure/provenance/${file}`, `public/${file}`]),
+      ];
+      for (const [closurePath, relative, bytes, digest] of fresh) {
+        const value = readFileSync(path.join(root, ...relative.split("/")));
+        stageVerifiedBytes(state, closurePath, value, { ...(bytes === undefined ? {} : { bytes }),
+          ...(digest === undefined ? {} : { sha256: digest }) });
+      }
+      const probe = Buffer.from("module auto.world/scanner-version-probe\n\ngo 1.27.3\n\nrequire github.com/aquasecurity/trivy v0.76.2\n", "utf8");
+      stageVerifiedBytes(state, "scanner-closure/qualification/scanner-version-probe.go.mod", probe,
+        SCANNER_RETENTION.qualification.deterministicQualifiedProbe);
+      return { values: {} };
+    }
+    if (name === "qualified_source_blobs") {
+      for (const item of SCANNER_RETENTION.qualification.staticQualifiedBlobs) {
+        stageVerifiedBytes(state, item.closurePath, await readQualifiedRepositoryBlob(context, fetchImpl, item), item);
+      }
+      return { values: {} };
+    }
+    if (name === "canonical_manifests") {
+      const publication = createScannerRetentionPublicationBinding({ headSha: context.headSha,
+        headTree: state.headTree, runId: context.runId });
+      stageVerifiedBytes(state, "scanner-closure/source/qualification-binding.json",
+        canonicalJsonBytes(createScannerRetentionQualificationBinding(), 1048576));
+      stageVerifiedBytes(state, "scanner-closure/source/publication-binding.json", canonicalJsonBytes(publication, 1048576));
+      const files = validateScannerRetentionClosurePolicy().members.filter((member) => member.path !== "scanner-closure/restore-manifest.json")
+        .map((member) => { const bytes = readFileSync(path.join(state.stage, ...member.path.split("/")));
+          return { path: member.path, class: member.origin, bytes: bytes.length, sha256: sha256(bytes) }; });
+      const restoreManifest = createScannerRetentionRestoreManifest({ publication, files });
+      const restoreBytes = canonicalJsonBytes(restoreManifest, 2097152);
+      stageVerifiedBytes(state, "scanner-closure/restore-manifest.json", restoreBytes);
+      state.restoreManifest = { bytes: restoreBytes.length, sha256: sha256(restoreBytes) };
+      validateStagedClosure(state.stage, true);
+      return { values: { restoreManifest: state.restoreManifest } };
+    }
+    if (name === "deterministic_ustar") {
+      const paths = validateScannerRetentionClosurePolicy().members.map((member) => member.path);
+      const memberList = path.join(state.work, "members.nul"); const archive = path.join(state.work, "scanner-closure.tar");
+      writeExclusive(memberList, Buffer.from(`${paths.join("\0")}\0`, "ascii"), 0o400);
+      const version = publishRun(commandRunner, context, "tar", ["--version"], options()).stdout.split("\n")[0];
+      if (version !== "tar (GNU tar) 1.35") fail("scanner_retention_publish_tar_identity_invalid");
+      publishRun(commandRunner, context, "tar", scannerRetentionTarInvocation({ archive, stage: state.stage, memberList }), options());
+      const bytes = readFileSync(archive); if (bytes.length > SCANNER_RETENTION.closure.tarCapBytes) fail("scanner_retention_publish_tar_invalid");
+      state.archive = archive; state.innerTar = { bytes: bytes.length, sha256: sha256(bytes) };
+      const scanResult = await scanRawUstar({ input: createReadStream(archive, { flags: constants.O_RDONLY }),
+        diffId: `sha256:${state.innerTar.sha256}`, maxRawBytes: SCANNER_RETENTION.closure.tarCapBytes,
+        maxMembers: 50, allowHardlinks: false, requireEmptyOwnerNames: true });
+      if (scanResult.rawSize !== state.innerTar.bytes || scanResult.members.length !== 50) {
+        fail("scanner_retention_publish_tar_invalid");
+      }
+      for (const [index, member] of validateScannerRetentionClosurePolicy().members.entries()) {
+        const entry = scanResult.members[index]?.entry;
+        if (entry?.path !== member.path || entry.type !== "file" || entry.mode !== member.headerMode
+          || entry.uid !== 0 || entry.gid !== 0 || entry.mtime !== 0
+          || (member.bytes !== null && entry.size !== member.bytes) || Object.hasOwn(entry, "linkname")
+          || !HEX_SHA256.test(entry.sha256 ?? "")) fail("scanner_retention_publish_tar_invalid");
+        const staged = readFileSync(path.join(state.stage, ...member.path.split("/")));
+        if (entry.size !== staged.length || entry.sha256 !== sha256(staged)) fail("scanner_retention_publish_tar_invalid");
+      }
+      state.tag = `${SCANNER_RETENTION.package}:${SCANNER_RETENTION.publisher.tagPrefix}${state.innerTar.sha256}`;
+      return { values: { innerTar: state.innerTar, tag: state.tag } };
+    }
+    if (name === "oci_candidate_push") {
+      const contextRoot = path.join(state.work, "oci-context"); mkdirSync(contextRoot, { mode: 0o700 });
+      writeExclusive(path.join(contextRoot, "Dockerfile"), Buffer.from("FROM scratch\nCOPY scanner-closure.tar /closure/scanner-closure.tar\n", "utf8"));
+      writeExclusive(path.join(contextRoot, "scanner-closure.tar"), readFileSync(state.archive));
+      publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
+        { ...options(), input: `${context.token}\n` });
+      const qualifiedTools = readFileSync(path.join(state.stage, "scanner-closure/qualification/runner-tools.txt"), "utf8");
+      const dockerIdentity = publishRun(commandRunner, context, "docker", ["version", "--format", "{{json .}}"], options()).stdout.trim();
+      const buildxIdentity = boundedIdentity(publishRun(commandRunner, context, "docker", ["buildx", "version"], options()).stdout,
+        "scanner_retention_publish_tool_identity_invalid");
+      if (dockerIdentity.length < 1 || dockerIdentity.length > 65536 || /[\r\n\0]/u.test(dockerIdentity)
+        || !qualifiedTools.split(/\r?\n/u).includes(dockerIdentity)
+        || !qualifiedTools.split(/\r?\n/u).includes(buildxIdentity)) fail("scanner_retention_publish_tool_identity_invalid");
+      state.builderBaseline = publishDockerInventory(commandRunner, context, options());
+      state.builder = `aw-scanner-retention-${context.runId}`;
+      publishRun(commandRunner, context, "docker", ["buildx", "create", "--name", state.builder,
+        "--driver", "docker-container", "--use"], options());
+      const builderInspection = publishRun(commandRunner, context, "docker", ["buildx", "inspect", "--bootstrap", state.builder], options()).stdout;
+      state.buildKitBackendVersions = parseBuildKitVersions(builderInspection);
+      if (!Array.isArray(state.buildKitBackendVersions) || state.buildKitBackendVersions.length < 1) {
+        fail("scanner_retention_publish_tool_identity_invalid");
+      }
+      publishRun(commandRunner, context, "docker", ["buildx", "build", "--builder", state.builder,
+        "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "--pull=false",
+        "--no-cache", "--output", `type=registry,name=${state.tag},push=true`, contextRoot], options());
+      const raw = publishRun(commandRunner, context, "docker", ["buildx", "imagetools", "inspect", "--raw", state.tag], options()).stdout;
+      state.manifest = parseDockerManifest(raw); state.subject = `${SCANNER_RETENTION.package}@${state.manifest.digest}`;
+      return { values: { ghcrManifestDigest: state.manifest.digest, oci: { manifest: {
+        mediaType: state.manifest.mediaType, bytes: state.manifest.bytes.length, sha256: sha256(state.manifest.bytes) },
+        config: state.manifest.config, layer: state.manifest.layer, readback: null } } };
+    }
+    if (name === "owned_local_state_removed") {
+      publishRun(commandRunner, context, "docker", ["buildx", "rm", state.builder], options());
+      const builderAbsent = observe(commandRunner, "docker", ["buildx", "inspect", state.builder], {
+        ...options(), failurePrefix: "scanner_retention_publish" });
+      if (builderAbsent.error || builderAbsent.status === 0) fail("scanner_retention_publish_builder_cleanup_invalid");
+      state.builder = undefined;
+      let current = publishDockerInventory(commandRunner, context, options());
+      if (addedInventory(current.containers, state.builderBaseline.containers).length !== 0
+        || addedInventory(current.volumes, state.builderBaseline.volumes).length !== 0) {
+        fail("scanner_retention_publish_builder_cleanup_invalid");
+      }
+      for (const id of addedInventory(current.images, state.builderBaseline.images)) {
+        const tags = parseJson(Buffer.from(publishRun(commandRunner, context, "docker", ["image", "inspect",
+          "--format", "{{json .RepoTags}}", id], options()).stdout, "utf8"));
+        if (!Array.isArray(tags) || tags.length < 1
+          || tags.some((tag) => typeof tag !== "string" || !tag.startsWith("moby/buildkit:"))) {
+          fail("scanner_retention_publish_builder_cleanup_invalid");
+        }
+        publishRun(commandRunner, context, "docker", ["image", "rm", id], options());
+      }
+      const after = publishDockerInventory(commandRunner, context, options());
+      if (JSON.stringify(after) !== JSON.stringify(state.builderBaseline)) {
+        fail("scanner_retention_publish_builder_cleanup_invalid");
+      }
+      rmSync(path.join(state.work, "oci-context"), { recursive: true, force: false });
+      return { values: {} };
+    }
+    if (name === "authenticated_digest_readback") {
+      publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
+        { ...options(state.readDockerConfig), input: `${context.token}\n` });
+      publishRun(commandRunner, context, "docker", ["pull", "--platform", "linux/amd64", state.subject], options(state.readDockerConfig));
+      state.container = `aw-scanner-retention-readback-${context.runId}`;
+      const created = publishRun(commandRunner, context, "docker", ["create", "--name", state.container, "--network", "none",
+        "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges=true", "--pull", "never",
+        state.subject, SCANNER_RETENTION.publisher.contextPayloadPath], options(state.readDockerConfig));
+      state.containerId = created.stdout.trim();
+      if (!CONTAINER_ID.test(state.containerId)) fail("scanner_retention_publish_readback_invalid");
+      const image = parseJson(Buffer.from(publishRun(commandRunner, context, "docker", ["image", "inspect",
+        state.subject, "--format", "{{json .}}"], options(state.readDockerConfig)).stdout));
+      const container = parseJson(Buffer.from(publishRun(commandRunner, context, "docker", ["container", "inspect",
+        state.containerId, "--format", "{{json .}}"], options(state.readDockerConfig)).stdout));
+      const observed = validateScannerRetentionReadbackState(image, container, { subject: state.subject,
+        imageId: state.manifest.config.digest, containerId: state.containerId, containerName: state.container });
+      const copied = path.join(state.work, "readback.tar");
+      publishRun(commandRunner, context, "docker", ["cp", `${state.container}:${SCANNER_RETENTION.publisher.contextPayloadPath}`, copied],
+        options(state.readDockerConfig));
+      const bytes = readFileSync(copied); if (bytes.length !== state.innerTar.bytes || sha256(bytes) !== state.innerTar.sha256) {
+        fail("scanner_retention_publish_readback_invalid");
+      }
+      state.ociReadback = { imageId: observed.imageId, containerId: observed.containerId,
+        innerTarBytes: bytes.length, innerTarSha256: sha256(bytes), stoppedNeverStarted: observed.stoppedNeverStarted };
+      return { values: { oci: { manifest: { mediaType: state.manifest.mediaType,
+        bytes: state.manifest.bytes.length, sha256: sha256(state.manifest.bytes) }, config: state.manifest.config,
+        layer: state.manifest.layer, readback: state.ociReadback } } };
+    }
+    if (name === "owned_docker_cleanup") {
+      publishRun(commandRunner, context, "docker", ["rm", state.container], options(state.readDockerConfig));
+      publishRun(commandRunner, context, "docker", ["image", "rm", state.subject], options(state.readDockerConfig));
+      const containerAbsent = observe(commandRunner, "docker", ["container", "inspect", state.containerId], {
+        ...options(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
+      const imageAbsent = observe(commandRunner, "docker", ["image", "inspect", state.manifest.config.digest], {
+        ...options(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
+      if (containerAbsent.error || containerAbsent.status === 0 || imageAbsent.error || imageAbsent.status === 0) {
+        fail("scanner_retention_publish_docker_cleanup_invalid");
+      }
+      return { values: { cleanup: { state: "PASSED", image: "REMOVED", container: "REMOVED",
+        buildCache: "REMOVED", authenticatedDockerConfig: "REMOVED", ownedPathRemoved: false } } };
+    }
+    if (name === "owned_path_cleanup") {
+      const finalValues = { cleanup: { state: "PASSED", image: "REMOVED", container: "REMOVED",
+        buildCache: "REMOVED", authenticatedDockerConfig: "REMOVED", ownedPathRemoved: true } };
+      rmSync(state.work, { recursive: true, force: false });
+      rmSync(state.provenanceRoot, { recursive: true, force: false });
+      return { values: finalValues };
+    }
+    fail("scanner_retention_publish_phase_invalid");
+  };
+  phase.cleanup = async () => {
+    const context = state.context;
+    if (!context) return;
+    const cleanupDeadline = now() + context.publisher.cleanupTimeoutMs;
+    const cleanupOptions = (dockerConfig) => ({ cwd: context.workspace,
+      env: scannerRetentionPublisherChildEnvironment(context, dockerConfig, state.work),
+      timeout: Math.max(1, cleanupDeadline - now()) });
+    if (state.container && state.readDockerConfig && existsSync(state.readDockerConfig)) {
+      observe(commandRunner, "docker", ["rm", "--force", state.container], {
+        ...cleanupOptions(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
+    }
+    if (state.subject && state.readDockerConfig && existsSync(state.readDockerConfig)) {
+      observe(commandRunner, "docker", ["image", "rm", state.subject], {
+        ...cleanupOptions(state.readDockerConfig), failurePrefix: "scanner_retention_publish" });
+    }
+    if (state.builder && state.dockerConfig && existsSync(state.dockerConfig)) {
+      observe(commandRunner, "docker", ["buildx", "rm", state.builder], {
+        ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+    }
+    if (state.builderBaseline && state.dockerConfig && existsSync(state.dockerConfig)) {
+      try {
+        let current = publishDockerInventory(commandRunner, context, cleanupOptions(state.dockerConfig));
+        for (const id of addedInventory(current.containers, state.builderBaseline.containers)) {
+          const inspected = observe(commandRunner, "docker", ["container", "inspect", "--format", "{{.Name}}", id], {
+            ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+          if (inspected.error || inspected.status !== 0
+            || inspected.stdout.trim() !== `/buildx_buildkit_${state.builder}0`) continue;
+          observe(commandRunner, "docker", ["container", "rm", "--force", id], {
+            ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+        }
+        current = publishDockerInventory(commandRunner, context, cleanupOptions(state.dockerConfig));
+        for (const name of addedInventory(current.volumes, state.builderBaseline.volumes)) {
+          if (name !== `buildx_buildkit_${state.builder}0_state`) continue;
+          observe(commandRunner, "docker", ["volume", "rm", name], {
+            ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+        }
+        current = publishDockerInventory(commandRunner, context, cleanupOptions(state.dockerConfig));
+        for (const id of addedInventory(current.images, state.builderBaseline.images)) {
+          const inspected = observe(commandRunner, "docker", ["image", "inspect", "--format", "{{json .RepoTags}}", id], {
+            ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+          if (inspected.error || inspected.status !== 0) continue;
+          let tags; try { tags = JSON.parse(inspected.stdout); } catch { continue; }
+          if (!Array.isArray(tags) || tags.length < 1
+            || tags.some((tag) => typeof tag !== "string" || !tag.startsWith("moby/buildkit:"))) continue;
+          observe(commandRunner, "docker", ["image", "rm", id], {
+            ...cleanupOptions(state.dockerConfig), failurePrefix: "scanner_retention_publish" });
+        }
+      } catch { /* failed best-effort cleanup remains a failed publication */ }
+    }
+    if (state.work && existsSync(state.work)) {
+      try { rmSync(state.work, { recursive: true, force: false }); } catch { /* failure receipt remains authoritative */ }
+    }
+    if (state.provenanceRoot && existsSync(state.provenanceRoot)) {
+      try { rmSync(state.provenanceRoot, { recursive: true, force: false }); } catch { /* failure receipt remains authoritative */ }
+    }
+  };
+  return phase;
 }
 
 function validateDirectory(directory) {
@@ -1345,6 +1987,25 @@ export async function TEST_ONLY_runScannerRetentionReadProof(options = {}) {
 async function main() {
   const argv = process.argv.slice(2);
   const parsed = parseScannerRetentionArguments(argv);
+  if (parsed.mode === "publish") {
+    const productionRunner = createProductionPublisherRunner(parsed);
+    try {
+      const result = await TEST_ONLY_runScannerRetentionPublish({ env: process.env, platform: process.platform,
+        runPhase: productionRunner });
+      validateScannerRetentionPublisherReceiptBytes(result.bytes, { headSha: result.receipt.headSha,
+        headTree: result.receipt.headTree, runId: result.receipt.runId });
+      writeExclusive(path.join(parsed.output, "publisher-receipt.json"), result.bytes, 0o400);
+      return result;
+    } catch (error) {
+      await productionRunner.cleanup();
+      try {
+        const context = validateScannerRetentionPublishContext(process.env, process.platform);
+        const failed = createScannerRetentionPublisherReceipt(context, { result: "FAILED" });
+        writeExclusive(path.join(parsed.output, "publisher-receipt.json"), failed.bytes, 0o400);
+      } catch { /* the original refusal remains authoritative */ }
+      throw error;
+    }
+  }
   if (parsed.mode === "read-proof") return executeReadProof({
     argv,
     binding: SCANNER_RETENTION.readProof,
@@ -1371,8 +2032,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
   try {
     await main();
   } catch (error) {
-    const operation = process.argv[2] === "read-proof" ? "read_proof" : "bootstrap";
-    const reason = operation === "read_proof" ? fixedReadReason(error) : fixedReason(error);
+    const operation = process.argv[2] === "read-proof" ? "read_proof"
+      : process.argv[2] === "publish" ? "publish" : "bootstrap";
+    const reason = operation === "read_proof" ? fixedReadReason(error)
+      : operation === "publish" ? fixedReason(error, "scanner_retention_publish_command_failed") : fixedReason(error);
     console.error(`scanner_retention_${operation}_failed:${reason}`);
     process.exitCode = 1;
   }

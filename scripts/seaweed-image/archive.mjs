@@ -113,7 +113,7 @@ function canonicalHardlinkTarget(linkname) {
   }
 }
 
-function parseHeader(block, maximumSize, allowHardlinks) {
+function parseHeader(block, maximumSize, allowHardlinks, requireEmptyOwnerNames) {
   if (!block.subarray(257, 263).equals(Buffer.from("ustar\0"))
     || !block.subarray(263, 265).equals(Buffer.from("00"))) {
     throw archiveError("seaweed_archive_tar_format_invalid");
@@ -138,8 +138,11 @@ function parseHeader(block, maximumSize, allowHardlinks) {
   const gid = parseOctal(block, 116, 8);
   const mtime = parseOctal(block, 136, 12);
   const linkname = parseString(block, 157, 100);
-  parseString(block, 265, 32);
-  parseString(block, 297, 32);
+  const uname = parseString(block, 265, 32);
+  const gname = parseString(block, 297, 32);
+  if (requireEmptyOwnerNames && (uname !== "" || gname !== "")) {
+    throw archiveError("seaweed_archive_tar_owner_name_invalid");
+  }
   if (parseOctal(block, 329, 8, { allowEmpty: true }) !== 0
     || parseOctal(block, 337, 8, { allowEmpty: true }) !== 0) {
     throw archiveError("seaweed_archive_tar_header_invalid");
@@ -154,10 +157,11 @@ function parseHeader(block, maximumSize, allowHardlinks) {
 }
 
 class TarScanner {
-  constructor({ maxRawBytes, maxMembers, allowHardlinks = false }) {
+  constructor({ maxRawBytes, maxMembers, allowHardlinks = false, requireEmptyOwnerNames = false }) {
     this.maxRawBytes = maxRawBytes;
     this.maxMembers = maxMembers;
     this.allowHardlinks = allowHardlinks;
+    this.requireEmptyOwnerNames = requireEmptyOwnerNames;
     this.members = [];
     this.names = new Set();
     this.entries = new Map();
@@ -210,7 +214,7 @@ class TarScanner {
       return;
     }
     if (this.eoaBlocks !== 0) throw archiveError("seaweed_archive_tar_eoa_invalid");
-    const entry = parseHeader(this.header, this.maxRawBytes, this.allowHardlinks);
+    const entry = parseHeader(this.header, this.maxRawBytes, this.allowHardlinks, this.requireEmptyOwnerNames);
     if (this.names.has(entry.path)) throw archiveError("seaweed_archive_tar_duplicate_invalid");
     if (entry.type === "hardlink") {
       const target = this.entries.get(entry.linkname);
@@ -315,7 +319,7 @@ export async function scanGzipLayer({ input, descriptor, diffId, maxRawBytes = M
 }
 
 export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES, maxMembers = MAX_MEMBERS, signal,
-  allowHardlinks = false } = {}) {
+  allowHardlinks = false, requireEmptyOwnerNames = false } = {}) {
   if (input === null || typeof input !== "object" || typeof input.pipe !== "function" || typeof input.destroy !== "function") {
     throw archiveError("seaweed_archive_input_invalid");
   }
@@ -324,12 +328,13 @@ export async function scanRawUstar({ input, diffId, maxRawBytes = MAX_RAW_BYTES,
     requireLimit(maxRawBytes, MAX_RAW_BYTES, "seaweed_archive_limit_invalid");
     requireLimit(maxMembers, MAX_MEMBERS, "seaweed_archive_limit_invalid");
     if (typeof allowHardlinks !== "boolean") throw archiveError("seaweed_archive_hardlink_option_invalid");
+    if (typeof requireEmptyOwnerNames !== "boolean") throw archiveError("seaweed_archive_owner_name_option_invalid");
     if (signal !== undefined && !(signal instanceof globalThis.AbortSignal)) {
       throw archiveError("seaweed_archive_signal_invalid");
     }
     let rawSize = 0;
     const rawHash = createHash("sha256");
-    const scanner = new TarScanner({ maxRawBytes, maxMembers, allowHardlinks });
+    const scanner = new TarScanner({ maxRawBytes, maxMembers, allowHardlinks, requireEmptyOwnerNames });
     const rawSink = new Writable({
       write(chunk, _encoding, callback) {
         try {
