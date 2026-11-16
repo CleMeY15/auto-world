@@ -1,6 +1,6 @@
 # TASK-0005 M3B — scanner archive publication and local byte restoration
 
-Status on 16 November 2026: `NATIVE_CI_VERIFIED / PUBLISHER_TOOL_PREPARATION`.
+Status on 16 November 2026: `NATIVE_AND_TOOL_CI_VERIFIED / CURRENT_IMAGE_CORRECTION`.
 TASK-0005/0005A remain `IN_PROGRESS`. No actual scanner archive publication,
 second copy or restoration is claimed by this implementation checkpoint.
 
@@ -216,6 +216,85 @@ The independent setup source/security review returned **APPROVE**, reproduced
 binary against the official API/checksum. No production publisher JS, policy,
 shared primitive or admission execution pin changed. The probe logs the actual
 Docker JSON; comparing that original with PR237 before dispatch remains required.
+
+## 16 November — preparation accepted; current image gates fail
+
+On source`de3868801d479537a85106414965ea3201bb1cd3`,
+[Windows43919546237](https://github.com/CleMeY15/auto-world/actions/runs/43919546237)
+passes10/10 with no exclusions, and
+[the actual Buildx probe43919546414](https://github.com/CleMeY15/auto-world/actions/runs/43919546414)
+passes its two tests, authenticated installation and discovery. Independent
+original-evidence review returned **APPROVE** for both. Their merge checkout
+6e4deabf43bb83248f9c8967ad627aeedeab3bd5 has the same source tree
+c97ae2983c7c4b7f84f43de082d73d90bf52ee6c. Actual Go, Buildx and complete Docker
+JSON match PR237 byte for byte; Docker JSON1077bytes has SHA256
+`f84a732dfdccfea6fe1ce0a1d40a45f6d9bde5a053a6b4ad35b19ad565fa7dc8`.
+All steps succeeded with Contents/Metadata read permissions only; Docker image
+and container inventories are unchanged. The unique publisher is still unused.
+
+The earlier [managed run43915611761](https://github.com/CleMeY15/auto-world/actions/runs/43915611761)
+on83585cdd finished **FAILED**, not cancelled. Its artifact14253410729 is
+4081162bytes/SHA256`ef8b8f8ae79623cc5a16a5946739d86b841bb98f6a23f5426bf6fe1d2ae542f2`.
+Independent inspection authenticated its original reports/SBOMs and reproduced
+the actual policy rejections:19 fixable HIGH occurrences for PostgreSQL,
+34 for AWS CLI, and no built OpenSearch image. These are53 occurrences across
+31 distinct CVEs, not53 distinct vulnerabilities. The blocked packages are:
+
+| Subject | Package | Observed version | Fixed version reported |
+| --- | --- | --- | --- |
+| PostgreSQL | krb5-libs | 1.22.2-r1 | 1.22.3-r0 |
+| PostgreSQL | libxslt | 1.1.43-r3 | 1.1.43-r4 |
+| AWS CLI | glibc/common/minimal-langpack | 2.34-231.amzn2023.0.5 | 2.34-231.amzn2023.0.6 |
+| AWS CLI | rpm/libs/build-libs/sign-libs, python3-rpm | 4.16.1.3-29.amzn2023.0.8 | 4.16.1.3-29.amzn2023.0.9 or0.10, by finding |
+| AWS CLI | sqlite-libs | 3.40.0-1.amzn2023.0.8 | 3.40.0-1.amzn2023.0.9 |
+
+OpenSearch's Git ADD receives HTTP403 in both runtime and evidence attempts,
+before Gradle or tests. No image report follows. The exact commit remains
+available through the GitHub API and a separate unauthenticated Git tag read
+from this VPS; neither proves the runner transport works. The original logs
+contain no HTTP body/headers, so the cause of403 is unknown. Do not change its
+source commit or suppress that failure based on this observation.
+
+The scanner controls, Go/JDK builders and Redis/Seaweed audits pass in that run;
+the vulnerability database remains fresh. No produced-image runtime phase runs.
+The global `managed_image_builds=passed` means collection finished; its nested
+OpenSearch result is failed and must not be described as a successful build.
+The Buildx setup correction does not alter these image subjects or waive their
+rejections. Official immutable OS update candidates are under read-only discovery;
+actual fresh audits/runtime and source/main delivery remain required.
+
+The [bounded current OS refresh plan](../../roadmap/plans/TASK-0005-current-os-refresh-20261116.md)
+received independent architecture/security **APPROVE** at6174bytes/SHA256
+`ba2b743d38222305ab12d9ae689d2025fe8a48aa15528a33e976e3a63a8e6d18`.
+The reviewer independently checked21 original files, both PostgreSQL registry
+chains, Amazon repomd/primary and20 selected package versions. The
+[public provenance record](current-os-refresh-20261116/provenance.json) is
+13340bytes/SHA256`12a4b103d4f1eb7ebcb2964164a635b3d2ead449aa622823d499d0669b72f1aa`.
+PostgreSQL17.12-alpine3.24 supplies the fixed packages while preserving major17;
+the new17.11 digest still declares the rejected versions and is not selected.
+AL2023.12.20261112 supplies the coherent signed RPM update for AWS CLI/OpenSearch.
+Implementation and fresh actual qualification remain pending at plan approval.
+Only fresh diagnostic PostgreSQL data is in scope; a later installed-runtime
+upgrade must separately address the official index/backup/extension precautions.
+
+The implementation changes six active files and three directly affected tests.
+It requires16 exact AWS CLI RPM versions and19 OpenSearch versions, including
+all newly rejected installed components. The existing complete DNF transaction,
+GPG checks and CLI/JDK preservation remain mandatory. A PostgreSQL test's
+no-tag expression was corrected to distinguish a digest starting with digits;
+the current OpenSearch source hash expectation was advanced only after proving
+the four Amazon pin substitutions reproduce the exact old audit source when
+reversed. Historical source hashes and fixtures remain intact.
+
+Independent implementation/security review returned **APPROVE**, with37 focused
+tests passing without exclusions. The reviewer checked all74 generation6
+execution-file identities and found no overlap with the changed active files.
+The broader local regression passed805 tests with eight existing platform
+exclusions and no failures. Lint, typecheck, build, JS/embedded Bash syntax,
+whitespace and secret scanning (1413 files) pass. Original reports and the first
+failed negative-test mutation are retained; correcting that test did not change
+the production implementation. Fresh changed-source/main CI must still prove
+real transactions, all image audits, OpenSearch tests and runtime outcomes.
 
 ## Authority and scope
 

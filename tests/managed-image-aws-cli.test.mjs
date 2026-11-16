@@ -5,17 +5,26 @@ import test from "node:test";
 const recipe = readFileSync(new URL("../infra/managed-images/Dockerfile.aws-cli", import.meta.url), "utf8");
 const lock = JSON.parse(readFileSync(new URL("../infra/managed-images/lock.json", import.meta.url), "utf8"));
 const baseDigest = "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9";
-const releasever = "2023.12.20261026";
-const guid = "762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6";
-const repomdSha256 = "0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5";
+const releasever = "2023.12.20261112";
+const guid = "707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523";
+const repomdSha256 = "ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe";
 const expectedRpms = new Map([
-  ["curl-minimal", "0:8.21.0-5.amzn2023.0.3"],
-  ["libcurl-minimal", "0:8.21.0-5.amzn2023.0.3"],
+  ["curl-minimal", "0:8.21.0-5.amzn2023.0.5"],
+  ["libcurl-minimal", "0:8.21.0-5.amzn2023.0.5"],
+  ["glibc", "0:2.34-231.amzn2023.0.6"],
+  ["glibc-common", "0:2.34-231.amzn2023.0.6"],
+  ["glibc-minimal-langpack", "0:2.34-231.amzn2023.0.6"],
   ["libcap", "0:2.73-1.amzn2023.0.8"],
   ["pcre2", "0:10.40-1.amzn2023.0.5"],
   ["pcre2-syntax", "0:10.40-1.amzn2023.0.5"],
   ["python3", "0:3.9.25-1.amzn2023.0.11"],
   ["python3-libs", "0:3.9.25-1.amzn2023.0.11"],
+  ["rpm", "0:4.16.1.3-29.amzn2023.0.10"],
+  ["rpm-libs", "0:4.16.1.3-29.amzn2023.0.10"],
+  ["rpm-build-libs", "0:4.16.1.3-29.amzn2023.0.10"],
+  ["rpm-sign-libs", "0:4.16.1.3-29.amzn2023.0.10"],
+  ["python3-rpm", "0:4.16.1.3-29.amzn2023.0.10"],
+  ["sqlite-libs", "0:3.40.0-1.amzn2023.0.9"],
 ]);
 
 // Source-contract checks complement the actual DNF, image and S3 checks in Linux CI.
@@ -104,7 +113,7 @@ test("AWS recipe enforces one full coherent DNF transaction with inherited offic
   ]) assert.throws(() => assertTransaction(changed));
 });
 
-test("all seven measured RPM corrections use exact epoch, version and release assertions", () => {
+test("all required RPM corrections use exact epoch, version and release assertions", () => {
   assertCorrections(recipe);
   for (const [name, evr] of expectedRpms) {
     const line = `test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\\n' ${name})" = '${evr}'`;

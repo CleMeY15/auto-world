@@ -283,9 +283,9 @@ export function validateManagedImageLock(managed, official) {
       managed.opensearch.grpcGuavaJarSha256 !== "97b79ec3f2c0a6313a0c2df51ce1abdf8907e6531803467b81efcaaf99b35161" ||
       managed.opensearch.grpcFailureaccessJarSha256 !== "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb" ||
       managed.opensearch.runtimeJdk !== "PRESERVE_EXACT_BASE_DIRECTORY_VERIFY_BEFORE_AFTER" ||
-      managed.amazonLinux?.releasever !== "2023.12.20261026" || managed.amazonLinux.repositoryGuid !== "762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6" ||
-      managed.amazonLinux.repomdSha256 !== "0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5" ||
-      managed.amazonLinux.primarySha256 !== "ae212a8a70fae3dcce4d56e05926ca7d2c6000468879ab33759477767be6d570") fail("scanner_managed_lock_invalid");
+      managed.amazonLinux?.releasever !== "2023.12.20261112" || managed.amazonLinux.repositoryGuid !== "707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523" ||
+      managed.amazonLinux.repomdSha256 !== "ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe" ||
+      managed.amazonLinux.primarySha256 !== "f958c01b5bd35f80c7d343a3e54969b1800b8b64d29c129084f307aeed0a23b2") fail("scanner_managed_lock_invalid");
   return managed;
 }
 

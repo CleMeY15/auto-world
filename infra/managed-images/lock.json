@@ -19,7 +19,7 @@
     }
   ],
   "candidates": [
-    {"role": "postgres", "dockerfile": "infra/managed-images/Dockerfile.postgres", "baseDigest": "sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4"},
+    {"role": "postgres", "dockerfile": "infra/managed-images/Dockerfile.postgres", "baseDigest": "sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2"},
     {"role": "opensearch", "dockerfile": "infra/managed-images/Dockerfile.opensearch-core", "baseDigest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"},
     {"role": "aws-cli", "dockerfile": "infra/managed-images/Dockerfile.aws-cli", "baseDigest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"},
     {"role": "seaweedfs", "dockerfile": "infra/managed-images/Dockerfile.seaweedfs", "baseDigest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"}
@@ -67,9 +67,9 @@
     "runtimeJdk": "PRESERVE_EXACT_BASE_DIRECTORY_VERIFY_BEFORE_AFTER"
   },
   "amazonLinux": {
-    "releasever": "2023.12.20261026",
-    "repositoryGuid": "762fda855b4bc601a07d99c19a1a9ff82429e78f450f59450cd12522ec5b7ae6",
-    "repomdSha256": "0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5",
-    "primarySha256": "ae212a8a70fae3dcce4d56e05926ca7d2c6000468879ab33759477767be6d570"
+    "releasever": "2023.12.20261112",
+    "repositoryGuid": "707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523",
+    "repomdSha256": "ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe",
+    "primarySha256": "f958c01b5bd35f80c7d343a3e54969b1800b8b64d29c129084f307aeed0a23b2"
   }
 }

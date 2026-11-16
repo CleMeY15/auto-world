@@ -33,7 +33,7 @@ function assertMaterialBoundary(source, metadata = lock, moduleBytes = goMod, su
   assert.equal(sha256(moduleBytes), metadata.gosu.goModSha256);
   assert.equal(sha256(sumBytes), metadata.gosu.goSumSha256);
   assert.equal([...source.matchAll(/^FROM /gmu)].length, 5);
-  assert.doesNotMatch(source, /^ARG |FROM .*:(?:latest|[0-9])/mu);
+  assert.doesNotMatch(source, /^ARG |^FROM [^@\s]+:(?:latest|[0-9])/mu);
   const build = stage(source, "gosu-build");
   const download = build.indexOf("go mod download -json all");
   const verify = build.indexOf("go mod verify");

@@ -22,17 +22,17 @@
     {
       "role": "postgres",
       "repository": "library/postgres",
-      "version": "17.11-alpine3.24",
-      "manifestDigest": "sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb",
+      "version": "17.12-alpine3.24",
+      "manifestDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
       "platform": {
         "os": "linux",
         "architecture": "amd64",
         "variant": null,
-        "digest": "sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4"
+        "digest": "sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2"
       },
       "source": {
         "repository": "postgres/postgres",
-        "commit": "083ac033419f690758508e08c1736089384bbee8"
+        "commit": "702b3dc86d35bcc08c8e23cffa3c4d9fe9d32c85"
       }
     },
     {

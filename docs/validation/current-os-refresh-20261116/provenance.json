@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "state": "CANDIDATES_NOT_SCANNED_NOT_ADMITTED",
+  "observedOn": "2026-11-16",
+  "originalFailure": {
+    "runId": "43915611761",
+    "artifactId": 14253410729,
+    "artifactBytes": 4081162,
+    "artifactSha256": "ef8b8f8ae79623cc5a16a5946739d86b841bb98f6a23f5426bf6fe1d2ae542f2"
+  },
+  "postgres": {
+    "tag": "17.12-alpine3.24",
+    "indexDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+    "platformDigest": "sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2",
+    "configDigest": "sha256:6b75136145ddabf3d9a4b69660402082de7c56b734cfe50555b0674774dd742a",
+    "officialImageRecipeCommit": "76a70e36d51517f2ab061a9bb60b1980a6902e29",
+    "registryBoundSbomPackages": [
+      {
+        "name": "krb5-libs",
+        "version": "1.22.3-r0"
+      },
+      {
+        "name": "libxslt",
+        "version": "1.1.43-r4"
+      },
+      {
+        "name": "postgresql",
+        "version": "17.12"
+      }
+    ],
+    "eligibility": "NOT_SCANNED_NOT_ADMITTED",
+    "sourceRepository": "postgres/postgres",
+    "sourceRef": "refs/tags/REL_17_12",
+    "sourceCommit": "702b3dc86d35bcc08c8e23cffa3c4d9fe9d32c85"
+  },
+  "amazonLinux": {
+    "releasever": "2023.12.20261112",
+    "repositoryGuid": "707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523",
+    "repomdSha256": "ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe",
+    "primarySha256": "f958c01b5bd35f80c7d343a3e54969b1800b8b64d29c129084f307aeed0a23b2",
+    "selectedPackages": {
+      "curl-minimal": {
+        "name": "curl-minimal",
+        "arch": "x86_64",
+        "evr": "0:8.21.0-5.amzn2023.0.5",
+        "sha256": "c7bb680b240a25e8a5be9c5eda4a6bf5a1cac2d27350267da3ad1cf47196a9a0",
+        "bytes": 198619,
+        "location": "../../../../blobstore/c7bb680b240a25e8a5be9c5eda4a6bf5a1cac2d27350267da3ad1cf47196a9a0/curl-minimal-8.21.0-5.amzn2023.0.5.x86_64.rpm"
+      },
+      "glibc": {
+        "name": "glibc",
+        "arch": "x86_64",
+        "evr": "0:2.34-231.amzn2023.0.6",
+        "sha256": "90a932547b16c33aec1f2ed3b534171fb21deb3638f7a7fe61fa4e60ffbc040e",
+        "bytes": 2066689,
+        "location": "../../../../blobstore/90a932547b16c33aec1f2ed3b534171fb21deb3638f7a7fe61fa4e60ffbc040e/glibc-2.34-231.amzn2023.0.6.x86_64.rpm"
+      },
+      "glibc-common": {
+        "name": "glibc-common",
+        "arch": "x86_64",
+        "evr": "0:2.34-231.amzn2023.0.6",
+        "sha256": "a473d876bbc72407ff10c46a35cf1a9c9963c6d772cf6400848f8b26d64801b0",
+        "bytes": 301800,
+        "location": "../../../../blobstore/a473d876bbc72407ff10c46a35cf1a9c9963c6d772cf6400848f8b26d64801b0/glibc-common-2.34-231.amzn2023.0.6.x86_64.rpm"
+      },
+      "glibc-minimal-langpack": {
+        "name": "glibc-minimal-langpack",
+        "arch": "x86_64",
+        "evr": "0:2.34-231.amzn2023.0.6",
+        "sha256": "373ada5f0d659953dd413185aa9328835da0e32d7b36d2e26643bff595ba9f16",
+        "bytes": 21373,
+        "location": "../../../../blobstore/373ada5f0d659953dd413185aa9328835da0e32d7b36d2e26643bff595ba9f16/glibc-minimal-langpack-2.34-231.amzn2023.0.6.x86_64.rpm"
+      },
+      "libcap": {
+        "name": "libcap",
+        "arch": "x86_64",
+        "evr": "0:2.73-1.amzn2023.0.8",
+        "sha256": "187321e2195c8ad5a716bd61d42b1d40893d021bc7eca660de47ace335145c8b",
+        "bytes": 87991,
+        "location": "../../../../blobstore/187321e2195c8ad5a716bd61d42b1d40893d021bc7eca660de47ace335145c8b/libcap-2.73-1.amzn2023.0.8.x86_64.rpm"
+      },
+      "libcurl-minimal": {
+        "name": "libcurl-minimal",
+        "arch": "x86_64",
+        "evr": "0:8.21.0-5.amzn2023.0.5",
+        "sha256": "a8dd3d3b5708b7535033b425a854b03fb601a4cf0c1f74428c77c25c1cdd08be",
+        "bytes": 357354,
+        "location": "../../../../blobstore/a8dd3d3b5708b7535033b425a854b03fb601a4cf0c1f74428c77c25c1cdd08be/libcurl-minimal-8.21.0-5.amzn2023.0.5.x86_64.rpm"
+      },
+      "openssl-fips-provider-latest": {
+        "name": "openssl-fips-provider-latest",
+        "arch": "x86_64",
+        "evr": "1:3.5.8-1.amzn2023.0.4",
+        "sha256": "e221a81da877afa15f4e2e9bd916d39ec9ee7255f37ba25ac6dbcd2cd9eb1b28",
+        "bytes": 855090,
+        "location": "../../../../blobstore/e221a81da877afa15f4e2e9bd916d39ec9ee7255f37ba25ac6dbcd2cd9eb1b28/openssl-fips-provider-latest-3.5.8-1.amzn2023.0.4.x86_64.rpm"
+      },
+      "openssl-libs": {
+        "name": "openssl-libs",
+        "arch": "x86_64",
+        "evr": "1:3.5.8-1.amzn2023.0.4",
+        "sha256": "92129db1ccc389670e79dfc68730cda21b39716107a5e56a90de7c8615425a83",
+        "bytes": 2453014,
+        "location": "../../../../blobstore/92129db1ccc389670e79dfc68730cda21b39716107a5e56a90de7c8615425a83/openssl-libs-3.5.8-1.amzn2023.0.4.x86_64.rpm"
+      },
+      "pcre2": {
+        "name": "pcre2",
+        "arch": "x86_64",
+        "evr": "0:10.40-1.amzn2023.0.5",
+        "sha256": "6f7bd597a3442a16653945a730bed08f78c5eed4eccefc3f0462ec14dffee247",
+        "bytes": 240942,
+        "location": "../../../../blobstore/6f7bd597a3442a16653945a730bed08f78c5eed4eccefc3f0462ec14dffee247/pcre2-10.40-1.amzn2023.0.5.x86_64.rpm"
+      },
+      "pcre2-syntax": {
+        "name": "pcre2-syntax",
+        "arch": "noarch",
+        "evr": "0:10.40-1.amzn2023.0.5",
+        "sha256": "45d6f3b551e3e45d2b45c210cf32033fabf01937d94da4820ef9d7cc360dc63c",
+        "bytes": 144300,
+        "location": "../../../../blobstore/45d6f3b551e3e45d2b45c210cf32033fabf01937d94da4820ef9d7cc360dc63c/pcre2-syntax-10.40-1.amzn2023.0.5.noarch.rpm"
+      },
+      "python3": {
+        "name": "python3",
+        "arch": "x86_64",
+        "evr": "0:3.9.25-1.amzn2023.0.11",
+        "sha256": "7353b7dac39edaeac141c30b94378db3418393fe6cf6ea6ce89cc266b4cd0709",
+        "bytes": 29381,
+        "location": "../../../../blobstore/7353b7dac39edaeac141c30b94378db3418393fe6cf6ea6ce89cc266b4cd0709/python3-3.9.25-1.amzn2023.0.11.x86_64.rpm"
+      },
+      "python3-libs": {
+        "name": "python3-libs",
+        "arch": "x86_64",
+        "evr": "0:3.9.25-1.amzn2023.0.11",
+        "sha256": "d70f8b0359a2cb539e28f3d435524c7ce8ca04f209124ca4a765a49503cc3f2d",
+        "bytes": 7922733,
+        "location": "../../../../blobstore/d70f8b0359a2cb539e28f3d435524c7ce8ca04f209124ca4a765a49503cc3f2d/python3-libs-3.9.25-1.amzn2023.0.11.x86_64.rpm"
+      },
+      "python3-pip-wheel": {
+        "name": "python3-pip-wheel",
+        "arch": "noarch",
+        "evr": "0:21.3.1-2.amzn2023.0.22",
+        "sha256": "34f88fa066ed3efa8ab75fad213a9d0ef4db6096d569c8d2400f5eb39574ac0f",
+        "bytes": 1201891,
+        "location": "../../../../blobstore/34f88fa066ed3efa8ab75fad213a9d0ef4db6096d569c8d2400f5eb39574ac0f/python3-pip-wheel-21.3.1-2.amzn2023.0.22.noarch.rpm"
+      },
+      "python3-rpm": {
+        "name": "python3-rpm",
+        "arch": "x86_64",
+        "evr": "0:4.16.1.3-29.amzn2023.0.10",
+        "sha256": "6381402fcdba0e88195d2b171cab3dc5b79f8eee6c89c2e6913be5c44dbe3850",
+        "bytes": 65201,
+        "location": "../../../../blobstore/6381402fcdba0e88195d2b171cab3dc5b79f8eee6c89c2e6913be5c44dbe3850/python3-rpm-4.16.1.3-29.amzn2023.0.10.x86_64.rpm"
+      },
+      "rpm": {
+        "name": "rpm",
+        "arch": "x86_64",
+        "evr": "0:4.16.1.3-29.amzn2023.0.10",
+        "sha256": "1ea92b939b5c1208e6d260e8118d981a1c8bec83b72b8a4c103d567a99a90f65",
+        "bytes": 495557,
+        "location": "../../../../blobstore/1ea92b939b5c1208e6d260e8118d981a1c8bec83b72b8a4c103d567a99a90f65/rpm-4.16.1.3-29.amzn2023.0.10.x86_64.rpm"
+      },
+      "rpm-build-libs": {
+        "name": "rpm-build-libs",
+        "arch": "x86_64",
+        "evr": "0:4.16.1.3-29.amzn2023.0.10",
+        "sha256": "587bb1a951e9baf2f10a5bd6b79983c0f27376579b88456ccc55d31269f8e7bf",
+        "bytes": 89559,
+        "location": "../../../../blobstore/587bb1a951e9baf2f10a5bd6b79983c0f27376579b88456ccc55d31269f8e7bf/rpm-build-libs-4.16.1.3-29.amzn2023.0.10.x86_64.rpm"
+      },
+      "rpm-libs": {
+        "name": "rpm-libs",
+        "arch": "x86_64",
+        "evr": "0:4.16.1.3-29.amzn2023.0.10",
+        "sha256": "687278dee85aa01d5704471636dc30f7830dfffbb632d9bde2825da0531b8a2f",
+        "bytes": 316169,
+        "location": "../../../../blobstore/687278dee85aa01d5704471636dc30f7830dfffbb632d9bde2825da0531b8a2f/rpm-libs-4.16.1.3-29.amzn2023.0.10.x86_64.rpm"
+      },
+      "rpm-sign-libs": {
+        "name": "rpm-sign-libs",
+        "arch": "x86_64",
+        "evr": "0:4.16.1.3-29.amzn2023.0.10",
+        "sha256": "724e3cc51694cc9dc057f446c127b847c95abda6e37b0c72ccee5dc8d0b22b9e",
+        "bytes": 18446,
+        "location": "../../../../blobstore/724e3cc51694cc9dc057f446c127b847c95abda6e37b0c72ccee5dc8d0b22b9e/rpm-sign-libs-4.16.1.3-29.amzn2023.0.10.x86_64.rpm"
+      },
+      "sqlite-libs": {
+        "name": "sqlite-libs",
+        "arch": "x86_64",
+        "evr": "0:3.40.0-1.amzn2023.0.9",
+        "sha256": "adbe73a609b10f653dc00cccf05151ae0fa7722f5d541d30a22962c15c1cfe34",
+        "bytes": 675428,
+        "location": "../../../../blobstore/adbe73a609b10f653dc00cccf05151ae0fa7722f5d541d30a22962c15c1cfe34/sqlite-libs-3.40.0-1.amzn2023.0.9.x86_64.rpm"
+      },
+      "system-release": {
+        "name": "system-release",
+        "arch": "noarch",
+        "evr": "0:2023.12.20261112-0.amzn2023",
+        "sha256": "27b135c9888843d7aad2a6d2cadd4130906282446948109aa46e51b58b575809",
+        "bytes": 24677,
+        "location": "../../../../blobstore/27b135c9888843d7aad2a6d2cadd4130906282446948109aa46e51b58b575809/system-release-2023.12.20261112-0.amzn2023.noarch.rpm"
+      }
+    }
+  },
+  "officialMetadata": [
+    {
+      "file": "amazon-2023.12.20261112-mirrors.txt",
+      "url": "https://cdn.amazonlinux.com/al2023/core/mirrors/2023.12.20261112/x86_64/mirror.list",
+      "bytes": 118,
+      "sha256": "f17c3983cb23ef48c062d001e8282d6e1e406c94596cea50cf54d70f0dd80a5a"
+    },
+    {
+      "file": "amazon-repomd.xml",
+      "url": "https://cdn.amazonlinux.com/al2023/core/guids/707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523/x86_64/repodata/repomd.xml",
+      "bytes": 3691,
+      "sha256": "ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe"
+    },
+    {
+      "file": "amazon-primary.xml.gz",
+      "url": "https://cdn.amazonlinux.com/al2023/core/guids/707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523/x86_64/repodata/primary.xml.gz",
+      "bytes": 8551106,
+      "sha256": "f958c01b5bd35f80c7d343a3e54969b1800b8b64d29c129084f307aeed0a23b2"
+    },
+    {
+      "file": "postgres-17.12-index.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/manifests/17.12-alpine3.24",
+      "bytes": 10301,
+      "sha256": "a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7"
+    },
+    {
+      "file": "postgres-17.12-amd64-manifest.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2",
+      "bytes": 2866,
+      "sha256": "005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2"
+    },
+    {
+      "file": "postgres-17.12-config.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/blobs/sha256:6b75136145ddabf3d9a4b69660402082de7c56b734cfe50555b0674774dd742a",
+      "bytes": 8730,
+      "sha256": "6b75136145ddabf3d9a4b69660402082de7c56b734cfe50555b0674774dd742a"
+    },
+    {
+      "file": "postgres-17.12-attestation-manifest.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/manifests/sha256:35fcff3c4df0f51a2472c4fc3bf6af6019430d80c80ea438274c966352e81c67",
+      "bytes": 840,
+      "sha256": "35fcff3c4df0f51a2472c4fc3bf6af6019430d80c80ea438274c966352e81c67"
+    },
+    {
+      "file": "postgres-17.12-attestation-0.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/blobs/sha256:c169a652c10b75cd12dea3a8f11dbbab9f77edbc8a0be1782934af48e267617a",
+      "bytes": 598036,
+      "sha256": "c169a652c10b75cd12dea3a8f11dbbab9f77edbc8a0be1782934af48e267617a"
+    },
+    {
+      "file": "postgres-17.12-attestation-1.json",
+      "url": "https://registry-1.docker.io/v2/library/postgres/blobs/sha256:5e28e400aeb38b5e1c26e7172ba26fd2c1bd6ee8bcb0725d4cc02472a7227987",
+      "bytes": 41687,
+      "sha256": "5e28e400aeb38b5e1c26e7172ba26fd2c1bd6ee8bcb0725d4cc02472a7227987"
+    },
+    {
+      "file": "postgres-17.12-source-ref.json",
+      "url": "https://api.github.com/repos/postgres/postgres/git/ref/tags/REL_17_12",
+      "bytes": 349,
+      "sha256": "04d1cc8cf9da7ca24dba7b96503c3c61feaa5ef62235d2b5edd7578c5913568c"
+    },
+    {
+      "file": "postgres-17.12-release-notes.html",
+      "url": "https://www.postgresql.org/docs/17/release-17-12.html",
+      "bytes": 99943,
+      "sha256": "3ba893a91166a02c43e16fb8d953891634bbe05c136b5b66118af3d40ead6475"
+    },
+    {
+      "file": "amazon-20261112-release-notes.html",
+      "url": "https://docs.aws.amazon.com/linux/al2023/release-notes/relnotes-2023.12.20261112.html",
+      "bytes": 78067,
+      "sha256": "e091bef27ecc0fb59ef93e3cad883cbf880eb5693c6ceaddf532959b08b3cfca"
+    },
+    {
+      "file": "amazon-20261109-release-notes.html",
+      "url": "https://docs.aws.amazon.com/linux/al2023/release-notes/relnotes-2023.12.20261109.html",
+      "bytes": 85462,
+      "sha256": "5a9830c4b9cea9bdc17153b548546bf04bea44956a82bb6d91bc74f6c405425b"
+    }
+  ]
+}

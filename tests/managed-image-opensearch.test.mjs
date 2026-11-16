@@ -488,8 +488,8 @@ test("bounded native output capture is fixed to the three internal-cluster phase
 
   assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
-  // Reviewed separate Gosu measurement; native output capture and its caps are unchanged.
-  assert.equal(sha256(officialAudit), "a029a79af6e5f11b17fd367088b7fe18a7d9a0262757b4bab3f407e151c5bdb0");
+  // Reviewed dated AL repository pins; native output capture and its caps are unchanged.
+  assert.equal(sha256(officialAudit), "a8f831f87f1627557f916c531e3fb3b7a97cc9ff81c67e393c0f89862d498cd1");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);
@@ -778,13 +778,46 @@ test("the recipe pins source/build/base identities and preserves the original JD
 });
 
 test("the full dated RPM transaction preserves package signatures and exact fixed versions", () => {
-  assert.match(recipe, /dnf --releasever=2023\.12\.20261026 --disablerepo="\*" --enablerepo=amazonlinux/u);
+  assert.match(recipe, /dnf --releasever=2023\.12\.20261112 --disablerepo="\*" --enablerepo=amazonlinux/u);
   assert.match(recipe, /--setopt=amazonlinux\.gpgcheck=1 --setopt=gpgcheck=1/u);
   assert.match(recipe, /--refresh --best upgrade -y/u);
-  assert.match(recipe, /0c790663fd4779e47e261b22155386c82927f2d2c15e0bb90ff6501db0dee1b5/u);
-  assert.match(recipe, /openssl-libs 1:3\.5\.8-1\.amzn2023\.0\.3/u);
+  assert.match(recipe, /ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe/u);
+  assert.equal(recipe.match(/https:\/\/cdn\.amazonlinux\.com\/al2023\/core\/guids\/707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523\/x86_64\//gu)?.length, 2);
+  assert.match(recipe, /openssl-libs 1:3\.5\.8-1\.amzn2023\.0\.4/u);
   assert.match(recipe, /python3-pip-wheel 0:21\.3\.1-2\.amzn2023\.0\.22/u);
   assert.doesNotMatch(recipe, /--nogpgcheck|gpgcheck=0|releasever=latest|--allowerasing|\bdowngrade\b/u);
+});
+
+test("OpenSearch requires every installed corrected RPM and rejects omitted or stale version guards", () => {
+  const expected = new Map([
+    ["curl-minimal", "0:8.21.0-5.amzn2023.0.5"], ["libcurl-minimal", "0:8.21.0-5.amzn2023.0.5"],
+    ["glibc", "0:2.34-231.amzn2023.0.6"], ["glibc-common", "0:2.34-231.amzn2023.0.6"], ["glibc-minimal-langpack", "0:2.34-231.amzn2023.0.6"],
+    ["libcap", "0:2.73-1.amzn2023.0.8"], ["pcre2", "0:10.40-1.amzn2023.0.5"], ["pcre2-syntax", "0:10.40-1.amzn2023.0.5"],
+    ["python3", "0:3.9.25-1.amzn2023.0.11"], ["python3-libs", "0:3.9.25-1.amzn2023.0.11"],
+    ["openssl-libs", "1:3.5.8-1.amzn2023.0.4"], ["openssl-fips-provider-latest", "1:3.5.8-1.amzn2023.0.4"],
+    ["rpm", "0:4.16.1.3-29.amzn2023.0.10"], ["rpm-libs", "0:4.16.1.3-29.amzn2023.0.10"],
+    ["rpm-build-libs", "0:4.16.1.3-29.amzn2023.0.10"], ["rpm-sign-libs", "0:4.16.1.3-29.amzn2023.0.10"],
+    ["python3-rpm", "0:4.16.1.3-29.amzn2023.0.10"], ["python3-pip-wheel", "0:21.3.1-2.amzn2023.0.22"],
+    ["sqlite-libs", "0:3.40.0-1.amzn2023.0.9"],
+  ]);
+  const assertCorrections = (source) => {
+    const commands = source.replace(/ *\\\r?\n\s*/gu, " ");
+    const queried = commands.match(/for package in ([a-z0-9 -]+); do/u)?.[1].trim().split(/\s+/u);
+    assert.deepEqual(queried, [...expected.keys()]);
+    const entries = [...source.matchAll(/"([a-z0-9-]+) ([0-9]+:[^"\s]+)"/gu)].map(([, name, evr]) => [name, evr]);
+    assert.deepEqual(entries, [...expected]);
+    assert.ok(commands.includes('"$(rpm -q --qf "%{EPOCHNUM}:%{VERSION}-%{RELEASE}" "$package")";'));
+    assert.ok(commands.includes('test "$(sha256sum /managed-evidence/required-rpm-versions.txt | cut -d " " -f 1)" = "$(sha256sum /managed-evidence/expected-rpm-versions.txt | cut -d " " -f 1)";'));
+  };
+  assertCorrections(recipe);
+  for (const [name, evr] of expected) {
+    const entry = `"${name} ${evr}"`;
+    assert.throws(() => assertCorrections(recipe.replace(entry, "")), `missing expected ${name}`);
+    assert.throws(() => assertCorrections(recipe.replace(entry, `"${name} 0:0.0-1"`)), `stale expected ${name}`);
+    const missingQuery = recipe.replace(/for package in [\s\S]+?; do/u,
+      (loop) => loop.replace(new RegExp(`(?<=\\s)${name}(?=[ ;])`, "u"), ""));
+    assert.throws(() => assertCorrections(missingQuery), `missing queried ${name}`);
+  }
 });
 
 test("core launch configuration and test gates preserve the selected limits and plugin boundary", () => {
