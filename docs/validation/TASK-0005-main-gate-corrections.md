@@ -1,6 +1,6 @@
 # TASK-0005 — post-merge gate corrections
 
-Status,16November2026: NEXT_PATCH_LOCAL_VERIFIED / RUNNER_PLAN_REVIEW_PENDING.
+Status,16November2026: LOCAL_VALIDATED / SOURCE_AND_MAIN_VALIDATION_PENDING.
 TASK-0005/0005A remain IN_PROGRESS; publication, second copy and admission are
 not established.
 
@@ -61,9 +61,56 @@ preserves the original retention plan and proposes two exact complete measured
 Docker profiles, one shared CI/publisher validator, and a small local native
 compatibility probe. No field normalization, historical rewrite, retry until
 a preferred cloud appears, new paid runner or publisher dispatch is proposed.
-Architecture approval followed by a distinct Critic approval of identical
-plan bytes is required before implementation. Those reviews are pending at
-this checkpoint; this document does not claim they occurred.
+Architecture approval followed by a distinct Critic approval was obtained
+before implementation for exactly9373bytes, SHA256
+5055b2b8ffcfec4495d947977e8a1b12435172f1bf40a04b690c2e2617cc91d5.
+The unchanged plan retains its historical REVIEW_PENDING label; these actual
+review records supersede that label without rewriting the reviewed bytes.
+Architecture review SHA256:
+b1f2963720ebe550ae9143a40b9c345c503db39b4fe56295549b0d541d2472b0.
+Distinct Critic review SHA256:
+14085342d1b87fae06752e046257fcf3ef8adf53277dcf6f80f56f873057a065.
+Both independently matched the complete profiles to original PR237 and main
+evidence, verified unchanged Go/Buildx and the exact two kernel differences.
+The implementation is locally validated and independently reviewed in PR242.
+
+The new repository-owned profile is3070bytes, SHA256
+63ade7c710fe29cedb2a6f558935d0fe8533451b48bc23e6bbc7a4b337ea606a.
+Its consumer authenticates those exact bytes. Command framing permits only
+one optional final LF; Docker JSON is never parsed and reserialized for
+acceptance. Qualification intake authenticates the unchanged1306-byte original
+runner-tools member. Both current-tool checks use the same pure validator:
+before registry login and immediately before push. A change between those
+observations also refuses. Bounded public logs preserve both complete identities.
+
+The existing read-only tool workflow now installs the unchanged authenticated
+Buildx and exercises the pre-existing default Docker driver with a tiny scratch
+image, an explicitly never-started container and exact copied bytes. Commands,
+output, time, object identities and ownership are bounded; partial-creation
+cleanup and before/after inventories are checked. No registry authority,
+downloaded base, new builder or scanner execution is added. The default builder
+may retain normal cache. This evidence is limited to the assigned host and
+Docker driver; publisher backend and registry readback remain postconditions.
+Review against official Docker28 source corrected the mock's initial absence
+framing assumption: template inspection emits one LF for a missing object.
+Only that exact framing with the identity-specific absence error is accepted.
+
+Actual local validation:151 affected retention/bootstrap tests pass,7 existing
+Windows exclusions;23 typecheck tasks,28 package test/build tasks (8 cached),
+14 build tasks and14 lint tasks pass. Secretlint passes1421 repository files;
+dependency audit at the unchanged low threshold reports no known vulnerability.
+The full root native suite and browser suite remain final-source CI gates:
+this VPS's tmpfs and privilege limitations are not equivalent to the dedicated
+Linux and Windows runners. No native Docker exercise ran on the VPS.
+
+Two separate implementation reviews APPROVE their complementary scopes:
+identity/publisher review32 tests without exclusions, SHA256
+4696ab0ef7e9b92d57b7e56e3e4e9c284982b76d71793d0eef66b73f8f9b0148;
+native-probe/workflow review42 tests without exclusions, SHA256
+49d766e1612a01b8cf1dbed9c22dc22a2976ea86120ec46ce74ab4584d79a20d.
+Original local logs/manifests and both reviews are retained privately. All74
+generation6 execution files were rehashed successfully; the original retention
+plan, retention policy, qualification profile and Buildx installer are unchanged.
 
 After implementation and independent review, obtain all applicable final-source
 and protected-main proofs before preflighting the unique publisher. The fixed
