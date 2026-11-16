@@ -124,6 +124,47 @@ Scanner report version `0.74.0-autoworld.2` remains a compatibility identifier, 
 
 Generation5 installation and activation require their own reviewed native preservation profile, distinct locator/recipe/maintenance/health names, fresh complete production-validated P2 and P3, genuine installed Node22 loaders, generation-bound FULL/FAST archive health and an independently reviewed scheduler coexistence decision. The generation4 task names, schedule and inert operators above are historical preparation, not a generation5 action plan. Preserve generation3's existing task and retention duty, generation4 reconciliation/proposals/failures, data bindings, forensics and high-water state. Never replay the failed generation3 SQL session or a retired generation4 operator. Source delivery and CI grant no admission; supported runtime and all-four-service P7 acceptance remain separate.
 
+## 2026-11-16 addendum — shared archive changes and generation 6 PENDING
+
+PR 241's scanner-retention implementation changes three shared modules already in
+generation 5's immutable execution closure: `scripts/seaweed-image/archive.mjs`,
+`download-artifact-zip.mjs` and `read-artifact-zip.mjs`. Its first quality run
+43909367783 rejects the changed bytes against the original generation 5 pins.
+Behavior-compatible defaults do not make new bytes the old accepted recipe.
+
+Advance the public inventory to generation 6, revision 1 `PENDING`, with null
+support/archive dates and null current evidence. Preserve the entire original
+generation 5 public inventory as a byte-authenticated test fixture and append
+its exact PENDING summary after generations 1–4. Change only the generation,
+generation-specific proposed locator binding and the three shared-module pins;
+the other 71 execution pins, image, build, historical P1/P4/P5 and waivers stay
+identical. Recompute the canonical generation root and revision preimage hashes;
+do not edit the generation 5 fixture or replace historical evidence hashes.
+
+The separate scanner ZIP inventory is loaded and authenticated only when that
+closed scanner profile is selected. The PostgreSQL supported/offline dependency
+paths continue to load from the complete 74-file execution closure without the
+scanner-retention JSON inventory. Keep native non-scanner bootstrap tests and
+genuine Node 22 file-URL loader tests, including missing-resource and altered-pin
+refusals. A diagnostic addition must not make unrelated private restores depend
+on its new source-specific file.
+
+The proposed generation 6 locator changes only `admissionGeneration` in the
+authenticated original locator. Reversing that one change to 5 must reproduce
+generation 5's original 448048 bytes and SHA256
+`7ea3950a9de95e46bd0e7b613e293e8abb5788fe03a258034e27b6e6b71b9b07`.
+This is a retained private source proposal: its old native tuples describe the
+original host and do not establish ownership, restoration or admission on the
+VPS. No locator, immutable recipe, health record, high-water state, maintenance
+input or scheduled task is installed or modified by this source increment.
+
+Generation 6 activation would require its own independently reviewed native
+preservation profile, exact installed loader proof, fresh current evidence,
+generation-bound FULL/FAST archive health and preserved coexistence with earlier
+duties. That work and all supported sessions remain unauthorized by this PENDING
+preparation. The scanner archive, new managed service images and future shared
+admission are separate subjects; generation 6 does not admit any of them.
+
 ## Calendar, observability and validation
 
 Actual reviewed activation establishes strict UTC YYYY-MM-DD supportStartedAt; the activation change must merge on that UTC date or be updated/re-reviewed. supportEndsAt is the one-calendar-year anniversary, clamping February29 to February28. Support is half-open at UTC midnight. archiveUntil is exactly365elapsed UTC days after supportEndsAt. Historical proofs keep null dates; revocation preserves established dates and archives.

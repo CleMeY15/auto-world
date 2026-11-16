@@ -30,7 +30,7 @@ function checksumHeader(header) {
 }
 
 function makeHeader({ path, prefix = "", type = "file", content = Buffer.alloc(0), linkname = "", mode = 0o644,
-  uid = 0, gid = 0, mtime = 1_700_000_000 } = {}) {
+  uid = 0, gid = 0, mtime = 1_700_000_000, uname = "root", gname = "root" } = {}) {
   const header = Buffer.alloc(BLOCK);
   writeString(header, 0, 100, path);
   writeOctal(header, 100, 8, mode);
@@ -43,8 +43,8 @@ function makeHeader({ path, prefix = "", type = "file", content = Buffer.alloc(0
   writeString(header, 157, 100, linkname);
   writeString(header, 257, 6, "ustar\0");
   writeString(header, 263, 2, "00");
-  writeString(header, 265, 32, "root");
-  writeString(header, 297, 32, "root");
+  writeString(header, 265, 32, uname);
+  writeString(header, 297, 32, gname);
   writeOctal(header, 329, 8, 0);
   writeOctal(header, 337, 8, 0);
   writeString(header, 345, 155, prefix);
@@ -116,6 +116,43 @@ test("scanRawUstar independently verifies the complete raw archive and its DiffI
   assert.equal(result.diffId, diffId);
   assert.equal(result.members.length, fixtureEntries.length);
   assert.deepEqual(result.members.map(({ entry }) => entry), (await scan(tar)).members.map(({ entry }) => entry));
+});
+
+test("scanRawUstar optionally requires empty USTAR owner names without changing default results", async () => {
+  const legacyTar = makeTar([{ path: "legacy", content: Buffer.from("legacy") }]);
+  const legacyDiffId = `sha256:${hash(legacyTar)}`;
+  const defaultResult = await scanRawUstar({ input: Readable.from([legacyTar]), diffId: legacyDiffId });
+  const falseResult = await scanRawUstar({
+    input: Readable.from([legacyTar]), diffId: legacyDiffId, requireEmptyOwnerNames: false,
+  });
+  assert.deepEqual(falseResult, defaultResult);
+
+  const strictTar = makeTar([{ path: "strict", content: Buffer.from("strict"), uname: "", gname: "" }]);
+  const strictDiffId = `sha256:${hash(strictTar)}`;
+  const strictResult = await scanRawUstar({
+    input: Readable.from([strictTar]), diffId: strictDiffId, requireEmptyOwnerNames: true,
+  });
+  assert.deepEqual(Object.keys(strictResult), ["rawSize", "diffId", "members"]);
+  assert.equal(strictResult.members[0].entry.path, "strict");
+});
+
+test("scanRawUstar rejects recomputed nonempty owner names and validates the option before input consumption", async () => {
+  for (const ownerNames of [{ uname: "builder", gname: "" }, { uname: "", gname: "builders" }]) {
+    const tar = makeTar([{ path: "strict", content: Buffer.from("strict"), ...ownerNames }]);
+    await rejectsCode(scanRawUstar({
+      input: Readable.from([tar]), diffId: `sha256:${hash(tar)}`, requireEmptyOwnerNames: true,
+    }), "seaweed_archive_tar_owner_name_invalid");
+  }
+
+  let consumed = false;
+  const input = Readable.from((async function* unread() {
+    consumed = true;
+    yield Buffer.alloc(1024);
+  }()));
+  await rejectsCode(scanRawUstar({
+    input, diffId: `sha256:${"0".repeat(64)}`, requireEmptyOwnerNames: "yes",
+  }), "seaweed_archive_owner_name_option_invalid");
+  assert.equal(consumed, false);
 });
 
 test("scanRawUstar accepts a bounded direct prior-file hardlink only with explicit opt-in", async () => {

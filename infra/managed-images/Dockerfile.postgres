@@ -104,7 +104,7 @@ RUN --network=none set -eu; \
        /materials/licenses/go-LICENSE /materials/licenses/go-PATENTS /out/evidence/licenses/; \
     cp /materials/DERIVATIVE-NOTICE.txt /out/evidence/
 
-FROM postgres@sha256:e4cb93687b062cd25a0e8f672d85a7708235009d70d31f8a7698d9370092a9c4 AS postgres-base
+FROM postgres@sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2 AS postgres-base
 
 # The deliberately insecure upstream fixtures exist only in this disposable stage.
 # Its base is the same PostgreSQL Alpine subject, not another unreviewed image.

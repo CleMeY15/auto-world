@@ -6,6 +6,7 @@ import test from "node:test";
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
 import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
 import generationFour from "./fixtures/postgres-admission/generation-4-pending.json" with { type: "json" };
+import generationFive from "./fixtures/postgres-admission/generation-5-pending.json" with { type: "json" };
 import remote from "../infra/postgres-image/candidate-remote.json" with { type: "json" };
 import acceptance from "../infra/postgres-image/complete-private-copy-acceptance.json" with { type: "json" };
 
@@ -41,6 +42,15 @@ const generationFourSummary = Object.freeze({
   state: "PENDING",
 });
 const scannerChanges = new Set(["scripts/scanner/build.mjs", "scripts/scanner/controls.mjs"]);
+const generationFiveSummary = Object.freeze({
+  admissionGeneration: 5,
+  generationRootSha256: "3d89d49e344d58b03a7f82740fb58ea8bc437c7c08452ca83b39e5330784c282",
+  authorityRevision: 1,
+  currentRevisionSha256: "b29eaef82bd2ab7f48020e23587512c5ddf7a9fedbc4f6ad269777890194660a",
+  state: "PENDING",
+});
+const retentionChanges = new Set(["scripts/seaweed-image/archive.mjs",
+  "scripts/seaweed-image/download-artifact-zip.mjs", "scripts/seaweed-image/read-artifact-zip.mjs"]);
 const generationTwoExecutionFilesSha256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const generationThreeAdditions = Object.freeze([
   { path: "infra/seaweed-image/base-config.json", size: 13_676,
@@ -53,14 +63,15 @@ const generationThreeAdditions = Object.freeze([
 
 function assertGenerationOneHistory(value) {
   assert.ok(value.admissionGeneration > generationOne.admissionGeneration);
-  assert.ok([3, 4, 5].includes(value.admissionGeneration));
+  assert.ok([3, 4, 5, 6].includes(value.admissionGeneration));
   assert.equal(value.previousGenerations.length, value.admissionGeneration - 1);
   assert.equal(new Set(value.previousGenerations.map(item => item.admissionGeneration)).size,
     value.previousGenerations.length);
   assert.deepEqual(value.previousGenerations[0], generationOne);
   assert.deepEqual(value.previousGenerations[1], generationTwo);
   if (value.admissionGeneration >= 4) assert.deepEqual(value.previousGenerations[2], generationThreeSummary);
-  if (value.admissionGeneration === 5) assert.deepEqual(value.previousGenerations[3], generationFourSummary);
+  if (value.admissionGeneration >= 5) assert.deepEqual(value.previousGenerations[3], generationFourSummary);
+  if (value.admissionGeneration === 6) assert.deepEqual(value.previousGenerations[4], generationFiveSummary);
 }
 
 test("the shipped admission inventory authenticates its immutable root and complete contiguous revision preimages", () => {
@@ -196,6 +207,7 @@ test("frozen generation four changed only its generation, locator and repaired b
 });
 
 test("generation five preserves the unaccepted generation-four PENDING chain and changes only scanner execution pins", () => {
+  const inventory = generationFive;
   assert.equal(inventory.admissionGeneration, 5);
   assert.equal(inventory.generationRoot.admissionGeneration, 5);
   assertGenerationOneHistory(inventory);
@@ -226,13 +238,59 @@ test("generation five preserves the unaccepted generation-four PENDING chain and
   assert.equal(sha(retained), "9d9ff38a8ebfcfa20cf71d1d0d9f7f7a8730900793b49a6e12ee28eeddcc4024");
 });
 
-test("generation-five history cannot replace the generation-three ACTIVE or generation-four PENDING summaries", () => {
+test("history cannot replace the generation-three ACTIVE or generation-four/five PENDING summaries", () => {
   const changed = globalThis.structuredClone(inventory);
   changed.previousGenerations[2].state = "PENDING";
   assert.throws(() => assertGenerationOneHistory(changed));
   const rewritten = globalThis.structuredClone(inventory);
   rewritten.previousGenerations[3].state = "ACTIVE";
   assert.throws(() => assertGenerationOneHistory(rewritten));
+  const fifth = globalThis.structuredClone(inventory);
+  fifth.previousGenerations[4].generationRootSha256 = "0".repeat(64);
+  assert.throws(() => assertGenerationOneHistory(fifth));
+});
+
+test("generation six preserves the exact generation-five PENDING inventory and only updates shared archive code", () => {
+  const retained = fs.readFileSync(new URL("./fixtures/postgres-admission/generation-5-pending.json", import.meta.url));
+  assert.equal(retained.length, 24_180);
+  assert.equal(sha(retained), "555cade4a5dbd06beab070311d9006742ae7fe40d7c0346f11f4fe409b39f9e0");
+  assert.equal(sha(canonical(generationFive.generationRoot)), generationFiveSummary.generationRootSha256);
+  assert.equal(sha(canonical(generationFive.authorityRevisions[0])), generationFiveSummary.currentRevisionSha256);
+  assert.deepEqual(generationFive.revisionHashes, [generationFiveSummary.currentRevisionSha256]);
+  assert.equal(generationFive.currentRevisionSha256, generationFiveSummary.currentRevisionSha256);
+  assertGenerationOneHistory(generationFive);
+
+  assert.equal(inventory.admissionGeneration, 6);
+  assert.equal(inventory.generationRoot.admissionGeneration, 6);
+  assertGenerationOneHistory(inventory);
+  assert.deepEqual(inventory.previousGenerations.slice(0, 4), generationFive.previousGenerations);
+  assert.equal(inventory.authorityRevision, 1);
+  assert.equal(inventory.authorityRevisions.length, 1);
+  const revision = inventory.authorityRevisions[0];
+  assert.equal(revision.state, "PENDING");
+  assert.equal(revision.previousRevisionSha256, null);
+  assert.deepEqual([revision.supportStartedAt, revision.supportEndsAt, revision.archiveUntil], [null, null, null]);
+  assert.deepEqual(revision.currentEvidence, { audit: null, packageControls: null });
+  assert.equal(revision.revocationReason, null);
+  assert.equal(revision.generationRootSha256, sha(canonical(inventory.generationRoot)));
+  assert.notEqual(revision.generationRootSha256, generationFiveSummary.generationRootSha256);
+  assert.deepEqual({ ...revision, generationRootSha256: generationFiveSummary.generationRootSha256 },
+    generationFive.authorityRevisions[0]);
+  assert.deepEqual(inventory.generationRoot.archiveLocator, { schemaVersion: 1, size: 448048,
+    sha256: "5b3adcf8e8497bd1c6072ba4c1123bb568ae8e2747e4b469a262a6381d1c25fc" });
+  const root = globalThis.structuredClone(inventory.generationRoot);
+  root.admissionGeneration = 5;
+  root.archiveLocator = generationFive.generationRoot.archiveLocator;
+  root.executionFiles = generationFive.generationRoot.executionFiles;
+  assert.deepEqual(root, generationFive.generationRoot);
+  const unchanged = files => files.filter(pin => !retentionChanges.has(pin.path));
+  assert.deepEqual(inventory.generationRoot.executionFiles.map(pin => pin.path),
+    generationFive.generationRoot.executionFiles.map(pin => pin.path));
+  assert.equal(unchanged(inventory.generationRoot.executionFiles).length, 71);
+  assert.deepEqual(unchanged(inventory.generationRoot.executionFiles), unchanged(generationFive.generationRoot.executionFiles));
+  for (const name of retentionChanges) assert.notDeepEqual(
+    inventory.generationRoot.executionFiles.find(pin => pin.path === name),
+    generationFive.generationRoot.executionFiles.find(pin => pin.path === name));
 });
 
 test("frozen execution pins cover the complete supported and offline execution closure without mutable evidence or self-reference", () => {

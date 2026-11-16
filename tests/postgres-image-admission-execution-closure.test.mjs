@@ -8,7 +8,7 @@ import test from "node:test";
 
 import inventory from "../infra/postgres-image/admission-inventory.json" with { type: "json" };
 import generationThree from "./fixtures/postgres-admission/generation-3-active.json" with { type: "json" };
-import generationFour from "./fixtures/postgres-admission/generation-4-pending.json" with { type: "json" };
+import generationFive from "./fixtures/postgres-admission/generation-5-pending.json" with { type: "json" };
 
 const ORIGINAL_FILES_SHA256 = "ba6df81ae377d4d2e52ebf83d003ac57cd538f8423955696f62be020e5c1206d";
 const GENERATION_THREE_ADDITIONS = Object.freeze([
@@ -67,9 +67,9 @@ function importEntry(root, entry) {
     });
 }
 
-test("the authenticated generation-five execution closure loads each entry from only its 74 pinned files", t => {
+test("the authenticated generation-six execution closure loads each entry from only its 74 pinned files", t => {
   assert.equal(process.versions.node, "22.23.2");
-  assert.equal(inventory.admissionGeneration, 5);
+  assert.equal(inventory.admissionGeneration, 6);
   assert.equal(inventory.authorityRevisions.at(-1).state, "PENDING");
   const pins = inventory.generationRoot.executionFiles;
   assert.equal(pins.length, 74);
@@ -86,9 +86,11 @@ test("the authenticated generation-five execution closure loads each entry from 
   assert.equal(sha256(canonical(generationThree.generationRoot.executionFiles.filter(pin => !additions.has(pin.path)))),
     ORIGINAL_FILES_SHA256);
   const broker = "scripts/postgres-image/admission-broker.mjs";
-  const scanner = new Set(["scripts/scanner/build.mjs", "scripts/scanner/controls.mjs"]);
-  assert.deepEqual(pins.filter(pin => !scanner.has(pin.path)),
-    generationFour.generationRoot.executionFiles.filter(pin => !scanner.has(pin.path)));
+  const changed = new Set(["scripts/seaweed-image/archive.mjs", "scripts/seaweed-image/download-artifact-zip.mjs",
+    "scripts/seaweed-image/read-artifact-zip.mjs"]);
+  assert.deepEqual(pins.filter(pin => !changed.has(pin.path)),
+    generationFive.generationRoot.executionFiles.filter(pin => !changed.has(pin.path)));
+  assert.equal(pins.some(pin => pin.path === "infra/scanner/scanner-retention-qualification-zip-profile-v2.json"), false);
 
   const parent = mkdtempSync(path.join(os.tmpdir(), "postgres-admission-execution-closure-"));
   const resolvedParent = realpathSync(parent); const resolvedTemporaryRoot = realpathSync(os.tmpdir());

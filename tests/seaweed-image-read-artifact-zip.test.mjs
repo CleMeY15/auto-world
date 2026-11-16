@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync } from "node:fs";
-import { chmod, link, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmodSync, readFileSync } from "node:fs";
+import { chmod, link, mkdtemp, mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
@@ -11,8 +11,23 @@ import { crc32, deflateRawSync } from "node:zlib";
 import {
   githubArtifactZipProfiles, scanGitHubArtifactZip, scanOwnedGitHubArtifactZip,
 } from "../scripts/seaweed-image/read-artifact-zip.mjs";
+import { TEST_ONLY_writeScannerRetentionPublisherReceipt } from "../scripts/scanner/retention-publish.mjs";
 
 const sha = (bytes) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+
+test("publisher receipt producer mode is accepted by its ZIP consumer", { skip: process.platform === "win32" }, async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), "scanner-public-receipt-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const content = Buffer.from('{"result":"fixture"}\n');
+  TEST_ONLY_writeScannerRetentionPublisherReceipt(root, content);
+  const mode = (await stat(path.join(root, "publisher-receipt.json"))).mode;
+  assert.equal(mode & 0o777, 0o644);
+  const outputs = new Map();
+  const bytes = zip([{ path: "publisher-receipt.json", content, mode, method: 8 }]);
+  const result = await scan(bytes, githubArtifactZipProfiles.scannerRetentionPublisherReceipt, sinks(outputs));
+  assert.equal(result.state, "COMPLETE");
+  assert.deepEqual(outputs.get("publisher-receipt.json"), content);
+});
 
 function zip(entries, overrides = {}) {
   const locals = [];
@@ -149,6 +164,24 @@ test("streams the exact deflated gate and comparison profiles", async () => {
     assert.deepEqual(outputs.get(name), content);
     assert.equal(receipt.entries[0].method, 8);
   }
+});
+
+test("registers the closed scanner-retention profile without changing existing profile identities", async () => {
+  assert.equal(githubArtifactZipProfiles.scannerRetention, "scanner-retention");
+  assert.equal(githubArtifactZipProfiles.build, "build");
+  const profile = readFileSync(new URL(
+    "../infra/scanner/scanner-retention-qualification-zip-profile-v2.json", import.meta.url,
+  ));
+  assert.equal(sha(profile), "sha256:f22ed73c4635aec579a550e1043d62feab0b57bd73a00ac343e696ec5b246513");
+});
+
+test("scanner-retention rejects any non-pinned ZIP before opening caller sinks", async () => {
+  const bytes = zip([{ path: "trivy-provenance/public/verification-workflow.json", content: "{}", method: 8,
+    mode: 0o100600 }]);
+  let calls = 0;
+  await rejectsCode(scan(bytes, githubArtifactZipProfiles.scannerRetention,
+    () => { calls += 1; return new Writable(); }), "seaweed_artifact_zip_profile_limit");
+  assert.equal(calls, 0);
 });
 
 test("rejects traversal, duplicates, wrong profile method and non-allowlisted build paths before opening sinks", async () => {

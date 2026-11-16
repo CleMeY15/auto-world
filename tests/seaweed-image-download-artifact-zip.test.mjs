@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn as nodeSpawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { open, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 
 import { TEST_ONLY_streamGitHubArtifactZip, streamGitHubArtifactZip } from "../scripts/seaweed-image/download-artifact-zip.mjs";
@@ -49,7 +51,50 @@ test("streams the exact fixed ID with bounded gh arguments and caller-descriptor
       `repos/CleMeY15/auto-world/actions/artifacts/${artifact.id}/zip`]);
     assert.equal(command.options.shell, false);
     assert.deepEqual(command.options.stdio, ["ignore", "pipe", "pipe"]);
+    assert.equal(Object.hasOwn(command.options, "env"), false);
   });
+});
+
+test("passes only an immutable environment snapshot and resists caller mutation", async () => {
+  await withSink(async (handle) => {
+    const env = Object.assign(Object.create(null), { PATH: "/fixed/bin", LANG: "C.UTF-8" });
+    let childEnv;
+    const spawn = fakeGh(bytes, { capture: ({ options }) => {
+      env.PATH = "/mutated";
+      env.EXTRA = "late";
+      childEnv = options.env;
+    } });
+    await TEST_ONLY_streamGitHubArtifactZip({
+      artifact, handle, spawn, executable: "TEST_ONLY_gh", timeoutMs: 10_000, env,
+    });
+    assert.equal(Object.getPrototypeOf(childEnv), null);
+    assert.equal(Object.isFrozen(childEnv), true);
+    assert.deepEqual({ ...childEnv }, { PATH: "/fixed/bin", LANG: "C.UTF-8" });
+    assert.throws(() => { childEnv.PATH = "/changed"; }, TypeError);
+  });
+});
+
+test("rejects invalid environment records before spawning", async () => {
+  const accessor = {};
+  Object.defineProperty(accessor, "PATH", { get() { throw new Error("must not run"); } });
+  const symbol = { PATH: "/bin" };
+  symbol[Symbol("hidden")] = "value";
+  const proxy = new Proxy({ PATH: "/bin" }, {});
+  const tooMany = Object.fromEntries(Array.from({ length: 65 }, (_, index) => [`K_${index}`, "x"]));
+  const tooLarge = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`K_${index}`, "x".repeat(8 * 1024)]));
+  const cases = [accessor, symbol, proxy, [], new Date(), { "BAD-KEY": "x" }, { PATH: 1 },
+    { PATH: `x${"\0"}y` }, { [`K${"x".repeat(128)}`]: "x" }, { K: "x".repeat(8 * 1024 + 1) },
+    tooMany, tooLarge];
+  for (const env of cases) {
+    await withSink(async (handle) => {
+      let spawned = false;
+      await assert.rejects(TEST_ONLY_streamGitHubArtifactZip({
+        artifact, handle, env, executable: "TEST_ONLY_gh", timeoutMs: 10_000,
+        spawn: () => { spawned = true; throw new Error("must not spawn"); },
+      }), { code: "seaweed_artifact_download_environment_invalid" });
+      assert.equal(spawned, false);
+    });
+  }
 });
 
 test("production transport rejects injected command and descriptors with accessors", async () => {
@@ -101,6 +146,22 @@ test("external abort stops the child and returns no receipt", async () => {
     setTimeout(() => controller.abort(), 100);
     await assert.rejects(pending, { code: "seaweed_artifact_download_aborted" });
   });
+});
+
+test("unknown child closure is a bounded refusal both before output and after all bytes", async () => {
+  for (const completeOutput of [false, true]) {
+    await withSink(async (handle) => {
+      let killed = false;
+      const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
+      child.kill = () => { killed = true; return false; };
+      const pending = TEST_ONLY_streamGitHubArtifactZip({ artifact, handle, executable: "TEST_ONLY_gh",
+        timeoutMs: 30, cleanupTimeoutMs: 30, spawn: () => child });
+      if (completeOutput) child.stdout.end(bytes);
+      await assert.rejects(pending, { code: "seaweed_artifact_download_cleanup_uncertain" });
+      assert.equal(killed, true);
+      assert.equal(child.stdout.destroyed, true);
+    });
+  }
 });
 
 test("spawn failure and child stderr never leak command output", async () => {

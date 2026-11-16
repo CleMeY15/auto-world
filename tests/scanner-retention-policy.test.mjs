@@ -8,7 +8,7 @@ import {
 const policyBytes = readFileSync(new URL("../infra/scanner/retention.json", import.meta.url));
 
 test("retention policy rejects substitutions and cannot grant authority through mutation", () => {
-  assert.equal(validateRetentionPolicyBytes(policyBytes).state, "BOOTSTRAP_ONLY_NOT_ADMITTED");
+  assert.equal(validateRetentionPolicyBytes(policyBytes).state, "PRIVATE_READ_VERIFIED_NOT_ADMITTED");
   const changed = Buffer.from(policyBytes);
   changed[100] ^= 1;
   for (const bytes of [changed, policyBytes.subarray(1), Buffer.concat([policyBytes, Buffer.from("\n")]), policyBytes.toString()]) {
@@ -18,7 +18,7 @@ test("retention policy rejects substitutions and cannot grant authority through 
   assert.throws(() => { SCANNER_RETENTION.observations.bootstrapSubject = "chosen"; }, TypeError);
   assert.deepEqual(
     Object.fromEntries(Object.entries(SCANNER_RETENTION.observations).filter(([, value]) => value === null)),
-    { anonymousRead: null, authorizedRead: null, publisher: null, localCopy: null, localRestore: null },
+    { publisher: null, localCopy: null, localRestore: null },
   );
   assert.throws(() => { SCANNER_RETENTION.readProof.packageSettings.visibility = "Private"; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.readProof.bootstrapOutcome.cleanup = "FAILED"; }, TypeError);
@@ -167,8 +167,8 @@ test("read proof fixes the reviewed bootstrap, outcome and package settings tupl
       actionsGrant: readProof.packageSettings.actionsGrant,
       proofSha256: readProof.packageSettings.proofSha256,
     },
-    anonymousRead: null,
-    authorizedRead: null,
+    anonymousRead: "AUTHORIZATION_DENIED",
+    authorizedRead: "PASSED",
     publisher: null,
     localCopy: null,
     localRestore: null,

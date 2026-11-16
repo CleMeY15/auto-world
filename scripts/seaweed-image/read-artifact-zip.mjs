@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { constants } from "node:fs";
+import { constants, readFileSync } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { addAbortSignal, Readable, Transform, Writable } from "node:stream";
@@ -21,9 +21,69 @@ const CHUNK_BYTES = 1024 ** 2;
 const MAX_JSON_ZIP_BYTES = 2 * 1024 ** 2;
 const MAX_JSON_RAW_BYTES = 1024 ** 2;
 const MAX_POSTGRES_ATTESTATION_BYTES = 8 * 1024 ** 2;
+const MAX_SCANNER_RETENTION_ZIP_BYTES = 64 * 1024 ** 2;
+const MAX_SCANNER_RETENTION_RAW_BYTES = 64 * 1024 ** 2;
+const MAX_SCANNER_RETENTION_ENTRY_BYTES = 4 * 1024 ** 2;
+const MAX_SCANNER_RETENTION_ENTRIES = 4096;
+const MAX_SCANNER_RETENTION_PUBLISHER_ZIP_BYTES = 1024 ** 2;
+const MAX_SCANNER_RETENTION_PUBLISHER_RECEIPT_BYTES = 256 * 1024;
 const ZIP32_LIMIT = 0xffff_ffff;
 const SHA256 = /^sha256:[0-9a-f]{64}$/u;
 const ZIP_ERROR_CODES = new WeakMap();
+const SCANNER_RETENTION_PROFILE_SHA256 = "f22ed73c4635aec579a550e1043d62feab0b57bd73a00ac343e696ec5b246513";
+
+function loadScannerRetentionProfile() {
+  const scannerRetentionProfileBytes = readFileSync(new URL(
+    "../../infra/scanner/scanner-retention-qualification-zip-profile-v2.json", import.meta.url,
+  ));
+  if (createHash("sha256").update(scannerRetentionProfileBytes).digest("hex") !== SCANNER_RETENTION_PROFILE_SHA256) {
+    throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+  }
+    let value;
+    try { value = JSON.parse(scannerRetentionProfileBytes.toString("utf8")); } catch {
+      throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+    }
+    if (value?.schemaVersion !== 2 || value?.zipBytes !== 5_119_275 || value?.expandedBytes !== 49_888_165
+      || value?.entryCount !== 689 || !Array.isArray(value?.entries) || value.entries.length !== value.entryCount
+      || !Array.isArray(value?.scannerRetentionAllowedModes)
+      || value.scannerRetentionAllowedModes.length !== 2
+      || value.scannerRetentionAllowedModes[0] !== 0o100400
+      || value.scannerRetentionAllowedModes[1] !== 0o100600) {
+      throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+    }
+    const paths = new Set();
+    const entries = value.entries.map((entry) => {
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)
+        || typeof entry.path !== "string" || paths.has(entry.path) || entry.method !== 8
+        || !value.scannerRetentionAllowedModes.includes(entry.mode)
+        || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > MAX_SCANNER_RETENTION_ENTRY_BYTES
+        || typeof entry.sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(entry.sha256)) {
+        throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+      }
+      paths.add(entry.path);
+      return Object.freeze({ path: entry.path, method: entry.method, mode: entry.mode,
+        bytes: entry.bytes, sha256: entry.sha256 });
+    });
+    if (entries.reduce((total, entry) => total + entry.bytes, 0) !== value.expandedBytes) {
+      throw new Error("seaweed_artifact_zip_scanner_retention_profile_invalid");
+    }
+    return Object.freeze({ zipBytes: value.zipBytes, expandedBytes: value.expandedBytes,
+      entryCount: value.entryCount, entries: Object.freeze(entries) });
+}
+
+const SCANNER_RETENTION_SELECTED_PATHS = new Set([
+  "data-foundation-audit/fixture-gomod-vulnerable-baseline.json",
+  "data-foundation-audit/fixture-gomod-vulnerable-official.json",
+  "data-foundation-audit/fixture-java-jar-clean-candidate-official.json",
+  "data-foundation-audit/fixture-java-war-vulnerable-baseline.json",
+  "data-foundation-audit/fixture-java-war-vulnerable-official.json",
+  "data-foundation-audit/official-audit-receipt.json",
+  "trivy-provenance/public/runner-tools.txt",
+  "data-foundation-audit/scanner-self.cdx.json",
+  "data-foundation-audit/scanner-self.json",
+  "data-foundation-audit/scanner-version-probe.json",
+  "data-foundation-audit/scanner-version.txt",
+]);
 
 export const githubArtifactZipProfiles = Object.freeze({
   build: "build",
@@ -34,6 +94,8 @@ export const githubArtifactZipProfiles = Object.freeze({
   postgresAttestationSigned: "postgres-attestation-signed",
   postgresAttestationVerification: "postgres-attestation-verification",
   postgresAttestationAudit: "postgres-attestation-audit",
+  scannerRetention: "scanner-retention",
+  scannerRetentionPublisherReceipt: "scanner-retention-publisher-receipt",
 });
 
 const POSTGRES_ATTESTATION_PATHS = Object.freeze({
@@ -89,7 +151,20 @@ function canonicalPath(value) {
   return !value.split("/").some((part) => part === "" || part === "." || part === "..");
 }
 
-function profilePaths(profile, paths) {
+function profilePaths(profile, paths, scannerRetentionProfile) {
+  if (profile === githubArtifactZipProfiles.scannerRetention) {
+    if (paths.length !== scannerRetentionProfile.entryCount
+      || paths.some((value, index) => value !== scannerRetentionProfile.entries[index].path)) {
+      throw zipError("seaweed_artifact_zip_profile_invalid");
+    }
+    return;
+  }
+  if (profile === githubArtifactZipProfiles.scannerRetentionPublisherReceipt) {
+    if (paths.length !== 1 || paths[0] !== "publisher-receipt.json") {
+      throw zipError("seaweed_artifact_zip_profile_invalid");
+    }
+    return;
+  }
   if (profile === githubArtifactZipProfiles.build) {
     try {
       validateArtifactAllowlist(paths);
@@ -174,7 +249,7 @@ async function hashSource(source, signal) {
   return `sha256:${hash.digest("hex")}`;
 }
 
-function parseMetadata(central, eocd, sourceSize) {
+function parseMetadata(central, eocd, sourceSize, allowedModes = [0o100600, 0o100644, 0o100755]) {
   const count = eocd.readUInt16LE(10);
   const centralSize = eocd.readUInt32LE(12);
   const centralOffset = eocd.readUInt32LE(16);
@@ -213,7 +288,7 @@ function parseMetadata(central, eocd, sourceSize) {
       || nameLength === 0 || nameLength > MAX_NAME_BYTES || extraLength !== 0 || commentLength !== 0 || disk !== 0
       || internalAttributes !== 0 || (externalAttributes & 0xffff) !== 0x20) throw zipError("seaweed_artifact_zip_central_invalid");
     const mode = externalAttributes >>> 16;
-    if (![0o100600, 0o100644, 0o100755].includes(mode) || (method === 0 && compressedSize !== rawSize)
+    if (!allowedModes.includes(mode) || (method === 0 && compressedSize !== rawSize)
       || cursor + CENTRAL_HEADER_BYTES + nameLength > central.length) throw zipError("seaweed_artifact_zip_entry_invalid");
     const nameBytes = central.subarray(cursor + CENTRAL_HEADER_BYTES, cursor + CENTRAL_HEADER_BYTES + nameLength);
     const name = nameBytes.toString("ascii");
@@ -342,11 +417,22 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
       throw zipError("seaweed_artifact_zip_signal_invalid");
     }
     if (source.size !== descriptor.size || source.size < EOCD_BYTES) throw zipError("seaweed_artifact_zip_size_invalid");
+    const publisherReceipt = profile === githubArtifactZipProfiles.scannerRetentionPublisherReceipt;
     const jsonProfile = profile === githubArtifactZipProfiles.gate1 || profile === githubArtifactZipProfiles.gate2
-      || profile === githubArtifactZipProfiles.comparison;
+      || profile === githubArtifactZipProfiles.comparison || publisherReceipt;
     const postgresAttestationProfile = POSTGRES_ATTESTATION_PATHS[profile] !== undefined;
-    if (profile !== githubArtifactZipProfiles.build && !jsonProfile && !postgresAttestationProfile) {
+    const scannerRetention = profile === githubArtifactZipProfiles.scannerRetention;
+    const scannerRetentionProfile = scannerRetention ? loadScannerRetentionProfile() : undefined;
+    if (profile !== githubArtifactZipProfiles.build && !jsonProfile && !postgresAttestationProfile && !scannerRetention) {
       throw zipError("seaweed_artifact_zip_profile_invalid");
+    }
+    if (scannerRetention && (source.size > MAX_SCANNER_RETENTION_ZIP_BYTES
+      || source.size !== scannerRetentionProfile.zipBytes || descriptor.digest
+      !== "sha256:063bcda8a6e60bbe9f419663d5c4a634f342506df66d325fe57582f4e5dc7551")) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
+    if (publisherReceipt && source.size > MAX_SCANNER_RETENTION_PUBLISHER_ZIP_BYTES) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
     }
     if (jsonProfile && source.size > MAX_JSON_ZIP_BYTES) throw zipError("seaweed_artifact_zip_profile_limit");
     if (postgresAttestationProfile && source.size > MAX_POSTGRES_ATTESTATION_BYTES) {
@@ -355,28 +441,52 @@ export async function scanGitHubArtifactZip({ source: candidateSource, descripto
     if (typeof openEntrySink !== "function") throw zipError("seaweed_artifact_zip_sink_opener_invalid");
     if (await hashSource(source, signal) !== descriptor.digest) throw zipError("seaweed_artifact_zip_digest_invalid");
     const eocd = await readExact(source, source.size - EOCD_BYTES, EOCD_BYTES);
+    if (scannerRetention && eocd.readUInt16LE(10) > MAX_SCANNER_RETENTION_ENTRIES) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
     const centralSize = eocd.readUInt32LE(12);
     const centralOffset = eocd.readUInt32LE(16);
     if (centralSize > MAX_CENTRAL_BYTES || centralOffset + centralSize + EOCD_BYTES !== source.size) throw zipError("seaweed_artifact_zip_eocd_invalid");
     const central = await readBounded(source, centralOffset, centralSize, signal);
-    const metadata = parseMetadata(central, eocd, source.size);
+    const metadata = parseMetadata(central, eocd, source.size,
+      scannerRetention ? [0o100400, 0o100600] : undefined);
     if (jsonProfile && metadata.rawTotal > MAX_JSON_RAW_BYTES) throw zipError("seaweed_artifact_zip_profile_limit");
+    if (publisherReceipt && (metadata.entries.length !== 1
+      || metadata.rawTotal > MAX_SCANNER_RETENTION_PUBLISHER_RECEIPT_BYTES)) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
     if (postgresAttestationProfile && metadata.rawTotal > MAX_POSTGRES_ATTESTATION_BYTES) {
       throw zipError("seaweed_artifact_zip_profile_limit");
     }
+    if (scannerRetention && (metadata.rawTotal > MAX_SCANNER_RETENTION_RAW_BYTES
+      || metadata.rawTotal !== scannerRetentionProfile.expandedBytes
+      || metadata.entries.length !== scannerRetentionProfile.entryCount
+      || metadata.entries.some((entry) => entry.rawSize > MAX_SCANNER_RETENTION_ENTRY_BYTES))) {
+      throw zipError("seaweed_artifact_zip_profile_limit");
+    }
     const entries = await validateLocalLayout(source, metadata, signal);
-    profilePaths(profile, entries.map((entry) => entry.path));
+    profilePaths(profile, entries.map((entry) => entry.path), scannerRetentionProfile);
     const expectedMethod = profile === githubArtifactZipProfiles.build
       || profile === githubArtifactZipProfiles.postgresAttestationAudit ? 0 : 8;
-    if (entries.some((entry) => entry.method !== expectedMethod
+    if (entries.some((entry, index) => scannerRetention
+      ? entry.method !== scannerRetentionProfile.entries[index].method
+        || entry.mode !== scannerRetentionProfile.entries[index].mode
+        || entry.rawSize !== scannerRetentionProfile.entries[index].bytes
+      : entry.method !== expectedMethod
       || (profile === githubArtifactZipProfiles.build
         ? entry.mode !== (entry.path === "weed" ? 0o100755 : /\/source\.zip$/u.test(entry.path) ? 0o100600 : 0o100644)
         : postgresAttestationProfile ? entry.mode !== 0o100600
           : entry.mode !== 0o100644))) throw zipError("seaweed_artifact_zip_profile_invalid");
     const delivered = [];
-    for (const entry of entries) {
+    for (const [index, entry] of entries.entries()) {
       assertAbort(signal);
-      const result = await deliverEntry(source, entry, openEntrySink, signal);
+      const sink = scannerRetention && !SCANNER_RETENTION_SELECTED_PATHS.has(entry.path)
+        ? () => new Writable({ write(_chunk, _encoding, callback) { callback(); } })
+        : openEntrySink;
+      const result = await deliverEntry(source, entry, sink, signal);
+      if (scannerRetention && result.sha256 !== scannerRetentionProfile.entries[index].sha256) {
+        throw zipError("seaweed_artifact_zip_profile_invalid");
+      }
       delivered.push(result);
       entriesProcessed += 1;
       verifiedBytes += result.rawSize;
