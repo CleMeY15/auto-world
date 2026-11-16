@@ -11,7 +11,7 @@ Ce document décrit un environnement de **développement privé** sur Ubuntu 26.
 - services, bases, API et aperçus liés à `127.0.0.1` et accessibles depuis le poste par tunnel SSH ;
 - ports 3100/3210 réservés à l'aperçu hors ligne, 3111/3211 au prototype persistant lorsqu'ils sont lancés explicitement.
 
-Ne publiez aucun port de développement sur Internet. T3 Desktop se connecte au VPS avec son mode SSH officiel : [Desktop-managed SSH](https://github.com/pingdotgg/t3code/blob/v0.1.9/docs/user/remote-access.md#desktop-managed-ssh). Le dépôt, Codex et les processus restent sur le VPS ; le poste local affiche et pilote la session à travers le tunnel.
+Ne publiez aucun port de développement sur Internet. T3 Desktop se connecte au VPS avec son mode SSH officiel : [Desktop-managed SSH](https://github.com/pingdotgg/t3code/blob/v0.1.9/docs/user/remote-access.md#desktop-managed-ssh). Le dépôt, Codex et les processus restent sur le VPS ; le poste local affiche et pilote la session à travers le tunnel. Le relais authentifié [T3 Connect](https://github.com/pingdotgg/t3code/blob/v0.1.9/docs/user/remote-access.md#t3-connect) permet aussi de joindre T3 depuis le téléphone avec le même compte. Il ne publie pas les ports du prototype et ne transforme pas une adresse loopback en adresse utilisable directement sur le téléphone.
 
 ## Préparer la migration
 
@@ -27,6 +27,14 @@ Les caches (`node_modules`, caches pnpm, sorties de build et navigateurs de test
 Le bundle et les patches sauvegardent le code et l'historique Git ; ils ne sauvegardent, ne restaurent et n'activent aucune base de données. Toute reprise d'un volume ou d'un projet persistant suit son runbook propre, après inventaire et vérification de compatibilité. L'absence de reprise est consignée plutôt que compensée par un volume non identifié.
 
 L'historique de référence reste ce chat, complété par la passation privée disponible sur le VPS. Aucun import complet de l'historique dans T3 Code n'est garanti.
+
+### Conversations et plugins
+
+Le snapshot privé des conversations utilisateur Codex inclut les chats archivés, mais exclut sous-agents, raisonnement, outils, authentification et pièces jointes. Son index indique les omissions, les lignes source illisibles et les limites du filtrage de secrets. Vérifiez les empreintes après transfert ; ne publiez ni ces archives ni la base Codex locale. La passation privée `/home/autoworld/migration/HANDOFF.md` donne l'emplacement de l'index accessible aux agents T3.
+
+L'import natif [Welcome de T3 0.1.9](https://github.com/pingdotgg/t3code/blob/v0.1.9/docs/user/welcome-page.md) concerne les sessions locales compatibles et récentes ; il limite les messages conservés et ne reprend pas l'activité complète. Les chemins Windows ne deviennent pas des chemins de projet Linux. Ne réécrivez pas les rollouts ni la base T3 pour fabriquer un import natif : conserver les archives lisibles et commencer les nouveaux échanges sur le VPS.
+
+Les compétences, serveurs MCP, fonctions de Codex App et logiciels Windows sont des composants distincts. La présence d'un `SKILL.md` ne prouve pas que ses outils sont disponibles. Les homes gérés T3 partagent les dossiers de compétences/plugins, mais conservent leur authentification séparée. Réinstaller et vérifier chaque intégration Linux nécessaire, avec connexion personnelle si requise ; ne copier aucun cache de secrets. Le contrôle Windows/Excel/AutoCAD et les outils propres à Codex App ne deviennent pas des outils T3 Linux par copie de fichiers. L'inventaire privé détaille les composants évalués, sans autoriser leur activation globale.
 
 ## Installer et ouvrir le projet
 
@@ -59,6 +67,22 @@ Le wrapper monte l'espace ext4 seulement dans ce namespace, puis abandonne les p
 L'aperçu hors ligne sur 3100/3210 demeure arrêté par défaut. Le prototype persistant sur 3111/3211 est lancé seulement quand le travail en a besoin, en suivant [PROTOTYPE_WEB.md](../PROTOTYPE_WEB.md). Ses dépendances restent locales au VPS et ses données sont synthétiques.
 
 Depuis le poste, utilisez un tunnel SSH vers les ports loopback nécessaires. N'élargissez pas l'écoute des applications à `0.0.0.0` pour contourner le tunnel. Conservez le nom exact de tout projet `aw-test-UUID` créé par le prototype et arrêtez-le de manière coopérative.
+
+### Projet restauré et service utilisateur
+
+Le projet persistant restauré est identifié dans la passation privée, pas par une valeur à recopier depuis un autre checkout. Sa restauration ponctuelle utilise les validateurs et le runtime existants, une cible neuve et les mêmes images/plateforme que la sauvegarde froide. L'ancien état Windows n'est pas réécrit : les credentials de la base sont conservés privément, tandis qu'un nouveau propriétaire lié au checkout VPS est généré. PostgreSQL et l'object-store sont restaurés ; OpenSearch est reconstruit explicitement depuis PostgreSQL, Redis reste neuf. Le contrôle éphémère `infra:restore-check` n'est pas détourné pour conserver sa cible.
+
+Un service utilisateur explicitement activé pilote le contrôleur officiel, sans `--seed` :
+
+```sh
+systemctl --user status auto-world-prototype.service
+systemctl --user stop auto-world-prototype.service
+systemctl --user start auto-world-prototype.service
+```
+
+Son arrêt coopératif conserve les volumes. Arrêtez-le avant une validation qui doit réserver 3111/3211, puis redémarrez-le explicitement après validation du code construit. Ne lancez pas un second contrôleur sur ces ports. Le service est activé au démarrage avec le maintien du gestionnaire utilisateur ; cela ne vaut pas preuve d'un redémarrage complet du VPS, qui n'a pas été effectué.
+
+La sauvegarde conserve les dates d'observation d'origine. Un avertissement de projection ancienne est attendu pour cette fixture conservée ; ne réimportez pas les données et ne modifiez pas les dates pour masquer cet état. Favoris et listes restent propres au navigateur et ne sont pas synchronisés automatiquement entre téléphone et PC.
 
 ## Vérifier la reprise
 
