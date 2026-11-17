@@ -1,5 +1,7 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005 checkpoint, 17 November 2026: the [reviewed publisher inventory/transport correction and bounded recovery](docs/validation/TASK-0005-publisher-inventory-recovery.md) pass final local verification and independent source review; source/main delivery and the new publication remain pending. Original run43988267108 stays FAILED before push, cleanup UNKNOWN, with no accepted publisher tuple. TASK-0005/0005A remain IN_PROGRESS;243 upstream blockers and real NexusLite copy/restoration remain open. Earlier checkpoints below retain their historical scope.
+
 ## Checkpoint courant — TASK-0123, 9 novembre 2026
 
 TASK-0122 est `DONE_FOR_V1_PROTOTYPE` sur main `43d3943dced0dc249fba0df49c5749426912e080`, par [PR233 et son checkpoint accepté](https://github.com/CleMeY15/auto-world/pull/233#issuecomment-6740879403). Les quatre validations source/main passent :608 tests navigateur réussis,10 exclusions préexistantes,10 phases persistantes sur deux moteurs ; revue finale indépendante PASS. Les états pending plus anciens sont historiques.

@@ -29,7 +29,10 @@ function exact(value, keys, code) {
 export function validateScannerRetentionPublisherObservation(value) {
   exact(value, ["runId", "runAttempt", "runNumber", "headSha", "headTree", "artifactId", "artifactName",
     "artifactDigest", "artifactBytes", "receiptBytes", "receiptSha256"], "publisher_observation_invalid");
-  if (typeof value.runId !== "string" || !RUN_ID.test(value.runId) || value.runAttempt !== 1 || value.runNumber !== 1
+  const recovery = SCANNER_RETENTION.publisher.recovery;
+  if (typeof value.runId !== "string" || !RUN_ID.test(value.runId)
+    || value.runId === recovery.predecessor.runId
+    || value.runAttempt !== recovery.runAttempt || value.runNumber !== recovery.runNumber
     || typeof value.headSha !== "string" || !HEX40.test(value.headSha)
     || typeof value.headTree !== "string" || !HEX40.test(value.headTree)
     || !Number.isSafeInteger(value.artifactId) || value.artifactId < 1

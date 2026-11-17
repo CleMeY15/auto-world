@@ -95,12 +95,18 @@ export async function authenticateScannerRetentionPublisherArtifact(binding, tok
   const observedAt = now();
   const created = Date.parse(artifact?.created_at);
   const expires = Date.parse(artifact?.expires_at);
-  if (run?.id !== runId || run.run_attempt !== 1 || run.run_number !== 1
+  const recovery = SCANNER_RETENTION.publisher.recovery;
+  if (run?.id !== runId || run.run_attempt !== recovery.runAttempt || run.run_number !== recovery.runNumber
+    || run.workflow_id !== recovery.workflowId
     || run.path !== SCANNER_RETENTION.publisher.workflow || run.event !== "workflow_dispatch"
     || run.head_branch !== "main" || run.head_sha !== accepted.headSha
     || run.repository?.full_name !== SCANNER_RETENTION.repository || run.status !== "completed" || run.conclusion !== "success"
     || commit?.sha !== accepted.headSha || commit?.tree?.sha !== accepted.headTree
-    || jobs?.total_count !== 1 || matchingJobs.length !== 1 || matchingJobs[0].status !== "completed"
+    || jobs?.total_count !== 1 || !Array.isArray(jobs.jobs) || jobs.jobs.length !== 1
+    || matchingJobs.length !== 1 || matchingJobs[0].status !== "completed"
+    || !Number.isSafeInteger(matchingJobs[0].id) || matchingJobs[0].id < 1
+    || matchingJobs[0].run_id !== runId || matchingJobs[0].run_attempt !== recovery.runAttempt
+    || matchingJobs[0].head_sha !== accepted.headSha
     || matchingJobs[0].conclusion !== "success" || artifacts?.total_count !== 1 || listed.length !== 1
     || listed[0]?.id !== accepted.artifactId || artifact?.id !== accepted.artifactId
     || artifact.name !== accepted.artifactName || artifact.digest !== accepted.artifactDigest

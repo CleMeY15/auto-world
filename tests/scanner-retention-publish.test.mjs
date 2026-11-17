@@ -20,7 +20,7 @@ const env = () => ({
   GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted", GITHUB_EVENT_NAME: "workflow_dispatch",
   GITHUB_REPOSITORY: "CleMeY15/auto-world", GITHUB_REF: "refs/heads/main",
   GITHUB_WORKFLOW_REF: "CleMeY15/auto-world/.github/workflows/scanner-retention-publish.yml@refs/heads/main",
-  GITHUB_JOB: "publish", GITHUB_RUN_NUMBER: "1", GITHUB_RUN_ATTEMPT: "1", GITHUB_RUN_ID: "42",
+  GITHUB_JOB: "publish", GITHUB_RUN_NUMBER: "2", GITHUB_RUN_ATTEMPT: "1", GITHUB_RUN_ID: "42",
   GITHUB_SHA: "a".repeat(40), GITHUB_WORKFLOW_SHA: "a".repeat(40), RUNNER_OS: "Linux",
   GITHUB_WORKSPACE: "/home/runner/work/auto-world/auto-world",
   RUNNER_TEMP: "/home/runner/work/_temp", GITHUB_TOKEN: "token", GH_TOKEN: "token",
@@ -37,10 +37,11 @@ test("publish mode only accepts an absolute output and keeps existing modes", ()
   }
 });
 
-test("publisher context is exact, first-run main-only and token bounded", () => {
+test("publisher context is exact, single-recovery main-only and token bounded", () => {
   const context = validateScannerRetentionPublishContext(env(), "linux");
   assert.equal(context.runId, "42");
-  for (const [field, value] of [["GITHUB_RUN_NUMBER", "2"], ["GITHUB_RUN_ATTEMPT", "2"],
+  for (const [field, value] of [["GITHUB_RUN_NUMBER", "1"], ["GITHUB_RUN_NUMBER", "3"],
+    ["GITHUB_RUN_ID", "43988267108"], ["GITHUB_RUN_ATTEMPT", "2"],
     ["GITHUB_REF", "refs/heads/dev"], ["RUNNER_TEMP", "/tmp"], ["GH_TOKEN", "other"]]) {
     assert.throws(() => validateScannerRetentionPublishContext({ ...env(), [field]: value }, "linux"),
       /scanner_retention_publish_context_invalid/u);

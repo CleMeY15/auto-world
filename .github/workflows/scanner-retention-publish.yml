@@ -15,7 +15,7 @@
   "jobs": {
     "publish": {
       "name": "Publish exact private scanner retention candidate",
-      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}",
+      "if": "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}",
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 45,
       "steps": [

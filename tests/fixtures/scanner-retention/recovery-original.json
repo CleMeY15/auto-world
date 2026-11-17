@@ -1,0 +1,83 @@
+{
+  "previous": {
+    "id": 43988267108,
+    "workflow_id": 420550475,
+    "run_number": 1,
+    "run_attempt": 1,
+    "path": ".github/workflows/scanner-retention-publish.yml",
+    "head_sha": "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da",
+    "event": "workflow_dispatch",
+    "status": "completed",
+    "conclusion": "failure",
+    "head_branch": "main",
+    "repository": {
+      "full_name": "CleMeY15/auto-world"
+    },
+    "head_repository": {
+      "full_name": "CleMeY15/auto-world"
+    }
+  },
+  "jobs": {
+    "total_count": 1,
+    "jobs": [
+      {
+        "id": 133721943829,
+        "run_id": 43988267108,
+        "run_attempt": 1,
+        "head_sha": "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da",
+        "name": "Publish exact private scanner retention candidate",
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "artifact": {
+    "id": 14286078082,
+    "name": "scanner-retention-publisher-43988267108-1",
+    "digest": "sha256:bad3839ebf36ebac5d1a085bcfa241cf966c83d8c51b6ebb9821d5f36592c1b9",
+    "size_in_bytes": 923,
+    "created_at": "2026-11-17T00:31:49Z",
+    "expires_at": "2026-12-01T00:31:48Z",
+    "expired": false,
+    "url": "https://api.github.com/repos/CleMeY15/auto-world/actions/artifacts/14286078082",
+    "archive_download_url": "https://api.github.com/repos/CleMeY15/auto-world/actions/artifacts/14286078082/zip",
+    "workflow_run": {
+      "id": 43988267108,
+      "repository_id": 1357514939,
+      "head_repository_id": 1357514939,
+      "head_branch": "main",
+      "head_sha": "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da"
+    }
+  },
+  "artifacts": {
+    "total_count": 1,
+    "artifacts": [
+      {
+        "id": 14286078082,
+        "name": "scanner-retention-publisher-43988267108-1",
+        "digest": "sha256:bad3839ebf36ebac5d1a085bcfa241cf966c83d8c51b6ebb9821d5f36592c1b9",
+        "size_in_bytes": 923,
+        "created_at": "2026-11-17T00:31:49Z",
+        "expires_at": "2026-12-01T00:31:48Z",
+        "expired": false,
+        "url": "https://api.github.com/repos/CleMeY15/auto-world/actions/artifacts/14286078082",
+        "archive_download_url": "https://api.github.com/repos/CleMeY15/auto-world/actions/artifacts/14286078082/zip",
+        "workflow_run": {
+          "id": 43988267108,
+          "repository_id": 1357514939,
+          "head_repository_id": 1357514939,
+          "head_branch": "main",
+          "head_sha": "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da"
+        }
+      }
+    ]
+  },
+  "commit": {
+    "sha": "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da",
+    "tree": {
+      "sha": "aa443b71420d2d05a5877bea9d20a8abbc78ffe9"
+    }
+  },
+  "zipBase64": "UEsDBBQACAAIAPgDcV0AAAAAAAAAAAAAAAAWAAAAcHVibGlzaGVyLXJlY2VpcHQuanNvboVUXW/bOBB8v5+xz1Ki7683N3ZxRhvXje0WvcNBWJEri4hE6kiqiS/wfz9ItlsH10PepCFndnY55AsY1lCHX0gboSQUvgPGoiUoYL1793G5+X0xL3er2fx+ud0u5uCAJjO0Fgp4P1t+PCO9MsIqfYAC7lq6p29+fIuDVe6T0i0HB56Ufqxb9QQF3OyFbYbq9gKZW8NQStKuJkvSCiXdfqhaYZqbQ9eO+oNcciggCvMsC5LU97ITOrOWut5OrhtCvmkQCoiJcaK0CoMKWRBEQV4nGNZVxihLKj9ExhB9jnAibTWN3SJGUVilfhR4POBejHGWphVhzgMPM6wqlmZ1TTk48PeAragFw9HrTFtRI7NQvIDgUPhh6iV5kiZe6oDEbtTmaNGt1SD5RHE7lLgn7kZBkkWhl4de5PrgABd7MuNoTYNBnBReElaMY4YJJV5VUV5Hfp4kIY9ZhEkY1WEUxF7C6yThYRDXFKdxFtQRxZylcTxKVgdLBorY9/MgjR2g515oMrOxSuAFiev7bhBuA6/ws8JP/oCjAz2yR9yPxvcN0zdC3bKWOjq8OlT3cmqsVWbQBA5Y3EMhh7Z1JuI9SlGTsfNzV6cVMZK2qC//moxVmi6bL7Bi4vLZN2jGHv58ucyTKWnp2ZYoecmwRybs4TqZ69lmMyWTD3qa+L2Bwj86PwR6rSwxS7zsUMg3qXGeX5NP4ylHF1q15u3Kvp9e8V/Fp8RevCkQZP/P/0f0bxvI0uhKQNW1YALbstfqO0mUjH55r19JhFl8/MsB1hLKoR/TfnkndqsPq09fV+CA6E6xWX3alrO7z7vlw6QzDgqFJP3fpWoQLb9D1vyChoNtxveAoSU+V+yR9J2Stdi/qqmeJPE12uaBOvWdOBRWD3QcnaLozGi0VvpxxhgZsz1dr82H5Xq9mJfvvpW7zeIBnGnL0qh26vds5cviYfl+OVk5Z33xTGywY40aW0PjzKbGroEpzT8B5J2w1xQz9L3SdmNR/wj7GVtIfkKOx9/+BVBLBwiD7wRf/QIAAJkFAABQSwECLQMUAAgACAD4A3Fdg+8EX/0CAACZBQAAFgAAAAAAAAAAACAApIEAAAAAcHVibGlzaGVyLXJlY2VpcHQuanNvblBLBQYAAAAAAQABAEQAAABBAwAAAAA=",
+  "receipt": "{\"schemaVersion\":1,\"state\":\"PUBLISHED_UNADMITTED\",\"result\":\"FAILED\",\"repository\":\"CleMeY15/auto-world\",\"workflow\":\".github/workflows/scanner-retention-publish.yml\",\"runId\":\"43988267108\",\"runAttempt\":1,\"headSha\":\"5ecdee7b32bac22429f6a3fb8ce86b13accaa1da\",\"headTree\":\"aa443b71420d2d05a5877bea9d20a8abbc78ffe9\",\"qualificationArtifact\":{\"id\":13706967607,\"name\":\"data-foundation-managed-42684309304-1\",\"digest\":\"sha256:063bcda8a6e60bbe9f419663d5c4a634f342506df66d325fe57582f4e5dc7551\",\"bytes\":5119275,\"expiresAt\":\"2026-11-23T20:18:16Z\"},\"package\":\"ghcr.io/clemey15/auto-world-scanner-closure\",\"tag\":null,\"ghcrManifestDigest\":null,\"innerTar\":null,\"restoreManifest\":null,\"oci\":null,\"phases\":[{\"name\":\"context_and_capacity\",\"result\":\"PASSED\",\"durationMs\":1},{\"name\":\"protected_main\",\"result\":\"PASSED\",\"durationMs\":599},{\"name\":\"package_controls\",\"result\":\"PASSED\",\"durationMs\":1117},{\"name\":\"qualification_api\",\"result\":\"PASSED\",\"durationMs\":287},{\"name\":\"qualification_zip\",\"result\":\"PASSED\",\"durationMs\":1874},{\"name\":\"official_provenance\",\"result\":\"FAILED\",\"durationMs\":1385}],\"cleanup\":{\"state\":\"UNKNOWN\",\"image\":\"NOT_ACQUIRED\",\"container\":\"NOT_ACQUIRED\",\"buildCache\":\"NOT_ACQUIRED\",\"authenticatedDockerConfig\":\"UNKNOWN\",\"ownedPathRemoved\":true},\"claims\":{\"forkAccessTest\":\"SKIPPED_BY_USER\",\"forkIsolation\":\"NOT_VERIFIED\",\"scannerExecuted\":false,\"retained\":false,\"restored\":false,\"admitted\":false,\"supportStart\":null,\"supportEnd\":null}}\n"
+}
