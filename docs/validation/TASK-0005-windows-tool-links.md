@@ -88,3 +88,47 @@ time: unknown. This is outside the product pilot cohort; no efficiency claim.
 TASK-0005/0005A remain IN_PROGRESS. Publisher observation remains accepted;
 no new publisher run, local copy/restore, admission, support or final lifecycle
 acceptance is established. Original failures and all243 upstream blockers remain.
+
+## Source quality coverage correction, 17 November2026
+
+The original source e5ae9a61 quality run44078310321/attempt1 genuinely succeeded,
+but independent evidence review returned REQUEST_CHANGES: `ubuntu-latest` moved
+from Ubuntu24.04 to26.04, where the required `/usr/bin/python3.12` was absent.
+The unchanged parser suites skipped54 previously passing tests (25 archive,
+14 notices,15 upstream notices). Root result:3242 total,3121 passed,121 skipped,
+zero failures; all14 new tool/preflight tests passed. Expected comparable
+coverage is3175 passes with67 existing skips. Packages776 and browser668/10
+existing exclusions passed with zero retries/flakiness; four intermediate
+polling samples converged. This green status is not accepted quality coverage.
+
+Original browser artifact14328071060:189443303bytes, SHA256
+`e804ead6896277c7bbc31c748769b643d1c4135ecf079886a2240f70afadbfb4`.
+Review34662bytes/SHA256 `497acf0671f222e2aceba59eb21f8a6913ccc01b569918cfa2f4ddf17a0f2373`;
+manifest458207bytes/SHA256 `213fad7c6f5f12aa2cfd29b9ea1c89d1eef99d9ed31feb68e5f28f5da4a8860a`,
+1732files/432836340bytes. Originals remain in private
+`task0005-pr246-quality-review-diqqruj7`, including original SUCCESS and the
+rejected coverage decision.
+
+Correction plan: select `ubuntu-24.04`, matching the accepted baseline, and
+require the exact executable, Python3.12 version and parser standard-library
+modules before dependency installation. A missing runtime now fails the job
+before tests can silently skip. No parser code, skip predicate, threshold,
+Windows tool policy or other workflow changes. Rollback reverts this workflow
+delta; it would restore the known coverage risk, not acceptance. The versioned
+runner label still receives image updates; the preflight prevents this specific
+runtime absence/version/module drift and does not claim a frozen machine image.
+
+Parent verification rehashed all1732 original evidence files with zero gaps or
+mismatches. The bounded workflow correction parses as YAML; comparison with
+e5ae9a61 confirms that only the runner label and the new prerequisite step
+changed. Extracted shell syntax passes. On this VPS, Python3.12 is absent and
+the exact preflight exits1 as intended, before any test; this is a negative
+control, not proof of positive hosted-runner compatibility. The15 existing
+scanner-workflow/workspace-contract tests pass without skips, secretlint and
+diff checks pass. Evidence: private `task0005-pr246-runtime-fix-xqei2mn8`.
+
+A new original source CI run must prove restored coverage. Existing source/main
+acceptance gates remain unchanged; no opportunistic rerun of e5ae9a61 and no
+production operation follows. The previously reviewed scanner implementation
+and all tests remain byte-identical; this follow-up changes only CI and this
+validation record.

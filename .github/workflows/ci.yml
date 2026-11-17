@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       NEXT_TELEMETRY_DISABLED: '1'
@@ -32,6 +32,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+
+      - name: Verify native parser test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x /usr/bin/python3.12
+          /usr/bin/python3.12 -I -S -c 'import bz2, lzma, resource, sys; assert sys.executable == "/usr/bin/python3.12" and sys.version_info[:2] == (3, 12)'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
