@@ -1,5 +1,11 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
+17 November2026, NexusLite update: publisher observation delivery is accepted
+on main548630df/PR245. The real local copy failed and remains unaccepted.
+The [bounded Windows tool-link correction](../../docs/validation/TASK-0005-windows-tool-links.md)
+has ordered plan approvals and local implementation/source review; delivery remains pending. TASK-0005A
+stays IN_PROGRESS,243 blockers unwaived, no new publisher run or admission.
+
 Current publication checkpoint, 17 November 2026: [run44009258503 and independent original-evidence review](../../docs/validation/TASK-0005-publisher-observation.md) are SUCCESS/APPROVE, with14 phases, authenticated readback and owned cleanup. The verified publisher observation is in separate PR/main delivery; real NexusLite copy/restoration and admission remain open. Original43988267108 stays FAILED/cleanup UNKNOWN. This task remains `IN_PROGRESS`;243 upstream blockers are unwaived. Older checkpoints retain their historical scope.
 
 Current checkpoint, 17 November 2026: the [reviewed publisher recovery correction](../../docs/validation/TASK-0005-publisher-inventory-recovery.md) passes final local validation and independent source review; source/main delivery and actual run2/attempt1 remain pending. Original run43988267108 stays FAILED before push with cleanup UNKNOWN and no accepted tuple. TASK-0005A remains `IN_PROGRESS`;243 upstream blockers, NexusLite copy/restoration and admission remain open. Older checkpoints below are historical.

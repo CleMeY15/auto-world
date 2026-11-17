@@ -1,5 +1,13 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005 NexusLite checkpoint, 17 November2026: publisher observation delivery
+is accepted on main548630df ([PR245](https://github.com/CleMeY15/auto-world/pull/245)).
+The real Windows copy attempt failed; no localCopy/localRestore acceptance.
+Authenticated original-evidence review and fresh System32/WinSxS observations
+support the [reviewed bounded tool-link correction](docs/validation/TASK-0005-windows-tool-links.md).
+Local implementation and independent review pass; source/main delivery pending; no new publisher run. TASK-0005/0005A
+stay IN_PROGRESS,243 blockers unwaived. Earlier pending checkpoints are historical.
+
 ## Point d'entrée courant — 17 novembre 2026
 
 Lire [CURRENT](roadmap/CURRENT.md) pour la passation courte, ses sources et la prochaine action. Les checkpoints datés ci-dessous conservent leur état historique ; leurs intitulés « courant » ne remplacent pas un checkpoint final accepté plus récent.

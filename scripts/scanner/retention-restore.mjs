@@ -184,25 +184,56 @@ export function validateScannerRetentionPairProof(bytes, state, sidecar, sidecar
   return value;
 }
 
-function checkFileIdentity(file, expected) {
+function canonicalToolStat(file) {
+  if (realpathSync(file).toLowerCase() !== path.resolve(file).toLowerCase()) fail("tool_identity");
+  const value = lstatSync(file);
+  if (!value.isFile() || value.isSymbolicLink()) fail("tool_identity");
+  return value;
+}
+
+function sameToolStat(before, after, links) {
+  if (!after.isFile() || before.dev !== after.dev || before.ino !== after.ino
+    || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+    || before.nlink !== links || after.nlink !== links) fail("tool_identity");
+}
+
+// Production supplies the second name only for the policy-bound Windows tar role.
+// These checks retain the trusted-host assumption; the handles close before later execution.
+export function assertScannerRetentionToolFile(file, expected, hardlinkPath) {
   if (!Number.isSafeInteger(expected.bytes) || expected.bytes < 1 || !HEX.test(expected.sha256)) fail("tool_unbound");
-  if (realpathSync(file).toLowerCase() !== path.resolve(file).toLowerCase() || lstatSync(file).isSymbolicLink()) fail("tool_identity");
-  const fd = openSync(file, "r");
+  if (hardlinkPath !== undefined && (typeof hardlinkPath !== "string" || !path.isAbsolute(hardlinkPath)
+    || path.resolve(file).toLowerCase() === path.resolve(hardlinkPath).toLowerCase())) fail("tool_unbound");
+  const links = hardlinkPath === undefined ? 1 : 2;
+  let fd; let alias;
   try {
+    const initial = canonicalToolStat(file);
+    fd = openSync(file, "r");
     const before = fstatSync(fd);
-    if (!before.isFile() || before.nlink !== 1 || before.size !== expected.bytes
-      || sha256(readFileSync(fd)) !== expected.sha256) fail("tool_identity");
-    const after = fstatSync(fd);
-    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
-      || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) fail("tool_identity");
-  } finally { closeSync(fd); }
+    sameToolStat(initial, before, links);
+    if (before.size !== expected.bytes || sha256(readFileSync(fd)) !== expected.sha256) fail("tool_identity");
+    sameToolStat(before, fstatSync(fd), links);
+    if (hardlinkPath !== undefined) {
+      sameToolStat(before, canonicalToolStat(hardlinkPath), links);
+      alias = openSync(hardlinkPath, "r");
+      sameToolStat(before, fstatSync(alias), links);
+      sameToolStat(before, canonicalToolStat(hardlinkPath), links);
+    }
+    sameToolStat(before, canonicalToolStat(file), links);
+    sameToolStat(before, fstatSync(fd), links);
+    if (alias !== undefined) sameToolStat(before, fstatSync(alias), links);
+  } catch { fail("tool_identity"); }
+  finally {
+    try { if (alias !== undefined) closeSync(alias); }
+    finally { if (fd !== undefined) closeSync(fd); }
+  }
 }
 
 export function assertScannerRetentionLocalTools() {
   if (process.platform !== "win32" || process.version !== P.local.node.version
     || path.resolve(process.execPath).toLowerCase() !== path.resolve(P.local.node.path).toLowerCase()) fail("host_invalid");
-  for (const tool of [P.local.node, P.local.powershell, P.local.tar]) checkFileIdentity(tool.path, tool);
-  for (const tool of [P.local.wrapper, P.local.helper]) checkFileIdentity(path.join(ROOT, tool.file), tool);
+  for (const tool of [P.local.node, P.local.powershell]) assertScannerRetentionToolFile(tool.path, tool);
+  assertScannerRetentionToolFile(P.local.tar.path, P.local.tar, P.local.tar.hardlinkPath);
+  for (const tool of [P.local.wrapper, P.local.helper]) assertScannerRetentionToolFile(path.join(ROOT, tool.file), tool);
 }
 
 export function assertScannerRetentionLocalCapacity() {

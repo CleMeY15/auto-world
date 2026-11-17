@@ -175,6 +175,7 @@ function copyEnvelope(token, receiptBytes, authenticated) {
 }
 
 async function execute(binding, dependencies) {
+  dependencies.tools(); dependencies.capacity();
   const token = dependencies.token;
   const authenticated = await authenticateScannerRetentionPublisherArtifact(binding, token,
     dependencies.fetchImpl, dependencies.now);
@@ -217,6 +218,22 @@ export async function TEST_ONLY_runScannerRetentionCopy(options = {}) {
   return execute(validateScannerRetentionPublisherObservation(options.binding), defaults(options));
 }
 
+const safeCopyErrors = new Set([
+  "checkout_invalid", "api_invalid", "api_limit", "api_failed", "dependencies_invalid", "publisher_api_invalid",
+  "artifact_write_invalid", "artifact_profile_invalid", "receipt_limit", "receipt_identity", "restore_receipt_invalid",
+].map((code) => `scanner_retention_copy_${code}`));
+for (const code of ["host_invalid", "tool_unbound", "tool_identity", "capacity"]) {
+  safeCopyErrors.add(`scanner_retention_local_${code}`);
+}
+
+export function scannerRetentionCopyErrorCode(error) {
+  try {
+    const message = Object.getOwnPropertyDescriptor(error, "message")?.value;
+    if (safeCopyErrors.has(message)) return message;
+  } catch { /* Unknown errors never supply diagnostic text. */ }
+  return "scanner_retention_copy_failed";
+}
+
 const direct = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (direct) {
   if (process.argv.length !== 2) { process.stderr.write("scanner_retention_copy_arguments_invalid\n"); process.exitCode = 1; }
@@ -224,7 +241,7 @@ if (direct) {
     if (!Buffer.isBuffer(bytes)) fail("restore_receipt_invalid");
     process.stdout.write(bytes);
   }).catch((error) => {
-    process.stderr.write(`${/^scanner_retention_copy_/u.test(error?.message ?? "") ? error.message : "scanner_retention_copy_failed"}\n`);
+    process.stderr.write(`${scannerRetentionCopyErrorCode(error)}\n`);
     process.exitCode = 1;
   });
 }

@@ -50,7 +50,7 @@
         {
           "name": "Run native fixtures using the runner PowerShell host",
           "shell": "pwsh",
-          "run": "$ErrorActionPreference = 'Stop'\n$env:AUTO_WORLD_TEST_PWSH = [Environment]::ProcessPath\nWrite-Output ('PowerShell ' + $PSVersionTable.PSVersion.ToString())\nnode -e \"if (process.platform !== 'win32' || process.versions.node !== '22.23.2') process.exit(1)\"\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nnode --test tests/scanner-retention-private-copy.test.mjs\nexit $LASTEXITCODE"
+          "run": "$ErrorActionPreference = 'Stop'\n$env:AUTO_WORLD_TEST_PWSH = [Environment]::ProcessPath\nWrite-Output ('PowerShell ' + $PSVersionTable.PSVersion.ToString())\nnode -e \"if (process.platform !== 'win32' || process.versions.node !== '22.23.2') process.exit(1)\"\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nnode --test tests/scanner-retention-private-copy.test.mjs tests/scanner-retention-local-tools.test.mjs tests/scanner-retention-copy-preflight.test.mjs\nexit $LASTEXITCODE"
         }
       ]
     }
