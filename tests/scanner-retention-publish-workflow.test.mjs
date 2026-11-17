@@ -11,7 +11,7 @@ test("publisher workflow is no-input, first-party scoped and has no OIDC authori
   assert.deepEqual(Object.keys(workflow.jobs), ["publish"]);
   assert.equal(workflow.jobs.publish["runs-on"], "ubuntu-24.04");
   assert.equal(workflow.jobs.publish["timeout-minutes"], 45);
-  assert.equal(workflow.jobs.publish.if, "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 1 && github.run_attempt == 1 }}");
+  assert.equal(workflow.jobs.publish.if, "${{ github.repository == 'CleMeY15/auto-world' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_number == 2 && github.run_attempt == 1 }}");
 });
 
 test("publisher workflow uploads only the capped public receipt", () => {

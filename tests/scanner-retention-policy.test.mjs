@@ -39,12 +39,19 @@ test("closed policy preserves all fifty reviewed origins and exact physical TAR 
   assert.equal(members.length, 50);
   assert.deepEqual(members.map((member) => member.path), members.map((member) => member.path).sort());
   const counts = {};
+  assert.deepEqual(rows[10].slice(1), ["scanner-closure/inventory/go-build-info.txt", "PUBLISHER_FRESH",
+    "fixed Go tool reads row01 at exact `/home/runner/work/_temp/trivy-provenance/bin/trivy`; it does not execute Trivy",
+    "37019", "a3049a3271abec48a51c86d64b68847e9e382f1039975556d8a5e4c1887d975b"]);
   for (const [index, member] of members.entries()) {
     const [, memberPath, origin, source, bytes, digest] = rows[index];
     assert.equal(member.path, memberPath);
     assert.equal(member.origin, origin);
-    assert.equal(member.bytes, bytes === "UNBOUND" ? null : Number(bytes));
-    assert.equal(member.sha256, digest === "UNBOUND" ? null : digest);
+    // The authenticated amendment changes only the inventory's raw byte identity.
+    assert.equal(member.bytes, index === 10 ? 37057 : bytes === "UNBOUND" ? null : Number(bytes));
+    assert.equal(member.sha256, index === 10
+      ? "d11460976d702309229ce77f78631eff0ad7a20d52ac4ae0d046ab738ad8d2c9"
+      : digest === "UNBOUND" ? null : digest);
+    if (index === 10) assert.equal(member.capBytes, 37057);
     assert.equal(member.headerMode, member.path === "scanner-closure/binary/trivy" ? 0o555 : 0o444);
     assert.ok(member.capBytes >= (member.bytes ?? 0));
     if (member.sourcePath !== null) assert.equal(source, `\`${member.sourcePath}\``);
@@ -54,10 +61,54 @@ test("closed policy preserves all fifty reviewed origins and exact physical TAR 
   assert.deepEqual(counts, { PUBLISHER_FRESH: 17, QUALIFIED_REPO_BLOB: 18, QUALIFICATION_ARTIFACT: 11,
     DETERMINISTIC_QUALIFIED_PROBE: 1, GENERATED_POSTCONDITION: 3 });
   const expanded = members.reduce((sum, member) => sum + member.capBytes, 0);
-  assert.equal(expanded, 468322405);
+  assert.equal(expanded, 468322443);
   assert.equal(SCANNER_RETENTION.closure.expandedCapBytes, expanded);
+  const tar = expanded + members.length * 1024 + 1024;
+  assert.equal(SCANNER_RETENTION.closure.tarCapBytes, tar);
+  assert.equal(tar, 468374667);
+  assert.equal(tar + 1048576, 469423243);
+  assert.equal(SCANNER_RETENTION.closure.publisherPeakBytes,
+    2 * expanded + 6 * tar + 134217728 + 2 * 67108864 + 1048576);
+  assert.equal(SCANNER_RETENTION.closure.localPeakBytes,
+    expanded + 4 * tar + 134217728 + 2 * 65536 + 262144);
   assert.equal(SCANNER_RETENTION.closure.publisherRequiredFreeBytes, Math.ceil(SCANNER_RETENTION.closure.publisherPeakBytes * 1.25));
   assert.equal(SCANNER_RETENTION.closure.localRequiredFreeBytes, Math.ceil(SCANNER_RETENTION.closure.localPeakBytes * 1.25));
+  assert.equal(SCANNER_RETENTION.closure.publisherRequiredFreeBytes, 5020471150);
+  assert.equal(SCANNER_RETENTION.closure.localRequiredFreeBytes, 3095540069);
+});
+
+test("recovery policy binds the exact ordered-reviewed amendment and consumed predecessor", () => {
+  assert.deepEqual(SCANNER_RETENTION.approvedRecoveryPlan, {
+    file: "roadmap/plans/TASK-0005-publisher-inventory-recovery.md", bytes: 17013,
+    sha256: "eb7d3c7bc80a8c9fbab11e935426d790ebd9bf46311379497ca4eba111d18de4",
+    architectReviewSha256: "5b582b1d8f2dac024728e2b1013e00bbafcf32d66bd9120ed53c15e700614472",
+    criticReviewSha256: "942b70215eff73179b1f3cc19623044f0762ae1732f0ff08d49c29f69ace7ad0",
+  });
+  const amendment = readFileSync(new URL(`../${SCANNER_RETENTION.approvedRecoveryPlan.file}`, import.meta.url));
+  assert.equal(amendment.length, SCANNER_RETENTION.approvedRecoveryPlan.bytes);
+  assert.equal(sha256(amendment), SCANNER_RETENTION.approvedRecoveryPlan.sha256);
+  assert.deepEqual(SCANNER_RETENTION.publisher.recovery, {
+    workflowId: 420550475, runNumber: 2, runAttempt: 1,
+    predecessor: {
+      runId: "43988267108", runNumber: 1, runAttempt: 1,
+      headSha: "5ecdee7b32bac22429f6a3fb8ce86b13accaa1da", headTree: "aa443b71420d2d05a5877bea9d20a8abbc78ffe9",
+      jobId: 133721943829, artifactId: 14286078082, artifactName: "scanner-retention-publisher-43988267108-1",
+      artifactDigest: "sha256:bad3839ebf36ebac5d1a085bcfa241cf966c83d8c51b6ebb9821d5f36592c1b9",
+      artifactBytes: 923, receiptBytes: 1433,
+      receiptSha256: "47caab8dad1160a43dd27b6cb32c111133c651bd6ed29ed25fbc1c7d6da980b2",
+      createdAt: "2026-11-17T00:31:49Z", expiresAt: "2026-12-01T00:31:48Z",
+    },
+  });
+  const native = SCANNER_RETENTION.local;
+  const wrapper = readFileSync(new URL(`../${native.wrapper.file}`, import.meta.url));
+  const helper = readFileSync(new URL(`../${native.helper.file}`, import.meta.url));
+  for (const [value, identity] of [[wrapper, native.wrapper], [helper, native.helper]]) {
+    assert.equal(value.length, identity.bytes);
+    assert.equal(sha256(value), identity.sha256);
+  }
+  assert.match(wrapper.toString(), /\$innerTarBytes -gt 468374667/u);
+  assert.match(helper.toString(), /const long TarCap=468374667,SidecarCap=65536/u);
+  assert.match(helper.toString(), /total>468322443/u);
 });
 
 test("qualification profile authenticates the selected reports and preserves the accepted full ZIP inventory", () => {

@@ -1,12 +1,14 @@
 # ROADMAP MASTER — Auto World Search
 
-## Point d'entrée courant — 16 novembre 2026
+## Point d'entrée courant — 17 novembre 2026
 
 Lire [CURRENT](roadmap/CURRENT.md) pour la passation courte, ses sources et la prochaine action. Les checkpoints datés ci-dessous conservent leur état historique ; leurs intitulés « courant » ne remplacent pas un checkpoint final accepté plus récent.
 
 TASK-0124 est `DONE_FOR_V1_PROTOTYPE` selon le [checkpoint final PR235](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896), vérifié le 16 novembre : main `f554c475b6748fb1b53281985588fab287c811ed`. Ce constat ne valide pas les révisions ultérieures du dépôt.
 
 À la demande de l'utilisateur, [TASK-0125 — fonctionnement full Codex](roadmap/tasks/TASK-0125-full-codex-workflow.md) installe le mode opératoire et prépare un pilote de six tâches produit admissibles. C'est une tâche de processus distincte, sans nouveau parcours produit, fournisseur, service ou modification des gates. Sa propre livraison reste à vérifier. Les voies VPS et TASK-0005 gardent leurs propriétaires et leurs validations séparées.
+
+TASK-0005 checkpoint, 17 November 2026: the [reviewed publisher inventory/transport correction and bounded recovery](docs/validation/TASK-0005-publisher-inventory-recovery.md) pass final local verification and independent source review; source/main delivery and the new publication remain pending. Original run43988267108 stays FAILED before push, cleanup UNKNOWN, with no accepted publisher tuple. TASK-0005/0005A remain IN_PROGRESS;243 upstream blockers and real NexusLite copy/restoration remain open. Earlier checkpoints below retain their historical scope.
 
 ## Checkpoint courant — TASK-0123, 9 novembre 2026
 

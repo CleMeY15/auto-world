@@ -366,7 +366,17 @@ test("200 percent platform and Verdana text with reduced motion retain an operab
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     if (font === "verdana") await page.addStyleTag({ content: ":root { --aw-font-family: Verdana, sans-serif; }" });
-    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    const textSizes = await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+      return {
+        root: getComputedStyle(document.documentElement).fontSize,
+        disclosure: getComputedStyle(document.querySelector(".demo-saved-search-disclosure summary")!).fontSize,
+        rename: getComputedStyle(document.getElementById("demo-saved-search-rename-0")!).fontSize,
+      };
+    });
+    // Reduced motion must apply inherited text sizing immediately, before a click.
+    expect(textSizes.disclosure).toBe(textSizes.root);
+    expect(textSizes.rename).toBe(textSizes.root);
     await edit(page);
     await capture(page, info, `rename-search-200-${font}-${browserName}.png`);
     await submit(page, `Accessible ${font}`);

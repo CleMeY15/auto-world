@@ -1,6 +1,6 @@
 # TASK-0125 — Installer le fonctionnement full Codex
 
-Status: IN_PROGRESS / IMPLEMENTED_DELIVERY_PENDING. Priority P1, voie processus indépendante. Owner: responsable Codex de cette demande. Branche `codex/full-codex-development`, base `e3e8297cfb68540c3af4703b552e16e19ed39d4a`. Autorisation : accord utilisateur sur la proposition du 16 novembre 2026, puis contrainte explicite full Codex. Contrôles documentaires réussis ; revue indépendante avec une clarification corrigée ; audit dépendances upstream en échec, CI/livraison finales encore requises.
+Status: IN_PROGRESS / IMPLEMENTED_DELIVERY_PENDING. Priority P1, voie processus indépendante. Owner: responsable Codex de cette demande. Branche `codex/full-codex-development`, base initiale `e3e8297cfb68540c3af4703b552e16e19ed39d4a`, puis main `c38c9c1a0e64f80c2170c00f4e87286e349b60c6` intégré le 17 novembre. Autorisation : accord utilisateur sur la proposition du 16 novembre 2026, puis contrainte explicite full Codex. Contrôles documentaires réussis ; revue indépendante avec une clarification corrigée. L'ancien échec d'audit Next est résolu par l'intégration de PR242, audit local sans vulnérabilité connue ; nouvelle CI/livraison finales encore requises.
 
 ## Objectif et DoR
 

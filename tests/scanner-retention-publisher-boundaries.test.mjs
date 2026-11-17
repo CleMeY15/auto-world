@@ -12,7 +12,8 @@ import { TEST_ONLY_verifyScannerRetentionQualificationApi, TEST_ONLY_parseScanne
   from "../scripts/scanner/retention-publish.mjs";
 import { authenticateScannerRetentionPublisherArtifact, runScannerRetentionCopy,
   validateScannerRetentionCopyRoot } from "../scripts/scanner/retention-copy.mjs";
-import { scannerRetentionLinuxCreateArguments, scannerRetentionLinuxImageAbsent } from "../scripts/scanner/retention-copy-linux.mjs";
+import { scannerRetentionLinuxCreateArguments, scannerRetentionLinuxImageAbsent,
+  validateScannerRetentionPublisherObservation } from "../scripts/scanner/retention-copy-linux.mjs";
 
 const q = P.qualification;
 const now = () => Date.parse("2026-11-16T12:00:00Z");
@@ -186,14 +187,16 @@ test("qualification API requires the exact unexpired artifact and successful mat
 });
 
 test("publisher receipt intake rejects ambiguous expiry and future creation before copy", async () => {
-  const binding = { runId: "123", runAttempt: 1, runNumber: 1, headSha: "a".repeat(40), headTree: "b".repeat(40),
+  const binding = { runId: "123", runAttempt: 1, runNumber: 2, headSha: "a".repeat(40), headTree: "b".repeat(40),
     artifactId: 456, artifactName: `${P.publisher.artifactNamePrefix}123-1`, artifactDigest: `sha256:${"c".repeat(64)}`,
     artifactBytes: 100, receiptBytes: 100, receiptSha256: "d".repeat(64) };
   const fixture = () => ({
-    run: { id: 123, run_attempt: 1, run_number: 1, path: P.publisher.workflow, event: "workflow_dispatch",
+    run: { id: 123, run_attempt: 1, run_number: 2, workflow_id: 420550475,
+      path: P.publisher.workflow, event: "workflow_dispatch",
       head_branch: "main", head_sha: binding.headSha, repository: { full_name: P.repository },
       status: "completed", conclusion: "success" },
-    jobs: { total_count: 1, jobs: [{ name: "Publish exact private scanner retention candidate",
+    jobs: { total_count: 1, jobs: [{ id: 789, run_id: 123, run_attempt: 1, head_sha: binding.headSha,
+      name: "Publish exact private scanner retention candidate",
       status: "completed", conclusion: "success" }] },
     commit: { sha: binding.headSha, tree: { sha: binding.headTree } },
     artifact: { id: binding.artifactId, name: binding.artifactName, digest: binding.artifactDigest,
@@ -211,6 +214,25 @@ test("publisher receipt intake rejects ambiguous expiry and future creation befo
     await assert.rejects(execute(data), /scanner_retention_copy_publisher_api_invalid/u);
   }
   await assert.rejects(execute(fixture(), () => NaN), /publisher_api_invalid/u);
+  for (const mutate of [
+    (data) => { data.run.run_number = 1; }, (data) => { data.run.run_number = 3; },
+    (data) => { data.run.run_attempt = 2; }, (data) => { data.run.workflow_id++; },
+    (data) => { data.jobs.jobs[0].run_id++; }, (data) => { data.jobs.jobs[0].run_attempt = 2; },
+    (data) => { data.jobs.jobs[0].head_sha = "c".repeat(40); },
+    (data) => { data.jobs.jobs[0].id = 0; }, (data) => { data.jobs.jobs.push({ name: "foreign" }); },
+  ]) {
+    const data = fixture(); mutate(data);
+    await assert.rejects(execute(data), /publisher_api_invalid/u);
+  }
+  assert.equal(validateScannerRetentionPublisherObservation(binding).runNumber, 2);
+  for (const changed of [{ ...binding, runNumber: 1 }, { ...binding, runNumber: 3 },
+    { ...binding, runAttempt: 2 }, { ...binding, runId: P.publisher.recovery.predecessor.runId,
+      artifactName: `${P.publisher.artifactNamePrefix}${P.publisher.recovery.predecessor.runId}-1` }]) {
+    let effects = 0;
+    await assert.rejects(authenticateScannerRetentionPublisherArtifact(changed, "test-token", () => { effects++; }),
+      /publisher_observation_invalid/u);
+    assert.equal(effects, 0);
+  }
 });
 
 test("never-started proof comes from the exact pulled image and actual container inspection", () => {

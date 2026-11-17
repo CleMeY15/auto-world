@@ -23,7 +23,7 @@ namespace AutoWorld.ScannerRetentionPrivateCopy {
     const int FileRenameInformation=10,FileDispositionInformation=13;
     const string SystemSid="S-1-5-18";
     const int FullControl=0x1f01ff;
-    const long TarCap=468374629,SidecarCap=65536;
+    const long TarCap=468374667,SidecarCap=65536;
     const string RestoreManifestPath="scanner-closure/restore-manifest.json";
     static readonly string[] RestorePaths=new string[]{
       "scanner-closure/binary/trivy",
@@ -314,7 +314,7 @@ namespace AutoWorld.ScannerRetentionPrivateCopy {
     }
     static long ValidateRestoredTree(SafeFileHandle output,byte[] manifest,string manifestSha256,long manifestBytes,string sid) {
       List<RestoreRecord> records=ParseRestoreManifest(manifest);long total=manifestBytes;ValidateRestorePath(output,RestoreManifestPath,manifestBytes,manifestSha256,sid);
-      foreach(RestoreRecord record in records){ValidateRestorePath(output,record.Path,record.Bytes,record.Sha256,sid);total=checked(total+record.Bytes);if(total>468322405)Fail("bytes_invalid");}
+      foreach(RestoreRecord record in records){ValidateRestorePath(output,record.Path,record.Bytes,record.Sha256,sid);total=checked(total+record.Bytes);if(total>468322443)Fail("bytes_invalid");}
       if(!Inventory(FinalPath(output)).SetEquals(ExpectedRestoreInventory()))Fail("inventory_invalid");return total;
     }
     static void Disposition(SafeFileHandle handle) {
