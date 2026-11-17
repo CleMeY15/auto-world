@@ -1,5 +1,14 @@
 # TASK-0005 — Local data infrastructure
 
+17 November 2026, final observation delivery: [PR247 checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
+accepts main `73ad4eddec190f3d6928f41f86c3e33858598683` after five main
+workflows and independent original-evidence review. The scanner material-retention
+row is closed; physical C:/NTFS execution remains f630339b, with no new operation.
+Continue the [M3 material inventory](../../docs/validation/TASK-0005-managed-m3-preparation.md).
+TASK-0005/0005A remain IN_PROGRESS; 243 upstream blockers unwaived, complete
+service/source/database retention, binary equivalence, admission/support and
+final gates open. The earlier pending records below are historical.
+
 17 November2026 at16:55UTC: accepted mainf630339b (PR246) has now run the
 real NexusLite copy and local restoration once. Independent actual-evidence
 review APPROVE: eight phases,50 members, retained NTFS pair and owned cleanup.

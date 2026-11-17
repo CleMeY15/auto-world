@@ -1,5 +1,15 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005 checkpoint, 17 November 2026: [PR247's final acceptance](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
+accepts observation delivery on main `73ad4eddec190f3d6928f41f86c3e33858598683`.
+All five main workflows and independent original-evidence reviews pass. The
+scanner material-retention row is closed; physical C:/NTFS execution remains
+on f630339b, without a new copy or restoration. TASK-0005/0005A stay IN_PROGRESS:
+complete service/source/database retention, binary equivalence, admission/support
+and final gates remain open; 243 upstream blockers remain unwaived. Continue with
+the [M3 material inventory](docs/validation/TASK-0005-managed-m3-preparation.md).
+Earlier pending checkpoints below are historical.
+
 TASK-0005 NexusLite checkpoint, 17 November2026 at16:55UTC: the
 [actual C:/NTFS copy and manifest-first restoration](docs/validation/TASK-0005-nexus-observation.md)
 are independently APPROVED on accepted mainf630339b (PR246): one invocation,

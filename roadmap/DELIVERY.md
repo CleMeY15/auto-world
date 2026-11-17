@@ -1,5 +1,22 @@
 # Auto World delivery ledger
 
+## TASK-0005 scanner material retention — 2026-11-17
+
+[PR247's final checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
+accepts source `b1dc2f01f7266bd1d9ca14e40b89c72fbd8535f9`, main
+`73ad4eddec190f3d6928f41f86c3e33858598683`, identical tree
+`ca33e4e955878037ad20ff1ee344b44f076a67b1`. All five source and five main
+workflows pass with independent original-evidence approval; source code APPROVE,
+architecture CLEAR. The [final observation record](../docs/validation/TASK-0005-nexus-observation.md#accepted-observation-delivery)
+preserves actual main counts, exclusions and evidence identities.
+
+This closes only the scanner material-retention row, including the already
+accepted C:/NTFS copy/restoration on f630339b. No new operation occurred.
+TASK-0005/0005A remain IN_PROGRESS, 243 raw upstream blockers unwaived;
+service/source/database retention, binary equivalence, admission/support and
+final lifecycle gates remain open. Later documentation delivery has its own
+[validation](../docs/validation/TASK-0005-retention-checkpoint.md).
+
 ## TASK-0005 scanner publication — 2026-11-17
 
 [Actual recovery44009258503](../docs/validation/TASK-0005-publisher-observation.md) is independently APPROVE / PUBLISHED_UNADMITTED on9b8996413fbc32bdd9a9bbafdce57e8c38da0cff. All14 phases, authenticated digest readback and owned cleanup pass; the predecessor remains FAILED/UNKNOWN. The separately reviewed policy observation delivery is pending; no copy/restore, admission, support or task completion is inferred.

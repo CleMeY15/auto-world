@@ -1,7 +1,7 @@
 # TASK-0005 — actual NexusLite copy and restoration observations
 
 17 November 2026. Actual operation: **APPROVE / LOCAL_BYTES_RESTORED_NOT_ADMITTED**.
-Observation delivery: **IN_PROGRESS / DELIVERY_PENDING**. TASK-0005/0005A
+Observation delivery: **MAIN_ACCEPTED**, by the [final checkpoint](#accepted-observation-delivery). TASK-0005/0005A
 remain IN_PROGRESS;243 upstream blockers remain unwaived.
 
 ## Scope, owner and delivery plan
@@ -220,7 +220,55 @@ from this observation-only delta; none is manually dispatched or waived.
 New source/main identities, actual counts and final verdicts belong to the
 PR delivery checkpoint. Prior approvals do not substitute for these gates.
 
-Observation delivery remains **IN_PROGRESS / DELIVERY_PENDING**. No new
+At that reconciliation checkpoint, observation delivery remained
+**IN_PROGRESS / DELIVERY_PENDING**. No new
 NexusLite operation, publisher run, local copy or restoration occurs during
 reconciliation. The original rollback and all remaining infrastructure gates
 above remain applicable;243 upstream blockers remain unwaived.
+
+## Accepted observation delivery
+
+The [final PR247 checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
+accepts source `b1dc2f01f7266bd1d9ca14e40b89c72fbd8535f9` and protected main
+`73ad4eddec190f3d6928f41f86c3e33858598683`, identical tree
+`ca33e4e955878037ad20ff1ee344b44f076a67b1`. Normal merge completed at
+2026-11-17T22:35:19Z. Source code APPROVE, architecture CLEAR and the five source
+workflows were independently accepted before merge. Five actual main workflows,
+six jobs, passed original attempt 1 and independent original-evidence review:
+
+| Main workflow | Run | Actual result |
+| --- | --- | --- |
+| Quality | [44191510128](https://github.com/CleMeY15/auto-world/actions/runs/44191510128) | 3,265 root passes / 67 unchanged exclusions; 776 packages; 668 browser passes / 10 unchanged exclusions; zero retries/flaky results; lint/types/build/secrets/full low-threshold audit pass |
+| Managed | [44191509701](https://github.com/CleMeY15/auto-world/actions/runs/44191509701) | Ten phases, two builders, four builds, five audits, four runtime cases and cleanup pass; failure-only enforcement SKIPPED |
+| Native Windows | [44191509971](https://github.com/CleMeY15/auto-world/actions/runs/44191509971) | 24 passes, zero exclusions |
+| Publisher tools | [44191509903](https://github.com/CleMeY15/auto-world/actions/runs/44191509903) | 42 passes, approved Azure profile, 55-byte copy, never-started container and restored inventories |
+| Tooling | [44191509745](https://github.com/CleMeY15/auto-world/actions/runs/44191509745) | 99 passes per OS; existing Windows conditional assertion limitations retained |
+
+OpenSearch core is 1,688 passes / 48 exclusions, versus source 1,689/47.
+The sole status delta, `XContentParserTests.testWriteDepthOffLimit`, is the
+existing randomized YAML assumption expressly allowed by the unchanged
+1,688/48 contract; exact status parity is false, with no new waiver.
+Transport-gRPC has 1,427 passes. Seaweed has 14,218 test passes / 72 exclusions,
+158 package passes / 76 exclusions and three separate supplemental passes.
+Rust 498/590 remain source-package counts, not binary-equivalence evidence.
+Five failed intermediate browser polling samples across three passing tests
+converged; they are retained separately from test retries. Private payload and
+default-builder cache limits remain unchanged.
+
+Independent verdict: **APPROVE_MAIN_OBSERVATION_DELIVERY_ONLY**, Codex
+gpt-6-astra / ultra. Report SHA256
+`dde4649f72264c0b67da1a427058bc876e7343ce23e4c2b208db328577b478db`;
+complete 2,715-file / 507,158,974-byte manifest SHA256
+`38e7a7246ae8ed4d757e6f6b101aabc226e0db504ad895dd6082a677ccb2ea3e`.
+The coordinator independently rehashed every entry, exact recursive coverage
+and private permissions; all 1,450 tracked source files remained unchanged.
+Fresh main matched the accepted SHA. Raw evidence remains in private storage.
+
+The coordinator's checkpoint closes **only the scanner material-retention row**
+under the M3B plan. Physical execution remains f630339b; policy bytes, publisher
+tuple, receipts and sidecar remain unchanged. No new publisher, scanner, Nexus
+copy or restoration was run. TASK-0005/0005A stay IN_PROGRESS; 243 raw upstream
+blockers remain FAILED/unwaived. Complete service/source/database retention,
+binary equivalence, admission/support and final 17-phase acceptance remain open.
+Historical failed publication/UNKNOWN cleanup and metadata-only rollback above
+are preserved. This acceptance covers 73ad4edd, not later documentation changes.

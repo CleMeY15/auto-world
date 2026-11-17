@@ -4,11 +4,20 @@ Status on 2026-11-09: `PREPARATION_ONLY / NO_PUBLICATION_AUTHORITY`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`. Support dates remain null for
 these candidates. This record does not alter historical admissions or archives.
 
-Latest continuation: M3A is accepted by [PR237's protected-main checkpoint](https://github.com/CleMeY15/auto-world/pull/237#issuecomment-6750591581).
-The [scanner-retention bootstrap tranche](TASK-0005-scanner-retention-bootstrap.md)
-now implements the first step of the separately approved M3B plan. Its actual
-publication and retention proofs remain pending; older pending-M3A statements
-below describe their original checkpoints.
+Latest continuation, 17 November 2026: M3A is accepted by
+[PR237's protected-main checkpoint](https://github.com/CleMeY15/auto-world/pull/237#issuecomment-6750591581).
+[PR247's final checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
+accepts M3B's scanner material-retention row on main
+`73ad4eddec190f3d6928f41f86c3e33858598683`, after actual publication/readback,
+C:/NTFS pair and manifest-first local restoration, observation delivery and
+independent original-evidence review. Physical execution remains f630339b;
+there is no new operational run. The [observation record](TASK-0005-nexus-observation.md#accepted-observation-delivery)
+binds the evidence. Other rows below remain open; earlier pending statements
+retain their historical scope. Complete the measured service-material inventory
+before selecting a bounded capture plan; no current survival or capacity is
+inferred from a historical measurement. The [dated measurement index](TASK-0005-m3-material-measurements-20261117.md)
+records 18 known payload observations and the remaining unknown closure groups;
+it does not claim a complete retained inventory.
 
 ## Reviewed source and current boundary
 
@@ -120,7 +129,7 @@ members keep the inventory incomplete; they cannot be represented as zero.
 | Changed sources | Exact gosu, OpenSearch and SeaweedFS sources, original and patched inputs, recipes and notices | Existing public diagnostic exports contain selected text evidence, not complete source trees |
 | Build dependencies | Go/compiler source and module closure; JDK/Gradle distribution, wrapper, resolved dependency and plugin closure; package-manager inputs | Build-stage caches and dependency bytes are not exported as complete retained material |
 | Inherited source | Corresponding upstream source/notices for inherited runtime components, including SeaweedFS Rust helpers | Cargo locks and helper hashes prove a narrower scope than complete source or source-to-binary equivalence |
-| Scanner | Verified official release archive, actual binary, build inventory, official bundle, verifier output and detection controls | Diagnostic qualification exists; supported private retention is not established |
+| Scanner | Verified official release archive, actual binary, build inventory, official bundle, verifier output and detection controls | CLOSED for the exact 50-member archive under [PR247's checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598): authenticated private publication/readback, C:/NTFS pair and manifest-first local byte restoration. This is not offline scanner/database operation, image admission or support activation. |
 | Databases and reports | Exact vulnerability/Java database bytes and metadata, before/after identities, complete original reports and SBOMs | Public artifacts retain reports and database identities, not the database payloads |
 | Execution evidence | Build/native-test results, candidate runtime proofs, cleanup, reviewed source/recipe identities, verifier and workflow sources | Must bind final registry subjects and the approved retention manifest |
 | Final provenance | Separate image attestations, original immutable bundles, positive/refusal verification and admitted inventory | Future material; requires explicit capacity allowance and later actual measurement |
