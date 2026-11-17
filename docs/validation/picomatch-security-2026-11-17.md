@@ -1,6 +1,6 @@
 # Picomatch security tooling maintenance — 17 November 2026
 
-Status: REVIEW_CORRECTIONS_LOCALLY_VALIDATED / DELIVERY_AND_RECHECK_PENDING. Focused prerequisite for the
+Status: BOUNDARY_CORRECTION_LOCALLY_VALIDATED / DELIVERY_AND_RECHECK_PENDING. Focused prerequisite for the
 unchanged dependency gate, not product delivery or image admission. Parent owns
 independent final review, PR247 reconciliation and delivery; this implementation
 does not alter PR247 or its evidence. TASK-0005/0005A stay IN_PROGRESS and the243
@@ -97,6 +97,10 @@ Within expanded glob patterns, unescaped parentheses must form balanced positive
 extglobs (`?`, `*`, `+`, `@`);
 a backslash-escaped operator cannot introduce a group. Bare, negative and
 unfinished groups fail explicitly; escaped literal parentheses remain available.
+Backslash-escaped braces are unqualified in expanded project patterns and active
+ignores and fail explicitly. The original classifier can treat such an entire
+expression as a missing literal even when the new matcher would expand it. Use
+explicit unescaped literal project paths for filenames containing braces.
 These syntax guards define deliberate restrictions around the qualified corpus;
 they do not claim universal Picomatch grammar equivalence. No new regexp engine
 attempts unsafe equivalence, and no type-aware rule is disabled. Existing repository
@@ -300,3 +304,50 @@ unchanged Secretlint preset. All 1,449 tracked contents stayed fixed during the
 serialized gates (`validation-source.json`, `gates.json`). This result-note update
 changes documentation only; final published source is separately bound for both
 independent rechecks. Local results are not hosted coverage or main acceptance.
+
+
+### Nested and escaped brace boundary correction
+
+Both independent source rechecks of `1451ebd9` resolved the original high/medium
+findings and retained only a low nested-range contract mismatch (code COMMENT,
+architecture WATCH). Their concrete forms `x{{a,b},{1..2}}.json` and
+`{plain,{x,y},x{1..2}}.json` passed because the first closing brace ended a sibling
+alternative. The guard now tracks unescaped brace depth and rejects a range at
+nested depth, through both projects and active ignores. Four nested layouts have
+two-route refusal regressions; sequential top-level ranges still retain membership.
+
+A parent positive-control differential then found a separate escaped-brace
+classification mismatch: `\{x{1..2}\}.json` was a missing literal in the original
+resolver but expanded to two existing files in the candidate. That failed
+comparison is retained, not rewritten. Escaped brace syntax now fails explicitly
+when used in expansion or active ignores, consistent with the boundary above.
+Regressions cover this example and an escaped comma-brace form; ordinary literal
+brace filenames still retain explicit project priority. No replacement matching
+engine, advisory waiver or silently reduced selection is introduced.
+
+Evidence is retained in the parent's private `.local-data/picomatch-nested-fix-2yiowe5i/`.
+The old-head CI-evidence delegate was stopped before source edits; partial originals
+remain historical, without a completed approval. The new source requires independent
+code/architecture rechecks and all exact-head hosted gates. Local validation focuses
+on a fresh frozen install, actual graph/patch, affected compatibility tests, full
+lint, secrets and audit. Full quality/browser and platform gates on GitHub remain
+required; the preceding full local results belong to `1451ebd9` and are not relabeled
+as tests of this correction. No service, scanner, Nexus or other operational command
+is run by this maintenance.
+
+
+Final local validation of this boundary correction: **99 targeted tests pass, zero
+failures/skips**; full lint14/14 uncached, secrets and unchanged low-threshold audit
+pass. Fresh frozen install and all15 workspace graphs contain no forbidden packages;
+installed adapter bytes equal the patch, and the original changelog remains intact.
+All1,449 tracked contents remained frozen during those gates. The lockfile delta
+from1451 changes only the patch identity, now `35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6`.
+
+The final benign differential uses an expanded fixture and117 exact old/new ordered
+results (114 prior options plus sequential-range and explicit literal-brace priority
+cases), SHA256 `c562387f097689e5bf50755b456a96d9b8bbeba38859c78f7ba3c9f67251bdb7`.
+The earlier118-case comparison and its one escaped-brace disagreement remain
+retained separately; that form now errors on both guarded routes. The unchanged
+original golden corpus is never rewritten. These local scoped checks do not replace
+new-head hosted quality, browser, integration and Windows acceptance or the two
+independent source rechecks.

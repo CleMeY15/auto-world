@@ -13,7 +13,7 @@ packageExtensionsChecksum: sha256-+hYxJF3qWFavb/Ql7FbpUJdZS3FWWnunPONPPcFYS60=
 
 patchedDependencies:
   '@typescript-eslint/typescript-estree@8.69.0':
-    hash: 75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6
+    hash: 35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6
     path: patches/@typescript-eslint__typescript-estree@8.69.0.patch
 
 importers:
@@ -2121,7 +2121,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6)(typescript@5.9.2)
       '@typescript-eslint/visitor-keys': 8.69.0
       debug: 4.4.3
       eslint: 10.10.0
@@ -2150,7 +2150,7 @@ snapshots:
   '@typescript-eslint/type-utils@8.69.0(eslint@10.10.0)(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6)(typescript@5.9.2)
       '@typescript-eslint/utils': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
       debug: 4.4.3
       eslint: 10.10.0
@@ -2161,7 +2161,7 @@ snapshots:
 
   '@typescript-eslint/types@8.69.0': {}
 
-  '@typescript-eslint/typescript-estree@8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)':
+  '@typescript-eslint/typescript-estree@8.69.0(patch_hash=35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6)(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/project-service': 8.69.0(typescript@5.9.2)
       '@typescript-eslint/tsconfig-utils': 8.69.0(typescript@5.9.2)
@@ -2181,7 +2181,7 @@ snapshots:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.10.0)
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6)(typescript@5.9.2)
       eslint: 10.10.0
       typescript: 5.9.2
     transitivePeerDependencies:
@@ -2916,7 +2916,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/eslint-plugin': 8.69.0(@typescript-eslint/parser@8.69.0(eslint@10.10.0)(typescript@5.9.2))(eslint@10.10.0)(typescript@5.9.2)
       '@typescript-eslint/parser': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=35160f0aa02f03ad56f9318e1900baafb2bf1b6df7e8cbe65ca5a337531f0df6)(typescript@5.9.2)
       '@typescript-eslint/utils': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
       eslint: 10.10.0
       typescript: 5.9.2

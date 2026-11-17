@@ -147,6 +147,8 @@ test("incompatible legacy grammar fails explicitly, including ignored patterns",
         "a(b|c).json", "!(ab).json", "+(a.json", "@(a.json", "@(a)).json", String.raw`\+(a).json`,
         "a{01..05..2}.json", "x{10..12}.json", "x{1..12}.json", "a{-01..-03}.json", "a{-1..-3}.json",
         "x{01..05}.json", "x{1..5..2}.json", "x{5..1}.json", "x{a..c}.json", "x{1..2.json",
+        "x{{a,b},{1..2}}.json", "{plain,{x,y},x{1..2}}.json", "x{a,{1..2}}.json", "x{1..2,{a,b}}.json",
+        String.raw`\{x{1..2}\}.json`, String.raw`\{a,b\}*.json`,
     ]) {
         for (const asIgnore of [false, true]) {
             await t.test(`${pattern}: ${asIgnore ? "ignore" : "project"}`, () => {
@@ -194,4 +196,25 @@ test("qualified single-digit ranges and escaped positive-extglob literals keep e
     }
     resolver.clearGlobResolutionCache();
     assert.deepEqual([...resolver.resolveProjectList({ project: [String.raw`\+\(a\)*.json`], tsconfigRootDir: dir, singleRun: true }).values()], [path.join(dir, "+(a).json")]);
+});
+
+test("sequential ranges preserve membership and literal brace paths preserve priority", t => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aw-project-braces-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const sequential = ["x1-1.json", "x1-2.json", "x2-1.json", "x2-2.json"];
+    const literals = ["{x1}.json", "{x2}.json"];
+    for (const file of [...sequential, ...literals, "other.json"]) fs.writeFileSync(path.join(dir, file), "{}");
+    for (const asIgnore of [false, true]) {
+        resolver.clearGlobResolutionCache();
+        const pattern = "x{1..2}-{1..2}.json";
+        const selected = asIgnore ? fs.readdirSync(dir).filter(file => !sequential.includes(file)) : sequential;
+        assert.deepEqual([...resolver.resolveProjectList({
+            project: asIgnore ? ["*.json"] : [pattern], projectFolderIgnoreList: asIgnore ? [pattern] : [],
+            tsconfigRootDir: dir, singleRun: true,
+        }).values()], selected.map(file => path.join(dir, file)), `${pattern}: ${asIgnore ? "ignore" : "project"}`);
+    }
+    resolver.clearGlobResolutionCache();
+    assert.deepEqual([...resolver.resolveProjectList({
+        project: ["{x2}.json", "{x1}.json", "x{1..2}-{1..2}.json"], tsconfigRootDir: dir, singleRun: true,
+    }).values()], ["{x2}.json", "{x1}.json", ...sequential].map(file => path.join(dir, file)));
 });
