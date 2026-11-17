@@ -130,6 +130,42 @@ was weakened, and no further root-suite retry was made. Both failures and the
 diagnostic are retained under `.local-data/task0005-publisher-observation-hk67mbup/`.
 These local failures are not relabeled as successes or as the hosted CI skips.
 
+### PR245 quality failure and fixture correction
+
+The first [quality run44012416449](https://github.com/CleMeY15/auto-world/actions/runs/44012416449)
+on source `98a536cf063a2dc08eeaaeead3e74b3f6b0035f5`, attempt1,
+failed at root tests:3160pass/one failure/67 existing skips. The failure was
+the admission-session VM wrapper: its cleanup-without-close scenario never
+reached the expected hanging Docker child (`hanging === -1`). Its fixture
+started a real5ms compressed drain timer before asynchronous volume inspection.
+Expiration there correctly makes production cleanup uncertain, but prevents
+the test from exercising the intended missing-close path. The original CI
+log does not expose the precise scheduling interleaving.
+
+A private controlled reproduction delayed that preliminary inspection by20ms
+and produced the identical assertion failure. The corrected fixture passes
+the same delay. Both adjacent hanging-cleanup tests now use Node's test-scoped
+mock timers and wait for the intended child before advancing the existing
+compressed deadline. The missing-close case then advances post-kill grace
+separately and drives late closure explicitly. All previous ownership,
+no-later-child, preserved-secret, helper-stop and authority-close assertions
+remain; a late close also demonstrably cannot authorize a new session.
+Production code, policy, deadlines and admission generation pins are unchanged.
+
+Validation on Node22.23.2: both targeted cleanup cases pass; the complete VM
+session suite passes38tests with zero failures, exclusions or cancellations;
+its ordinary root-runner wrapper passes; scoped ESLint and diff checks pass.
+These are simulated session tests, not native lifecycle acceptance. The earlier
+full local root failures remain recorded above; that suite was not retried.
+The failed run/API/job/log ZIP, intentional red reproduction and corrected
+checks are retained under `.local-data/task0005-pr245-ci-fix-jrrle479/`.
+Failed log ZIP:485488bytes, SHA256
+`68f582ff73e34ad843e0f0b5eb0bc27702197faa298c9a4a66f94b32644f6f17`.
+The original failed run remains attempt1; the corrected commit requires fresh
+source checks and review before delivery. No publisher was rerun.
+
+### Delivery gates
+
 Independent source review and fresh exact-source quality, managed, Windows
 and tools original-evidence acceptance remain required before normal merge.
 After merge, the corresponding protected-main checks and original-evidence

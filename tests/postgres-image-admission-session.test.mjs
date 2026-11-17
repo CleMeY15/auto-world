@@ -449,7 +449,9 @@ if (typeof vm.SourceTextModule !== "function") {
       };
       if (observed.imageLoadNoClose && args.includes("image") && args.includes("load")) { /* Kill grace owns completion. */ }
       else if ((observed.cleanupListHangs || observed.cleanupListNoClose) && args.includes("container") && args.includes("ls")
-        && args.some((value) => value.includes("-service"))) { /* Abort owns completion. */ }
+        && args.some((value) => value.includes("-service"))) {
+        observed.onCleanupListHang?.(); // The test advances the deadline only after this child exists.
+      }
       else if (args.includes("psql") && observed.forceChildTimeout) { /* Timeout path owns completion. */ }
       else if (args.includes("psql")) globalThis.setTimeout(complete, 5);
       else globalThis.setImmediate(complete);
@@ -481,7 +483,7 @@ if (typeof vm.SourceTextModule !== "function") {
     probeExplicitHostMounts = false,
     verifyRejectsAbortedSignal = false, cleanupListTransportFailure = false, cleanupListHangs = false,
     cleanupListNoClose = false, cleanupKillReturns = true, cleanupKillEmitsError = false,
-    cleanupLateCloseAfterGrace = false,
+    cleanupLateCloseAfterGrace = false, onCleanupListHang = undefined,
     imageLoadNoClose = false, imageLoadKillReturns = true, imageLoadKillEmitsError = false,
     imageLoadLateCloseAfterGrace = false,
     sinkBackpressure = false,
@@ -498,7 +500,7 @@ if (typeof vm.SourceTextModule !== "function") {
       placeholderWhileRunning, unmountOnStop, cleanupVolumeLabels, cleanupVolumeMountpoint,
       cleanupVolumeOptions, replaceVolumeAncestorAfterStop, mutateContainerInspectAfter, cleanupRmFailure,
       forceChildTimeout, childOverflowOnPsql, swapRestoreAlias, cleanupListTransportFailure, cleanupListHangs,
-      cleanupListNoClose, cleanupKillReturns, cleanupKillEmitsError, cleanupLateCloseAfterGrace,
+      cleanupListNoClose, cleanupKillReturns, cleanupKillEmitsError, cleanupLateCloseAfterGrace, onCleanupListHang,
       imageLoadNoClose, imageLoadKillReturns, imageLoadKillEmitsError, imageLoadLateCloseAfterGrace,
       probeRemainder, probeAmbiguous, probeProfileMutation, probeExplicitHostMounts,
       probeSequence: 0, probeSpecs: new Map() };
@@ -942,28 +944,45 @@ if (typeof vm.SourceTextModule !== "function") {
     assert.equal(failed.observed.close, 1);
   });
 
-  test("cleanup abort kills a hanging owned Docker child within the single drain deadline", async () => {
-    const { context, observed } = await loadSession({ failCreateBeforeCreation: true, cleanupListHangs: true });
-    await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+  test("cleanup abort kills a hanging owned Docker child within the single drain deadline", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let onCleanupListHang;
+    const hanging = new Promise((resolve) => { onCleanupListHang = resolve; });
+    const { context, observed } = await loadSession({ failCreateBeforeCreation: true, cleanupListHangs: true,
+      onCleanupListHang });
+    const refused = assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
       kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
     })`, context), /postgres_admission_cleanup_uncertain/u);
+    await hanging;
+    assert.equal(observed.cleanupHangKilled, undefined);
+    t.mock.timers.tick(5);
+    await refused;
     assert.equal(observed.cleanupHangKilled, true);
     assert.equal(observed.helperStops, 1);
     assert.equal(observed.close, 1);
   });
 
-  test("cleanup kill without close stays uncertain, blocks later Docker children, and preserves temporary files", async () => {
+  test("cleanup kill without close stays uncertain, blocks later Docker children, and preserves temporary files", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     for (const fixture of [
       { cleanupKillReturns: true, cleanupKillEmitsError: false },
       { cleanupKillReturns: true, cleanupKillEmitsError: true, cleanupLateCloseAfterGrace: true },
       { cleanupKillReturns: false, cleanupKillEmitsError: true },
     ]) {
+      let onCleanupListHang;
+      const childReady = new Promise((resolve) => { onCleanupListHang = resolve; });
       const { context, observed, fakeFs } = await loadSession({
-        failCreateBeforeCreation: true, cleanupListNoClose: true, ...fixture,
+        failCreateBeforeCreation: true, cleanupListNoClose: true, onCleanupListHang, ...fixture,
       });
-      await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+      const refused = assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
         kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
       })`, context), /postgres_admission_cleanup_uncertain/u);
+      await childReady;
+      assert.equal(observed.cleanupHangKilled, undefined);
+      t.mock.timers.tick(5); // Expire the fixture's compressed drain deadline.
+      assert.equal(observed.cleanupHangKilled, true);
+      t.mock.timers.tick(5); // Expire post-kill grace without any close event.
+      await refused;
       const hanging = observed.children.findIndex(({ args }) => args.includes("container")
         && args.includes("ls") && args.some((value) => value.includes("-service")));
       assert.notEqual(hanging, -1);
@@ -973,8 +992,14 @@ if (typeof vm.SourceTextModule !== "function") {
       assert.equal(observed.helperStops, 1);
       assert.equal(observed.close, 1);
       if (fixture.cleanupLateCloseAfterGrace) {
-        await new Promise((resolve) => globalThis.setTimeout(resolve, 25));
+        assert.equal(observed.cleanupLateCloseEmitted, undefined);
+        t.mock.timers.tick(15);
         assert.equal(observed.cleanupLateCloseEmitted, true);
+        const authorityCalls = observed.acquire;
+        await assert.rejects(vm.runInContext(`admitted.runPostgresSupportedSession({
+          kind: "POSTGRES_SUPPORTED_SESSION_V1", intent: "SQL_CHECK"
+        })`, context), /postgres_admission_operation_cancelled/u);
+        assert.equal(observed.acquire, authorityCalls);
         assert.equal(observed.children.length, hanging + 1);
       }
     }
