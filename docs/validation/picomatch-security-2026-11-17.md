@@ -212,3 +212,28 @@ hosted Windows qualification and distinct independent review remain required.
 Parent retains PR247 and its observation-policy/evidence ownership. First fully
 complete local presentation remains not established because browser qualification
 is blocked. All prior failed runs remain in the private manifest.
+
+### Parent correction after the first Windows compatibility run
+
+Source8543c637's tooling run44159780506 passed on Ubuntu but failed on
+Windows (job134310161831). Its first reported `all` case contains exactly the
+same30 paths as the original Linux golden capture, but NTFS orders the two
+`[literal]` paths differently. The original fdir walker and the replacement both
+intend native depth-first directory order, not one universal collation.
+
+The original golden file remains unchanged. The test now traverses a trie of
+the captured expected paths in native `readdir` order, independently of the
+adapter's rank-sort and without using actual results to construct expectations.
+Literal priority and successive glob groups stay explicit. Linux additionally
+asserts exact agreement with the untouched original ordered capture. Each corpus
+case is a subtest so one failure does not conceal later Windows cases. This is
+not a sorted-set comparison and does not relax membership or project priority.
+
+The first local correction exposed the escaped-star case's missing literal,
+which correctly requires no filesystem enumeration. That test-oracle mistake
+was corrected and its failed run retained. The final targeted command passes
+46 tests, zero failures/skips (21 outer tests plus25 corpus subtests). Runtime
+patch, selectors, dependency metadata and lockfile are unchanged. Hosted Windows
+qualification, other source CI, and independent source/security review remain
+pending; no Windows pass is inferred from Linux. Parent evidence is retained in
+the original owner checkout's `.local-data/picomatch-pr248-integration-wnnrytri/`.
