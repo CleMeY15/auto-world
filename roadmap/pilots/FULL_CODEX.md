@@ -43,3 +43,8 @@ Coût, tokens, temps humain, délai global, première présentation et suivi sys
 ## Amélioration et arrêt
 
 Une reprise récurrente améliore une recette, fixture, composant ou régression utile. N'automatiser collecte, caches ou routage de modèles que si un coût répété est mesuré et une tâche distincte peut prouver le bénéfice. Aucun changement de fournisseur prévu. Pour arrêter : conserver entrées/preuves, noter la raison et reprendre les contrats/commandes existants ; aucun effacement des échecs.
+
+Maintenance du17 novembre2026 : [correction Picomatch](../../docs/validation/picomatch-security-2026-11-17.md)
+hors cohorte des six tâches produit ; Codex gpt-6-astra/ultra, un spécialiste
+implémentant distinct, revue finale indépendante encore requise. Coûts et gains
+non mesurés ; aucune entrée produit consommée.

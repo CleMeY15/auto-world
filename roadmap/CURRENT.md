@@ -9,6 +9,15 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
 | Infrastructure / qualification | PR246 main `f630339b791731b6111bb8fd340fd6874c392826` accepted; [actual NexusLite C copy/restoration](../docs/validation/TASK-0005-nexus-observation.md) independently APPROVED: eight phases,50 members, retained pair and cleanup. Original failures and243 upstream blockers remain. | Deliver the reviewed localCopy/localRestore identities through separate source/main gates. Only then close the scanner material row. TASK-0005/0005A stay IN_PROGRESS; no further publisher/copy/restore, image admission or support activation. |
 
+## Maintenance sécurité du17 novembre2026
+
+La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
+est une maintenance isolée depuis main `f630339b`, en cours de validation et de
+revue, hors cohorte produit. Elle retire les deux consommateurs vulnérables sans
+changer le seuil d'audit. Aucune acceptation de PR247, de TASK-0005/0005A ou
+opération Nexus/publisher n'en est déduite ; le propriétaire parent conserve leur
+réconciliation.
+
 ## Reprendre le travail
 
 1. Lire `AGENTS.md`, `ROADMAP.md`, cette vue, la tâche, les contrats utiles et le [mode opératoire](../docs/DEVELOPMENT_WORKFLOW.md).

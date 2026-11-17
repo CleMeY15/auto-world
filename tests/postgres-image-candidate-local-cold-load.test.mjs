@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import childProcess, { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -46,7 +47,7 @@ function pureProof(input = pureInput()) {
     registryWrite: "NOT_ATTEMPTED", signing: "NOT_ATTEMPTED", admission: "NOT_AUTHORIZED", supportStartedAt: null, supportEndsAt: null, archiveUntil: null };
 }
 async function scope(t) {
-  const root = mkdtempSync("/tmp/aw-pg-cold-load-"); chmodSync(root, 0o700);
+  const root = mkdtempSync(path.join(tmpdir(), "aw-pg-cold-load-")); chmodSync(root, 0o700);
   const directory = path.join(root, "imported"); const client = path.join(root, "client"); const socketDirectory = path.join(root, "endpoint");
   const contextName = "aw-cold-fixture"; const meta = path.join(client, "contexts", "meta", hash(Buffer.from(contextName)));
   for (const file of [directory, client, path.join(client, "contexts"), path.join(client, "contexts", "meta"), meta, socketDirectory]) mkdirSync(file, { mode: 0o700 });
