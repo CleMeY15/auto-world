@@ -1,5 +1,11 @@
 # Auto World delivery ledger
 
+## Process handoff — full Codex, 2026-11-16
+
+[TASK-0125](tasks/TASK-0125-full-codex-workflow.md) implements the user-authorized full-Codex workflow, current-state index, task/validation templates and manual six-task pilot. Its own [validation](../docs/validation/TASK-0125.md), review and source/main delivery remain separate gates; no Done or measured saving is claimed here. Existing task histories below remain preserved.
+
+Product-state reconciliation: [PR235's final checkpoint](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896), read on 2026-11-16, accepts TASK-0124 as DONE_FOR_V1_PROTOTYPE on main `f554c475b6748fb1b53281985588fab287c811ed`, source `aa447e2427bd295a5b4c6533199ffbf56047b5ba`. This supersedes its historical pending records, not the gates of later changes. [Current handoff](CURRENT.md). No successor product task or TASK-0005 qualification is started by this process change.
+
 ## TASK-0005 M3B bootstrap outcome and read recovery, 2026-11-09
 
 [PR238's implementation acceptance](https://github.com/CleMeY15/auto-world/pull/238#issuecomment-6753219249) binds main `ff9edab3fb94417e216bdd70d93846ad32024ec8` and four successful source/main quality/managed runs. The sole [actual bootstrap42712603501](https://github.com/CleMeY15/auto-world/actions/runs/42712603501) failed after confirmed harmless publication and authenticated readback; the subsequent owned cleanup succeeded. Preserve that FAILURE and its digest; do not retry the writer. The package was restricted from Public to Private, with existing inherited access and Actions Admin unchanged. [The separately bound read-proof tranche](../docs/validation/TASK-0005-scanner-retention-read.md) remains under review/delivery, with no scanner archive, second-copy restoration, admission or support claim. Earlier pending implementation checkpoints remain historical.
