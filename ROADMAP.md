@@ -8,6 +8,8 @@ TASK-0124 est `DONE_FOR_V1_PROTOTYPE` selon le [checkpoint final PR235](https://
 
 À la demande de l'utilisateur, [TASK-0125 — fonctionnement full Codex](roadmap/tasks/TASK-0125-full-codex-workflow.md) installe le mode opératoire et prépare un pilote de six tâches produit admissibles. C'est une tâche de processus distincte, sans nouveau parcours produit, fournisseur, service ou modification des gates. Sa propre livraison reste à vérifier. Les voies VPS et TASK-0005 gardent leurs propriétaires et leurs validations séparées.
 
+TASK-0005 publication checkpoint, 17 November 2026: [actual recovery publication44009258503 and original-evidence review](docs/validation/TASK-0005-publisher-observation.md) pass all14 phases, authenticated readback and cleanup. The eleven-field publisher observation is being delivered separately; no real NexusLite copy/restoration or admission is established. Original failed run43988267108 and UNKNOWN cleanup remain historical; TASK-0005/0005A stay IN_PROGRESS and243 upstream blockers remain unwaived.
+
 TASK-0005 checkpoint, 17 November 2026: the [reviewed publisher inventory/transport correction and bounded recovery](docs/validation/TASK-0005-publisher-inventory-recovery.md) pass final local verification and independent source review; source/main delivery and the new publication remain pending. Original run43988267108 stays FAILED before push, cleanup UNKNOWN, with no accepted publisher tuple. TASK-0005/0005A remain IN_PROGRESS;243 upstream blockers and real NexusLite copy/restoration remain open. Earlier checkpoints below retain their historical scope.
 
 ## Checkpoint courant — TASK-0123, 9 novembre 2026

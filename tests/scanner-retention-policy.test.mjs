@@ -16,9 +16,10 @@ test("retention policy rejects substitutions and cannot grant authority through 
   }
   assert.throws(() => { SCANNER_RETENTION.claims.admitted = true; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.observations.bootstrapSubject = "chosen"; }, TypeError);
+  assert.throws(() => { SCANNER_RETENTION.observations.publisher.runId = "chosen"; }, TypeError);
   assert.deepEqual(
     Object.fromEntries(Object.entries(SCANNER_RETENTION.observations).filter(([, value]) => value === null)),
-    { publisher: null, localCopy: null, localRestore: null },
+    { localCopy: null, localRestore: null },
   );
   assert.throws(() => { SCANNER_RETENTION.readProof.packageSettings.visibility = "Private"; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.readProof.bootstrapOutcome.cleanup = "FAILED"; }, TypeError);
@@ -220,7 +221,14 @@ test("read proof fixes the reviewed bootstrap, outcome and package settings tupl
     },
     anonymousRead: "AUTHORIZATION_DENIED",
     authorizedRead: "PASSED",
-    publisher: null,
+    publisher: {
+      runId: "44009258503", runAttempt: 1, runNumber: 2,
+      headSha: "9b8996413fbc32bdd9a9bbafdce57e8c38da0cff", headTree: "a72ae1e1f406f2d4c1ba6ce2472233e96b7b73bc",
+      artifactId: 14296495446, artifactName: "scanner-retention-publisher-44009258503-1",
+      artifactDigest: "sha256:a69744c9c8a75c9d676fbfeeb0b2cee3f442a852b30129d604f3804e805e1197",
+      artifactBytes: 1478, receiptBytes: 3294,
+      receiptSha256: "d38e27d05f221935a9a45ee0221d0b2ec984e7c19ba59629df2cee130c87a237",
+    },
     localCopy: null,
     localRestore: null,
   });

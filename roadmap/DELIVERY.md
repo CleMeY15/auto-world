@@ -1,5 +1,9 @@
 # Auto World delivery ledger
 
+## TASK-0005 scanner publication — 2026-11-17
+
+[Actual recovery44009258503](../docs/validation/TASK-0005-publisher-observation.md) is independently APPROVE / PUBLISHED_UNADMITTED on9b8996413fbc32bdd9a9bbafdce57e8c38da0cff. All14 phases, authenticated digest readback and owned cleanup pass; the predecessor remains FAILED/UNKNOWN. The separately reviewed policy observation delivery is pending; no copy/restore, admission, support or task completion is inferred.
+
 ## Process handoff — full Codex, 2026-11-16
 
 [TASK-0125](tasks/TASK-0125-full-codex-workflow.md) implements the user-authorized full-Codex workflow, current-state index, task/validation templates and manual six-task pilot. Its own [validation](../docs/validation/TASK-0125.md), review and source/main delivery remain separate gates; no Done or measured saving is claimed here. Existing task histories below remain preserved.
