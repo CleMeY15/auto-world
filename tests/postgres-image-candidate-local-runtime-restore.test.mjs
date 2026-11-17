@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -22,7 +23,7 @@ function directoryFd(file) { const name = readdirSync("/proc/self/fd").find((ent
   try { return readlinkSync(path.join("/proc/self/fd", entry)) === file; } catch { return false; } });
   assert.ok(name, "private directory descriptor is held"); return Number(name); }
 async function scope(t, runtime = configuration) {
-  const root = mkdtempSync("/tmp/aw-pgr-"); chmodSync(root, 0o700); const directory = path.join(root, "imported"); const client = path.join(root, "client"); const endpointDirectory = path.join(root, "endpoint");
+  const root = mkdtempSync(path.join(tmpdir(), "aw-pgr-")); chmodSync(root, 0o700); const directory = path.join(root, "imported"); const client = path.join(root, "client"); const endpointDirectory = path.join(root, "endpoint");
   const workDirectory = path.join(root, "work"); const contextName = "aw-runtime-fixture"; const contextMeta = path.join(client, "contexts", "meta", hash(Buffer.from(contextName)));
   for (const d of [directory, client, path.join(client, "contexts"), path.join(client, "contexts", "meta"), contextMeta, endpointDirectory, workDirectory]) mkdirSync(d, { mode: 0o700 });
   const socket = path.join(endpointDirectory, "docker.sock"); const server = createServer(); await new Promise((yes, no) => { server.once("error", no); server.listen(socket, yes); }); server.unref();

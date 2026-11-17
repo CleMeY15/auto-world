@@ -1,20 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { findHighConfidenceSecrets } from "../scripts/secret-patterns.mjs";
 
 const root = process.cwd();
-const require = createRequire(import.meta.url);
-const secretlintPackage = require.resolve("secretlint/package.json");
-const secretlintBinary = path.join(
-  path.dirname(secretlintPackage),
-  "bin",
-  "secretlint.js",
-);
+const secretlintBinary = fileURLToPath(new URL("../scripts/secretlint-files.mjs", import.meta.url));
 
 const runSecretlint = (file) =>
   spawnSync(
@@ -28,6 +22,7 @@ const runSecretlint = (file) =>
     {
       cwd: root,
       encoding: "utf8",
+      timeout: 10_000,
     },
   );
 
@@ -58,7 +53,10 @@ test("recommended secret rules reject representative provider tokens", () => {
     writeFileSync(fixture, representativeTokens.join("\n"), "utf8");
     const result = runSecretlint(fixture);
 
-    assert.notEqual(result.status, 0, "Secretlint accepted representative tokens.");
+    assert.equal(result.status, 1, "Secretlint must report lint findings, not a fatal error.");
+    for (const token of representativeTokens) {
+      assert.ok(!`${result.stdout}\n${result.stderr}`.includes(token), "Diagnostic exposed a synthetic secret.");
+    }
     assert.match(`${result.stdout}\n${result.stderr}`, /leaked\.env/u);
   } finally {
     rmSync(directory, { force: true, recursive: true });
@@ -96,4 +94,40 @@ test("the reviewed public AWS example is exempt only in its exact immutable upst
   assert.deepEqual(findHighConfidenceSecrets(`${contents}${["ghp", "B".repeat(36)].join("_")}`, { file }).sort(), ["aws-access-key", "github-token"]);
   const result = runSecretlint(path.join(root, file));
   assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test("runner preserves fatal config and missing-target exit status", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "auto-world-secretlint-"));
+  try {
+    const fixture = path.join(directory, "benign.txt");
+    writeFileSync(fixture, "benign\n");
+    for (const contents of ["{broken", JSON.stringify({ rules: [{ id: "nonexistent-secretlint-rule" }] })]) {
+      const config = path.join(directory, "config.json");
+      writeFileSync(config, contents);
+      const result = spawnSync(process.execPath, [secretlintBinary, "--secretlintrc", config, fixture], { encoding: "utf8", timeout: 10_000 });
+      assert.equal(result.status, 2, result.stdout || result.stderr);
+    }
+    assert.equal(runSecretlint(path.join(directory, "absent.txt")).status, 2);
+    const missingConfig = spawnSync(process.execPath, [secretlintBinary, "--secretlintrc", path.join(directory, "absent.json"), fixture], { encoding: "utf8", timeout: 10_000 });
+    assert.equal(missingConfig.status, 2);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("all-file high-confidence pass rejects a Git candidate excluded by recommended rules", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "auto-world-secretlint-"));
+  const token = ["ghp", "Q".repeat(36)].join("_");
+  try {
+    execFileSync("git", ["init", "--quiet", directory]);
+    writeFileSync(path.join(directory, ".secretlintignore"), "ignored.txt\n");
+    writeFileSync(path.join(directory, "ignored.txt"), token);
+    const result = spawnSync(process.execPath, [path.join(root, "scripts/check-secrets.mjs")], { cwd: directory, encoding: "utf8", timeout: 10_000 });
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stderr, /High-confidence secret signatures detected/u);
+    assert.match(result.stderr, /ignored\.txt: github-token/u);
+    assert.ok(!`${result.stdout}\n${result.stderr}`.includes(token));
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });

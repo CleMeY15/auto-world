@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync,
@@ -14,7 +15,7 @@ const linux = process.platform === "linux" && process.getuid() > 0 && process.ge
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const clone = (value) => JSON.parse(JSON.stringify(value));
 function scope(t, fixture = retainedFixture()) {
-  const root = mkdtempSync("/tmp/aw-pg-private-copy-"); chmodSync(root, 0o700);
+  const root = mkdtempSync(path.join(tmpdir(), "aw-pg-private-copy-")); chmodSync(root, 0o700);
   const source = path.join(root, "retained"); mkdirSync(source, { mode: 0o700 });
   const pin = { sourceDirectory: source, originalRecipeRevision: fixture.recipeRevision,
     originalExecutionId: `local-${fixture.runId}`, sourceGid: process.getgid(), ownerUid: process.getuid(), importGid: process.getgid(),

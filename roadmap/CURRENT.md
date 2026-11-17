@@ -9,6 +9,15 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
 | Infrastructure / qualification | Publisher observation delivered and MAIN_ACCEPTED on548630df ([PR245](https://github.com/CleMeY15/auto-world/pull/245)); actual NexusLite copy FAILED. Original-evidence review accepts diagnosis only; localCopy/localRestore remain unaccepted. TASK-0005/0005A IN_PROGRESS,243 blockers unwaived. | Deliver and qualify the [locally validated Windows tool-link correction](../docs/validation/TASK-0005-windows-tool-links.md). User-provided SSH tunnel now permits read-only Nexus evidence inspection; no copy retry before accepted source/main and fresh preflight. No further publisher run, admission or support activation. |
 
+## Maintenance sécurité du17 novembre2026
+
+La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
+est une maintenance isolée depuis main `f630339b`, en cours de validation et de
+revue, hors cohorte produit. Elle retire les deux consommateurs vulnérables sans
+changer le seuil d'audit. Aucune acceptation de PR247, de TASK-0005/0005A ou
+opération Nexus/publisher n'en est déduite ; le propriétaire parent conserve leur
+réconciliation.
+
 ## Reprendre le travail
 
 1. Lire `AGENTS.md`, `ROADMAP.md`, cette vue, la tâche, les contrats utiles et le [mode opératoire](../docs/DEVELOPMENT_WORKFLOW.md).
