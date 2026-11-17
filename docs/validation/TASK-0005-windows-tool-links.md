@@ -1,5 +1,12 @@
 # TASK-0005 — Windows installed-tool hardlinks
 
+Accepted delivery checkpoint,17 November2026: [PR246](https://github.com/CleMeY15/auto-world/pull/246)
+merged source0a1dc52a onto mainf630339b, identical treec4012982.
+Four actual main gates pass independent original-evidence review; raw diagnostic
+remains FAILED243 without waiver. The [subsequent real NexusLite operation](TASK-0005-nexus-observation.md)
+also passes independent review; its observation delivery is separate and pending.
+Older local/source pending statements below describe earlier checkpoints.
+
 Status: LOCAL_TARGET_VALIDATED / DELIVERY_PENDING, 17 November2026.
 Owner: infrastructure coordinator, branch `codex/task-0005-windows-tool-links`.
 Accepted base: main548630dfc199da06c482a782a629ae168f5f518e ([PR245](https://github.com/CleMeY15/auto-world/pull/245)).

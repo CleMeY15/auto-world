@@ -17,9 +17,11 @@ test("retention policy rejects substitutions and cannot grant authority through 
   assert.throws(() => { SCANNER_RETENTION.claims.admitted = true; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.observations.bootstrapSubject = "chosen"; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.observations.publisher.runId = "chosen"; }, TypeError);
+  assert.throws(() => { SCANNER_RETENTION.observations.localCopy.sidecarSha256 = "chosen"; }, TypeError);
+  assert.throws(() => { SCANNER_RETENTION.observations.localRestore.receiptSha256 = "chosen"; }, TypeError);
   assert.deepEqual(
     Object.fromEntries(Object.entries(SCANNER_RETENTION.observations).filter(([, value]) => value === null)),
-    { localCopy: null, localRestore: null },
+    {},
   );
   assert.throws(() => { SCANNER_RETENTION.readProof.packageSettings.visibility = "Private"; }, TypeError);
   assert.throws(() => { SCANNER_RETENTION.readProof.bootstrapOutcome.cleanup = "FAILED"; }, TypeError);
@@ -229,8 +231,16 @@ test("read proof fixes the reviewed bootstrap, outcome and package settings tupl
       artifactBytes: 1478, receiptBytes: 3294,
       receiptSha256: "d38e27d05f221935a9a45ee0221d0b2ec984e7c19ba59629df2cee130c87a237",
     },
-    localCopy: null,
-    localRestore: null,
+    localCopy: {
+      headSha: "f630339b791731b6111bb8fd340fd6874c392826", headTree: "c4012982de59be1d6ecfa26d48ba7ff4b1c54898",
+      sidecarBytes: 1148, sidecarSha256: "8bf31e82ef189cb2c8d4738993f14819409f99f4cdd59cd15a3c72eee6d635b7",
+      completedAt: "2026-11-17T16:42:09.468Z",
+    },
+    localRestore: {
+      headSha: "f630339b791731b6111bb8fd340fd6874c392826", headTree: "c4012982de59be1d6ecfa26d48ba7ff4b1c54898",
+      receiptBytes: 1145, receiptSha256: "22b9729a9b98c344ceb8a77a1470a677c823a832a5c02450d822857a776d239e",
+      completedAt: "2026-11-17T16:42:09.468Z",
+    },
   });
 });
 
