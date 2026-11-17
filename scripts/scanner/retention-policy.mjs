@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { types } from "node:util";
 
-const POLICY_BYTES = 30709;
-const POLICY_SHA256 = "6c3afd25dac3f37868d5b3c534cb65ea80140579f158985842ada4ea2df50965";
+const POLICY_BYTES = 31163;
+const POLICY_SHA256 = "7e1f3e7708c2cce06e6a475a3f891d14be9b36ad11667095e5cd828542078201";
 const fail = (code) => { throw new Error(`scanner_retention_${code}`); };
 
 export function sha256(bytes) {

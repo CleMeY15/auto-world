@@ -75,7 +75,11 @@ test("publisher authority binds accepted private read evidence without claiming 
   assert.equal(value.readProofAccepted.artifactId, 13725082501);
   assert.equal(value.readProofAccepted.receiptSha256, "40895136ff72d9d0fb39c3192bd137372780f557e5a89d1be55573a950b18c60");
   assert.equal(value.readProofAccepted.anonymousRead, "AUTHORIZATION_DENIED");
-  assert.equal(P.observations.publisher, null);
+  assert.equal(P.observations.publisher.runId, "44009258503");
+  assert.equal(P.observations.localCopy, null);
+  assert.equal(P.observations.localRestore, null);
+  assert.equal(P.claims.retained, false);
+  assert.equal(P.claims.restored, false);
   const changed = clone(value); changed.readProofAccepted.authorizedRead = "FAILED";
   assert.throws(() => validateScannerRetentionPublisherBinding(changed), /publisher_binding_invalid/u);
   assert.throws(() => { value.readProofAccepted.runId = "1"; }, TypeError);
