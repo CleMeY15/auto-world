@@ -166,3 +166,61 @@ Service-image closure, complete binary inventory/equivalence, signing,
 current admission/support and final infrastructure gates remain open.
 Rust498/590 remain source-package counts. TASK-0005/0005A remain IN_PROGRESS;
 243 upstream blockers remain unwaived and no further publisher is authorized.
+
+## Reconciliation after accepted Picomatch maintenance
+
+17 November 2026, after21:37UTC. The earlier local audit PASS above remains
+historical. PR247 source `ecfb028d26f2b27d2a86d9fcecd06ff609010149` subsequently
+failed the unchanged dependency audit in
+[quality44133814111](https://github.com/CleMeY15/auto-world/actions/runs/44133814111),
+attempt1, on HIGH GHSA-fc5q-39xc-vjpf. That failure and the three scoped
+Windows/tools/managed approvals are retained; they do not qualify a later head.
+
+The separate [PR248](https://github.com/CleMeY15/auto-world/pull/248) genuinely
+removed both vulnerable consumers. Its source
+`35b51590c59955a8ce090efe391ce8c08cec161c` and delivered main
+`32f5253c646cc1b77be6bdb090792079fcd22782` have identical tree
+`6bbfcf7dd4f8803e5f7240293fd57ef0a166f4eb`. Independent code/security APPROVE,
+architecture CLEAR and original evidence for all seven source and seven main
+workflows establish **MAIN_ACCEPTED for that maintenance only**.
+
+| Accepted maintenance main workflow | Original attempt1 result |
+| --- | --- |
+| [Quality44176611936](https://github.com/CleMeY15/auto-world/actions/runs/44176611936) |3,265 root passes/67 unchanged exclusions;776 package passes;668 browser passes/10 unchanged exclusions; zero test retries/flaky results; lint/types/build/secrets/full low-threshold audit pass |
+| [Tooling44176611939](https://github.com/CleMeY15/auto-world/actions/runs/44176611939) |99 passes per OS; documented Windows conditional fixture limits retained |
+| [PostgreSQL44176611743](https://github.com/CleMeY15/auto-world/actions/runs/44176611743) |40 phases |
+| [Search44176611653](https://github.com/CleMeY15/auto-world/actions/runs/44176611653) |15 phases |
+| [Persistent web44176611703](https://github.com/CleMeY15/auto-world/actions/runs/44176611703) |14 contract tests,10 phases, two browser engines |
+| [Application44176611706](https://github.com/CleMeY15/auto-world/actions/runs/44176611706) |11 phases |
+| [Four-service44176611615](https://github.com/CleMeY15/auto-world/actions/runs/44176611615) |17 phases; eight failed diagnostic observations preserved separately |
+
+Main review SHA256
+`4c8fb62f5d3aca88dd73520471c7faa3865766c2a36c3a22d5567c72187aaba2`;
+complete2,097-file/464,931,725-byte manifest SHA256
+`da31be768d69c04afe5633b73b7fd051d697c71f0d83e4fd8f5cdf40d7c79c25`.
+The parent rehashed every entry with exact coverage and private modes.
+Seven converged browser polling samples and original warnings remain recorded;
+no independent pixel/design approval is claimed for this tooling-only change.
+
+The parent merged that accepted main into the existing PR247 branch without
+conflicts, rebase or force push: merge
+`ecb1ea0139305c22dab41c7e33054537bf73aeea`, parents original observation source
+`ecfb028d26f2b27d2a86d9fcecd06ff609010149` and accepted maintenance main32f5253c.
+This checkpoint update is documentation only. The31770-byte policy and its
+SHA256 above remain exact; execution sourcef630339b, publisher tuple, receipts,
+sidecar, failure history and non-admission claims are not rewritten.
+
+Owner remains the TASK-0005 coordinator, Codex gpt-6-astra/ultra, with distinct
+independent review contexts. Serialized local combined-source checks and frozen
+source review precede delivery. Five workflows/six jobs apply to the reconciled
+source and its eventual main: full quality, tooling on Linux/Windows, managed
+diagnostic, native retention Windows and retention publisher tools. Existing
+path filters exclude the five prototype workflows and raw upstream diagnostic
+from this observation-only delta; none is manually dispatched or waived.
+New source/main identities, actual counts and final verdicts belong to the
+PR delivery checkpoint. Prior approvals do not substitute for these gates.
+
+Observation delivery remains **IN_PROGRESS / DELIVERY_PENDING**. No new
+NexusLite operation, publisher run, local copy or restoration occurs during
+reconciliation. The original rollback and all remaining infrastructure gates
+above remain applicable;243 upstream blockers remain unwaived.

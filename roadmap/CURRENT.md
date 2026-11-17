@@ -12,11 +12,16 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 ## Maintenance sécurité du17 novembre2026
 
 La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
-est une maintenance isolée depuis main `f630339b`, en cours de validation et de
-revue, hors cohorte produit. Elle retire les deux consommateurs vulnérables sans
-changer le seuil d'audit. Aucune acceptation de PR247, de TASK-0005/0005A ou
-opération Nexus/publisher n'en est déduite ; le propriétaire parent conserve leur
-réconciliation.
+est acceptée sur main `32f5253c646cc1b77be6bdb090792079fcd22782`, livré par
+[PR248](https://github.com/CleMeY15/auto-world/pull/248) : sept workflows
+source puis sept workflows main réussis et preuves originales approuvées,
+sans réduction du seuil d'audit. Cette maintenance reste hors cohorte produit.
+[PR247](https://github.com/CleMeY15/auto-world/pull/247) intègre ce main pour
+livrer les observations NexusLite ; sa révision combinée attend ses propres
+revues et cinq workflows source/main, dont le nouveau contrôle d'outillage
+Linux/Windows. Voir le [checkpoint de réconciliation](../docs/validation/TASK-0005-nexus-observation.md#reconciliation-after-accepted-picomatch-maintenance).
+TASK-0005/0005A restent IN_PROGRESS ; aucune nouvelle opération Nexus/publisher,
+admission ou activation du support n'est autorisée par cette livraison.
 
 ## Reprendre le travail
 
