@@ -100,6 +100,14 @@ test("generated qualification and publication bindings preserve fixed authority 
   }
 });
 
+test("the consumed failed publisher cannot become a publication or successful receipt identity", () => {
+  const failedIdentity = { ...identity, runId: P.publisher.recovery.predecessor.runId };
+  assert.throws(() => createScannerRetentionPublicationBinding(failedIdentity), /publication_identity_invalid/u);
+  const fabricatedSuccess = { ...receipt(), runId: failedIdentity.runId };
+  assert.throws(() => validateScannerRetentionPublisherReceiptBytes(bytes(fabricatedSuccess), failedIdentity),
+    /publication_identity_invalid/u);
+});
+
 test("manifest binds all49 fixed classified members and keeps qualification distinct from publication", () => {
   const result = manifest();
   assert.equal(result.files.length, 49);

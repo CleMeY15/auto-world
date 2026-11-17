@@ -18,7 +18,7 @@ try {
   if ((Get-Item -LiteralPath $expectedHost).Length -ne 301360 -or
       (Get-Sha256 $expectedHost) -cne '2a6769a3330dc1084d0154bfde7d164ab750ca7f700f313f9d417c1be78b2233' -or
       (Get-Item -LiteralPath $expectedSource).Length -ne 40272 -or
-      (Get-Sha256 $expectedSource) -cne 'dcb3556580eba223820d0ef7edcb5e9a7f005519c186d32f0d432f573f1fe5e2') { throw 'invalid' }
+      (Get-Sha256 $expectedSource) -cne '1560796dfb9a76b2ac30d7f64101f81019b09c51cf85c1e76fbe683ad6476a11') { throw 'invalid' }
 
   if (($args.Count % 2) -ne 0) { throw 'invalid' }
   $parameters = @{}
@@ -36,7 +36,7 @@ try {
   if ($operation -cne 'InspectRestore' -and $operation -cne 'CleanupRestore') {
     if ($parameters['-InnerTarBytes'] -cnotmatch '^[1-9][0-9]{0,8}$') { throw 'invalid' }
     $innerTarBytes = $parameters['-InnerTarBytes']
-    if ($innerTarBytes -gt 468374629) { throw 'invalid' }
+    if ($innerTarBytes -gt 468374667) { throw 'invalid' }
   }
 
   $common = @('-Operation', '-InnerTarSha256', '-InnerTarBytes')

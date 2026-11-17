@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { types } from "node:util";
 
-const POLICY_BYTES = 29722;
-const POLICY_SHA256 = "6115b89848f1962a3cffe995a5fd380404f9faeb71edcf544d5f666f0ed29e99";
+const POLICY_BYTES = 30709;
+const POLICY_SHA256 = "6c3afd25dac3f37868d5b3c534cb65ea80140579f158985842ada4ea2df50965";
 const fail = (code) => { throw new Error(`scanner_retention_${code}`); };
 
 export function sha256(bytes) {
@@ -63,6 +63,14 @@ export const SCANNER_RETENTION = validateRetentionPolicyBytes(
   readFileSync(new URL("../../infra/scanner/retention.json", import.meta.url)),
 );
 
+const recoveryPlanBytes = readFileSync(new URL(
+  `../../${SCANNER_RETENTION.approvedRecoveryPlan.file}`, import.meta.url,
+));
+if (recoveryPlanBytes.length !== SCANNER_RETENTION.approvedRecoveryPlan.bytes
+  || sha256(recoveryPlanBytes) !== SCANNER_RETENTION.approvedRecoveryPlan.sha256) {
+  fail("recovery_plan_identity_invalid");
+}
+
 const profileBytes = readFileSync(new URL(
   `../../infra/scanner/${SCANNER_RETENTION.qualification.zipProfile.file}`, import.meta.url,
 ));
@@ -100,6 +108,7 @@ function publicationIdentity(value) {
   if (typeof value.headSha !== "string" || !REVISION.test(value.headSha)
     || typeof value.headTree !== "string" || !REVISION.test(value.headTree)
     || typeof value.runId !== "string" || !RUN_ID.test(value.runId)
+    || value.runId === SCANNER_RETENTION.publisher.recovery.predecessor.runId
     || !Number.isSafeInteger(Number(value.runId))) fail("publication_identity_invalid");
   return value;
 }

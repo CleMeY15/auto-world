@@ -9,7 +9,7 @@ import { TEST_ONLY_publishScannerRetentionCandidate, scannerRetentionPublisherCh
   from "../scripts/scanner/retention-publish.mjs";
 
 function scenario(t, { profile = 0, beforeLogin = {}, beforePush = {}, replaceQualification = false,
-  mutateQualificationAfterLogin = false, toolError = false } = {}) {
+  mutateQualificationAfterLogin = false, toolError = false, packageErrorAt = 0, expireAt = 0 } = {}) {
   const work = mkdtempSync(path.join(tmpdir(), "scanner-publisher-tools-"));
   t.after(() => rmSync(work, { recursive: true, force: true }));
   const stage = path.join(work, "stage");
@@ -22,11 +22,22 @@ function scenario(t, { profile = 0, beforeLogin = {}, beforePush = {}, replaceQu
   ].join("\n"));
   writeFileSync(qualificationFile, qualification);
   const archive = path.join(work, "archive.tar"); writeFileSync(archive, "fixture");
-  const state = { work, stage, archive, tag: `${P.package}:fixture` };
+  let clock = Date.now();
+  const state = { now: () => clock, operationDeadline: clock + 60000, work, stage, archive, tag: `${P.package}:fixture` };
   const context = { workspace: work, runnerTemp: work, runId: "42", publisher: P.publisher,
     path: process.env.PATH, token: "test-only-token" };
   const options = () => ({ env: scannerRetentionPublisherChildEnvironment(context, path.join(work, "docker-auth"), work) });
-  const calls = []; const records = [];
+  const calls = []; const records = []; const packageCalls = [];
+  state.fetchImpl = async (url) => {
+    packageCalls.push(url);
+    if (expireAt === Math.ceil(packageCalls.length / 2)) clock = state.operationDeadline + 1;
+    const invalid = packageErrorAt === Math.ceil(packageCalls.length / 2);
+    const value = url.includes("/versions?")
+      ? [{ name: P.readProof.bootstrap.manifestDigest,
+        metadata: { container: { tags: [P.readProof.bootstrap.tag.slice(`${P.package}:`.length)] } } }]
+      : { id: P.observations.packageId, visibility: invalid ? "public" : "private", repository: { full_name: P.repository } };
+    return new globalThis.Response(JSON.stringify(value));
+  };
   let round = 0;
   const identity = () => ({ docker: `${T.dockerProfiles[profile].identity}\n`, buildx: `${T.buildx}\n`,
     go: `${T.go}\n`, ...(round === 1 ? beforeLogin : beforePush) });
@@ -57,14 +68,14 @@ function scenario(t, { profile = 0, beforeLogin = {}, beforePush = {}, replaceQu
     } else assert.fail(`Unexpected command: ${command} ${args.join(" ")}`);
     return { status: 0, stdout, stderr: "" };
   };
-  return { calls, records, qualificationFile, qualification, execute: () =>
+  return { calls, records, packageCalls, qualificationFile, qualification, execute: () =>
     TEST_ONLY_publishScannerRetentionCandidate(state, context, runner, options, (line) => records.push(JSON.parse(line))) };
 }
 
-test("publisher validates both complete profiles before login and immediately before push", (t) => {
+test("publisher validates both complete profiles before login and immediately before push", async (t) => {
   for (const profile of [0, 1]) {
     const s = scenario(t, { profile });
-    assert.match(s.execute().values.ghcrManifestDigest, /^sha256:[a-f0-9]{64}$/u);
+    assert.match((await s.execute()).values.ghcrManifestDigest, /^sha256:[a-f0-9]{64}$/u);
     const index = (prefix) => s.calls.findIndex((call) => call.slice(0, prefix.length).join(" ") === prefix.join(" "));
     const login = index(["docker", "login"]); const push = index(["docker", "buildx", "build"]);
     assert.deepEqual(s.calls.slice(login - 3, login), [["docker", "version", "--format", "{{json .}}"],
@@ -81,7 +92,7 @@ test("publisher validates both complete profiles before login and immediately be
   }
 });
 
-test("wrong live tools or substituted qualification refuse before registry authority or builder effects", (t) => {
+test("wrong live tools or substituted qualification refuse before registry authority or builder effects", async (t) => {
   for (const options of [
     { beforeLogin: { docker: `${T.dockerProfiles[0].identity}\n\n` } },
     { beforeLogin: { docker: T.dockerProfiles[0].identity.replaceAll("7.0.0-1017-azure", "7.0.0-9999-azure") } },
@@ -89,13 +100,13 @@ test("wrong live tools or substituted qualification refuse before registry autho
     { beforeLogin: { go: `${T.go} ` } }, { replaceQualification: true }, { toolError: true },
   ]) {
     const s = scenario(t, options);
-    assert.throws(s.execute, /scanner_retention_publish_(?:qualification_tool_identity_invalid|tool_identity_invalid|command_failed)/u);
+    await assert.rejects(s.execute, /scanner_retention_publish_(?:qualification_tool_identity_invalid|tool_identity_invalid|command_failed)/u);
     assert.equal(s.calls.some((call) => call[1] === "login" || ["create", "build"].includes(call[2])), false);
     assert.deepEqual(s.records, []);
   }
 });
 
-test("changed tools or historical evidence after builder bootstrap prevent the OCI push", (t) => {
+test("changed tools or historical evidence after builder bootstrap prevent the OCI push", async (t) => {
   for (const options of [
     { beforePush: { docker: `${T.dockerProfiles[1].identity}\n` } },
     { beforePush: { buildx: `${T.buildx}\r\n` } },
@@ -103,9 +114,30 @@ test("changed tools or historical evidence after builder bootstrap prevent the O
     { mutateQualificationAfterLogin: true },
   ]) {
     const s = scenario(t, options);
-    assert.throws(s.execute, /scanner_retention_publish_(?:qualification_tool_identity_invalid|tool_identity_(?:invalid|changed))/u);
+    await assert.rejects(s.execute, /scanner_retention_publish_(?:qualification_tool_identity_invalid|tool_identity_(?:invalid|changed))/u);
     assert.equal(s.calls.filter((call) => call[1] === "login").length, 1);
     assert.equal(s.calls.some((call) => call[1] === "buildx" && ["build", "imagetools"].includes(call[2])), false);
     assert.equal(s.records[0].checkpoint, "before_login");
+  }
+});
+
+
+test("package controls are repeated before login and before push, and drift stops writes", async (t) => {
+  const good = scenario(t); await good.execute(); assert.equal(good.packageCalls.length, 4);
+  for (const packageErrorAt of [1, 2]) {
+    const s = scenario(t, { packageErrorAt });
+    await assert.rejects(s.execute, /scanner_retention_publish_package_controls_invalid/u);
+    assert.equal(s.calls.filter((call) => call[1] === "login").length, packageErrorAt - 1);
+    assert.equal(s.calls.some((call) => call[1] === "buildx" && call[2] === "build"), false);
+  }
+});
+
+
+test("deadline reached during either package recheck prevents the following registry write", async (t) => {
+  for (const expireAt of [1, 2]) {
+    const s = scenario(t, { expireAt });
+    await assert.rejects(s.execute, /scanner_retention_publish_timeout/u);
+    assert.equal(s.calls.filter((call) => call[1] === "login").length, expireAt - 1);
+    assert.equal(s.calls.some((call) => call[1] === "buildx" && call[2] === "build"), false);
   }
 });

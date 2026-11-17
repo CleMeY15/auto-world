@@ -33,6 +33,8 @@ import { scanRawUstar } from "../seaweed-image/archive.mjs";
 import { githubArtifactZipProfiles, scanOwnedGitHubArtifactZip } from "../seaweed-image/read-artifact-zip.mjs";
 import { validateScannerRetentionPublisherTools, validateScannerRetentionQualificationTools }
   from "./retention-tool-identity.mjs";
+import { readScannerRetentionQualifiedBlob } from "./retention-source-blobs.mjs";
+import { verifyScannerRetentionPublisherRecovery } from "./retention-recovery.mjs";
 import {
   SCANNER_RETENTION,
   canonicalJsonBytes,
@@ -107,8 +109,8 @@ const PUBLISH_PHASES = scannerRetentionPublisherPhases;
 
 export function validateScannerRetentionClosurePolicy(closure = SCANNER_RETENTION.closure) {
   if (!closure || closure.format !== "ustar" || closure.blockingFactor !== 1
-    || closure.tarCapBytes !== 468374629 || closure.expandedCapBytes !== 468322405
-    || closure.publisherPeakBytes !== 4016376616 || closure.publisherRequiredFreeBytes !== 5020470770
+    || closure.tarCapBytes !== 468374667 || closure.expandedCapBytes !== 468322443
+    || closure.publisherPeakBytes !== 4016376920 || closure.publisherRequiredFreeBytes !== 5020471150
     || !Array.isArray(closure.members) || closure.members.length !== 50) {
     fail("scanner_retention_publish_policy_invalid");
   }
@@ -153,7 +155,8 @@ export function validateScannerRetentionPublishContext(env, platform = process.p
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch"
     || env.GITHUB_REPOSITORY !== SCANNER_RETENTION.repository || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_WORKFLOW_REF !== PUBLISH_WORKFLOW_REF || env.GITHUB_JOB !== publisher.job
-    || env.GITHUB_RUN_NUMBER !== "1" || env.GITHUB_RUN_ATTEMPT !== "1"
+    || env.GITHUB_RUN_NUMBER !== "2" || env.GITHUB_RUN_ATTEMPT !== "1"
+    || env.GITHUB_RUN_ID === publisher.recovery.predecessor.runId
     || !/^[1-9][0-9]{0,19}$/u.test(env.GITHUB_RUN_ID ?? "") || !REVISION.test(env.GITHUB_SHA ?? "")
     || env.GITHUB_WORKFLOW_SHA !== env.GITHUB_SHA
     || env.RUNNER_TEMP !== "/home/runner/work/_temp" || typeof env.GITHUB_WORKSPACE !== "string"
@@ -394,17 +397,6 @@ export function validateScannerRetentionReadbackState(image, container, expected
   return Object.freeze({ imageId: image.Id, containerId: container.Id, stoppedNeverStarted: true });
 }
 
-async function readQualifiedRepositoryBlob(context, fetchImpl, item) {
-  const endpoint = `https://api.github.com/repos/${SCANNER_RETENTION.repository}/contents/${item.sourcePath
-    .split("/").map(encodeURIComponent).join("/")}?ref=${SCANNER_RETENTION.qualification.headSha}`;
-  const body = parseJson((await requestApi(fetchImpl, endpoint, context.token, [200])).bytes);
-  if (body?.type !== "file" || body.path !== item.sourcePath || body.size !== item.bytes
-    || body.encoding !== "base64" || typeof body.content !== "string") fail("scanner_retention_publish_source_blob_invalid");
-  const bytes = Buffer.from(body.content.replaceAll("\n", ""), "base64");
-  if (bytes.length !== item.bytes || sha256(bytes) !== item.sha256) fail("scanner_retention_publish_source_blob_invalid");
-  return bytes;
-}
-
 function validateStagedClosure(stage, allowGenerated = false) {
   const members = validateScannerRetentionClosurePolicy().members;
   for (const member of members) {
@@ -419,6 +411,9 @@ function validateStagedClosure(stage, allowGenerated = false) {
 }
 
 function stageVerifiedBytes(state, closurePath, bytes, expected = {}) {
+  if (closurePath === "scanner-closure/inventory/go-build-info.txt") {
+    expected = SCANNER_RETENTION.closure.members.find((member) => member.path === closurePath);
+  }
   if (!Buffer.isBuffer(bytes) || (expected.bytes !== undefined && bytes.length !== expected.bytes)
     || (expected.sha256 !== undefined && sha256(bytes) !== expected.sha256)) {
     fail("scanner_retention_publish_staged_member_invalid");
@@ -427,6 +422,8 @@ function stageVerifiedBytes(state, closurePath, bytes, expected = {}) {
   mkdirSync(path.dirname(output), { recursive: true, mode: 0o700 });
   writeExclusive(output, bytes, closurePath === "scanner-closure/binary/trivy" ? 0o500 : 0o400);
 }
+
+export const TEST_ONLY_stageScannerRetentionBytes = stageVerifiedBytes;
 
 function publisherDescriptor(value, allowedMediaTypes, cap) {
   if (!value || typeof value !== "object" || Array.isArray(value)
@@ -470,11 +467,31 @@ function validatePublisherCurrentTools(state, context, commandRunner, options, c
   return identity;
 }
 
-function publishOciCandidate(state, context, commandRunner, options, log) {
+async function verifyPublisherPackage(context, fetchImpl, deadline, now = Date.now) {
+  const timeoutMs = Math.min(15000, deadline - now());
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) fail("scanner_retention_publish_timeout");
+  const [packageResponse, versionsResponse] = await Promise.all([
+    requestApi(fetchImpl, PACKAGE_URL, context.token, [200], timeoutMs),
+    requestApi(fetchImpl, PACKAGE_VERSIONS_URL, context.token, [200], timeoutMs),
+  ]);
+  if (now() >= deadline) fail("scanner_retention_publish_timeout");
+  const packageResult = parseJson(packageResponse.bytes); const versions = parseJson(versionsResponse.bytes);
+  const bootstrap = SCANNER_RETENTION.readProof.bootstrap;
+  const bootstrapTag = bootstrap.tag.slice(`${SCANNER_RETENTION.package}:`.length);
+  if (packageResult?.id !== SCANNER_RETENTION.observations.packageId || packageResult.visibility !== "private"
+    || packageResult.repository?.full_name !== SCANNER_RETENTION.repository || !Array.isArray(versions)
+    || versions.length !== 1 || versions[0]?.name !== bootstrap.manifestDigest
+    || !Array.isArray(versions[0]?.metadata?.container?.tags)
+    || versions[0].metadata.container.tags.length !== 1
+    || versions[0].metadata.container.tags[0] !== bootstrapTag) fail("scanner_retention_publish_package_controls_invalid");
+}
+
+async function publishOciCandidate(state, context, commandRunner, options, log) {
   const contextRoot = path.join(state.work, "oci-context"); mkdirSync(contextRoot, { mode: 0o700 });
   writeExclusive(path.join(contextRoot, "Dockerfile"), Buffer.from("FROM scratch\nCOPY scanner-closure.tar /closure/scanner-closure.tar\n", "utf8"));
   writeExclusive(path.join(contextRoot, "scanner-closure.tar"), readFileSync(state.archive));
   const initialTools = validatePublisherCurrentTools(state, context, commandRunner, options, "before_login", log);
+  await verifyPublisherPackage(context, state.fetchImpl, state.operationDeadline, state.now);
   publishRun(commandRunner, context, "docker", ["login", "ghcr.io", "--username", "CleMeY15", "--password-stdin"],
     { ...options(), input: `${context.token}\n` });
   state.builderBaseline = publishDockerInventory(commandRunner, context, options());
@@ -492,6 +509,7 @@ function publishOciCandidate(state, context, commandRunner, options, log) {
   if (JSON.stringify(beforePush) !== JSON.stringify(initialTools)) {
     fail("scanner_retention_publish_tool_identity_changed");
   }
+  await verifyPublisherPackage(context, state.fetchImpl, state.operationDeadline, state.now);
   publishRun(commandRunner, context, "docker", ["buildx", "build", "--builder", state.builder,
     "--platform", "linux/amd64", "--provenance=false", "--sbom=false", "--pull=false",
     "--no-cache", "--output", `type=registry,name=${state.tag},push=true`, contextRoot], options());
@@ -515,12 +533,13 @@ function createProductionPublisherRunner(parsed, {
     if (state.operationDeadline !== undefined && now() >= state.operationDeadline) {
       fail("scanner_retention_publish_timeout");
     }
-    const options = (dockerConfig = state.dockerConfig) => ({
-      cwd: context.workspace,
-      env: scannerRetentionPublisherChildEnvironment(context, dockerConfig, state.work),
-      timeout: state.operationDeadline === undefined ? context.publisher.operationTimeoutMs
-        : Math.max(1, state.operationDeadline - now()),
-    });
+    const options = (dockerConfig = state.dockerConfig) => {
+      const timeout = state.operationDeadline === undefined ? context.publisher.operationTimeoutMs
+        : state.operationDeadline - now();
+      if (!Number.isSafeInteger(timeout) || timeout <= 0) fail("scanner_retention_publish_timeout");
+      return { cwd: context.workspace,
+        env: scannerRetentionPublisherChildEnvironment(context, dockerConfig, state.work), timeout };
+    };
     if (name === "context_and_capacity") {
       validateScannerRetentionPublisherBinding();
       state.operationDeadline = now() + context.publisher.operationTimeoutMs;
@@ -554,19 +573,17 @@ function createProductionPublisherRunner(parsed, {
         "scanner_retention_publish_checkout_invalid");
       if (sha !== context.headSha || !REVISION.test(tree)) fail("scanner_retention_publish_checkout_invalid");
       await verifyProtectedMain(fetchImpl, { token: context.token, sourceSha: context.headSha }, tree);
-      state.headTree = tree; return { values: { headTree: tree } };
+      state.headTree = tree;
+      const predecessor = await verifyScannerRetentionPublisherRecovery({ context,
+        env: scannerRetentionPublisherChildEnvironment(context, state.dockerConfig, state.work),
+        deadline: state.operationDeadline, now, fetchImpl, download });
+      log(`${JSON.stringify({ event: "scanner_retention_publish_recovery", currentRunId: context.runId,
+        workflowId: context.publisher.recovery.workflowId, runNumber: 2, runAttempt: 1,
+        result: "PASSED", predecessor })}\n`);
+      return { values: { headTree: tree } };
     }
     if (name === "package_controls") {
-      const packageResult = parseJson((await requestApi(fetchImpl, PACKAGE_URL, context.token, [200])).bytes);
-      const versions = parseJson((await requestApi(fetchImpl, PACKAGE_VERSIONS_URL, context.token, [200])).bytes);
-      const bootstrap = SCANNER_RETENTION.readProof.bootstrap;
-      const bootstrapTag = bootstrap.tag.slice(`${SCANNER_RETENTION.package}:`.length);
-      if (packageResult?.id !== SCANNER_RETENTION.observations.packageId || packageResult.visibility !== "private"
-        || packageResult.repository?.full_name !== SCANNER_RETENTION.repository || !Array.isArray(versions)
-        || versions.length !== 1 || versions[0]?.name !== bootstrap.manifestDigest
-        || !Array.isArray(versions[0]?.metadata?.container?.tags)
-        || versions[0].metadata.container.tags.length !== 1
-        || versions[0].metadata.container.tags[0] !== bootstrapTag) fail("scanner_retention_publish_package_controls_invalid");
+      await verifyPublisherPackage(context, fetchImpl, state.operationDeadline, now);
       return { values: {} };
     }
     if (name === "qualification_api") {
@@ -594,7 +611,7 @@ function createProductionPublisherRunner(parsed, {
       const fresh = [
         ["scanner-closure/upstream/trivy_0.76.2_Linux-64bit.tar.gz", "download/trivy_0.76.2_Linux-64bit.tar.gz", 52714130, "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"],
         ["scanner-closure/binary/trivy", "bin/trivy", 176386208, "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3"],
-        ["scanner-closure/inventory/go-build-info.txt", "public/go-build-info.txt", 37019, "a3049a3271abec48a51c86d64b68847e9e382f1039975556d8a5e4c1887d975b"],
+        ["scanner-closure/inventory/go-build-info.txt", "public/go-build-info.txt"],
         ["scanner-closure/provenance/trivy.attestation.jsonl", "public/trivy.attestation.jsonl"],
         ...["verification-workflow.json", "verification-identity.json", "verification-after-controls.json",
           "provenance-controls.tsv", "changed-bytes.stdout.txt", "changed-bytes.stderr.txt",
@@ -614,7 +631,9 @@ function createProductionPublisherRunner(parsed, {
     }
     if (name === "qualified_source_blobs") {
       for (const item of SCANNER_RETENTION.qualification.staticQualifiedBlobs) {
-        stageVerifiedBytes(state, item.closurePath, await readQualifiedRepositoryBlob(context, fetchImpl, item), item);
+        stageVerifiedBytes(state, item.closurePath, await readScannerRetentionQualifiedBlob({
+          context, fetchImpl, item, deadline: state.operationDeadline, now,
+        }), item);
       }
       return { values: {} };
     }
@@ -954,9 +973,12 @@ async function readResponseBytes(response, cap) {
   return Buffer.concat(chunks);
 }
 
-async function requestApi(fetchImpl, url, token, statuses) {
+async function requestApi(fetchImpl, url, token, statuses, timeoutMs = 15_000) {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 15000) {
+    fail("scanner_retention_bootstrap_api_request_failed");
+  }
   const controller = new globalThis.AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), 15_000);
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   try {
     let response;
     try {
