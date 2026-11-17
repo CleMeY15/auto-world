@@ -24,6 +24,19 @@ The managed runner/action trust boundary is explicit. `actions/setup-node` with 
 
 ## Scanner qualification and unchanged gates
 
+Windows installed-tool amendment, 17 November2026: the actual NexusLite copy
+attempt on accepted main548630df failed. Original logs retain only a generic
+error; subsequent read-only diagnosis identifies the tool hardlink guard.
+The [bounded tool-link plan](../../roadmap/plans/TASK-0005-windows-tool-links.md),
+5979bytes/SHA256 `b720e20142bcadab800c628d0d8c0046153e699c42d3db230e2668172d2c118e`,
+received actual ordered Architecture then distinct Critic APPROVE. It permits
+only the exact reviewed System32/WinSxS tar aliases identifying the same pinned
+file, retaining single-link rules for every other tool and owned data. Add early
+preflight without removing pre-stage/restore rechecks and use closed safe CLI
+errors. Existing trusted-host/check-to-spawn limits stay explicit. No Windows
+file/ACL mutation, tool substitution, publisher retry, admission or local
+copy acceptance follows. [Evidence and delivery gates](../validation/TASK-0005-windows-tool-links.md).
+
 Remaining-subject amendment, 2026-11-09: [actual managed42585332269](../validation/TASK-0005-jdk-builder-refresh.md) qualifies both builders, constructs the three existing candidates and leaves only one OpenSearch Guava HIGH plus two SeaweedFS Go-module HIGH findings. Following dependency advice and actual sequential Architecture then distinct Critic approvals for each bounded plan, implement the [transport-grpc-only Guava33.8.0/failureaccess1.0.3 backport](../../roadmap/plans/TASK-0005-opensearch-guava-refresh.md) and [fourth managed candidate replacing only SeaweedFS4.51's visible weed executable](../../roadmap/plans/TASK-0005-seaweed-managed-go-refresh.md). Preserve all original failed reports, prior OpenSearch coverage, Rust helpers/locks, fixed resource/capture budgets and generic vulnerability policy. The first Seaweed Go main inventory remains truthful and may be rejected; any source-component classification needs separately reviewed actual evidence. This uses the already authorized Auto World maintenance obligation without activating support. Actual implementation review and complete changed-source diagnostics remain required; prototype sequencing, publication/admission and production authority do not change.
 
 Continuation requested, 2026-11-09: after [PR230's actual Trivy qualification and retained image failures](https://github.com/CleMeY15/auto-world/pull/230#issuecomment-6734911494), the user requests work on the remaining blockers. The [bounded JDK builder candidate plan](../validation/TASK-0005-jdk-builder-refresh.md) selects a maintained official Temurin UBI10 image for the next unchanged diagnostic audit, subject to ordered independent review and complete native build compatibility. It changes only the build environment; no runtime JDK, vulnerability policy, admission, support date or prototype prerequisite changes. A new candidate is not qualified before its actual reports pass.

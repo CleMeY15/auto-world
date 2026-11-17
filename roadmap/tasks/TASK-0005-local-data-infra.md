@@ -1,5 +1,11 @@
 # TASK-0005 — Local data infrastructure
 
+17 November2026, NexusLite update: PR245 publisher-observation delivery is
+MAIN_ACCEPTED on548630df. The actual local copy attempt failed; localCopy and
+localRestore remain unaccepted. The [Windows tool-link correction](../../docs/validation/TASK-0005-windows-tool-links.md)
+has ordered plan approvals following original-evidence review; local implementation
+and source review pass, while source/main delivery is pending. No further publisher run. TASK remains IN_PROGRESS.
+
 Current publication checkpoint, 17 November 2026: [run44009258503 and independent original-evidence review](../../docs/validation/TASK-0005-publisher-observation.md) are SUCCESS/APPROVE, with14 phases, authenticated readback and owned cleanup. The verified publisher observation is in separate PR/main delivery; real NexusLite copy/restoration and admission remain open. Original43988267108 stays FAILED/cleanup UNKNOWN. This task remains `IN_PROGRESS`;243 upstream blockers are unwaived. Older checkpoints retain their historical scope.
 
 Current checkpoint, 17 November 2026: the [reviewed publisher recovery correction](../../docs/validation/TASK-0005-publisher-inventory-recovery.md) passes final local validation and independent source review; source/main delivery and actual run2/attempt1 remain pending. Original run43988267108 stays FAILED before push with cleanup UNKNOWN and no accepted tuple. TASK-0005 remains `IN_PROGRESS`;243 upstream blockers, NexusLite copy/restoration and admission remain open. Older checkpoints below are historical.
