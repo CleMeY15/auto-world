@@ -1,5 +1,16 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
+17 November2026 at16:55UTC: accepted mainf630339b (PR246) has now run the
+real NexusLite copy and local restoration once. Independent actual-evidence
+review APPROVE: eight phases,50 members, retained NTFS pair and owned cleanup.
+The [observation delivery brief and validation](../../docs/validation/TASK-0005-nexus-observation.md)
+record source/head, receipt identities, preserved failures and Docker port
+limitations. Only metadata delivery is in progress; protected-main acceptance
+is still required before scanner material-row closure. No new publisher or
+copy/restoration run. TASK-0005/0005A remain IN_PROGRESS,243 blockers unwaived;
+service-image closure, binary equivalence, admission/support and final gates
+remain open. Earlier pending checkpoints below retain their historical scope.
+
 17 November2026, NexusLite update: publisher observation delivery is accepted
 on main548630df/PR245. The real local copy failed and remains unaccepted.
 The [bounded Windows tool-link correction](../../docs/validation/TASK-0005-windows-tool-links.md)

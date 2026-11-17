@@ -7,16 +7,21 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Produit V1 synthétique | [TASK-0124](tasks/TASK-0124-results-sort.md) acceptée `DONE_FOR_V1_PROTOTYPE`, source `aa447e2427bd295a5b4c6533199ffbf56047b5ba`, main `f554c475b6748fb1b53281985588fab287c811ed`, [checkpoint PR235](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896). Les anciens statuts pending sont historiques. | Aucun successeur produit sélectionné ici. La navigation entre annonces déjà chargées reste un candidat de la roadmap, à cadrer avant exécution. |
 | Processus de développement | [TASK-0125](tasks/TASK-0125-full-codex-workflow.md), mise en place autorisée ; **full Codex** pour tous les rôles. [Preuves et limites](../docs/validation/TASK-0125.md). | Terminer revue et livraison ; ouvrir ensuite la première entrée admissible du [pilote](pilots/FULL_CODEX.md). |
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
-| Infrastructure / qualification | Publisher observation delivered and MAIN_ACCEPTED on548630df ([PR245](https://github.com/CleMeY15/auto-world/pull/245)); actual NexusLite copy FAILED. Original-evidence review accepts diagnosis only; localCopy/localRestore remain unaccepted. TASK-0005/0005A IN_PROGRESS,243 blockers unwaived. | Deliver and qualify the [locally validated Windows tool-link correction](../docs/validation/TASK-0005-windows-tool-links.md). User-provided SSH tunnel now permits read-only Nexus evidence inspection; no copy retry before accepted source/main and fresh preflight. No further publisher run, admission or support activation. |
+| Infrastructure / qualification | PR246 main `f630339b791731b6111bb8fd340fd6874c392826` accepted; [actual NexusLite C copy/restoration](../docs/validation/TASK-0005-nexus-observation.md) independently APPROVED: eight phases,50 members, retained pair and cleanup. Original failures and243 upstream blockers remain. | Deliver the reviewed localCopy/localRestore identities through separate source/main gates. Only then close the scanner material row. TASK-0005/0005A stay IN_PROGRESS; no further publisher/copy/restore, image admission or support activation. |
 
 ## Maintenance sécurité du17 novembre2026
 
 La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
-est une maintenance isolée depuis main `f630339b`, en cours de validation et de
-revue, hors cohorte produit. Elle retire les deux consommateurs vulnérables sans
-changer le seuil d'audit. Aucune acceptation de PR247, de TASK-0005/0005A ou
-opération Nexus/publisher n'en est déduite ; le propriétaire parent conserve leur
-réconciliation.
+est acceptée sur main `32f5253c646cc1b77be6bdb090792079fcd22782`, livré par
+[PR248](https://github.com/CleMeY15/auto-world/pull/248) : sept workflows
+source puis sept workflows main réussis et preuves originales approuvées,
+sans réduction du seuil d'audit. Cette maintenance reste hors cohorte produit.
+[PR247](https://github.com/CleMeY15/auto-world/pull/247) intègre ce main pour
+livrer les observations NexusLite ; sa révision combinée attend ses propres
+revues et cinq workflows source/main, dont le nouveau contrôle d'outillage
+Linux/Windows. Voir le [checkpoint de réconciliation](../docs/validation/TASK-0005-nexus-observation.md#reconciliation-after-accepted-picomatch-maintenance).
+TASK-0005/0005A restent IN_PROGRESS ; aucune nouvelle opération Nexus/publisher,
+admission ou activation du support n'est autorisée par cette livraison.
 
 ## Reprendre le travail
 

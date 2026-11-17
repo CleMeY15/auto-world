@@ -1,5 +1,14 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005 NexusLite checkpoint, 17 November2026 at16:55UTC: the
+[actual C:/NTFS copy and manifest-first restoration](docs/validation/TASK-0005-nexus-observation.md)
+are independently APPROVED on accepted mainf630339b (PR246): one invocation,
+eight passed phases,50 members, retained pair and owned cleanup verified.
+The localCopy/localRestore identity observations are in separate source/main
+delivery; scanner material-row closure awaits that delivery. TASK-0005/0005A
+remain IN_PROGRESS,243 blockers unwaived, admission/support and final gates open.
+No further publisher or copy/restoration run. Earlier checkpoints are historical.
+
 TASK-0005 NexusLite checkpoint, 17 November2026: publisher observation delivery
 is accepted on main548630df ([PR245](https://github.com/CleMeY15/auto-world/pull/245)).
 The real Windows copy attempt failed; no localCopy/localRestore acceptance.

@@ -69,15 +69,15 @@ test("C sidecar is an authenticated publisher binding, never a self-declared res
   assert.equal(called, 0);
 });
 
-test("publisher authority binds accepted private read evidence without claiming retained scanner bytes", () => {
+test("publisher authority stays unchanged by separate historical local byte observations", () => {
   const value = validateScannerRetentionPublisherBinding();
   assert.equal(value.readProofAccepted.runId, "42732415577");
   assert.equal(value.readProofAccepted.artifactId, 13725082501);
   assert.equal(value.readProofAccepted.receiptSha256, "40895136ff72d9d0fb39c3192bd137372780f557e5a89d1be55573a950b18c60");
   assert.equal(value.readProofAccepted.anonymousRead, "AUTHORIZATION_DENIED");
   assert.equal(P.observations.publisher.runId, "44009258503");
-  assert.equal(P.observations.localCopy, null);
-  assert.equal(P.observations.localRestore, null);
+  assert.equal(P.observations.localCopy.sidecarSha256, "8bf31e82ef189cb2c8d4738993f14819409f99f4cdd59cd15a3c72eee6d635b7");
+  assert.equal(P.observations.localRestore.receiptSha256, "22b9729a9b98c344ceb8a77a1470a677c823a832a5c02450d822857a776d239e");
   assert.equal(P.claims.retained, false);
   assert.equal(P.claims.restored, false);
   const changed = clone(value); changed.readProofAccepted.authorizedRead = "FAILED";
