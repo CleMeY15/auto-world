@@ -1,6 +1,6 @@
 # Picomatch security tooling maintenance — 17 November 2026
 
-Status: IMPLEMENTED / VALIDATION_AND_REVIEW_PENDING. Focused prerequisite for the
+Status: LOCAL_NON_BROWSER_VALIDATED / DELIVERY_AND_REVIEW_PENDING. Focused prerequisite for the
 unchanged dependency gate, not product delivery or image admission. Parent owns
 independent final review, PR247 reconciliation and delivery; this implementation
 does not alter PR247 or its evidence. TASK-0005/0005A stay IN_PROGRESS and the243
@@ -165,3 +165,50 @@ The failed experiment remains `native-targeted.log` (273pass/87fail/2skips); all
 failures belonged to that reverted fixture edit. No daemon/image operation was
 performed; these were existing synthetic/mocked tests. A complete final-source
 rerun is required below.
+
+
+### Frozen-source final results
+
+Validated code revision `709d0e682215a4adbf83df01337d30de7a81ead1`, tree
+`2688069300b03686c2d2e1a84e8eea04232e0435`; tracked state clean after checks
+(`validated-source.txt`, empty `validated-status.txt`). The following documentation
+update does not change implementation, fixtures, patch, dependency lock or CI.
+
+| Gate | Result / private artifact |
+| --- | --- |
+| Fresh frozen install | PASS, `fresh-frozen-install.log`; node_modules removed from this checkout first |
+| Installed graph | PASS, all15 workspaces, zero forbidden package keys/store directories; `installed-graph.json`, `graph-check.json` |
+| Targeted compatibility/security |21/21 PASS, no skips; `qualified-targeted.log` |
+| Lint | PASS,14/14 workspace tasks cached; root ESLint ran; `qualified-lint.log` |
+| Typecheck | PASS,23/23 tasks,22cached; `qualified-typecheck.log` |
+| Root tests |3,178pass /0fail /123pre-existing exclusions,3,301total; `qualified-test-final.log` |
+| Package test graph |28/28 tasks PASS,13cached; `qualified-test-final.log` |
+| Build |14/14 tasks PASS,13cached; `qualified-build.log` |
+| Secrets |1,449 files PASS; `qualified-secrets.log` |
+| Full unchanged low-threshold audit | PASS, no known vulnerabilities; `qualified-audit.log` |
+| Browser | BLOCKED before tests: fixed localhost3210 occupied; `final-browser.log` |
+| Windows/Linux hosted patch gate | Added, pending source CI |
+| Independent source/security review | Pending parent; grammar restrictions require explicit review |
+
+After the native-path correction, root tests had four remaining attestation
+context failures (`qualified-test.log`:3,174pass/4fail/123skips). Inspection found
+this T3 checkout itself inherited mode775 and tracked files664. Removing only
+group/other write permission from the owned checkout root and tracked regular
+files restored the unchanged guard's required environment. No executable bit or
+Git content changed. `checkout-permissions.json` records original/new modes;
+`attestation-environment.log` then passes, and the complete root/package rerun
+passes as above. This is new diagnostic evidence after the previous failures,
+not an unchanged retry or a waiver.
+
+The browser command returned exit1: `http://localhost:3210 is already used`.
+No test ran, no foreign process was stopped/reused, and no configuration or retry
+threshold was changed. A network-namespace probe also failed with
+`unshare: write failed /proc/self/uid_map: Operation not permitted`; no namespace
+fallback or infrastructure operation followed. Smallest remaining remedy is the
+unchanged hosted browser CI (or an explicitly available local port3210).
+
+Draft is reviewable with these limits, not a complete delivery. Source/main gates,
+hosted Windows qualification and distinct independent review remain required.
+Parent retains PR247 and its observation-policy/evidence ownership. First fully
+complete local presentation remains not established because browser qualification
+is blocked. All prior failed runs remain in the private manifest.
