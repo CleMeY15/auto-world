@@ -58,6 +58,15 @@ pnpm run audit:dependencies
 
 Root build, typecheck and test commands schedule one Turbo task at a time. This prevents those direct dependency rebuilds from overwriting shared declarations while another task reads them; lint remains parallel. Some quality gates may take longer. Run one quality command at a time in a checkout: this scheduling does not coordinate separate shell commands.
 
+Native filesystem fixtures require an owned ext4 temporary directory and the
+standard `0022` umask on Linux. When `/tmp` is tmpfs, create a private temporary
+directory on ext4 **outside the checkout's ignored paths**, then run the unchanged
+gates with `umask 0022` and `TMPDIR=/absolute/owned/directory`. The owned checkout
+root and tracked files must also lack group/other write permission; changing the
+umask alone does not repair an existing checkout. Fixture helpers use
+Node's `os.tmpdir()`; their filesystem, identity and permission checks stay active.
+Do not substitute filesystem mocks or skip native tests to accommodate tmpfs.
+
 ## Local environment
 
 ### Web component preview

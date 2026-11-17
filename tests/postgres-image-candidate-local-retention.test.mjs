@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync,
@@ -93,7 +94,7 @@ function materialFixture() {
   return { archive, policy, proof, receipt };
 }
 function scope(t, options = {}) {
-  const root = mkdtempSync("/tmp/aw-pgr-"); chmodSync(root, 0o700);
+  const root = mkdtempSync(path.join(tmpdir(), "aw-pgr-")); chmodSync(root, 0o700);
   const parent = path.join(root, "temporary"); const destination = path.join(root, "retained");
   mkdirSync(parent, { mode: 0o700 }); mkdirSync(destination, { mode: 0o700 });
   const material = materialFixture(); const state = { providerCalls: 0, validations: 0, copiedBeforeCleanup: false };
@@ -123,7 +124,7 @@ function scope(t, options = {}) {
     return options.proof ? options.proof(clone(proof)) : proof;
   };
   const dependencies = { remoteProvider, validateArchive, providerDependencies: { env: { GITHUB_TOKEN: "never-serialized" } } };
-  t.after(() => { assert.ok(root.startsWith("/tmp/aw-pgr-")); rmSync(root, { recursive: true, force: true }); });
+  t.after(() => { assert.ok(root.startsWith(path.join(tmpdir(), "aw-pgr-"))); rmSync(root, { recursive: true, force: true }); });
   return { root, parent, destination, material, state, input, dependencies,
     run: () => retainLocalPostgresCandidate(input, dependencies), archiveFile: path.join(destination, "candidate.tar"),
     receiptFile: path.join(destination, "retention-receipt.json") };

@@ -1,0 +1,173 @@
+diff --git a/dist/parseSettings/projectGlob.js b/dist/parseSettings/projectGlob.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..188b2091852499132e38bfc85f837a4e94526e59
+--- /dev/null
++++ b/dist/parseSettings/projectGlob.js
+@@ -0,0 +1,137 @@
++'use strict';
++// Temporary exact-version adapter. See docs/validation/picomatch-security-2026-11-17.md.
++// Use public unbundled exports: executed matcher bytes must belong to the audited graph.
++const { globSync, hasMagic } = require('glob/raw');
++const { Minimatch } = require(require.resolve('minimatch', { paths: [require.resolve('glob/raw')] }));
++const fs = require('node:fs');
++const path = require('node:path');
++
++function isDynamicPattern(pattern) {
++    // The old resolver classified parentheses (even incomplete ones), negations,
++    // and incomplete expanding braces as dynamic; missing literals remain literals.
++    if (hasMagic(pattern, { magicalBraces: true, nocomment: true })) return true;
++    if (pattern.startsWith('!')) return true;
++    let brace = false;
++    for (let i = 0; i < pattern.length; i++) {
++        if (pattern[i] === '\\') { i++; continue; }
++        if (pattern[i] === '(') return true;
++        if (pattern[i] === '[' && pattern.indexOf(']', i + 1) !== -1) return true;
++        if (pattern[i] === '{') brace = true;
++        if (pattern[i] === '}') brace = false;
++        if (brace && (pattern[i] === ',' || pattern.slice(i, i + 2) === '..')) return true;
++    }
++    return false;
++}
++// Picomatch accepts regex-like bare groups and prefix-negative extglobs;
++// minimatch deliberately has different semantics. Refuse these explicitly
++// rather than silently selecting fewer/different typechecking projects.
++function assertSupported(pattern) {
++    let groups = 0;
++    let braces = 0;
++    let escapedAt = -1;
++    for (let i = 0; i < pattern.length; i++) {
++        if (pattern[i] === '\\') {
++            escapedAt = ++i;
++            // The legacy classifier treats escaped brace constructs as literal
++            // paths even when the new matcher would expand their contents.
++            if (pattern[i] === '{' || pattern[i] === '}') {
++                throw new Error('Unsupported legacy project glob escaped brace: use explicit project paths: ' + pattern);
++            }
++            continue;
++        }
++        if (pattern[i] === '(') {
++            if (escapedAt === i - 1 || !'?*+@'.includes(pattern[i - 1] || ' ')) {
++                throw new Error('Unsupported legacy project glob group: use explicit project paths or brace alternatives: ' + pattern);
++            }
++            groups++;
++        }
++        if (pattern[i] === ')' && --groups < 0) {
++            throw new Error('Unsupported legacy project glob group: parentheses must be balanced: ' + pattern);
++        }
++        if (pattern[i] === '{') {
++            braces++;
++            const end = pattern.indexOf('}', i);
++            const body = pattern.slice(i + 1, end === -1 ? undefined : end);
++            // The qualified range contract is ascending, unsigned single ASCII
++            // digits only. Picomatch's multi-digit/signed semantics differ.
++            // Also refuse steps, padding, letters and nested range constructs.
++            if (body.includes('..') && (braces > 1 || end === -1 || !/^[0-9]\.\.[0-9]$/.test(body) || body[0] > body[3])) {
++                throw new Error('Unsupported legacy project glob range: use explicit brace alternatives: ' + pattern);
++            }
++        }
++        if (pattern[i] === '}') braces = Math.max(0, braces - 1);
++    }
++    if (groups !== 0) throw new Error('Unsupported legacy project glob group: parentheses must be balanced: ' + pattern);
++}
++const slash = value => value.split(path.sep).join('/');
++function globProjects(pattern, { cwd, ignore }) {
++    if (pattern.startsWith('!') && !pattern.startsWith('!(')) return [];
++    assertSupported(pattern);
++    for (const item of ignore) if (item && (!item.startsWith('!') || item.startsWith('!('))) assertSupported(item);
++    const matchers = ignore.filter(p => p && (!p.startsWith('!') || p.startsWith('!(')))
++        .map(p => new Minimatch(path.isAbsolute(p) ? slash(path.relative(cwd, p)) : path.posix.normalize(p).replace(/\/$/, ''),
++            { dot: false, nocase: false, nonegate: true, nocomment: true }));
++    // Match the former walker's cycle boundary: a symlink beneath a symlink
++    // pointing at a related real directory is not traversed again.
++    const prefix = [];
++    for (const part of pattern.split('/').slice(0, -1)) {
++        if (isDynamicPattern(part)) break;
++        prefix.push(part.replace(/\\(.)/g, '$1'));
++    }
++    const walkRoot = path.resolve(cwd, prefix.join('/'));
++    const cycleCache = new Map();
++    function recursiveLink(fullpath) {
++        if (cycleCache.has(fullpath)) return cycleCache.get(fullpath);
++        const targets = [];
++        let current = fullpath;
++        while (current !== walkRoot && current !== path.dirname(current)) {
++            try {
++                if (fs.lstatSync(current).isSymbolicLink()) {
++                    const target = fs.realpathSync(current);
++                    if (targets.some(other => other.startsWith(target) || target.startsWith(other))) {
++                        cycleCache.set(fullpath, true);
++                        return true;
++                    }
++                    targets.push(target);
++                }
++            } catch (error) {
++                if (error.code !== 'ENOENT') throw error;
++            }
++            current = path.dirname(current);
++        }
++        cycleCache.set(fullpath, false);
++        return false;
++    }
++    const ignored = p => matchers.some(m => m.match(slash(path.relative(cwd, p.fullpath()))));
++    const files = globSync(pattern, {
++        cwd, nodir: true, follow: true, dot: false, nocase: false,
++        ignore: { ignored, childrenIgnored: p => ignored(p) || recursiveLink(p.fullpath()) },
++    });
++    // fdir's synchronous traversal was depth-first in native readdir order.
++    // Preserve that priority rather than glob's reverse discovery order.
++    const entries = new Map();
++    function ranks(file) {
++        const parts = path.resolve(cwd, file).split(path.sep);
++        return parts.map((part, i) => {
++            if (!i) return 0;
++            const parent = i === 1 ? path.parse(path.resolve(cwd, file)).root : parts.slice(0, i).join(path.sep);
++            if (!entries.has(parent)) entries.set(parent, fs.readdirSync(parent));
++            return entries.get(parent).indexOf(part);
++        });
++    }
++    const ranked = files.filter(file => {
++        try { return fs.statSync(path.resolve(cwd, file)).isFile(); }
++        catch (error) {
++            if (error.code === 'ENOENT' || error.code === 'EACCES') return false;
++            throw error;
++        }
++    }).map(file => ({ file, rank: ranks(file) }));
++    ranked.sort((a, b) => {
++        for (let i = 0; i < Math.min(a.rank.length, b.rank.length); i++) {
++            if (a.rank[i] !== b.rank[i]) return a.rank[i] - b.rank[i];
++        }
++        return a.rank.length - b.rank.length;
++    });
++    return ranked.map(({ file }) => file);
++}
++module.exports = { isDynamicPattern, globSync: globProjects };
+diff --git a/dist/parseSettings/resolveProjectList.js b/dist/parseSettings/resolveProjectList.js
+index f349aef99e4ef1c58e89cc616031e26629f4bc50..43215655a697482a5f9cacf98a959895ba8c128a 100644
+--- a/dist/parseSettings/resolveProjectList.js
++++ b/dist/parseSettings/resolveProjectList.js
+@@ -7,7 +7,7 @@ exports.clearGlobCache = clearGlobCache;
+ exports.resolveProjectList = resolveProjectList;
+ exports.clearGlobResolutionCache = clearGlobResolutionCache;
+ const debug_1 = __importDefault(require("debug"));
+-const tinyglobby_1 = require("tinyglobby");
++const projectGlob_1 = require("./projectGlob");
+ const shared_1 = require("../create-program/shared");
+ const ExpiringCache_1 = require("./ExpiringCache");
+ const log = (0, debug_1.default)('typescript-eslint:typescript-estree:parseSettings:resolveProjectList');
+@@ -54,13 +54,13 @@ function resolveProjectList(options) {
+         }
+     }
+     // Transform glob patterns into paths
+-    const nonGlobProjects = sanitizedProjects.filter(project => !(0, tinyglobby_1.isDynamicPattern)(project));
+-    const globProjects = sanitizedProjects.filter(project => (0, tinyglobby_1.isDynamicPattern)(project));
++    const nonGlobProjects = sanitizedProjects.filter(project => !(0, projectGlob_1.isDynamicPattern)(project));
++    const globProjects = sanitizedProjects.filter(project => (0, projectGlob_1.isDynamicPattern)(project));
+     let globProjectPaths = [];
+     if (globProjects.length > 0) {
+         // To ensure the order is correct, we need to glob for each pattern
+         // separately and then concatenate the results in patterns' order.
+-        globProjectPaths = globProjects.flatMap(pattern => (0, tinyglobby_1.globSync)(pattern, {
++        globProjectPaths = globProjects.flatMap(pattern => (0, projectGlob_1.globSync)(pattern, {
+             cwd: options.tsconfigRootDir,
+             expandDirectories: false,
+             ignore: projectFolderIgnoreList,

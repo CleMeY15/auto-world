@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, lstatSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -10,7 +11,7 @@ const linux = process.platform === "linux" && process.getuid() > 0 && process.ge
 const hash = (v) => createHash("sha256").update(v).digest("hex");
 const dump = Buffer.concat([Buffer.from("PGDMP"), Buffer.from([0, 1, 255]), Buffer.alloc(240_000, 0xff)]);
 const signal = () => new globalThis.AbortController().signal;
-function scope(t) { const directory = mkdtempSync("/tmp/aw-pg-sql-backup-"); chmodSync(directory, 0o700);
+function scope(t) { const directory = mkdtempSync(path.join(tmpdir(), "aw-pg-sql-backup-")); chmodSync(directory, 0o700);
   t.after(() => rmSync(directory, { recursive: true })); return directory; }
 const options = (directory, abort = signal()) => ({ cwd: directory, env: { PATH: "/usr/bin:/bin" }, signal: abort, timeoutMs: 5000, beforeSpawn: () => {} });
 async function makeDump(directory, abort = signal()) { return dumpPostgresDiagnosticSql({ directory, signal: abort }, { run: (stream) =>

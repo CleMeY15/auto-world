@@ -4,6 +4,17 @@ packages:
   - packages/*
   - connectors/*
 
-# Temporary reviewed tooling override; see docs/validation/minimatch-security-2026-11-04.md.
+allowUnusedPatches: false
+
 overrides:
+  '@typescript-eslint/typescript-estree@8.69.0>tinyglobby': '-'
+  glob@14.0.6>minimatch: 11.0.9
   minimatch: 11.0.4
+
+packageExtensions:
+  '@typescript-eslint/typescript-estree@8.69.0':
+    dependencies:
+      glob: 14.0.6
+
+patchedDependencies:
+  '@typescript-eslint/typescript-estree@8.69.0': patches/@typescript-eslint__typescript-estree@8.69.0.patch

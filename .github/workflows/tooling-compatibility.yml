@@ -1,0 +1,28 @@
+name: Tooling compatibility
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tooling:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Actual dependency patch, ordered projects and secret protections
+        run: node --test tests/project-glob-compatibility.test.mjs tests/minimatch-tooling-compatibility.test.mjs tests/secret-scan.test.mjs tests/secretlint-selection.test.mjs
+      - run: pnpm secrets:check
+      - run: pnpm run audit:dependencies

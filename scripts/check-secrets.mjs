@@ -1,16 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { findHighConfidenceSecrets } from "./secret-patterns.mjs";
 
-const require = createRequire(import.meta.url);
-const secretlintPackage = require.resolve("secretlint/package.json");
-const secretlintBinary = path.join(
-  path.dirname(secretlintPackage),
-  "bin",
-  "secretlint.js",
-);
+const secretlintBinary = fileURLToPath(new URL("./secretlint-files.mjs", import.meta.url));
 const configPath = path.resolve(".secretlintrc.json");
 const candidateFiles = execFileSync(
   "git",
