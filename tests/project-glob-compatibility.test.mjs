@@ -105,11 +105,25 @@ test("glob executes the real audited matcher dependency, with the old graph remo
     }
 });
 
-test("repeated extglob project patterns finish in an isolated bounded process", () => {
-    const script = `const r = require(${JSON.stringify(resolverPath)}); r.resolveProjectList({ project: ["+(a)".repeat(100) + "b.json"], tsconfigRootDir: process.cwd(), singleRun: true });`;
-    const result = spawnSync(process.execPath, ["-e", script], { encoding: "utf8", timeout: 5000 });
-    assert.equal(result.error, undefined);
-    assert.equal(result.status, 0, result.stderr);
+test("advisory-shaped extglobs preserve matching and ignores within a bounded process", async t => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aw-project-adversarial-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const match = `${"a".repeat(200)}b.json`;
+    const nearMiss = `${"a".repeat(200)}c.json`;
+    for (const file of [match, nearMiss]) fs.writeFileSync(path.join(dir, file), "{}");
+    for (const shape of ["+(a)", "+(*a)", "+(*)"]) {
+        for (const asIgnore of [false, true]) {
+            await t.test(`${shape}: ${asIgnore ? "active ignore" : "project"}`, () => {
+                const pattern = `${shape.repeat(100)}b.json`;
+                const options = { project: asIgnore ? ["*.json"] : [pattern], projectFolderIgnoreList: asIgnore ? [pattern] : [], tsconfigRootDir: dir, singleRun: true };
+                const script = `const r = require(${JSON.stringify(resolverPath)}); process.stdout.write(JSON.stringify([...r.resolveProjectList(${JSON.stringify(options)}).values()]));`;
+                const result = spawnSync(process.execPath, ["-e", script], { encoding: "utf8", timeout: 5000 });
+                assert.equal(result.error, undefined);
+                assert.equal(result.status, 0, result.stderr);
+                assert.deepEqual(JSON.parse(result.stdout), [path.join(dir, asIgnore ? nearMiss : match)]);
+            });
+        }
+    }
 });
 
 test("overlapping tsconfigs preserve the first selected TypeScript program", t => {
@@ -128,15 +142,56 @@ test("overlapping tsconfigs preserve the first selected TypeScript program", t =
     assert.equal(result.services.program.getCompilerOptions().strict, false);
 });
 
-test("incompatible legacy grammar fails explicitly, including ignored patterns", () => {
-    for (const pattern of ["a(b|c).json", "!(ab).json", "a{01..05..2}.json"]) {
+test("incompatible legacy grammar fails explicitly, including ignored patterns", async t => {
+    for (const pattern of [
+        "a(b|c).json", "!(ab).json", "+(a.json", "@(a.json", "@(a)).json", String.raw`\+(a).json`,
+        "a{01..05..2}.json", "x{10..12}.json", "x{1..12}.json", "a{-01..-03}.json", "a{-1..-3}.json",
+        "x{01..05}.json", "x{1..5..2}.json", "x{5..1}.json", "x{a..c}.json", "x{1..2.json",
+    ]) {
         for (const asIgnore of [false, true]) {
-            resolver.clearGlobResolutionCache();
-            assert.throws(() => resolver.resolveProjectList({
-                project: asIgnore ? ["*.json"] : [pattern],
-                projectFolderIgnoreList: asIgnore ? [pattern] : [],
-                tsconfigRootDir: process.cwd(), singleRun: true,
-            }), /Unsupported legacy project glob/u);
+            await t.test(`${pattern}: ${asIgnore ? "ignore" : "project"}`, () => {
+                resolver.clearGlobResolutionCache();
+                assert.throws(() => resolver.resolveProjectList({
+                    project: asIgnore ? ["*.json"] : [pattern],
+                    projectFolderIgnoreList: asIgnore ? [pattern] : [],
+                    tsconfigRootDir: process.cwd(), singleRun: true,
+                }), /Unsupported legacy project glob/u);
+            });
         }
     }
+});
+
+test("leading-hash globs expand and missing literals retain their original priority", t => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aw-project-hash-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    fs.writeFileSync(path.join(dir, "#a.json"), "{}");
+    for (const [project, expected] of [
+        [["#*.json"], ["#a.json"]],
+        [["#absent*.json"], []],
+        [["#missing.json", "#*.json"], ["#missing.json", "#a.json"]],
+    ]) {
+        resolver.clearGlobResolutionCache();
+        assert.deepEqual([...resolver.resolveProjectList({ project, tsconfigRootDir: dir, singleRun: true }).values()], expected.map(file => path.join(dir, file)));
+    }
+});
+
+test("qualified single-digit ranges and escaped positive-extglob literals keep exact membership", t => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aw-project-grammar-"));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const files = Array.from({ length: 10 }, (_, i) => `x${i}.json`);
+    for (const file of [...files, "+(a).json"]) fs.writeFileSync(path.join(dir, file), "{}");
+    for (let from = 0; from <= 9; from++) for (let to = from; to <= 9; to++) {
+        const selected = files.slice(from, to + 1);
+        for (const asIgnore of [false, true]) {
+            resolver.clearGlobResolutionCache();
+            const pattern = `x{${from}..${to}}.json`;
+            const expected = asIgnore ? files.filter(file => !selected.includes(file)) : selected;
+            assert.deepEqual([...resolver.resolveProjectList({
+                project: asIgnore ? ["x*.json"] : [pattern], projectFolderIgnoreList: asIgnore ? [pattern] : [],
+                tsconfigRootDir: dir, singleRun: true,
+            }).values()], expected.map(file => path.join(dir, file)), `${pattern}: ${asIgnore ? "ignore" : "project"}`);
+        }
+    }
+    resolver.clearGlobResolutionCache();
+    assert.deepEqual([...resolver.resolveProjectList({ project: [String.raw`\+\(a\)*.json`], tsconfigRootDir: dir, singleRun: true }).values()], [path.join(dir, "+(a).json")]);
 });

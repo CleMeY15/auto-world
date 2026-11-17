@@ -13,7 +13,7 @@ packageExtensionsChecksum: sha256-+hYxJF3qWFavb/Ql7FbpUJdZS3FWWnunPONPPcFYS60=
 
 patchedDependencies:
   '@typescript-eslint/typescript-estree@8.69.0':
-    hash: c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0
+    hash: 75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6
     path: patches/@typescript-eslint__typescript-estree@8.69.0.patch
 
 importers:
@@ -666,6 +666,7 @@ packages:
   '@secretlint/secretlint-rule-preset-recommend@13.0.5':
     resolution: {integrity: sha512-dxOmTLf1w7I6rQEFPL8Hkdz6dR1FQXF0bzmTahH/Wyezy89TMPLL+8LbZ2YD8trkmYBnS37zUmOsZT6rMVftKQ==}
     engines: {node: '>=22.0.0'}
+    deprecated: Built into secretlint v14 and later. Remove this package; the rule id still works. https://github.com/secretlint/secretlint/blob/HEAD/docs/rules/preset-recommend.md
 
   '@secretlint/source-creator@13.0.5':
     resolution: {integrity: sha512-Y1edWpqit4Ai9fM4LU+v3s0JcCW6rSzOisDcxKBKfrg6ynFPX8n+JwEr5Bk+zGA0RnwlngJbmqjS+/CxDNl56A==}
@@ -2120,7 +2121,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
       '@typescript-eslint/visitor-keys': 8.69.0
       debug: 4.4.3
       eslint: 10.10.0
@@ -2149,7 +2150,7 @@ snapshots:
   '@typescript-eslint/type-utils@8.69.0(eslint@10.10.0)(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
       '@typescript-eslint/utils': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
       debug: 4.4.3
       eslint: 10.10.0
@@ -2160,7 +2161,7 @@ snapshots:
 
   '@typescript-eslint/types@8.69.0': {}
 
-  '@typescript-eslint/typescript-estree@8.69.0(patch_hash=c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0)(typescript@5.9.2)':
+  '@typescript-eslint/typescript-estree@8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/project-service': 8.69.0(typescript@5.9.2)
       '@typescript-eslint/tsconfig-utils': 8.69.0(typescript@5.9.2)
@@ -2180,7 +2181,7 @@ snapshots:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.10.0)
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/types': 8.69.0
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
       eslint: 10.10.0
       typescript: 5.9.2
     transitivePeerDependencies:
@@ -2915,7 +2916,7 @@ snapshots:
     dependencies:
       '@typescript-eslint/eslint-plugin': 8.69.0(@typescript-eslint/parser@8.69.0(eslint@10.10.0)(typescript@5.9.2))(eslint@10.10.0)(typescript@5.9.2)
       '@typescript-eslint/parser': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
-      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=c30a8b93f9c5af5b7091cbf7a67fb34fddb2e7a446d6a4c53d0e875e5580c7b0)(typescript@5.9.2)
+      '@typescript-eslint/typescript-estree': 8.69.0(patch_hash=75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6)(typescript@5.9.2)
       '@typescript-eslint/utils': 8.69.0(eslint@10.10.0)(typescript@5.9.2)
       eslint: 10.10.0
       typescript: 5.9.2

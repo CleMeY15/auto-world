@@ -1,12 +1,9 @@
-diff --git a/CHANGELOG.md b/CHANGELOG.md
-deleted file mode 100644
-index f3f132890326c0bc4e34b50267178da2f67aa89a..0000000000000000000000000000000000000000
 diff --git a/dist/parseSettings/projectGlob.js b/dist/parseSettings/projectGlob.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..f7d8a116a1f6e84a28be558db3f366d0e4b44252
+index 0000000000000000000000000000000000000000..ce4b4bc1ba496d092b27a49a202c178769c15a3a
 --- /dev/null
 +++ b/dist/parseSettings/projectGlob.js
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,126 @@
 +'use strict';
 +// Temporary exact-version adapter. See docs/validation/picomatch-security-2026-11-17.md.
 +// Use public unbundled exports: executed matcher bytes must belong to the audited graph.
@@ -18,7 +15,7 @@ index 0000000000000000000000000000000000000000..f7d8a116a1f6e84a28be558db3f366d0
 +function isDynamicPattern(pattern) {
 +    // The old resolver classified parentheses (even incomplete ones), negations,
 +    // and incomplete expanding braces as dynamic; missing literals remain literals.
-+    if (hasMagic(pattern, { magicalBraces: true })) return true;
++    if (hasMagic(pattern, { magicalBraces: true, nocomment: true })) return true;
 +    if (pattern.startsWith('!')) return true;
 +    let brace = false;
 +    for (let i = 0; i < pattern.length; i++) {
@@ -35,19 +32,31 @@ index 0000000000000000000000000000000000000000..f7d8a116a1f6e84a28be558db3f366d0
 +// minimatch deliberately has different semantics. Refuse these explicitly
 +// rather than silently selecting fewer/different typechecking projects.
 +function assertSupported(pattern) {
++    let groups = 0;
++    let escapedAt = -1;
 +    for (let i = 0; i < pattern.length; i++) {
-+        if (pattern[i] === '\\') { i++; continue; }
-+        if (pattern[i] === '(' && (!'?*+@'.includes(pattern[i - 1] || ' ') || pattern[i - 1] === '!')) {
-+            throw new Error('Unsupported legacy project glob group: use explicit project paths or brace alternatives: ' + pattern);
++        if (pattern[i] === '\\') { escapedAt = ++i; continue; }
++        if (pattern[i] === '(') {
++            if (escapedAt === i - 1 || !'?*+@'.includes(pattern[i - 1] || ' ')) {
++                throw new Error('Unsupported legacy project glob group: use explicit project paths or brace alternatives: ' + pattern);
++            }
++            groups++;
++        }
++        if (pattern[i] === ')' && --groups < 0) {
++            throw new Error('Unsupported legacy project glob group: parentheses must be balanced: ' + pattern);
 +        }
 +        if (pattern[i] === '{') {
 +            const end = pattern.indexOf('}', i);
 +            const body = pattern.slice(i + 1, end === -1 ? undefined : end);
-+            if (body.includes('..') && (body.split('..').length > 2 || body.split('..').some(part => part.length > 1 && part.startsWith('0')))) {
++            // The qualified range contract is ascending, unsigned single ASCII
++            // digits only. Picomatch's multi-digit/signed semantics differ.
++            // Also refuse steps, padding, letters and nested range constructs.
++            if (body.includes('..') && (end === -1 || !/^[0-9]\.\.[0-9]$/.test(body) || body[0] > body[3])) {
 +                throw new Error('Unsupported legacy project glob range: use explicit brace alternatives: ' + pattern);
 +            }
 +        }
 +    }
++    if (groups !== 0) throw new Error('Unsupported legacy project glob group: parentheses must be balanced: ' + pattern);
 +}
 +const slash = value => value.split(path.sep).join('/');
 +function globProjects(pattern, { cwd, ignore }) {

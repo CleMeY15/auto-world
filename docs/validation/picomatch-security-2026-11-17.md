@@ -1,6 +1,6 @@
 # Picomatch security tooling maintenance — 17 November 2026
 
-Status: LOCAL_NON_BROWSER_VALIDATED / DELIVERY_AND_REVIEW_PENDING. Focused prerequisite for the
+Status: REVIEW_CORRECTIONS_LOCALLY_VALIDATED / DELIVERY_AND_RECHECK_PENDING. Focused prerequisite for the
 unchanged dependency gate, not product delivery or image admission. Parent owns
 independent final review, PR247 reconciliation and delivery; this implementation
 does not alter PR247 or its evidence. TASK-0005/0005A stay IN_PROGRESS and the243
@@ -87,11 +87,21 @@ parentheses and negative extglobs). Broader discriminating probes found:
 - Padded/stepped `a{01..05..2}.json` yielded no old matches but glob expands it.
 
 The adapter refuses those forms in projects AND active ignores, with an error
-asking for explicit paths or brace alternatives. No new regexp engine attempts
-unsafe equivalence. These are intentional fail-closed restrictions, **not universal
-compatibility**, and need parent independent source/security review before
-acceptance. Existing repository configurations do not use these optional forms.
-Escaped literal parentheses remain available. No type-aware rule is disabled.
+asking for explicit paths or brace alternatives. After independent review, the
+range contract is narrowed to ascending, unsigned single ASCII digits (`{0..9}`
+or a subrange, including equal endpoints). Multi-digit, signed, padded, stepped,
+descending, alphabetic, unfinished and nested range constructs are refused.
+All 55 admitted endpoint pairs are tested as projects and active ignores, and a
+bounded original-consumer differential capture qualifies all 110 selections.
+Within expanded glob patterns, unescaped parentheses must form balanced positive
+extglobs (`?`, `*`, `+`, `@`);
+a backslash-escaped operator cannot introduce a group. Bare, negative and
+unfinished groups fail explicitly; escaped literal parentheses remain available.
+These syntax guards define deliberate restrictions around the qualified corpus;
+they do not claim universal Picomatch grammar equivalence. No new regexp engine
+attempts unsafe equivalence, and no type-aware rule is disabled. Existing repository
+configurations do not use the refused optional forms. Independent recheck remains
+required before acceptance.
 
 Secret output order was observably asynchronous in three original captures;
 replacement uses deterministic literal input order. All15 original batches retain
@@ -237,3 +247,56 @@ patch, selectors, dependency metadata and lockfile are unchanged. Hosted Windows
 qualification, other source CI, and independent source/security review remain
 pending; no Windows pass is inferred from Linux. Parent evidence is retained in
 the original owner checkout's `.local-data/picomatch-pr248-integration-wnnrytri/`.
+
+
+### Independent review corrections (parent, 17 November 2026)
+
+The two independent Codex `gpt-6-astra / ultra` reviews of `cb689219` yielded
+code **REQUEST_CHANGES** and architecture **WATCH**; synthesis is **REQUEST_CHANGES**.
+Their original reports and all failed runs remain immutable private evidence.
+Parent corrections are limited to:
+
+- **R1:** explicitly reject unqualified ranges in both projects and active ignores.
+  The original `x{10..12}.json` selects `x1.json`/`x2.json`, whereas the replacement
+  previously selected `x10.json`/`x11.json`/`x12.json`; signed ranges also differed.
+  The restriction above prevents silently changed typechecking coverage.
+- **R2:** classify globs with `nocomment: true`, consistently with expansion and
+  ignore matching. `#*.json` now expands, an unmatched hash glob remains empty,
+  and a missing literal keeps its original explicit priority.
+- Tighten balanced/escaped positive-extglob guards; preserve matching and
+  nonmatching 200-character fixture filenames for all three repeated shapes
+  `+(a)`, `+(*a)` and `+(*)`, independently through project and active-ignore
+  paths in subprocesses with five-second deadlines. Never run these adversarial
+  cases through the vulnerable baseline.
+- Remove the unrelated upstream `CHANGELOG.md` deletion from the patch and
+  refresh its lockfile identity. Fresh installation must retain that original file.
+
+Validation evidence for this revision is in the parent's private
+`.local-data/picomatch-review-fixes-877fmsx4/`. Initial regression execution on the
+old installed patch failed as expected; it is retained. New exact-head Linux,
+Windows, full quality/browser results and both independent rechecks remain
+separate delivery requirements. Historical local 123 exclusions include 54 absent
+Python prerequisites and two pinned-Git prerequisites beyond the supplied hosted
+67; their local absence never establishes hosted coverage parity.
+
+
+Parent validation on the corrected patch and frozen tracked contents:
+
+| Gate | Corrected-source result |
+| --- | --- |
+| Fresh frozen install | PASS; upstream changelog retained, 186,586 bytes, identical SHA256 `013c2a4ae154a5b540449703fbfb0fc947e078684189429a22b7e14ded483aae` |
+| Installed graph | All 15 workspaces; no Picomatch, tinyglobby or fdir package keys/store entries |
+| Targeted tests | 86 passes, zero failures/skips (23 parent cases plus 63 subtests) |
+| Original-consumer comparison | 114 exact ordered selections equal, including all 55 qualified ranges through project and ignore paths; SHA256 `7b540348ab301f9e39c4b0ad63f9c8a1a7fa0bbc4e5dd53a1bea9372d7aec034` |
+| Lint / typecheck | 14/14 and 23/23 tasks pass, none cached |
+| Root tests | 3,243 passes, zero failures, 123 local exclusions; complete excluded-case list identical to the prior local baseline |
+| Package test graph | 28/28 tasks pass; detailed cache counts remain in the original log |
+| Build / secrets / full low-threshold audit | PASS; no known vulnerabilities, audit threshold unchanged |
+| Browser / hosted Windows | Pending for this corrected source; local browser not retried on the occupied port |
+
+The patch hash is `75f5ae5683f3249fdad26196925390d096240a1f449789d23c0ba2fcf63458c6`.
+Lock refresh changed only that identity and upstream deprecation metadata for the
+unchanged Secretlint preset. All 1,449 tracked contents stayed fixed during the
+serialized gates (`validation-source.json`, `gates.json`). This result-note update
+changes documentation only; final published source is separately bound for both
+independent rechecks. Local results are not hosted coverage or main acceptance.
