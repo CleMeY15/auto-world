@@ -18,6 +18,7 @@ const fileOf = (component) => component.properties.find((p) => p.name === "aquas
 const ml = "usr/share/opensearch/plugins/opensearch-ml/guava-32.1.3-jre.jar";
 const analytics = "usr/share/opensearch/plugins/opensearch-security-analytics/guava-32.1.3-jre.jar";
 
+const agent = read("agent-publications");
 const samlOwner = (release) => "usr/share/opensearch/plugins/opensearch-security/opensaml-" + release + ".0.0-all.jar";
 
 // Only the old report is a real scan. Model candidate scanner visibility from
@@ -77,6 +78,11 @@ function syntheticCandidate({ fullCoverage = false } = {}) {
   }
   if (fullCoverage) {
     for (const p of sourcePackages) {
+      if (p.Name === agent.name && p.FilePath === agent.file) {
+        p.Version = agent.candidate.version;
+        p.Identifier.PURL = "pkg:maven/org.opensearch/opensearch-agent@" + p.Version;
+        continue;
+      }
       const next = successor(p.Name, p.FilePath);
       if (!next) continue;
       p.FilePath = next.file;
@@ -86,6 +92,12 @@ function syntheticCandidate({ fullCoverage = false } = {}) {
     }
     for (const c of sbom.components) {
       const file = fileOf(c);
+      if (file?.value === agent.file && c.group + ":" + c.name === agent.name) {
+        c.version = agent.candidate.version;
+        c["bom-ref"] = c.purl = "pkg:maven/org.opensearch/opensearch-agent@" + c.version;
+        c.hashes = [{ alg: "SHA-1", content: agent.candidate.componentSha1 }];
+        continue;
+      }
       const next = successor(c.group + ":" + c.name, file?.value);
       if (!next) continue;
       file.value = next.file;
@@ -358,9 +370,14 @@ test("requires per-copy evidence even in a still-detected JAR and on the unchang
   assert.equal(full.old.packages[retired.oldPackage].file, retired.owner);
   assert.ok(full.packageCoverage.provedMigrations.length > 0);
   assert.equal(full.packageCoverage.provedMigrations.length + full.packageCoverage.removedJarOwners.length, full.packages.removed.length);
-  for (const { oldPackage, candidatePackage } of full.packageCoverage.provedMigrations) {
+  for (const { oldPackage, candidatePackage, versionSource } of full.packageCoverage.provedMigrations) {
     assert.equal(full.old.packages[oldPackage].name, full.candidate.packages[candidatePackage].name);
-    assert.notEqual(full.old.packages[oldPackage].file, full.candidate.packages[candidatePackage].file);
+    if (versionSource === "agentPublications") {
+      assert.equal(full.old.packages[oldPackage].file, agent.file);
+      assert.equal(full.candidate.packages[candidatePackage].file, agent.file);
+    } else {
+      assert.notEqual(full.old.packages[oldPackage].file, full.candidate.packages[candidatePackage].file);
+    }
   }
 
   removeMavenCopy(data.candidateReport, name, owner);
@@ -378,6 +395,75 @@ test("requires per-copy evidence even in a still-detected JAR and on the unchang
   assert.deepEqual(both.unresolved.reasons, ["historical_package_loss"]);
   assert.deepEqual(both.history.packages.removed, [index]);
   assert.equal(both.history.orderedBlockersMatch && both.history.orderedFindingPathsMatch, true);
+});
+
+// The SDK projection isolates the agent obligation in an otherwise passing
+// comparison. Both scanner formats still pass through the production join.
+test("only the attested 1:1 same-path agent upgrade can earn coverage", async () => {
+  const data = inputs({ fullCoverage: true });
+  const full = await witnessedComparison(data);
+  const migrations = full.packageCoverage.provedMigrations.filter((m) => m.versionSource === "agentPublications");
+  assert.equal(full.qualification, "passed");
+  assert.equal(migrations.length, 1);
+  const [{ oldPackage, candidatePackage }] = migrations;
+  assert.equal(full.old.packages[oldPackage].version, "3.9.0");
+  assert.equal(full.candidate.packages[candidatePackage].version, "3.10.0");
+
+  for (const [side, problems] of [
+    ["candidateReport", ["stale", "version", "coordinate", "path", "layer", "diffID", "missing", "duplicate",
+      "mixedVersions", "noHash", "wrongHash", "duplicateHash", "contradictorySha256", "jsonOnly", "sbomOnly"]],
+    ["oldReport", ["version", "coordinate", "path", "layer", "missing", "duplicate", "noHash", "wrongHash"]],
+  ]) {
+    for (const problem of problems) {
+      const altered = globalThis.structuredClone(data), pair = altered[side];
+      const java = pair.json.Results[1], pkg = java.Packages.find((p) => p.FilePath === agent.file);
+      const lib = pair.sbom.components.find((c) => fileOf(c)?.value === agent.file);
+      if (["stale", "version", "coordinate"].includes(problem)) {
+        if (problem === "coordinate") {
+          lib.group = "other.group";
+          pkg.Name = lib.group + ":" + lib.name;
+        } else {
+          pkg.Version = lib.version = problem === "stale" ? "3.9.0" : "3.10.1";
+        }
+        pkg.Identifier.PURL = lib.purl = "pkg:maven/" + lib.group + "/" + lib.name + "@" + lib.version;
+        if (problem === "stale") lib.hashes = [{ alg: "SHA-1", content: agent.old.componentSha1 }];
+      }
+      if (problem === "path") pkg.FilePath = fileOf(lib).value = agent.file + "!/other.jar";
+      if (problem === "layer" || problem === "diffID") {
+        const layer = pair.json.Metadata.Layers[0];
+        pkg.Layer = { Digest: problem === "layer" ? layer.Digest : pkg.Layer.Digest, DiffID: layer.DiffID };
+        lib.properties.find((p) => p.name.endsWith(":LayerDigest")).value = pkg.Layer.Digest;
+        lib.properties.find((p) => p.name.endsWith(":LayerDiffID")).value = pkg.Layer.DiffID;
+      }
+      if (problem === "missing") removeMavenCopy(pair, agent.name, agent.file);
+      if (problem === "jsonOnly") pair.sbom.components.splice(pair.sbom.components.indexOf(lib), 1);
+      if (problem === "sbomOnly") java.Packages.splice(java.Packages.indexOf(pkg), 1);
+      if (problem === "duplicate" || problem === "mixedVersions") {
+        const extra = globalThis.structuredClone(pkg), component = globalThis.structuredClone(lib);
+        component["bom-ref"] = "duplicate-agent";
+        if (problem === "mixedVersions") {
+          extra.Version = component.version = "3.9.0";
+          extra.Identifier.PURL = component.purl = "pkg:maven/org.opensearch/opensearch-agent@3.9.0";
+          component.hashes = [{ alg: "SHA-1", content: agent.old.componentSha1 }];
+        }
+        java.Packages.push(extra);
+        pair.sbom.components.push(component);
+      }
+      if (problem === "noHash") delete lib.hashes;
+      if (problem === "wrongHash") lib.hashes[0].content = "0".repeat(40);
+      if (problem === "duplicateHash") lib.hashes.push({ ...lib.hashes[0] });
+      if (problem === "contradictorySha256") lib.hashes.push({ alg: "SHA-256", content: agent.old.jarSha256 });
+
+      if (["jsonOnly", "sbomOnly", "diffID"].includes(problem)) {
+        await assert.rejects(witnessedComparison(altered), problem === "diffID" ? /candidate_json_layer_invalid/u : /scanner_official_sbom_inventory_mismatch/u);
+        continue;
+      }
+      const result = await witnessedComparison(altered);
+      assert.equal(result.qualification, "failed", side + "/" + problem);
+      assert.ok(!result.packageCoverage.provedMigrations.some((m) => m.versionSource === "agentPublications"));
+      assert.ok(result.unresolved.unexplainedPackageLosses.length || result.history.packages.removed.length);
+    }
+  }
 });
 
 test("returns all mapped gaps, RPM gaps and excess occurrences of a known advisory in one failed delta", async () => {
@@ -581,7 +667,7 @@ test("partitions the complete archived owner population independently of finding
   assert.deepEqual(r.references.renamedOwners, { file: "opensearch-310/renamed-jar-owners.json", size: 195019,
     sha256: "1221378495abb4d59a7be667029a305fc5bd0df5ea05e7a58168947d814f71b3" });
   assert.deepEqual(r.packageCoverage.unresolvedOwners, table.unresolved);
-  assert.equal(r.packageCoverage.provedMigrations.length, 374);
+  assert.equal(r.packageCoverage.provedMigrations.length, 375);
   assert.equal(r.packageCoverage.removedJarOwners.length, 1);
   assert.equal(r.packageCoverage.unresolvedOwnerPackages.length, 10);
   assert.deepEqual(r.unresolved.reasons, ["unexplained_package_loss"]);
@@ -763,7 +849,7 @@ test("separates ten physically observed SDK copies from publication ambiguity an
   assert.ok(observations.every((o) => o.status === "observed_version_ambiguous" && o.historicalSha1 &&
     o.historicalSha1 === o.oldSha1 && o.oldSha1 === o.candidateSha1 && o.candidatePackages.length === 1 &&
     r.candidate.packages[o.candidatePackages[0]].file === o.file));
-  assert.equal(r.packageCoverage.provedMigrations.length, 374);
+  assert.equal(r.packageCoverage.provedMigrations.length, 375);
 
   // A fresh old control can itself report another published label. Preserve
   // its changed historical tuple separately from the new image's coverage.

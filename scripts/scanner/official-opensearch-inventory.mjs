@@ -24,6 +24,7 @@ const files = {
   jars: [dir + "jar-paths.json", 75628, "cd573a3a0a4071d343e99ae74f63da2fcd464dccfc2ee8fedae484f0b518fb59"],
   opensaml: [dir + "opensaml-candidate-maven.json", 2252, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146"],
   renamedOwners: [dir + "renamed-jar-owners.json", 195019, "1221378495abb4d59a7be667029a305fc5bd0df5ea05e7a58168947d814f71b3"],
+  agentPublications: [dir + "agent-publications.json", 1977, "f621837918626a5690b81be0f934f4cd070c3d85709bf01c3c66890627d24319"],
   sdkPublications: [dir + "sdk-publications.json", 1187, "a4e7b7c4f6582027d401e190f45e47e14fcfebbaeda8a973d4a28ccf2bf2b7fe"],
   correspondence: [dir + "matched-82.json", 64841, "43319234891a5c18f32c143dcd80e74bbf6d62680d37aec5aaf9feafa13e78d8"],
   receipt: [dir + "official-audit-receipt.json", 163221, "927f0336de75c2e5747d68d958e52c9543de8bee629ca15613fba19488c02159"],
@@ -509,6 +510,16 @@ function componentSha1(sbom, pkg) {
   return matches.length === 1 && /^[a-f0-9]{40}$/u.test(matches[0].content) ? matches[0].content : null;
 }
 
+// inventory() has already joined the JSON and CycloneDX occurrences on GAV,
+// PURL, path and both layer identities. The pinned publication binds the
+// component SHA-1 to the SHA-256 of the independently measured JAR bytes.
+function agentCopyMatches(pkg, sbom, proof) {
+  if (!pkg || pkg.version !== proof.version || !equal(pkg.layer, proof.layer) ||
+      componentSha1(sbom, pkg) !== proof.componentSha1) return false;
+  const sha256 = sbom.components[pkg.sbomComponent].hashes.filter((h) => h.alg === "SHA-256");
+  return !sha256.length || (sha256.length === 1 && sha256[0].content === proof.jarSha256);
+}
+
 // The independent study verified the original CycloneDX SHA-1 against the
 // identical published SDK bytes, and located all these JARs in OCI layer 3.
 // Preserve this observation without choosing among the publication versions.
@@ -543,7 +554,26 @@ function reconcileRemovedPackages({ old, candidate, packages, mapped, refs, base
   const slot = (p, file) => JSON.stringify([p.class, p.type, p.target, p.name, file, p.epoch, p.release, p.arch]);
   const available = positions(candidate.packages, (p) => slot(p, p.file)), obligations = new Map();
   const provedMigrations = [], removedJarOwners = [], unresolvedOwnerPackages = [], unexplainedPackageLosses = [], replacementGaps = [];
+  const agent = refs.agentPublications;
+  const agentCopies = (inventory) => inventory.packages.flatMap((p, i) =>
+    p.type === "jar" && p.name === agent.name && p.file === agent.file ? [i] : []);
+  const oldAgents = new Set(agentCopies(old)), newAgents = agentCopies(candidate);
   for (const [index, p] of old.packages.entries()) {
+    // Check even an exact delta match: the candidate ships different bytes
+    // under the same filename, so retaining the old GAV is a coverage loss.
+    if (oldAgents.has(index)) {
+      const j = newAgents[0], next = candidate.packages[j];
+      if (oldAgents.size === 1 && newAgents.length === 1 && removed.has(index) && added.has(j) &&
+          agentCopyMatches(historicalCopies.get(index), refs.sbom, agent.old) &&
+          agentCopyMatches(p, oldSbom, agent.old) && agentCopyMatches(next, candidateSbom, agent.candidate) &&
+          slot(p, p.file) === slot(next, next.file)) {
+        added.delete(j);
+        provedMigrations.push({ oldPackage: index, candidatePackage: j, versionSource: "agentPublications" });
+      } else {
+        unexplainedPackageLosses.push(index);
+      }
+      continue;
+    }
     const owner = p.type === "jar" && outerJar(p.file);
     if (!owner || shipped.has(owner)) {
       if (!removed.has(index)) continue;

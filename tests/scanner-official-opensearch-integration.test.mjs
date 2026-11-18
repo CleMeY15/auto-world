@@ -45,6 +45,7 @@ assert.equal(identity(opensamlBytes).sha256, "42618c9c2f56573088d487ccfff064756b
 const opensaml = JSON.parse(opensamlBytes);
 const opensamlWitness = "org.opensaml:opensaml-saml-impl";
 const jline = "org.jline:jline-builtins";
+const agent = read("agent-publications");
 const ownerReference = read("renamed-jar-owners");
 const renamedWitnesses = [
   { scenario: "missing-notifications-ses", oldFile: "usr/share/opensearch/plugins/opensearch-notifications-core/opensearch-notifications-core-spi-3.9.0.0.jar",
@@ -130,6 +131,8 @@ function syntheticCandidate(scenario) {
     let file = alias ?? replacement?.[0] ?? pkg.FilePath;
     let version = replacement?.[2].version ?? pkg.Version;
     if (alias && scenario === "sdk-publication-label") version = "3.10.0.0";
+    const isAgent = file === agent.file && pkg.Name === agent.name;
+    if (isAgent) version = agent.candidate.version;
     let layer = candidateLayer.get(pkg.Layer.Digest);
     if (successor) {
       const evidence = successor.coordinates.filter((row) => row.name === pkg.Name);
@@ -153,6 +156,7 @@ function syntheticCandidate(scenario) {
     const purl = "pkg:maven/" + group + "/" + name + "@" + version;
     sbom.components.push({ "bom-ref": "synthetic-" + sbom.components.length, type: "library", group, name, version, purl,
       ...(alias ? { hashes: sdkHashes.get(oldOwner) } : {}),
+      ...(isAgent ? { hashes: [{ alg: "SHA-1", content: agent.candidate.componentSha1 }] } : {}),
       properties: [prop("PkgType", "jar"), prop("FilePath", file), prop("LayerDigest", Digest), prop("LayerDiffID", DiffID)] });
     return [{ Name: pkg.Name, Version: version, FilePath: file, Layer: { Digest, DiffID }, Identifier: { PURL: purl } }];
   });
@@ -351,7 +355,7 @@ if (process.argv[2] === "recover") {
         .map((p) => p.version);
       assert.deepEqual(sdkVersions.sort(), scenario === "sdk-publication-label" ? Array(10).fill("3.10.0.0") :
         [...Array(2).fill("3.3.0.0"), ...Array(8).fill("3.7.0.0")]);
-      assert.equal(inventory.packageCoverage.provedMigrations.length, 374);
+      assert.equal(inventory.packageCoverage.provedMigrations.length, 375);
       assert.deepEqual(inventory.packageCoverage.removedJarOwners.map((p) => p.owner), [removed.oldFile]);
       assert.deepEqual(inventory.unresolved.reasons, ["ambiguous_owner_version"]);
       assert.deepEqual(inventory.unresolved.unexplainedPackageLosses, []);
@@ -520,7 +524,7 @@ if (process.argv[2] === "recover") {
     assert.deepEqual(replay.jarCoverage.wrongLayerPackages, [220]);
     assert.deepEqual(replay.unresolved.unexplainedPackageLosses, [220]);
     assert.equal(replay.candidate.packages[220].file, pkg.FilePath);
-    assert.equal(replay.packageCoverage.provedMigrations.length, 374);
+    assert.equal(replay.packageCoverage.provedMigrations.length, 375);
     assert.equal(replay.packageCoverage.removedJarOwners.length, 1);
   });
 
