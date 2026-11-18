@@ -1,0 +1,1806 @@
+[
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-106451",
+      "PkgName": "at.yawk.lz4:lz4-java",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/lz4-java-1.11.2.jar",
+      "InstalledVersion": "1.11.2",
+      "FixedVersion": "1.11.4",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/lz4-java-1.12.1.jar",
+      "META-INF/maven/at.yawk.lz4/lz4-java/pom.properties",
+      {
+        "artifactId": "lz4-java",
+        "groupId": "at.yawk.lz4",
+        "version": "1.12.1"
+      },
+      "sha256:c75bfbc6980e8b90ee76c75ec5b67058b6b9bfa1e19af6a3cf75dccde533e750"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89407",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "com.fasterxml.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "com.fasterxml.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.2.jar",
+      "InstalledVersion": "2.22.2",
+      "FixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.4.jar",
+      "META-INF/maven/com.fasterxml.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "com.fasterxml.jackson.core",
+        "version": "2.22.4"
+      },
+      "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/guava-32.1.3-jre.jar",
+      "InstalledVersion": "32.1.3-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/guava-32.1.3-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "32.1.3-jre"
+      },
+      "sha256:6d4e2b5a118aab62e6e5e29d185a0224eed82c85c40ac3d33cf04a270c3b3744"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security-analytics/guava-32.1.3-jre.jar",
+      "InstalledVersion": "32.1.3-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security-analytics/guava-32.1.3-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "32.1.3-jre"
+      },
+      "sha256:6d4e2b5a118aab62e6e5e29d185a0224eed82c85c40ac3d33cf04a270c3b3744"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "InstalledVersion": "33.0.0-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "33.0.0-jre"
+      },
+      "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/modules/transport-grpc/guava-33.2.1-jre.jar",
+      "InstalledVersion": "33.2.1-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/modules/transport-grpc/guava-33.2.1-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "33.2.1-jre"
+      },
+      "sha256:452b2d9787b7d366fa8cf5ed9a1c40404542d05effa7a598da03bbbbb76d9f31"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-performance-analyzer/guava-33.2.1-jre.jar",
+      "InstalledVersion": "33.2.1-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-performance-analyzer/guava-33.2.1-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "33.2.1-jre"
+      },
+      "sha256:452b2d9787b7d366fa8cf5ed9a1c40404542d05effa7a598da03bbbbb76d9f31"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/guava-33.3.0-jre.jar",
+      "InstalledVersion": "33.3.0-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/guava-33.7.2-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "artifactId": "guava",
+        "groupId": "com.google.guava",
+        "version": "33.7.2-jre"
+      },
+      "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/guava-33.5.0-jre.jar",
+      "InstalledVersion": "33.5.0-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/guava-33.5.0-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "groupId": "com.google.guava",
+        "artifactId": "guava",
+        "version": "33.5.0-jre"
+      },
+      "sha256:1e301f0c52ac248b0b14fdc3d12283c77252d4d6f48521d572e7d8c4c2cc4ac7"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-search-relevance/guava-33.7.1-jre.jar",
+      "InstalledVersion": "33.7.1-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-search-relevance/guava-33.7.2-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "artifactId": "guava",
+        "groupId": "com.google.guava",
+        "version": "33.7.2-jre"
+      },
+      "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-102554",
+      "PkgName": "com.google.guava:guava",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/guava-33.7.1-jre.jar",
+      "InstalledVersion": "33.7.1-jre",
+      "FixedVersion": "33.7.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/guava-33.7.2-jre.jar",
+      "META-INF/maven/com.google.guava/guava/pom.properties",
+      {
+        "artifactId": "guava",
+        "groupId": "com.google.guava",
+        "version": "33.7.2-jre"
+      },
+      "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-77422",
+      "PkgName": "org.jline:jline-builtins",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jline-builtins-3.21.0.jar",
+      "InstalledVersion": "3.21.0",
+      "FixedVersion": "4.3.1, 3.30.15",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jline-builtins-3.21.0.jar",
+      "META-INF/maven/org.jline/jline-builtins/pom.properties",
+      {
+        "artifactId": "jline-builtins",
+        "groupId": "org.jline",
+        "version": "3.21.0"
+      },
+      "sha256:e0c0581b8198f60dff08d7fe1fffe55019b6a798ac022a4b17ee4cf718f01f07"
+    ],
+    "meetsOriginalThreshold": false
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-75140",
+      "PkgName": "org.jsoup:jsoup",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jsoup-1.23.1.jar",
+      "InstalledVersion": "1.23.1",
+      "FixedVersion": "1.23.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-reports-scheduler/jsoup-1.23.2.jar",
+      "META-INF/maven/org.jsoup/jsoup/pom.properties",
+      {
+        "artifactId": "jsoup",
+        "groupId": "org.jsoup",
+        "version": "1.23.2"
+      },
+      "sha256:e9d8c856856680427f096d156f02a414289985c930998fcb519ce5be39b42003"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-75140",
+      "PkgName": "org.jsoup:jsoup",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-skills/jsoup-1.23.1.jar",
+      "InstalledVersion": "1.23.1",
+      "FixedVersion": "1.23.2",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-skills/jsoup-1.23.2.jar",
+      "META-INF/maven/org.jsoup/jsoup/pom.properties",
+      {
+        "artifactId": "jsoup",
+        "groupId": "org.jsoup",
+        "version": "1.23.2"
+      },
+      "sha256:e9d8c856856680427f096d156f02a414289985c930998fcb519ce5be39b42003"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-108106",
+      "PkgName": "org.xerial.snappy:snappy-java",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.8.jar",
+      "InstalledVersion": "1.1.10.8",
+      "FixedVersion": "1.1.10.9",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.12.jar",
+      "https://repo.maven.apache.org/maven2/org/xerial/snappy/snappy-java/1.1.10.12/snappy-java-1.1.10.12.jar",
+      {
+        "groupId": "org.xerial.snappy",
+        "artifactId": "snappy-java",
+        "version": "1.1.10.12"
+      },
+      "sha256:1c03ce77b3f2e926c25a952612e372404d80bc88c6c8052bede964804fabd732"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-93451",
+      "PkgName": "org.xerial.snappy:snappy-java",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.8.jar",
+      "InstalledVersion": "1.1.10.8",
+      "FixedVersion": "1.1.10.9",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.12.jar",
+      "https://repo.maven.apache.org/maven2/org/xerial/snappy/snappy-java/1.1.10.12/snappy-java-1.1.10.12.jar",
+      {
+        "groupId": "org.xerial.snappy",
+        "artifactId": "snappy-java",
+        "version": "1.1.10.12"
+      },
+      "sha256:1c03ce77b3f2e926c25a952612e372404d80bc88c6c8052bede964804fabd732"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-89425",
+      "PkgName": "tools.jackson.core:jackson-core",
+      "PkgPath": "usr/share/opensearch/lib/jackson-core-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/lib/jackson-core-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-core/pom.properties",
+      {
+        "artifactId": "jackson-core",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:494b9f5fccf008042d5a72c5bf00629b144c0ba7362a9864cbb02234c9772651"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91776",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  },
+  {
+    "original": {
+      "target": "Java",
+      "VulnerabilityID": "CVE-2026-91777",
+      "PkgName": "tools.jackson.core:jackson-databind",
+      "PkgPath": "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.2.jar",
+      "InstalledVersion": "3.2.2",
+      "FixedVersion": "3.1.7, 3.2.3",
+      "Severity": "HIGH"
+    },
+    "candidate": [
+      "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.4.jar",
+      "META-INF/maven/tools.jackson.core/jackson-databind/pom.properties",
+      {
+        "artifactId": "jackson-databind",
+        "groupId": "tools.jackson.core",
+        "version": "3.2.4"
+      },
+      "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d"
+    ],
+    "meetsOriginalThreshold": true
+  }
+]
