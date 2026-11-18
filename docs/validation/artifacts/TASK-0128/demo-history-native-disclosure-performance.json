@@ -1,0 +1,105 @@
+{
+  "browserVersion": "156.0.8078.4",
+  "budgetMaxMs": 100,
+  "caveat": "Bounded synthetic Chromium lab measurement under 4x CPU slowdown; native details toggle or local group activation to next animation-frame callback with mounted, focused rows. This is not production INP or physical-device evidence.",
+  "collectedAt": "2026-11-18T15:51:35.704Z",
+  "host": {
+    "architecture": "x64",
+    "logicalCpus": 8,
+    "cpuModel": "AMD EPYC 9354P 32-Core Processor",
+    "memoryBytes": 33648418816
+  },
+  "profile": {
+    "cpuSlowdownMultiplier": 4,
+    "evidenceRecords": 256,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "samples": [
+    {
+      "durationMs": 5.199999988079071,
+      "operation": "expand",
+      "sample": 1
+    },
+    {
+      "durationMs": 3.800000011920929,
+      "operation": "collapse",
+      "sample": 2
+    },
+    {
+      "durationMs": 5.899999976158142,
+      "operation": "expand",
+      "sample": 3
+    },
+    {
+      "durationMs": 6.199999988079071,
+      "operation": "collapse",
+      "sample": 4
+    },
+    {
+      "durationMs": 4.099999964237213,
+      "operation": "expand",
+      "sample": 5
+    },
+    {
+      "durationMs": 5.100000023841858,
+      "operation": "collapse",
+      "sample": 6
+    },
+    {
+      "durationMs": 4.799999952316284,
+      "operation": "expand",
+      "sample": 7
+    },
+    {
+      "durationMs": 4.5,
+      "operation": "collapse",
+      "sample": 8
+    },
+    {
+      "durationMs": 7.699999988079071,
+      "operation": "expand",
+      "sample": 9
+    },
+    {
+      "durationMs": 5,
+      "operation": "collapse",
+      "sample": 10
+    }
+  ],
+  "groupSamples": [
+    23.900000035762787,
+    22.799999952316284,
+    24.19999998807907,
+    30.19999998807907,
+    21.80000001192093,
+    24.80000001192093,
+    28.80000001192093,
+    23.600000023841858,
+    24.5,
+    26.30000001192093,
+    30.899999976158142,
+    28.200000047683716,
+    28.900000035762787,
+    29.5,
+    27.5,
+    32.89999997615814,
+    27.899999976158142,
+    22.899999976158142,
+    31.600000023841858,
+    33.09999996423721,
+    19.19999998807907,
+    26.19999998807907,
+    28.899999976158142,
+    26.69999998807907,
+    27.5,
+    30.30000001192093,
+    33.90000003576279,
+    37.39999997615814,
+    27,
+    37.59999996423721,
+    46.80000001192093
+  ]
+}

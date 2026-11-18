@@ -121,7 +121,11 @@
 .demo-history-disclosure summary:focus-visible, .demo-saved-search-disclosure summary:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
 .demo-history-list { list-style: none; margin: 0; padding: 0; }
 .demo-history-list li { border-bottom: 1px solid var(--aw-color-border); min-width: 0; padding-block: var(--aw-space-4); }
-.demo-evidence { border-top: 1px solid var(--aw-color-border); padding-top: var(--aw-space-8); }
+.demo-history-disclosure .demo-history-list li:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
+.demo-history-progress { display: grid; gap: var(--aw-space-2); justify-items: start; padding-block: var(--aw-space-3); }
+.demo-history-progress p { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); }
+.demo-history-progress button { max-width: 100%; overflow-wrap: anywhere; }
+.demo-evidence, .demo-vehicle-reports { border-top: 1px solid var(--aw-color-border); padding-top: var(--aw-space-8); }
 .demo-section-heading { max-width: 100%; min-width: 0; }
 .demo-section-heading h2 { margin-bottom: var(--aw-space-2); max-width: 100%; overflow-wrap: anywhere; }
 .demo-section-heading p { color: var(--aw-color-text-muted); max-width: var(--aw-layout-reading-max); overflow-wrap: anywhere; }
