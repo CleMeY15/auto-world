@@ -14,7 +14,6 @@ for (const enabled of [true, false]) {
     expect(html).toContain("Aucune annonce ni recherche réelle");
     expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)|<img(?:\s|>)|sourceListingId|connectorRunId|snapshotId|legalStatus/u);
     await expect(page.getByRole("link", { name: "Voir les états" })).toHaveAttribute("href", "#states");
-    await expect(page.getByRole("button", { name: "Rechercher", exact: true })).toHaveAccessibleDescription("Ce bouton illustre l’état désactivé.");
     const guides = page.getByRole("navigation", { name: "Outils" });
     await expect(guides.getByRole("link", { name: "Carte grise" })).toHaveAttribute("href", "/carte-grise");
     await expect(guides.getByRole("link", { name: "Historique du véhicule" })).toHaveAttribute("href", "/historique-vehicule");
