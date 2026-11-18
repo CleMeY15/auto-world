@@ -231,8 +231,10 @@ test("partial and stale results can refresh without losing visible context", asy
     await expect(page.getByRole("button", { name: "Actualisation…" })).toBeVisible();
     await expect(page.locator(".demo-result-card")).toHaveCount(1);
     await expect(page.getByText(/26.000,00/)).toBeVisible();
+    await expect(page.locator("#demo-result-open-0")).toBeDisabled();
     releaseRefresh?.();
     await expect(page.getByText(/27.000,00/)).toBeVisible();
+    await expect(page.locator("#demo-result-open-0")).toBeEnabled();
     await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeFocused();
   }
 });
