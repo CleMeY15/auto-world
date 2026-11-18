@@ -22,7 +22,8 @@ Plan: in both ephemeral Noble install steps, remove the exact EC2 priority-1
 entry only when the official HTTPS archive priority-2 fallback exists. Preserve
 the remaining bytes, including the security mirror. Other runner configurations
 keep their existing selection. Playwright installs native packages and both
-browsers within the existing 25-minute deadline. Revert to restore runner
+browsers with a 60-minute install limit. The quality and persistent-web jobs
+each allow 120 minutes overall for preparation, installation and validation. Revert to restore runner
 defaults on subsequent jobs. No migration is required.
 
 Local frozen install passed (Node 22.23.2, pnpm 10.15.0). The focused command

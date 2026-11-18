@@ -62,7 +62,7 @@ concurrency:
 jobs:
   prototype-web:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 120
     steps:
       - name: Check out exact source revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,7 +87,7 @@ jobs:
       - name: Validate the prototype composition contracts
         run: node --conditions=auto-world-prototype --conditions=auto-world-demo --test scripts/prototype-web/*.test.mjs
       - name: Install both existing browser engines
-        timeout-minutes: 25
+        timeout-minutes: 60
         run: |
           sudo /usr/bin/python3.12 -I -S scripts/ci/playwright-apt-mirror.py /etc/apt/apt-mirrors.txt
           pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit
