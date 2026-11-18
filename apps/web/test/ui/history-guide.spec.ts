@@ -4,6 +4,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const HISTORY_PATH = "/historique-vehicule";
+const HELP = ".history-guide-support details";
+const MESSAGE = ".history-guide-steps details";
 const HISTOVEC_URL = "https://histovec.interieur.gouv.fr/histovec/accueil";
 const SERVICE_PUBLIC_URL = "https://www.service-public.gouv.fr/particuliers/vosdroits/F1707";
 const OFFICIAL_URLS = new Set([HISTOVEC_URL, SERVICE_PUBLIC_URL]);
@@ -198,8 +200,9 @@ test("the guide is a static independent route linked from root, demo and demo-di
   await expect(page).toHaveTitle(/HistoVec|historique du véhicule/i);
   await expect(page.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
   await expect(page.locator("#main")).toBeVisible();
-  await expect(page.locator("details")).toHaveCount(1);
-  await expect(page.locator("details > summary")).toHaveCount(1);
+  await expect(page.locator(MESSAGE)).toHaveCount(1);
+  await expect(page.locator(HELP)).toHaveCount(1);
+  await expect(page.locator(HELP).locator("summary")).toHaveCount(1);
 
   for (const entryPath of ["/", "/demo"]) {
     await page.goto(entryPath);
@@ -222,9 +225,11 @@ test("the server-rendered guide and official handoffs remain usable without Java
   const response = await page.goto(HISTORY_PATH);
   expect(response?.status()).toBe(200);
   await expect(page.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
-  await expect(page.locator("details")).toHaveJSProperty("open", false);
-  await page.locator("details > summary").click();
-  await expect(page.locator("details")).toHaveJSProperty("open", true);
+  await page.locator(MESSAGE).locator("summary").click();
+  await expect(page.locator(MESSAGE).locator("p")).toBeVisible();
+  await expect(page.locator(HELP)).toHaveJSProperty("open", false);
+  await page.locator(HELP).locator("summary").click();
+  await expect(page.locator(HELP)).toHaveJSProperty("open", true);
   await expect(page.locator("#history-help")).toBeVisible();
   await openInterceptedOfficialPage(context, page, "#history-official", HISTOVEC_URL);
   await openInterceptedOfficialPage(context, page, "#history-help", SERVICE_PUBLIC_URL);
@@ -244,7 +249,7 @@ test("the buyer guide states the holder workflow and its limits without claiming
   await expect(main).toContainText(/Auto World.{0,80}(?:ne|n’|n').{0,30}(?:récupère|vérifie)|(?:ne|n’|n').{0,30}(?:récupéré|vérifié).{0,60}Auto World/iu);
   await expect(main).toContainText(/(?:ne|n’|n').{0,40}garanti.{0,80}(?:état|condition)|(?:état|condition).{0,80}(?:ne|n’|n').{0,40}garanti/iu);
   await expect(main.locator("ol > li")).toHaveCount(3);
-  await page.locator("details > summary").click();
+  await page.locator(HELP).locator("summary").click();
   await expect(main).toContainText(/redemand\w*.{0,80}vendeur|demand\w*.{0,80}vendeur/iu);
   await expect(main.getByText(/sans accident|véhicule fiable|historique complet|rapport vérifié/iu)).toHaveCount(0);
 });
@@ -260,8 +265,9 @@ test("official links are exact private handoffs with no automatic traffic, forms
     if (["fetch", "xhr"].includes(request.resourceType())) applicationRequests.push(request.url());
   });
   await page.goto(HISTORY_PATH);
+  await page.locator(MESSAGE).locator("summary").click();
   await expectProtectedOfficialLink(page, "#history-official", HISTOVEC_URL, "history-destination");
-  await page.locator("details > summary").click();
+  await page.locator(HELP).locator("summary").click();
   await expectProtectedOfficialLink(page, "#history-help", SERVICE_PUBLIC_URL, "history-help-destination");
 
   await expect(page.locator("form, input, textarea, select, iframe, [contenteditable=true]")).toHaveCount(0);
@@ -311,7 +317,7 @@ test("the guide preserves seeded browser state and remains usable when storage i
     .__awRecordHistoryCacheOperation("seed-audit-barrier"));
   cacheOperations.length = 0;
   await page.goto(HISTORY_PATH);
-  await page.locator("details > summary").click();
+  await page.locator(HELP).locator("summary").click();
   await expect(page.locator("#history-help")).toBeVisible();
   await page.evaluate(() => (window as typeof window & { __awRecordHistoryCacheOperation: (value: string) => Promise<void> })
     .__awRecordHistoryCacheOperation("audit-barrier"));
@@ -341,8 +347,8 @@ test("the guide preserves seeded browser state and remains usable when storage i
   await page.evaluate(() => (window as typeof window & { __awRecordHistoryCacheOperation: (value: string) => Promise<void> })
     .__awRecordHistoryCacheOperation("interaction-seed-audit-barrier"));
   cacheOperations.length = 0;
-  await page.locator("details > summary").click();
-  await page.locator("details > summary").click();
+  await page.locator(HELP).locator("summary").click();
+  await page.locator(HELP).locator("summary").click();
   await page.evaluate(() => (window as typeof window & { __awRecordHistoryCacheOperation: (value: string) => Promise<void> })
     .__awRecordHistoryCacheOperation("audit-barrier"));
   expect(cacheOperations).toEqual(["audit-barrier"]);
@@ -376,9 +382,32 @@ test("the guide preserves seeded browser state and remains usable when storage i
     "sessionStorage:SecurityError",
   ]);
   await expect(deniedPage.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
-  await deniedPage.locator("details > summary").click();
+  await deniedPage.locator(HELP).locator("summary").click();
   await expect(deniedPage.locator("#history-help")).toBeVisible();
+  await deniedPage.locator(MESSAGE).locator("summary").click();
+  await expect(deniedPage.locator(MESSAGE).locator("p")).toBeVisible();
   await deniedContext.close();
+});
+
+test("the buyer can open, select and close the seller message offline", async ({ context, page }) => {
+  await page.goto(HISTORY_PATH);
+  const details = page.locator(MESSAGE);
+  const summary = details.locator("summary");
+  const message = details.locator("p");
+  await expect(summary).toHaveAccessibleName(/\S/u);
+  await expect(message).toBeHidden();
+  await context.setOffline(true);
+  await page.locator("#history-official").focus();
+  await page.keyboard.press("Tab");
+  await expect(summary).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(message).toBeVisible();
+  await message.click({ clickCount: 3 });
+  expect(await page.evaluate(() => window.getSelection()?.toString().trim())).toBe(await message.innerText());
+  await summary.focus();
+  await page.keyboard.press("Space");
+  await expect(message).toBeHidden();
+  await expect(summary).toBeFocused();
 });
 
 test("native help, skip navigation, keyboard focus and offline-local behavior remain truthful", async ({ context, page }, testInfo) => {
@@ -389,7 +418,7 @@ test("native help, skip navigation, keyboard focus and offline-local behavior re
   await page.keyboard.press("Enter");
   await expect(page.locator("#main")).toBeFocused();
 
-  const details = page.locator("details");
+  const details = page.locator(HELP);
   const summary = details.locator("summary");
   await summary.focus();
   await expect(summary).toBeFocused();
@@ -425,10 +454,12 @@ test("the required light and dark viewport matrix fits and passes WCAG checks", 
       await page.goto(`${HISTORY_PATH}?visual=${browserName}-${width}-${theme}`);
       await expect(page.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
       await screenshot(page, testInfo, `history-${browserName}-${width}-${theme}-collapsed.png`);
-      await page.locator("details > summary").click();
+      await page.locator(MESSAGE).locator("summary").click();
+      await expectMinimumTarget(page.locator(MESSAGE).locator("summary"));
+      await page.locator(HELP).locator("summary").click();
       await expectNoHorizontalOverflow(page);
       await expectMinimumTarget(page.locator("#history-official"));
-      await expectMinimumTarget(page.locator("details > summary"));
+      await expectMinimumTarget(page.locator(HELP).locator("summary"));
       await expectMinimumTarget(page.locator("#history-help"));
       const accessibility = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -448,14 +479,16 @@ test("200 percent platform and Verdana text remain operable with reduced motion"
       await page.goto(`${HISTORY_PATH}?text=${width}-${font}`);
       if (font === "verdana") await page.addStyleTag({ content: ":root { --aw-font-family: Verdana, sans-serif; }" });
       await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-      await page.locator("details > summary").click();
+      await page.locator(MESSAGE).locator("summary").click();
+      await expectMinimumTarget(page.locator(MESSAGE).locator("summary"));
+      await page.locator(HELP).locator("summary").click();
       await screenshot(page, testInfo, `history-${browserName}-${width}-light-text-200-${font}-before-overflow-check.png`);
       await expectNoHorizontalOverflow(page);
       await expect(page.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
       await expect(page.locator("#history-official")).toBeVisible();
       await expect(page.locator("#history-help")).toBeVisible();
       await expectMinimumTarget(page.locator("#history-official"));
-      await expectMinimumTarget(page.locator("details > summary"));
+      await expectMinimumTarget(page.locator(HELP).locator("summary"));
       await expectMinimumTarget(page.locator("#history-help"));
       const contentFit = await page.locator("main h1, main h2, main p, main li, main a, main summary").evaluateAll((elements) => elements
         .filter((element) => {

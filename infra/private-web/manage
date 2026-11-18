@@ -1,0 +1,38 @@
+#!/bin/sh
+# Installed root-owned under /opt/aw-private-web. Never accept a password in argv.
+set -eu
+test "$(id -u)" = 0
+cd /opt/aw-private-web
+as_auth() {
+    runuser -u aw-private-auth -- env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 \
+        DJANGO_SETTINGS_MODULE=settings PYTHONPATH=/opt/aw-private-web "$@"
+}
+case "${1:-}" in
+    init)
+        test "$#" -eq 1
+        install -d -o aw-private-auth -g aw-private-auth -m 0700 /var/lib/aw-private-auth
+        # Exclusive creation preserves the signing key on re-runs.
+        as_auth python3 -c '
+from pathlib import Path
+import os, secrets
+os.umask(0o077)
+path = Path("/var/lib/aw-private-auth/key")
+try:
+    with path.open("x") as out:
+        out.write(secrets.token_urlsafe(64))
+except FileExistsError:
+    if len(path.read_text().strip()) < 50:
+        raise SystemExit("Clé existante invalide, intervention locale requise")
+'
+        as_auth python3 -m django migrate --noinput
+        ;;
+    add|remove)
+        test "$#" -eq 2
+        as_auth python3 accounts.py "$1" "$2"
+        ;;
+    purge)
+        test "$#" -eq 1
+        as_auth python3 -m django clearsessions
+        ;;
+    *) echo "Usage: manage init | add IDENTIFIANT | remove IDENTIFIANT | purge" >&2; exit 2 ;;
+esac

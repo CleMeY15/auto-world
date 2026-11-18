@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+case "$1" in
+    online)
+        v4_http=80 v4_https=443 v6_http='[::]:80' v6_https='[::]:443' ;;
+    loopback)
+        v4_http=127.0.0.1:18080 v4_https=127.0.0.1:18443
+        v6_http='[::1]:18080' v6_https='[::1]:18443' ;;
+    *) exit 2 ;;
+esac
+sed -e "s|@V4_HTTP@|$v4_http|g" -e "s|@V4_HTTPS@|$v4_https|g" \
+    -e "s|@V6_HTTP@|$v6_http|g" -e "s|@V6_HTTPS@|$v6_https|g" \
+    -e "s|@RUNTIME@|$RUNTIME_DIRECTORY|g" -e "s|@CREDENTIALS@|$CREDENTIALS_DIRECTORY|g" \
+    nginx.conf > "$RUNTIME_DIRECTORY/nginx.conf"

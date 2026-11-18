@@ -1,0 +1,18 @@
+[Unit]
+Description=Auto World private synthetic Next build
+[Service]
+User=aw-private-product
+Group=aw-private-product
+WorkingDirectory=/opt/aw-private-product/apps/web
+Environment=NODE_ENV=production AUTO_WORLD_DEMO=1 AUTO_WORLD_WEB_BACKEND=offline NEXT_PUBLIC_PRIVATE_WEB=1 NEXT_TELEMETRY_DISABLED=1
+RuntimeDirectory=aw-private-product
+RuntimeDirectoryMode=0750
+UMask=0007
+ExecStart=/opt/aw-private-node/bin/node /opt/aw-private-web/product.cjs
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+IPAddressDeny=any
+IPAddressAllow=localhost
+Restart=on-failure

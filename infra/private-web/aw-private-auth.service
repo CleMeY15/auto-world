@@ -1,0 +1,21 @@
+[Unit]
+Description=Auto World private session authority
+[Service]
+User=aw-private-auth
+Group=aw-private-auth
+WorkingDirectory=/opt/aw-private-web
+Environment=DJANGO_SETTINGS_MODULE=settings
+Environment=PYTHONDONTWRITEBYTECODE=1
+StateDirectory=aw-private-auth
+StateDirectoryMode=0700
+RuntimeDirectory=aw-private-auth
+RuntimeDirectoryMode=0750
+UMask=0077
+ExecStart=/usr/bin/python3 -m gunicorn --bind unix:/run/aw-private-auth/auth.sock --no-control-socket --umask 007 --workers 2 wsgi_private:application
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+PrivateNetwork=true
+RestrictAddressFamilies=AF_UNIX
+Restart=on-failure
