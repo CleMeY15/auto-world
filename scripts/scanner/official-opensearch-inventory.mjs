@@ -1,7 +1,7 @@
 import path from "node:path";
 import { URLSearchParams } from "node:url";
 import { isDeepStrictEqual as equal } from "node:util";
-import { readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes, readBoundedJson } from "./controls.mjs";
 import { validateOfficialImageSbom } from "./official-audit.mjs";
 
 const root = path.resolve(import.meta.dirname, "../../docs/validation");
@@ -28,15 +28,20 @@ const files = {
 function requireEvidence(condition, reason) {
   if (!condition) throw new Error("scanner_opensearch_" + reason.slice(0, 1024));
 }
+async function readReference(directory, key) {
+  const [file, size, sha256] = files[key];
+  let input;
+  try { input = await readBoundedJson(path.join(directory, file), size); }
+  catch (cause) { throw new Error("scanner_opensearch_reference_invalid: " + file, { cause }); }
+  requireEvidence(equal(input.identity, { size, sha256 }), "reference_identity: " + file);
+  return { value: input.value, identity: { file, ...input.identity } };
+}
 export async function readOpenSearchReferences(directory = root) {
   const values = {}, identities = {};
-  for (const [key, [file, size, sha256]] of Object.entries(files)) {
-    let input;
-    try { input = await readBoundedJson(path.join(directory, file), size); }
-    catch (cause) { throw new Error("scanner_opensearch_reference_invalid: " + file, { cause }); }
-    requireEvidence(equal(input.identity, { size, sha256 }), "reference_identity: " + file);
+  for (const key of Object.keys(files)) {
+    const input = await readReference(directory, key);
     values[key] = input.value;
-    identities[key] = { file, ...input.identity };
+    identities[key] = input.identity;
   }
   return { values, identities };
 }
@@ -56,15 +61,40 @@ function verifyOci(side, refs) {
     (side === "old" || manifest.layers.reduce((n, l) => n + l.size, 0) === 1160663754), "oci_layers_invalid");
 }
 
-// The caller also runs its unchanged schema/policy checks after each JSON command.
-export function validateOpenSearchComparisonJson(json, side = "candidate") {
+// The first-format gate reads only the three pinned OCI objects. The complete
+// comparison reuses the same predicate with its already authenticated inputs.
+export async function validateOpenSearchComparisonJson(json, side = "candidate") {
   requireEvidence(["old", "candidate"].includes(side), "subject_role_invalid");
+  const refs = {};
+  for (const suffix of ["Index", "Platform", "Config"]) {
+    const key = side + suffix;
+    refs[key] = (await readReference(root, key)).value;
+  }
+  verifyOci(side, refs);
+  validateJsonSubject(json, side, refs);
+}
+function validateJsonSubject(json, side, refs) {
   const pin = subject(side), ref = repository + "@" + pin.platform.digest;
   requireEvidence(json?.SchemaVersion === 2 && json.Trivy?.Version === "0.76.2" &&
     json.ArtifactType === "container_image" && json.ArtifactName === ref && json.Metadata?.Reference === ref &&
     Array.isArray(json.Results) && json.Results.length > 0 && json.Results.length <= 4096 &&
     equal(json.Metadata.RepoDigests, [ref]) && json.Metadata.ImageConfig?.architecture === "amd64" &&
     json.Metadata.ImageConfig.os === "linux" && json.Metadata.ImageID === pin.configId, side + "_json_subject_invalid");
+  const config = refs[side + "Config"], manifest = refs[side + "Platform"];
+  const ids = config.rootfs.diff_ids, layers = json.Metadata.Layers;
+  requireEvidence(equal(json.Metadata.ImageConfig, config) && equal(json.Metadata.DiffIDs, ids) &&
+    Array.isArray(layers) && layers.length === manifest.layers.length && layers.length === ids.length &&
+    layers.every((layer, i) => layer?.Digest === manifest.layers[i].digest && layer.DiffID === ids[i]),
+    side + "_json_subject_invalid");
+  const layerIds = new Map(layers.map((layer) => [layer.Digest, layer.DiffID]));
+  for (const result of json.Results) {
+    for (const rows of [result.Packages ?? [], result.Vulnerabilities ?? []]) {
+      for (const { Layer } of rows) {
+        if (Layer !== undefined) requireEvidence(layerIds.has(Layer?.Digest) && layerIds.get(Layer.Digest) === Layer.DiffID,
+          side + "_json_layer_invalid");
+      }
+    }
+  }
 }
 
 function property(component, name) {
@@ -146,18 +176,21 @@ function validatePurl(p) {
 // Bound expanded rows as they are produced: an unusually long result.Target
 // occurs just once in the input, but can appear in many projected occurrences.
 function append(rows, row, budget) {
-  budget.bytes += Buffer.byteLength(JSON.stringify(row)) + 1;
+  budget.bytes += boundedJsonBytes(row, comparisonByteLimit - budget.bytes, "scanner_opensearch_projection_limit").length;
   requireEvidence(budget.bytes <= comparisonByteLimit && rows.length < 100000, "projection_limit");
   rows.push(row);
 }
-function inventory(pair, side, budget) {
+function inventory(pair, side, refs, budget) {
   const { json, sbom } = pair ?? {};
-  validateOpenSearchComparisonJson(json, side);
+  validateJsonSubject(json, side, refs);
   const pin = subject(side), ref = json.ArtifactName, rootComponent = sbom?.metadata?.component;
   const purl = "pkg:oci/opensearch@" + pin.platform.digest + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
   requireEvidence(rootComponent?.purl === purl && rootComponent["bom-ref"] === purl &&
     property(rootComponent, "ImageID") === pin.configId && property(rootComponent, "Reference") === ref &&
     property(rootComponent, "RepoDigest") === ref, side + "_sbom_subject_invalid");
+  const ids = rootComponent.properties.filter((p) => p.name === "aquasecurity:trivy:DiffID").map((p) => p.value);
+  requireEvidence(equal(ids, [...json.Metadata.DiffIDs].sort()), side + "_sbom_subject_invalid");
+  const layerIds = new Map(json.Metadata.Layers.map((layer) => [layer.Digest, layer.DiffID]));
   validateOfficialImageSbom(json, sbom, pin);
 
   const packages = [], findings = [];
@@ -192,6 +225,9 @@ function inventory(pair, side, budget) {
   const libraries = [];
   for (const [index, c] of sbom.components.entries()) {
     if (c.type !== "library") continue;
+    if (c.properties.some((p) => ["aquasecurity:trivy:LayerDiffID", "aquasecurity:trivy:LayerDigest"].includes(p.name))) {
+      requireEvidence(layerIds.get(property(c, "LayerDigest")) === property(c, "LayerDiffID"), side + "_sbom_layer_invalid");
+    }
     const type = property(c, "PkgType"), name = c.group ? c.group + (type === "jar" ? ":" : "/") + c.name : c.name;
     const file = c.properties.some((p) => p.name === "aquasecurity:trivy:FilePath") ? property(c, "FilePath") : null;
     libraries.push({ key: componentKey(type, name, c.version, c.purl ?? "", file), index });
@@ -234,15 +270,21 @@ function threshold(version, fixed) {
   return { floor: applicable[0].text, meetsFloor: compareParts(current, applicable[0].parts) >= 0 };
 }
 
+function outerJar(file) {
+  return file.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
+}
 function jarCoverage(refs, candidate) {
   const paths = new Set(refs.jars), detected = new Map();
+  const outsideStaticInventory = [];
   for (const [i, pkg] of candidate.packages.entries()) {
     if (pkg.type !== "jar") continue;
     // Trivy can identify an inner archive. Keep its exact path on the package
     // row, and separately attribute coverage to the physical outer archive.
-    const boundary = pkg.file.match(/^(.+?\.jar)(?:[!/:]|$)/u);
-    const outer = boundary?.[1];
-    requireEvidence(paths.has(outer), "jar_outside_static_inventory: " + pkg.file);
+    const outer = outerJar(pkg.file);
+    if (!paths.has(outer)) {
+      outsideStaticInventory.push(i);
+      continue;
+    }
     if (!detected.has(outer)) detected.set(outer, []);
     detected.get(outer).push(i);
   }
@@ -253,7 +295,7 @@ function jarCoverage(refs, candidate) {
     return { file, jarPaths: paths.length, detectedPaths: paths.filter((j) => j.packages.length).length };
   });
   requireEvidence(paths.size === 949 && descriptors.filter((d) => d.file.includes("/plugins/")).length === 26, "static_coverage_invalid");
-  return { jars, descriptors, undetectedJarPaths: jars.filter((j) => !j.packages.length).map((j) => j.file),
+  return { jars, descriptors, outsideStaticInventory, undetectedJarPaths: jars.filter((j) => !j.packages.length).map((j) => j.file),
     jdkRelease: refs.descriptors["usr/share/opensearch/jdk/release"] };
 }
 
@@ -262,9 +304,9 @@ function checkedRpms(refs, inv) {
   const rows = rpmIndices.map((i) => rpmIdentity(inv.packages[i]));
   const staticRows = refs.rpms.installed.map(([name, epoch, version, release, arch]) => [name, epoch, version, release, rpmArch(name, arch)]);
   const comparison = delta(staticRows, rows);
-  requireEvidence(staticRows.length === 111 && !comparison.added.length && !comparison.removed.length,
-    inv.subject.role + "_rpm_inventory_mismatch: " + JSON.stringify(staticRows[comparison.removed[0]] ?? rows[comparison.added[0]]));
-  return comparison.matched.map(([staticIndex, index]) => ({ staticIndex, packageIndex: rpmIndices[index] }));
+  requireEvidence(staticRows.length === 111, "static_rpm_inventory_invalid");
+  return { matched: comparison.matched.map(([staticIndex, index]) => ({ staticIndex, packageIndex: rpmIndices[index] })),
+    gaps: { missingStaticIndices: comparison.removed, unexpectedPackageIndices: comparison.added.map((index) => rpmIndices[index]) } };
 }
 
 function historicalProjection(f) {
@@ -278,20 +320,20 @@ function correspondence(refs, baseline, old, candidate) {
   const oldCopies = javaIndex(old), newCopies = javaIndex(candidate);
   const byAdvisory = (v) => JSON.stringify([v.target, v.vulnerabilityId, v.name, v.file, v.installed]);
   const oldFindings = positions(old.findings, byAdvisory), newFindings = positions(candidate.findings, byAdvisory);
-  for (const matches of oldFindings.values()) matches.reverse();
+  for (const index of [oldFindings, newFindings]) for (const matches of index.values()) matches.reverse();
   return refs.correspondence.map(({ original, candidate: [file, evidence, coordinate, jarDigest] }, index) => {
     const base = baseline.findings[index];
     requireEvidence(equal(original, historicalProjection(base)), "historical_path_binding_invalid");
     const name = coordinate.groupId + ":" + coordinate.artifactId;
     const pkg = oldCopies.get(copyKey(base.name, base.installed, base.file));
     const copies = newCopies.get(copyKey(name, coordinate.version, file));
-    requireEvidence(pkg?.length === 1, "old_mapped_copy_missing_or_ambiguous: " + base.file);
-    requireEvidence(name === base.name && copies?.length === 1, "candidate_mapped_copy_missing_or_ambiguous: " + file);
+    requireEvidence(name === base.name, "historical_coordinate_binding_invalid");
     const fresh = oldFindings.get(byAdvisory(base))?.pop() ?? null;
-    const advisory = newFindings.get(byAdvisory({ ...base, file, installed: coordinate.version })) ?? [];
-    return { historicalFinding: index, original, oldPackage: pkg[0], oldFinding: fresh,
-      oldThreshold: threshold(base.installed, base.fixed), candidatePackage: copies[0],
-      candidateFindings: advisory, candidateThreshold: threshold(coordinate.version, base.fixed), file, evidence, coordinate, jarDigest };
+    const advisory = newFindings.get(byAdvisory({ ...base, file, installed: coordinate.version }))?.pop();
+    return { historicalFinding: index, original, oldPackage: pkg?.length === 1 ? pkg[0] : null,
+      oldPackageMatches: pkg ?? [], oldFinding: fresh, oldThreshold: threshold(base.installed, base.fixed),
+      candidatePackage: copies?.length === 1 ? copies[0] : null, candidatePackageMatches: copies ?? [],
+      candidateFindings: advisory === undefined ? [] : [advisory], candidateThreshold: threshold(coordinate.version, base.fixed), file, evidence, coordinate, jarDigest };
   });
 }
 
@@ -330,45 +372,76 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
   requireEvidence(receipt.run.GITHUB_SHA === historicalSource && receipt.run.GITHUB_RUN_ID === "44321947040" &&
     receipt.run.GITHUB_RUN_ATTEMPT === "1" && receipt.blockers.length === 110 && historicalBlockers.length === 82 &&
     openSearchHistoricalInputsMatch(receipt.awsComparisonInputs), "historical_receipt_invalid");
-  const baseline = inventory(refs, "old", { bytes: 0 });
+  const baseline = inventory(refs, "old", refs, { bytes: 0 });
   const budget = { bytes: 0 };
-  const old = inventory(oldReport, "old", budget), candidate = inventory(candidateReport, "candidate", budget);
+  const old = inventory(oldReport, "old", refs, budget), candidate = inventory(candidateReport, "candidate", refs, budget);
   old.blockers = roleBlockers(oldBlockers, old, oldReport.json, budget);
   candidate.blockers = roleBlockers(candidateBlockers, candidate, candidateReport.json, budget);
   const orderedBlockersMatch = equal(historicalBlockers, old.blockers);
   const orderedFindingPathsMatch = equal(baseline.findings.map(findingKey), old.findings.map(findingKey));
-  if (historicalInputsMatch) requireEvidence(orderedBlockersMatch && orderedFindingPathsMatch, "historical_ordered_replay_mismatch");
+  const historicalPackages = delta(baseline.packages, old.packages, packageKey);
   requireEvidence(baseline.findings.length === 82 && refs.correspondence.length === 82, "historical_finding_count_invalid");
   const mapped = correspondence(refs, baseline, old, candidate);
   const mappedCandidateFindings = new Set(mapped.flatMap((m) => m.candidateFindings));
   const jars = jarCoverage(refs, candidate);
   // A physical JAR still shipped at the same path must not silently lose
   // scanner visibility that the previous report established for that path.
-  const oldJarPaths = new Set(old.packages.filter((p) => p.type === "jar").map((p) => p.file));
+  const oldJarPaths = new Set(old.packages.filter((p) => p.type === "jar").map((p) => outerJar(p.file)));
   const lostJarPaths = jars.undetectedJarPaths.filter((file) => oldJarPaths.has(file));
   const missingBelowFloorAdvisories = mapped.filter((row) => !row.candidateThreshold.meetsFloor &&
     !row.candidateFindings.length).map((row) => row.historicalFinding);
-  const qualificationReason = lostJarPaths.length ? "scanner_opensearch_jar_detection_loss" :
-    missingBelowFloorAdvisories.length ? "scanner_opensearch_below_floor_advisories_unmeasured" : null;
   const packages = delta(old.packages, candidate.packages, packageKey);
+  const staticPaths = new Set(refs.jars);
+  const migrations = new Map(mapped.filter((row) => row.oldPackage !== null && row.candidatePackage !== null)
+    .map((row) => [row.oldPackage, row]));
+  const addedCopies = new Set(packages.added);
+  const provedMigrations = [], removedJarOwners = [], unexplainedPackageLosses = [];
+  for (const index of packages.removed) {
+    const p = old.packages[index], owner = p.type === "jar" && outerJar(p.file);
+    const migration = migrations.get(index);
+    if (migration && addedCopies.delete(migration.candidatePackage)) {
+      provedMigrations.push({ oldPackage: index, candidatePackage: migration.candidatePackage,
+        historicalFinding: migration.historicalFinding });
+    } else if (owner && !staticPaths.has(owner)) {
+      // The static inventory establishes removal of this physical owner only.
+      removedJarOwners.push({ oldPackage: index, owner });
+    } else {
+      unexplainedPackageLosses.push(index);
+    }
+  }
+  const missingMappedCopies = mapped.filter((row) => row.oldPackage === null || row.candidatePackage === null)
+    .map((row) => row.historicalFinding);
+  const oldRpms = checkedRpms(refs, old), candidateRpms = checkedRpms(refs, candidate);
+  const rpmGaps = { old: oldRpms.gaps, candidate: candidateRpms.gaps };
+  const reasons = [];
+  if (historicalInputsMatch && (!orderedBlockersMatch || !orderedFindingPathsMatch)) reasons.push("historical_ordered_replay_mismatch");
+  // A different advisory DB does not establish a package removal on the same image.
+  if (historicalPackages.removed.length) reasons.push("historical_package_loss");
+  if (missingMappedCopies.length) reasons.push("mapped_copy_missing_or_ambiguous");
+  if (Object.values(rpmGaps).some((rpm) => rpm.missingStaticIndices.length || rpm.unexpectedPackageIndices.length)) reasons.push("rpm_inventory_mismatch");
+  if (jars.outsideStaticInventory.length) reasons.push("jar_outside_static_inventory");
+  if (lostJarPaths.length) reasons.push("jar_detection_loss");
+  if (unexplainedPackageLosses.length) reasons.push("unexplained_package_loss");
+  if (missingBelowFloorAdvisories.length) reasons.push("below_floor_advisories_unmeasured");
   const findings = delta(old.findings, candidate.findings, findingKey);
   const result = {
-    qualification: qualificationReason ? "failed" : "passed", reason: qualificationReason,
+    qualification: reasons.length ? "failed" : "passed", reason: reasons.length ? "scanner_opensearch_" + reasons[0] : null,
     references: identities,
     history: { run: receipt.run, artifact: { id: "14436050679", size: 923534, sha256: "838d34d5ecbfc9b423342e47e39120be6ccad3908cbf8809a880cce074e1ea0b" },
       inputs: receipt.awsComparisonInputs, historicalInputsMatch, inputComparison,
       replayContext: historicalInputsMatch ? "same scanner and database payloads" : "changed scanner or database payloads",
       orderedBlockersMatch, orderedFindingPathsMatch,
-      orderedBlockers: receipt.blockers, packages: delta(baseline.packages, old.packages, packageKey),
+      orderedBlockers: receipt.blockers, packages: historicalPackages,
       findings: delta(baseline.findings, old.findings, findingKey) },
     old, candidate, correspondence: mapped, paths: pathDelta(old, candidate),
     // Coordinate coverage at the exact path ignores only version/EVR. The
     // independently verified 82 mappings explain known JAR path migrations.
-    packageCoverage: delta(old.packages, candidate.packages, (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch, p.file])),
+    packageCoverage: { ...delta(old.packages, candidate.packages, (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch, p.file])),
+      provedMigrations, removedJarOwners },
     candidateFindingsOutsideHistoricalMapping: [...candidate.findings.keys()].filter((i) => !mappedCandidateFindings.has(i)),
-    rpmCoverage: { old: checkedRpms(refs, old), candidate: checkedRpms(refs, candidate) }, jarCoverage: jars,
+    rpmCoverage: { old: oldRpms.matched, candidate: candidateRpms.matched, gaps: rpmGaps }, jarCoverage: jars,
     packages, findings,
-    unresolved: { lostJarPaths, missingBelowFloorAdvisories, undetectedStaticJarPaths: jars.undetectedJarPaths.length,
+    unresolved: { reasons, missingMappedCopies, unexplainedPackageLosses, lostJarPaths, missingBelowFloorAdvisories, undetectedStaticJarPaths: jars.undetectedJarPaths.length,
       belowHistoricalFloor: mapped.filter((m) => !m.candidateThreshold.meetsFloor).map((m) => m.historicalFinding),
       candidateAdvisoryOccurrences: candidate.findings.length, newlyObservedFindingTuples: findings.added.length },
     sourceEvidence: { coreTagCommit: "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea",
@@ -376,6 +449,6 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
     visibility: "JSON HIGH,CRITICAL advisory occurrences and detected packages. CycloneDX supplies package coverage. Lower severities and invisible components are outside this measurement.",
     oldPolicy: old.blockers.length ? "blocked" : "clean", candidatePolicy: candidate.blockers.length ? "blocked" : "clean",
   };
-  requireEvidence(Buffer.byteLength(JSON.stringify(result)) + 1 <= comparisonByteLimit, "comparison_limit");
+  boundedJsonBytes(result, comparisonByteLimit, "scanner_opensearch_comparison_limit");
   return result;
 }
