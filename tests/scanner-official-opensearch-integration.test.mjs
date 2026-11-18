@@ -127,6 +127,7 @@ function syntheticCandidate(scenario) {
     const alias = aliasFiles.get(oldOwner);
     let file = alias ?? replacement?.[0] ?? pkg.FilePath;
     let version = replacement?.[2].version ?? pkg.Version;
+    if (alias && scenario === "sdk-publication-label") version = "3.10.0.0";
     let layer = candidateLayer.get(pkg.Layer.Digest);
     if (successor) {
       const evidence = successor.coordinates.filter((row) => row.name === pkg.Name);
@@ -303,7 +304,7 @@ if (process.argv[2] === "recover") {
 } else if (process.argv[2] === "worker") {
   await worker(process.argv[3], process.argv[4]);
 } else {
-  for (const scenario of ["historical", "clean-five"]) {
+  for (const scenario of ["historical", "clean-five", "sdk-publication-label"]) {
     test("raw audit measures a blocked synthetic 3.10 after " + scenario, (t) => {
       const output = run(t, scenario, formats);
       const receipt = disk(output, "official-audit-receipt.json");
@@ -320,9 +321,9 @@ if (process.argv[2] === "recover") {
       assert.equal(comparison.execution, "complete", comparison.reason);
       assert.deepEqual(comparison.commandIndices, [13, 14]);
       assert.equal(comparison.candidatePolicy, "blocked");
-      assert.equal(comparison.qualification, "passed", comparison.reason);
+      assert.equal(comparison.qualification, "failed");
       assert.equal(comparison.result, "failed");
-      assert.equal(comparison.reason, "scanner_opensearch_candidate_policy_blocked");
+      assert.equal(comparison.reason, "scanner_opensearch_ambiguous_owner_version");
       assert.equal(receipt.failure, clean ? comparison.reason : "scanner_official_images_blocked");
       const bytes = readFileSync(path.join(output, comparison.delta.file));
       assert.deepEqual(comparison.delta, { file: "image-opensearch-comparison.json", ...identity(bytes) });
@@ -342,7 +343,24 @@ if (process.argv[2] === "recover") {
         .map((p) => p.file).sort(), removed.otherOwners.map((p) => p.file).sort());
       const sdkVersions = inventory.candidate.packages.filter((p) => p.name.startsWith("org.opensearch:opensearch-remote-metadata-sdk"))
         .map((p) => p.version);
-      assert.deepEqual(sdkVersions.sort(), [...Array(2).fill("3.3.0.0"), ...Array(8).fill("3.7.0.0")]);
+      assert.deepEqual(sdkVersions.sort(), scenario === "sdk-publication-label" ? Array(10).fill("3.10.0.0") :
+        [...Array(2).fill("3.3.0.0"), ...Array(8).fill("3.7.0.0")]);
+      assert.equal(inventory.packageCoverage.provedMigrations.length, 374);
+      assert.deepEqual(inventory.packageCoverage.removedJarOwners.map((p) => p.owner), [removed.oldFile]);
+      assert.deepEqual(inventory.unresolved.reasons, ["ambiguous_owner_version"]);
+      assert.deepEqual(inventory.unresolved.unexplainedPackageLosses, []);
+      const observations = inventory.packageCoverage.unresolvedOwnerPackages;
+      assert.equal(observations.length, 10);
+      assert.deepEqual(inventory.unresolved.ambiguousOwnerVersions, observations.map((p) => p.oldPackage));
+      for (const p of observations) {
+        assert.equal(p.status, "observed_version_ambiguous");
+        assert.equal(p.candidatePackages.length, 1);
+        assert.equal(inventory.candidate.packages[p.candidatePackages[0]].file, p.file);
+        assert.equal(path.posix.dirname(p.file), path.posix.dirname(p.owner));
+        assert.match(p.historicalSha1, /^[a-f0-9]{40}$/u);
+        assert.equal(p.oldSha1, p.historicalSha1);
+        assert.equal(p.candidateSha1, p.historicalSha1);
+      }
       assert.equal(inventory.correspondence.length, 82);
       assert.equal(inventory.rpmCoverage.candidate.length, 111);
       assert.equal(inventory.candidatePolicy, "blocked");
@@ -368,7 +386,9 @@ if (process.argv[2] === "recover") {
       const seen = inventory.candidate.packages.filter((p) => p.file === witness.file);
       assert.ok(seen.some((p) => p.name === witness.present && p.version === witness.version));
       assert.ok(!seen.some((p) => p.name === witness.missing));
-      assert.ok(inventory.unresolved.unexplainedPackageLosses.includes(previous), "missing historical package index " + previous);
+      assert.deepEqual(inventory.unresolved.unexplainedPackageLosses, [previous]);
+      assert.deepEqual(inventory.unresolved.reasons, ["unexplained_package_loss", "ambiguous_owner_version"]);
+      assert.equal(inventory.unresolved.ambiguousOwnerVersions.length, 10);
       assert.equal(comparison.qualification, "failed");
     });
   }
@@ -432,9 +452,12 @@ if (process.argv[2] === "recover") {
     assert.deepEqual(row.candidateFindings, []);
     assert.ok(inventory.unresolved.belowHistoricalFloor.includes(row.historicalFinding));
     assert.equal(inventory.unresolved.candidateAdvisoryOccurrences, 7);
+    assert.deepEqual(inventory.unresolved.unexplainedBelowFloorAdvisories, []);
+    assert.deepEqual(inventory.unresolved.sharedBelowFloorAdvisoryDrift, [row.historicalFinding]);
+    assert.deepEqual(inventory.unresolved.reasons, ["ambiguous_owner_version"]);
     assert.equal(comparison.execution, "complete");
     assert.equal(comparison.candidatePolicy, "blocked");
-    assert.equal(comparison.qualification, "passed", comparison.reason);
+    assert.equal(comparison.qualification, "failed");
   });
 
   test("a finding in another valid layer stops raw scanning after the candidate JSON", async (t) => {

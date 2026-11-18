@@ -719,6 +719,21 @@ test("separates ten physically observed SDK copies from publication ambiguity an
     r.candidate.packages[o.candidatePackages[0]].file === o.file));
   assert.equal(r.packageCoverage.provedMigrations.length, 374);
 
+  // A fresh old control can itself report another published label. Preserve
+  // its changed historical tuple separately from the new image's coverage.
+  const changedOld = globalThis.structuredClone(data.oldReport);
+  const [first] = table.unresolved;
+  const oldPkg = changedOld.json.Results[1].Packages.find((p) => p.FilePath === first.oldFile);
+  const oldLib = changedOld.sbom.components.find((c) => fileOf(c)?.value === first.oldFile);
+  oldPkg.Version = oldLib.version = "3.9.0.0";
+  oldPkg.Identifier.PURL = oldLib.purl = "pkg:maven/" + oldPkg.Name.replace(":", "/") + "@3.9.0.0";
+  const relabeled = await buildOpenSearchComparison({ ...data, oldReport: changedOld, historicalInputsMatch: false });
+  assert.equal(relabeled.history.packages.removed.length, 1);
+  assert.equal(relabeled.unresolved.ambiguousOwnerVersions.length, 10);
+  assert.deepEqual(relabeled.unresolved.unexplainedPackageLosses, []);
+  assert.deepEqual(relabeled.unresolved.reasons, ["historical_package_loss", "ambiguous_owner_version"]);
+  assert.equal(relabeled.candidatePolicy, "blocked");
+
   for (const index of [138, 227]) {
     const matched = r.packageCoverage.provedMigrations.find((m) => m.oldPackage === index);
     const original = r.candidate.packages[matched.candidatePackage];
@@ -733,9 +748,9 @@ test("separates ten physically observed SDK copies from publication ambiguity an
   // Other plugin copies with identical bytes and the same coordinate remain.
   removeMavenCopy(pair, missing.pkg.Name, missing.file);
   delete wrongHash.lib.hashes;
-  wrongVersion.pkg.Version = wrongVersion.lib.version = "3.10.0.0";
+  wrongVersion.pkg.Version = wrongVersion.lib.version = "99.0.0.0";
   wrongVersion.pkg.Identifier.PURL = wrongVersion.lib.purl =
-    "pkg:maven/" + wrongVersion.pkg.Name.replace(":", "/") + "@3.10.0.0";
+    "pkg:maven/" + wrongVersion.pkg.Name.replace(":", "/") + "@99.0.0.0";
   const layer = pair.json.Metadata.Layers[0];
   wrongLayer.pkg.Layer = layer;
   wrongLayer.lib.properties.find((p) => p.name.endsWith(":LayerDigest")).value = layer.Digest;

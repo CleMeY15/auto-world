@@ -24,6 +24,7 @@ const files = {
   jars: [dir + "jar-paths.json", 75628, "cd573a3a0a4071d343e99ae74f63da2fcd464dccfc2ee8fedae484f0b518fb59"],
   opensaml: [dir + "opensaml-candidate-maven.json", 2252, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146"],
   renamedOwners: [dir + "renamed-jar-owners.json", 195019, "1221378495abb4d59a7be667029a305fc5bd0df5ea05e7a58168947d814f71b3"],
+  sdkPublications: [dir + "sdk-publications.json", 1187, "a4e7b7c4f6582027d401e190f45e47e14fcfebbaeda8a973d4a28ccf2bf2b7fe"],
   correspondence: [dir + "matched-82.json", 64841, "43319234891a5c18f32c143dcd80e74bbf6d62680d37aec5aaf9feafa13e78d8"],
   receipt: [dir + "official-audit-receipt.json", 163221, "927f0336de75c2e5747d68d958e52c9543de8bee629ca15613fba19488c02159"],
   json: [dir + "image-opensearch.json", 1701419, "56668110157c3e5acd463912679c5939af61829fb820c35bb1191dcd8eeb224c"],
@@ -485,18 +486,20 @@ function componentSha1(sbom, pkg) {
 // identical published SDK bytes, and located all these JARs in OCI layer 3.
 // Preserve this observation without choosing among the publication versions.
 function sdkObservation({ entry, pkg, previous, candidates, candidate, refs, oldSbom, candidateSbom, file, added }) {
-  const supported = ["opensearch-remote-metadata-sdk", "opensearch-remote-metadata-sdk-aos-client",
-    "opensearch-remote-metadata-sdk-ddb-client", "opensearch-remote-metadata-sdk-remote-client"];
-  if (!entry?.candidates || !file || !supported.some((artifact) => pkg.name === "org.opensearch:" + artifact)) {
+  const publication = refs.sdkPublications[pkg.name];
+  if (!entry?.candidates || !file || !publication) {
     return { status: "unverified_succession" };
   }
   const historicalSha1 = componentSha1(refs.sbom, previous), oldSha1 = componentSha1(oldSbom, pkg);
   const copy = candidates.length === 1 ? candidate.packages[candidates[0]] : null;
   const candidateSha1 = componentSha1(candidateSbom, copy);
-  const sameCopy = historicalSha1 !== null && historicalSha1 === oldSha1 && oldSha1 === candidateSha1 &&
-    added.has(candidates[0]) && copy?.version === pkg.version && copy.layer.Digest === refs.candidatePlatform.layers[3].digest &&
+  const sameCopy = previous?.name === pkg.name && equal(previous.layer, pkg.layer) &&
+    historicalSha1 === publication.componentSha1 && historicalSha1 === oldSha1 && oldSha1 === candidateSha1 &&
+    added.has(candidates[0]) && publication.publications.includes(pkg.version) && publication.publications.includes(copy?.version) &&
+    copy.layer.Digest === refs.candidatePlatform.layers[3].digest &&
     copy.layer.DiffID === refs.candidateConfig.rootfs.diff_ids[3];
   return { file, candidatePackages: candidates, historicalSha1, oldSha1, candidateSha1,
+    publishedJarSha256: publication.jarSha256, publicationLabels: publication.publications,
     status: sameCopy ? "observed_version_ambiguous" : candidates.length ? "copy_evidence_mismatch" : "copy_not_observed" };
 }
 
@@ -504,6 +507,11 @@ function reconcileRemovedPackages({ old, candidate, packages, mapped, refs, base
   const { byOld, bound, shipped, removals } = bindRenamedOwners(refs, baseline, opensaml);
   const removed = new Set(packages.removed), added = new Set(packages.added);
   const historicalCopies = new Map(historicalPackages.matched.map(([i, j]) => [j, baseline.packages[i]]));
+  const historicalSdk = new Map();
+  for (const p of baseline.packages.filter((p) => Object.hasOwn(refs.sdkPublications, p.name))) {
+    requireEvidence(!historicalSdk.has(p.file), "sdk_historical_owner_ambiguous");
+    historicalSdk.set(p.file, p);
+  }
   const byOldPackage = new Map(mapped.filter((m) => m.oldPackage !== null).map((m) => [m.oldPackage, m]));
   const slot = (p, file) => JSON.stringify([p.class, p.type, p.target, p.name, file, p.epoch, p.release, p.arch]);
   const available = positions(candidate.packages, (p) => slot(p, p.file)), obligations = new Map();
@@ -531,7 +539,7 @@ function reconcileRemovedPackages({ old, candidate, packages, mapped, refs, base
       const local = entry?.candidates?.filter((f) => path.posix.dirname(f) === path.posix.dirname(owner)) ?? [];
       const file = local.length === 1 && p.file === owner ? local[0] : null;
       const candidates = file ? available.get(slot(p, file)) ?? [] : [];
-      const observed = sdkObservation({ entry, pkg: p, previous: historicalCopies.get(index), candidates, candidate,
+      const observed = sdkObservation({ entry, pkg: p, previous: historicalSdk.get(p.file), candidates, candidate,
         refs, oldSbom, candidateSbom, file, added });
       unresolvedOwnerPackages.push({ oldPackage: index, owner, replacement: null, candidates: entry?.candidates ?? [],
         reason: removal ? "copy contradicts the pinned removal" : entry?.reason ?? "owner absent from historical reference", ...observed });
