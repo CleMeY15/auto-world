@@ -21,6 +21,13 @@ it does not claim a complete retained inventory.
 
 ## Reviewed source and current boundary
 
+18 November continuation: the [Gosu offline-input prerequisite](TASK-0005-gosu-offline-inputs.md)
+has its own ordered Architect/Critic plan approval and implementation in progress.
+It tests source/module representation sufficiency under the existing compiler;
+it is not the complete capture plan, capacity acceptance or retained restoration.
+Actual source/main proof remains required. Historical checkpoints below retain
+their original scopes.
+
 [PR230](https://github.com/CleMeY15/auto-world/pull/230) merged normally as
 `b4b17be3a5a405bf096c6d0cd6218e108c16f733`, with the same reviewed tree
 `3430beda9032b2da391f491d00a8b36604bca298` as its final PR checks. The corresponding

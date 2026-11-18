@@ -67,8 +67,12 @@ test("all eighteen literal mappings use only metadata then raw at the immutable 
     // Current code is not a substitute for historical qualified snapshots.
     if (bytes.length === item.bytes && sha256(bytes) === item.sha256) {
       assert.deepEqual(await fixture.run(), bytes);
+    } else if (bytes.length > item.bytes) {
+      // An enlarged current file is rejected by the immutable intake cap before
+      // identity comparison. It still cannot replace the qualified snapshot.
+      await assert.rejects(fixture.run(), { message: "scanner_retention_publish_source_blob_response_limit" });
     } else {
-      await assert.rejects(fixture.run(), /source_blob_identity_invalid/u);
+      await assert.rejects(fixture.run(), { message: "scanner_retention_publish_source_blob_identity_invalid" });
     }
     assert.equal(fixture.calls.length, 2);
     for (const [index, call] of fixture.calls.entries()) {

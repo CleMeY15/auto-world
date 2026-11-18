@@ -207,6 +207,37 @@ export function parseManagedGosuModulePayloads(bytes, publicIdentity) {
   return { files, totalBytes, evidence: { path: publicIdentity.path, size: bytes.length, sha256: publicIdentity.sha256 } };
 }
 
+export function parseManagedGosuOfflineReconstruction(bytes, publicIdentity, moduleIdentity, subject) {
+  const invalid = () => fail("scanner_gosu_offline_reconstruction_invalid");
+  const identity = (value, filename, cap) => value !== null && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).sort().join(",") === "path,sha256,size" && value.path === filename &&
+    Number.isSafeInteger(value.size) && value.size > 0 && value.size <= cap &&
+    typeof value.sha256 === "string" && /^[a-f0-9]{64}$/u.test(value.sha256);
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0 || bytes.length > 4096 ||
+      !identity(publicIdentity, "offline-reconstruction.json", 4096) || publicIdentity.size !== bytes.length ||
+      publicIdentity.sha256 !== createHash("sha256").update(bytes).digest("hex") ||
+      !identity(moduleIdentity, "module-proxy-payloads.tsv", 1024) ||
+      subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" ||
+      !digest(subject.imageId) || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
+      !Number.isSafeInteger(subject.archiveBytes) || subject.archiveBytes < 1 ||
+      subject.os !== "linux" || subject.architecture !== "amd64") invalid();
+  const pin = MANAGED_GOSU_SOURCE;
+  const proof = {
+    schemaVersion: 1, kind: "GOSU_OFFLINE_INPUTS_SAME_TOOLCHAIN_V1",
+    sourceArchiveSha256: pin.sourceArchiveSha256, modulePayloadsSha256: moduleIdentity.sha256,
+    goModSha256: pin.goModSha256, goSumSha256: pin.goSumSha256, compilerVersion: pin.compilerVersion,
+    referenceBinarySha256: pin.binarySha256, reconstructedBinarySha256: pin.binarySha256,
+    freshSourceAndCaches: true, network: "none",
+    missingZipRefusals: ["github.com/moby/sys/user@v0.4.1", "golang.org/x/sys@v0.1.0"],
+  };
+  // Exact canonical bytes also reject duplicate keys, unknown fields, malformed
+  // UTF-8, alternative encodings and assertions detached from this producer's TSV.
+  if (!bytes.equals(Buffer.from(`${JSON.stringify(proof)}\n`))) invalid();
+  return { ...proof, imageId: subject.imageId, archiveSha256: subject.archiveSha256,
+    archiveBytes: subject.archiveBytes, os: subject.os, architecture: subject.architecture,
+    evidence: { path: publicIdentity.path, size: publicIdentity.size, sha256: publicIdentity.sha256 } };
+}
+
 export function managedGosuHashArguments(subject) {
   if (subject?.kind !== "LOCAL_MANAGED_IMAGE_V1" || subject.artifactName !== "/managed-image-postgres.tar" || !digest(subject.imageId) ||
       subject.os !== "linux" || subject.architecture !== "amd64" || typeof subject.archiveSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(subject.archiveSha256) ||
@@ -1129,6 +1160,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           try {
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
               ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
+              ...(candidate.role === "postgres" ? ["--no-cache-filter", "gosu-offline-reconstruction"] : []),
               "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspectedBytes = command(DOCKER, ["image", "inspect", tag], { file: inspectedFile });
@@ -1226,6 +1258,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               build.gosuModulePayloads = parseManagedGosuModulePayloads(
                 gosuModulePayloadBytes,
                 build.publicEvidence.find((entry) => entry.path === "module-proxy-payloads.tsv"));
+              let gosuOfflineBytes;
+              try { gosuOfflineBytes = readFileSync(path.join(published, candidate.role, "offline-reconstruction.json")); }
+              catch { fail("scanner_gosu_offline_reconstruction_invalid"); }
+              build.gosuOfflineReconstruction = parseManagedGosuOfflineReconstruction(gosuOfflineBytes,
+                build.publicEvidence.find((entry) => entry.path === "offline-reconstruction.json"),
+                build.gosuModulePayloads.evidence, build.subject);
+              // A failed reconstruction proof must leave the mandatory source
+              // evidence unavailable to the subsequent PostgreSQL audit gate.
               localImages.get(candidate.role).gosuEvidence = build.gosuSourceEvidence;
               build.runtimeGosuEvidence = exportManagedTextEvidence(runtime, path.join(published, "postgres-runtime"));
             }
