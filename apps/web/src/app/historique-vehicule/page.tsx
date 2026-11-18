@@ -35,7 +35,14 @@ export default function HistoryGuidePage() {
           <section className="history-guide-steps" aria-labelledby="history-steps-title">
             <h2 id="history-steps-title">Comment obtenir le rapport</h2>
             <ol>
-              <li><strong>Demandez-le au vendeur.</strong><p>Le titulaire de la carte grise peut générer le rapport et vous en partager le lien.</p></li>
+              <li>
+                <strong>Demandez-le au vendeur.</strong>
+                <p>Le titulaire de la carte grise peut générer le rapport et vous en partager le lien.</p>
+                <details>
+                  <summary>Exemple de message au vendeur</summary>
+                  <p>Bonjour, pourriez-vous m’envoyer le lien du rapport HistoVec de votre véhicule ? Merci !</p>
+                </details>
+              </li>
               <li><strong>Consultez le lien reçu.</strong><p>Ouvrez le lien du rapport transmis par le titulaire directement sur HistoVec.</p></li>
               <li><strong>Le lien ne fonctionne plus ?</strong><p>Demandez au vendeur ou au titulaire de vous le partager à nouveau.</p></li>
             </ol>

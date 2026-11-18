@@ -1,6 +1,6 @@
 # Pilote de développement full Codex
 
-Statut : **préparé, 0 tâche produit inscrite**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
+Statut : **en cours, 4 tâches produit inscrites**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
 
 ## Entrée et déroulement
 
@@ -10,12 +10,14 @@ Comparer des tâches de nature comparable, séparer UI et frontières sensibles.
 
 | Entrée | Tâche / type / risque | Inscription / propriétaire | Validation / issue |
 | --- | --- | --- | --- |
-| 1 | Non sélectionnée | Non ouverte | Non exécutée |
-| 2 | Non sélectionnée | Non ouverte | Non exécutée |
-| 3 | Non sélectionnée | Non ouverte | Non exécutée |
-| 4 | Non sélectionnée | Non ouverte | Non exécutée |
+| 1 | [TASK-0126](../tasks/TASK-0126-loaded-listing-navigation.md), parcours UI, risque local | 18 novembre, propriétaire produit Codex gpt-6.2-astra / ultra | [Validation en cours](../../docs/validation/TASK-0126.md) |
+| 2 | TASK-0127 · Accès à la recherche depuis l’accueil | 18 novembre, responsable propre au lot | [PR259](https://github.com/CleMeY15/auto-world/pull/259), livraison en cours |
+| 3 | TASK-0128 · Lecture progressive des historiques | 18 novembre, responsable propre au lot | [PR258](https://github.com/CleMeY15/auto-world/pull/258), livraison en cours |
+| 4 | TASK-0129 · Rapports liés au véhicule de l’annonce | 18 novembre, responsable propre au lot | [PR260](https://github.com/CleMeY15/auto-world/pull/260), livraison en cours |
 | 5 | Non sélectionnée | Non ouverte | Non exécutée |
 | 6 | Non sélectionnée | Non ouverte | Non exécutée |
+
+Direction du propriétaire, 18 novembre 2026 : jusqu’à quatre lots produit indépendants en parallèle avec arbres dédiés, fusions séquentielles et vérification du main. Présenter tôt le rendu mobile/bureau et le parcours à essayer. Privilégier les tests locaux ciblés ; la CI porte la suite exhaustive. Le risque de régression guide les vérifications supplémentaires, notamment à texte agrandi. Choisir le modèle Codex et l’effort par intervention et consigner les escalades. La voie produit reste limitée au prototype synthétique ADR-0028.
 
 ## Mesures et décision
 
@@ -76,5 +78,11 @@ in revision1, then distinct Critic APPROVE on that exact plan. Parent revision2
 clarifies C1 (existing trace repetitions/interleavings) and delivery state only.
 Each verdict keeps its exact scope; source/main documentary acceptance pending.
 Costs/tokens/human time unknown, no measured savings or product entry consumed.
+
+18 November, PostgreSQL/Gosu capture implementation after PR252 documentary
+acceptance: sole Codex gpt-6.2-astra / ultra implementer; [scope, checks and
+handoff](../../docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-brief--18-november-2026).
+Infrastructure maintenance outside product cohort; independent delivery review
+pending, cost/tokens/human effort unknown.
 
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.

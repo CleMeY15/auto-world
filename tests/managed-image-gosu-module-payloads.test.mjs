@@ -106,6 +106,7 @@ test("the Gosu recipe measures one closed, ordered six-file proxy set between ve
   assert.equal(recipe.split(outputLiteral).length - 1, 2);
   assert.deepEqual(recipe.split("\n").filter((line) => /^COPY .*module-proxy-payloads\.tsv/u.test(line)), [
     "COPY --from=gosu-build --chmod=0444 /out/evidence/module-proxy-payloads.tsv /offline-references/module-proxy-payloads.tsv",
+    "COPY --from=gosu-offline-reconstruction /offline-references/module-proxy-payloads.tsv /materials/module-proxy-payloads.tsv",
   ]);
 });
 

@@ -144,6 +144,20 @@ COPY --from=gosu-build /out/evidence/ /
 COPY --from=gosu-functional /evidence/ /
 COPY --from=gosu-offline-reconstruction /gosu-offline/evidence/offline-reconstruction.json /offline-reconstruction.json
 
+FROM scratch AS material-capture
+COPY --from=evidence / /evidence/
+COPY --from=gosu-offline-reconstruction /offline-inputs/gosu-source.tar.gz /materials/gosu-source.tar.gz
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.info /materials/proxy/github.com/moby/sys/user/@v/v0.4.1.info
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.mod /materials/proxy/github.com/moby/sys/user/@v/v0.4.1.mod
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.zip /materials/proxy/github.com/moby/sys/user/@v/v0.4.1.zip
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.info /materials/proxy/golang.org/x/sys/@v/v0.1.0.info
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.mod /materials/proxy/golang.org/x/sys/@v/v0.1.0.mod
+COPY --from=gosu-offline-reconstruction /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.zip /materials/proxy/golang.org/x/sys/@v/v0.1.0.zip
+COPY --from=gosu-offline-reconstruction /offline-references/module-proxy-payloads.tsv /materials/module-proxy-payloads.tsv
+COPY --from=gosu-offline-reconstruction /offline-references/go.mod /materials/go.mod
+COPY --from=gosu-offline-reconstruction /offline-references/go.sum /materials/go.sum
+COPY --from=gosu-build /out/gosu /materials/reference-gosu
+
 # Starting from the untouched base prevents fixture users, ENV and setuid modes
 # from entering the runtime. COPY explicitly resets binary ownership and mode.
 FROM postgres-base AS runtime
