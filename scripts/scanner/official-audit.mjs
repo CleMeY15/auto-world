@@ -508,6 +508,7 @@ export function bindPostgresExport({ build, command, evidence, artifacts, publis
 // The nonce and parent/root inode checks keep failure cleanup confined to this allocation.
 export function withGosuCaptureRoot(work, status, consume, beforeFailureCleanup) {
   let root, rootId, parentId, nonce;
+  let cleanupAllowed = true;
   const children = new Map();
   const dirId = (dir) => {
     const st = statOf(dir);
@@ -538,10 +539,13 @@ export function withGosuCaptureRoot(work, status, consume, beforeFailureCleanup)
     status.result = "FAILED";
     status.reason = error?.message === "scanner_official_cleanup_uncertain"
       ? "scanner_gosu_material_cleanup_unknown" : "scanner_gosu_material_capture_invalid";
-    if (root && beforeFailureCleanup) beforeFailureCleanup();
+    if (root && beforeFailureCleanup) {
+      try { beforeFailureCleanup(); }
+      catch { cleanupAllowed = false; fail("scanner_gosu_material_cleanup_unknown"); }
+    }
     fail(status.reason);
   } finally {
-    if (root) {
+    if (root && cleanupAllowed) {
       try {
         if (dirId(work) !== parentId || dirId(root) !== rootId ||
             captureMember(path.join(root, "owner"), 36).sha256 !== hashBytes(nonce)) materialInvalid();
@@ -686,28 +690,28 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
   for (const [role, files, field] of [["postgres", captured.text, "publicEvidence"],
     ["postgres-runtime", captured.runtimeText, "runtimeGosuEvidence"]]) {
     const staging = mkdtempSync(path.join(work, "gosu-public-"));
-    const owned = statOf(staging);
+    const status = build.materialCapture;
+    status.cleanup = "UNKNOWN";
+    let owned;
     try {
+      owned = statOf(staging);
       const rows = writeManagedTextMembers(files, staging);
       const destination = path.join(published, role);
       if (lstatSync(destination, { throwIfNoEntry: false })) materialInvalid();
       renameSync(staging, destination);
       build[field] = rows;
+      status.cleanup = "REMOVED";
     } catch {
-      const status = build.materialCapture;
       status.result = "FAILED";
-      status.cleanup = "UNKNOWN";
-      status.reason = "scanner_gosu_material_capture_invalid";
-      try {
-        writeGosuFailureObservation(work, output, status);
-      } finally {
-        const current = statOf(staging);
-        if (!current.isDirectory() || realpathSync(staging) !== staging ||
-            current.dev !== owned.dev || current.ino !== owned.ino) fail("scanner_gosu_material_cleanup_unknown");
-        rmSync(staging, { recursive: true });
-        if (lstatSync(staging, { throwIfNoEntry: false })) fail("scanner_gosu_material_cleanup_unknown");
-        status.cleanup = "REMOVED";
-      }
+      status.reason = owned ? "scanner_gosu_material_capture_invalid" : "scanner_gosu_material_cleanup_unknown";
+      writeGosuFailureObservation(work, output, status);
+      if (!owned) fail(status.reason);
+      const current = statOf(staging);
+      if (!current.isDirectory() || realpathSync(staging) !== staging ||
+          current.dev !== owned.dev || current.ino !== owned.ino) fail("scanner_gosu_material_cleanup_unknown");
+      rmSync(staging, { recursive: true });
+      if (lstatSync(staging, { throwIfNoEntry: false })) fail("scanner_gosu_material_cleanup_unknown");
+      status.cleanup = "REMOVED";
       materialInvalid();
     }
   }

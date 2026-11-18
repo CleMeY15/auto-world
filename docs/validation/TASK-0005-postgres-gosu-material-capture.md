@@ -202,3 +202,11 @@ cleanup distinction. Local focused ESLint passed. The full managed regression
 command passed 803 cases with one platform exclusion and zero failures. These
 checks cover fixtures. Native outcomes and the independent verdict on the
 revised source are recorded separately.
+
+The architecture recheck on `60415d33` closed both blockers and confirmed
+that public inventories match promoted directories. It retained two cleanup
+findings. The follow-up keeps an owned directory when the provisional failure
+observation cannot be written, and records UNKNOWN as soon as publication
+staging is allocated. Three regression cases cover refused observation writes
+on the capture and publication paths, plus a failed initial ownership check.
+The managed regression suite passed 806 cases with one platform exclusion.

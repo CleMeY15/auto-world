@@ -489,7 +489,7 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
   // Reviewed Gosu-only evidence addition; native output capture and its caps are unchanged.
-  assert.equal(sha256(officialAudit), "5e3da4b745c701aaa35440376a91a92a93edf49410e9e689b424cd86d245a0f4");
+  assert.equal(sha256(officialAudit), "639d7153895d5c6f54d4c72c47fdb71cdcfe4ad89aecf36ee13a176dc3ab60aa");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);
