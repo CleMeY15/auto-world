@@ -108,12 +108,13 @@ export function ActiveCriteria({ query, catalog, busy = false, canRemove, onRemo
   );
 }
 
-export function ResultCard({ index, result, catalog, saved, selectedForComparison, comparisonDisabled, onOpen, onToggleSaved, onToggleComparison }: {
+export function ResultCard({ index, result, catalog, saved, selectedForComparison, comparisonDisabled, detailDisabled, onOpen, onToggleSaved, onToggleComparison }: {
   readonly index: number;
   readonly result: DemoResultV2;
   readonly saved: boolean;
   readonly selectedForComparison: boolean;
   readonly comparisonDisabled: boolean;
+  readonly detailDisabled: boolean;
   readonly onOpen: () => void;
   readonly onToggleSaved: () => void;
   readonly onToggleComparison: () => void;
@@ -140,7 +141,7 @@ export function ResultCard({ index, result, catalog, saved, selectedForCompariso
         <Button variant="secondary" onClick={onToggleSaved} aria-pressed={saved}>
           <BookmarkIcon />{saved ? "Retirer des favoris" : "Ajouter aux favoris"}
         </Button>
-        <Button id={`demo-result-open-${index}`} onClick={onOpen}>Voir le détail</Button>
+        <Button id={`demo-result-open-${index}`} disabled={detailDisabled} onClick={onOpen}>Voir le détail</Button>
       </div>
     </Card>
   );
