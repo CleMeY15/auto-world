@@ -11,3 +11,5 @@ Le guide livré par [PR194](https://github.com/CleMeY15/auto-world/pull/194) fou
 3. Vérifier Chromium/WebKit, captures clair/sombre 320–1440 px, texte 200 %, axe et budgets du guide. Lancer en série lint, types, tests, build, UI, secrets, audit. Faire relire le diff et les pixels par un contexte Codex gpt-6.2-astra / ultra distinct. Livraison source puis main par le parent.
 
 Le périmètre comprend la route, ses tests, cette fiche et la [validation](../../docs/validation/TASK-0129.md). Checkout propre, sorties locales et réseau loopback privés à 0129. Budget inconnu ; après deux échecs identiques changer d’hypothèse. Aucune permission, instrumentation, dépendance ou migration à ajouter. Rollback par revert ciblé du lot.
+
+Première proposition présentée le 18 novembre 2026 à 15:43:40 UTC, 20 scénarios HistoVec réussis. Qualification et livraison documentées par la validation et le checkpoint de PR.
