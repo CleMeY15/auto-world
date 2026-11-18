@@ -13,3 +13,5 @@ Le guide livré par [PR194](https://github.com/CleMeY15/auto-world/pull/194) fou
 Le périmètre comprend la route, ses tests, cette fiche et la [validation](../../docs/validation/TASK-0129.md). Checkout propre, sorties locales et réseau loopback privés à 0129. Budget inconnu ; après deux échecs identiques changer d’hypothèse. Aucune permission, instrumentation, dépendance ou migration à ajouter. Rollback par revert ciblé du lot.
 
 Première proposition présentée le 18 novembre 2026 à 15:43:40 UTC, 20 scénarios HistoVec réussis. Qualification et livraison documentées par la validation et le checkpoint de PR.
+
+Mise à jour propriétaire après présentation : boucle ciblée sur le comportement modifié ; régression complète via CI. Voir [PR260](https://github.com/CleMeY15/auto-world/pull/260) pour le checkpoint source ; le parent conserve la vérification de main.

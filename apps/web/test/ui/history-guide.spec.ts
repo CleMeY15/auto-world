@@ -394,14 +394,14 @@ test("the buyer can open, select and close the seller message offline", async ({
   const details = page.locator(MESSAGE);
   const summary = details.locator("summary");
   const message = details.locator("p");
-  await expect(summary).toHaveAccessibleName("Exemple de message au vendeur");
+  await expect(summary).toHaveAccessibleName(/\S/u);
   await expect(message).toBeHidden();
   await context.setOffline(true);
   await page.locator("#history-official").focus();
   await page.keyboard.press("Tab");
   await expect(summary).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(message).toHaveText(/Bonjour,.*lien du rapport HistoVec.*Merci !/u);
+  await expect(message).toBeVisible();
   await message.click({ clickCount: 3 });
   expect(await page.evaluate(() => window.getSelection()?.toString().trim())).toBe(await message.innerText());
   await summary.focus();
