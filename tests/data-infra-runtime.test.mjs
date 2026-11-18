@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import childProcess from "node:child_process";
+import { EventEmitter } from "node:events";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import {
   InfraError,
   S3_BUCKET,
@@ -50,6 +54,36 @@ test("run enforces fixed timeout and output-cap errors without embedding child o
     (error) => error instanceof InfraError && error.code === "process_output_limit",
   );
 });
+
+for (const stream of ["stdout", "stderr"]) {
+  test(`run waits for child close after a ${stream} read error`, async (t) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = Object.assign(new EventEmitter(), { end() {} });
+    const signals = [];
+    child.kill = (signal) => { signals.push(signal); };
+    t.mock.method(childProcess, "spawn", () => child);
+    syncBuiltinESMExports();
+    try {
+      let finished = false;
+      const outcome = run("fixture", []).finally(() => { finished = true; });
+      const rejected = assert.rejects(outcome, { name: "InfraError", message: "process_io_failed" });
+      try {
+        child[stream].emit("error", new Error("fixture read error"));
+        await nextTurn();
+        assert.deepEqual(signals, ["SIGKILL"]);
+        assert.equal(finished, false);
+      } finally {
+        child.emit("close", null);
+        await rejected;
+      }
+    } finally {
+      t.mock.restoreAll();
+      syncBuiltinESMExports();
+    }
+  });
+}
 
 test("project initialization is exclusive, replayable and rejects credential drift", async () => {
   const checkout = await makeCheckout();

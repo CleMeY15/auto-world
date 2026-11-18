@@ -20,6 +20,7 @@ main:focus { outline: none; }
 .site-tools { display: flex; flex-wrap: wrap; gap: var(--aw-space-2) var(--aw-space-6); }
 .site-intro { border-top: 1px solid var(--aw-color-border); padding-block: 3rem 2rem; }
 .site-intro > p { color: var(--aw-color-text-muted); max-width: 42rem; }
+.site-search-link { margin-bottom: var(--aw-space-2); max-width: 100%; text-align: center; text-decoration: none; }
 .site-disclosure { font-size: 0.875rem; margin-bottom: 0; }
 .site-toolbar { align-items: center; border-bottom: 1px solid var(--aw-color-border); display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; padding-block: 1rem; }
 .site-toolbar > p { font-weight: 600; margin: 0; }
