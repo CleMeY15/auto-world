@@ -7,7 +7,7 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Produit V1 synthétique | [TASK-0124](tasks/TASK-0124-results-sort.md) acceptée `DONE_FOR_V1_PROTOTYPE`, source `aa447e2427bd295a5b4c6533199ffbf56047b5ba`, main `f554c475b6748fb1b53281985588fab287c811ed`, [checkpoint PR235](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896). Les anciens statuts pending sont historiques. | Aucun successeur produit sélectionné ici. La navigation entre annonces déjà chargées reste un candidat de la roadmap, à cadrer avant exécution. |
 | Processus de développement | [TASK-0125](tasks/TASK-0125-full-codex-workflow.md), mise en place autorisée ; **full Codex** pour tous les rôles. [Preuves et limites](../docs/validation/TASK-0125.md). | Terminer revue et livraison ; ouvrir ensuite la première entrée admissible du [pilote](pilots/FULL_CODEX.md). |
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
-| Infrastructure / qualification | PR246 main `f630339b791731b6111bb8fd340fd6874c392826` accepted; [actual NexusLite C copy/restoration](../docs/validation/TASK-0005-nexus-observation.md) independently APPROVED: eight phases,50 members, retained pair and cleanup. Original failures and243 upstream blockers remain. | Deliver the reviewed localCopy/localRestore identities through separate source/main gates. Only then close the scanner material row. TASK-0005/0005A stay IN_PROGRESS; no further publisher/copy/restore, image admission or support activation. |
+| Infrastructure / qualification | [PR247 final checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598): observation delivery accepted on main `73ad4eddec190f3d6928f41f86c3e33858598683`, five workflows/six jobs and independent reviews pass. Scanner material-retention row closed; [actual C:/NTFS operation](../docs/validation/TASK-0005-nexus-observation.md) remains on f630339b. | Complete the [measured service-material inventory](../docs/validation/TASK-0005-managed-m3-preparation.md), separating historical measurements from surviving bytes and unknowns, then review a bounded capture plan. TASK-0005/0005A stay IN_PROGRESS; 243 blockers unwaived; no new publisher/copy/restore, admission or support activation. |
 
 ## Maintenance sécurité du17 novembre2026
 
@@ -17,9 +17,9 @@ est acceptée sur main `32f5253c646cc1b77be6bdb090792079fcd22782`, livré par
 source puis sept workflows main réussis et preuves originales approuvées,
 sans réduction du seuil d'audit. Cette maintenance reste hors cohorte produit.
 [PR247](https://github.com/CleMeY15/auto-world/pull/247) intègre ce main pour
-livrer les observations NexusLite ; sa révision combinée attend ses propres
-revues et cinq workflows source/main, dont le nouveau contrôle d'outillage
-Linux/Windows. Voir le [checkpoint de réconciliation](../docs/validation/TASK-0005-nexus-observation.md#reconciliation-after-accepted-picomatch-maintenance).
+livrer les observations NexusLite ; ses cinq workflows source puis main et
+leurs preuves originales sont désormais acceptés sur main `73ad4edd`.
+Voir le [checkpoint final](../docs/validation/TASK-0005-nexus-observation.md#accepted-observation-delivery).
 TASK-0005/0005A restent IN_PROGRESS ; aucune nouvelle opération Nexus/publisher,
 admission ou activation du support n'est autorisée par cette livraison.
 

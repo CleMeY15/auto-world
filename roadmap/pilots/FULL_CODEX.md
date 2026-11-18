@@ -48,3 +48,9 @@ Maintenance du17 novembre2026 : [correction Picomatch](../../docs/validation/pic
 hors cohorte des six tâches produit ; Codex gpt-6-astra/ultra, un spécialiste
 implémentant distinct, revue finale indépendante encore requise. Coûts et gains
 non mesurés ; aucune entrée produit consommée.
+
+Infrastructure du 17 novembre 2026 : [PR247 acceptée](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598), puis
+[réconciliation documentaire et mesures M3](../../docs/validation/TASK-0005-retention-checkpoint.md),
+hors cohorte produit. Coordinateur, recherche et revues en contextes Codex
+gpt-6-astra/ultra distincts ; coûts, tokens et gains unknown. Aucune entrée produit
+consommée, aucun nouveau résultat opérationnel ni suivi à sept jours revendiqué.
