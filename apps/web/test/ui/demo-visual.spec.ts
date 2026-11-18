@@ -174,6 +174,10 @@ test("reduced motion and 200 percent text keep the demo operable", async ({ page
       await page.screenshot({ path: directory ? path.join(directory, name) : testInfo.outputPath(name), fullPage: true, scale: "css" });
     }
     const suffix = font === "platform" ? "" : "-wide-font";
+    await page.setViewportSize({ width: 320, height: 780 });
+    await captureTextState(`demo-320-dark-text-200-${browserName}${suffix}-search.png`);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel("Apparence").selectOption("light");
     await captureTextState(`demo-390-light-text-200-${browserName}${suffix}-search.png`);
     await page.getByRole("button", { name: "Rechercher", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
