@@ -1462,6 +1462,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       process.env.RUNNER_ENVIRONMENT !== "github-hosted" || !safePath(process.env.RUNNER_TEMP)) fail("scanner_official_requires_nonroot_linux_actions");
   const runnerTemp = realpathSync(process.env.RUNNER_TEMP);
   const githubOutput = process.env.GITHUB_OUTPUT;
+  let frozenPostgresInspection;
   for (const file of [inputScanner, buildInfo, output]) {
     const relative = path.relative(runnerTemp, file);
     if (!safePath(file) || !relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || realpathSync(path.dirname(file)) !== path.dirname(file)) fail("scanner_official_path_outside_runner_temp");
@@ -1753,7 +1754,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             }
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
             await recheckImageFiles({ role: candidate.role, frozen });
-            if (postgres) appendFileSync(githubOutput, "postgres_inspection_published=true\n");
+            if (postgres) frozenPostgresInspection = frozen[1];
             build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: archiveSnapshot.sha256, archiveBytes: archiveSnapshot.size,
               archiveCapBytes: archiveSnapshot.cap, artifactName: `/${path.basename(archive)}` };
             build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject,
@@ -2165,7 +2166,21 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   } finally {
     // No image/cache pruning: this new directory belongs only to the disposable runner job.
     receipt.workRetention = "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
-    writeJson(path.join(output, "official-audit-receipt.json"), receipt);
+    try {
+      if (frozenPostgresInspection) {
+        postgresIdentity(frozenPostgresInspection);
+        appendFileSync(githubOutput, "postgres_inspection_published=true\n");
+      }
+    } catch {
+      receipt.result = "failed";
+      receipt.postgresInspectionUpload = "REFUSED";
+      if (!receipt.failure) {
+        receipt.failure = "scanner_postgres_inspection_upload_refused";
+        fail(receipt.failure);
+      }
+    } finally {
+      writeJson(path.join(output, "official-audit-receipt.json"), receipt);
+    }
   }
   return receipt;
 }

@@ -259,3 +259,12 @@ fixture places private sentinel bytes at the occupied path and checks both
 their local preservation and their absence from the resolved upload. The
 successful path still selects the checked inspection. The local managed suite
 passed 821 cases with one platform exclusion and zero failures.
+
+The code review of `9a32aacd` confirmed collision exclusion and found that a
+later replacement could leave the upload flag set. The producer now keeps the
+frozen inspection identity until audit finalization. It verifies the file's
+size and SHA-256 on a checked descriptor immediately before enabling upload.
+A regression replaces a previously valid inspection with private sentinel bytes
+after the build, checks that the final audit fails, and confirms that the flag
+is absent and the resolved artifact excludes those bytes. The local managed
+suite passed 822 cases with one platform exclusion and zero failures.
