@@ -210,3 +210,21 @@ observation cannot be written, and records UNKNOWN as soon as publication
 staging is allocated. Three regression cases cover refused observation writes
 on the capture and publication paths, plus a failed initial ownership check.
 The managed regression suite passed 806 cases with one platform exclusion.
+
+Architecture returned CLEAR on `c8ad1c44`. The separate code review of
+`6875c6a2` requested four corrections. PostgreSQL inspection now stages
+stdout privately, validates the config ID against Buildx metadata, and promotes
+the checked inspection after a successful save by immutable image ID. Failed
+inspect/save commands use the private diagnostic policy. Export metadata,
+the runtime trace and the frozen identity documents are parsed from capped,
+descriptor-checked bytes. The capture allocator registers the inventory
+directory and rejects unexpected direct children during cleanup.
+
+Regression cases exercise the actual inspection/save branch, command wrapper,
+failure handler, receipt writer and workflow upload selection with synthetic
+Docker responses. They cover command failure, malformed inspection, mismatched
+config and a tag reassigned between inspection and save. Additional cases cover
+oversized or incomplete export metadata, replacement of the inventory directory
+and a foreign child. The local managed regression suite passed 816 cases with
+one platform exclusion and zero failures. Native CI and independent review of
+the revised source remain separate gates.

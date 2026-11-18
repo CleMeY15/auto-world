@@ -193,12 +193,20 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     }
     if (mutation.startsWith("member ")) put(dest, mutation.slice(7), Buffer.from("substitution"));
     if (mutation === "credential") put(dest, "evidence/module-verify.txt", "Authorization: Bearer fixture-sensitive");
+    if (mutation === "oversized-metadata") truncateSync(meta, 1024 * 1024 + 1);
+    if (mutation === "missing-build-ref") writeFileSync(meta, "{}");
     if (mutation === "public-extra") secondSolve.record.extra = privateValue;
     if (["metadata", "capture-observation-write"].includes(mutation)) rmSync(meta);
   };
   const command = (_docker, _arguments, options) => {
     if (mutation === "container-cleanup") throw new Error("scanner_official_cleanup_uncertain");
     if (mutation === "post-copy") put(exportPath, "materials/reference-gosu", "changed");
+    if (mutation === "unexpected-child" || mutation === "runtime-directory") {
+      const dir = mutation === "unexpected-child" ? path.join(path.dirname(exportPath), "foreign") : path.dirname(options.file);
+      if (mutation === "runtime-directory") renameSync(dir, dir + "-original");
+      mkdirSync(dir);
+      writeFileSync(path.join(dir, "keep"), "foreign");
+    }
     writeFileSync(options.file, finalInventory);
     return finalInventory;
   };
@@ -210,7 +218,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
   const execute = () => adapter.capturePostgresMaterials({ build, local, work, output, published, command, exportSolve, firstSolve,
     secondSolve, recipes, run, managed, source });
   const filename = "managed-gosu-material-capture.json";
-  const retainedCapture = mutation === "capture-observation-write";
+  const retainedCapture = ["capture-observation-write", "runtime-directory", "unexpected-child"].includes(mutation);
   const retainedPublicStage = ["promotion-observation-write", "staging-stat"].includes(mutation);
   if (mutation === "staging-stat") {
     const stat = fs.lstatSync;
@@ -303,6 +311,10 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     assert.equal(local.gosuEvidence.kind, "SOURCE_BOUND_GOSU_V1");
     assert.deepEqual(build.publicEvidence.map((row) => row.path).sort(), [...evidenceNames].sort());
   }
+  if (mutation === "unexpected-child" || mutation === "runtime-directory") {
+    const dir = mutation === "runtime-directory" ? "postgres-runtime" : "foreign";
+    assert.equal(readFileSync(path.join(path.dirname(exportPath), dir, "keep"), "utf8"), "foreign");
+  }
   if (exportPath) assert.equal(existsSync(path.dirname(exportPath)), retainedCapture);
 }
 
@@ -312,7 +324,7 @@ test("two-solve binding uses the observed first projection and exact recipe, arc
   for (const mutation of ["zip", "coordinated", "member evidence/go.mod", "member evidence/go.sum", "member evidence/" + tsv,
     "member materials/gosu-source.tar.gz", "member materials/reference-gosu", "attempt", "config", "archive", "platform",
     "recipe", "credential", "post-copy", "metadata", "public-extra", "container-cleanup", "publication", "write-failure", "capture-observation-write",
-    "promotion-observation-write", "staging-stat"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
+    "promotion-observation-write", "staging-stat", "missing-build-ref", "oversized-metadata", "runtime-directory", "unexpected-child"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
 });
 
 test("wrapper and cleanup failures keep the global receipt and resolved upload free of private diagnostics", { skip: process.platform !== "linux" }, (t) => {
@@ -370,4 +382,78 @@ test("cleanup preserves a substituted exporter destination even under the origin
   }), { message: "scanner_gosu_material_cleanup_unknown" });
   assert.equal(status.cleanup, "UNKNOWN");
   assert.equal(readFileSync(foreign, "utf8"), "foreign");
+});
+
+test("PostgreSQL inspection and immutable archive save keep failed command output outside the upload", { skip: process.platform !== "linux" }, async (t) => {
+  const root = temp(t);
+  const moduleDir = path.join(root, "scripts/scanner");
+  cpSync(path.join(repo, "scripts/scanner"), moduleDir, { recursive: true });
+  const original = readFileSync(path.join(moduleDir, "official-audit.mjs"), "utf8");
+  const section = (start, end) => {
+    const first = original.indexOf(start), last = original.indexOf(end, first);
+    assert.ok(first >= 0 && last > first);
+    return original.slice(first, last);
+  };
+  // Run the production wrapper, identity/save branch, failure handler and final receipt writer.
+  // Only Docker and the surrounding runner bootstrap are replaced.
+  const harness = original + `
+    export async function exercise({work, output, artifacts, archive, tag, metadataFile, invoke}) {
+      const candidate = { role: "postgres" }, postgres = true, environment = {}, localImages = new Map();
+      const build = { result: "failed", materialCapture: { cleanup: "NOT_CREATED" } };
+      const receipt = { builds: [build], commands: [] };
+      let cleanupUncertain = false;
+      ${section("  const successful = (result)", "  const phase = async")}
+      try {
+        ${section("            const inspectedFile = path.join(output,", '          if (build.result !== "passed" &&')}
+      ${section('    writeJson(path.join(output, "official-audit-receipt.json"), receipt);', "\n  }")}
+      return build;
+    }`;
+  const runner = path.join(moduleDir, "inspect-save-fixture.mjs");
+  writeFileSync(runner, harness);
+  const { exercise } = await import(pathToFileURL(runner));
+  const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
+  const patterns = workflow.jobs.audit.steps.find((s) => s.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
+  for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "retag"]) {
+    await t.test(mode, async (sub) => {
+      const base = temp(sub), work = path.join(base, "work"), artifacts = path.join(work, "artifacts");
+      const output = path.join(base, "data-foundation-audit"), tag = "auto-world-managed/postgres:" + "a".repeat(40);
+      mkdirSync(artifacts, { recursive: true }); mkdirSync(output);
+      const id = "sha256:" + "1".repeat(64), other = "sha256:" + "2".repeat(64);
+      const metadataFile = path.join(artifacts, "postgres-buildx.json");
+      const archive = path.join(artifacts, "managed-image-postgres.tar");
+      writeFileSync(metadataFile, json({ "containerimage.config.digest": mode === "mismatched-config" ? other : id, "containerimage.digest": other }));
+      const sentinels = [work, privateValue, "fixture-sensitive"];
+      const diagnostic = Buffer.from(work + " " + privateValue + " Authorization: Bearer fixture-sensitive");
+      const inspection = json([{ Id: id, Os: "linux", Architecture: "amd64", RepoTags: [tag] }]);
+      let saved;
+      const invoke = (_executable, args) => {
+        const inspect = args[1] === "inspect";
+        const failed = mode === (inspect ? "inspect-failure" : "save-failure");
+        if (!inspect) {
+          saved = args.at(-1);
+          // The tag now points to a different image; the inspected ID still resolves to the original bytes.
+          if (!failed) writeFileSync(archive, saved === id ? id : other);
+        }
+        return { status: failed ? 1 : 0, signal: null, stdout: failed || mode === "invalid-inspect" ? diagnostic : inspect ? inspection : Buffer.alloc(0),
+          stderr: failed ? diagnostic : Buffer.alloc(0) };
+      };
+      const build = await exercise({ work, output, artifacts, archive, tag, metadataFile, invoke });
+      assert.equal(build.result, mode === "retag" ? "passed" : "failed");
+      assert.equal(saved, ["retag", "save-failure"].includes(mode) ? id : undefined);
+      const files = patterns.flatMap((pattern) => globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base }));
+      assert.ok(files.includes("data-foundation-audit/official-audit-receipt.json"));
+      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), mode === "retag");
+      if (mode === "retag") {
+        assert.equal(build.subject.imageId, id);
+        assert.equal(build.subject.archiveSha256, hash(id));
+        assert.deepEqual(readFileSync(path.join(output, "managed-postgres-inspect.json")), inspection);
+      } else {
+        assert.ok(files.includes("data-foundation-audit/managed-gosu-material-capture.json"));
+        for (const file of files) {
+          const bytes = readFileSync(path.join(base, file));
+          for (const sentinel of sentinels) assert.equal(bytes.includes(sentinel), false, file);
+        }
+      }
+    });
+  }
 });

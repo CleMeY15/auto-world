@@ -131,8 +131,9 @@ function fixture(t) {
   const image = subject(), localImages = new Map([["postgres", { subject: image }]]);
   const build = { role: "postgres", result: "passed", subject: image,
     publicEvidence: exportManagedTextEvidence(evidence, destination) };
+  const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime);
   const context = {
-    build, evidence, artifacts, published,
+    build, evidence, runtime, published,
     command: (executable, args, options) => {
       assert.equal(executable, "/usr/bin/docker");
       assert.deepEqual(args, managedGosuHashArguments(image));

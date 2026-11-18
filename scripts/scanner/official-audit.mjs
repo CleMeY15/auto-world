@@ -356,7 +356,7 @@ const fileStamp = (stat) => [stat.dev, stat.ino, stat.mode, stat.nlink, stat.uid
 const statOf = (file) => lstatSync(file, { bigint: true });
 
 function captureMember(file, cap, copy, collectText = false) {
-  if (collectText && cap > 4096) materialInvalid();
+  if (collectText && cap > MiB) materialInvalid();
   if (realpathSync(file) !== file) materialInvalid();
   const before = statOf(file);
   if (!before.isFile() || before.nlink !== 1n || before.size < 1n || before.size > BigInt(cap)) materialInvalid();
@@ -482,8 +482,7 @@ export function bindGosuMaterialFiles(root, snapshot, observedLine) {
       .map((row) => ({ ...row, role: materialRoles[row.path.slice("materials/".length)] })) };
 }
 
-export function bindPostgresExport({ build, command, evidence, artifacts, published }) {
-  const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });
+export function bindPostgresExport({ build, command, evidence, runtime, published }) {
   const finalInventory = command(DOCKER, managedGosuHashArguments(build.subject),
     { file: path.join(runtime, "binary-sha256.txt"), timeout: 30_000, privateOutput: true });
   build.gosuSourceEvidence = bindManagedGosuEvidence(build.subject, { finalInventory,
@@ -527,7 +526,7 @@ export function withGosuCaptureRoot(work, status, consume, beforeFailureCleanup)
     nonce = randomUUID();
     writeFileSync(path.join(root, "owner"), nonce, { flag: "wx", mode: 0o400 });
     const createDirectory = (name) => {
-      if (!["export", "snapshot", "text", "recipes"].includes(name)) materialInvalid();
+      if (!["export", "snapshot", "text", "recipes", "metadata", "postgres-runtime"].includes(name)) materialInvalid();
       const dir = path.join(root, name);
       mkdirSync(dir, { mode: 0o700 });
       const stat = statOf(dir);
@@ -549,6 +548,8 @@ export function withGosuCaptureRoot(work, status, consume, beforeFailureCleanup)
       try {
         if (dirId(work) !== parentId || dirId(root) !== rootId ||
             captureMember(path.join(root, "owner"), 36).sha256 !== hashBytes(nonce)) materialInvalid();
+        const expectedChildren = ["owner", ...Array.from(children.keys(), (dir) => path.basename(dir))].sort();
+        if (!isDeepStrictEqual(readdirSync(root).sort(), expectedChildren)) materialInvalid();
         for (const [dir, original] of children) {
           const stat = statOf(dir);
           if (realpathSync(dir) !== dir || !stat.isDirectory() || stat.uid !== BigInt(process.getuid()) ||
@@ -612,15 +613,19 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
   await assertManagedArchiveUnchanged(local.archiveSnapshot);
   const tag = `auto-world-managed/postgres:${source}`;
   const [metadata, inspection] = local.frozen;
-  const identity = validateManagedLocalImage(JSON.parse(readFileSync(inspection.path)), JSON.parse(readFileSync(metadata.path)), tag);
+  const readIdentity = (entry) => {
+    const checked = captureMember(entry.path, MiB, undefined, true);
+    if (checked.sha256 !== entry.sha256 || checked.size !== entry.size) materialInvalid();
+    return JSON.parse(checked.bytes.toString("utf8"));
+  };
+  const identity = validateManagedLocalImage(readIdentity(inspection), readIdentity(metadata), tag);
   if (source !== run.GITHUB_SHA || build.subject.imageId !== identity.imageId || build.subject.os !== identity.os ||
       build.subject.architecture !== identity.architecture || build.subject.archiveSha256 !== local.archiveSnapshot.sha256 ||
       build.subject.archiveBytes !== local.archiveSnapshot.size || local.archiveSnapshot.role !== "postgres") materialInvalid();
   const traceFile = path.join(output, "managed-gosu-runtime-trace.json");
   if (!isDeepStrictEqual(Object.keys(build.gosuRuntimeTrace).sort(), ["path", "sha256", "size"]) ||
-      captureMember(traceFile, 8192).sha256 !== build.gosuRuntimeTrace.sha256 ||
       build.gosuRuntimeTrace.path !== "managed-gosu-runtime-trace.json") materialInvalid();
-  const traceBytes = readFileSync(traceFile);
+  const traceBytes = captureMember(traceFile, 8192, undefined, true).bytes;
   const trace = JSON.parse(traceBytes);
   const { materialInput } = firstSolve;
   checkSolveRecord(firstSolve);
@@ -633,9 +638,9 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
   const recipe = readFileSync(path.join(ROOT, "infra/managed-images/Dockerfile.postgres"), "utf8").split("\n");
   if (compiler.repository !== "library/golang" || !digest(compiler.platform.digest) ||
       !["gosu-build", "gosu-offline-reconstruction"].every((stage) => recipe.includes(`FROM golang@${compiler.platform.digest} AS ${stage}`))) materialInvalid();
-  const captured = withGosuCaptureRoot(work, build.materialCapture, (root, createDirectory) => {
+  const captured = withGosuCaptureRoot(work, build.materialCapture, (_root, createDirectory) => {
     const dest = createDirectory("export"), copy = createDirectory("snapshot");
-    const privateText = createDirectory("text"), exportMetadata = path.join(root, "export-metadata.json");
+    const privateText = createDirectory("text"), exportMetadata = path.join(createDirectory("metadata"), "export-metadata.json");
     if (!isDeepStrictEqual(recipeSnapshot(source, createDirectory("recipes")), recipes)) materialInvalid();
     exportSolve("material-capture", dest, exportMetadata);
     checkSolveRecord(secondSolve);
@@ -653,7 +658,7 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
     if (bound.inputProjection.sha256 !== materialInput.sha256 || bound.inputProjection.size !== materialInput.size) materialInvalid();
     const evidence = path.join(copy, "evidence");
     const candidate = { subject: build.subject, publicEvidence: exportManagedTextEvidence(evidence, path.join(privateText, "postgres")) };
-    bindPostgresExport({ build: candidate, command, evidence, artifacts: root, published: privateText });
+    bindPostgresExport({ build: candidate, command, evidence, runtime: createDirectory("postgres-runtime"), published: privateText });
     const text = captureManagedTextEvidence(path.join(privateText, "postgres"), path.join(published, "postgres"));
     const runtimeText = captureManagedTextEvidence(path.join(privateText, "postgres-runtime"), path.join(published, "postgres-runtime"));
     const expectedText = publicRows(frozen.files).filter((row) => row.path.startsWith("evidence/"))
@@ -664,10 +669,9 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
         runtimeText[0].relative !== "binary-sha256.txt" || runtimeText[0].sha256 !== MANAGED_GOSU_SOURCE.finalInventorySha256 ||
         !isDeepStrictEqual(recipeSnapshot(source), recipes) || !isDeepStrictEqual(original, snapshotGosuExport(dest)) ||
         !isDeepStrictEqual(frozen, snapshotGosuExport(copy))) materialInvalid();
-    const metadata = captureMember(exportMetadata, MiB);
-    const metadataBytes = readFileSync(exportMetadata);
-    const exportRecord = JSON.parse(metadataBytes);
-    if (hashBytes(metadataBytes) !== metadata.sha256 || !exportRecord || typeof exportRecord !== "object" || Array.isArray(exportRecord)) materialInvalid();
+    const metadata = captureMember(exportMetadata, MiB, undefined, true);
+    const exportRecord = JSON.parse(metadata.bytes.toString("utf8"));
+    if (typeof exportRecord?.["buildx.build.ref"] !== "string" || !exportRecord["buildx.build.ref"].trim()) materialInvalid();
     return { text, runtimeText, candidate, stamps: original.files, observation: {
       schemaVersion: 1, kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1", status: "CAPTURED_IN_JOB_ONLY",
       platform: "linux/amd64", run: trace.run, firstRuntime: { ...firstSolve.record, trace: build.gosuRuntimeTrace,
@@ -1682,7 +1686,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             { timeout: 90 * 60_000, gosuRuntimeTrace: postgres, solveObservation: postgres && firstSolve });
             if (candidate.role === "postgres") build.gosuRuntimeTrace = receipt.commands.at(-1).gosuRuntimeTrace;
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
-            const inspectedBytes = command(DOCKER, ["image", "inspect", tag], { file: inspectedFile });
+            const privateInspection = path.join(artifacts, "postgres-inspection.json");
+            const inspectedBytes = command(DOCKER, ["image", "inspect", tag],
+              { file: postgres ? privateInspection : inspectedFile, privateOutput: postgres });
+            if (postgres && inspectedBytes.length > MiB) materialInvalid();
             const inspected = JSON.parse(inspectedBytes.toString("utf8"));
             const metadata = (await readBoundedJson(metadataFile, MiB)).value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
@@ -1701,7 +1708,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
                 finalInspection: Object.freeze({ path: inspectedFile, base64: inspectedBytes.toString("base64"), size: inspectedBytes.length, sha256: hashBytes(inspectedBytes) }),
               });
             }
-            command(DOCKER, ["image", "save", "--output", archive, tag]); chmodSync(archive, 0o444);
+            command(DOCKER, ["image", "save", "--output", archive, postgres ? identity.imageId : tag], { privateOutput: postgres });
+            chmodSync(archive, 0o444);
+            if (postgres) {
+              const staged = captureMember(privateInspection, MiB);
+              if (staged.sha256 !== hashBytes(inspectedBytes)) materialInvalid();
+              scanCapturedCredentials([{ relative: "managed-postgres-inspect.json", text: inspectedBytes.toString("utf8") }]);
+              renameSync(privateInspection, inspectedFile);
+            }
             const frozen = await captureFiles(identityFiles);
             if (seaweedInspections && Object.values(seaweedInspections).some((proof) =>
               !frozen.some((entry) => entry.path === proof.path && entry.size === proof.size && entry.sha256 === proof.sha256))) {
