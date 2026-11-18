@@ -27,8 +27,19 @@ function save(output, file, object) {
 const load = (output, file) => JSON.parse(readFileSync(path.join(output, file)));
 
 function pair(image, scenario) {
+  if (image.role === "opensearch") {
+    const fromPr253 = (file) => JSON.parse(readFileSync(new URL("../docs/validation/opensearch-310/" + file, import.meta.url)));
+    const json = fromPr253("image-opensearch.json");
+    const sbom = fromPr253("image-opensearch.cdx.json");
+    const properties = sbom.metadata.component.properties;
+    if (scenario === "wrong-id") properties.find((p) => p.name === "aquasecurity:trivy:ImageID").value = "sha256:" + "2".repeat(64);
+    if (scenario === "old-json-diffid") json.Metadata.DiffIDs[0] = json.Metadata.DiffIDs[1];
+    if (scenario === "old-sbom-diffid") properties.find((p) => p.name === "aquasecurity:trivy:DiffID").value = "sha256:" + "2".repeat(64);
+    if (scenario === "clean") for (const result of json.Results) delete result.Vulnerabilities;
+    return { json, sbom };
+  }
   const subject = image.repository + "@" + image.platform.digest;
-  const id = image.role === "opensearch" ? "sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba" : "sha256:" + "1".repeat(64);
+  const id = "sha256:" + "1".repeat(64);
   const property = (name, value) => ({ name: "aquasecurity:trivy:" + name, value });
   const targets = image.role === "seaweedfs" ? [["usr/bin/weed", "gobinary"], ["usr/bin/weed-volume", "rustbinary"], ["usr/bin/weed-worker", "rustbinary"]]
     : [["fixture", "jar"]];
@@ -51,7 +62,7 @@ function pair(image, scenario) {
       properties: [property("Type", "alpine"), property("Class", "os-pkgs")] });
   }
   const sbom = { bomFormat: "CycloneDX", specVersion: "1.6", metadata: { component: { name: subject, "bom-ref": subject,
-    type: "container", properties: [property("ImageID", scenario === "wrong-id" && image.role === "opensearch" ? "sha256:" + "2".repeat(64) : id)] } },
+    type: "container", properties: [property("ImageID", id)] } },
   components, dependencies: [] };
   return { json, sbom };
 }
@@ -119,6 +130,16 @@ async function fixture(t, scenario = "") {
   return { config: release, receipt, output, operations, scanCommands };
 }
 
+function readInFreshProcess(output, identity) {
+  const module = new URL("../scripts/scanner/official-comparison-checkpoint.mjs", import.meta.url);
+  return JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+    import { readComparisonCheckpoint } from ${JSON.stringify(module.href)};
+    import { readFileSync } from "node:fs";
+    const config = JSON.parse(readFileSync(new URL(${JSON.stringify(configUrl.href)})));
+    console.log(JSON.stringify(await readComparisonCheckpoint({config, output: process.argv[1], expectedIdentity: JSON.parse(process.argv[2])})));
+  `, output, JSON.stringify(identity)]));
+}
+
 test("twelve exact command records, policy-only refusals and fresh disk-only partial recovery", async (t) => {
   const f = await fixture(t);
   const result = await writeComparisonCheckpoint(f);
@@ -129,13 +150,7 @@ test("twelve exact command records, policy-only refusals and fresh disk-only par
   assert.equal(result.checkpoint.awsComparator.oldPolicy, "blocked");
   save(f.output, "image-opensearch-candidate.json", { partial: true });
   assert.equal(existsSync(path.join(f.output, "official-audit-receipt.json")), false);
-  const module = new URL("../scripts/scanner/official-comparison-checkpoint.mjs", import.meta.url);
-  const fresh = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
-    import { readComparisonCheckpoint } from ${JSON.stringify(module.href)};
-    import { readFileSync } from "node:fs";
-    const config = JSON.parse(readFileSync(new URL(${JSON.stringify(configUrl.href)})));
-    console.log(JSON.stringify(await readComparisonCheckpoint({config, output: process.argv[1]})));
-  `, f.output]));
+  const fresh = readInFreshProcess(f.output, result.identity);
   assert.equal(fresh.eligible, true);
   assert.deepEqual(fresh.checkpoint, result.checkpoint);
   assert.deepEqual(fresh.candidateEvidence, { state: "partial", files: ["image-opensearch-candidate.json"] });
@@ -152,10 +167,35 @@ for (const [scenario, reason] of [["eosl", "scanner_comparison_ineligible_blocke
     if (scenario === "eosl") {
       const five = load(f.output, result.checkpoint.fiveImageEvidence.file);
       assert.equal(five.rejections[0].reason, "scanner_image_policy_blocked");
-      assert.deepEqual(five.blockers.map(({ code }) => code), ["image_os_end_of_life", "image_vulnerability_blocked",
+      assert.deepEqual(five.blockers.filter(({ role }) => role === "postgres").map(({ code }) => code), ["image_os_end_of_life", "image_vulnerability_blocked",
         "image_vulnerability_blocked", "unfixed_high_needs_independent_disposition"]);
       assert.equal(five.reports[0].blockerCount, 4);
     }
+  });
+}
+
+for (const [scenario, reason] of [["old-json-diffid", "scanner_opensearch_old_json_subject_invalid"],
+  ["old-sbom-diffid", "scanner_opensearch_old_sbom_subject_invalid"]]) {
+  test("producer and fresh reader refuse sealed " + scenario, async (t) => {
+    const f = await fixture(t, scenario);
+    const decisions = load(f.output, f.receipt.fiveImageEvidence.file);
+    assert.equal(decisions.blockers.filter(({ role }) => role === "opensearch").length, 82);
+    const { checkpoint, identity, eligible } = await writeComparisonCheckpoint(f);
+    const refusal = [{ stage: "opensearch_3_9", reason }];
+    assert.deepEqual(checkpoint.reasons, refusal);
+    assert.equal(eligible, false);
+
+    // Replace the producer verdict and its seal. The reader must discover the
+    // contradiction in the authenticated old pair independently.
+    checkpoint.reasons = [];
+    const seal = save(f.output, identity.file, checkpoint);
+    save(f.output, "image-aws-comparison-checkpoint-identity.json", seal);
+    const fresh = readInFreshProcess(f.output, seal);
+    assert.deepEqual(fresh.reasons, refusal);
+    assert.equal(fresh.eligible, false);
+    assert.equal(fresh.candidateEvidence.state, "absent");
+    assert.deepEqual(load(f.output, checkpoint.fiveImageEvidence.file), decisions);
+    assert.deepEqual(checkpoint.awsComparator, f.receipt.awsComparator);
   });
 }
 

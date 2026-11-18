@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
 import { captureFiles, readBoundedJson } from "./controls.mjs";
 import { boundedJsonBytes } from "./official-report-bytes.mjs";
-import { validateOpenSearchComparisonJson } from "./official-opensearch-inventory.mjs";
+import { validateOpenSearchComparisonJson, validateOpenSearchComparisonPair } from "./official-opensearch-inventory.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
 
 const repository = "opensearchproject/opensearch";
@@ -152,6 +152,7 @@ export async function compareOpenSearchCandidate({ config, receipt, output, oper
     }
     const oldIdentity = receipt.reports.find((row) => row.role === old.role)?.report;
     const oldReport = await readPair(output, old, oldIdentity);
+    await validateOpenSearchComparisonPair(oldReport, "old");
     const runFormat = async (format, execute) => {
       const index = identities.length;
       if (activeFormat || index >= formats.length || format !== formats[index] || receipt.commands.length !== start + index) fail("scanner_opensearch_format_order_invalid");

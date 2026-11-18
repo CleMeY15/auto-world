@@ -8,6 +8,7 @@ import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity } from "./official-audit.mjs";
 import { deriveAwsComparison, readPreviousAwsInventory } from "./official-aws-comparator.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
+import { validateOpenSearchComparisonPair } from "./official-opensearch-inventory.mjs";
 
 const fiveFile = "image-five-subject-results.json";
 const awsFile = "image-aws-cli-comparison.json";
@@ -101,7 +102,7 @@ function verifyOccurrences(image, json, evaluation) {
   requireEvidence(equal(policyOnly, blockers), "scanner_comparison_blockers_mismatch");
 }
 
-async function replay(config, images, original, output, operations, at) {
+async function replay(config, images, original, output, operations, at, inspectPair) {
   requireEvidence(equal(original?.reports?.map(({ role }) => role), images.map(({ role }) => role)), "scanner_comparison_roles_invalid");
   // Run the collector's decision construction on the captured reports only.
   const replayed = await collectImageAudits(images, {
@@ -122,6 +123,7 @@ async function replay(config, images, original, output, operations, at) {
       return readReportPair(output, image, captured.identity);
     },
     async evaluate(image, reports) {
+      await inspectPair?.(image, reports);
       const expectedId = imageIds[image.role];
       if (expectedId) {
         const ids = reports.sbom.metadata?.component?.properties?.filter((entry) => entry.name === "aquasecurity:trivy:ImageID");
@@ -192,7 +194,9 @@ async function check(config, checkpoint, output, operations, receipt) {
     requireEvidence(checkpoint.fiveImageResult === (five.rejections.length ? "rejected" : "passed"), "scanner_comparison_five_result_invalid");
     if (receipt) requireEvidence(equal(five, { reports: receipt.reports, blockers: receipt.blockers, rejections: receipt.rejections }),
       "scanner_comparison_five_receipt_mismatch");
-    await replay(config, config.images, five, output, operations, at);
+    await replay(config, config.images, five, output, operations, at, (image, pair) => {
+      if (image.role === "opensearch") return inspect("opensearch_3_9", () => validateOpenSearchComparisonPair(pair, "old"));
+    });
   });
   await inspect("report_mapping", () => {
     for (const { role, format, report } of checkpoint.commands) {

@@ -33,18 +33,20 @@ const layerMetadata = {
   Size: candidateSizes.reduce((a, b) => a + b, 0),
 };
 
-function reports(digest, config, blocked) {
-  const subject = previous.repository + "@" + digest;
-  const purl = "pkg:oci/opensearch@" + digest + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
+function candidateReports(blocked) {
+  const subject = previous.repository + "@" + candidatePlatform;
+  const purl = "pkg:oci/opensearch@" + candidatePlatform + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
+  const { Digest, DiffID } = layerMetadata.Layers[3];
+  const Layer = { Digest, DiffID };
   return {
     json: { ArtifactName: subject, ArtifactType: "container_image", SchemaVersion: 2, CreatedAt: new Date().toISOString(),
-      Trivy: { Version: "0.76.2" }, Metadata: { ...JSON.parse(JSON.stringify(digest === candidatePlatform ? layerMetadata : baselineMetadata)),
-        ImageID: config, Reference: subject, RepoDigests: [subject] },
-      Results: [{ Class: "lang-pkgs", Target: "Java", Type: "jar", Packages: [{ Name: "org.example:test", Version: "1" }],
-        Vulnerabilities: blocked ? [{ VulnerabilityID: "CVE-TEST", PkgName: "org.example:test", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2" }] : [] }] },
+      Trivy: { Version: "0.76.2" }, Metadata: { ...globalThis.structuredClone(layerMetadata),
+        ImageID: candidateConfig, Reference: subject, RepoDigests: [subject] },
+      Results: [{ Class: "lang-pkgs", Target: "Java", Type: "jar", Packages: [{ Name: "org.example:test", Version: "1", Layer }],
+        Vulnerabilities: blocked ? [{ VulnerabilityID: "CVE-TEST", PkgName: "org.example:test", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2", Layer }] : [] }] },
     cyclonedx: { bomFormat: "CycloneDX", specVersion: "1.6", dependencies: [],
       metadata: { component: { type: "container", name: subject, purl, "bom-ref": purl,
-        properties: [prop("ImageID", config), prop("Reference", subject), prop("RepoDigest", subject)] } },
+        properties: [prop("ImageID", candidateConfig), prop("Reference", subject), prop("RepoDigest", subject)] } },
       components: [{ type: "library", name: "org.example:test", version: "1", "bom-ref": "example", properties: [prop("PkgType", "jar")] }] },
   };
 }
@@ -53,9 +55,10 @@ async function fixture(t, options = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "opensearch-comparator-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const events = [], calls = [];
-  const previousPair = reports(previous.platform.digest, previousConfig, options.oldBlocked);
+  const previousPair = globalThis.structuredClone({ json: baselineReport, cyclonedx: baselineSbom });
+  previousPair.json.CreatedAt = new Date().toISOString();
+  if (!options.oldBlocked) for (const result of previousPair.json.Results) delete result.Vulnerabilities;
   options.mutateOld?.(previousPair);
-  if (options.oldWrongConfig) previousPair.cyclonedx.metadata.component.properties[0].value = candidateConfig;
   const report = [];
   for (const format of ["json", "cyclonedx"]) {
     const bytes = Buffer.from(JSON.stringify(previousPair[format]));
@@ -84,7 +87,7 @@ async function fixture(t, options = {}) {
         assert.equal(image.repository, "opensearchproject/opensearch");
         assert.equal(image.platform.digest, candidatePlatform);
         assert.equal(image.manifestDigest, "sha256:02d6d6e40c820ae08233b60540aa5d3d9364d64e2dc724e38d6c8c794879b2a0");
-        const pair = reports(candidatePlatform, candidateConfig, options.blocked);
+        const pair = candidateReports(options.blocked);
         options.mutatePair?.(pair);
         for (const format of ["json", "cyclonedx"]) {
           await runFormat(format, async (timeoutMs) => {
@@ -144,7 +147,7 @@ test("the baseline's policy refusal survives a clean candidate", async (t) => {
   const c = await f.run();
   assert.deepEqual([c.result, c.qualification, c.candidatePolicy], ["passed", "passed", "clean"]);
   assert.deepEqual(f.calls[0].oldBlockers, f.receipt.blockers);
-  assert.equal(f.receipt.blockers.length, 1);
+  assert.equal(f.receipt.blockers.length, 82);
 });
 
 for (const [name, mutate, reason] of [
@@ -185,7 +188,9 @@ for (const [name, options, reason, expectedCommands] of [
   ["wrong subject", { mutatePair: (p) => { p.json.ArtifactName = previous.repository; } }, /json_subject_invalid/u, 1],
   ["wrong schema", { mutatePair: (p) => { p.json.SchemaVersion = 1; } }, /image_report_invalid/u, 1],
   ["wrong SBOM config", { mutatePair: (p) => { p.cyclonedx.metadata.component.properties[0].value = previousConfig; } }, /sbom_subject_invalid/u, 2],
-  ["wrong old SBOM config", { oldWrongConfig: true }, /sbom_subject_invalid/u, 0],
+  ["wrong old SBOM config", { mutateOld: (p) => {
+    p.cyclonedx.metadata.component.properties.find((prop) => prop.name === "aquasecurity:trivy:ImageID").value = candidateConfig;
+  } }, /sbom_subject_invalid/u, 0],
   ["missing SBOM", { afterWrite: (fmt, target) => fmt === "cyclonedx" && rm(target) }, /ENOENT/u, 2],
   ["absent owned cleanup", { command: (_fmt, record) => { delete record.ownedContainerAbsent; } }, /cleanup_uncertain/u, 1],
   ["duplicate lease", { command: (fmt, record, r) => { if (fmt === "cyclonedx") record.lease.name = r.commands[0].lease.name; } }, /command_invalid/u, 2],
@@ -199,6 +204,26 @@ for (const [name, options, reason, expectedCommands] of [
     assert.equal(c.qualification, "failed");
     assert.equal(c.candidatePolicy, "unmeasured");
     assert.equal(c.delta, undefined);
+  });
+}
+
+for (const [format, reason] of [["json", "scanner_opensearch_old_json_subject_invalid"],
+  ["cyclonedx", "scanner_opensearch_old_sbom_subject_invalid"]]) {
+  test("no candidate preflight or command for rehashed old " + format + " with substituted DiffID", async (t) => {
+    const f = await fixture(t, { oldBlocked: true, mutateOld: (pair) => {
+      if (format === "json") pair.json.Metadata.DiffIDs[0] = pair.json.Metadata.DiffIDs[1];
+      else pair.cyclonedx.metadata.component.properties.find((p) => p.name === "aquasecurity:trivy:DiffID").value = candidateConfig;
+    } });
+    const blockers = globalThis.structuredClone(f.receipt.blockers);
+    assert.equal(blockers.length, 82);
+    await assert.rejects(f.run(), { message: reason });
+    assert.deepEqual(f.events, ["checkpoints"]);
+    assert.deepEqual(f.receipt.commands, []);
+    assert.deepEqual(f.receipt.blockers, blockers);
+    const c = f.receipt.openSearchComparator;
+    assert.equal(c.reason, reason);
+    assert.equal(c.execution, "not_started");
+    assert.deepEqual(c.commandIndices, []);
   });
 }
 
@@ -254,11 +279,7 @@ test("bounded delta refuses repeated path expansion before publication", async (
 
 
 test("exact same-DB replay admits all 82 original ordered blockers", async (t) => {
-  const f = await fixture(t, { mutateOld: (pair) => {
-    pair.json = { ...baselineReport, CreatedAt: new Date().toISOString() };
-    pair.cyclonedx = baselineSbom;
-    validateOfficialImageSbom(pair.json, pair.cyclonedx, previous);
-  } });
+  const f = await fixture(t, { oldBlocked: true });
   f.receipt.awsComparisonInputs.databaseFiles[0].sha256 = "7244f40ff53c4ac2909d8fba04aa4937354a620c380dc83bbc51df715f6cd68d";
   await f.run();
   assert.equal(f.calls[0].historicalInputsMatch, true);
