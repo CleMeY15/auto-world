@@ -236,3 +236,17 @@ the identity files. A production-branch collision fixture verifies the build
 fails and the pre-existing public bytes survive. The success fixture verifies
 a single link remains. The managed suite passed 817 cases with one platform
 exclusion and no failures.
+
+Architecture cleared the destination collision fix on `1235962b`. The code
+recheck on `2bf0144d` also required binding the publication source across a
+staging-name replacement and bounding all reads of the frozen PostgreSQL image
+identity documents. The new publication writes the validated inspection buffer
+to an exclusive staging descriptor, passes that descriptor to GNU ln on Linux,
+and creates the public name without replacement. The fixture replaces the
+staging pathname while the descriptor is open. The build refuses the ownership
+change and the public file contains only the validated inspection bytes.
+PostgreSQL now uses the capped descriptor reader for the initial Buildx
+metadata, identity freeze, capture and image audit rechecks. Tests grow an
+identity file at both ends of the capture. The complete local managed suite
+passed 821 cases with one platform exclusion and zero failures. Hosted
+execution must verify the runner's actual filesystem and tool path.

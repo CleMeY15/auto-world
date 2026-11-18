@@ -200,6 +200,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
   };
   const command = (_docker, _arguments, options) => {
     if (mutation === "container-cleanup") throw new Error("scanner_official_cleanup_uncertain");
+    if (mutation === "late-identity-growth") truncateSync(metadata, 1024 * 1024 + 1);
     if (mutation === "post-copy") put(exportPath, "materials/reference-gosu", "changed");
     if (mutation === "unexpected-child" || mutation === "runtime-directory") {
       const dir = mutation === "unexpected-child" ? path.join(path.dirname(exportPath), "foreign") : path.dirname(options.file);
@@ -211,6 +212,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     return finalInventory;
   };
   if (mutation === "attempt") run.GITHUB_RUN_ATTEMPT = "2";
+  if (mutation === "early-identity-growth") truncateSync(inspection, 1024 * 1024 + 1);
   if (mutation === "config") subject.imageId = "sha256:" + "f".repeat(64);
   if (mutation === "archive") subject.archiveBytes++;
   if (mutation === "platform") subject.architecture = "arm64";
@@ -323,7 +325,7 @@ test("two-solve binding uses the observed first projection and exact recipe, arc
   for (const cached of [0, 3]) await t.test("positive fixture, observed cached vertices " + cached, (c) => scenario(c, checkout, "", cached));
   for (const mutation of ["zip", "coordinated", "member evidence/go.mod", "member evidence/go.sum", "member evidence/" + tsv,
     "member materials/gosu-source.tar.gz", "member materials/reference-gosu", "attempt", "config", "archive", "platform",
-    "recipe", "credential", "post-copy", "metadata", "public-extra", "container-cleanup", "publication", "write-failure", "capture-observation-write",
+    "recipe", "credential", "early-identity-growth", "late-identity-growth", "post-copy", "metadata", "public-extra", "container-cleanup", "publication", "write-failure", "capture-observation-write",
     "promotion-observation-write", "staging-stat", "missing-build-ref", "oversized-metadata", "runtime-directory", "unexpected-child"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
 });
 
@@ -413,7 +415,7 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   const { exercise } = await import(pathToFileURL(runner));
   const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
   const patterns = workflow.jobs.audit.steps.find((s) => s.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
-  for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "collision", "retag"]) {
+  for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "collision", "stage-replaced", "oversized-identity", "retag"]) {
     await t.test(mode, async (sub) => {
       const base = temp(sub), work = path.join(base, "work"), artifacts = path.join(work, "artifacts");
       const output = path.join(base, "data-foundation-audit"), tag = "auto-world-managed/postgres:" + "a".repeat(40);
@@ -427,6 +429,23 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
       const publicInspection = path.join(output, "managed-postgres-inspect.json");
       const priorEvidence = Buffer.from("original evidence");
       if (mode === "collision") writeFileSync(publicInspection, priorEvidence);
+      if (mode === "oversized-identity") truncateSync(metadataFile, 1024 * 1024 + 1);
+      if (mode === "stage-replaced") {
+        const write = fs.writeFileSync;
+        const hook = sub.mock.method(fs, "writeFileSync", (file, ...args) => {
+          const value = write(file, ...args);
+          if (typeof file === "number") {
+            const stage = fs.readlinkSync("/proc/self/fd/" + file);
+            if (path.basename(stage).startsWith("verified-inspection-")) {
+              renameSync(stage, stage + "-moved");
+              write(stage, diagnostic);
+            }
+          }
+          return value;
+        });
+        syncBuiltinESMExports();
+        sub.after(() => { hook.mock.restore(); syncBuiltinESMExports(); });
+      }
       const inspection = json([{ Id: id, Os: "linux", Architecture: "amd64", RepoTags: [tag] }]);
       let saved;
       const invoke = (_executable, args) => {
@@ -442,10 +461,11 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
       };
       const build = await exercise({ work, output, artifacts, archive, tag, metadataFile, invoke });
       assert.equal(build.result, mode === "retag" ? "passed" : "failed");
-      assert.equal(saved, ["retag", "collision", "save-failure"].includes(mode) ? id : undefined);
+      assert.equal(saved, ["retag", "collision", "stage-replaced", "save-failure"].includes(mode) ? id : undefined);
       const files = patterns.flatMap((pattern) => globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base }));
       assert.ok(files.includes("data-foundation-audit/official-audit-receipt.json"));
-      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), ["retag", "collision"].includes(mode));
+      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), ["retag", "collision", "stage-replaced"].includes(mode));
+      if (mode === "stage-replaced") assert.deepEqual(readFileSync(publicInspection), inspection);
       if (mode === "collision") assert.deepEqual(readFileSync(publicInspection), priorEvidence);
       if (mode === "retag") {
         assert.equal(fs.statSync(publicInspection).nlink, 1);

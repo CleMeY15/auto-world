@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, closeSync, fstatSync, linkSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
@@ -388,6 +388,39 @@ function captureMember(file, cap, copy, collectText = false) {
   } finally { try { if (dest !== undefined) closeSync(dest); } finally { closeSync(fd); } }
 }
 
+// The GitHub Linux runner provides GNU ln. Resolve the source via the inherited
+// open descriptor, so replacing the staging name cannot select different bytes.
+function publishPostgresInspection(artifacts, destination, bytes) {
+  const staging = path.join(artifacts, "verified-inspection-" + randomUUID());
+  const fd = openSync(staging, "wx", 0o400);
+  try {
+    const owned = fstatSync(fd, { bigint: true });
+    try {
+      writeFileSync(fd, bytes);
+      const result = spawnSync("/usr/bin/ln", ["--logical", "--no-target-directory", "--", "/proc/self/fd/3", destination],
+        { stdio: ["ignore", "pipe", "pipe", fd], timeout: 5000, maxBuffer: 4096, env: { PATH: "/usr/bin:/bin" } });
+      if (result.error || result.signal || result.status !== 0) materialInvalid();
+    } finally {
+      const named = statOf(staging);
+      if (owned.dev !== named.dev || owned.ino !== named.ino) materialInvalid();
+      unlinkSync(staging);
+    }
+  } finally { closeSync(fd); }
+}
+
+function postgresIdentity(entry, collect = false) {
+  const { path: file, cap } = entry;
+  if (!Number.isSafeInteger(cap) || cap < 1 || cap > MiB) materialInvalid();
+  const { sha256, size, bytes } = captureMember(file, cap, undefined, collect);
+  if (entry.sha256 !== undefined && (entry.sha256 !== sha256 || entry.size !== size)) materialInvalid();
+  return collect ? { value: JSON.parse(bytes.toString("utf8")), sha256, size } : { path: file, cap, sha256, size };
+}
+
+async function recheckImageFiles(local) {
+  if (local.role === "postgres") local.frozen.forEach((entry) => postgresIdentity(entry));
+  else await assertFilesUnchanged(local.frozen);
+}
+
 function memberCap(name) {
   if (["go.mod", "go.sum", moduleTsv].includes(path.basename(name))) return 1024;
   if (name === "evidence/" + offlineReceipt) return 4096;
@@ -609,16 +642,10 @@ export function recordGosuCaptureFailure(work, output, status, firstRuntime = fa
 
 export async function capturePostgresMaterials({ build, local, work, output, published, command, exportSolve,
   firstSolve, secondSolve, recipes, run, managed, source }) {
-  await assertFilesUnchanged(local.frozen);
   await assertManagedArchiveUnchanged(local.archiveSnapshot);
   const tag = `auto-world-managed/postgres:${source}`;
   const [metadata, inspection] = local.frozen;
-  const readIdentity = (entry) => {
-    const checked = captureMember(entry.path, MiB, undefined, true);
-    if (checked.sha256 !== entry.sha256 || checked.size !== entry.size) materialInvalid();
-    return JSON.parse(checked.bytes.toString("utf8"));
-  };
-  const identity = validateManagedLocalImage(readIdentity(inspection), readIdentity(metadata), tag);
+  const identity = validateManagedLocalImage(postgresIdentity(inspection, true).value, postgresIdentity(metadata, true).value, tag);
   if (source !== run.GITHUB_SHA || build.subject.imageId !== identity.imageId || build.subject.os !== identity.os ||
       build.subject.architecture !== identity.architecture || build.subject.archiveSha256 !== local.archiveSnapshot.sha256 ||
       build.subject.archiveBytes !== local.archiveSnapshot.size || local.archiveSnapshot.role !== "postgres") materialInvalid();
@@ -680,7 +707,7 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
       archiveSha256: build.subject.archiveSha256, ...bound, exportedFiles: gosuExportNames.length, exportBytes: original.total,
       beforeAfterEqual: true, survival: "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE" } };
   }, () => writeGosuFailureObservation(work, output, build.materialCapture));
-  await assertFilesUnchanged(local.frozen);
+  local.frozen.forEach((entry) => postgresIdentity(entry));
   await assertManagedArchiveUnchanged(local.archiveSnapshot);
   const observation = { ...captured.observation, cleanup: build.materialCapture.cleanup };
   const manifest = jsonLine({ ...observation, firstArguments: firstSolve.args, exportArguments: secondSolve.args,
@@ -1691,7 +1718,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               { file: postgres ? privateInspection : inspectedFile, privateOutput: postgres });
             if (postgres && inspectedBytes.length > MiB) materialInvalid();
             const inspected = JSON.parse(inspectedBytes.toString("utf8"));
-            const metadata = (await readBoundedJson(metadataFile, MiB)).value;
+            const metadataRead = postgres ? postgresIdentity({ path: metadataFile, cap: MiB }, true) : await readBoundedJson(metadataFile, MiB);
+            const metadata = metadataRead.value;
             const identity = validateManagedLocalImage(inspected, metadata, tag);
             const identityFiles = [{ path: metadataFile, cap: MiB }, { path: inspectedFile, cap: MiB }];
             let seaweedInspections;
@@ -1714,17 +1742,16 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               const staged = captureMember(privateInspection, MiB);
               if (staged.sha256 !== hashBytes(inspectedBytes)) materialInvalid();
               scanCapturedCredentials([{ relative: "managed-postgres-inspect.json", text: inspectedBytes.toString("utf8") }]);
-              // Publish the complete checked inode only when the public name is free.
-              linkSync(privateInspection, inspectedFile);
-              unlinkSync(privateInspection);
+              publishPostgresInspection(artifacts, inspectedFile, inspectedBytes);
             }
-            const frozen = await captureFiles(identityFiles);
+            const frozen = postgres ? identityFiles.map((entry) => postgresIdentity(entry)) : await captureFiles(identityFiles);
+            if (postgres && (frozen[0].sha256 !== metadataRead.sha256 || frozen[1].sha256 !== hashBytes(inspectedBytes))) materialInvalid();
             if (seaweedInspections && Object.values(seaweedInspections).some((proof) =>
               !frozen.some((entry) => entry.path === proof.path && entry.size === proof.size && entry.sha256 === proof.sha256))) {
               fail("scanner_managed_seaweed_source_evidence_invalid");
             }
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
-            await assertFilesUnchanged(frozen);
+            await recheckImageFiles({ role: candidate.role, frozen });
             build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: archiveSnapshot.sha256, archiveBytes: archiveSnapshot.size,
               archiveCapBytes: archiveSnapshot.cap, artifactName: `/${path.basename(archive)}` };
             build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject,
@@ -1828,11 +1855,11 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const local = localImages.get(image.role);
           if (managed?.candidates.some((candidate) => candidate.role === image.role) && !local) fail("scanner_managed_image_not_built");
           for (const format of ["json", "cyclonedx"]) {
-            if (local) { await assertFilesUnchanged(local.frozen); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
+            if (local) { await recheckImageFiles(local); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
             try { command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format) : officialImageScanArguments(carrier, scanner, cache, image, format),
               { file: format === "json" ? files.json : files.sbom }); }
             catch (error) { failures.push(error); }
-            if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await assertFilesUnchanged(local.frozen); }
+            if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await recheckImageFiles(local); }
           }
           if (failures.length) throw failures[0];
         },
@@ -1848,7 +1875,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         evaluate: async (image, report) => {
           const local = localImages.get(image.role);
           if (local) {
-            await assertFilesUnchanged(local.frozen);
+            await recheckImageFiles(local);
             await assertManagedArchiveUnchanged(local.archiveSnapshot);
             return evaluateManagedArchiveForRole(image, report, local, receipt);
           }
