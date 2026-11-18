@@ -1,5 +1,12 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
+accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded
+two-solve [implementation and validation](docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-and-local-verification)
+are ready for independent source review. Source/main native evidence and
+protected delivery remain pending. TASK-0005/0005A stay IN_PROGRESS; PR251's
+raw 159 blockers remain unwaived. The earlier checkpoints below are historical.
+
 TASK-0005, 18 November 2026: [PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250)
 accepts the Gosu diagnostic on main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`.
 The next [PostgreSQL/Gosu proposal](roadmap/plans/TASK-0005-postgres-gosu-material-capture.md)
@@ -256,5 +263,6 @@ Les points précédents restent historiques. TASK-0122 est acceptée par [PR233]
 
 [TASK-0124 — trier directement les résultats](roadmap/tasks/TASK-0124-results-sort.md) est `LOCAL_VALIDATED / DELIVERY_PENDING`, sur une branche isolée intégrant main `b4b17be` sans conflit. Tri déterministe existant avec soumission explicite, critères acceptés exacts et remise à zéro de pagination ;668 tests navigateur réussis/10 exclusions préexistantes, gates globaux intégrés et revues code/architecture/pixels favorables. La livraison source/main reste obligatoire, voir [les preuves](docs/validation/TASK-0124.md). Candidat suivant après acceptation seulement : navigation précédente/suivante dans les annonces déjà chargées. TASK-0005 reste une voie séparée ; aucune admission de données réelles n'est déduite de ce travail.
 
-Voie indépendante TASK-0130 (18 novembre 2026) : [préparation de l'accès web privé](roadmap/tasks/TASK-0130-private-web.md), activation réservée au parent après [gates](docs/operations/PRIVATE_WEB.md).
 Voie produit du 18 novembre 2026 : [TASK-0126 — parcourir les annonces déjà chargées](roadmap/tasks/TASK-0126-loaded-listing-navigation.md) en validation, première entrée du pilote après acceptation de PR243. [Passation](roadmap/CURRENT.md).
+
+Voie indépendante TASK-0130 (18 novembre 2026) : [préparation de l'accès web privé](roadmap/tasks/TASK-0130-private-web.md), activation réservée au parent après [gates](docs/operations/PRIVATE_WEB.md).

@@ -130,6 +130,13 @@ test("production helper with fixture compiler requires three isolated acquisitio
   assert.equal(bytes.toString(), `${JSON.stringify(proof)}\n`);
   assert.equal(proof.modulePayloadsSha256, hash(f.descriptor()));
   assert.deepEqual(proof.missingZipRefusals, ["github.com/moby/sys/user@v0.4.1", "golang.org/x/sys@v0.1.0"]);
+  const entry = (file) => { const bytes = readFileSync(file); return { size: bytes.length, sha256: hash(bytes) }; };
+  assert.equal(result.stdout.split("gosu_offline_reconstruction_passed\n")[1], "gosu_material_input_v1:" + JSON.stringify({
+    schemaVersion: 1, kind: "GOSU_MATERIAL_INPUT_PROJECTION_V1", source: entry(f.archive),
+    goMod: entry(path.join(f.references, "go.mod")), goSum: entry(path.join(f.references, "go.sum")),
+    moduleProxyTsv: entry(path.join(f.references, "module-proxy-payloads.tsv")), offlineReceipt: entry(f.receipt()),
+    referenceBinary: entry(f.reference), compilerVersion: "go version go1.27.3 linux/amd64",
+  }) + "\n");
   const acquisitions = f.calls().filter(({ args }) => args[0] === "mod" && args[1] === "download");
   assert.equal(acquisitions.length, 3);
   assert.deepEqual(acquisitions.map(({ args }) => args), [

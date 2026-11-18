@@ -79,4 +79,10 @@ clarifies C1 (existing trace repetitions/interleavings) and delivery state only.
 Each verdict keeps its exact scope; source/main documentary acceptance pending.
 Costs/tokens/human time unknown, no measured savings or product entry consumed.
 
+18 November, PostgreSQL/Gosu capture implementation after PR252 documentary
+acceptance: sole Codex gpt-6.2-astra / ultra implementer; [scope, checks and
+handoff](../../docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-brief--18-november-2026).
+Infrastructure maintenance outside product cohort; independent delivery review
+pending, cost/tokens/human effort unknown.
+
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.

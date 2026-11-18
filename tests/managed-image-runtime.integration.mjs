@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
@@ -12,7 +13,7 @@ import { sqlText } from "../scripts/data-infra/migrations.mjs";
 import { conditionalRawWrite, digestBytes, rawKey } from "../scripts/data-infra/raw-protocol.mjs";
 import { validateTarArchive } from "../scripts/data-infra/backup.mjs";
 import { removeOwnedHelper } from "../scripts/data-infra/helper-cleanup.mjs";
-import { operationSignal, protectedRecovery, withCancellation } from "../scripts/data-infra/cancellation.mjs";
+import { operationSignal, protectedRecovery, withCancellation, withOperationSignal } from "../scripts/data-infra/cancellation.mjs";
 
 // Only the direct, explicitly gated Linux invocation registers tests. Importing
 // this module for pure contract tests never starts Docker or registers a test.
@@ -504,7 +505,8 @@ const CASES = [
   restoreCanonical,
 ];
 
-async function cleanup(context) {
+export async function cleanupRuntimeContext(context) {
+  ensure(!context.blocked);
   context.cleanupDeadline = Date.now() + 120_000;
   let failed = false;
   for (const name of context.helpers) {
@@ -557,30 +559,67 @@ async function cleanup(context) {
   ensure(!failed && !context.blocked);
 }
 
-async function main() {
+export async function runManagedRuntimeCases(execute) {
   const cases = CASE_NAMES.map((name) => ({ name, status: "not_run", code: "not_run" }));
-  let context, failed = false, cleanupResult = "failed";
-  await withCancellation(async () => {
+  // All four tests are siblings, including after awaiting a previous test's callback.
+  const registerCase = AsyncResource.bind(test);
+  const controller = new globalThis.AbortController();
+  const parent = operationSignal();
+  const signal = parent ? globalThis.AbortSignal.any([parent, controller.signal]) : controller.signal;
+  for (const [index, row] of cases.entries()) {
+    if (controller.signal.aborted) {
+      await registerCase(row.name, () => { throw new Error("not_run"); });
+      continue;
+    }
+    let operation, testContext;
+    let verified = false;
     try {
-      for (let index = 0; index < CASE_NAMES.length; index++) {
-        await test(CASE_NAMES[index], async () => {
-          if (failed) throw new Error("not_run");
-          try {
-            if (!context) context = await prepareRuntimeContext();
-            ensure(!operationSignal()?.aborted); await verifyRuntimeReferences(context); await verifyImages(context);
-            await CASES[index](context); await verifyImages(context); await verifyRuntimeReferences(context);
-            cases[index] = { name: CASE_NAMES[index], status: "passed", code: "verified" };
-          } catch { failed = true; cases[index] = { name: CASE_NAMES[index], status: "failed", code: "failed" }; throw new Error("failed"); }
+      await registerCase(row.name, (t) => {
+        testContext = t;
+        ensure(!signal.aborted);
+        operation = withOperationSignal(signal, async () => {
+          try { await execute(index); }
+          catch { throw new Error("failed"); }
+          verified = true;
         });
-      }
+        return operation;
+      });
+      // A callback can settle even when node:test records an uncaught error.
+      ensure(testContext?.passed === true && verified && !signal.aborted);
+      row.status = "passed";
+      row.code = "verified";
+    } catch {
+      row.status = row.code = "failed";
+      controller.abort();
+    } finally {
+      // Drain the actual operation, including child close, before cleanup or the next case.
+      await operation?.catch(() => {});
+    }
+  }
+  return cases;
+}
+
+async function main() {
+  let context, cleanupResult = "failed";
+  await withCancellation(async () => {
+    let cases;
+    try {
+      cases = await runManagedRuntimeCases(async (index) => {
+        if (!context) context = await prepareRuntimeContext();
+        ensure(!operationSignal()?.aborted); await verifyRuntimeReferences(context); await verifyImages(context);
+        await CASES[index](context); await verifyImages(context); await verifyRuntimeReferences(context);
+      });
+      if (cases.some((row) => row.status === "failed")) process.exitCode = 1;
     } finally {
       if (context) {
-        await protectedRecovery(async () => { try { await cleanup(context); cleanupResult = "passed"; } catch { process.exitCode = 1; } });
-        const current = await fs.lstat(context.parent, { bigint: true });
-        ensure(current.isDirectory() && current.dev === context.parentInfo.dev && current.ino === context.parentInfo.ino && current.uid === context.parentInfo.uid && (current.mode & 0o777n) === 0o700n);
-        const result = { schemaVersion: 1, run: context.input.run, roles: ROLES.map((role) => ({ role, imageId: context.input.roles.find((item) => item.role === role).imageId })), cases, cleanup: { result: cleanupResult } };
-        await fs.writeFile(path.join(context.parent, "runtime-result.json"), `${JSON.stringify(result)}\n`, { flag: "wx", mode: 0o600 });
+        await protectedRecovery(async () => { try { await cleanupRuntimeContext(context); cleanupResult = "passed"; } catch { process.exitCode = 1; } });
       }
+    }
+    if (context) {
+      const current = await fs.lstat(context.parent, { bigint: true });
+      ensure(current.isDirectory() && current.dev === context.parentInfo.dev && current.ino === context.parentInfo.ino && current.uid === context.parentInfo.uid && (current.mode & 0o777n) === 0o700n);
+      const result = { schemaVersion: 1, run: context.input.run, roles: ROLES.map((role) => ({ role, imageId: context.input.roles.find((item) => item.role === role).imageId })), cases, cleanup: { result: cleanupResult } };
+      await fs.writeFile(path.join(context.parent, "runtime-result.json"), `${JSON.stringify(result)}\n`, { flag: "wx", mode: 0o600 });
     }
   }, { processExit: true });
 }
