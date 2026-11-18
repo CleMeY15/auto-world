@@ -1,12 +1,13 @@
 # Diagnostic derivative: the CLI implementation and inherited runtime contract stay intact.
-FROM amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 AS aws-cli-updated
+FROM amazon/aws-cli@sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090 AS aws-cli-updated
 
 RUN <<'BUILD'
 #!/bin/bash
 set -euo pipefail
+export LC_ALL=C
 evidence=/usr/share/auto-world/managed-images/aws-cli
 mkdir -p "$evidence"
-printf '%s\n' 'amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9' > "$evidence/base-image.txt"
+printf '%s\n' 'amazon/aws-cli@sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090' > "$evidence/base-image.txt"
 printf '%s\n' 'DIAGNOSTIC_ONLY_NOT_ADMITTED' 'releasever=2023.12.20261112' 'repositoryGuid=707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523' > "$evidence/repository.txt"
 repo=https://cdn.amazonlinux.com/al2023/core/guids/707b7dfd96f868bd1650473d34d918a106283766d54260bc446abe9beefb6523/x86_64/
 test -s /etc/pki/rpm-gpg/RPM-GPG-KEY-amazon-linux-2023
@@ -14,37 +15,144 @@ curl --fail --location --proto '=https' --tlsv1.2 "${repo}repodata/repomd.xml" -
 printf '%s  %s\n' ae00370d0a8a2e73ea7751cdf7417b07d72e6672674eb55a50f74d52ac9834fe "$evidence/repomd.xml" | sha256sum -c -
 sha256sum "$evidence/repomd.xml" > "$evidence/repomd-sha256.txt"
 
+assert_fixed_evrs() {
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' curl-minimal)" = '0:8.21.0-5.amzn2023.0.5'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcurl-minimal)" = '0:8.21.0-5.amzn2023.0.5'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc)" = '0:2.34-231.amzn2023.0.6'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc-common)" = '0:2.34-231.amzn2023.0.6'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc-minimal-langpack)" = '0:2.34-231.amzn2023.0.6'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcap)" = '0:2.73-1.amzn2023.0.8'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2)" = '0:10.40-1.amzn2023.0.5'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2-syntax)" = '0:10.40-1.amzn2023.0.5'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3)" = '0:3.9.25-1.amzn2023.0.11'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3-libs)" = '0:3.9.25-1.amzn2023.0.11'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm)" = '0:4.16.1.3-29.amzn2023.0.10'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-build-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-sign-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3-rpm)" = '0:4.16.1.3-29.amzn2023.0.10'
+    test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' sqlite-libs)" = '0:3.40.0-1.amzn2023.0.9'
+}
+assert_fixed_evrs
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n' | LC_ALL=C sort > "$evidence/rpm-before.tsv"
 find /usr/local/aws-cli -xdev -printf '%p\t%y\t%m\t%U\t%G\t%s\t%l\n' | LC_ALL=C sort > "$evidence/cli-tree-before.tsv"
 find /usr/local/aws-cli -xdev -type f -exec sha256sum '{}' + | LC_ALL=C sort > "$evidence/cli-files-before.sha256"
 stat --printf '%n\t%F\t%a\t%u\t%g\t%s\t%N\n' /usr/local/bin/aws /usr/local/bin/aws_completer > "$evidence/cli-launchers-before.tsv"
 /usr/local/bin/aws --version > "$evidence/aws-version-before.txt" 2>&1
-test "$(cut -d ' ' -f1 "$evidence/aws-version-before.txt")" = aws-cli/2.38.5
+test "$(cut -d ' ' -f1 "$evidence/aws-version-before.txt")" = aws-cli/2.41.0
+
+# Select the highest ID, including any incomplete transaction. Query its explicit
+# identity so the DNF CLI cannot silently select an earlier successful entry.
+capture_history() {
+    local side=$1 id
+    id=$(python3 - <<'HISTORY_ID'
+import sqlite3
+
+with sqlite3.connect("file:/var/lib/dnf/history.sqlite?mode=ro", uri=True) as db:
+    print(db.execute("SELECT MAX(id) FROM trans").fetchone()[0])
+HISTORY_ID
+    )
+    [[ $id =~ ^[1-9][0-9]*$ ]]
+    printf '%s\n' "$id" > "$evidence/dnf-history-$side-id.txt"
+    dnf --disablerepo='*' history info "$id" > "$evidence/dnf-history-$side.txt"
+}
+capture_history before
 
 # Upgrade the whole installed RPM set coherently; no package-specific downgrade or signature bypass.
-dnf --releasever=2023.12.20261112 --disablerepo='*' --enablerepo=amazonlinux \
-    --setopt=amazonlinux.mirrorlist= --setopt="amazonlinux.baseurl=$repo" \
+set -- --releasever=2023.12.20261112 --disablerepo='*' --enablerepo=amazonlinux \
+    --setopt=amazonlinux.skip_if_unavailable=0 --setopt=amazonlinux.mirrorlist= --setopt="amazonlinux.baseurl=$repo" \
     --setopt=amazonlinux.gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-amazon-linux-2023 \
-    --setopt=amazonlinux.gpgcheck=1 --setopt=gpgcheck=1 --refresh --best upgrade -y \
-    2>&1 | tee "$evidence/dnf-upgrade.txt"
-dnf history info last > "$evidence/dnf-transaction.txt"
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' curl-minimal)" = '0:8.21.0-5.amzn2023.0.5'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcurl-minimal)" = '0:8.21.0-5.amzn2023.0.5'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc)" = '0:2.34-231.amzn2023.0.6'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc-common)" = '0:2.34-231.amzn2023.0.6'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' glibc-minimal-langpack)" = '0:2.34-231.amzn2023.0.6'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' libcap)" = '0:2.73-1.amzn2023.0.8'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2)" = '0:10.40-1.amzn2023.0.5'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' pcre2-syntax)" = '0:10.40-1.amzn2023.0.5'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3)" = '0:3.9.25-1.amzn2023.0.11'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3-libs)" = '0:3.9.25-1.amzn2023.0.11'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm)" = '0:4.16.1.3-29.amzn2023.0.10'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-build-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' rpm-sign-libs)" = '0:4.16.1.3-29.amzn2023.0.10'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' python3-rpm)" = '0:4.16.1.3-29.amzn2023.0.10'
-test "$(rpm -q --qf '%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n' sqlite-libs)" = '0:3.40.0-1.amzn2023.0.9'
+    --setopt=amazonlinux.gpgcheck=1 --setopt=gpgcheck=1 --refresh --best upgrade -y
+printf '%s\n' "$*" > "$evidence/dnf-command.txt"
+dnf "$@" 2>&1 | tee "$evidence/dnf-upgrade.txt"
+capture_history after
+assert_fixed_evrs
 rpm -qa --qf '%{NAME}\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\t%{ARCH}\n' | LC_ALL=C sort > "$evidence/rpm-after.tsv"
+python3 - "$evidence" > "$evidence/dnf-transaction.txt" <<'VERIFY_DNF'
+import re
+import sys
+from pathlib import Path
+
+evidence = Path(sys.argv[1])
+
+def require(condition, reason):
+    if not condition:
+        sys.exit("DNF evidence: " + reason)
+
+def read(name):
+    return (evidence / name).read_text(encoding="utf-8")
+
+def history(side):
+    ident = int(read("dnf-history-" + side + "-id.txt"))
+    report = read("dnf-history-" + side + ".txt")
+    def field(name):
+        values = re.findall("^" + name + r"[ ]*:[ ]*(.+)$", report, re.MULTILINE)
+        require(len(values) == 1, "missing or ambiguous history field " + name)
+        return values[0]
+    require(ident > 0 and field("Transaction ID") == str(ident), "wrong history identity")
+    require(field("Return-Code") == "Success" and field("End time").strip(), "incomplete history")
+    require(report.count("\nPackages Altered:\n") == 1 and "\nErrors:" not in report, "invalid history")
+    changes = report.split("\nPackages Altered:\n")[1].split("\nScriptlet output:")[0].strip("\n").splitlines()
+    require(changes and all(line.startswith("    ") for line in changes), "unfinished or missing package actions")
+    packages = [line.split() for line in changes]
+    require(all(len(row) in (2, 3) for row in packages), "invalid package history")
+    return ident, field("Command Line"), packages, report[report.index("Transaction ID"):]
+
+def inventory(side):
+    rows = read("rpm-" + side + ".tsv").splitlines()
+    packages = {}
+    for row in rows:
+        name, evr, arch = row.split("\t")
+        epoch, vr = evr.split(":", 1)
+        require(name and arch and epoch.isdigit() and "-" in vr, "invalid installed NEVRA")
+        # DNF displays a zero epoch implicitly, as name-version-release.arch.
+        packages[name + "-" + (evr if int(epoch) else vr) + "." + arch] = (name, arch)
+    require(rows and len(packages) == len(rows), "empty or duplicate installed NEVRA")
+    return packages
+
+prior_id, _, _, prior_report = history("before")
+current_id, command, changes, current_report = history("after")
+before = inventory("before")
+after = inventory("after")
+log = read("dnf-upgrade.txt").splitlines()
+require(log and log[-1] == "Complete!" and log.count("Complete!") == 1, "upgrade did not complete")
+require(log.count("Dependencies resolved.") == 1, "missing or ambiguous dependency resolution")
+expected_command = read("dnf-command.txt").rstrip("\n")
+require(expected_command.endswith(" --refresh --best upgrade -y"), "missing upgrade command")
+markers = ["Transaction Summary", "Running transaction check", "Running transaction test", "Running transaction"]
+if prior_id == current_id:
+    require(prior_report == current_report, "history changed under the same ID")
+    require(read("rpm-before.tsv") == read("rpm-after.tsv"), "inventory changed without a transaction")
+    require(log[-3:] == ["Dependencies resolved.", "Nothing to do.", "Complete!"] and
+            not any(marker in log for marker in markers), "conflicting no-op output")
+    outcome = "NO_OP"
+else:
+    require(current_id == prior_id + 1 and command == expected_command, "unrelated transaction")
+    phases = ["Dependencies resolved.", *markers, "Complete!"]
+    require("Nothing to do." not in log and [line for line in log if line in phases] == phases,
+            "conflicting transaction output")
+    incoming, outgoing = set(), set()
+    upgraded = set()
+    for fields in changes:
+        action, nevra = fields[:2]
+        require(action in ("Install", "Dep-Install", "Upgrade", "Upgraded"), "unexpected package action: " + action)
+        packages = outgoing if action == "Upgraded" else incoming
+        require(packages is outgoing or fields[2:] == ["@amazonlinux"], "unexpected source repository")
+        if action == "Upgrade":
+            upgraded.add(nevra)
+        require(nevra not in packages, "duplicate package action")
+        packages.add(nevra)
+    require(incoming and incoming == after.keys() - before.keys() and outgoing == before.keys() - after.keys(),
+            "transaction actions disagree with the installed NEVRA delta")
+    require(sorted(after[n] for n in upgraded) == sorted(before[n] for n in outgoing),
+            "unpaired package upgrade")
+    outcome = "TRANSACTION"
+
+print("outcome=" + outcome)
+print("previousHistoryId=" + str(prior_id))
+print("currentHistoryId=" + str(current_id))
+print("upgradeTransactionId=" + (str(current_id) if outcome == "TRANSACTION" else "none"))
+VERIFY_DNF
 find /usr/local/aws-cli -xdev -printf '%p\t%y\t%m\t%U\t%G\t%s\t%l\n' | LC_ALL=C sort > "$evidence/cli-tree-after.tsv"
 find /usr/local/aws-cli -xdev -type f -exec sha256sum '{}' + | LC_ALL=C sort > "$evidence/cli-files-after.sha256"
 stat --printf '%n\t%F\t%a\t%u\t%g\t%s\t%N\n' /usr/local/bin/aws /usr/local/bin/aws_completer > "$evidence/cli-launchers-after.tsv"

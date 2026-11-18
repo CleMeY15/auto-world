@@ -477,7 +477,7 @@ const CASES = [
   async (context) => {
     await verifyImages(context); context.source = await createProject(context); await start(context, context.source);
     const version = await helper(context, context.input.roles.find((item) => item.role === "aws-cli").imageId, ["--version"]);
-    ensure(version.code === 0 && /^aws-cli\/2\.38\.5\s/u.test(version.stdout));
+    ensure(version.code === 0 && /^aws-cli\/2\.41\.0\s/u.test(version.stdout));
     await s3(context, context.source, "create-bucket");
     const key = rawKey("src_runtime", `run_${randomUUID()}`, "raw_start");
     ensure(await s3(context, context.source, "put-object", key, RAW) === "created" && digestBytes(await s3(context, context.source, "get-object", key)) === digestBytes(RAW));
