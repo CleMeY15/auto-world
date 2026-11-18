@@ -74,7 +74,7 @@ export function FoundationPreview() {
           </form>
           <div className="site-disabled-example">
             <Button disabled aria-describedby="search-unavailable">Rechercher</Button>
-            <p id="search-unavailable">La recherche sera disponible avec les prochaines données de démonstration.</p>
+            <p id="search-unavailable">Ce bouton illustre l’état désactivé.</p>
           </div>
         </section>
         <section aria-labelledby="card-title" className="site-section">
