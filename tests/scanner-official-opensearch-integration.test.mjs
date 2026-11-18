@@ -36,10 +36,18 @@ function original(role, format) {
   return bytes;
 }
 
+// Public projection of META-INF/maven/<group>/<artifact>/pom.properties from
+// the already captured candidate JAR, restricted to coordinates seen in PR253.
+const opensamlBytes = readFileSync(new URL("opensaml-candidate-maven.json", fixtures));
+assert.equal(identity(opensamlBytes).sha256, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146");
+const opensaml = JSON.parse(opensamlBytes);
+const opensamlWitness = "org.opensaml:opensaml-saml-impl";
+const jline = "org.jline:jline-builtins";
+
 // This is a transport fixture, never an observed 3.10 scan. Model retained
 // coordinates at still-shipped paths, apply the published per-copy mappings,
 // and emit the seven historical below-floor occurrences plus one new finding.
-function syntheticCandidate() {
+function syntheticCandidate(scenario) {
   const json = JSON.parse(original("opensearch", "json"));
   const sbom = JSON.parse(original("opensearch", "cyclonedx"));
   const manifest = read("3.10.0-platform"), imageConfig = read("3.10.0-config");
@@ -77,24 +85,37 @@ function syntheticCandidate() {
   const rows = read("matched-82");
   const copy = (file, name, version) => JSON.stringify([file, name, version]);
   const mapped = new Map(rows.map(({ original: old, candidate }) => [copy(old.PkgPath, old.PkgName, old.InstalledVersion), candidate]));
+  const owner = rows.find(({ candidate }) => candidate[0] === opensaml.file);
+  assert.equal(owner.candidate[3], opensaml.jarSha256);
+  const measuredLayer = layers.find((layer) => layer.Digest === opensaml.layerDigest);
+  assert.ok(measuredLayer);
   const java = json.Results.find((result) => result.Type === "jar");
+  assert.deepEqual(java.Packages.filter((pkg) => pkg.FilePath === owner.original.PkgPath).map((pkg) => pkg.Name).sort(),
+    Object.keys(opensaml.versions).sort());
+  assert.equal(opensaml.versions[opensamlWitness], "5.2.3");
   java.Packages = java.Packages.flatMap((pkg) => {
     const replacement = mapped.get(copy(pkg.FilePath, pkg.Name, pkg.Version));
-    const file = replacement?.[0] ?? pkg.FilePath;
+    const inOpenSaml = pkg.FilePath === owner.original.PkgPath;
+    if (inOpenSaml && scenario === "missing-opensaml" && pkg.Name === opensamlWitness) return [];
+    const file = inOpenSaml ? opensaml.file : replacement?.[0] ?? pkg.FilePath;
     const outerJar = file.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
     if (!shipped.has(outerJar)) return [];
     const [group, name] = pkg.Name.split(":");
-    const version = replacement?.[2].version ?? pkg.Version;
+    const version = inOpenSaml ? opensaml.versions[pkg.Name] : replacement?.[2].version ?? pkg.Version;
+    if (replacement) assert.deepEqual([file, version], [replacement[0], replacement[2].version]);
+    const { Digest, DiffID } = inOpenSaml ? measuredLayer : candidateLayer.get(pkg.Layer.Digest);
     const purl = "pkg:maven/" + group + "/" + name + "@" + version;
     sbom.components.push({ "bom-ref": "synthetic-" + sbom.components.length, type: "library", group, name, version, purl,
-      properties: [prop("PkgType", "jar"), prop("FilePath", file)] });
-    return [{ Name: pkg.Name, Version: version, FilePath: file, Identifier: { PURL: purl } }];
+      properties: [prop("PkgType", "jar"), prop("FilePath", file), prop("LayerDigest", Digest), prop("LayerDiffID", DiffID)] });
+    return [{ Name: pkg.Name, Version: version, FilePath: file, Layer: { Digest, DiffID }, Identifier: { PURL: purl } }];
   });
-  java.Vulnerabilities = rows.filter((row) => !row.meetsOriginalThreshold).map(({ original: old, candidate }) => ({
-    VulnerabilityID: old.VulnerabilityID, Severity: old.Severity, FixedVersion: old.FixedVersion, PkgName: old.PkgName,
-    PkgPath: candidate[0], InstalledVersion: candidate[2].version,
-  }));
+  java.Vulnerabilities = rows.filter((row) => !row.meetsOriginalThreshold).map(({ original: old, candidate }) => {
+    const pkg = java.Packages.find((p) => p.Name === old.PkgName && p.FilePath === candidate[0] && p.Version === candidate[2].version);
+    return { VulnerabilityID: old.VulnerabilityID, Severity: old.Severity, FixedVersion: old.FixedVersion, PkgName: pkg.Name,
+      PkgPath: pkg.FilePath, InstalledVersion: pkg.Version, Layer: pkg.Layer };
+  });
   assert.equal(java.Vulnerabilities.length, 7);
+  if (scenario === "jline-db-drift") java.Vulnerabilities = java.Vulnerabilities.filter((v) => v.PkgName !== jline);
   java.Vulnerabilities.push({ ...java.Vulnerabilities[0], VulnerabilityID: "CVE-SYNTHETIC-NEW" });
   return { json, cyclonedx: sbom };
 }
@@ -102,7 +123,19 @@ function syntheticCandidate() {
 function reportBytes(role, format, scenario, candidate) {
   if (role === candidateRole) return Buffer.from(JSON.stringify(candidate[format]));
   const bytes = original(role, format);
+  if (role === "opensearch" && scenario === "old-wrong-diffid" && format === "cyclonedx") {
+    const sbom = JSON.parse(bytes);
+    const root = sbom.metadata.component;
+    root.properties.find((p) => p.name === "aquasecurity:trivy:DiffID").value = "sha256:" + "0".repeat(64);
+    return Buffer.from(JSON.stringify(sbom));
+  }
   if (format !== "json") return bytes;
+  if (role === "opensearch" && scenario === "jline-db-drift") {
+    const json = JSON.parse(bytes);
+    const java = json.Results.find((result) => result.Type === "jar");
+    java.Vulnerabilities = java.Vulnerabilities.filter((v) => v.PkgName !== jline);
+    return Buffer.from(JSON.stringify(json));
+  }
   if (role === "redis" && scenario === "technical") return Buffer.from("{");
   if (role === previousRole && scenario === "aws-failure") {
     const json = JSON.parse(bytes);
@@ -138,7 +171,7 @@ async function worker(scenario, output) {
   syncBuiltinESMExports();
   const receipt = { run: { ...historical.run, GITHUB_REPOSITORY: "fixture/auto-world", GITHUB_RUN_ID: "1" }, scope: "upstream", commands: [],
     awsComparisonInputs: globalThis.structuredClone(historical.awsComparisonInputs) };
-  if (scenario === "clean-five") {
+  if (scenario === "clean-five" || scenario === "jline-db-drift") {
     // Clearing current findings models a changed database. Identical inputs
     // would (correctly) require the original 82 ordered OpenSearch blockers.
     receipt.awsComparisonInputs.databaseFiles.find((p) => p.file === "db/trivy.db").sha256 = "1".repeat(64);
@@ -160,7 +193,7 @@ async function worker(scenario, output) {
     assert.ok(role && formats.includes(format));
     assert.equal(args[args.indexOf("--image-src") + 1], "remote");
     appendFileSync(path.join(output, "docker.jsonl"), JSON.stringify({ role, format }) + "\n");
-    if (role === candidateRole) candidate ??= syntheticCandidate();
+    if (role === candidateRole) candidate ??= syntheticCandidate(scenario);
     const bytes = reportBytes(role, format, scenario, candidate);
     writeFileSync(file, bytes, { flag: "wx" });
     const lease = { name: "aw-official-" + randomUUID(), owner };
@@ -242,6 +275,8 @@ if (process.argv[2] === "recover") {
       const { inventory, candidateBlockers } = JSON.parse(bytes);
       assert.equal(inventory.history.historicalInputsMatch, !clean);
       assert.equal(inventory.history.orderedFindingPathsMatch, !clean);
+      assert.deepEqual(Object.fromEntries(inventory.candidate.packages.filter((p) => p.file === opensaml.file)
+        .map((p) => [p.name, p.version])), opensaml.versions);
       assert.equal(inventory.correspondence.length, 82);
       assert.equal(inventory.rpmCoverage.candidate.length, 111);
       assert.equal(inventory.candidatePolicy, "blocked");
@@ -250,6 +285,56 @@ if (process.argv[2] === "recover") {
         ["CVE-SYNTHETIC-NEW"]);
     });
   }
+
+  test("raw audit publishes a coverage failure when both candidate formats lose the OpenSAML copy in its renamed JAR", (t) => {
+    const output = run(t, "missing-opensaml", formats);
+    const receipt = disk(output, "official-audit-receipt.json");
+    const comparison = receipt.openSearchComparator;
+    assert.equal(comparison.execution, "complete", comparison.reason);
+    assert.equal(comparison.candidatePolicy, "blocked");
+    const bytes = readFileSync(path.join(output, comparison.delta.file));
+    assert.deepEqual(comparison.delta, { file: "image-opensearch-comparison.json", ...identity(bytes) });
+    const { inventory } = JSON.parse(bytes);
+    const oldWitness = inventory.old.packages.findIndex((p) => p.name === opensamlWitness && p.version === "5.2.3" &&
+      p.file === "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar");
+    assert.notEqual(oldWitness, -1);
+    const survivors = inventory.candidate.packages.filter((p) => p.file === opensaml.file);
+    assert.ok(survivors.some((p) => p.name === "com.google.guava:guava" && p.version === opensaml.versions[p.name]));
+    assert.ok(!survivors.some((p) => p.name === opensamlWitness));
+    assert.deepEqual(inventory.unresolved.unexplainedPackageLosses, [oldWitness]);
+    assert.equal(inventory.qualification, "failed");
+    assert.equal(comparison.qualification, "failed");
+    assert.equal(comparison.reason, "scanner_opensearch_unexplained_package_loss");
+  });
+
+  test("an old 3.9 SBOM with the correct subject label and a wrong root DiffID stops both candidate commands", (t) => {
+    const output = run(t, "old-wrong-diffid", []);
+    const receipt = disk(output, "official-audit-receipt.json");
+    const comparison = receipt.openSearchComparator;
+    assert.equal(comparison.execution, "not_started");
+    assert.equal(comparison.qualification, "failed");
+    assert.equal(existsSync(path.join(output, "image-opensearch-comparison.json")), false);
+    assert.deepEqual(receipt.blockers, historical.blockers);
+  });
+
+  test("fresh reports share JLine advisory drift while all seven below-floor copies remain measured", (t) => {
+    const output = run(t, "jline-db-drift", formats);
+    const comparison = disk(output, "official-audit-receipt.json").openSearchComparator;
+    const { inventory } = disk(output, comparison.delta.file);
+    assert.equal(inventory.history.historicalInputsMatch, false);
+    assert.equal(inventory.history.findings.removed.length, 1);
+    const below = inventory.correspondence.filter((row) => !row.candidateThreshold.meetsFloor);
+    assert.equal(below.length, 7);
+    assert.ok(below.every((row) => row.oldPackage !== null && row.candidatePackage !== null));
+    const row = below.find((v) => v.original.PkgName === jline);
+    assert.equal(row.oldFinding, null);
+    assert.deepEqual(row.candidateFindings, []);
+    assert.ok(inventory.unresolved.belowHistoricalFloor.includes(row.historicalFinding));
+    assert.equal(inventory.unresolved.candidateAdvisoryOccurrences, 7);
+    assert.equal(comparison.execution, "complete");
+    assert.equal(comparison.candidatePolicy, "blocked");
+    assert.equal(comparison.qualification, "passed", comparison.reason);
+  });
 
   for (const scenario of ["mixed", "technical", "aws-failure"]) {
     test("raw audit preserves both dispositions and issues zero 3.10 commands after " + scenario, async (t) => {
