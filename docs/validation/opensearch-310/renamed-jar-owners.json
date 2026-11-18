@@ -1,0 +1,4513 @@
+{
+  "schemaVersion": 1,
+  "owners": [
+    {
+      "oldFile": "usr/share/opensearch/agent/byte-buddy-1.18.8.jar",
+      "file": "usr/share/opensearch/agent/byte-buddy-1.18.14.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b7f2b2f111c6ddc09d3d9718ca5895dde16217bb4e5f2d2a6eb571f274909a82",
+      "size": 4658001,
+      "coordinates": [
+        {
+          "name": "net.bytebuddy:byte-buddy",
+          "version": "1.18.14"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/agent/opensearch-agent-bootstrap-3.9.0.jar",
+      "file": "usr/share/opensearch/agent/opensearch-agent-bootstrap-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:683f3846605a3dfe9951a4b90de3f574fbbef11022cdb6b22b551779b98c63b0",
+      "size": 15165,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-agent-bootstrap",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/bcpg-fips-2.1.13.jar",
+      "file": "usr/share/opensearch/lib/bcpg-fips-2.1.14.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3bfa280f7cf029838ce0b21195eaad64b0442fbbef7469c39fe58eafa51c8e05",
+      "size": 531038,
+      "coordinates": [
+        {
+          "name": "org.bouncycastle:bcpg-fips",
+          "version": "2.1.14"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/bcpkix-fips-2.1.12.jar",
+      "file": "usr/share/opensearch/lib/bcpkix-fips-2.1.13.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cf161ba2f6b4505816f4661663b3e0771184a50ee5b178a0018c817b336f0e5c",
+      "size": 1116176,
+      "coordinates": [
+        {
+          "name": "org.bouncycastle:bcpkix-fips",
+          "version": "2.1.13"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/bctls-fips-2.1.24.jar",
+      "file": "usr/share/opensearch/lib/bctls-fips-2.1.25.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:af604aa5b337725872651067a819ebc03aa298685572b0b2ad5343c786faad0a",
+      "size": 812194,
+      "coordinates": [
+        {
+          "name": "org.bouncycastle:bctls-fips",
+          "version": "2.1.25"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/bcutil-fips-2.1.7.jar",
+      "file": "usr/share/opensearch/lib/bcutil-fips-2.1.8.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f44904f61552c823bcc3686a24052ee3135212d547754eaa2ff6532e210103cb",
+      "size": 719082,
+      "coordinates": [
+        {
+          "name": "org.bouncycastle:bcutil-fips",
+          "version": "2.1.8"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/jackson-core-3.2.2.jar",
+      "file": "usr/share/opensearch/lib/jackson-core-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:494b9f5fccf008042d5a72c5bf00629b144c0ba7362a9864cbb02234c9772651",
+      "size": 613344,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-core",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/jackson-dataformat-cbor-3.2.2.jar",
+      "file": "usr/share/opensearch/lib/jackson-dataformat-cbor-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:52b392e464e4bfb9c4a109c86fb5721ba0cdece95b74da4f487b16c7c28f2f32",
+      "size": 74226,
+      "coordinates": [
+        {
+          "name": "tools.jackson.dataformat:jackson-dataformat-cbor",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/jackson-dataformat-smile-3.2.2.jar",
+      "file": "usr/share/opensearch/lib/jackson-dataformat-smile-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:39c4ccb3933aa6739d76591ef4496347bc21c1f47165a0ad7e6536de38deabee",
+      "size": 100100,
+      "coordinates": [
+        {
+          "name": "tools.jackson.dataformat:jackson-dataformat-smile",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/jackson-dataformat-yaml-3.2.2.jar",
+      "file": "usr/share/opensearch/lib/jackson-dataformat-yaml-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b5edac76d73f983dee7bc929557aa68c38424b9a3b851caf8a382aaca67a9f32",
+      "size": 68018,
+      "coordinates": [
+        {
+          "name": "tools.jackson.dataformat:jackson-dataformat-yaml",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/java-version-checker-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/java-version-checker-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2a8d0cd5d2d685d2c3d341100aaa8e4ca9bc49f9cd73405c90cedd79d9326eb0",
+      "size": 7409,
+      "coordinates": [
+        {
+          "name": "org.opensearch:java-version-checker",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-analysis-common-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-analysis-common-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e7fc5bcb7e2fd702701cfa7f5c209f28bdaf89cb8ef0ba379255c9d7c687430",
+      "size": 1770122,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-analysis-common",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-backward-codecs-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-backward-codecs-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:e65961324de3da15b053a5f45dcd3f5dfd2e93e707a1b8fa4a368a6734a7ec9f",
+      "size": 944893,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-backward-codecs",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-core-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-core-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211424f423ff1afeb891095c2142a20a572e545906251f28b8faaa408d01f934",
+      "size": 4824625,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-core",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-grouping-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-grouping-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:64279555c900eb9105dcb420c05596ef561a7dc5228b745843d929417ee31148",
+      "size": 129646,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-grouping",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-highlighter-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-highlighter-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ab3abd552a4922fc848e02c864772aa42e9e1eee367e6b63e862896f54d64244",
+      "size": 282178,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-highlighter",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-join-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-join-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:05bf382ecb895c01d9fc23efd8da25909aee4e6de96b13dc26bf148a2407690e",
+      "size": 193899,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-join",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-memory-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-memory-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb89dbece68a6f113a711d64ec0f4292618caa5ad4b9eeca809664811074a06c",
+      "size": 65093,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-memory",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-misc-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-misc-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:76ef19cea86639c47f527af66ef71ac2fdfc1ec03d266caee3e394aac586f62e",
+      "size": 145622,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-misc",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-queries-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-queries-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7ec548c2eb924c79ac4975b32e7b17395dec04bed936ef8a1ed48b2db06e73e5",
+      "size": 529681,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-queries",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-queryparser-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-queryparser-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c863c488fa7e06a7ba98c0e068dc03ad79f4ad7b3cb9e78a4c09e21b86c4c48a",
+      "size": 424979,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-queryparser",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-sandbox-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-sandbox-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:75beeaae29743d5e8892ac93b64d712a345022f8d1977e95af0070ce51308767",
+      "size": 490294,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-sandbox",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-spatial-extras-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-spatial-extras-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:53c0f878ab083cca5649f68a3bfcde2c1fcd6962a27a0b86226bef210902c6ab",
+      "size": 244081,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-spatial-extras",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-spatial3d-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-spatial3d-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7103bd4a3fcf7f603948f1712cd00162ae766f288581fccf36f7702b895d6b20",
+      "size": 330348,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-spatial3d",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/lucene-suggest-10.5.1.jar",
+      "file": "usr/share/opensearch/lib/lucene-suggest-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:bfc1efa0745c3382361f97a350097702685da5d1f830321927e5edd30cc50664",
+      "size": 244326,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-suggest",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ca1db4ed10eb9af50413c7e61e148ec13a9c32f6ba9a13f4096211f0c133e4bb",
+      "size": 18234658,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-agent-policy-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-agent-policy-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8940e34010530ccd9ca0e5b2ca1546428a08f17bad0c07cfd021368d756c4aff",
+      "size": 28555,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-agent-policy",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-arrow-spi-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-arrow-spi-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3798a0c6e1ab4eb2e9e21236f20ef01cc24c4af41bb71458876a377f20f39c1a",
+      "size": 8661,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-arrow-spi",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b5ef9d1b627d101d394219b2dfddf54a1f31e2f795532d9c7bf1b61a7b7d604f",
+      "size": 18420,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-common-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb09580797472ff2407297b2bb2b0cbbb2eec6855bf0ff4d0dd3b680c18a0cec",
+      "size": 156438,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-compress-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-compress-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5cdc19efac46e86dc0a0d4fbfc1c91b036af2f3c6956565eebbed6baf1bf47bd",
+      "size": 8234,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-compress",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-concurrent-queue-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-concurrent-queue-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6552bae4f633910c150a1a536ea0142585bcc8a60dc0e9505419b7ce0816eb94",
+      "size": 14121,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-concurrent-queue",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-core-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-core-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:1c268acb8f0926c9df1ccbef116dbefff61ed08b87f7fd50b374d2be5e79f163",
+      "size": 376523,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-core",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-geo-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-geo-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:64c71bd03b0d8554b0400ede1c1ad3caf86417fbafd6d1cf6540324b1ce2a921",
+      "size": 47073,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-geo",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-launchers-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-launchers-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:84bb01f7c70c90908975ea143a069d062d934f1e29a47fe175279490abb7a0f4",
+      "size": 21017,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-launchers",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-plugin-classloader-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-plugin-classloader-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:18d6ae7047d89e1d9d60c0e3b32165ee390f8ea114804f45a9ba4f2f5f4706b9",
+      "size": 6815,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-plugin-classloader",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-secure-sm-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-secure-sm-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f5c901eea5861d8e429603d5e8c3b3ade88e33613c0941bdd6d0189e6d7f578",
+      "size": 6816,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-secure-sm",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-task-commons-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-task-commons-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:18b4db523cbba7a2fd6066706f0e97bb93311443500453a055693b532dc9fd24",
+      "size": 14666,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-task-commons",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-telemetry-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-telemetry-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:263c86e2f9bf0409021ac25412679212ace98bfe38de408ecb00b379f861a584",
+      "size": 35738,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-telemetry",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/opensearch-x-content-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/opensearch-x-content-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:85f6f6f99dfcb471beb0858470480f0555dbc8fe66656f224a25426bc27fd6eb",
+      "size": 51143,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-x-content",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/reactor-core-3.8.7.jar",
+      "file": "usr/share/opensearch/lib/reactor-core-3.8.8.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:0a4987b728de02b097ca4707493b12771a3b126013c7e25353be32383ede8f12",
+      "size": 1938805,
+      "coordinates": [
+        {
+          "name": "io.projectreactor:reactor-core",
+          "version": "3.8.8"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/fips-demo-installer-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/fips-demo-installer-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ec1af97c655478551f572fddc4271dfc56b275b380653f6df6b7e3631f053b1a",
+      "size": 37361,
+      "coordinates": [
+        {
+          "name": "org.opensearch:fips-demo-installer-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/java-version-checker-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/java-version-checker-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2a8d0cd5d2d685d2c3d341100aaa8e4ca9bc49f9cd73405c90cedd79d9326eb0",
+      "size": 7409,
+      "coordinates": [
+        {
+          "name": "org.opensearch:java-version-checker",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/opensearch-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/opensearch-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b5ef9d1b627d101d394219b2dfddf54a1f31e2f795532d9c7bf1b61a7b7d604f",
+      "size": 18420,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/opensearch-common-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/fips-demo-installer-cli/opensearch-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb09580797472ff2407297b2bb2b0cbbb2eec6855bf0ff4d0dd3b680c18a0cec",
+      "size": 156438,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/heap-prof-cli/heap-prof-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/heap-prof-cli/heap-prof-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:98e5ae3c47b9f81f4e2231f4ddf50aaa9322e3a10082e26cba77221b7d29e7fe",
+      "size": 15972,
+      "coordinates": [
+        {
+          "name": "org.opensearch:heap-prof-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/keystore-cli/keystore-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/keystore-cli/keystore-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:1a863f03491f3cda0bcf28e4e3f355cadfda8ea25b486136d1b2bf99b5a29218",
+      "size": 23726,
+      "coordinates": [
+        {
+          "name": "org.opensearch:keystore-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/plugin-cli/bcpg-fips-2.1.13.jar",
+      "file": "usr/share/opensearch/lib/tools/plugin-cli/bcpg-fips-2.1.14.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3bfa280f7cf029838ce0b21195eaad64b0442fbbef7469c39fe58eafa51c8e05",
+      "size": 531038,
+      "coordinates": [
+        {
+          "name": "org.bouncycastle:bcpg-fips",
+          "version": "2.1.14"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/plugin-cli/opensearch-agent-policy-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/plugin-cli/opensearch-agent-policy-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8940e34010530ccd9ca0e5b2ca1546428a08f17bad0c07cfd021368d756c4aff",
+      "size": 28555,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-agent-policy",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/lib/tools/plugin-cli/opensearch-plugin-cli-3.9.0.jar",
+      "file": "usr/share/opensearch/lib/tools/plugin-cli/opensearch-plugin-cli-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8482a63dfee769bc65bf67feef9c63d6ae2700a3485347a16430d4f2e1d997b9",
+      "size": 42106,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-plugin-cli",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/aggs-matrix-stats/aggs-matrix-stats-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/aggs-matrix-stats/aggs-matrix-stats-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9bd2048c8bef3796a46e84a7a4ba76a6091619a671ee92d370d3cdb730142321",
+      "size": 62779,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:aggs-matrix-stats-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/analysis-common/analysis-common-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/analysis-common/analysis-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f8180f3c4fcf85d1a4c89ba766102a745ade3871c7be16328cf9ca8c2afe8a42",
+      "size": 200575,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:analysis-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/cache-common/cache-common-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/cache-common/cache-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:66984dfe667a1e9d01b01fed758ebfe71fa6419834dd9c184eb800c834fb8854",
+      "size": 38460,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:cache-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/concurrency-limit/concurrency-limit-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/concurrency-limit/concurrency-limit-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:4269782ca2600b84e83627142eaa3039b1d8bc64bb079dfa9775b9bd785ef0fb",
+      "size": 57895,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:concurrency-limit",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/geo/geo-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/geo/geo-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3a5623c877cbf45d93156f71336cfa7394c0e4dc6f18042ba70650a4c9258a22",
+      "size": 95134,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:geo",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-common/ingest-common-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/ingest-common/ingest-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6ebeeb276939c54f68bf6ec18f08e9f87c944a282981fe2bc1df8e2719fe1a5b",
+      "size": 171754,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:ingest-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-common/opensearch-dissect-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/ingest-common/opensearch-dissect-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2c45801e8d726d6c897ae94ad99c794062ddd640ea5b488351f5e76f57c30579",
+      "size": 23480,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-dissect",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-common/opensearch-grok-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/ingest-common/opensearch-grok-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:0126ad1ed14ab830be607d031744137b41619a14c2cd9c89dda5bce22b87e3e9",
+      "size": 49918,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-grok",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-geoip/ingest-geoip-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/ingest-geoip/ingest-geoip-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7b91fd56df0d3aed407d2932c2f58752e370cea8927b3a98472ca63f869bc2b6",
+      "size": 27878,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:ingest-geoip",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/modules/ingest-geoip/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/modules/ingest-geoip/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-geoip/jackson-datatype-jsr310-2.22.2.jar",
+      "file": "usr/share/opensearch/modules/ingest-geoip/jackson-datatype-jsr310-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ec961697cbd631935b6fb6f673406861c75243521fb67fec10b59f1412ac50f7",
+      "size": 136876,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/ingest-user-agent/ingest-user-agent-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/ingest-user-agent/ingest-user-agent-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:25132c1ef95eca54728d6141c9ec62e17d6096970ba0f587f2012a75fcf82f75",
+      "size": 66637,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:ingest-user-agent",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-expression/asm-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-expression/asm-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ae4e6e10d59d0a1500317764b21881ad883f8550e33c66e6142f7032c6fb566c",
+      "size": 131138,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-expression/asm-commons-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-expression/asm-commons-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6a5095ec53726156a78b2cd2efd45bc4e877754eca7c234f61224a53d6bfa661",
+      "size": 77923,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-commons",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-expression/asm-tree-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-expression/asm-tree-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2b15c3c1b288a9fad3bb2cd6d988ba9521554914ed1f2a2029141fa3f483154a",
+      "size": 51957,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-tree",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-expression/lang-expression-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/lang-expression/lang-expression-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8a3d337d767d877170340f92a7b2cccdfceccb6d67036e7d137a7811bb215c75",
+      "size": 65981,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:lang-expression",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-expression/lucene-expressions-10.5.1.jar",
+      "file": "usr/share/opensearch/modules/lang-expression/lucene-expressions-10.6.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7fbf69d0bd9fde273d054d648f14bb901f18d0c3746e156e82ae7638a1d68e22",
+      "size": 83118,
+      "coordinates": [
+        {
+          "name": "org.apache.lucene:lucene-expressions",
+          "version": "10.6.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-mustache/lang-mustache-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/lang-mustache/lang-mustache-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b23f2b7f5850a615f7ef3e180dd555283fe682dc7ca6f49a70cdc40c81e20b08",
+      "size": 69127,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:lang-mustache-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/asm-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/asm-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ae4e6e10d59d0a1500317764b21881ad883f8550e33c66e6142f7032c6fb566c",
+      "size": 131138,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/asm-analysis-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/asm-analysis-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3a91769287d0a186333d6e384e5d4eec37e4b8f705dcf920ff4aea4cc452fac2",
+      "size": 39657,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-analysis",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/asm-commons-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/asm-commons-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6a5095ec53726156a78b2cd2efd45bc4e877754eca7c234f61224a53d6bfa661",
+      "size": 77923,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-commons",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/asm-tree-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/asm-tree-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2b15c3c1b288a9fad3bb2cd6d988ba9521554914ed1f2a2029141fa3f483154a",
+      "size": 51957,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-tree",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/asm-util-9.10.1.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/asm-util-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:23fdffacdfc38f447cbd8b80e058f462451fa5d4709e437067d530fa6513579d",
+      "size": 98085,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm-util",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/lang-painless-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/lang-painless-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b4de896b533bc56b98b8877616967ca781730364ce6ca8879fb17f9120b0bce0",
+      "size": 720505,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:lang-painless",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/lang-painless/opensearch-scripting-painless-spi-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/lang-painless/opensearch-scripting-painless-spi-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3f3b96e4da6a76c33cb310ab957029c76f40ebab46a522f8effd5ec4d6f2ad8e",
+      "size": 30498,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:opensearch-scripting-painless-spi",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/mapper-extras/mapper-extras-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/mapper-extras/mapper-extras-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8a0ef4d9f381dce4fffa3dd322b47a289b97f3cb4a1787d5addb4aac2ea66b55",
+      "size": 86777,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:mapper-extras-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-dashboards-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-dashboards-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:277792e20c8e5e32227fb649812aa8c52ba26e8a7d5aa2aac6198bb7e4ff6457",
+      "size": 9381,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:opensearch-dashboards",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-ssl-config-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/opensearch-ssl-config-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8ae4e38e8b98ca2eea1f5ea02cac636960e365c7b20f40cd736ca77a1b40f1aa",
+      "size": 65041,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ssl-config",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/opensearch-dashboards/reindex-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/opensearch-dashboards/reindex-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:82a3b85884e7225b1702c9a14362d0842f74aff91107644f2e2f8b5610d81d72",
+      "size": 127642,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:reindex-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/parent-join/parent-join-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/parent-join/parent-join-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:603c01dc93c90d0e5a5e1f0ccf3a06921c37623eb4742e5d51cdddf097a271f5",
+      "size": 88233,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:parent-join-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/percolator/percolator-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/percolator/percolator-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fdd2f326e52f0ece2fa2c63c0602c0ce5caedd2086a3da86c476604bfda9cd05",
+      "size": 77414,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:percolator-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/rank-eval/rank-eval-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/rank-eval/rank-eval-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:e60658b8ef56f0f953619c5acc370d16232d18e2a3a670976fcb41ea425fa799",
+      "size": 82744,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:rank-eval-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/modules/reindex/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/reindex/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/reindex/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/modules/reindex/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/reindex/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/opensearch-ssl-config-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/reindex/opensearch-ssl-config-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8ae4e38e8b98ca2eea1f5ea02cac636960e365c7b20f40cd736ca77a1b40f1aa",
+      "size": 65041,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ssl-config",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/reindex/reindex-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/reindex/reindex-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:82a3b85884e7225b1702c9a14362d0842f74aff91107644f2e2f8b5610d81d72",
+      "size": 127642,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:reindex-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/repository-url/repository-url-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/repository-url/repository-url-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:babf6cdc553ea7ece3ec887e433d17f79faa0bee6fb3bdfbab33df83e46ff086",
+      "size": 15368,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:repository-url",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/rule-framework/autotagging-commons-spi-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/rule-framework/autotagging-commons-spi-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9d34d8627ce0eb6dd6ccd6687852f5e1e7f52cf3b32ef34019938329b38a13f1",
+      "size": 6284,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:autotagging-commons-spi",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/rule-framework/common-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/rule-framework/common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ea52e8b6a51f7611d9869d9b89145df2f058648c5f29d795f1957e00a5ff8389",
+      "size": 61069,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/rule-framework/rule-framework-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/rule-framework/rule-framework-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:dcf6103cd09b59c3b0ee39cfa0387b712e44f9d6e02d687efeccfc2ec46e109b",
+      "size": 43107,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:rule-framework",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/search-pipeline-common/search-pipeline-common-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/search-pipeline-common/search-pipeline-common-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f392e67cb56e0607df692a9ac56306412cfb9a18b3b342b61187b814cb9302e2",
+      "size": 69082,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:search-pipeline-common",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/store-subdirectory/store-subdirectory-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/store-subdirectory/store-subdirectory-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7b7ecc72aa646566f2093c692f88fb50525e0de418fcb68f9a158550f35e9c70",
+      "size": 12059,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:store-subdirectory",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/systemd/systemd-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/systemd/systemd-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8baf53606da667136f236c7baaf7d0e81b76779281bc0fd7bfbb95e5859887be",
+      "size": 9050,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:systemd",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-grpc/transport-grpc-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/transport-grpc/transport-grpc-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3eeaa0087569214cabcd27e7eb4ec7348ae77600cc420f7476943be04f1c4a46",
+      "size": 350974,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:transport-grpc",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-grpc/transport-grpc-spi-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/transport-grpc/transport-grpc-spi-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:0563324642f4b888805246f9cbbebadba6830ed8344006c381da527b6e76364c",
+      "size": 10501,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:transport-grpc-spi",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-buffer-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-buffer-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794136fc6be78e44a286c2b1420a182e135c6d06eb8c397030c1551ee50acccd",
+      "size": 380463,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-buffer",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f6616d7c26c6198c7fa3d94e20a1a0d17e8ef9fc2433de792f4009cf38b00c15",
+      "size": 3952,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-base-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-base-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5a66da26b86d7eecedd9e0d8fe0e22ef1733bbf873e476cb9b860afbed22210c",
+      "size": 156501,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-base",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-classes-quic-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-classes-quic-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:eb558b7906be9f37cfff0ef71acb0865aa3b7cf2e52ba0a646e6e79d487d1711",
+      "size": 268960,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-classes-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-compression-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-compression-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7ebae4ac80c01e2d279d0e50d377bcdaf0cf8f2f65797e0578afc810a66ab57d",
+      "size": 238243,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-compression",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-http-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-http-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d08b0d473c48c61ebb2bc4d145111fa1777832aee4d2be1024891e904e36eaf5",
+      "size": 686567,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-http2-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-http2-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:168790c8d10d2e7cc53fa08906162e3d6c23b4528e7d062eea328d4a281484c6",
+      "size": 507187,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http2",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-http3-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-http3-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9d3698b9787ddb46226c3e3e4d1d51415503b18eb3be9da19b4918b4cb6e63bf",
+      "size": 231504,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http3",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final-linux-aarch_64.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final-linux-aarch_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:14d096f65bf5727bf2abe6f5cb74a8d1b85e185e5956235ee9ebd51bc0c7a89f",
+      "size": 2747286,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final-linux-x86_64.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final-linux-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6208c52346d7802b43f4d523dce64d25053c64d53e857d5e9ef43af046db0a5a",
+      "size": 2898530,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final-osx-aarch_64.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final-osx-aarch_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794da379e32791394ef1eab5093179b267e31418be7dde5988def345c88181c1",
+      "size": 2453607,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final-osx-x86_64.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final-osx-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:76f43c0c3abebc083b764376d224bab76e0422023f44d3b93298594571c9ef21",
+      "size": 2555561,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final-windows-x86_64.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final-windows-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d99b1946e93e278c52af3f049c20703b705a7f51f37badc8a6c0b951321dd10e",
+      "size": 1644343,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-codec-native-quic-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9f9954f966eaa87bd659073e5e86472ed3610591acba6b737a88078125cf7c9a",
+      "size": 8699,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5807fef7eb619bc0a5d1c0e6c83199ea9bca8503203a3eb73cfdccec2d215743",
+      "size": 906489,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-common",
+          "version": "4.2.20.Final"
+        },
+        {
+          "name": "org.jctools:jctools-core",
+          "version": "4.0.7"
+        },
+        {
+          "name": "org.jctools:jctools-core-jdk11",
+          "version": "4.0.7"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-handler-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-handler-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211dbbba074298046b37f841ad9ca89ed91968f6b9e97400c99ab4e6177b1f96",
+      "size": 596269,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-resolver-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-resolver-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb7a6027e4f366fb28dcea7e1f7088ca16bd23c2cc38e8ddfdac77a77bd144dc",
+      "size": 32974,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-resolver",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-transport-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-transport-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ff4f1f8158c714c1b485ef10cf2456fbd3c1b2930256b70287aeb7dc3ad94783",
+      "size": 553002,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/netty-transport-native-unix-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/netty-transport-native-unix-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f600d5cbd3ce39e50680de66b00d7e6a9652dac7d08a5b022101d717cb7fb52",
+      "size": 47411,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport-native-unix-common",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/opensearch-netty4-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/opensearch-netty4-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7f60c1053409f68b840af3bfd3306000fc967b20f3aff1b77e7d63aafe12751e",
+      "size": 11800,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-netty4",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/modules/transport-netty4/transport-netty4-client-3.9.0.jar",
+      "file": "usr/share/opensearch/modules/transport-netty4/transport-netty4-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fc3c887e5bf679f5c6eb5094eaf2d8eb37e46fba5d4144433af07c0495dc54c2",
+      "size": 136418,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:transport-netty4-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/alerting-spi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/alerting-spi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:51b470fe2cd7e0e59de352e0e7b64402c63471787472f4e7bd4b19b69f20d47e",
+      "size": 12548,
+      "coordinates": [
+        {
+          "name": "org.opensearch.alerting:alerting-spi",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/percolator-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-alerting/percolator-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fdd2f326e52f0ece2fa2c63c0602c0ce5caedd2086a3da86c476604bfda9cd05",
+      "size": 77414,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:percolator-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-anomaly-detection/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-anomaly-detection/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-asynchronous-search/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-asynchronous-search/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-cross-cluster-replication/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/gson-2.14.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/gson-2.15.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:96d3dd843dc2911de01cdabcd50064cb9e860353102a0a78c96fd833d396fc7d",
+      "size": 316396,
+      "coordinates": [
+        {
+          "name": "com.google.code.gson:gson",
+          "version": "2.15.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-dataformat-yaml-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/jackson-dataformat-yaml-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2f55e2b864f6354b24d4bcccd488f7c4a3fce4977f8c8dbad07242a68e11dde9",
+      "size": 63706,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/jakarta.json.bind-api-3.0.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/jakarta.json.bind-api-3.0.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:974e3c073e8058278ff599281c691a1ec2e6337e796b8168ac5be6bb91f920d7",
+      "size": 38343,
+      "coordinates": [
+        {
+          "name": "jakarta.json.bind:jakarta.json.bind-api",
+          "version": "3.0.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-ml-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-ml-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7aeeb3b0836cac897e8d7c95e98cf68145f326b1a6731125dc78c02d03d43ac5",
+      "size": 4831223,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-2.1.45.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-2.1.48.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:70f9a21e0ac5d08355b22ad4a01e4041839d558e376e9c68631d7e0836ad6bc8",
+      "size": 3165,
+      "coordinates": [
+        {
+          "name": "io.swagger.parser.v3:swagger-parser",
+          "version": "2.1.48"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-core-2.1.45.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-core-2.1.48.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b6063995337a70cef73c7900e7e6ba02c3221737faf3feaaa70ee40794988581",
+      "size": 7888,
+      "coordinates": [
+        {
+          "name": "io.swagger.parser.v3:swagger-parser-core",
+          "version": "2.1.48"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-v3-2.1.45.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-flow-framework/swagger-parser-v3-2.1.48.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:34d40bf315642710802f5b4aaf150b251599c4e4091eee623a867394921bfc56",
+      "size": 223519,
+      "coordinates": [
+        {
+          "name": "io.swagger.parser.v3:swagger-parser-v3",
+          "version": "2.1.48"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-geospatial/geo-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-geospatial/geo-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3a5623c877cbf45d93156f71336cfa7394c0e4dc6f18042ba70650a4c9258a22",
+      "size": 95134,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:geo",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-geospatial/geospatial-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-geospatial/geospatial-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ffc9a5c65cade193465015ef95d7afd24c7091900833636a7b0978d027dc1485",
+      "size": 7246,
+      "coordinates": [
+        {
+          "name": "org.opensearch:geospatial-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-geospatial/opensearch-geospatial-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-geospatial/opensearch-geospatial-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:271311725ef4e787662920a96c5ea3ca6a2701cd5ca0511d83fa6aa993558958",
+      "size": 279679,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-geospatial",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-index-management/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-index-management/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-index-management/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-index-management/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-index-management/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-index-management/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-job-scheduler/opensearch-job-scheduler-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-job-scheduler/opensearch-job-scheduler-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:746214d387f2ea91924d04f8b44438df998d94cb2b0afd754d6364a7136ff5a9",
+      "size": 133278,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-job-scheduler",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-job-scheduler/opensearch-job-scheduler-spi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-job-scheduler/opensearch-job-scheduler-spi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:81b6c6df829f9ffcb5101af10b19035d6ebda4b1f901ee36128b83314720d438",
+      "size": 292021,
+      "coordinates": [
+        {
+          "name": "com.cronutils:cron-utils",
+          "version": "9.2.1"
+        },
+        {
+          "name": "org.opensearch:opensearch-job-scheduler-spi",
+          "version": "3.10.0.0"
+        },
+        {
+          "name": "org.slf4j:slf4j-api",
+          "version": "2.0.20"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-knn/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-knn/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-knn/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-knn/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-knn/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-knn/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ltr/RankyMcRankFace-0.3.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ltr/RankyMcRankFace-0.4.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:e4d7e9c34d894b2c1a18fc124d9667795b44298e6edd560be58bcd7921f624b8",
+      "size": 183533,
+      "coordinates": [
+        {
+          "name": "com.o19s:RankyMcRankFace",
+          "version": "0.4.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ltr/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ltr/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/jackson-dataformat-cbor-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/jackson-dataformat-cbor-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a420efce5bb9d4f0a75bc98a17e1e00a40007234faf2bbb4abd901a68c9e9166",
+      "size": 73713,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/jackson-datatype-jsr310-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/jackson-datatype-jsr310-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ec961697cbd631935b6fb6f673406861c75243521fb67fec10b59f1412ac50f7",
+      "size": 136876,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-buffer-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-buffer-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794136fc6be78e44a286c2b1420a182e135c6d06eb8c397030c1551ee50acccd",
+      "size": 380463,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-buffer",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f6616d7c26c6198c7fa3d94e20a1a0d17e8ef9fc2433de792f4009cf38b00c15",
+      "size": 3952,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-base-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-base-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5a66da26b86d7eecedd9e0d8fe0e22ef1733bbf873e476cb9b860afbed22210c",
+      "size": 156501,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-base",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-compression-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-compression-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7ebae4ac80c01e2d279d0e50d377bcdaf0cf8f2f65797e0578afc810a66ab57d",
+      "size": 238243,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-compression",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-http-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-http-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d08b0d473c48c61ebb2bc4d145111fa1777832aee4d2be1024891e904e36eaf5",
+      "size": 686567,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-http2-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-http2-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:168790c8d10d2e7cc53fa08906162e3d6c23b4528e7d062eea328d4a281484c6",
+      "size": 507187,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http2",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-marshalling-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-marshalling-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:49ceb3f4f29f7f29a9acbb31b134b1c886d8fb843278d8dab530bf83cd6dfd0d",
+      "size": 20374,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-marshalling",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-protobuf-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-codec-protobuf-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:dc995dcfc841c8593c482604d38aab0fa414e9a7c8ea49dc36ebf188064a6470",
+      "size": 15117,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-protobuf",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5807fef7eb619bc0a5d1c0e6c83199ea9bca8503203a3eb73cfdccec2d215743",
+      "size": 906489,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-common",
+          "version": "4.2.20.Final"
+        },
+        {
+          "name": "org.jctools:jctools-core",
+          "version": "4.0.7"
+        },
+        {
+          "name": "org.jctools:jctools-core-jdk11",
+          "version": "4.0.7"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-handler-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-handler-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211dbbba074298046b37f841ad9ca89ed91968f6b9e97400c99ab4e6177b1f96",
+      "size": 596269,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-resolver-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-resolver-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb7a6027e4f366fb28dcea7e1f7088ca16bd23c2cc38e8ddfdac77a77bd144dc",
+      "size": 32974,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-resolver",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-transport-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-transport-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ff4f1f8158c714c1b485ef10cf2456fbd3c1b2930256b70287aeb7dc3ad94783",
+      "size": 553002,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/netty-transport-native-unix-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/netty-transport-native-unix-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f600d5cbd3ce39e50680de66b00d7e6a9652dac7d08a5b022101d717cb7fb52",
+      "size": 47411,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport-native-unix-common",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-ml-common-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/opensearch-ml-common-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3db4ec376a784d3edfc0e00142e7463dfb7502f4afa1d6f438e7a3fe55f8c62a",
+      "size": 4815221,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-common",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-ml-spi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/opensearch-ml-spi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:46994262c8b6289ca2070b99683b2674b6f05bef513694c5e962934b54355c52",
+      "size": 5278,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-spi",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ml/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-neural-search/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-neural-search/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-neural-search/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-neural-search/mapper-extras-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-neural-search/mapper-extras-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8a0ef4d9f381dce4fffa3dd322b47a289b97f3cb4a1787d5addb4aac2ea66b55",
+      "size": 86777,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:mapper-extras-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-neural-search/opensearch-ml-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-neural-search/opensearch-ml-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7aeeb3b0836cac897e8d7c95e98cf68145f326b1a6731125dc78c02d03d43ac5",
+      "size": 4831223,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications-core/opensearch-notifications-core-spi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications-core/opensearch-notifications-core-spi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8d51738240fc3a9884f62ce7cf79319d8925ece289cfded10da8d83175c02a48",
+      "size": 5338522,
+      "coordinates": [
+        {
+          "name": "com.amazonaws:aws-java-sdk-core",
+          "version": "1.12.687"
+        },
+        {
+          "name": "com.amazonaws:aws-java-sdk-ses",
+          "version": "1.12.687"
+        },
+        {
+          "name": "commons-validator:commons-validator",
+          "version": "1.7"
+        },
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        },
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/jackson-datatype-jsr310-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/jackson-datatype-jsr310-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ec961697cbd631935b6fb6f673406861c75243521fb67fec10b59f1412ac50f7",
+      "size": 136876,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-buffer-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-buffer-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794136fc6be78e44a286c2b1420a182e135c6d06eb8c397030c1551ee50acccd",
+      "size": 380463,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-buffer",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f6616d7c26c6198c7fa3d94e20a1a0d17e8ef9fc2433de792f4009cf38b00c15",
+      "size": 3952,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-base-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-base-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5a66da26b86d7eecedd9e0d8fe0e22ef1733bbf873e476cb9b860afbed22210c",
+      "size": 156501,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-base",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-compression-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-compression-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7ebae4ac80c01e2d279d0e50d377bcdaf0cf8f2f65797e0578afc810a66ab57d",
+      "size": 238243,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-compression",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-http-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-http-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d08b0d473c48c61ebb2bc4d145111fa1777832aee4d2be1024891e904e36eaf5",
+      "size": 686567,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-http2-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-http2-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:168790c8d10d2e7cc53fa08906162e3d6c23b4528e7d062eea328d4a281484c6",
+      "size": 507187,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http2",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-marshalling-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-marshalling-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:49ceb3f4f29f7f29a9acbb31b134b1c886d8fb843278d8dab530bf83cd6dfd0d",
+      "size": 20374,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-marshalling",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-protobuf-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-codec-protobuf-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:dc995dcfc841c8593c482604d38aab0fa414e9a7c8ea49dc36ebf188064a6470",
+      "size": 15117,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-protobuf",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5807fef7eb619bc0a5d1c0e6c83199ea9bca8503203a3eb73cfdccec2d215743",
+      "size": 906489,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-common",
+          "version": "4.2.20.Final"
+        },
+        {
+          "name": "org.jctools:jctools-core",
+          "version": "4.0.7"
+        },
+        {
+          "name": "org.jctools:jctools-core-jdk11",
+          "version": "4.0.7"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-handler-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-handler-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211dbbba074298046b37f841ad9ca89ed91968f6b9e97400c99ab4e6177b1f96",
+      "size": 596269,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-resolver-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-resolver-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb7a6027e4f366fb28dcea7e1f7088ca16bd23c2cc38e8ddfdac77a77bd144dc",
+      "size": 32974,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-resolver",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-transport-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-transport-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ff4f1f8158c714c1b485ef10cf2456fbd3c1b2930256b70287aeb7dc3ad94783",
+      "size": 553002,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/netty-transport-native-unix-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/netty-transport-native-unix-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f600d5cbd3ce39e50680de66b00d7e6a9652dac7d08a5b022101d717cb7fb52",
+      "size": 47411,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport-native-unix-common",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-observability/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-observability/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-observability/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-observability/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-module-paranamer-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jackson-module-paranamer-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fff732ed186691864584a8eb4d1961ffb0a672c9495beed89b81c5c9371426df",
+      "size": 47127,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.module:jackson-module-paranamer",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-buffer-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-buffer-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794136fc6be78e44a286c2b1420a182e135c6d06eb8c397030c1551ee50acccd",
+      "size": 380463,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-buffer",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f6616d7c26c6198c7fa3d94e20a1a0d17e8ef9fc2433de792f4009cf38b00c15",
+      "size": 3952,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-http-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-http-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d08b0d473c48c61ebb2bc4d145111fa1777832aee4d2be1024891e904e36eaf5",
+      "size": 686567,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-http2-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-http2-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:168790c8d10d2e7cc53fa08906162e3d6c23b4528e7d062eea328d4a281484c6",
+      "size": 507187,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http2",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-socks-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-codec-socks-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8510f0ceee40a4254760b2927431e2403a6588c4068022e2440356acfc5e24c1",
+      "size": 133044,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-socks",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5807fef7eb619bc0a5d1c0e6c83199ea9bca8503203a3eb73cfdccec2d215743",
+      "size": 906489,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-common",
+          "version": "4.2.20.Final"
+        },
+        {
+          "name": "org.jctools:jctools-core",
+          "version": "4.0.7"
+        },
+        {
+          "name": "org.jctools:jctools-core-jdk11",
+          "version": "4.0.7"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-handler-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-handler-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211dbbba074298046b37f841ad9ca89ed91968f6b9e97400c99ab4e6177b1f96",
+      "size": 596269,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-handler-proxy-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-handler-proxy-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9fd508051bb39829117e4dbfa2d0b485aafb88d2d627ae6ec1fed5a3faa3842a",
+      "size": 26911,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler-proxy",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-resolver-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-resolver-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb7a6027e4f366fb28dcea7e1f7088ca16bd23c2cc38e8ddfdac77a77bd144dc",
+      "size": 32974,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-resolver",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-transport-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-transport-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ff4f1f8158c714c1b485ef10cf2456fbd3c1b2930256b70287aeb7dc3ad94783",
+      "size": 553002,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-transport-native-unix-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/netty-transport-native-unix-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f600d5cbd3ce39e50680de66b00d7e6a9652dac7d08a5b022101d717cb7fb52",
+      "size": 47411,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport-native-unix-common",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-reports-scheduler/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-reports-scheduler/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jsoup-1.23.1.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-reports-scheduler/jsoup-1.23.2.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:e9d8c856856680427f096d156f02a414289985c930998fcb519ce5be39b42003",
+      "size": 537806,
+      "coordinates": [
+        {
+          "name": "org.jsoup:jsoup",
+          "version": "1.23.2"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-search-relevance/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-search-relevance/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-search-relevance/guava-33.7.1-jre.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-search-relevance/guava-33.7.2-jre.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+      "size": 3057659,
+      "coordinates": [
+        {
+          "name": "com.google.guava:guava",
+          "version": "33.7.2-jre"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-search-relevance/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-search-relevance/opensearch-ml-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-search-relevance/opensearch-ml-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7aeeb3b0836cac897e8d7c95e98cf68145f326b1a6731125dc78c02d03d43ac5",
+      "size": 4831223,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-search-relevance/opensearch-search-relevance-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-search-relevance/opensearch-search-relevance-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:aa8404846d336d4f80142637c87105f64b7bd2d2a744c14eada24632a0a223b0",
+      "size": 684099,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-search-relevance",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/asm-9.10.1.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/asm-9.11.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ae4e6e10d59d0a1500317764b21881ad883f8550e33c66e6142f7032c6fb566c",
+      "size": 131138,
+      "coordinates": [
+        {
+          "name": "org.ow2.asm:asm",
+          "version": "9.11.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/google-java-format-1.36.1.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/google-java-format-1.37.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:49874ad1d6b1006d2f8660482135609eb124888e0046c3dbfefc706a0387c700",
+      "size": 338810,
+      "coordinates": [
+        {
+          "name": "com.google.googlejavaformat:google-java-format",
+          "version": "1.37.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/guava-33.7.1-jre.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/guava-33.7.2-jre.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+      "size": 3057659,
+      "coordinates": [
+        {
+          "name": "com.google.guava:guava",
+          "version": "33.7.2-jre"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/httpclient5-cache-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/httpclient5-cache-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fa3d3aea69e7264c02e4d1f7648ca03f6f8cdae66ffaf94fe976c63d8b69ee44",
+      "size": 252641,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5-cache",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/lang-mustache-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/lang-mustache-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b23f2b7f5850a615f7ef3e180dd555283fe682dc7ca6f49a70cdc40c81e20b08",
+      "size": 69127,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:lang-mustache-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/lz4-java-1.11.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/lz4-java-1.12.1.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c75bfbc6980e8b90ee76c75ec5b67058b6b9bfa1e19af6a3cf75dccde533e750",
+      "size": 901828,
+      "coordinates": [
+        {
+          "name": "at.yawk.lz4:lz4-java",
+          "version": "1.12.1"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-buffer-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-buffer-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794136fc6be78e44a286c2b1420a182e135c6d06eb8c397030c1551ee50acccd",
+      "size": 380463,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-buffer",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:f6616d7c26c6198c7fa3d94e20a1a0d17e8ef9fc2433de792f4009cf38b00c15",
+      "size": 3952,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-base-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-base-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5a66da26b86d7eecedd9e0d8fe0e22ef1733bbf873e476cb9b860afbed22210c",
+      "size": 156501,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-base",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-classes-quic-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-classes-quic-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:eb558b7906be9f37cfff0ef71acb0865aa3b7cf2e52ba0a646e6e79d487d1711",
+      "size": 268960,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-classes-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-compression-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-compression-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7ebae4ac80c01e2d279d0e50d377bcdaf0cf8f2f65797e0578afc810a66ab57d",
+      "size": 238243,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-compression",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d08b0d473c48c61ebb2bc4d145111fa1777832aee4d2be1024891e904e36eaf5",
+      "size": 686567,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http2-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http2-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:168790c8d10d2e7cc53fa08906162e3d6c23b4528e7d062eea328d4a281484c6",
+      "size": 507187,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http2",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http3-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-http3-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9d3698b9787ddb46226c3e3e4d1d51415503b18eb3be9da19b4918b4cb6e63bf",
+      "size": 231504,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-http3",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final-linux-aarch_64.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final-linux-aarch_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:14d096f65bf5727bf2abe6f5cb74a8d1b85e185e5956235ee9ebd51bc0c7a89f",
+      "size": 2747286,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final-linux-x86_64.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final-linux-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6208c52346d7802b43f4d523dce64d25053c64d53e857d5e9ef43af046db0a5a",
+      "size": 2898530,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final-osx-aarch_64.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final-osx-aarch_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:794da379e32791394ef1eab5093179b267e31418be7dde5988def345c88181c1",
+      "size": 2453607,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final-osx-x86_64.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final-osx-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:76f43c0c3abebc083b764376d224bab76e0422023f44d3b93298594571c9ef21",
+      "size": 2555561,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final-windows-x86_64.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final-windows-x86_64.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d99b1946e93e278c52af3f049c20703b705a7f51f37badc8a6c0b951321dd10e",
+      "size": 1644343,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-codec-native-quic-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9f9954f966eaa87bd659073e5e86472ed3610591acba6b737a88078125cf7c9a",
+      "size": 8699,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-codec-native-quic",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5807fef7eb619bc0a5d1c0e6c83199ea9bca8503203a3eb73cfdccec2d215743",
+      "size": 906489,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-common",
+          "version": "4.2.20.Final"
+        },
+        {
+          "name": "org.jctools:jctools-core",
+          "version": "4.0.7"
+        },
+        {
+          "name": "org.jctools:jctools-core-jdk11",
+          "version": "4.0.7"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-handler-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-handler-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:211dbbba074298046b37f841ad9ca89ed91968f6b9e97400c99ab4e6177b1f96",
+      "size": 596269,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-handler",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-resolver-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-resolver-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:cb7a6027e4f366fb28dcea7e1f7088ca16bd23c2cc38e8ddfdac77a77bd144dc",
+      "size": 32974,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-resolver",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-transport-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-transport-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ff4f1f8158c714c1b485ef10cf2456fbd3c1b2930256b70287aeb7dc3ad94783",
+      "size": 553002,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/netty-transport-native-unix-common-4.2.18.Final.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/netty-transport-native-unix-common-4.2.20.Final.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6f600d5cbd3ce39e50680de66b00d7e6a9652dac7d08a5b022101d717cb7fb52",
+      "size": 47411,
+      "coordinates": [
+        {
+          "name": "io.netty:netty-transport-native-unix-common",
+          "version": "4.2.20.Final"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/nimbus-jose-jwt-10.9.1.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/nimbus-jose-jwt-10.10.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:0edd2fbaab79e13f87d145d021f85a5c59956b2b6b5e761c0d664c87f94cda15",
+      "size": 843163,
+      "coordinates": [
+        {
+          "name": "com.github.stephenc.jcip:jcip-annotations",
+          "version": "1.0-1"
+        },
+        {
+          "name": "com.google.code.gson:gson",
+          "version": "2.14.0"
+        },
+        {
+          "name": "com.nimbusds:nimbus-jose-jwt",
+          "version": "10.10"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.9.0.0-all.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83",
+      "size": 4265574,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-annotations",
+          "version": "2.22"
+        },
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        },
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        },
+        {
+          "name": "com.fasterxml.jackson.datatype:jackson-datatype-jsr310",
+          "version": "2.22.4"
+        },
+        {
+          "name": "com.google.code.findbugs:jsr305",
+          "version": "3.0.2"
+        },
+        {
+          "name": "com.google.errorprone:error_prone_annotations",
+          "version": "2.23.0"
+        },
+        {
+          "name": "com.google.guava:failureaccess",
+          "version": "1.0.2"
+        },
+        {
+          "name": "com.google.guava:guava",
+          "version": "33.0.0-jre"
+        },
+        {
+          "name": "com.google.guava:listenablefuture",
+          "version": "9999.0-empty-to-avoid-conflict-with-guava"
+        },
+        {
+          "name": "commons-codec:commons-codec",
+          "version": "1.18.0"
+        },
+        {
+          "name": "io.dropwizard.metrics:metrics-core",
+          "version": "4.2.40"
+        },
+        {
+          "name": "io.dropwizard.metrics:metrics-json",
+          "version": "4.2.39"
+        },
+        {
+          "name": "net.shibboleth:shib-networking",
+          "version": "9.2.3"
+        },
+        {
+          "name": "net.shibboleth:shib-security",
+          "version": "9.2.3"
+        },
+        {
+          "name": "net.shibboleth:shib-support",
+          "version": "9.2.3"
+        },
+        {
+          "name": "net.shibboleth:shib-velocity",
+          "version": "9.2.3"
+        },
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        },
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5-cache",
+          "version": "5.6.5"
+        },
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        },
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        },
+        {
+          "name": "org.apache.santuario:xmlsec",
+          "version": "3.0.6"
+        },
+        {
+          "name": "org.apache.velocity:velocity-engine-core",
+          "version": "2.4.1"
+        },
+        {
+          "name": "org.cryptacular:cryptacular",
+          "version": "1.3.0"
+        },
+        {
+          "name": "org.opensaml:opensaml-core-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-core-impl",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-messaging-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-profile-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-saml-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-saml-impl",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-security-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-security-impl",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-soap-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-soap-impl",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-storage-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-xmlsec-api",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.opensaml:opensaml-xmlsec-impl",
+          "version": "5.2.3"
+        },
+        {
+          "name": "org.slf4j:slf4j-api",
+          "version": "2.0.13"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/opensearch-netty4-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/opensearch-netty4-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7f60c1053409f68b840af3bfd3306000fc967b20f3aff1b77e7d63aafe12751e",
+      "size": 11800,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-netty4",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/opensearch-security-spi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/opensearch-security-spi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:5fe6b0b18c9b562ce9dd6a281d66da6a2717b94820f142c93fb7d7367daf6f7e",
+      "size": 4619,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-security-spi",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.8.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/snappy-java-1.1.10.12.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:1c03ce77b3f2e926c25a952612e372404d80bc88c6c8052bede964804fabd732",
+      "size": 2448671,
+      "coordinates": [
+        {
+          "name": "org.xerial.snappy:snappy-java",
+          "version": "1.1.10.12"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/stax2-api-4.3.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/stax2-api-4.3.2.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7fd6d60212696fb5d6dc422c2a1c8fb82c088d66dd7e4f30738d5d7606eabcd1",
+      "size": 196095,
+      "coordinates": [
+        {
+          "name": "org.codehaus.woodstox:stax2-api",
+          "version": "4.3.2"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/transport-netty4-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/transport-netty4-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:fc3c887e5bf679f5c6eb5094eaf2d8eb37e46fba5d4144433af07c0495dc54c2",
+      "size": 136418,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:transport-netty4-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/xmlschema-core-2.3.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/xmlschema-core-2.3.3.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9d9b17f0d383e38c2ce041675211572992d6a1012926cc77f72d89be201614e3",
+      "size": 193402,
+      "coordinates": [
+        {
+          "name": "org.apache.ws.xmlschema:xmlschema-core",
+          "version": "2.3.3"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-security/zjsonpatch-0.6.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-security/zjsonpatch-0.6.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7a3d680d7665c6c6e2b69e9312de56fb1ac32aa28da8f4ac28b5e86ed875067f",
+      "size": 72389,
+      "coordinates": [
+        {
+          "name": "io.github.vishwakarma:zjsonpatch",
+          "version": "0.6.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-skills/jackson-module-scala_3-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-skills/jackson-module-scala_3-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:4a595d0c3920b7b1f19a7a0bb30eb54195a17debeeacfde68965e39be89912f9",
+      "size": 755703,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.module:jackson-module-scala",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-skills/jsoup-1.23.1.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-skills/jsoup-1.23.2.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:e9d8c856856680427f096d156f02a414289985c930998fcb519ce5be39b42003",
+      "size": 537806,
+      "coordinates": [
+        {
+          "name": "org.jsoup:jsoup",
+          "version": "1.23.2"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/common-utils-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/common-utils-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7e2f20f5d3dadb7ad9b2811ed974598b5c1c85c0947ce5ce8acd908cc673b1fc",
+      "size": 947101,
+      "coordinates": [
+        {
+          "name": "org.opensearch:common-utils",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/geo-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/geo-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:3a5623c877cbf45d93156f71336cfa7394c0e4dc6f18042ba70650a4c9258a22",
+      "size": 95134,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:geo",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/geospatial-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/geospatial-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:ffc9a5c65cade193465015ef95d7afd24c7091900833636a7b0978d027dc1485",
+      "size": 7246,
+      "coordinates": [
+        {
+          "name": "org.opensearch:geospatial-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/guava-33.3.0-jre.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/guava-33.7.2-jre.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+      "size": 3057659,
+      "coordinates": [
+        {
+          "name": "com.google.guava:guava",
+          "version": "33.7.2-jre"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/httpclient5-5.6.4.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/httpclient5-5.6.5.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a10b555f7c85a720d1011a086d679d854b155816cde91a40198cc98c2b0867e8",
+      "size": 1059031,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.client5:httpclient5",
+          "version": "5.6.5"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:b08e3c3a440fec2029e89980134c7c787dd6796454641ad1eafb81478d7e8b0b",
+      "size": 955270,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-h2-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-h2-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:9a61441889f9b222ce99581977cc549b4dfca7ac9d2841582c1e57a31fa65b48",
+      "size": 263674,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-h2",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-reactive-5.4.3.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/httpcore5-reactive-5.4.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:6cc25150b03595d0cfc20f27edad89b17f55ab41c2b0498f0b1ce8217854b832",
+      "size": 20582,
+      "coordinates": [
+        {
+          "name": "org.apache.httpcomponents.core5:httpcore5-reactive",
+          "version": "5.4.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/jackson-core-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2d30c375cddea9657a1e1ef97547a2694b663b355facb4de53a097782b312d1a",
+      "size": 599548,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-core",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:d4cbf8947087f305869826801913abdc50735a1fab2074a1993e7bc67ca974a3",
+      "size": 1714464,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.core:jackson-databind",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jackson-dataformat-cbor-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/jackson-dataformat-cbor-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:a420efce5bb9d4f0a75bc98a17e1e00a40007234faf2bbb4abd901a68c9e9166",
+      "size": 73713,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jackson-dataformat-yaml-2.22.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/jackson-dataformat-yaml-2.22.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:2f55e2b864f6354b24d4bcccd488f7c4a3fce4977f8c8dbad07242a68e11dde9",
+      "size": 63706,
+      "coordinates": [
+        {
+          "name": "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+          "version": "2.22.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/opensearch-ml-client-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/opensearch-ml-client-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:7aeeb3b0836cac897e8d7c95e98cf68145f326b1a6731125dc78c02d03d43ac5",
+      "size": 4831223,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ml-client",
+          "version": "3.10.0.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/opensearch-rest-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/opensearch-rest-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:57ad8c343a1db30ae6078ef1ac2f7dc0beaeb6e55e04a9b9fe3abe719753552a",
+      "size": 90040,
+      "coordinates": [
+        {
+          "name": "org.opensearch.client:opensearch-rest-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/opensearch-ssl-config-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/opensearch-ssl-config-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:8ae4e38e8b98ca2eea1f5ea02cac636960e365c7b20f40cd736ca77a1b40f1aa",
+      "size": 65041,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ssl-config",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/parent-join-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/parent-join-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:603c01dc93c90d0e5a5e1f0ccf3a06921c37623eb4742e5d51cdddf097a271f5",
+      "size": 88233,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:parent-join-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/reindex-client-3.9.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-sql/reindex-client-3.10.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:82a3b85884e7225b1702c9a14362d0842f74aff91107644f2e2f8b5610d81d72",
+      "size": 127642,
+      "coordinates": [
+        {
+          "name": "org.opensearch.plugin:reindex-client",
+          "version": "3.10.0"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.2.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ubi/jackson-databind-3.2.4.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:c4af37223d5024f1294a5450598b01b65f30c53d9e906f02c3955ba1fb14a67d",
+      "size": 1990007,
+      "coordinates": [
+        {
+          "name": "tools.jackson.core:jackson-databind",
+          "version": "3.2.4"
+        }
+      ]
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ubi/opensearch-ubi-3.9.0.0.jar",
+      "file": "usr/share/opensearch/plugins/opensearch-ubi/opensearch-ubi-3.10.0.0.jar",
+      "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "jarSha256": "sha256:60bf52a2621f23c7271449420631e415b991611144b082eccc44db9dc6e3a51b",
+      "size": 31145,
+      "coordinates": [
+        {
+          "name": "org.opensearch:opensearch-ubi",
+          "version": "3.10.0.0"
+        }
+      ]
+    }
+  ],
+  "unresolved": [
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.10.0.0.jar (74301 bytes, sha256:2aa697a68f4cf038a96c4c7df5105a4c778f94d5142dfe8ed53e807e078fd4e7, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.10.0.0.jar (74301 bytes, sha256:2aa697a68f4cf038a96c4c7df5105a4c778f94d5142dfe8ed53e807e078fd4e7, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.10.0.0.jar (74301 bytes, sha256:2aa697a68f4cf038a96c4c7df5105a4c778f94d5142dfe8ed53e807e078fd4e7, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-aos-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar (4046 bytes, sha256:59315906688d997d4e5dd830f1ee482f252649893c7514eb33f3934834d273c6, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-aos-client bytes for 3.10.0.0, 3.3.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-ddb-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar (26822 bytes, sha256:02433db3e363647150269cf28b17e57033aa07edafb297ca6309bbda7f8222d4, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-ddb-client bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-remote-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar (22297 bytes, sha256:6f534e79cd49c56f89541563f8c5eb17d76f33ee16026ce3768ce595185f919a, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-remote-client bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-alerting/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-flow-framework/opensearch-remote-metadata-sdk-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-3.10.0.0.jar (74301 bytes, sha256:2aa697a68f4cf038a96c4c7df5105a4c778f94d5142dfe8ed53e807e078fd4e7, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-aos-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-aos-client-3.10.0.0.jar (4046 bytes, sha256:59315906688d997d4e5dd830f1ee482f252649893c7514eb33f3934834d273c6, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-aos-client bytes for 3.10.0.0, 3.3.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-ddb-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-ddb-client-3.10.0.0.jar (26822 bytes, sha256:02433db3e363647150269cf28b17e57033aa07edafb297ca6309bbda7f8222d4, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-ddb-client bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    },
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-remote-client-3.9.0.0.jar",
+      "candidates": [
+        "usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar",
+        "usr/share/opensearch/plugins/opensearch-ml/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar"
+      ],
+      "reason": "Same-directory candidate usr/share/opensearch/plugins/opensearch-notifications/opensearch-remote-metadata-sdk-remote-client-3.10.0.0.jar (22297 bytes, sha256:6f534e79cd49c56f89541563f8c5eb17d76f33ee16026ce3768ce595185f919a, layer sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18). Maven Central publishes identical org.opensearch:opensearch-remote-metadata-sdk-remote-client bytes for 3.10.0.0, 3.7.0.0, 3.9.0.0. No embedded package version distinguishes these releases. Other plugin copies cannot satisfy this owner."
+    }
+  ],
+  "removed": [
+    {
+      "oldFile": "usr/share/opensearch/plugins/opensearch-sql/jsr305-3.0.2.jar",
+      "reason": "Standalone SQL plugin copy removed. Guava jreRuntimeElements changed its declared dependency from jsr305 to jspecify. All 108 SQL JARs lack the published jsr305 JAR digest and embedded Maven coordinate. The five other physical owners below are outside SQL.",
+      "name": "com.google.code.findbugs:jsr305",
+      "version": "3.0.2",
+      "publishedJarSha256": "sha256:766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+      "publishedJarSize": 19936,
+      "otherOwners": [
+        {
+          "file": "usr/share/opensearch/plugins/opensearch-ml/jsr305-3.0.2.jar",
+          "jarSha256": "sha256:766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+          "size": 19936,
+          "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18"
+        },
+        {
+          "file": "usr/share/opensearch/plugins/opensearch-notifications/jsr305-3.0.2.jar",
+          "jarSha256": "sha256:766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+          "size": 19936,
+          "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18"
+        },
+        {
+          "file": "usr/share/opensearch/plugins/opensearch-performance-analyzer/jsr305-3.0.2.jar",
+          "jarSha256": "sha256:766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+          "size": 19936,
+          "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18"
+        },
+        {
+          "file": "usr/share/opensearch/plugins/opensearch-security-analytics/security-analytics-commons-1.0.0.jar",
+          "jarSha256": "sha256:706d289d9104215dc87f681679ba63438d8c22bedb2d90aaac8005a4ba924b55",
+          "size": 12635662,
+          "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18"
+        },
+        {
+          "file": "usr/share/opensearch/plugins/opensearch-security/opensaml-3.10.0.0-all.jar",
+          "jarSha256": "sha256:4e7b419959c1ef845602a3e0edaa9205900a72b5e4e129e1879e87fd098fda83",
+          "size": 4265574,
+          "layerDigest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18"
+        }
+      ]
+    }
+  ]
+}
