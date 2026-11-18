@@ -89,7 +89,7 @@ jobs:
       - name: Install both existing browser engines
         timeout-minutes: 25
         run: |
-          sudo /usr/bin/python3.12 -I -S scripts/ci/playwright-apt-mirror.py /etc/apt
+          sudo /usr/bin/python3.12 -I -S scripts/ci/playwright-apt-mirror.py /etc/apt/apt-mirrors.txt
           pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit
       - name: Exercise persistent web, restart and failure recovery
         timeout-minutes: 25

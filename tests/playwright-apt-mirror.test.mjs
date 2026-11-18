@@ -1,51 +1,33 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 const helper = "scripts/ci/playwright-apt-mirror.py";
-const ec2 = "http://us-east-2.ec2.archive.ubuntu.com/ubuntu";
-const official = "https://archive.ubuntu.com/ubuntu";
+const ec2 = "http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\tpriority:1\n";
+const azure = "http://azure.archive.ubuntu.com/ubuntu/\tpriority:1\n";
+const fallbacks = "https://archive.ubuntu.com/ubuntu/\tpriority:2\nhttps://security.ubuntu.com/ubuntu/\tpriority:3\n";
 
-test("Noble mirror selection rewrites only exact apt URI tokens and is idempotent", {
+test("selects the official fallback from the hosted apt mirror list only on the affected runner", {
   skip: process.platform !== "linux",
 }, async (t) => {
-  const apt = await mkdtemp(path.join(tmpdir(), "playwright-apt-"));
-  t.after(() => rm(apt, { recursive: true, force: true }));
-  await mkdir(path.join(apt, "sources.list.d"));
-  const entries = [
-    ["sources.list", `deb [arch=amd64 signed-by=/keys/archive] TARGET/ noble main # ${ec2}
-# deb ${ec2} noble universe
-deb-src TARGET noble-backports main
-deb ${ec2}.example noble main
-`],
-    ["sources.list.d/ubuntu.sources", `Types: deb
-URIs: TARGET
- https://azure.archive.ubuntu.com/ubuntu TARGET/
-Suites: noble noble-updates noble-backports
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-Description: keep ${ec2}
-
-Types: deb
-URIs: http://security.ubuntu.com/ubuntu
-Suites: noble-security
-Components: main
-`],
-    ["sources.list.d/azure.list", "deb http://azure.archive.ubuntu.com/ubuntu noble main\n"],
-    ["sources.list.d/old.sources.save", `URIs: ${ec2}\n`],
-  ];
-  for (const [name, fixture] of entries) {
-    await writeFile(path.join(apt, name), fixture.replaceAll("TARGET", ec2));
+  const dir = await mkdtemp(path.join(tmpdir(), "playwright-apt-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const mirrors = path.join(dir, "apt-mirrors.txt");
+  const run = () => execFileSync("python3", ["-I", "-S", helper, mirrors], { encoding: "utf8" });
+  assert.match(run(), /unchanged/u);
+  assert.equal(Buffer.byteLength(ec2 + fallbacks), 152);
+  await writeFile(mirrors, ec2 + fallbacks);
+  assert.match(run(), /removed slow EC2 priority:1/u);
+  assert.equal(await readFile(mirrors, "utf8"), fallbacks);
+  assert.match(run(), /unchanged/u);
+  for (const fixture of [azure + fallbacks, ec2, "# " + ec2 + fallbacks]) {
+    await writeFile(mirrors, fixture);
+    assert.match(run(), /unchanged/u);
+    assert.equal(await readFile(mirrors, "utf8"), fixture);
   }
-  const run = () => execFileSync("python3", ["-I", "-S", helper, apt], { encoding: "utf8" });
-  assert.match(run(), /switched 2 source files/u);
-  for (const [name, fixture] of entries) {
-    assert.equal(await readFile(path.join(apt, name), "utf8"), fixture.replaceAll("TARGET", official));
-  }
-  assert.match(run(), /switched 0 source files/u);
 });
 
 test("both hosted install steps prepare the archive within their existing deadline", async () => {
@@ -54,7 +36,7 @@ test("both hosted install steps prepare the archive within their existing deadli
     assert.ok(workflow.includes([
       "        timeout-minutes: 25",
       "        run: |",
-      `          sudo /usr/bin/python3.12 -I -S ${helper} /etc/apt`,
+      `          sudo /usr/bin/python3.12 -I -S ${helper} /etc/apt/apt-mirrors.txt`,
       "          pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit",
     ].join("\n")));
     if (name === "prototype-web") {
