@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { URLSearchParams } from "node:url";
 import { isDeepStrictEqual as equal } from "node:util";
@@ -22,6 +23,7 @@ const files = {
   descriptors: [dir + "descriptors.json", 111454, "7728946d32f09f06e0d3fdaec9f6250179fa8df740c0e97ce3ddabdb49eeee19"],
   jars: [dir + "jar-paths.json", 75628, "cd573a3a0a4071d343e99ae74f63da2fcd464dccfc2ee8fedae484f0b518fb59"],
   opensaml: [dir + "opensaml-candidate-maven.json", 2252, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146"],
+  renamedOwners: [dir + "renamed-jar-owners.json", 195019, "1221378495abb4d59a7be667029a305fc5bd0df5ea05e7a58168947d814f71b3"],
   correspondence: [dir + "matched-82.json", 64841, "43319234891a5c18f32c143dcd80e74bbf6d62680d37aec5aaf9feafa13e78d8"],
   receipt: [dir + "official-audit-receipt.json", 163221, "927f0336de75c2e5747d68d958e52c9543de8bee629ca15613fba19488c02159"],
   json: [dir + "image-opensearch.json", 1701419, "56668110157c3e5acd463912679c5939af61829fb820c35bb1191dcd8eeb224c"],
@@ -402,75 +404,190 @@ function openSamlCoverage(refs, baseline, candidate) {
   return { oldFile, file, jarSha256, layer, coordinates };
 }
 
-// A matched historical row identifies its physical successor even if neither
-// fresh format detects that row. Preserve each neighbour's coordinate and
-// internal path. Accept a version change only with independent evidence.
-function reconcileRemovedPackages(old, candidate, packages, mapped, refs, opensaml) {
-  const attested = new Map(opensaml.coordinates.map((c) => [c.name, c]));
-  const staticPaths = new Set(refs.jars);
-  const successors = new Map();
-  const migrations = new Map();
-  for (const row of mapped) {
-    const owner = outerJar(row.original.PkgPath), successor = outerJar(row.file);
-    if (!successors.has(owner)) successors.set(owner, new Set());
-    successors.get(owner).add(successor);
-    if (row.oldPackage !== null) migrations.set(row.oldPackage, row);
+// The historical scanner report defines the population. The static inventory
+// establishes which physical owners disappeared, independently of advisories.
+function bindRenamedOwners(refs, baseline, opensaml) {
+  const known = new Map(), shipped = new Set(refs.jars);
+  for (const p of baseline.packages) {
+    if (p.type !== "jar") continue;
+    const owner = outerJar(p.file);
+    if (!known.has(owner)) known.set(owner, new Set());
+    known.get(owner).add(p.name);
   }
-  const removed = new Set(packages.removed), added = new Set(packages.added);
-  const requests = new Map();
-  const replacementKey = (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.file, p.epoch, p.version, p.release, p.arch]);
-  const provedMigrations = [], removedJarOwners = [], unexplainedPackageLosses = [], replacementGaps = [];
-  for (const [index, p] of old.packages.entries()) {
-    const owner = p.type === "jar" && outerJar(p.file);
-    const owners = successors.get(owner);
-    // A stray report entry at an obsolete path cannot fulfil the successor's
-    // obligation, even if the ordinary package delta paired those two rows.
-    if (!removed.has(index) && (!owners || owners.size === 1 && owners.has(owner))) continue;
-    const witness = p.file === opensaml.oldFile ? attested.get(p.name) : undefined;
-    if (witness && !witness.matched) {
-      replacementGaps.push({ file: opensaml.file, version: witness.version, versionSource: "opensaml",
-        oldPackages: [index], candidatePackages: witness.candidatePackages });
-      unexplainedPackageLosses.push(index);
-      continue;
-    }
-    const row = migrations.get(index);
-    if (row && row.candidatePackage !== null && added.delete(row.candidatePackage)) {
-      provedMigrations.push({ oldPackage: index, candidatePackage: row.candidatePackage, historicalFinding: row.historicalFinding });
-      continue;
-    }
-    if (owner && !owners && !staticPaths.has(owner)) {
-      // Only disappearance of the old path is proved for these packages.
-      removedJarOwners.push({ oldPackage: index, owner, replacement: null });
-    } else if (!row && owners?.size === 1) {
-      const [successor] = owners;
-      const file = successor + p.file.slice(owner.length);
-      const version = witness?.version ?? p.version;
-      const versionSource = witness ? "opensaml" : "oldPackage";
-      const key = replacementKey({ ...p, version, file });
-      if (!requests.has(key)) requests.set(key, { file, version, versionSource, oldPackages: [] });
-      requests.get(key).oldPackages.push(index);
-    } else {
-      unexplainedPackageLosses.push(index);
-    }
+  const expected = new Set([...known.keys()].filter((file) => !shipped.has(file)));
+  const table = refs.renamedOwners;
+  requireEvidence(table?.schemaVersion === 1 && Array.isArray(table.owners) &&
+    Array.isArray(table.unresolved) && Array.isArray(table.removed), "owner_reference_schema_invalid");
+  const byOld = new Map(), destinations = new Set();
+  for (const entry of [...table.owners, ...table.unresolved, ...table.removed]) {
+    requireEvidence(expected.delete(entry.oldFile), "owner_reference_partition_invalid");
+    byOld.set(entry.oldFile, entry);
   }
-  const available = positions(candidate.packages, replacementKey);
-  for (const [key, { file, version, versionSource, oldPackages }] of requests) {
-    const candidates = (available.get(key) ?? []).filter((index) => added.has(index));
-    if (oldPackages.length !== 1 || candidates.length !== 1) {
-      replacementGaps.push({ file, version, versionSource, oldPackages, candidatePackages: candidates });
-      for (const index of oldPackages) unexplainedPackageLosses.push(index);
-      continue;
-    }
-    provedMigrations.push({ oldPackage: oldPackages[0], candidatePackage: candidates[0], ownerReplacement: true, versionSource });
+  requireEvidence(!expected.size, "owner_reference_partition_incomplete");
+  for (const entry of table.unresolved) {
+    requireEvidence(typeof entry.reason === "string" && entry.reason.trim() &&
+      Array.isArray(entry.candidates) && new Set(entry.candidates).size === entry.candidates.length &&
+      entry.candidates.every((file) => shipped.has(file)), "owner_reference_candidates_invalid");
   }
-  return { provedMigrations, removedJarOwners, unexplainedPackageLosses, replacementGaps };
+  // The reviewed Guava runtime-dependency change and the 108-JAR SQL
+  // inventory explain only the loss of SQL's standalone jsr305 copy. Pin
+  // that complete disposition, including the five remaining physical owners.
+  const removals = new Map();
+  for (const entry of table.removed) {
+    const proof = createHash("sha256").update(JSON.stringify(entry)).digest("hex");
+    const sql = "usr/share/opensearch/plugins/opensearch-sql/";
+    requireEvidence(proof === "8cb92fd36ff807980530c29125811c84e67c22a7d92144452bc9d5c5b6b893b0" &&
+      refs.jars.filter((f) => f.startsWith(sql)).length === 108 &&
+      baseline.packages.some((p) => p.type === "jar" && p.file === entry.oldFile && p.name === entry.name && p.version === entry.version) &&
+      entry.otherOwners.every((o) => shipped.has(o.file) && !o.file.startsWith(sql) &&
+        refs.candidatePlatform.layers.some((l) => l.digest === o.layerDigest)), "owner_removal_evidence_missing");
+    removals.set(entry.oldFile, entry);
+  }
+  const anchors = positions(refs.correspondence, (m) => outerJar(m.original.PkgPath));
+  const bound = new Map();
+  for (const entry of table.owners) {
+    const { oldFile, file, size, jarSha256, layerDigest, coordinates } = entry;
+    const layerIndex = refs.candidatePlatform.layers.findIndex((l) => l.digest === layerDigest);
+    requireEvidence(shipped.has(file) && path.posix.dirname(file) === path.posix.dirname(oldFile) &&
+      !known.has(file) && !destinations.has(file) &&
+      layerIndex !== -1 && /^sha256:[a-f0-9]{64}$/u.test(jarSha256) &&
+      Number.isSafeInteger(size) && size > 0 && Array.isArray(coordinates), "owner_reference_binding_invalid");
+    destinations.add(file);
+    const versions = new Map();
+    for (const { name, version } of coordinates) {
+      requireEvidence(known.get(oldFile).has(name) && typeof version === "string" && version.trim(), "owner_reference_coordinate_invalid");
+      if (!versions.has(name)) versions.set(name, []);
+      versions.get(name).push(version);
+    }
+    for (const i of anchors.get(oldFile) ?? []) {
+      const { original, candidate: [candidatePath, , coordinate, digest] } = refs.correspondence[i];
+      requireEvidence(file + original.PkgPath.slice(oldFile.length) === candidatePath && jarSha256 === digest &&
+        versions.get(original.PkgName)?.includes(coordinate.version), "owner_reference_advisory_conflict");
+    }
+    bound.set(oldFile, { entry, versions, layer: { Digest: layerDigest, DiffID: refs.candidateConfig.rootfs.diff_ids[layerIndex] } });
+  }
+  const saml = byOld.get(opensaml.oldFile);
+  requireEvidence(saml?.file === opensaml.file && saml.layerDigest === opensaml.layer.Digest &&
+    saml.jarSha256 === opensaml.jarSha256 && saml.size === refs.opensaml.size &&
+    equal(saml.coordinates.map(({ name, version }) => [name, version]).sort(),
+      Object.entries(refs.opensaml.versions).sort()), "opensaml_owner_reference_conflict");
+  return { byOld, bound, shipped, removals };
 }
 
-export async function buildOpenSearchComparison({ oldReport, candidateReport, historicalInputsMatch, currentInputs, oldBlockers, candidateBlockers }) {
+function componentSha1(sbom, pkg) {
+  const hashes = sbom.components[pkg?.sbomComponent]?.hashes;
+  if (!Array.isArray(hashes)) return null;
+  const matches = hashes.filter((h) => h?.alg === "SHA-1");
+  return matches.length === 1 && /^[a-f0-9]{40}$/u.test(matches[0].content) ? matches[0].content : null;
+}
+
+// The independent study verified the original CycloneDX SHA-1 against the
+// identical published SDK bytes, and located all these JARs in OCI layer 3.
+// Preserve this observation without choosing among the publication versions.
+function sdkObservation({ entry, pkg, previous, candidates, candidate, refs, oldSbom, candidateSbom, file, added }) {
+  const supported = ["opensearch-remote-metadata-sdk", "opensearch-remote-metadata-sdk-aos-client",
+    "opensearch-remote-metadata-sdk-ddb-client", "opensearch-remote-metadata-sdk-remote-client"];
+  if (!entry?.candidates || !file || !supported.some((artifact) => pkg.name === "org.opensearch:" + artifact)) {
+    return { status: "unverified_succession" };
+  }
+  const historicalSha1 = componentSha1(refs.sbom, previous), oldSha1 = componentSha1(oldSbom, pkg);
+  const copy = candidates.length === 1 ? candidate.packages[candidates[0]] : null;
+  const candidateSha1 = componentSha1(candidateSbom, copy);
+  const sameCopy = historicalSha1 !== null && historicalSha1 === oldSha1 && oldSha1 === candidateSha1 &&
+    added.has(candidates[0]) && copy?.version === pkg.version && copy.layer.Digest === refs.candidatePlatform.layers[3].digest &&
+    copy.layer.DiffID === refs.candidateConfig.rootfs.diff_ids[3];
+  return { file, candidatePackages: candidates, historicalSha1, oldSha1, candidateSha1,
+    status: sameCopy ? "observed_version_ambiguous" : candidates.length ? "copy_evidence_mismatch" : "copy_not_observed" };
+}
+
+function reconcileRemovedPackages({ old, candidate, packages, mapped, refs, baseline, opensaml, historicalPackages, oldSbom, candidateSbom }) {
+  const { byOld, bound, shipped, removals } = bindRenamedOwners(refs, baseline, opensaml);
+  const removed = new Set(packages.removed), added = new Set(packages.added);
+  const historicalCopies = new Map(historicalPackages.matched.map(([i, j]) => [j, baseline.packages[i]]));
+  const byOldPackage = new Map(mapped.filter((m) => m.oldPackage !== null).map((m) => [m.oldPackage, m]));
+  const slot = (p, file) => JSON.stringify([p.class, p.type, p.target, p.name, file, p.epoch, p.release, p.arch]);
+  const available = positions(candidate.packages, (p) => slot(p, p.file)), obligations = new Map();
+  const provedMigrations = [], removedJarOwners = [], unresolvedOwnerPackages = [], unexplainedPackageLosses = [], replacementGaps = [];
+  for (const [index, p] of old.packages.entries()) {
+    const owner = p.type === "jar" && outerJar(p.file);
+    if (!owner || shipped.has(owner)) {
+      if (!removed.has(index)) continue;
+      const row = byOldPackage.get(index);
+      if (row && row.file === p.file && row.candidatePackage !== null && added.delete(row.candidatePackage)) {
+        provedMigrations.push({ oldPackage: index, candidatePackage: row.candidatePackage, historicalFinding: row.historicalFinding });
+      } else {
+        unexplainedPackageLosses.push(index);
+      }
+      continue;
+    }
+    const successor = bound.get(owner);
+    if (!successor) {
+      const entry = byOld.get(owner);
+      const removal = removals.get(owner);
+      if (removal && p.file === owner && p.name === removal.name && p.version === removal.version && removed.has(index) && historicalCopies.has(index)) {
+        removedJarOwners.push({ oldPackage: index, owner, replacement: null, reason: removal.reason });
+        continue;
+      }
+      const local = entry?.candidates?.filter((f) => path.posix.dirname(f) === path.posix.dirname(owner)) ?? [];
+      const file = local.length === 1 && p.file === owner ? local[0] : null;
+      const candidates = file ? available.get(slot(p, file)) ?? [] : [];
+      const observed = sdkObservation({ entry, pkg: p, previous: historicalCopies.get(index), candidates, candidate,
+        refs, oldSbom, candidateSbom, file, added });
+      unresolvedOwnerPackages.push({ oldPackage: index, owner, replacement: null, candidates: entry?.candidates ?? [],
+        reason: removal ? "copy contradicts the pinned removal" : entry?.reason ?? "owner absent from historical reference", ...observed });
+      if (observed.status === "observed_version_ambiguous") added.delete(candidates[0]);
+      else unexplainedPackageLosses.push(index);
+      continue;
+    }
+    const file = successor.entry.file + p.file.slice(owner.length), key = slot(p, file);
+    if (!obligations.has(key)) obligations.set(key, { file, layer: successor.layer, versions: successor.versions.get(p.name) ?? [],
+      versionSource: owner === opensaml.oldFile ? "opensaml" : "renamedOwners", oldPackages: [] });
+    obligations.get(key).oldPackages.push(index);
+  }
+  for (const [key, { file, layer, versions, versionSource, oldPackages }] of obligations) {
+    const candidates = available.get(key) ?? [];
+    // Both multiplicities and versions must agree. Match identical old versions
+    // first. More than one remaining upgrade has no unique per-copy attribution.
+    const measured = candidates.map((i) => candidate.packages[i].version);
+    const assignment = delta(oldPackages.map((i) => old.packages[i].version), measured);
+    if (versions.length !== oldPackages.length || oldPackages.some((i) => !historicalCopies.has(i)) ||
+        !equal([...versions].sort(), [...measured].sort()) ||
+        candidates.some((i) => !added.has(i) || !equal(candidate.packages[i].layer, layer)) ||
+        assignment.removed.length > 1) {
+      replacementGaps.push({ file, version: versions.length === 1 ? versions[0] : null, expectedVersions: versions,
+        versionSource, oldPackages, candidatePackages: candidates });
+      for (const i of oldPackages) unexplainedPackageLosses.push(i);
+      continue;
+    }
+    if (assignment.removed.length) assignment.matched.push([assignment.removed[0], assignment.added[0]]);
+    for (const [i, j] of assignment.matched) {
+      const oldPackage = oldPackages[i], candidatePackage = candidates[j], row = byOldPackage.get(oldPackage);
+      if (row && row.candidatePackage !== candidatePackage) {
+        replacementGaps.push({ file, version: row.coordinate.version, versionSource, oldPackages: [oldPackage],
+          candidatePackages: row.candidatePackageMatches });
+        unexplainedPackageLosses.push(oldPackage);
+        continue;
+      }
+      added.delete(candidatePackage);
+      provedMigrations.push(row ? { oldPackage, candidatePackage, historicalFinding: row.historicalFinding } :
+        { oldPackage, candidatePackage, ownerReplacement: true, versionSource });
+    }
+  }
+  return { provedMigrations, removedJarOwners, unresolvedOwnerPackages, unexplainedPackageLosses, replacementGaps };
+}
+
+export async function buildOpenSearchComparison(reports) {
+  return compareOpenSearchReportData(await readOpenSearchReferences(), reports);
+}
+
+// Deterministic comparison over parsed evidence. The audit entry point above
+// always loads the fixed references and never accepts report-supplied evidence.
+export function compareOpenSearchReportData({ values: refs, identities }, {
+  oldReport, candidateReport, historicalInputsMatch, currentInputs, oldBlockers, candidateBlockers,
+}) {
   requireEvidence(typeof historicalInputsMatch === "boolean", "historical_context_missing");
   const inputComparison = currentInputs === undefined ? null : historicalInputComparison(currentInputs);
   requireEvidence(!inputComparison || inputComparison.every((x) => x.identical) === historicalInputsMatch, "historical_context_contradiction");
-  const { values: refs, identities } = await readOpenSearchReferences();
   for (const side of ["old", "candidate"]) verifyOci(side, refs);
   const { receipt } = refs, historicalBlockers = receipt.blockers.filter((b) => b.role === "opensearch");
   requireEvidence(receipt.run.GITHUB_SHA === historicalSource && receipt.run.GITHUB_RUN_ID === "44321947040" &&
@@ -503,8 +620,11 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
   const unexplainedBelowFloorAdvisories = missingBelowFloorAdvisories.filter((index) => !sharedBelowFloorAdvisoryDrift.includes(index));
   const packages = delta(old.packages, candidate.packages, packageKey);
   const opensaml = openSamlCoverage(refs, baseline, candidate);
-  const { provedMigrations, removedJarOwners, unexplainedPackageLosses, replacementGaps } =
-    reconcileRemovedPackages(old, candidate, packages, mapped, refs, opensaml);
+  const { provedMigrations, removedJarOwners, unresolvedOwnerPackages, unexplainedPackageLosses, replacementGaps } =
+    reconcileRemovedPackages({ old, candidate, packages, mapped, refs, baseline, opensaml, historicalPackages,
+      oldSbom: oldReport.sbom, candidateSbom: candidateReport.sbom });
+  const ambiguousOwnerVersions = unresolvedOwnerPackages.filter((row) => row.status === "observed_version_ambiguous")
+    .map((row) => row.oldPackage);
   const missingMappedCopies = mapped.filter((row) => row.oldPackage === null || row.candidatePackage === null)
     .map((row) => row.historicalFinding);
   const oldRpms = checkedRpms(refs, old), candidateRpms = checkedRpms(refs, candidate);
@@ -518,6 +638,7 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
   if (jars.outsideStaticInventory.length) reasons.push("jar_outside_static_inventory");
   if (lostJarPaths.length) reasons.push("jar_detection_loss");
   if (unexplainedPackageLosses.length) reasons.push("unexplained_package_loss");
+  if (ambiguousOwnerVersions.length) reasons.push("ambiguous_owner_version");
   if (opensaml.coordinates.some((c) => !c.matched)) reasons.push("opensaml_inventory_mismatch");
   if (unexplainedBelowFloorAdvisories.length) reasons.push("below_floor_advisories_unmeasured");
   const findings = delta(old.findings, candidate.findings, findingKey);
@@ -532,13 +653,13 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
       findings: delta(baseline.findings, old.findings, findingKey) },
     old, candidate, correspondence: mapped, paths: pathDelta(old, candidate),
     // Coordinate coverage at the exact path ignores only version/EVR. The
-    // independently verified 82 mappings explain known JAR path migrations.
+    // owner evidence identifies which changes have a per-copy explanation.
     packageCoverage: { ...delta(old.packages, candidate.packages, (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch, p.file])),
-      provedMigrations, removedJarOwners, replacementGaps, opensaml },
+      provedMigrations, removedJarOwners, unresolvedOwnerPackages, replacementGaps, unresolvedOwners: refs.renamedOwners.unresolved, opensaml },
     candidateFindingsOutsideHistoricalMapping: [...candidate.findings.keys()].filter((i) => !mappedCandidateFindings.has(i)),
     rpmCoverage: { old: oldRpms.matched, candidate: candidateRpms.matched, gaps: rpmGaps }, jarCoverage: jars,
     packages, findings,
-    unresolved: { reasons, missingMappedCopies, unexplainedPackageLosses, lostJarPaths, missingBelowFloorAdvisories, sharedBelowFloorAdvisoryDrift,
+    unresolved: { reasons, missingMappedCopies, unexplainedPackageLosses, ambiguousOwnerVersions, lostJarPaths, missingBelowFloorAdvisories, sharedBelowFloorAdvisoryDrift,
       unexplainedBelowFloorAdvisories, undetectedStaticJarPaths: jars.undetectedJarPaths.length,
       belowHistoricalFloor: mapped.filter((m) => !m.candidateThreshold.meetsFloor).map((m) => m.historicalFinding),
       candidateAdvisoryOccurrences: candidate.findings.length, newlyObservedFindingTuples: findings.added.length },
