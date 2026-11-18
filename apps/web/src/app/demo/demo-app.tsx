@@ -223,6 +223,10 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [advanced, setAdvanced] = useState(false);
   const [fieldError, setFieldError] = useState<SearchFieldError>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
+  const [resultSetKey, setResultSetKey] = useState<string>();
+  const loadedDetailIndex = screen === "detail" && resultSetKey && window.history.state?.awResultSet === resultSetKey
+    ? response?.results.findIndex((result) => result.listingId === location.listingId) ?? -1
+    : -1;
   const [comparisonIds, setComparisonIds] = useState<readonly string[]>([]);
   const [acceptedCriteria, setAcceptedCriteria] = useState<SavedSearchCriteria>();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
@@ -340,6 +344,15 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
   }, [cancelResultsSort, invalidateSearchRefinement, screen]);
+
+  function openLoadedDetail(index: number) {
+    const target = response?.results[index];
+    if (!target || !resultSetKey || getHashSnapshot() !== hash) return;
+    navigate("detail", target.listingId);
+    // The history entry identifies a result set only for the lifetime of this search.
+    window.history.replaceState({ ...window.history.state, awResultSet: resultSetKey }, "");
+    recordAnalyticsEvent({ eventName: "detail_opened", screen, outcome: "success" });
+  }
 
   useEffect(() => {
     if (screen !== "results") cancelResultsSort();
@@ -606,6 +619,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     }
     initialSearchFocus.current = false;
     const heading = document.getElementById("demo-screen-title");
+    if (screen === "detail") resultsReturnIndex.current = loadedDetailIndex >= 0 ? loadedDetailIndex : undefined;
     if (screen === "results" && comparisonReturnPending.current) {
       const comparisonOpen = document.getElementById("demo-comparison-open") as HTMLButtonElement | null;
       const selectedToggle = document.querySelector<HTMLButtonElement>('[id^="demo-result-compare-"][aria-pressed="true"]');
@@ -617,12 +631,13 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       const trigger = document.getElementById(`demo-result-open-${resultsReturnIndex.current}`);
       trigger?.focus({ preventScroll: true });
       window.scrollTo({ top: resultsScroll.current });
+      trigger?.scrollIntoView({ block: "nearest" });
       resultsReturnIndex.current = undefined;
     } else {
       heading?.focus({ preventScroll: true });
       window.scrollTo({ top: 0 });
     }
-  }, [screen, location.listingId, receivedComparisonHash, sharedHash]);
+  }, [screen, location.listingId, loadedDetailIndex, receivedComparisonHash, sharedHash]);
   useLayoutEffect(() => {
     if (!response || pendingResponseFocus.current === undefined) return;
     document.getElementById(pendingResponseFocus.current)?.focus({ preventScroll: true });
@@ -743,7 +758,10 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     if (append) pendingResponseFocus.current = next.nextCursor ? "demo-load-more" : `demo-result-open-${appendStartIndex.current}`;
     else if (focusAfter === "refresh" || focusAfter === "results-sort") pendingResponseFocus.current = "demo-screen-title";
     setResponse(next);
-    if (!append) setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
+    if (!append) {
+      setResultSetKey(crypto.randomUUID());
+      setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
+    }
     if (focusAfter === "results-sort") {
       resultsSortQueryRef.current = undefined;
       setResultsSortQuery(undefined);
@@ -1659,7 +1677,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
             <div className="demo-results" aria-busy={loadingMore || undefined}>
               {response.results.map((result, index) => {
                 const selectedForComparison = comparisonIds.includes(result.listingId);
-                return <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} selectedForComparison={selectedForComparison} comparisonDisabled={loading || (!selectedForComparison && comparisonEntries.length >= COMPARISON_LIMIT)} onToggleComparison={() => toggleComparison(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => { resultsReturnIndex.current = index; recordAnalyticsEvent({ eventName: "detail_opened", screen: "results", outcome: "success" }); navigate("detail", result.listingId); }} />;
+                return <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} selectedForComparison={selectedForComparison} comparisonDisabled={loading || (!selectedForComparison && comparisonEntries.length >= COMPARISON_LIMIT)} onToggleComparison={() => toggleComparison(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => openLoadedDetail(index)} />;
               })}
             </div>
           )}
@@ -1688,6 +1706,15 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       {screen === "detail" && enabled ? (
         <section aria-labelledby="demo-screen-title">
           <ScreenHeader title="Détail de la publication synthétique" description="Les valeurs ci-dessous sont des observations de démonstration, pas une offre commerciale." backLabel="Retour aux résultats" onBack={() => navigate(response ? "results" : "search")} action={location.listingId ? <Button variant="secondary" onClick={() => toggleSaved(location.listingId!, "detail")}>{favoriteSnapshot.listingIds.includes(location.listingId) ? "Retirer des favoris" : "Ajouter aux favoris"}</Button> : undefined} />
+          {response && response.results.length > 1 && loadedDetailIndex >= 0 ? (
+            <nav className="demo-listing-navigation" aria-label="Annonces chargées">
+              <p className="demo-field-hint" role="status">Annonce {loadedDetailIndex + 1} sur {response.results.length}</p>
+              <div className="demo-form-actions">
+                <Button variant="secondary" disabled={loadedDetailIndex === 0} onClick={() => openLoadedDetail(loadedDetailIndex - 1)}>Annonce précédente</Button>
+                <Button variant="secondary" disabled={loadedDetailIndex === response.results.length - 1} onClick={() => openLoadedDetail(loadedDetailIndex + 1)}>Annonce suivante</Button>
+              </div>
+            </nav>
+          ) : null}
           {detail.status === "loading" ? <LoadingResults label="Chargement du détail synthétique…" /> : null}
           {detail.status === "error" ? <StatePanel tone="danger" title={detail.code === "not_found" ? "Publication non disponible" : "Détail indisponible"} action={<Button onClick={() => setDetailRetry((value) => value + 1)}>Réessayer</Button>}><p>{detail.code === "not_found" ? "Cette publication synthétique est introuvable dans cette lecture." : detail.code === "offline" ? "Reconnectez-vous pour charger ce détail, puis réessayez." : "Le détail ne peut pas être chargé pour le moment. Réessayez ou revenez à la recherche."}</p></StatePanel> : null}
           {acceptedDetail !== undefined ? (

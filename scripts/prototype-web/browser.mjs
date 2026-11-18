@@ -81,6 +81,36 @@ async function submitSearch(page) {
   await expect(page.getByRole("heading", { name: "Résultats de la démo" })).toBeVisible();
 }
 
+async function verifyLoadedListingNavigation(page, results) {
+  const cards = page.locator(".demo-result-card");
+  const criteria = await page.locator("#demo-active-criteria-summary").innerText();
+  const open = (index) => page.locator(`#demo-result-open-${index}`);
+  // Cross the accepted page boundary in both directions, ending on a different card.
+  const steps = [
+    [20, open(20)],
+    [19, page.getByRole("button", { name: "Annonce précédente", exact: true })],
+    [20, page.getByRole("button", { name: "Annonce suivante", exact: true })],
+    [21, page.getByRole("button", { name: "Annonce suivante", exact: true })],
+  ];
+  for (const [index, control] of steps) {
+    const id = results[index].listingId;
+    const read = page.waitForResponse((response) => response.request().method() === "GET"
+      && response.url() === `${ALLOWED_ORIGIN}/api/demo/v2/listings/${encodeURIComponent(id)}`);
+    await control.click();
+    const response = await read;
+    expect(response.status()).toBe(200);
+    expect((await response.json()).data.results[0].listingId).toBe(id);
+    await expect(page.getByText(`Annonce ${index + 1} sur ${results.length}`, { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
+    expect(new URL(page.url()).hash).toBe(`#detail/${encodeURIComponent(id)}`);
+  }
+  await page.getByRole("button", { name: "Retour aux résultats" }).click();
+  await expect(cards).toHaveCount(results.length);
+  await expect(open(21)).toBeFocused();
+  await expect(page.locator("#demo-results-sort")).toHaveValue("mileage_desc");
+  await expect(page.locator("#demo-active-criteria-summary")).toHaveText(criteria);
+}
+
 async function verifyResultsSort(page, initialQuery, metrics) {
   const isSearchResponse = (response) => new URL(response.url()).origin === ALLOWED_ORIGIN
     && new URL(response.url()).pathname === "/api/demo/v2/search" && response.request().method() === "POST";
@@ -121,6 +151,9 @@ async function verifyResultsSort(page, initialQuery, metrics) {
     }));
     expect(requests).toHaveLength(2);
     metrics.resultsSortEngines += 1;
+    await verifyLoadedListingNavigation(page, expected);
+    expect(requests).toHaveLength(2);
+    metrics.loadedListingNavigationEngines += 1;
   } finally { page.off("request", record); }
 }
 
@@ -571,6 +604,7 @@ export async function openBrowserJourneys(evidenceDirectory) {
   const directory = path.resolve(evidenceDirectory);
   await mkdir(directory, { recursive: true });
   const metrics = { engines: 0, axeAudits: 0, unavailableEngines: 0, restoredEngines: 0,
+    loadedListingNavigationEngines: 0,
     keywordEngines: 0, keywordRestoredEngines: 0, refinementEngines: 0, searchRenameEngines: 0, savedCriteriaEngines: 0, resultsSortEngines: 0, keywordFeedbackMs: [], keywordResultCounts: [],
     initialResultCounts: [], pagedResultCounts: [], screenshots: [] };
   const states = [];

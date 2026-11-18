@@ -187,3 +187,6 @@
 }
 /* Apply inherited text sizing immediately when motion is reduced. */
 @media (prefers-reduced-motion: reduce) { .demo-main *, .demo-main *::before, .demo-main *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
+
+.demo-listing-navigation { display: grid; gap: var(--aw-space-2); margin-block: var(--aw-space-4); }
+.demo-listing-navigation > p { margin: 0; }
