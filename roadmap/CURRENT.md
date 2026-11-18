@@ -20,9 +20,11 @@ est désormais MAIN_ACCEPTED par PR250 sur0c2b3d6c, avec preuve native du
 premier runtime non caché ; les pending antérieurs sont historiques.
 Le plan suivant a reçu Architect WATCH sur révision0 puis Critic APPROVE sur
 révision1 ; la livraison documentaire et les preuves natives restent distinctes.
-La remédiation upstream PR251 possède son autre thread/worktree ; son état
-159 rapporté par ce propriétaire n'est pas le raw243 de0c2b. Revalider main et
-les sujets avant livraison ; aucune mesure ne se transfère à un nouveau sujet.
+PR251 a fusionné sur `f6fcd6ef` le 18 novembre à 08:28 UTC. Son audit
+source sur `d8e92987` compte 159 blocages. Les 243 blocages historiques
+concernent le main de PR250, `0c2b3d6c`. La livraison de PR252 attend
+l’acceptation des preuves du main de PR251 par le responsable upstream.
+Les entrées upstream plus bas décrivent les étapes antérieures à la fusion.
 
 
 La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
@@ -45,3 +47,26 @@ admission ou activation du support n'est autorisée par cette livraison.
 4. Mettre cette vue à jour après un changement vérifié, un transfert ou une livraison. Conserver les historiques dans les validations et le registre de livraison.
 
 La tâche/DoD définit ce qui est exigé ; le checkpoint accepté prouve ce qui est livré. Cette vue ne peut déroger à aucun des deux. Prototype isolé, données fictives ; aucune admission d'image, collecte réelle, production ou publication publique.
+
+## Voie upstream indépendante, 18 novembre 2026
+
+À la demande explicite de l'utilisateur, [le lot OpenSearch3.9 reconstruit](../docs/validation/TASK-0005-upstream-20261118.md)
+prépare une remédiation distincte de PR250 et de la rétention M3. PR250 est
+fusionnée sur0c2b3d6c, intégrée dans cette branche ; ses gates main restent la
+responsabilité du parent. Matrice originale243 conservée, revues séquentielles
+Architect/Critic et comparaison JDK arrêtée réussies. Scans/CI du nouveau sujet,
+revues originales et livraison restent requis ; aucune fusion concurrente de
+main pendant l'acceptation parent, aucun TASK DONE/admission/support déduit.
+
+## Checkpoint source upstream — 18 novembre 2026
+
+[PR251](https://github.com/CleMeY15/auto-world/pull/251), implémentationadba7380,
+possède les revues source/qualité/raw/managed indépendantes. Le nouveau sujet
+OpenSearch corrige84occurrences RPM avec inventaires complets et mêmes bases ;
+raw reste FAILED159, anciens243 historiques inchangés. Managed valide ses dix
+phases et quatre cas runtime diagnostiques ; aucune admission/support/M3 déduite.
+[Preuves et limites](../docs/validation/TASK-0005-upstream-20261118.md).
+PR250 est MAIN_ACCEPTED sur0c2b3d6c ; le parent conserve le dossier M3.
+Prochaine action de cette voie : livrer la documentation sans changement de
+source exécutée, revue d'équivalence et gate qualité, fusion normale PR251,
+puis workflows et revue du main exact. TASK-0005/A restent IN_PROGRESS.

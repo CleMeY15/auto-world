@@ -55,6 +55,20 @@ hors cohorte produit. Coordinateur, recherche et revues en contextes Codex
 gpt-6-astra/ultra distincts ; coûts, tokens et gains unknown. Aucune entrée produit
 consommée, aucun nouveau résultat opérationnel ni suivi à sept jours revendiqué.
 
+Infrastructure du18novembre2026 : [remédiation upstream indépendante](../../docs/validation/TASK-0005-upstream-20261118.md),
+hors cohorte produit. Responsable, deux recherches et revues Architect/Critic en
+contextes Codex gpt-6-astra/ultra hérités ; coût/tokens/gains unknown. V1 de plan
+rejetée pour contrôle JDK manquant, V2 approuvée ; premier préflight arrêté sur
+identité locale Docker29, second corrigé avec preuve JDK identique. Aucun gain ni
+acceptation finale revendiqué, aucune entrée produit consommée.
+
+Suite de la voie upstream18novembre : sourceadba7380 et originaux raw/qualité/
+managed approuvés par contextes indépendants,84occurrences RPM corrigées sur le
+nouveau sujet,159restantes. Les reprises locales umask/tmpfs/chemin de socket
+sont conservées ; préparation environnement seulement, assertions inchangées.
+La documentation finale et le main restent à livrer. Modèle/effort inchangés,
+coûts/tokens/gains unknown, hors cohorte produit.
+
 Infrastructure preparation,18 November2026: [PostgreSQL/Gosu dossier](../../docs/validation/TASK-0005-postgres-gosu-material-capture.md),
 outside product cohort; unique author Codex gpt-6-astra/ultra, inherited settings
 recorded before work. Architect WATCH on revision0; parent clarified N1–N3

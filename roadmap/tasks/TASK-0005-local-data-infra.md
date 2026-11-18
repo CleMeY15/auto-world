@@ -233,3 +233,17 @@ PR186 accepted-build-pair documentation is delivered with exact-head/main CI SUC
 ## 2026-10-22 — Gosu retained-pair controller source preparation
 
 The [bounded approved controller plan](../plans/TASK-0005A-gosu-retained-pair-native-controller-v1.md) and its [validation](../../docs/validation/TASK-0005A-gosu-retained-pair-native-controller-v1.md) prepare one future authenticated retention path after daemon stop. Source implementation/delivery are in progress; this is neither image admission nor four-service foundation acceptance. Existing source modules and consumed evidence remain unchanged. TASK-0005 and TASK-0005A remain IN_PROGRESS, TASK-0006 and dependent supported infrastructure paths remain blocked, currentEvidence is unchanged and derivative dates remain null.
+
+18 November2026: user-authorized independent [upstream candidate remediation](../../docs/validation/TASK-0005-upstream-20261118.md)
+retains the full243-finding historical matrix and selects the rebuilt official
+OpenSearch3.9.0 base after ordered plan review and stopped-image JDK equality.
+Fresh source/image/native/runtime/cleanup and independent CI review remain
+pending. PR250/Gosu and parent retention are separate; TASK remains IN_PROGRESS.
+
+18 November2026 source checkpoint: [PR251 implementationadba7380](https://github.com/CleMeY15/auto-world/pull/251)
+has independent source, quality, raw and managed evidence approval. The rebuilt
+OpenSearch subject resolves84RPM occurrences with complete inventory/same DB;
+raw remains FAILED159 and historical243 remain unwaived. Managed ten phases and
+four diagnostic runtime cases pass. [Exact evidence and coverage limits](../../docs/validation/TASK-0005-upstream-20261118.md).
+Final evidence-only delivery and actual merged-main acceptance remain required;
+TASK stays IN_PROGRESS, no admission/support/M3 closure follows.

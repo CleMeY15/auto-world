@@ -85,11 +85,16 @@ if measurable. Documentary CI and acceptance remain separate from this plan revi
 
 ## Delivery, limits and rollback
 
-At preparation reconciliation, GitHub still reported main `0c2b3d6c`; PR251 was
-open against it at `d8e9298710fd54f9045e947c3137f76d2b5770b7`. Its independent
-owner retains remediations and acceptance. Recheck main before merge and before
-implementation; historical raw243 belongs to 0c2b, while an earlier owner-reported
-raw159 belongs to that candidate. No result transfers to another subject.
+PR252 initially targeted PR250 main `0c2b3d6c`. The draft branch now includes
+PR251 main `f6fcd6efca4ad23f8a7fc79c9eaf7297511992a1`. Both pilot entries
+are preserved. Of the 15 recipe files, only the OpenSearch pin in
+`infra/managed-images/lock.json` changed. The file is 4,272 bytes on both commits.
+Its SHA256 on the new base is
+`736b87f5c5ad2252727d612ff900429525aef5eb608f23c2206d7801d48d1fda`.
+The annex records the measurements from PR250. PR251's final source audit
+reported 159 blockers on `d8e92987`. Documentary delivery waits for the upstream
+owner's [PR251 main checkpoint](https://github.com/CleMeY15/auto-world/pull/251).
+Recheck the live main and the recipe hashes before freezing the implementation.
 
 TASK-0005/0005A remain IN_PROGRESS. Required future work: accepted documentary
 delivery; bounded implementation/code review and actual source/main capture;

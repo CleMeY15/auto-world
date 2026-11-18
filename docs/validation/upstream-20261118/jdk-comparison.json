@@ -1,0 +1,103 @@
+{
+  "owner": "3bbf008d-cd99-4d02-9ab5-bbd381162708",
+  "name": "aw-upstream-jdk-3bbf008d-cd99-4d02-9ab5-bbd381162708",
+  "image": "opensearchproject/opensearch@sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2",
+  "started": false,
+  "localId": "sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2",
+  "registryConfigDigest": "sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba",
+  "inventoryEqual": true,
+  "releaseEqual": true,
+  "result": "MATCH",
+  "cleanup": "OWNED_STOPPED_CONTAINER_REMOVED",
+  "originalArtifactSha256": "7958606f3190ca8c97b200d75959936e337a6842677cd6a4e0425e51df7703ce",
+  "files": {
+    "jdk-inventory.stdout": {
+      "bytes": 46250,
+      "sha256": "ea4643fecd38b7210ae4e1846591bb212af6554475a488e464d7078afe62ffa0"
+    },
+    "old-jdk-before.txt": {
+      "bytes": 46250,
+      "sha256": "ea4643fecd38b7210ae4e1846591bb212af6554475a488e464d7078afe62ffa0"
+    },
+    "new-jdk-release.txt": {
+      "bytes": 1615,
+      "sha256": "44be64b383baa18668afefbe9a780ae3a9d730a066eaaa92500f77bd1e4b934c"
+    },
+    "old-jdk-release.txt": {
+      "bytes": 1615,
+      "sha256": "44be64b383baa18668afefbe9a780ae3a9d730a066eaaa92500f77bd1e4b934c"
+    }
+  },
+  "commands": [
+    {
+      "label": "pull",
+      "exit": 0,
+      "duration": 0.5655558109283447,
+      "stdoutSha256": "45d47d28404821ae231f9070660503fd4fa2530e7f0ef50a481afda0429ac824",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "image-inspect",
+      "exit": 0,
+      "duration": 0.06457304954528809,
+      "stdoutSha256": "ffe6ded3b330b977eeeccee020fe8820f7eceab15bdf55e9e45f36b59dd6f8de",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "create",
+      "exit": 0,
+      "duration": 0.06449294090270996,
+      "stdoutSha256": "8dd72429fecfadfbc1a5e8ee71266ad354be6559dd2fc8e140ee3bb8c7845e4c",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "container-inspect",
+      "exit": 0,
+      "duration": 0.0320897102355957,
+      "stdoutSha256": "38664acf03117158147b1547d8c3d245ab833c2af1a98c30c3ba01cebe7a8f86",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "jdk-copy",
+      "exit": 0,
+      "duration": 0.7181007862091064,
+      "stdoutSha256": "b41a4a2a22566a38dcae7774c7962eb2b8c29b26322b0eb9ee4e8ec599de9deb",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "jdk-tar-list",
+      "exit": 0,
+      "duration": 0.008272647857666016,
+      "stdoutSha256": "d8702f729728dad454bade23d3de55f50396aa92189f13ad8981e3e014a9c9f9",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "jdk-extract",
+      "exit": 0,
+      "duration": 1.8693981170654297,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "jdk-inventory",
+      "exit": 0,
+      "duration": 0.4656057357788086,
+      "stdoutSha256": "ea4643fecd38b7210ae4e1846591bb212af6554475a488e464d7078afe62ffa0",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "cleanup-inspect",
+      "exit": 0,
+      "duration": 0.11460041999816895,
+      "stdoutSha256": "38664acf03117158147b1547d8c3d245ab833c2af1a98c30c3ba01cebe7a8f86",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "cleanup",
+      "exit": 0,
+      "duration": 0.0644524097442627,
+      "stdoutSha256": "8dd72429fecfadfbc1a5e8ee71266ad354be6559dd2fc8e140ee3bb8c7845e4c",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

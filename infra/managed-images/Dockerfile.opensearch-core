@@ -16,7 +16,7 @@ COPY infra/managed-images/opensearch-core/fixtures/test-output-capture/ /recipe/
 USER 1000:1000
 RUN bash /recipe/build-core.sh
 
-FROM opensearchproject/opensearch@sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84 AS prepared-base
+FROM opensearchproject/opensearch@sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2 AS prepared-base
 USER 0
 COPY infra/managed-images/opensearch-core/jdk-inventory.sh /tmp/aw-jdk-inventory.sh
 RUN /bin/bash -euo pipefail -c '\
