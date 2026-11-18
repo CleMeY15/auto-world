@@ -1,0 +1,1619 @@
+[
+  {
+    "mainOrdinalOneBased": 111,
+    "original243OrdinalAsRecorded": 195,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-92392",
+      "packageName": "curl-minimal",
+      "installedVersion": "8.21.0-5.amzn2023.0.2",
+      "severity": "HIGH",
+      "fixedVersion": "8.21.0-5.amzn2023.0.3",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "curl-minimal",
+      "version": "8.21.0",
+      "release": "5.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "1ec46c2dd9833804a3b6f5f3397488cff4edb7dded6ebaae37f3febd92c35b25",
+      "rpmdbHnum": 90
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-92392.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 112,
+    "original243OrdinalAsRecorded": 196,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-86805",
+      "packageName": "glibc",
+      "installedVersion": "2.34-231.amzn2023.0.5",
+      "severity": "HIGH",
+      "fixedVersion": "2.34-231.amzn2023.0.6",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "glibc",
+      "version": "2.34",
+      "release": "231.amzn2023.0.6",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "c8ac818a0c01bd885f93a33b6528ba76621711b15422c9d0c19730df15d883e4",
+      "rpmdbHnum": 8
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-86805.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 113,
+    "original243OrdinalAsRecorded": 197,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-86805",
+      "packageName": "glibc-common",
+      "installedVersion": "2.34-231.amzn2023.0.5",
+      "severity": "HIGH",
+      "fixedVersion": "2.34-231.amzn2023.0.6",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "glibc-common",
+      "version": "2.34",
+      "release": "231.amzn2023.0.6",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "0de72f8682f108997c81bbbeb67e4901e60f9fd89865ddd811e1bf21a4d320c1",
+      "rpmdbHnum": 60
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-86805.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 114,
+    "original243OrdinalAsRecorded": 198,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-86805",
+      "packageName": "glibc-minimal-langpack",
+      "installedVersion": "2.34-231.amzn2023.0.5",
+      "severity": "HIGH",
+      "fixedVersion": "2.34-231.amzn2023.0.6",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "glibc-minimal-langpack",
+      "version": "2.34",
+      "release": "231.amzn2023.0.6",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "ff06d2de93c7ec58687ba1d20e3b2d60437fc5ca186a3f183dd61addfcfde171",
+      "rpmdbHnum": 7
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-86805.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 115,
+    "original243OrdinalAsRecorded": 199,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-78659",
+      "packageName": "libcap",
+      "installedVersion": "2.73-1.amzn2023.0.7",
+      "severity": "HIGH",
+      "fixedVersion": "2.73-1.amzn2023.0.8",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "libcap",
+      "version": "2.73",
+      "release": "1.amzn2023.0.8",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "9e7b4df84ee3095eec5e1f794bd52408c8a6df1e2ab10eac09b4b91cc5cffe18",
+      "rpmdbHnum": 12
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-78659.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 116,
+    "original243OrdinalAsRecorded": 200,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-78667",
+      "packageName": "libcap",
+      "installedVersion": "2.73-1.amzn2023.0.7",
+      "severity": "HIGH",
+      "fixedVersion": "2.73-1.amzn2023.0.8",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "libcap",
+      "version": "2.73",
+      "release": "1.amzn2023.0.8",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "9e7b4df84ee3095eec5e1f794bd52408c8a6df1e2ab10eac09b4b91cc5cffe18",
+      "rpmdbHnum": 12
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-78667.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 117,
+    "original243OrdinalAsRecorded": 201,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-94440",
+      "packageName": "libcap",
+      "installedVersion": "2.73-1.amzn2023.0.7",
+      "severity": "HIGH",
+      "fixedVersion": "2.73-1.amzn2023.0.8",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "libcap",
+      "version": "2.73",
+      "release": "1.amzn2023.0.8",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "9e7b4df84ee3095eec5e1f794bd52408c8a6df1e2ab10eac09b4b91cc5cffe18",
+      "rpmdbHnum": 12
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-94440.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 118,
+    "original243OrdinalAsRecorded": 202,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-92392",
+      "packageName": "libcurl-minimal",
+      "installedVersion": "8.21.0-5.amzn2023.0.2",
+      "severity": "HIGH",
+      "fixedVersion": "8.21.0-5.amzn2023.0.3",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "libcurl-minimal",
+      "version": "8.21.0",
+      "release": "5.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "7995b1e653c2602db719f677e0733f61a31364b8a35cde14b9c101d1ad9d1f6f",
+      "rpmdbHnum": 37
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-92392.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 119,
+    "original243OrdinalAsRecorded": 203,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103111",
+      "packageName": "pcre2",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "2a704cd6e7ffb8dd857d517cc4448331ad8352bb5dfbfe5a1e4f367789c32b69",
+      "rpmdbHnum": 68
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103111.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 120,
+    "original243OrdinalAsRecorded": 204,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-86145",
+      "packageName": "pcre2",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "2a704cd6e7ffb8dd857d517cc4448331ad8352bb5dfbfe5a1e4f367789c32b69",
+      "rpmdbHnum": 68
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-86145.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 121,
+    "original243OrdinalAsRecorded": 205,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-89156",
+      "packageName": "pcre2",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "2a704cd6e7ffb8dd857d517cc4448331ad8352bb5dfbfe5a1e4f367789c32b69",
+      "rpmdbHnum": 68
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-89156.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 122,
+    "original243OrdinalAsRecorded": 206,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-89160",
+      "packageName": "pcre2",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "2a704cd6e7ffb8dd857d517cc4448331ad8352bb5dfbfe5a1e4f367789c32b69",
+      "rpmdbHnum": 68
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-89160.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 123,
+    "original243OrdinalAsRecorded": 207,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103111",
+      "packageName": "pcre2-syntax",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2-syntax",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "noarch",
+      "fullHeaderSha256": "c7d14ed4710c42234162c6410d46d683ee375c9ab122b011ba0a3c74dc3597e7",
+      "rpmdbHnum": 2
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103111.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 124,
+    "original243OrdinalAsRecorded": 208,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-86145",
+      "packageName": "pcre2-syntax",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2-syntax",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "noarch",
+      "fullHeaderSha256": "c7d14ed4710c42234162c6410d46d683ee375c9ab122b011ba0a3c74dc3597e7",
+      "rpmdbHnum": 2
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-86145.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 125,
+    "original243OrdinalAsRecorded": 209,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-89156",
+      "packageName": "pcre2-syntax",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2-syntax",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "noarch",
+      "fullHeaderSha256": "c7d14ed4710c42234162c6410d46d683ee375c9ab122b011ba0a3c74dc3597e7",
+      "rpmdbHnum": 2
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-89156.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 126,
+    "original243OrdinalAsRecorded": 210,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-89160",
+      "packageName": "pcre2-syntax",
+      "installedVersion": "10.40-1.amzn2023.0.4",
+      "severity": "HIGH",
+      "fixedVersion": "10.40-1.amzn2023.0.5",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "pcre2-syntax",
+      "version": "10.40",
+      "release": "1.amzn2023.0.5",
+      "epoch": "0",
+      "arch": "noarch",
+      "fullHeaderSha256": "c7d14ed4710c42234162c6410d46d683ee375c9ab122b011ba0a3c74dc3597e7",
+      "rpmdbHnum": 2
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-89160.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 127,
+    "original243OrdinalAsRecorded": 211,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-19553",
+      "packageName": "python3",
+      "installedVersion": "3.9.25-1.amzn2023.0.9",
+      "severity": "HIGH",
+      "fixedVersion": "3.9.25-1.amzn2023.0.11",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3",
+      "version": "3.9.25",
+      "release": "1.amzn2023.0.11",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "8459c51073338ba6af56e3dfdbff36fbef7b6e6ca24f216b2871ac5ebb04dff9",
+      "rpmdbHnum": 91
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-19553.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 128,
+    "original243OrdinalAsRecorded": 212,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-19553",
+      "packageName": "python3-libs",
+      "installedVersion": "3.9.25-1.amzn2023.0.9",
+      "severity": "HIGH",
+      "fixedVersion": "3.9.25-1.amzn2023.0.11",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-libs",
+      "version": "3.9.25",
+      "release": "1.amzn2023.0.11",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "16c94f24095b4b9a3018dd065a2bf074f829aa201f4ca1b5009f69352278e1ff",
+      "rpmdbHnum": 39
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-19553.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 129,
+    "original243OrdinalAsRecorded": 213,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103242",
+      "packageName": "python3-rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "733edd69a2583019a48a50746bdfa8fae68f7c3dbc345d079b046d9fbb25ed4d",
+      "rpmdbHnum": 102
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103242.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 130,
+    "original243OrdinalAsRecorded": 214,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-84837",
+      "packageName": "python3-rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "733edd69a2583019a48a50746bdfa8fae68f7c3dbc345d079b046d9fbb25ed4d",
+      "rpmdbHnum": 102
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-84837.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 131,
+    "original243OrdinalAsRecorded": 215,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95519",
+      "packageName": "python3-rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "733edd69a2583019a48a50746bdfa8fae68f7c3dbc345d079b046d9fbb25ed4d",
+      "rpmdbHnum": 102
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95519.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 132,
+    "original243OrdinalAsRecorded": 216,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95520",
+      "packageName": "python3-rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "733edd69a2583019a48a50746bdfa8fae68f7c3dbc345d079b046d9fbb25ed4d",
+      "rpmdbHnum": 102
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95520.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 133,
+    "original243OrdinalAsRecorded": 217,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95521",
+      "packageName": "python3-rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "python3-rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "733edd69a2583019a48a50746bdfa8fae68f7c3dbc345d079b046d9fbb25ed4d",
+      "rpmdbHnum": 102
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95521.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 134,
+    "original243OrdinalAsRecorded": 218,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103242",
+      "packageName": "rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "3c0faa3ec29565061b4895888601278cb9ee394e8c0e322bd736f098a796e20b",
+      "rpmdbHnum": 94
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103242.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 135,
+    "original243OrdinalAsRecorded": 219,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-84837",
+      "packageName": "rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "3c0faa3ec29565061b4895888601278cb9ee394e8c0e322bd736f098a796e20b",
+      "rpmdbHnum": 94
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-84837.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 136,
+    "original243OrdinalAsRecorded": 220,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95519",
+      "packageName": "rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "3c0faa3ec29565061b4895888601278cb9ee394e8c0e322bd736f098a796e20b",
+      "rpmdbHnum": 94
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95519.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 137,
+    "original243OrdinalAsRecorded": 221,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95520",
+      "packageName": "rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "3c0faa3ec29565061b4895888601278cb9ee394e8c0e322bd736f098a796e20b",
+      "rpmdbHnum": 94
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95520.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 138,
+    "original243OrdinalAsRecorded": 222,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95521",
+      "packageName": "rpm",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "3c0faa3ec29565061b4895888601278cb9ee394e8c0e322bd736f098a796e20b",
+      "rpmdbHnum": 94
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95521.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 139,
+    "original243OrdinalAsRecorded": 223,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103242",
+      "packageName": "rpm-build-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-build-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "e52b28ffaa9eec83187f3193a4992f07fa34f97325b889fa62c655200635af18",
+      "rpmdbHnum": 49
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103242.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 140,
+    "original243OrdinalAsRecorded": 224,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-84837",
+      "packageName": "rpm-build-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-build-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "e52b28ffaa9eec83187f3193a4992f07fa34f97325b889fa62c655200635af18",
+      "rpmdbHnum": 49
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-84837.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 141,
+    "original243OrdinalAsRecorded": 225,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95519",
+      "packageName": "rpm-build-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-build-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "e52b28ffaa9eec83187f3193a4992f07fa34f97325b889fa62c655200635af18",
+      "rpmdbHnum": 49
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95519.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 142,
+    "original243OrdinalAsRecorded": 226,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95520",
+      "packageName": "rpm-build-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-build-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "e52b28ffaa9eec83187f3193a4992f07fa34f97325b889fa62c655200635af18",
+      "rpmdbHnum": 49
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95520.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 143,
+    "original243OrdinalAsRecorded": 227,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95521",
+      "packageName": "rpm-build-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-build-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "e52b28ffaa9eec83187f3193a4992f07fa34f97325b889fa62c655200635af18",
+      "rpmdbHnum": 49
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95521.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 144,
+    "original243OrdinalAsRecorded": 228,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103242",
+      "packageName": "rpm-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "b50f36d8cc0c846755992f8c842e3fae4701bf67dae75ffeacae09b6c3a25a42",
+      "rpmdbHnum": 42
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103242.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 145,
+    "original243OrdinalAsRecorded": 229,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-84837",
+      "packageName": "rpm-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "b50f36d8cc0c846755992f8c842e3fae4701bf67dae75ffeacae09b6c3a25a42",
+      "rpmdbHnum": 42
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-84837.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 146,
+    "original243OrdinalAsRecorded": 230,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95519",
+      "packageName": "rpm-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "b50f36d8cc0c846755992f8c842e3fae4701bf67dae75ffeacae09b6c3a25a42",
+      "rpmdbHnum": 42
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95519.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 147,
+    "original243OrdinalAsRecorded": 231,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95520",
+      "packageName": "rpm-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "b50f36d8cc0c846755992f8c842e3fae4701bf67dae75ffeacae09b6c3a25a42",
+      "rpmdbHnum": 42
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95520.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 148,
+    "original243OrdinalAsRecorded": 232,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95521",
+      "packageName": "rpm-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "b50f36d8cc0c846755992f8c842e3fae4701bf67dae75ffeacae09b6c3a25a42",
+      "rpmdbHnum": 42
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95521.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 149,
+    "original243OrdinalAsRecorded": 233,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-103242",
+      "packageName": "rpm-sign-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-sign-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "250faf5031309143550a1728cfd5e9ff47db8a27bba8b3f2982737b7029001fb",
+      "rpmdbHnum": 100
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-103242.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 150,
+    "original243OrdinalAsRecorded": 234,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-84837",
+      "packageName": "rpm-sign-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-sign-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "250faf5031309143550a1728cfd5e9ff47db8a27bba8b3f2982737b7029001fb",
+      "rpmdbHnum": 100
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-84837.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 151,
+    "original243OrdinalAsRecorded": 235,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95519",
+      "packageName": "rpm-sign-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-sign-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "250faf5031309143550a1728cfd5e9ff47db8a27bba8b3f2982737b7029001fb",
+      "rpmdbHnum": 100
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95519.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 152,
+    "original243OrdinalAsRecorded": 236,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95520",
+      "packageName": "rpm-sign-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-sign-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "250faf5031309143550a1728cfd5e9ff47db8a27bba8b3f2982737b7029001fb",
+      "rpmdbHnum": 100
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95520.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 153,
+    "original243OrdinalAsRecorded": 237,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-95521",
+      "packageName": "rpm-sign-libs",
+      "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "rpm-sign-libs",
+      "version": "4.16.1.3",
+      "release": "29.amzn2023.0.10",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "250faf5031309143550a1728cfd5e9ff47db8a27bba8b3f2982737b7029001fb",
+      "rpmdbHnum": 100
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-95521.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 154,
+    "original243OrdinalAsRecorded": 238,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119371",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119371.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 155,
+    "original243OrdinalAsRecorded": 239,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119372",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119372.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 156,
+    "original243OrdinalAsRecorded": 240,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119373",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119373.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 157,
+    "original243OrdinalAsRecorded": 241,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119375",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119375.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 158,
+    "original243OrdinalAsRecorded": 242,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119376",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119376.html"
+    ]
+  },
+  {
+    "mainOrdinalOneBased": 159,
+    "original243OrdinalAsRecorded": 243,
+    "oldBlocker": {
+      "role": "aws-cli",
+      "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+      "vulnerabilityId": "CVE-2026-119378",
+      "packageName": "sqlite-libs",
+      "installedVersion": "3.40.0-1.amzn2023.0.8",
+      "severity": "HIGH",
+      "fixedVersion": "3.40.0-1.amzn2023.0.9",
+      "code": "image_vulnerability_blocked"
+    },
+    "oldScannerLayer": {
+      "Digest": "sha256:da3e7a9e0d7ce8bd2e34f464f7fc47c97dde7880b26078690ed76ef5809d8b69",
+      "DiffID": "sha256:74635040b5e7967efb2c8c4a362e7dd1316232c28e9e22a60f112b738d20cca1"
+    },
+    "actualCandidatePackage": {
+      "name": "sqlite-libs",
+      "version": "3.40.0",
+      "release": "1.amzn2023.0.9",
+      "epoch": "0",
+      "arch": "x86_64",
+      "fullHeaderSha256": "6cd06445da8d548c0c62e744d22f1dcc3a1886dcf4b9c547b87de96c549d1236",
+      "rpmdbHnum": 11
+    },
+    "actualRpmdbLayer": "sha256:2596b7f13c08cbabf1fd54fbb794c2526b3e0d9940ba062b0e6337ebfa46b6a3",
+    "fixedEVRLowerBoundSatisfiedWithinIdenticalPrefix": true,
+    "originalAdvisories": [
+      "https://explore.alas.aws.amazon.com/CVE-2026-119378.html"
+    ]
+  }
+]

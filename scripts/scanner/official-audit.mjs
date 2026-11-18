@@ -15,6 +15,7 @@ import { diagnoseManagedSeaweedFailedProfile, hasManagedSeaweedSkipReviewEvidenc
   reviewManagedSeaweedNormalProfile } from "./seaweed-normal-skip-review.mjs";
 import { bindManagedSeaweedSourceEvidence, evaluateManagedSeaweedArchiveReport,
   managedSeaweedHashArguments } from "./seaweed-source-profile.mjs";
+import { comparePreviousAws } from "./official-aws-comparator.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
 import { combineSeaweedRustGate, helperContainerCreateArguments, helperContainerRemoveArguments, helperCopyCommand,
@@ -1004,6 +1005,75 @@ export async function auditAndPublishSeaweedRustSourceReports({ role, files, dir
   return failure ? { result: null, failure } : { result, failure: null };
 }
 
+export async function runOfficialImageAudits({ config, receipt, output, localImages, managed, carrier, scanner, cache, command, beforeScan, afterScan }) {
+  receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
+    ? { role: image.role, ...localImages.get(image.role).subject }
+    : { role: image.role, kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform });
+  const reports = new Map();
+  const emitted = new Map();
+  const operations = {
+    beforeScan,
+    scan: async (image) => {
+      const files = { json: path.join(output, `image-${image.role}.json`), sbom: path.join(output, `image-${image.role}.cdx.json`) };
+      reports.set(image.role, files);
+      const failures = [];
+      const local = localImages.get(image.role);
+      if (managed?.candidates.some((candidate) => candidate.role === image.role) && !local) fail("scanner_managed_image_not_built");
+      for (const format of ["json", "cyclonedx"]) {
+        if (local) { await assertFilesUnchanged(local.frozen); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
+        const file = format === "json" ? files.json : files.sbom;
+        try {
+          const bytes = command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format)
+            : officialImageScanArguments(carrier, scanner, cache, image, format), { file });
+          if (!managed) emitted.set(file, { sha256: hashBytes(bytes), size: bytes.length });
+        } catch (error) {
+          if (image.role === "aws-cli-previous") throw error;
+          failures.push(error);
+        }
+        if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await assertFilesUnchanged(local.frozen); }
+      }
+      if (failures.length) throw failures[0];
+    },
+    afterScan,
+    captureReport: async (image) => {
+      const files = reports.get(image.role);
+      const frozen = await captureFiles([{ path: files.json, cap: 64 * MiB }, { path: files.sbom, cap: 64 * MiB }]);
+      const identity = frozen.map(({ sha256, size }) => ({ sha256, size }));
+      if (!managed && frozen.some((entry, i) => emitted.has(entry.path) && !isDeepStrictEqual(identity[i], emitted.get(entry.path)))) {
+        fail("scanner_frozen_input_changed");
+      }
+      return { identity, files, frozen };
+    },
+    readReport: async (_image, report) => {
+      const json = await readBoundedJson(report.files.json); const sbom = await readBoundedJson(report.files.sbom); await assertFilesUnchanged(report.frozen);
+      if (!managed && !isDeepStrictEqual([json.identity, sbom.identity], report.identity)) fail("scanner_frozen_input_changed");
+      return { json: json.value, sbom: sbom.value };
+    },
+    evaluate: async (image, report) => {
+      const local = localImages.get(image.role);
+      if (local) {
+        await assertFilesUnchanged(local.frozen);
+        await assertManagedArchiveUnchanged(local.archiveSnapshot);
+        return evaluateManagedArchiveForRole(image, report, local, receipt);
+      }
+      validateOfficialImageSbom(report.json, report.sbom, image);
+      return evaluateImageReport(report.json, image, [], new Date(), { expectedScannerVersion: config.scanner.version });
+    },
+  };
+  const collected = await collectImageAudits(config.images, operations);
+  receipt.reports = collected.reports; receipt.blockers = collected.blockers; receipt.rejections = collected.rejections;
+  if (!managed) {
+    receipt.fiveImageResult = collected.rejections.length ? "rejected" : "passed";
+    const file = "image-five-subject-results.json";
+    writeJson(path.join(output, file), collected);
+    const [checkpoint] = await captureFiles([{ path: path.join(output, file), cap: 64 * MiB }]);
+    receipt.fiveImageEvidence = { file, size: checkpoint.size, sha256: checkpoint.sha256 };
+    try { await comparePreviousAws({ config, receipt, output, operations }); }
+    catch (error) { if (!collected.rejections.length) throw error; }
+  }
+  if (collected.rejections.length) fail("scanner_official_images_blocked");
+}
+
 export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, output, scope = "upstream" }) {
   if (!["upstream", "managed"].includes(scope)) fail("scanner_official_arguments_invalid");
   if (process.platform !== "linux" || process.getuid?.() === 0 || process.env.GITHUB_ACTIONS !== "true" ||
@@ -1037,6 +1107,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     const result = invoke(executable, args, timeout, env);
     const prefix = `command-${String(receipt.commands.length + 1).padStart(3, "0")}`;
     const record = { executable: path.basename(executable), exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
+    if (name && scope === "upstream") record.lease = { name, owner };
     if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput });
     receipt.commands.push(record);
     try {
@@ -1168,6 +1239,13 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
       { path: probeFile, cap: MiB }, ...original.map(({ path: file, cap }) => ({ path: file, cap })), ...fixtureFiles,
       ...database.files.map(({ path: file, cap }) => ({ path: file, cap })), ...managedInputs.map(({ path: file, cap }) => ({ path: file, cap }))]);
     await assertFilesUnchanged(original); await assertFilesUnchanged(policyInputs); await assertFilesUnchanged(fixtureSnapshot);
+    if (scope === "upstream") {
+      for (const qualified of [binary, ...database.files]) {
+        if (!isDeepStrictEqual(inputs.find((entry) => entry.path === qualified.path), qualified)) fail("scanner_frozen_input_changed");
+      }
+      receipt.awsComparisonInputs = { scanner: { size: binary.size, sha256: binary.sha256 },
+        databaseFiles: database.files.map(({ path: file, size, sha256 }) => ({ file: path.relative(cache, file), size, sha256 })) };
+    }
     receipt.inputs = inputs;
     receipt.budget = projectAuditBudget({ buildInputBytes: original.reduce((sum, entry) => sum + entry.size, 0), materialBytes: fixtureSnapshot.reduce((sum, entry) => sum + entry.size, 0),
       databaseBytes: database.files.reduce((sum, entry) => sum + entry.size, 0), baselineImageBytes: carrierBytes, versionProbeBytes: lstatSync(probeFile).size });
@@ -1371,48 +1449,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     let originalImageFailure;
     try { await phase("five_image_audits", async () => {
-      receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
-        ? { role: image.role, ...localImages.get(image.role).subject }
-        : { role: image.role, kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform });
-      const reports = new Map();
-      const collected = await collectImageAudits(config.images, {
-        beforeScan: async () => { if (cleanupUncertain) fail("scanner_official_cleanup_uncertain"); await databaseEvidence(cache, new Date()); await assertFilesUnchanged(inputs); },
-        scan: async (image) => {
-          const files = { json: path.join(output, `image-${image.role}.json`), sbom: path.join(output, `image-${image.role}.cdx.json`) }; reports.set(image.role, files);
-          const failures = [];
-          const local = localImages.get(image.role);
-          if (managed?.candidates.some((candidate) => candidate.role === image.role) && !local) fail("scanner_managed_image_not_built");
-          for (const format of ["json", "cyclonedx"]) {
-            if (local) { await assertFilesUnchanged(local.frozen); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
-            try { command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format) : officialImageScanArguments(carrier, scanner, cache, image, format),
-              { file: format === "json" ? files.json : files.sbom }); }
-            catch (error) { failures.push(error); }
-            if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await assertFilesUnchanged(local.frozen); }
-          }
-          if (failures.length) throw failures[0];
+      await runOfficialImageAudits({ config, receipt, output, localImages, managed, carrier, scanner, cache, command,
+        beforeScan: async () => {
+          if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
+          await databaseEvidence(cache, new Date());
+          await assertFilesUnchanged(inputs);
         },
         afterScan: async () => assertFilesUnchanged(inputs),
-        captureReport: async (image) => {
-          const files = reports.get(image.role); const frozen = await captureFiles([{ path: files.json, cap: 64 * MiB }, { path: files.sbom, cap: 64 * MiB }]);
-          return { identity: frozen.map(({ sha256, size }) => ({ sha256, size })), files, frozen };
-        },
-        readReport: async (_image, report) => {
-          const json = await readBoundedJson(report.files.json); const sbom = await readBoundedJson(report.files.sbom); await assertFilesUnchanged(report.frozen);
-          return { json: json.value, sbom: sbom.value };
-        },
-        evaluate: async (image, report) => {
-          const local = localImages.get(image.role);
-          if (local) {
-            await assertFilesUnchanged(local.frozen);
-            await assertManagedArchiveUnchanged(local.archiveSnapshot);
-            return evaluateManagedArchiveForRole(image, report, local, receipt);
-          }
-          validateOfficialImageSbom(report.json, report.sbom, image);
-          return evaluateImageReport(report.json, image, [], new Date(), { expectedScannerVersion: config.scanner.version });
-        },
       });
-      receipt.reports = collected.reports; receipt.blockers = collected.blockers; receipt.rejections = collected.rejections;
-      if (collected.rejections.length) fail("scanner_official_images_blocked");
     }); } catch (error) {
       originalImageFailure = deferManagedImageAuditFailure({ scope, error, cleanupUncertain });
     }

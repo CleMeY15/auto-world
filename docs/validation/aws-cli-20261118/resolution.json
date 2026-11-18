@@ -1,0 +1,7 @@
+{
+  "observedAt": "2026-11-18T10:49:04.586628+00:00",
+  "tagUrl": "https://hub.docker.com/v2/repositories/amazon/aws-cli/tags/2.41.0",
+  "registry": "https://registry-1.docker.io/v2/amazon/aws-cli",
+  "originalRawRun": 44267312226,
+  "originalReceiptSha256": "a9f53af490a2d312cd4da66c42ea0edeb9170d4233dcd751d80e71cafd31d35c"
+}
