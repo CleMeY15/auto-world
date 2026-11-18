@@ -351,7 +351,8 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
 
   function openLoadedDetail(index: number) {
     const target = response?.results[index];
-    if (!target || !resultSetKey || getHashSnapshot() !== hash) return;
+    const replacingResults = searchAbort.current !== undefined && pagination.getSnapshot().data === undefined;
+    if (!target || !resultSetKey || replacingResults || getHashSnapshot() !== hash) return;
     navigate("detail", target.listingId, resultSetKey);
     recordAnalyticsEvent({ eventName: "detail_opened", screen, outcome: "success" });
   }
@@ -739,6 +740,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       || isSearchLinkFragment(window.location.hash)
       || isComparisonLinkFragment(window.location.hash)
       || (focusAfter === "results-sort" && (window.location.hash !== "#results" || resultsSortQueryRef.current !== query))) return;
+    searchAbort.current = undefined;
     setSlow(false); if (append) setLoadingMore(false); else setLoading(false);
     if (!outcome.ok) {
       setPageFailure(append);
@@ -1679,7 +1681,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
             <div className="demo-results" aria-busy={loadingMore || undefined}>
               {response.results.map((result, index) => {
                 const selectedForComparison = comparisonIds.includes(result.listingId);
-                return <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} selectedForComparison={selectedForComparison} comparisonDisabled={loading || (!selectedForComparison && comparisonEntries.length >= COMPARISON_LIMIT)} onToggleComparison={() => toggleComparison(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => openLoadedDetail(index)} />;
+                return <ResultCard key={result.listingId} index={index} result={result} catalog={responseCatalog} saved={favoriteSnapshot.listingIds.includes(result.listingId)} selectedForComparison={selectedForComparison} detailDisabled={loading} comparisonDisabled={loading || (!selectedForComparison && comparisonEntries.length >= COMPARISON_LIMIT)} onToggleComparison={() => toggleComparison(result.listingId)} onToggleSaved={() => toggleSaved(result.listingId, "results")} onOpen={() => openLoadedDetail(index)} />;
               })}
             </div>
           )}
@@ -1710,7 +1712,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
           <ScreenHeader title="Détail de la publication synthétique" description="Les valeurs ci-dessous sont des observations de démonstration, pas une offre commerciale." backLabel="Retour aux résultats" onBack={() => navigate(response ? "results" : "search")} action={location.listingId ? <Button variant="secondary" onClick={() => toggleSaved(location.listingId!, "detail")}>{favoriteSnapshot.listingIds.includes(location.listingId) ? "Retirer des favoris" : "Ajouter aux favoris"}</Button> : undefined} />
           {response && response.results.length > 1 && loadedDetailIndex >= 0 ? (
             <nav className="demo-listing-navigation" aria-label="Annonces chargées">
-              <p className="demo-field-hint" role="status">Annonce {loadedDetailIndex + 1} sur {response.results.length}</p>
+              <p className="demo-field-hint" role="status">Annonce {loadedDetailIndex + 1} sur {response.results.length} chargées</p>
               <div className="demo-form-actions">
                 <Button variant="secondary" disabled={loadedDetailIndex === 0} onClick={() => openLoadedDetail(loadedDetailIndex - 1)}>Annonce précédente</Button>
                 <Button variant="secondary" disabled={loadedDetailIndex === response.results.length - 1} onClick={() => openLoadedDetail(loadedDetailIndex + 1)}>Annonce suivante</Button>

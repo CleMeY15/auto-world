@@ -100,7 +100,7 @@ async function verifyLoadedListingNavigation(page, results) {
     const response = await read;
     expect(response.status()).toBe(200);
     expect((await response.json()).data.results[0].listingId).toBe(id);
-    await expect(page.getByText(`Annonce ${index + 1} sur ${results.length}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(`Annonce ${index + 1} sur ${results.length} chargées`, { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Historique des observations" })).toBeVisible();
     expect(new URL(page.url()).hash).toBe(`#detail/${encodeURIComponent(id)}`);
   }
