@@ -418,8 +418,9 @@ function postgresIdentity(entry, collect = false) {
 }
 
 async function recheckImageFiles(local) {
-  if (local.role === "postgres") local.frozen.forEach((entry) => postgresIdentity(entry));
-  else await assertFilesUnchanged(local.frozen);
+  if (local.role !== "postgres") return assertFilesUnchanged(local.frozen);
+  try { local.frozen.forEach((entry) => postgresIdentity(entry)); }
+  catch { materialInvalid(); }
 }
 
 function memberCap(name) {
@@ -430,20 +431,20 @@ function memberCap(name) {
 }
 
 // Inspect only the allowed directory tree. A new empty directory also refuses.
-function sealExport(root) {
+function sealExport(root, names = gosuExportNames) {
   const directories = {};
   function visit(prefix) {
     const dir = path.resolve(root, prefix);
     if (realpathSync(dir) !== dir || !statOf(dir).isDirectory()) materialInvalid();
     directories[prefix] = fileStamp(statOf(dir));
-    const expected = new Set(gosuExportNames.filter((name) => name.startsWith(prefix))
+    const expected = new Set(names.filter((name) => name.startsWith(prefix))
       .map((name) => name.slice(prefix.length).split("/")[0]));
     const entries = readdirSync(dir, { withFileTypes: true });
     if (entries.length !== expected.size) materialInvalid();
     for (const entry of entries) {
       const name = prefix + entry.name;
       if (!expected.has(entry.name)) materialInvalid();
-      if (gosuExportNames.includes(name)) { if (!entry.isFile()) materialInvalid(); }
+      if (names.includes(name)) { if (!entry.isFile()) materialInvalid(); }
       else visit(name + "/");
     }
   }
@@ -611,6 +612,55 @@ function checkSolveRecord({ args, record }) {
 }
 
 const gosuObservationName = "managed-gosu-material-capture.json";
+
+function verifiedGosuFile(root, name, record, cap) {
+  if (record.path !== name) materialInvalid();
+  const file = path.join(root, name);
+  const current = captureMember(file, cap);
+  if (record.size !== current.size || record.sha256 !== current.sha256) materialInvalid();
+  return file;
+}
+
+// Select exact names only. Each completed group can accompany a later failure.
+export function finalizeGosuUploads(receipt, output, githubOutput, inspection) {
+  const build = receipt.builds?.find((entry) => entry.role === "postgres");
+  const selected = [], refused = [];
+  function select(label, verify) {
+    try { selected.push(...verify()); }
+    catch { refused.push(label); }
+  }
+  if (build?.materialCapture?.path && build.materialCapture.observationWrite !== "FAILED") {
+    select("observation", () => [verifiedGosuFile(output, gosuObservationName, build.materialCapture, 32768)]);
+  }
+  if (build?.gosuRuntimeTrace) {
+    select("trace", () => [verifiedGosuFile(output, "managed-gosu-runtime-trace.json", build.gosuRuntimeTrace, 8192)]);
+  }
+  for (const [group, rows, names] of [["postgres", build?.publicEvidence, gosuEvidenceNames],
+    ["postgres-runtime", build?.runtimeGosuEvidence, ["binary-sha256.txt"]]]) {
+    if (!rows) continue;
+    select(group, () => {
+      if (!isDeepStrictEqual(rows.map((row) => row.path).sort(), [...names].sort())) materialInvalid();
+      const dir = path.join(output, "managed-public-evidence", group);
+      const before = sealExport(dir, names);
+      const paths = rows.map((row) => verifiedGosuFile(dir, row.path, row, 4 * MiB));
+      if (!isDeepStrictEqual(before, sealExport(dir, names))) materialInvalid();
+      return paths;
+    });
+  }
+  let outputs = selected.length ? ["gosu_evidence_paths<<GOSU_EOF", ...selected, "GOSU_EOF", ""].join("\n") : "";
+  if (inspection) {
+    try {
+      postgresIdentity(inspection);
+      outputs += "postgres_inspection_published=true\n";
+    } catch { receipt.postgresInspectionUpload = "REFUSED"; }
+  }
+  if (refused.length) receipt.gosuUploadRefusals = refused;
+  try { if (outputs) appendFileSync(githubOutput, outputs); }
+  catch { fail("scanner_gosu_upload_output_failed"); }
+  if (receipt.postgresInspectionUpload === "REFUSED") fail("scanner_postgres_inspection_upload_refused");
+  if (refused.length) fail("scanner_gosu_evidence_upload_refused");
+}
+
 function publishGosuObservation(work, output, bytes, previous) {
   const staging = path.join(work, "gosu-observation-" + randomUUID());
   const destination = path.join(output, gosuObservationName);
@@ -2211,15 +2261,11 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     // No image/cache pruning: this new directory belongs only to the disposable runner job.
     receipt.workRetention = "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE";
     try {
-      if (frozenPostgresInspection) {
-        postgresIdentity(frozenPostgresInspection);
-        appendFileSync(githubOutput, "postgres_inspection_published=true\n");
-      }
-    } catch {
+      finalizeGosuUploads(receipt, output, githubOutput, frozenPostgresInspection);
+    } catch (error) {
       receipt.result = "failed";
-      receipt.postgresInspectionUpload = "REFUSED";
       if (!receipt.failure) {
-        receipt.failure = "scanner_postgres_inspection_upload_refused";
+        receipt.failure = error.message;
         fail(receipt.failure);
       }
     } finally {

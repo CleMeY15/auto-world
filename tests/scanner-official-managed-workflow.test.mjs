@@ -31,9 +31,14 @@ test("managed diagnostic failures remain failures and only validated evidence is
   assert.equal(upload.if, "${{ always() }}");
   assert.equal(upload.with["retention-days"], 14);
   const paths = upload.with.path.split("\n");
-  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
+  for (const role of ["aws-cli", "opensearch", "opensearch-runtime", "seaweedfs", "seaweedfs-runtime", "seaweed-rust-source"]) {
+    assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/" + role + "/**"));
+  }
+  assert.ok(!paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json"));
-  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-gosu-runtime-trace.json"));
+  assert.ok(paths.includes("${{ steps.audit.outputs.gosu_evidence_paths }}"));
+  assert.ok(paths.every((pattern) => !pattern.includes("/managed-public-evidence/postgres") &&
+    !pattern.includes("/managed-gosu-material-capture.json") && !pattern.includes("/managed-gosu-runtime-trace.json")));
   for (const file of paths) {
     assert.doesNotMatch(file, /command-|\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
     assert.notEqual(file, "${{ runner.temp }}/data-foundation-audit/**");

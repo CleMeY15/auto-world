@@ -11,10 +11,28 @@ import { pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 import { captureFiles } from "../scripts/scanner/controls.mjs";
 import { captureManagedArchive } from "../scripts/scanner/managed-archive.mjs";
-import { commandFailureDiagnostic, recordGosuCaptureFailure, snapshotGosuExport, withGosuCaptureRoot } from "../scripts/scanner/official-audit.mjs";
+import { commandFailureDiagnostic, finalizeGosuUploads, recordGosuCaptureFailure, runOfficialImageAudits, snapshotGosuExport, withGosuCaptureRoot } from "../scripts/scanner/official-audit.mjs";
 import { MANAGED_GOSU_SOURCE } from "../scripts/scanner/official-controls.mjs";
 
 const repo = path.resolve(import.meta.dirname, "..");
+const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
+const uploadPatterns = workflow.jobs.audit.steps.find((step) => step.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
+
+function selectedFiles(base, stepOutputs) {
+  const files = uploadPatterns.flatMap((pattern) => {
+    if (pattern === "${{ steps.audit.outputs.gosu_evidence_paths }}") {
+      const names = /^gosu_evidence_paths<<GOSU_EOF\n([\s\S]*?)^GOSU_EOF$/mu.exec(stepOutputs)?.[1];
+      return names ? names.trimEnd().split("\n").map((file) => path.relative(base, file)) : [];
+    }
+    if (pattern === "${{ steps.audit.outputs.postgres_inspection_published == 'true' && format('{0}/data-foundation-audit/managed-postgres-inspect.json', runner.temp) || '' }}") {
+      return /^postgres_inspection_published=true$/mu.test(stepOutputs) ? ["data-foundation-audit/managed-postgres-inspect.json"] : [];
+    }
+    assert.ok(pattern.startsWith("${{ runner.temp }}/"), pattern);
+    return globSync(pattern.slice("${{ runner.temp }}/".length), { cwd: base });
+  });
+  return files.filter((file) => fs.statSync(path.join(base, file)).isFile()).sort();
+}
+
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const identity = (bytes) => ({ size: bytes.length, sha256: hash(bytes) });
 const json = (object) => Buffer.from(JSON.stringify(object) + "\n");
@@ -170,7 +188,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
   put(output, traceFile, trace);
   const firstSolve = { args, materialInput, record: { commandIndex: 1, argumentsSha256: hash(JSON.stringify(args)), stdout: identity(Buffer.alloc(0)),
     stderr: identity(stderr), exitCode: 0, eof: true, cachedVertices: 0 } };
-  const build = { subject, gosuRuntimeTrace: { path: traceFile, ...identity(trace) }, materialCapture: { cleanup: "NOT_CREATED" } };
+  const build = { role: "postgres", subject, gosuRuntimeTrace: { path: traceFile, ...identity(trace) }, materialCapture: { cleanup: "NOT_CREATED" } };
   const secondSolve = {}, recipes = adapter.recipeSnapshot(source);
   const managed = JSON.parse(readFileSync(path.join(root, "infra/managed-images/lock.json")));
   let exportPath;
@@ -248,11 +266,15 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     syncBuiltinESMExports();
     t.after(() => { hook.mock.restore(); syncBuiltinESMExports(); });
   }
-  if (mutation === "publication") {
+  if (["publication", "occupied-runtime"].includes(mutation)) {
     const rename = fs.renameSync;
     const hook = t.mock.method(fs, "renameSync", (from, to) => {
-      if (to === path.join(published, "postgres-runtime")) throw new Error("fixture publish failure");
-      return rename(from, to);
+      if (mutation === "publication" && to === path.join(published, "postgres-runtime")) throw new Error("fixture publish failure");
+      const result = rename(from, to);
+      if (mutation === "occupied-runtime" && to === path.join(published, "postgres")) {
+        put(published, "postgres-runtime/foreign.txt", privateValue);
+      }
+      return result;
     });
     syncBuiltinESMExports();
     t.after(() => { hook.mock.restore(); syncBuiltinESMExports(); });
@@ -290,10 +312,10 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     }
     if (mutation === "metadata") assert.equal(failed.cleanup, "REMOVED");
     if (retainedCapture || retainedPublicStage) assert.equal(failed.cleanup, "UNKNOWN");
-    if (mutation === "publication") {
+    if (["publication", "occupied-runtime"].includes(mutation)) {
       assert.deepEqual(build.publicEvidence.map((file) => file.path).sort(), [...evidenceNames].sort());
       assert.ok(build.publicEvidence.every((file) => hash(readFileSync(path.join(published, "postgres", file.path))) === file.sha256));
-      assert.equal(existsSync(path.join(published, "postgres-runtime")), false);
+      assert.equal(existsSync(path.join(published, "postgres-runtime")), mutation === "occupied-runtime");
     } else {
       assert.deepEqual(readdirSync(published), []);
       assert.equal(build.publicEvidence, undefined);
@@ -318,6 +340,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     assert.equal(readFileSync(path.join(path.dirname(exportPath), dir, "keep"), "utf8"), "foreign");
   }
   if (exportPath) assert.equal(existsSync(path.dirname(exportPath)), retainedCapture);
+  return { base, build, work, output, published };
 }
 
 test("two-solve binding uses the observed first projection and exact recipe, archive and export files", { skip: process.platform !== "linux" }, async (t) => {
@@ -329,16 +352,70 @@ test("two-solve binding uses the observed first projection and exact recipe, arc
     "promotion-observation-write", "staging-stat", "missing-build-ref", "oversized-metadata", "runtime-directory", "unexpected-child"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
 });
 
+test("Gosu upload selects verified members after a collision or late evidence change", { skip: process.platform !== "linux" }, async (t) => {
+  const checkout = await fixtureCheckout(t);
+  for (const mode of ["complete", "occupied-runtime", "observation-collision", "changed-bytes", "extra-entry"]) {
+    await t.test(mode, async (sub) => {
+      const { base, build, work, output, published } = await scenario(sub, checkout, mode === "occupied-runtime" ? mode : "");
+      const receipt = { builds: [build] };
+      const observation = "managed-gosu-material-capture.json", trace = "managed-gosu-runtime-trace.json";
+      if (mode === "observation-collision") {
+        // A new publication has no previous identity for the occupied name.
+        rmSync(path.join(output, observation));
+        put(output, observation, privateValue);
+        build.materialCapture = { cleanup: "REMOVED" };
+        recordGosuCaptureFailure(work, output, build.materialCapture);
+        assert.equal(build.materialCapture.observationWrite, "FAILED");
+      } else if (mode === "changed-bytes") {
+        for (const [dir, name] of [[output, observation], [output, trace], [published, "postgres/licenses/go-LICENSE"]]) {
+          const file = path.join(dir, name);
+          rmSync(file);
+          put(dir, name, privateValue);
+        }
+      } else if (mode === "extra-entry") {
+        put(published, "postgres-runtime/extra.txt", privateValue);
+      }
+      const step = path.join(base, "step-outputs");
+      writeFileSync(step, "");
+      const finish = () => finalizeGosuUploads(receipt, output, step);
+      if (["changed-bytes", "extra-entry"].includes(mode)) {
+        assert.throws(finish, { message: "scanner_gosu_evidence_upload_refused" });
+        assert.deepEqual(receipt.gosuUploadRefusals, mode === "changed-bytes" ? ["observation", "trace", "postgres"] : ["postgres-runtime"]);
+      } else finish();
+      const name = "official-audit-receipt.json";
+      put(output, name, json(receipt));
+      const files = selectedFiles(base, readFileSync(step, "utf8"));
+      const expected = [name];
+      if (mode !== "changed-bytes") expected.push(trace, ...evidenceNames.map((file) => "managed-public-evidence/postgres/" + file));
+      if (mode !== "changed-bytes" && mode !== "observation-collision") expected.push(observation);
+      if (!["occupied-runtime", "extra-entry"].includes(mode)) expected.push("managed-public-evidence/postgres-runtime/binary-sha256.txt");
+      assert.deepEqual(files, expected.map((file) => "data-foundation-audit/" + file).sort());
+      for (const file of files) assert.equal(readFileSync(path.join(base, file)).includes(privateValue), false, file);
+      if (mode === "occupied-runtime") assert.equal(readFileSync(path.join(published, "postgres-runtime/foreign.txt"), "utf8"), privateValue);
+      if (mode === "observation-collision") assert.equal(readFileSync(path.join(output, observation), "utf8"), privateValue);
+    });
+  }
+});
+
+test("missing PostgreSQL Buildx metadata gives the public image rejection a fixed reason", async (t) => {
+  const output = temp(t), receipt = {}, image = { role: "postgres" };
+  const missing = path.join(output, "private-buildx-metadata.json");
+  const localImages = new Map([["postgres", { role: "postgres", subject: {}, frozen: [{ path: missing, cap: 1024 }] }]]);
+  await assert.rejects(runOfficialImageAudits({ output, receipt, config: { images: [image] }, managed: { candidates: [image] },
+    localImages, beforeScan() {}, afterScan() {}, command() { assert.fail("unexpected Docker command"); } }),
+  { message: "scanner_official_images_blocked" });
+  assert.deepEqual(receipt.rejections, [{ role: "postgres", result: "rejected", stage: "command", reason: "scanner_gosu_material_capture_invalid" }]);
+  assert.ok(!JSON.stringify(receipt).includes(output) && !JSON.stringify(receipt).includes(path.basename(missing)));
+});
+
 test("wrapper and cleanup failures keep the global receipt and resolved upload free of private diagnostics", { skip: process.platform !== "linux" }, (t) => {
   const base = temp(t), output = path.join(base, "data-foundation-audit"), work = path.join(base, "work");
   mkdirSync(work); mkdirSync(output);
   const source = readFileSync(path.join(repo, "scripts/scanner/official-audit.mjs"), "utf8");
   const wrapper = source.slice(source.indexOf("  const command = (executable, originalArgs,"), source.indexOf("  const phase = async"));
-  const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
-  const upload = workflow.jobs.audit.steps.find((step) => step.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
-  assert.ok(upload.includes("${{ runner.temp }}/data-foundation-audit/managed-gosu-material-capture.json"));
+  const githubOutput = path.join(base, "outputs");
   for (const [code, foreign, first] of [["ENOSPC", false, false], ["ETIMEDOUT", true, false], ["EIO", false, true], ["ENOSPC", true, true]]) {
-    const receipt = { commands: [], phases: [], builds: [{ materialCapture: {} }] };
+    const receipt = { commands: [], phases: [], builds: [{ role: "postgres", materialCapture: {} }] };
     const status = receipt.builds[0].materialCapture;
     let sentinel, foreignFile;
     const fail = (reason) => { throw new Error(reason); };
@@ -361,7 +438,9 @@ test("wrapper and cleanup failures keep the global receipt and resolved upload f
     if (foreign) assert.equal(readFileSync(foreignFile, "utf8"), "keep");
     const receiptName = "official-audit-receipt.json";
     put(output, receiptName, json(receipt));
-    const resolved = upload.flatMap((entry) => globSync(entry.replace("${{ runner.temp }}/", ""), { cwd: base }));
+    writeFileSync(githubOutput, "");
+    finalizeGosuUploads(receipt, output, githubOutput);
+    const resolved = selectedFiles(base, readFileSync(githubOutput, "utf8"));
     assert.deepEqual(resolved.sort(), ["data-foundation-audit/managed-gosu-material-capture.json", "data-foundation-audit/" + receiptName]);
     const observation = JSON.parse(readFileSync(path.join(base, resolved[0])));
     assert.equal(observation.status, "FAILED"); assert.equal(observation.cleanup, status.cleanup);
@@ -401,7 +480,7 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   const harness = original + `
     export async function exercise({work, output, artifacts, archive, tag, metadataFile, githubOutput, invoke, finishAudit}) {
       const candidate = { role: "postgres" }, postgres = true, environment = {}, localImages = new Map();
-      const build = { result: "failed", materialCapture: { cleanup: "NOT_CREATED" } };
+      const build = { role: "postgres", result: "failed", materialCapture: { cleanup: "NOT_CREATED" } };
       const receipt = { builds: [build], commands: [] };
       let cleanupUncertain = false, frozenPostgresInspection;
       ${section("  const successful = (result)", "  const phase = async")}
@@ -414,8 +493,6 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   const runner = path.join(moduleDir, "inspect-save-fixture.mjs");
   writeFileSync(runner, harness);
   const { exercise } = await import(pathToFileURL(runner));
-  const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
-  const patterns = workflow.jobs.audit.steps.find((s) => s.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
   for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "collision", "stage-replaced", "oversized-identity", "post-publication-replaced", "retag"]) {
     await t.test(mode, async (sub) => {
       const base = temp(sub), work = path.join(base, "work"), artifacts = path.join(work, "artifacts");
@@ -481,15 +558,10 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
         assert.deepEqual(readFileSync(publicInspection), diagnostic);
       }
       const stepOutputs = readFileSync(githubOutput, "utf8");
-      assert.equal(stepOutputs, mode === "retag" ? "postgres_inspection_published=true\n" : "");
+      assert.equal(stepOutputs.includes("postgres_inspection_published=true\n"), mode === "retag");
       assert.equal(build.result, ["retag", "post-publication-replaced"].includes(mode) ? "passed" : "failed");
       assert.equal(saved, ["retag", "collision", "stage-replaced", "save-failure", "post-publication-replaced"].includes(mode) ? id : undefined);
-      const optionalInspection = "${{ steps.audit.outputs.postgres_inspection_published == 'true' && format('{0}/data-foundation-audit/managed-postgres-inspect.json', runner.temp) || '' }}";
-      assert.ok(patterns.includes(optionalInspection));
-      const files = patterns.flatMap((pattern) => {
-        if (pattern === optionalInspection) return stepOutputs ? globSync("data-foundation-audit/managed-postgres-inspect.json", { cwd: base }) : [];
-        return globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base });
-      });
+      const files = selectedFiles(base, stepOutputs);
       assert.ok(files.includes("data-foundation-audit/official-audit-receipt.json"));
       assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), mode === "retag");
       if (mode === "stage-replaced") assert.deepEqual(readFileSync(publicInspection), inspection);

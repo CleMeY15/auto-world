@@ -268,3 +268,20 @@ A regression replaces a previously valid inspection with private sentinel bytes
 after the build, checks that the final audit fails, and confirms that the flag
 is absent and the resolved artifact excludes those bytes. The local managed
 suite passed 822 cases with one platform exclusion and zero failures.
+
+### Integrated AWS and Gosu evidence selection
+
+Review of the integration with AWS main `5d0599cd` identified two failure
+paths on `0d31bf1c`. At audit finalization the producer now verifies the size
+and SHA-256 of each selected Gosu file. Each PostgreSQL evidence directory
+must also contain exactly its registered names. The uploader receives literal
+paths for verified members. Independently completed groups and verified failure
+observations remain available when a later group fails. The runner owns the
+output paths between final verification and collection.
+
+Tests exercise a refused observation write, an occupied runtime directory, a
+late replacement and an extra member. They check the files the workflow would
+upload and the serialized receipt. A missing PostgreSQL identity file yields
+the fixed `scanner_gosu_material_capture_invalid` rejection. Local managed
+tests passed 853 cases with one platform exclusion. Hosted evidence and the
+independent review attach to the resulting revision.
