@@ -14,8 +14,24 @@ test("normal demo results open the supplied local documents and switch report se
   });
   await page.goto("/demo");
   await expect(page.locator("main")).toHaveAttribute("data-demo-hydrated", "true");
-  await page.locator("form").getByRole("button", { name: "Rechercher", exact: true }).click();
-  await page.locator("#demo-result-open-0").click();
+  await page.getByLabel("Budget maximum (€)").fill("18000");
+  await page.getByRole("button", { name: "Afficher les critères avancés" }).click();
+  await page.getByLabel("Trier les résultats").selectOption("price_desc");
+  const [search] = await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith("/api/demo/v2/search") && response.request().method() === "POST"),
+    page.locator("form").getByRole("button", { name: "Rechercher", exact: true }).click(),
+  ]);
+  const { data } = await search.json() as { data: { results: { listingId: string }[] } };
+  const ids = data.results.map((result) => result.listingId);
+  expect(ids).toEqual(expect.arrayContaining([multiple, single, empty]));
+  const openListing = (id: string) => page.locator(`#demo-result-open-${ids.indexOf(id)}`);
+  const cards = page.locator(".demo-result-copy");
+  await expect(cards).toHaveCount(ids.length);
+  await expect(cards.nth(ids.indexOf(multiple))).toContainText("Modèle B2 fictif");
+  const orderedCards = await cards.allTextContents();
+  const criteria = page.locator("#demo-active-criteria-summary");
+  const appliedCriteria = await criteria.innerText();
+  await openListing(multiple).click();
   await expect(page).toHaveURL(new URL(`/demo#detail/${multiple}`, baseURL).href);
   const section = page.getByRole("region", { name: "Rapports du véhicule" });
   await expect(section.getByRole("link")).toHaveCount(2);
@@ -37,12 +53,15 @@ test("normal demo results open the supplied local documents and switch report se
   await readReport("HistoVec", multiple, "b2-parcours");
   await readReport("carVertical", multiple, "b2-kilometrage");
   await page.getByRole("button", { name: "Retour aux résultats" }).click();
-  await expect(page.locator("#demo-result-open-0")).toBeFocused();
-  await page.locator("#demo-result-open-0").click();
-  await page.evaluate((id) => { location.hash = `detail/${id}`; }, single);
+  await expect(openListing(multiple)).toBeFocused();
+  await expect(page.getByLabel("Trier ces résultats")).toHaveValue("price_desc");
+  await expect(criteria).toHaveText(appliedCriteria);
+  await expect.poll(() => cards.allTextContents()).toEqual(orderedCards);
+  await openListing(single).click();
   await expect(section.getByRole("link")).toHaveCount(1);
   await readReport("CARFAX", single, "b1-entretien");
-  await page.evaluate((id) => { location.hash = `detail/${id}`; }, empty);
+  await page.getByRole("button", { name: "Retour aux résultats" }).click();
+  await openListing(empty).click();
   await expect(section.getByRole("link")).toHaveAttribute("href", "/historique-vehicule");
   expect(external.size).toBe(0);
 });
