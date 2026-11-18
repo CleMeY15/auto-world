@@ -250,3 +250,12 @@ metadata, identity freeze, capture and image audit rechecks. Tests grow an
 identity file at both ends of the capture. The complete local managed suite
 passed 821 cases with one platform exclusion and zero failures. Hosted
 execution must verify the runner's actual filesystem and tool path.
+
+The code review on `518ca3be` closed the bounded-read finding and identified
+one remaining artifact-selection issue. The managed workflow now names the
+other inspection files explicitly. It includes the PostgreSQL inspection only
+when the audit step sets its publication flag after verification. The collision
+fixture places private sentinel bytes at the occupied path and checks both
+their local preservation and their absence from the resolved upload. The
+successful path still selects the checked inspection. The local managed suite
+passed 821 cases with one platform exclusion and zero failures.

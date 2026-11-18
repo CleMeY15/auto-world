@@ -399,7 +399,7 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   // Run the production wrapper, identity/save branch, failure handler and final receipt writer.
   // Only Docker and the surrounding runner bootstrap are replaced.
   const harness = original + `
-    export async function exercise({work, output, artifacts, archive, tag, metadataFile, invoke}) {
+    export async function exercise({work, output, artifacts, archive, tag, metadataFile, githubOutput, invoke}) {
       const candidate = { role: "postgres" }, postgres = true, environment = {}, localImages = new Map();
       const build = { result: "failed", materialCapture: { cleanup: "NOT_CREATED" } };
       const receipt = { builds: [build], commands: [] };
@@ -427,7 +427,7 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
       const sentinels = [work, privateValue, "fixture-sensitive"];
       const diagnostic = Buffer.from(work + " " + privateValue + " Authorization: Bearer fixture-sensitive");
       const publicInspection = path.join(output, "managed-postgres-inspect.json");
-      const priorEvidence = Buffer.from("original evidence");
+      const priorEvidence = diagnostic;
       if (mode === "collision") writeFileSync(publicInspection, priorEvidence);
       if (mode === "oversized-identity") truncateSync(metadataFile, 1024 * 1024 + 1);
       if (mode === "stage-replaced") {
@@ -459,12 +459,21 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
         return { status: failed ? 1 : 0, signal: null, stdout: failed || mode === "invalid-inspect" ? diagnostic : inspect ? inspection : Buffer.alloc(0),
           stderr: failed ? diagnostic : Buffer.alloc(0) };
       };
-      const build = await exercise({ work, output, artifacts, archive, tag, metadataFile, invoke });
+      const githubOutput = path.join(base, "step-outputs");
+      writeFileSync(githubOutput, "");
+      const build = await exercise({ work, output, artifacts, archive, tag, metadataFile, githubOutput, invoke });
+      const stepOutputs = readFileSync(githubOutput, "utf8");
+      assert.equal(stepOutputs, mode === "retag" ? "postgres_inspection_published=true\n" : "");
       assert.equal(build.result, mode === "retag" ? "passed" : "failed");
       assert.equal(saved, ["retag", "collision", "stage-replaced", "save-failure"].includes(mode) ? id : undefined);
-      const files = patterns.flatMap((pattern) => globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base }));
+      const optionalInspection = "${{ steps.audit.outputs.postgres_inspection_published == 'true' && format('{0}/data-foundation-audit/managed-postgres-inspect.json', runner.temp) || '' }}";
+      assert.ok(patterns.includes(optionalInspection));
+      const files = patterns.flatMap((pattern) => {
+        if (pattern === optionalInspection) return stepOutputs ? globSync("data-foundation-audit/managed-postgres-inspect.json", { cwd: base }) : [];
+        return globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base });
+      });
       assert.ok(files.includes("data-foundation-audit/official-audit-receipt.json"));
-      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), ["retag", "collision", "stage-replaced"].includes(mode));
+      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), mode === "retag");
       if (mode === "stage-replaced") assert.deepEqual(readFileSync(publicInspection), inspection);
       if (mode === "collision") assert.deepEqual(readFileSync(publicInspection), priorEvidence);
       if (mode === "retag") {

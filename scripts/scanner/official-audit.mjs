@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { appendFileSync, constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
@@ -1461,6 +1461,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   if (process.platform !== "linux" || process.getuid?.() === 0 || process.env.GITHUB_ACTIONS !== "true" ||
       process.env.RUNNER_ENVIRONMENT !== "github-hosted" || !safePath(process.env.RUNNER_TEMP)) fail("scanner_official_requires_nonroot_linux_actions");
   const runnerTemp = realpathSync(process.env.RUNNER_TEMP);
+  const githubOutput = process.env.GITHUB_OUTPUT;
   for (const file of [inputScanner, buildInfo, output]) {
     const relative = path.relative(runnerTemp, file);
     if (!safePath(file) || !relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || realpathSync(path.dirname(file)) !== path.dirname(file)) fail("scanner_official_path_outside_runner_temp");
@@ -1752,6 +1753,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             }
             const archiveSnapshot = await captureManagedArchive(archive, candidate.role);
             await recheckImageFiles({ role: candidate.role, frozen });
+            if (postgres) appendFileSync(githubOutput, "postgres_inspection_published=true\n");
             build.subject = { kind: "LOCAL_MANAGED_IMAGE_V1", ...identity, archiveSha256: archiveSnapshot.sha256, archiveBytes: archiveSnapshot.size,
               archiveCapBytes: archiveSnapshot.cap, artifactName: `/${path.basename(archive)}` };
             build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject,
