@@ -144,6 +144,15 @@ test("automatic audit triggers cover release, evaluator and fixture inputs on PR
     "scripts/scanner/official-*.mjs", "scripts/scanner/audit.mjs",
     "scripts/scanner/audit-policy.mjs", "scripts/scanner/controls.mjs", "tests/scanner-official-*.test.mjs",
   ]) assert.ok(workflow.on.pull_request.paths.includes(required));
+  for (const input of [
+    "docs/validation/upstream-20261118/opensearch-3.9.0-index.json",
+    "docs/validation/upstream-20261118/opensearch-3.9.0-platform.json",
+    "docs/validation/upstream-20261118/opensearch-3.9.0-config.json",
+    "docs/validation/opensearch-310/3.10.0-platform.json",
+    "tests/fixtures/scanner-official/opensearch-comparison-pr253/image-aws-cli.json",
+  ]) {
+    assert.ok(workflow.on.pull_request.paths.some((pattern) => path.posix.matchesGlob(input, pattern)), input);
+  }
   assert.doesNotMatch(JSON.stringify(workflow.on), /pull_request_target|workflow_run/u);
 });
 
