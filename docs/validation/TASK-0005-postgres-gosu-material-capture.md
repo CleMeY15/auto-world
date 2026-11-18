@@ -317,3 +317,11 @@ started and when cleanup became reachable. Separate tests exercise both
 output streams with a delayed close and preserve the work directory when
 termination is uncertain. Rollback of this supervisor change
 restores the previous scheduling and pipe behavior.
+
+Independent review of `8fdb5584` reproduced a second ordering on Node
+22.23.4. The second operation completed in the same event-loop turn as an
+uncaught fixture exception. Node marked the test failed, while the supervisor
+recorded a pass and started restart and cold restore. The supervisor now
+reads the final `TestContext.passed` verdict as well as checking operation
+completion and cancellation. The regression checks Node's failed TAP case,
+the four receipt rows and the absence of both later operations.

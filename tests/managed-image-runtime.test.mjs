@@ -78,7 +78,7 @@ test("unverified child termination preserves the runtime work directory", async 
   assert.equal((await fs.lstat(directory, { bigint: true })).ino, identity.ino);
   assert.equal(context.cleanupDeadline, undefined);
 });
-for (const outcome of ["success", "reject", "interrupted", "pipe-error"]) {
+for (const outcome of ["success", "reject", "interrupted", "pipe-error", "same-turn"]) {
   test(`managed runtime records settled case outcomes before cleanup: ${outcome}`, async (t) => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-settlement-"));
     t.after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -91,12 +91,17 @@ for (const outcome of ["success", "reject", "interrupted", "pipe-error"]) {
     assert.equal(child.error, undefined);
     assert.equal(child.status, outcome === "success" ? 0 : 1, child.stdout);
     if (outcome === "interrupted") assert.match(child.stdout, /detached fixture rejection/u);
+    if (outcome === "same-turn") {
+      assert.match(child.stdout, /not ok 2 - sql-raw-index/u);
+      assert.match(child.stdout, /same-turn fixture failure/u);
+    }
     const { events, cases } = JSON.parse(await fs.readFile(result, "utf8"));
     const expectedTail = {
       success: ["finish 1", "start 2", "finish 2", "start 3", "finish 3"],
       reject: [],
       interrupted: ["cancelled", "finish 1"],
       "pipe-error": ["child closed", "process_io_failed"],
+      "same-turn": ["finish 1"],
     };
     assert.deepEqual(events, ["start 0", "finish 0", "start 1", ...expectedTail[outcome], "cleanup"]);
     const statuses = outcome === "success" ? Array(4).fill("passed") : ["passed", "failed", "not_run", "not_run"];

@@ -2,6 +2,7 @@ import childProcess from "node:child_process";
 import { once } from "node:events";
 import { writeFile } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
+import { setImmediate } from "node:timers";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { operationSignal } from "../../scripts/data-infra/cancellation.mjs";
 import { run } from "../../scripts/data-infra/runtime.mjs";
@@ -12,6 +13,14 @@ const cases = await runManagedRuntimeCases(async (index) => {
   events.push(`start ${index}`);
   if (index === 1) {
     if (process.env.AW_FIXTURE_OUTCOME === "reject") throw new Error("fixture failure");
+    if (process.env.AW_FIXTURE_OUTCOME === "same-turn") {
+      await new Promise((resolve) => {
+        setImmediate(() => {
+          resolve();
+          throw new Error("same-turn fixture failure");
+        });
+      });
+    }
     if (process.env.AW_FIXTURE_OUTCOME === "pipe-error") {
       const spawn = childProcess.spawn;
       childProcess.spawn = (...args) => {

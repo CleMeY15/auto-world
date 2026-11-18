@@ -571,9 +571,11 @@ export async function runManagedRuntimeCases(execute) {
       await registerCase(row.name, () => { throw new Error("not_run"); });
       continue;
     }
-    let operation, verified = false;
+    let operation, testContext;
+    let verified = false;
     try {
-      await registerCase(row.name, () => {
+      await registerCase(row.name, (t) => {
+        testContext = t;
         ensure(!signal.aborted);
         operation = withOperationSignal(signal, async () => {
           try { await execute(index); }
@@ -582,8 +584,8 @@ export async function runManagedRuntimeCases(execute) {
         });
         return operation;
       });
-      // node:test can finish a failed test while its callback is still running.
-      ensure(verified && !signal.aborted);
+      // A callback can settle even when node:test records an uncaught error.
+      ensure(testContext?.passed === true && verified && !signal.aborted);
       row.status = "passed";
       row.code = "verified";
     } catch {
