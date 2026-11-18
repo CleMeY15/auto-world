@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
@@ -78,6 +78,15 @@ const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, 
 const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0,\r\n]/u.test(value);
 const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
 
+const projectionPrefix = "gosu_material_input_v1:";
+const projectionKeys = ["source", "goMod", "goSum", "moduleProxyTsv", "offlineReceipt", "referenceBinary"];
+const compilerVersion = "go version go1.27.3 linux/amd64";
+function projectionLine(entries) {
+  return projectionPrefix + JSON.stringify({ schemaVersion: 1, kind: "GOSU_MATERIAL_INPUT_PROJECTION_V1",
+    ...Object.fromEntries(projectionKeys.map((key) => [key, { size: entries[key].size, sha256: entries[key].sha256 }])),
+    compilerVersion }) + "\n";
+}
+
 // Retain only fixed public lines from the FIRST PostgreSQL runtime solve.
 // The full command streams remain private; their hashes identify the selection.
 export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandIndex, args } = {}) {
@@ -104,7 +113,7 @@ export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandInd
   }));
   if (headers.length === 0 || headers.length > 32 || new Set(headers.map(({ stream, vertex }) => `${stream}:${vertex}`)).size !== 1) invalid();
   const { stream, index, vertex } = headers[0];
-  if (streams[stream].at(-1) !== "") invalid();
+  if (streams.some((lines) => lines.at(-1) !== "")) invalid();
   const prefix = `#${vertex} `;
   if (streams[1 - stream].some((line) => line.startsWith(prefix)) ||
       streams[stream].slice(0, index).some((line) => line.startsWith(prefix))) invalid();
@@ -112,6 +121,8 @@ export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandInd
     "gosu_offline_missing_zip_refused:golang.org/x/sys@v0.1.0", "gosu_offline_upstream_go_test_cases=0",
     "gosu_offline_reconstruction_passed"];
   const selected = [streams[stream][index]];
+  let projection;
+  if (streams.flat().filter((line) => line.includes(projectionPrefix)).length !== 1) invalid();
   let marker = 0, done = false;
   for (const line of streams[stream].slice(index + 1)) {
     if (!line.startsWith(prefix)) continue;
@@ -120,12 +131,22 @@ export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandInd
     // BuildKit's plain printer repeats a vertex header after interleaving.
     if (line === selected[0] || body === "...") { selected.push(line); continue; }
     if (/^DONE(?: [0-9]+(?:\.[0-9]+)?s)?$/u.test(body)) {
-      if (marker !== markers.length) invalid();
+      if (marker !== markers.length || !projection) invalid();
       selected.push(line); done = true; continue;
     }
     const output = /^([0-9]+(?:\.[0-9]+)?) (.*)$/u.exec(body);
     // CACHED, ERROR, duplicate headers, cancellation and unknown status refuse.
     if (!output || line.length > 16384) invalid();
+    if (output[2].startsWith(projectionPrefix)) {
+      if (marker !== markers.length || output[2].length + 1 > 4096) invalid();
+      try {
+        const parsed = JSON.parse(output[2].slice(projectionPrefix.length));
+        if (!projectionKeys.every((key) => Number.isSafeInteger(parsed[key]?.size) && parsed[key].size > 0 &&
+            typeof parsed[key].sha256 === "string" && /^[a-f0-9]{64}$/u.test(parsed[key].sha256))) invalid();
+        projection = projectionLine(parsed);
+        if (projection !== output[2] + "\n") invalid();
+      } catch { invalid(); }
+    }
     if (output[2].startsWith("gosu_offline_")) {
       if (output[2] !== markers[marker]) invalid();
       selected.push(line); marker += 1;
@@ -138,6 +159,7 @@ export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandInd
     run: Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]
       .map((key) => [key, run[key]])),
     stdout: observed(stdout), stderr: observed(stderr), stream: stream === 0 ? "stdout" : "stderr",
+    materialInput: { vertex, line: projection, ...observed(Buffer.from(projection)), eof: true },
     selection: "exact Gosu RUN headers, interleave separators, four markers and DONE; other output omitted", lines: selected };
   const bytes = Buffer.from(`${JSON.stringify(value)}\n`);
   if (bytes.length > 8192) invalid();
@@ -302,6 +324,340 @@ export function parseManagedGosuOfflineReconstruction(bytes, publicIdentity, mod
   return { ...proof, imageId: subject.imageId, archiveSha256: subject.archiveSha256,
     archiveBytes: subject.archiveBytes, os: subject.os, architecture: subject.architecture,
     evidence: { path: publicIdentity.path, size: publicIdentity.size, sha256: publicIdentity.sha256 } };
+}
+
+const gosuEvidenceNames = [
+  "DERIVATIVE-NOTICE.txt", "binary-sha256.txt", "build-info.txt", "compiler-version.txt", "go.mod", "go.sum", "gosu-version.txt",
+  "licenses/go-LICENSE", "licenses/go-PATENTS", "licenses/gosu-LICENSE", "licenses/moby-sys-LICENSE", "licenses/x-sys-LICENSE",
+  "licenses/x-sys-PATENTS", "module-download.json", "module-inventory.json", "module-proxy-payloads.tsv", "module-verify.txt",
+  "offline-reconstruction.json", "process-replacement.txt", "source-sha256.txt", "upstream-alpine-tests.txt",
+  "upstream-go-test-count.txt", "upstream-go-test.json",
+];
+const moduleTsv = "module-proxy-payloads.tsv";
+const offlineReceipt = "offline-reconstruction.json";
+const materialRoles = {
+  "gosu-source.tar.gz": "source", "reference-gosu": "referenceBinary", "go.mod": "goMod", "go.sum": "goSum",
+  [moduleTsv]: "moduleProxyTsv",
+};
+for (const prefix of ["github.com/moby/sys/user/@v/v0.4.1", "golang.org/x/sys/@v/v0.1.0"]) {
+  for (const kind of ["info", "mod", "zip"]) materialRoles[`proxy/${prefix}.${kind}`] = `proxy-${kind}`;
+}
+const gosuExportNames = [...gosuEvidenceNames.map((name) => `evidence/${name}`),
+  ...Object.keys(materialRoles).map((name) => `materials/${name}`)].sort();
+const gosuRecipes = ["infra/managed-images/Dockerfile.postgres", "infra/managed-images/gosu-functional-tests.sh",
+  ...["gosu-offline-reconstruction.sh", "go.mod", "go.sum", "DERIVATIVE-NOTICE.txt",
+    ...gosuEvidenceNames.filter((name) => name.startsWith("licenses/"))].map((name) => `infra/managed-images/postgres/${name}`),
+  "infra/managed-images/lock.json", "scripts/scanner/official-audit.mjs", "scripts/scanner/official-controls.mjs"].sort();
+const materialInvalid = () => fail("scanner_gosu_material_capture_invalid");
+const jsonLine = (record) => Buffer.from(JSON.stringify(record) + "\n");
+const byteIdentity = (bytes) => ({ size: bytes.length, sha256: hashBytes(bytes) });
+const fileStamp = (stat) => [stat.dev, stat.ino, stat.mode, stat.nlink, stat.uid, stat.gid, stat.size, stat.mtimeNs, stat.ctimeNs].join(":");
+const statOf = (file) => lstatSync(file, { bigint: true });
+
+function captureMember(file, cap, copy) {
+  if (realpathSync(file) !== file) materialInvalid();
+  const before = statOf(file);
+  if (!before.isFile() || before.nlink !== 1n || before.size < 1n || before.size > BigInt(cap)) materialInvalid();
+  const fd = openSync(file, constants.O_NOFOLLOW | constants.O_NONBLOCK | constants.O_RDONLY);
+  let dest;
+  try {
+    const stamp = fileStamp(before);
+    if (fileStamp(fstatSync(fd, { bigint: true })) !== stamp) materialInvalid();
+    if (copy) {
+      mkdirSync(path.dirname(copy), { recursive: true, mode: 0o700 });
+      if (realpathSync(path.dirname(copy)) !== path.dirname(copy)) materialInvalid();
+      dest = openSync(copy, "wx", 0o400);
+    }
+    const buffer = Buffer.allocUnsafe(Math.min(Number(before.size), MiB)), hash = createHash("sha256");
+    let size = 0;
+    for (;;) {
+      const count = readSync(fd, buffer, 0, buffer.length);
+      if (count === 0) break;
+      size += count;
+      if (BigInt(size) > before.size) materialInvalid();
+      hash.update(buffer.subarray(0, count));
+      if (copy && writeSync(dest, buffer, 0, count) !== count) materialInvalid();
+    }
+    if (BigInt(size) !== before.size || fileStamp(fstatSync(fd, { bigint: true })) !== stamp ||
+        realpathSync(file) !== file || fileStamp(statOf(file)) !== stamp) materialInvalid();
+    return { size, sha256: hash.digest("hex"), stamp };
+  } finally { try { if (dest !== undefined) closeSync(dest); } finally { closeSync(fd); } }
+}
+
+function memberCap(name) {
+  if (["go.mod", "go.sum", moduleTsv].includes(path.basename(name))) return 1024;
+  if (name === "evidence/" + offlineReceipt) return 4096;
+  if (name === "materials/gosu-source.tar.gz") return 18160;
+  return name.startsWith("materials/") ? 16 * MiB : 4 * MiB;
+}
+
+// Inspect only the allowed directory tree. A new empty directory also refuses.
+function sealExport(root) {
+  const directories = {};
+  function visit(prefix) {
+    const dir = path.resolve(root, prefix);
+    if (realpathSync(dir) !== dir || !statOf(dir).isDirectory()) materialInvalid();
+    directories[prefix] = fileStamp(statOf(dir));
+    const expected = new Set(gosuExportNames.filter((name) => name.startsWith(prefix))
+      .map((name) => name.slice(prefix.length).split("/")[0]));
+    const entries = readdirSync(dir, { withFileTypes: true });
+    if (entries.length !== expected.size) materialInvalid();
+    for (const entry of entries) {
+      const name = prefix + entry.name;
+      if (!expected.has(entry.name)) materialInvalid();
+      if (gosuExportNames.includes(name)) { if (!entry.isFile()) materialInvalid(); }
+      else visit(name + "/");
+    }
+  }
+  visit("");
+  return directories;
+}
+
+export function snapshotGosuExport(root, copy) {
+  const directories = sealExport(root);
+  let total = 0;
+  const files = Object.fromEntries(gosuExportNames.map((name) => {
+    const file = captureMember(path.join(root, name), Math.min(memberCap(name), 64 * MiB - total), copy && path.join(copy, name));
+    total += file.size;
+    if (total > 64 * MiB) materialInvalid();
+    return [name, file];
+  }));
+  if (!isDeepStrictEqual(directories, sealExport(root))) materialInvalid();
+  return { files, directories, total };
+}
+
+export function recipeSnapshot(source, destination) {
+  if (!/^[a-f0-9]{40}$/u.test(source)) materialInvalid();
+  const files = {};
+  let total = 0;
+  for (const name of gosuRecipes) {
+    const file = path.join(ROOT, name);
+    const captured = captureMember(file, 2 * MiB - total, destination && path.join(destination, name));
+    // Resolve against the exact workflow commit, independently of the working tree.
+    const blob = spawnSync("/usr/bin/git", ["cat-file", "blob", source + ":" + name],
+      { cwd: ROOT, timeout: 5000, maxBuffer: 2 * MiB, env: { PATH: "/usr/bin:/bin", GIT_NO_REPLACE_OBJECTS: "1" } });
+    if (blob.status !== 0 || blob.error || captured.sha256 !== hashBytes(blob.stdout) || captured.size !== blob.stdout.length) materialInvalid();
+    files[name] = captured;
+    total += captured.size;
+    if (destination && captureMember(path.join(destination, name), captured.size).sha256 !== captured.sha256) materialInvalid();
+  }
+  return files;
+}
+
+function publicRows(files) {
+  return Object.entries(files).map(([name, { size, sha256 }]) => ({ path: name, size, sha256 }));
+}
+
+export function bindGosuMaterialFiles(root, snapshot, observedLine) {
+  const { files } = snapshot;
+  const read = (name) => {
+    const row = files[name];
+    const bytes = readFileSync(path.join(root, name));
+    if (bytes.length !== row.size || hashBytes(bytes) !== row.sha256) materialInvalid();
+    return bytes;
+  };
+  const entries = Object.fromEntries(Object.entries(materialRoles).map(([name, role]) => [role, files["materials/" + name]]));
+  entries.offlineReceipt = files["evidence/" + offlineReceipt];
+  const line = projectionLine(entries);
+  if (line !== observedLine || !read("evidence/compiler-version.txt").equals(Buffer.from(compilerVersion + "\n")) ||
+      entries.source.size !== 18160 || entries.source.sha256 !== MANAGED_GOSU_SOURCE.sourceArchiveSha256 ||
+      entries.referenceBinary.sha256 !== MANAGED_GOSU_SOURCE.binarySha256 || entries.goMod.sha256 !== MANAGED_GOSU_SOURCE.goModSha256 ||
+      entries.goSum.sha256 !== MANAGED_GOSU_SOURCE.goSumSha256) materialInvalid();
+  for (const name of [moduleTsv, "go.mod", "go.sum"]) {
+    if (!read("materials/" + name).equals(read("evidence/" + name))) materialInvalid();
+  }
+  const tsv = read("materials/" + moduleTsv);
+  const modules = parseManagedGosuModulePayloads(tsv, { path: moduleTsv, ...byteIdentity(tsv) });
+  for (const row of modules.files) {
+    const file = files[`materials/proxy/${row.module}/@v/${row.version}.${row.kind}`];
+    if (file.size !== row.bytes || file.sha256 !== row.sha256) materialInvalid();
+  }
+  return { inputProjection: byteIdentity(Buffer.from(line)), offlineReceipt: byteIdentity(read("evidence/" + offlineReceipt)),
+    moduleProxyTsv: byteIdentity(tsv), materialBytes: Object.keys(materialRoles).reduce((n, name) => n + files["materials/" + name].size, 0),
+    materials: publicRows(files).filter((row) => row.path.startsWith("materials/"))
+      .map((row) => ({ ...row, role: materialRoles[row.path.slice("materials/".length)] })) };
+}
+
+export function bindPostgresExport({ build, command, evidence, artifacts, published }) {
+  const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });
+  const finalInventory = command(DOCKER, managedGosuHashArguments(build.subject),
+    { file: path.join(runtime, "binary-sha256.txt"), timeout: 30_000, privateOutput: true });
+  build.gosuSourceEvidence = bindManagedGosuEvidence(build.subject, { finalInventory,
+    buildInfo: readFileSync(path.join(evidence, "build-info.txt")), binaryInventory: readFileSync(path.join(evidence, "binary-sha256.txt")),
+    sourceInventory: readFileSync(path.join(evidence, "source-sha256.txt")), goMod: readFileSync(path.join(evidence, "go.mod")), goSum: readFileSync(path.join(evidence, "go.sum")) });
+  // Read the captured public copy, authenticated against that same build's export.
+  let gosuModulePayloadBytes;
+  try { gosuModulePayloadBytes = readFileSync(path.join(published, "postgres", "module-proxy-payloads.tsv")); }
+  catch { fail("scanner_gosu_module_payloads_invalid"); }
+  build.gosuModulePayloads = parseManagedGosuModulePayloads(
+    gosuModulePayloadBytes,
+    build.publicEvidence.find((entry) => entry.path === "module-proxy-payloads.tsv"));
+  let gosuOfflineBytes;
+  try { gosuOfflineBytes = readFileSync(path.join(published, "postgres", "offline-reconstruction.json")); }
+  catch { fail("scanner_gosu_offline_reconstruction_invalid"); }
+  build.gosuOfflineReconstruction = parseManagedGosuOfflineReconstruction(gosuOfflineBytes,
+    build.publicEvidence.find((entry) => entry.path === "offline-reconstruction.json"),
+    build.gosuModulePayloads.evidence, build.subject);
+  build.runtimeGosuEvidence = exportManagedTextEvidence(runtime, path.join(published, "postgres-runtime"));
+}
+
+// The nonce and parent/root inode checks keep failure cleanup confined to this allocation.
+export function withGosuCaptureRoot(work, status, consume) {
+  let root, rootId, parentId, nonce;
+  const dirId = (dir) => {
+    const st = statOf(dir);
+    if (realpathSync(dir) !== dir || !st.isDirectory() || st.uid !== BigInt(process.getuid())) materialInvalid();
+    return [st.dev, st.ino, st.mode].join(":");
+  };
+  status.cleanup = "NOT_CREATED";
+  try {
+    parentId = dirId(work);
+    const disk = statfsSync(work);
+    if (disk.bavail * disk.bsize < Math.ceil((130 * MiB + 96 * 1024) * 1.25)) materialInvalid();
+    root = mkdtempSync(path.join(work, "gosu-material-"));
+    status.cleanup = "UNKNOWN";
+    rootId = dirId(root);
+    nonce = randomUUID();
+    writeFileSync(path.join(root, "owner"), nonce, { flag: "wx", mode: 0o400 });
+    return consume(root);
+  } catch {
+    status.result = "FAILED";
+    status.reason = "scanner_gosu_material_capture_invalid";
+    throw new Error(status.reason);
+  } finally {
+    if (root) {
+      try {
+        if (dirId(work) !== parentId || dirId(root) !== rootId ||
+            captureMember(path.join(root, "owner"), 36).sha256 !== hashBytes(nonce)) materialInvalid();
+        rmSync(root, { recursive: true });
+        if (lstatSync(root, { throwIfNoEntry: false })) materialInvalid();
+        status.cleanup = "REMOVED";
+      } catch {
+        status.result = "FAILED"; status.reason = "scanner_gosu_material_cleanup_unknown";
+        fail(status.reason);
+      }
+    }
+  }
+}
+
+function checkSolveRecord({ args, record }) {
+  const keys = (value, names) => isDeepStrictEqual(Object.keys(value).sort(), names.sort());
+  const stream = (value) => keys(value, ["size", "sha256"]) && Number.isSafeInteger(value.size) &&
+    value.size >= 0 && value.size <= 128 * MiB && /^[a-f0-9]{64}$/u.test(value.sha256);
+  if (!keys(record, ["commandIndex", "argumentsSha256", "stdout", "stderr", "cachedVertices", "exitCode", "eof"]) ||
+      !Number.isSafeInteger(record.commandIndex) || record.commandIndex < 1 || record.commandIndex > 10000 ||
+      record.exitCode !== 0 || record.eof !== true || !Number.isSafeInteger(record.cachedVertices) || record.cachedVertices < 0 ||
+      !stream(record.stdout) || !stream(record.stderr) || hashBytes(Buffer.from(JSON.stringify(args))) !== record.argumentsSha256) materialInvalid();
+}
+
+const gosuObservationName = "managed-gosu-material-capture.json";
+function publishGosuObservation(work, output, bytes) {
+  const staging = path.join(work, "gosu-observation-" + randomUUID());
+  const destination = path.join(output, gosuObservationName);
+  if (bytes.length > 32768 || lstatSync(destination, { throwIfNoEntry: false })) materialInvalid();
+  writeFileSync(staging, bytes, { flag: "wx", mode: 0o400 });
+  if (captureMember(staging, 32768).sha256 !== hashBytes(bytes)) materialInvalid();
+  renameSync(staging, destination);
+  return { path: gosuObservationName, ...byteIdentity(bytes) };
+}
+
+export function recordGosuCaptureFailure(work, output, status, firstRuntime = false) {
+  status.result = "FAILED";
+  status.reason = firstRuntime ? "scanner_gosu_first_runtime_failed" : status.cleanup === "UNKNOWN"
+    ? "scanner_gosu_material_cleanup_unknown" : "scanner_gosu_material_capture_invalid";
+  try {
+    if (!["REMOVED", "UNKNOWN", "NOT_CREATED"].includes(status.cleanup)) materialInvalid();
+    Object.assign(status, publishGosuObservation(work, output, jsonLine({ schemaVersion: 1,
+      kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1", status: status.result, reason: status.reason, cleanup: status.cleanup })));
+  } catch { status.observationWrite = "FAILED"; }
+  return new Error(status.reason);
+}
+
+export async function capturePostgresMaterials({ build, local, work, output, published, command, exportSolve,
+  firstSolve, secondSolve, recipes, run, managed, source }) {
+  await assertFilesUnchanged(local.frozen);
+  await assertManagedArchiveUnchanged(local.archiveSnapshot);
+  const tag = `auto-world-managed/postgres:${source}`;
+  const [metadata, inspection] = local.frozen;
+  const identity = validateManagedLocalImage(JSON.parse(readFileSync(inspection.path)), JSON.parse(readFileSync(metadata.path)), tag);
+  if (source !== run.GITHUB_SHA || build.subject.imageId !== identity.imageId || build.subject.os !== identity.os ||
+      build.subject.architecture !== identity.architecture || build.subject.archiveSha256 !== local.archiveSnapshot.sha256 ||
+      build.subject.archiveBytes !== local.archiveSnapshot.size || local.archiveSnapshot.role !== "postgres") materialInvalid();
+  const traceFile = path.join(output, "managed-gosu-runtime-trace.json");
+  if (!isDeepStrictEqual(Object.keys(build.gosuRuntimeTrace).sort(), ["path", "sha256", "size"]) ||
+      captureMember(traceFile, 8192).sha256 !== build.gosuRuntimeTrace.sha256 ||
+      build.gosuRuntimeTrace.path !== "managed-gosu-runtime-trace.json") materialInvalid();
+  const traceBytes = readFileSync(traceFile);
+  const trace = JSON.parse(traceBytes);
+  checkSolveRecord(firstSolve);
+  if (firstSolve.args.at(-3) !== metadata.path ||
+      hashBytes(Buffer.from(JSON.stringify(firstSolve.args))) !== trace.argumentsSha256 || hashBytes(traceBytes) !== build.gosuRuntimeTrace.sha256 || traceBytes.length !== build.gosuRuntimeTrace.size ||
+      !isDeepStrictEqual(trace.run, run) || trace.commandIndex !== firstSolve.record.commandIndex ||
+      trace.argumentsSha256 !== firstSolve.record.argumentsSha256 || !isDeepStrictEqual(trace.stdout, firstSolve.record.stdout) ||
+      !isDeepStrictEqual(trace.stderr, firstSolve.record.stderr) || !trace.materialInput.eof) materialInvalid();
+  const compiler = managed.buildTools.find((tool) => tool.role === "go-builder");
+  const recipe = readFileSync(path.join(ROOT, "infra/managed-images/Dockerfile.postgres"), "utf8").split("\n");
+  if (compiler.repository !== "library/golang" || !digest(compiler.platform.digest) ||
+      !["gosu-build", "gosu-offline-reconstruction"].every((stage) => recipe.includes(`FROM golang@${compiler.platform.digest} AS ${stage}`))) materialInvalid();
+  const captured = withGosuCaptureRoot(work, build.materialCapture, (root) => {
+    const dest = path.join(root, "export"), copy = path.join(root, "snapshot");
+    const privateText = path.join(root, "text"), exportMetadata = path.join(root, "export-metadata.json");
+    for (const dir of [dest, copy, privateText]) mkdirSync(dir, { mode: 0o700 });
+    if (!isDeepStrictEqual(recipeSnapshot(source, path.join(root, "recipes")), recipes)) materialInvalid();
+    exportSolve("material-capture", dest, exportMetadata);
+    checkSolveRecord(secondSolve);
+    if (secondSolve.record.commandIndex <= firstSolve.record.commandIndex || !isDeepStrictEqual(secondSolve.args,
+      [...firstSolve.args.slice(0, 8), "--target", "material-capture", "--metadata-file", exportMetadata,
+        "--output", "type=local,dest=" + dest, ROOT])) materialInvalid();
+    const original = snapshotGosuExport(dest, copy);
+    const frozen = snapshotGosuExport(copy);
+    if (!isDeepStrictEqual(publicRows(original.files), publicRows(frozen.files))) materialInvalid();
+    for (const name of gosuEvidenceNames.filter((entry) => entry.startsWith("licenses/") ||
+      ["DERIVATIVE-NOTICE.txt", "go.mod", "go.sum"].includes(entry))) {
+      if (recipes["infra/managed-images/postgres/" + name].sha256 !== frozen.files["evidence/" + name].sha256) materialInvalid();
+    }
+    const bound = bindGosuMaterialFiles(copy, frozen, trace.materialInput.line);
+    if (bound.inputProjection.sha256 !== trace.materialInput.sha256 || bound.inputProjection.size !== trace.materialInput.size) materialInvalid();
+    const evidence = path.join(copy, "evidence");
+    build.publicEvidence = exportManagedTextEvidence(evidence, path.join(privateText, "postgres"));
+    bindPostgresExport({ build, command, evidence, artifacts: root, published: privateText });
+    const text = captureManagedTextEvidence(path.join(privateText, "postgres"), path.join(published, "postgres"));
+    const runtimeText = captureManagedTextEvidence(path.join(privateText, "postgres-runtime"), path.join(published, "postgres-runtime"));
+    const expectedText = publicRows(frozen.files).filter((row) => row.path.startsWith("evidence/"))
+      .map((row) => ({ ...row, path: row.path.slice(9) }));
+    const verifiedText = text.map(({ relative, size, sha256 }) => ({ path: relative, size, sha256 }))
+      .sort((a, b) => a.path < b.path ? -1 : 1);
+    if (!isDeepStrictEqual(expectedText, verifiedText) || runtimeText.length !== 1 ||
+        runtimeText[0].relative !== "binary-sha256.txt" || runtimeText[0].sha256 !== MANAGED_GOSU_SOURCE.finalInventorySha256 ||
+        !isDeepStrictEqual(recipeSnapshot(source), recipes) || !isDeepStrictEqual(original, snapshotGosuExport(dest)) ||
+        !isDeepStrictEqual(frozen, snapshotGosuExport(copy))) materialInvalid();
+    const metadata = captureMember(exportMetadata, MiB);
+    const metadataBytes = readFileSync(exportMetadata);
+    const exportRecord = JSON.parse(metadataBytes);
+    if (hashBytes(metadataBytes) !== metadata.sha256 || !exportRecord || typeof exportRecord !== "object" || Array.isArray(exportRecord)) materialInvalid();
+    return { text, runtimeText, stamps: original.files, observation: {
+      schemaVersion: 1, kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1", status: "CAPTURED_IN_JOB_ONLY",
+      platform: "linux/amd64", run: trace.run, firstRuntime: { ...firstSolve.record, trace: build.gosuRuntimeTrace,
+        vertex: trace.materialInput.vertex, metadataSha256: local.frozen[0].sha256 }, exportSolve: { ...secondSolve.record,
+        metadataSha256: metadata.sha256 }, recipes: publicRows(recipes), compilerSubject: compiler.repository + "@" + compiler.platform.digest, imageId: build.subject.imageId, archiveBytes: build.subject.archiveBytes,
+      archiveSha256: build.subject.archiveSha256, ...bound, exportedFiles: gosuExportNames.length, exportBytes: original.total,
+      beforeAfterEqual: true, survival: "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE" } };
+  });
+  await assertFilesUnchanged(local.frozen);
+  await assertManagedArchiveUnchanged(local.archiveSnapshot);
+  const observation = { ...captured.observation, cleanup: build.materialCapture.cleanup };
+  const manifest = jsonLine({ ...observation, firstArguments: firstSolve.args, exportArguments: secondSolve.args,
+    originalFiles: captured.stamps });
+  if (manifest.length > 65536) materialInvalid();
+  const manifestFile = path.join(work, "capture-manifest.json");
+  writeFileSync(manifestFile, manifest, { flag: "wx", mode: 0o400 });
+  if (captureMember(manifestFile, 65536).sha256 !== hashBytes(manifest)) materialInvalid();
+  const bytes = jsonLine({ ...observation, manifest: byteIdentity(manifest) });
+  if (bytes.length > 32768) materialInvalid();
+  writeManagedTextEvidence(captured.text, path.join(published, "postgres"));
+  writeManagedTextEvidence(captured.runtimeText, path.join(published, "postgres-runtime"));
+  build.materialCapture = { result: "CAPTURED_IN_JOB_ONLY", cleanup: observation.cleanup, ...publishGosuObservation(work, output, bytes) };
+  local.gosuEvidence = build.gosuSourceEvidence;
 }
 
 export function managedGosuHashArguments(subject) {
@@ -1030,32 +1386,35 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
-    expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false } = {}) => {
+    expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false, solveObservation } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
     const result = invoke(executable, args, timeout, env);
     const prefix = `command-${String(receipt.commands.length + 1).padStart(3, "0")}`;
     const record = { executable: path.basename(executable), exitCode: result.status, signal: result.signal, error: result.error?.code ?? null };
-    if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput });
+    if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput: privateOutput || gosuRuntimeTrace });
     receipt.commands.push(record);
     try {
       writeFileSync(file ?? path.join(output, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
       writeFileSync(path.join(output, `${prefix}.stderr`), result.stderr ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if (gosuRuntimeTrace || solveObservation) fail("scanner_private_command_write_failed");
+      throw error;
     } finally {
       if (name) {
         try {
           const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
           record.cleanup = { inspected: inspected.status, removed: false };
           if (!validateContainerAbsence(inspected, name)) {
-            record.cleanup.diagnostic = commandFailureDiagnostic(inspected);
+            record.cleanup.diagnostic = commandFailureDiagnostic(inspected, { privateOutput });
             if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
             const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
             const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
-            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed); fail("scanner_official_cleanup_uncertain"); }
+            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
             record.cleanup.removed = true;
             const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
-            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence); fail("scanner_official_cleanup_uncertain"); }
+            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
           }
           record.ownedContainerAbsent = true;
         } catch {
@@ -1066,12 +1425,19 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
         requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
+    if (solveObservation) {
+      solveObservation.args = [...args];
+      solveObservation.record = { commandIndex: receipt.commands.length, argumentsSha256: hashBytes(Buffer.from(JSON.stringify(args))),
+        stdout: byteIdentity(result.stdout), stderr: byteIdentity(result.stderr), exitCode: result.status, eof: true,
+        cachedVertices: (result.stderr.toString("utf8").match(/^#[0-9]+ CACHED$/gmu) ?? []).length };
+    }
     if (gosuRuntimeTrace) {
       if (executable !== DOCKER || scope !== "managed" || privateOutput) fail("scanner_gosu_runtime_trace_invalid");
       const bytes = captureManagedGosuRuntimeTrace(result.stdout, result.stderr,
         { run: receipt.run, commandIndex: receipt.commands.length, args });
       const traceFile = "managed-gosu-runtime-trace.json";
-      writeFileSync(path.join(output, traceFile), bytes, { flag: "wx", mode: 0o400 });
+      try { writeFileSync(path.join(output, traceFile), bytes, { flag: "wx", mode: 0o400 }); }
+      catch { fail("scanner_private_command_write_failed"); }
       record.gosuRuntimeTrace = { path: traceFile, size: bytes.length, sha256: hashBytes(bytes) };
     }
     return result.stdout;
@@ -1231,12 +1597,17 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           const evidence = path.join(output, "managed-evidence", candidate.role);
           const build = { role: candidate.role, result: "failed", identityKind: "LOCAL_DIAGNOSTIC_NOT_REGISTRY_SUBJECT" };
           receipt.builds.push(build);
+          const postgres = candidate.role === "postgres";
+          const firstSolve = {}, secondSolve = {};
+          let recipes;
+          if (postgres) build.materialCapture = { result: "PENDING", cleanup: "NOT_CREATED" };
           try {
+            if (postgres) recipes = recipeSnapshot(source);
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
               ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
               ...(candidate.role === "postgres" ? ["--no-cache-filter", "gosu-offline-reconstruction"] : []),
               "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT],
-            { timeout: 90 * 60_000, gosuRuntimeTrace: candidate.role === "postgres" });
+            { timeout: 90 * 60_000, gosuRuntimeTrace: postgres, solveObservation: postgres && firstSolve });
             if (candidate.role === "postgres") build.gosuRuntimeTrace = receipt.commands.at(-1).gosuRuntimeTrace;
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspectedBytes = command(DOCKER, ["image", "inspect", tag], { file: inspectedFile });
@@ -1271,6 +1642,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject,
               ...(seaweedInspections ? { seaweedInspections } : {}) });
           } catch (error) {
+            if (postgres) {
+              error = recordGosuCaptureFailure(work, output, build.materialCapture, true);
+            }
             build.reason = error.message;
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
           }
@@ -1282,11 +1656,19 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
           // The evidence target exports text/JUnit only. A recorded failed core
           // build remains failed; its retained status cannot approve runtime.
           try {
-            command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
-              ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
-              "--target", "evidence", "--output", `type=local,dest=${evidence}`, ROOT], { timeout: 90 * 60_000 });
             const published = path.join(output, "managed-public-evidence");
             if (!existsSync(published)) mkdirSync(published, { mode: 0o700 });
+            const exportSolve = (target, destination, exportMetadata) => {
+              command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
+                ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
+                "--target", target, ...(postgres ? ["--metadata-file", exportMetadata] : []),
+                "--output", `type=local,dest=${destination}`, ROOT],
+              { timeout: 90 * 60_000, privateOutput: postgres, solveObservation: postgres && secondSolve });
+            };
+            if (postgres) {
+              await capturePostgresMaterials({ build, local: localImages.get("postgres"), work, output, published,
+                command, exportSolve, firstSolve, secondSolve, recipes, run: receipt.run, managed, source });
+            } else exportSolve("evidence", evidence);
             if (candidate.role === "seaweedfs") {
               const destination = path.join(published, candidate.role);
               const captured = captureManagedTextEvidence(evidence, destination);
@@ -1317,33 +1699,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
                 build.seaweedSourceEvidence = seaweedSourceEvidence;
                 local.seaweedEvidence = seaweedSourceEvidence;
               }
-            } else {
+            } else if (!postgres) {
               build.publicEvidence = exportManagedTextEvidence(evidence, path.join(published, candidate.role));
-            }
-            if (candidate.role === "postgres" && build.result === "passed") {
-              const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime, { mode: 0o700 });
-              const finalInventory = command(DOCKER, managedGosuHashArguments(build.subject),
-                { file: path.join(runtime, "binary-sha256.txt"), timeout: 30_000 });
-              build.gosuSourceEvidence = bindManagedGosuEvidence(build.subject, { finalInventory,
-                buildInfo: readFileSync(path.join(evidence, "build-info.txt")), binaryInventory: readFileSync(path.join(evidence, "binary-sha256.txt")),
-                sourceInventory: readFileSync(path.join(evidence, "source-sha256.txt")), goMod: readFileSync(path.join(evidence, "go.mod")), goSum: readFileSync(path.join(evidence, "go.sum")) });
-              // Read the captured public copy, authenticated against that same build's export.
-              let gosuModulePayloadBytes;
-              try { gosuModulePayloadBytes = readFileSync(path.join(published, candidate.role, "module-proxy-payloads.tsv")); }
-              catch { fail("scanner_gosu_module_payloads_invalid"); }
-              build.gosuModulePayloads = parseManagedGosuModulePayloads(
-                gosuModulePayloadBytes,
-                build.publicEvidence.find((entry) => entry.path === "module-proxy-payloads.tsv"));
-              let gosuOfflineBytes;
-              try { gosuOfflineBytes = readFileSync(path.join(published, candidate.role, "offline-reconstruction.json")); }
-              catch { fail("scanner_gosu_offline_reconstruction_invalid"); }
-              build.gosuOfflineReconstruction = parseManagedGosuOfflineReconstruction(gosuOfflineBytes,
-                build.publicEvidence.find((entry) => entry.path === "offline-reconstruction.json"),
-                build.gosuModulePayloads.evidence, build.subject);
-              // A failed reconstruction proof must leave the mandatory source
-              // evidence unavailable to the subsequent PostgreSQL audit gate.
-              localImages.get(candidate.role).gosuEvidence = build.gosuSourceEvidence;
-              build.runtimeGosuEvidence = exportManagedTextEvidence(runtime, path.join(published, "postgres-runtime"));
             }
             if (candidate.role === "opensearch" && build.result === "passed") {
               const runtime = path.join(artifacts, "opensearch-runtime"); mkdirSync(runtime, { mode: 0o700 });
@@ -1356,6 +1713,10 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             }
             build.evidenceExport = "passed";
           } catch (error) {
+            if (postgres) {
+              if (build.materialCapture.cleanup === "UNKNOWN") cleanupUncertain = true;
+              error = recordGosuCaptureFailure(work, output, build.materialCapture);
+            }
             build.evidenceExport = "failed"; build.evidenceReason = error.message;
             const diagnostic = managedEvidenceDiagnostic(error);
             if (diagnostic) build.evidenceDiagnostic = diagnostic;

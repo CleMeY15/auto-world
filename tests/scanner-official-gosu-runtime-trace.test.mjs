@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import { captureManagedGosuRuntimeTrace } from "../scripts/scanner/official-audit.mjs";
+import { captureManagedGosuRuntimeTrace, commandFailureDiagnostic } from "../scripts/scanner/official-audit.mjs";
 
 // Synthetic BuildKit syntax fixtures: these are not native build evidence.
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -23,7 +23,12 @@ const selected = [header,
   "#21 0.202 gosu_offline_missing_zip_refused:golang.org/x/sys@v0.1.0",
   "#21 0.303 gosu_offline_upstream_go_test_cases=0",
   "#21 1.404 gosu_offline_reconstruction_passed", "#21 DONE 1.5s"];
-const encode = (lines = selected) => Buffer.from(`${lines.join("\n")}\n`);
+const entry = { size: 3, sha256: hashBytes("abc") };
+const projection = "gosu_material_input_v1:" + JSON.stringify({ schemaVersion: 1, kind: "GOSU_MATERIAL_INPUT_PROJECTION_V1",
+  source: entry, goMod: entry, goSum: entry, moduleProxyTsv: entry, offlineReceipt: entry, referenceBinary: entry,
+  compilerVersion: "go version go1.27.3 linux/amd64" });
+const raw = (lines) => Buffer.from(lines.join("\n") + "\n");
+const encode = (lines = selected) => raw(lines.flatMap((line) => line === selected[4] ? [line, "#21 1.410 " + projection] : [line]));
 const empty = Buffer.alloc(0);
 const failure = { message: "scanner_gosu_runtime_trace_invalid" };
 const capture = (stderr = encode(), options = binding(), stdout = empty) =>
@@ -44,6 +49,7 @@ test("first runtime trace retains exact native lines and invocation/stream ident
   assert.deepEqual(proof.stderr, { size: stderr.length, sha256: hashBytes(stderr) });
   assert.deepEqual(proof.stdout, { size: stdout.length, sha256: hashBytes(stdout) });
   assert.doesNotMatch(bytes.toString(), /private-value|private-command|private stdout|private module|fixture-metadata/u);
+  assert.deepEqual(proof.materialInput, { vertex: "21", line: projection + "\n", size: projection.length + 1, sha256: hashBytes(projection + "\n"), eof: true });
   assert.equal(proof.stream, "stderr");
   options.run.GITHUB_SHA = "b".repeat(40); stderr.fill(0);
   assert.equal(JSON.parse(bytes).run.GITHUB_SHA, run.GITHUB_SHA);
@@ -114,7 +120,7 @@ test("actual command wrapper publishes only a successful first-runtime selection
     Buffer, path, writeFileSync, output: root, DOCKER: "/fixture/docker", environment: {}, receipt,
     scope: "managed", cleanupUncertain: false, captureManagedGosuRuntimeTrace, hashBytes,
     invoke: () => result, successful: (r) => !r.error && r.status === 0 && r.signal === null,
-    fail: (code) => { throw new Error(code); }, commandFailureDiagnostic: () => ({ fixture: true }),
+    fail: (code) => { throw new Error(code); }, commandFailureDiagnostic,
   });
   command("/fixture/docker", args, { gosuRuntimeTrace: true });
   const bytes = readFileSync(path.join(root, "managed-gosu-runtime-trace.json"));
@@ -133,4 +139,15 @@ test("actual command wrapper publishes only a successful first-runtime selection
   command("/fixture/docker", args, {});
   assert.equal(Object.hasOwn(receipt.commands[3], "gosuRuntimeTrace"), false);
   assert.equal(readdirSync(root).includes("managed-gosu-runtime-trace.json"), false);
+});
+
+test("material projection must occur once, in canonical grammar in the first successful RUN interval", () => {
+  const line = "#21 1.405 " + projection;
+  for (const lines of [selected, [...selected, line], [line, ...selected],
+    [...selected.slice(0, -1), line, line, selected.at(-1)], [...selected.slice(0, 4), line, ...selected.slice(4)]])
+    assert.throws(() => capture(raw(lines)), failure);
+  for (const changed of [line.replace("#21", "#22"), line.replace('{"size":3', '{"size":3,"size":3'),
+    line.replace('"source"', '"extra":0,"source"'), line.replace(':3,', ':3.0,'), line + " ", line.replace("amd64", "arm64")])
+    assert.throws(() => capture(raw([...selected.slice(0, -1), changed, selected.at(-1)])), failure);
+  assert.throws(() => capture(raw(selected), binding(), raw([line])), failure);
 });

@@ -9,6 +9,12 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
 | Infrastructure / qualification | [PR250 body checkpoint](https://github.com/CleMeY15/auto-world/pull/250): Gosu diagnostic MAIN_ACCEPTED on `0c2b3d6c1e67c665f7cd1718f18703baf673409e`, five of six main workflows succeeded on attempt 1. The raw upstream audit failed with 243 unwaived blockers. Independent review verified all six results. PR247 scanner retention remains separately accepted. | [PostgreSQL/Gosu preparation](plans/TASK-0005-postgres-gosu-material-capture.md), PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING. Architect WATCH on revision0 and Critic APPROVE on revision1 are recorded; deliver documents before instrumentation. No capture/publisher/copy/restore operation. Global M3 closure/capacity and admission/support/final gates open. |
 
+18 November implementation handoff: PR252 documentary delivery was accepted on
+`9bbf4d23`. The bounded PostgreSQL/Gosu capture is in implementation and
+[source validation](../docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-brief--18-november-2026).
+The upstream lane retains its separate owner and 159 unwaived raw blockers.
+TASK-0005/0005A remain IN_PROGRESS.
+
 ## Maintenance sécurité du17 novembre2026
 
 Continuation infrastructure du 18 novembre : la livraison documentaire PR249 est

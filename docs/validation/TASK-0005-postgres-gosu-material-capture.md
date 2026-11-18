@@ -108,3 +108,20 @@ The previous Gosu plan remains 14,061 bytes, SHA256
 The 17 November measurements, scanner 50-member retained pair, historical failures
 and other owners' files stay intact. Rollback reverts only this documentary increment;
 no migration, service rollback, archive deletion or change to accepted evidence.
+
+## Implementation brief — 18 November 2026
+
+Owner: Codex implementation sub-agent, gpt-6.2-astra / ultra, sole writer on
+`t3/postgres-gosu-capture`. The prepared 8255e56c checkout was clean and
+fast-forwarded to PR252 accepted main 9bbf4d23ea4f62d66de3afeab4bdf87a1652a774
+(tree c15f53d57bac40450d1a5985e33f6b1374acb7e0). Independent documentary
+main report SHA256 44edb7376eca2544956bbf94b59b44480547b6a530a4b35a19a9f38963f180a0.
+PR251 raw FAILED with 159 unwaived blockers. User selected the [bounded
+implementation](../../roadmap/plans/TASK-0005-postgres-gosu-material-capture.md);
+its membership, deadlines, refusal matrix and exclusions govern this checkout.
+Implement the helper observation and scratch target, then bind both solves,
+authenticate/copy/reseal their files, sanitize failures and clean owned staging.
+Run focused positive/refusal and serialized repository checks. Native source/main
+runs belong to the existing GitHub workflows. Parent owns independent source
+review, original evidence review and protected delivery. Infrastructure only,
+no UI surface, outside the product pilot. No tokens/cost or human effort measured.
