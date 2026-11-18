@@ -119,6 +119,7 @@ test("actual command wrapper publishes only a successful first-runtime selection
   const command = runInNewContext(`(() => { ${source.slice(start, end)} return command; })()`, {
     Buffer, path, writeFileSync, output: root, DOCKER: "/fixture/docker", environment: {}, receipt,
     scope: "managed", cleanupUncertain: false, captureManagedGosuRuntimeTrace, hashBytes,
+    byteIdentity: (bytes) => ({ size: bytes.length, sha256: hashBytes(bytes) }),
     invoke: () => result, successful: (r) => !r.error && r.status === 0 && r.signal === null,
     fail: (code) => { throw new Error(code); }, commandFailureDiagnostic,
   });
@@ -135,8 +136,14 @@ test("actual command wrapper publishes only a successful first-runtime selection
   result = { ...result, status: 1, stderr: encode() };
   assert.throws(() => command("/fixture/docker", args, { gosuRuntimeTrace: true }), /scanner_official_command_failed/u);
   assert.equal(Object.hasOwn(receipt.commands[2], "gosuRuntimeTrace"), false);
-  result = { ...result, status: 0 };
-  command("/fixture/docker", args, {});
+  result = { ...result, status: 0, stdout: Buffer.from("#7 CACHED\n#8 CACHED\n"), stderr: Buffer.from("#7 CACHED\n") };
+  const solveObservation = {};
+  command("/fixture/docker", args, { privateOutput: true, solveObservation });
+  assert.equal(solveObservation.record.cachedVertices, 2);
+  assert.deepEqual(Array.from(solveObservation.args), args);
+  assert.equal(solveObservation.record.argumentsSha256, hashBytes(Buffer.from(JSON.stringify(args))));
+  assert.equal(solveObservation.record.exitCode, 0);
+  assert.equal(solveObservation.record.eof, true);
   assert.equal(Object.hasOwn(receipt.commands[3], "gosuRuntimeTrace"), false);
   assert.equal(readdirSync(root).includes("managed-gosu-runtime-trace.json"), false);
 });

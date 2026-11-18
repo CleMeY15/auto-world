@@ -1443,10 +1443,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
         requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
     if (solveObservation) {
+      const cached = new Set();
+      for (const stream of [result.stdout, result.stderr]) {
+        for (const match of stream.toString("utf8").matchAll(/^#([1-9][0-9]{0,5}) CACHED$/gmu)) cached.add(match[1]);
+      }
       solveObservation.args = [...args];
       solveObservation.record = { commandIndex: receipt.commands.length, argumentsSha256: hashBytes(Buffer.from(JSON.stringify(args))),
         stdout: byteIdentity(result.stdout), stderr: byteIdentity(result.stderr), exitCode: result.status, eof: true,
-        cachedVertices: (result.stderr.toString("utf8").match(/^#[0-9]+ CACHED$/gmu) ?? []).length };
+        cachedVertices: cached.size };
     }
     if (gosuRuntimeTrace) {
       if (executable !== DOCKER || scope !== "managed" || privateOutput) fail("scanner_gosu_runtime_trace_invalid");
