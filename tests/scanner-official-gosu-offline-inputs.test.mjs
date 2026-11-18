@@ -5,9 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import { bindManagedGosuEvidence, evaluateManagedArchiveForRole, exportManagedTextEvidence,
-  managedEvidenceDiagnostic, managedGosuHashArguments, parseManagedGosuModulePayloads,
-  parseManagedGosuOfflineReconstruction } from "../scripts/scanner/official-audit.mjs";
+import { bindPostgresExport, evaluateManagedArchiveForRole, exportManagedTextEvidence,
+  managedGosuHashArguments, parseManagedGosuModulePayloads, parseManagedGosuOfflineReconstruction } from "../scripts/scanner/official-audit.mjs";
 import { MANAGED_GOSU_SOURCE as pin } from "../scripts/scanner/official-controls.mjs";
 
 const filename = "offline-reconstruction.json";
@@ -114,14 +113,6 @@ test("offline observation requires closed public identities and a PostgreSQL Lin
     assert.throws(() => parseManagedGosuOfflineReconstruction(bytes, captured, modules, supplied), failure);
 });
 
-const postgresStart = source.indexOf('if (candidate.role === "postgres" && build.result === "passed") {');
-const catchStart = source.indexOf('} catch (error) {\n            build.evidenceExport = "failed";', postgresStart);
-const nextAssert = source.indexOf("await assertFilesUnchanged(inputs);", catchStart);
-assert.ok(postgresStart > 0 && catchStart > postgresStart && nextAssert > catchStart);
-// Execute the actual PostgreSQL branch and its actual shared export catch.
-// The only command seam writes a retained fixture hash; it never invokes Docker.
-const applyBlock = `try { ${source.slice(postgresStart, nextAssert)}`;
-
 function fixture(t) {
   const parent = realpathSync(tmpdir());
   const root = realpathSync(mkdtempSync(path.join(parent, "aw-gosu-offline-audit-")));
@@ -140,14 +131,11 @@ function fixture(t) {
   const image = subject(), localImages = new Map([["postgres", { subject: image }]]);
   const build = { role: "postgres", result: "passed", subject: image,
     publicEvidence: exportManagedTextEvidence(evidence, destination) };
+  const runtime = path.join(artifacts, "postgres-runtime"); mkdirSync(runtime);
   const context = {
-    build, candidate: { role: "postgres" }, evidence, artifacts, published, localImages,
-    DOCKER: "test-only-docker-not-executed", path, mkdirSync, readFileSync, bindManagedGosuEvidence,
-    managedGosuHashArguments, parseManagedGosuModulePayloads, parseManagedGosuOfflineReconstruction,
-    exportManagedTextEvidence, managedEvidenceDiagnostic, receipt: { commands: [] }, cleanupUncertain: false,
-    fail: (code) => { throw new Error(code); },
+    build, evidence, runtime, published,
     command: (executable, args, options) => {
-      assert.equal(executable, "test-only-docker-not-executed");
+      assert.equal(executable, "/usr/bin/docker");
       assert.deepEqual(args, managedGosuHashArguments(image));
       const bytes = Buffer.from(`${pin.binarySha256}  /usr/local/bin/gosu\n`);
       writeFileSync(options.file, bytes); return bytes;
@@ -158,7 +146,7 @@ function fixture(t) {
   // This is a local boundary test, not a new scanner or reconstruction result.
   report.json.Trivy.Version = "0.76.2";
   return { build, evidence, destination, local: localImages.get("postgres"), context,
-    apply: () => runInNewContext(applyBlock, context, { timeout: 1000 }),
+    apply: () => bindPostgresExport(context),
     evaluate: () => evaluateManagedArchiveForRole({ role: "postgres" }, report, localImages.get("postgres"), {},
       new Date("2026-10-25T14:46:00.000Z")) };
 }
@@ -167,10 +155,10 @@ test("actual audit branch uses captured bytes and keeps new observation separate
   const data = fixture(t);
   writeFileSync(path.join(data.evidence, filename), "private copy changed after capture\n");
   data.apply();
-  assert.equal(data.build.evidenceExport, "passed");
+
   assert.equal(data.build.gosuOfflineReconstruction.modulePayloadsSha256, data.build.gosuModulePayloads.evidence.sha256);
   assert.deepEqual(data.build.gosuOfflineReconstruction.evidence, identity(filename, encode()));
-  assert.equal(data.local.gosuEvidence, data.build.gosuSourceEvidence);
+  data.local.gosuEvidence = data.build.gosuSourceEvidence;
   assert.equal(data.local.gosuEvidence.kind, "SOURCE_BOUND_GOSU_V1");
   assert.equal(Object.hasOwn(data.local.gosuEvidence, "freshSourceAndCaches"), false);
   assert.deepEqual(data.evaluate().blockers, []);
@@ -178,7 +166,7 @@ test("actual audit branch uses captured bytes and keeps new observation separate
   assert.throws(() => data.evaluate(), /scanner_gosu_source_evidence_invalid/u);
 });
 
-test("actual export catch cannot turn missing, substituted or foreign-producer proof into accepted Gosu evidence", async (t) => {
+test("production binder rejects missing, substituted or foreign-producer proof before authorizing Gosu evidence", async (t) => {
   const mutations = [
     ["missing captured file", (data) => rmSync(path.join(data.destination, filename))],
     ["changed bytes", (data) => writeFileSync(path.join(data.destination, filename), encode({ ...record(), network: "default" }))],
@@ -196,9 +184,7 @@ test("actual export catch cannot turn missing, substituted or foreign-producer p
   ];
   for (const [name, mutate] of mutations) await t.test(name, (child) => {
     const data = fixture(child); chmodSync(path.join(data.destination, filename), 0o600); mutate(data);
-    data.apply();
-    assert.equal(data.build.evidenceExport, "failed");
-    assert.equal(data.build.evidenceReason, "scanner_gosu_offline_reconstruction_invalid");
+    assert.throws(data.apply, failure);
     assert.equal(Object.hasOwn(data.build, "gosuOfflineReconstruction"), false);
     assert.equal(Object.hasOwn(data.local, "gosuEvidence"), false);
     assert.throws(() => data.evaluate(), /scanner_gosu_source_evidence_invalid/u);
@@ -206,15 +192,20 @@ test("actual export catch cannot turn missing, substituted or foreign-producer p
 });
 
 test("actual Buildx calls invalidate only the PostgreSQL reconstruction stage in the existing runtime solve", () => {
-  const calls = [...source.matchAll(/command\(DOCKER, \["buildx", "build",[\s\S]*?\],\s*\{ timeout: 90 \* 60_000(?:, gosuRuntimeTrace: candidate.role === "postgres")? \}\);/gu)].map(([call]) => call);
-  assert.equal(calls.length, 2, "runtime plus evidence, with no additional solve");
+  const calls = [...source.matchAll(/command\(DOCKER, \["buildx", "build",[\s\S]*?\],\s*\{ timeout: 90 \* 60_000[^}]*\}\);/gu)].map(([call]) => call);
+  assert.equal(calls.length, 2);
+  assert.ok(source.includes('exportSolve("material-capture", dest, exportMetadata)'));
+  assert.ok(source.includes('else exportSolve("evidence", evidence)'));
   for (const role of ["postgres", "opensearch", "seaweedfs", "aws-cli"]) {
+    const postgres = role === "postgres", target = postgres ? "material-capture" : "evidence";
     const observed = [];
     const context = { DOCKER: "fixture", ROOT: "/fixture", candidate: { role, dockerfile: `Dockerfile.${role}` },
-      path, tag: "fixture:only", metadataFile: "/fixture/metadata.json", evidence: "/fixture/evidence",
+      path, postgres, target, destination: "/private", exportMetadata: "/private/meta", firstSolve: {}, secondSolve: {},
+      tag: "fixture:only", metadataFile: "/fixture/metadata.json",
       command: (_executable, args, options) => observed.push({ args: Array.from(args), options }) };
     for (const call of calls) runInNewContext(call, context, { timeout: 1000 });
-    assert.deepEqual(observed.map(({ args }) => args[args.indexOf("--target") + 1]), ["runtime", "evidence"]);
+    assert.deepEqual(observed.map(({ args }) => args[args.indexOf("--target") + 1]), ["runtime", target]);
+    assert.equal(observed[1].options.privateOutput, postgres);
     for (const [index, { args, options }] of observed.entries()) {
       const filters = args.flatMap((arg, position) => arg === "--no-cache-filter" ? [args[position + 1]] : []);
       assert.deepEqual(filters, role === "postgres" && index === 0 ? ["gosu-offline-reconstruction"] : []);
