@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { constants, closeSync, fstatSync, linkSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
@@ -1714,7 +1714,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               const staged = captureMember(privateInspection, MiB);
               if (staged.sha256 !== hashBytes(inspectedBytes)) materialInvalid();
               scanCapturedCredentials([{ relative: "managed-postgres-inspect.json", text: inspectedBytes.toString("utf8") }]);
-              renameSync(privateInspection, inspectedFile);
+              // Publish the complete checked inode only when the public name is free.
+              linkSync(privateInspection, inspectedFile);
+              unlinkSync(privateInspection);
             }
             const frozen = await captureFiles(identityFiles);
             if (seaweedInspections && Object.values(seaweedInspections).some((proof) =>

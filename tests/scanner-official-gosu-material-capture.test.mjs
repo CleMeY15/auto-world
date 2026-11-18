@@ -413,7 +413,7 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   const { exercise } = await import(pathToFileURL(runner));
   const workflow = JSON.parse(readFileSync(path.join(repo, ".github/workflows/data-foundation-managed.yml")));
   const patterns = workflow.jobs.audit.steps.find((s) => s.uses?.startsWith("actions/upload-artifact")).with.path.split("\n");
-  for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "retag"]) {
+  for (const mode of ["inspect-failure", "invalid-inspect", "mismatched-config", "save-failure", "collision", "retag"]) {
     await t.test(mode, async (sub) => {
       const base = temp(sub), work = path.join(base, "work"), artifacts = path.join(work, "artifacts");
       const output = path.join(base, "data-foundation-audit"), tag = "auto-world-managed/postgres:" + "a".repeat(40);
@@ -424,6 +424,9 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
       writeFileSync(metadataFile, json({ "containerimage.config.digest": mode === "mismatched-config" ? other : id, "containerimage.digest": other }));
       const sentinels = [work, privateValue, "fixture-sensitive"];
       const diagnostic = Buffer.from(work + " " + privateValue + " Authorization: Bearer fixture-sensitive");
+      const publicInspection = path.join(output, "managed-postgres-inspect.json");
+      const priorEvidence = Buffer.from("original evidence");
+      if (mode === "collision") writeFileSync(publicInspection, priorEvidence);
       const inspection = json([{ Id: id, Os: "linux", Architecture: "amd64", RepoTags: [tag] }]);
       let saved;
       const invoke = (_executable, args) => {
@@ -439,11 +442,13 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
       };
       const build = await exercise({ work, output, artifacts, archive, tag, metadataFile, invoke });
       assert.equal(build.result, mode === "retag" ? "passed" : "failed");
-      assert.equal(saved, ["retag", "save-failure"].includes(mode) ? id : undefined);
+      assert.equal(saved, ["retag", "collision", "save-failure"].includes(mode) ? id : undefined);
       const files = patterns.flatMap((pattern) => globSync(pattern.replace("${{ runner.temp }}/", ""), { cwd: base }));
       assert.ok(files.includes("data-foundation-audit/official-audit-receipt.json"));
-      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), mode === "retag");
+      assert.equal(files.includes("data-foundation-audit/managed-postgres-inspect.json"), ["retag", "collision"].includes(mode));
+      if (mode === "collision") assert.deepEqual(readFileSync(publicInspection), priorEvidence);
       if (mode === "retag") {
+        assert.equal(fs.statSync(publicInspection).nlink, 1);
         assert.equal(build.subject.imageId, id);
         assert.equal(build.subject.archiveSha256, hash(id));
         assert.deepEqual(readFileSync(path.join(output, "managed-postgres-inspect.json")), inspection);

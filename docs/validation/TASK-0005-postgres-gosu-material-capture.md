@@ -228,3 +228,11 @@ oversized or incomplete export metadata, replacement of the inventory directory
 and a foreign child. The local managed regression suite passed 816 cases with
 one platform exclusion and zero failures. Native CI and independent review of
 the revised source remain separate gates.
+
+The architecture review of `2bf0144d` identified an overwrite on inspection
+promotion. The PostgreSQL path now creates the public name with an exclusive
+hard link to the checked inode and removes its private name before freezing
+the identity files. A production-branch collision fixture verifies the build
+fails and the pre-existing public bytes survive. The success fixture verifies
+a single link remains. The managed suite passed 817 cases with one platform
+exclusion and no failures.
