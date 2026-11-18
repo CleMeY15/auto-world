@@ -36,6 +36,18 @@ async function main() {
       mkdirSync(process.env.PRIVATE_WEB_EVIDENCE, { recursive: true });
       await page.screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/accueil-mobile.png" : "/accueil-bureau.png") });
     }
+    const roadmap = page.locator(".road details");
+    const summary = roadmap.locator("summary");
+    await summary.focus();
+    await summary.press("Enter");
+    await roadmap.locator('[aria-current="step"]').waitFor();
+    assert.equal(await roadmap.locator("li").count(), 4);
+    assert.equal(await roadmap.locator("li").first().evaluate(el => getComputedStyle(el).animationName), "none");
+    if (process.env.PRIVATE_WEB_EVIDENCE) {
+      await page.locator(".road").screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/etapes-mobile.png" : "/etapes-bureau.png") });
+    }
+    await summary.press("Space");
+    assert.equal(await roadmap.getAttribute("open"), null);
     const expiryContext = await browser.newContext({ ignoreHTTPSErrors: true });
     const expiry = await expiryContext.newPage();
     await expiry.clock.install({ time: new Date("2027-01-13T11:00:01Z") });

@@ -11,7 +11,7 @@
 * {box-sizing:border-box}
 body,h1,h2,p,ul {margin:0} [hidden] {display:none!important}
 body {min-width:0}
-.stage {isolation:isolate;position:relative;display:flex;flex-direction:column;min-height:min(75rem,100svh);background:#0a0e10}
+.stage {isolation:isolate;position:relative;display:flex;flex-direction:column;min-height:min(75rem,calc(100svh - 4.5rem));background:#0a0e10}
 .film {position:absolute;inset:0;z-index:-1;overflow:hidden;background:#121819}
 .film img {width:100%;height:100%;display:block;object-fit:cover;object-position:67% 52%}
 .film::after {content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,10,12,.78),rgba(6,10,12,.50) 32%,transparent 66%),linear-gradient(0deg,rgba(4,7,9,.99),rgba(4,7,9,.76) 17%,transparent 48%,transparent 78%,rgba(4,7,9,.44))}
@@ -55,7 +55,7 @@ button {min-height:44px;background:transparent;border:none;color:#d1d5d4;font:in
   @keyframes draw {from {transform:scaleX(0)} to {transform:scaleX(1)}}
 }
 @media(max-width:730px) {
-  .stage {min-height:100svh}
+  .stage {min-height:calc(100svh - 4.5rem)}
   header {padding-block:.9rem}
   .intro {order:1;flex:0;min-height:0;padding:1.8rem var(--gutter) .5rem}
   .intro p {margin-top:1rem}
@@ -75,16 +75,48 @@ button {min-height:44px;background:transparent;border:none;color:#d1d5d4;font:in
   .clock::before,.clock li+li::before {display:none}
   .clock li {padding:0;text-align:left}
 }
+.road {background:#0a0e10;padding:0 var(--gutter) 1rem;color:var(--paper)}
+.road details {border-top:1px solid #ffffff40}
+.road summary {list-style:none;display:flex;align-items:center;gap:.85rem;flex-wrap:wrap;padding:1.1rem 0;min-height:3.5rem;cursor:pointer}
+.road summary::-webkit-details-marker {display:none}
+.road summary:focus-visible {outline:3px solid var(--accent);outline-offset:2px}
+.road-name {font-size:1.1rem;font-weight:600}
+.road-status {display:flex;align-items:center;gap:.5rem;color:#e5d6c9;font-size:.82rem}
+.road-status::before {content:"";width:.42rem;height:.42rem;border-radius:50%;background:var(--accent)}
+.chevron {width:.6rem;height:.6rem;margin:0 .3rem 0 auto;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+details[open] .chevron {transform:rotate(225deg)}
+.milestones {list-style:none;padding:.5rem 0 1rem;margin:0 auto;max-width:54rem}
+.milestones li {position:relative;padding:0 0 1.6rem 1.55rem;border-left:1px solid #555d5c}
+.milestones li:last-child {border-color:transparent;padding-bottom:.25rem}
+.milestones li::before {content:"";position:absolute;left:-.31rem;top:.22rem;width:.52rem;height:.52rem;background:#0a0e10;border:1px solid #8f9c97;border-radius:50%}
+.milestones li[aria-current]::before {background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px #0a0e10,0 0 0 4px #ab795a}
+.milestones small {font-size:.78rem;color:#c5c9c5}
+.milestones li[aria-current] small {color:var(--accent);font-weight:bold}
+.milestones h3 {font-size:clamp(1.1rem,2vw,1.55rem);margin:.3rem 0 .4rem;letter-spacing:-.03em}
+.milestones p {max-width:68ch;line-height:1.55;color:#cfd1cb}
+@media(prefers-reduced-motion:no-preference) {
+  details[open] .milestones li {animation:milestone .45s ease-out both}
+  details[open] .milestones li:nth-child(2) {animation-delay:.08s}
+  details[open] .milestones li:nth-child(3) {animation-delay:.16s}
+  details[open] .milestones li:nth-child(4) {animation-delay:.24s}
+  @keyframes milestone {from {opacity:0;transform:translateY(.55rem)} to {opacity:1;transform:none}}
+}
+@media(max-width:36rem) {
+  .road summary {display:grid;grid-template-columns:1fr auto;gap:.35rem 1rem}
+  .road-status {grid-column:1}
+  .chevron {grid-column:2;grid-row:1 / span 2}
+  .milestones {padding-left:.55rem}
+}
 </style>
 <noscript><style>.clock {display:none}</style></noscript>
 </head>
-<body><main class="stage">
+<body><main><div class="stage">
 <header><div class="brand"><i class="mark" aria-hidden="true"></i>AutoFind</div>
 <a class="login" href="/acces/connexion">Se connecter <span aria-hidden="true">↗</span></a></header>
 <div class="film" aria-hidden="true"><img src="/acces/launch.webp" alt="" fetchpriority="high" width="1600" height="900"></div>
 <section class="intro" aria-labelledby="headline">
-<h1 id="headline"><span class="line"><span>La recherche auto,</span></span> <span class="line"><span><em>plein phare.</em></span></span></h1>
-<p>Précisez le modèle, le budget et le kilométrage qui vous conviennent. Comparez les annonces, puis suivez l’évolution du prix et consultez les rapports disponibles sur chaque fiche.</p>
+<h1 id="headline"><span class="line"><span>Une recherche,</span></span> <span class="line"><span><em>sans frontières.</em></span></span></h1>
+<p>Notre ambition : réunir les annonces auto du monde entier en une recherche. Décrivez votre voiture idéale à l’IA. Quand le même véhicule revient en vente sur un autre site, retrouvez ses anciens prix, ses kilométrages annoncés et les rapports qui permettent de les vérifier.</p>
 </section>
 <p class="model">McLaren 600LT</p>
 <section class="launch" data-deadline="{{ deadline }}" aria-labelledby="beta">
@@ -94,4 +126,14 @@ button {min-height:44px;background:transparent;border:none;color:#d1d5d4;font:in
 <li><b>{{ digits.0 }}</b><small>jours</small></li><li><b>{{ digits.1 }}</b><small>heures</small></li>
 <li><b>{{ digits.2 }}</b><small>minutes</small></li><li><b>{{ digits.3 }}</b><small>secondes</small></li></ul>
 <p class="expired" {% if remaining %}hidden{% endif %}>Date cible atteinte. L’ouverture de la bêta reste à confirmer.</p>
-</section></main><script src="/acces/launch.js" defer></script></body></html>
+</section></div>
+<section class="road" aria-label="Développement d’AutoFind">
+<details>
+<summary><span class="road-name">Les étapes du projet</span><span class="road-status">En cours · audit privé</span><span class="chevron" aria-hidden="true"></span></summary>
+<ol class="milestones">
+<li><small>Réalisé</small><h3>Comparer les annonces</h3><p>Dans le prototype, on peut déjà filtrer les résultats, comparer deux voitures et parcourir leurs variations de prix et de kilométrage sur des exemples fictifs.</p></li>
+<li aria-current="step"><small>Nous en sommes ici</small><h3>Tester le parcours en privé</h3><p>Nous vérifions le parcours de la recherche jusqu’au rapport du véhicule avant d’ouvrir la bêta aux premiers utilisateurs.</p></li>
+<li><small>À venir</small><h3>Chercher au-delà des frontières</h3><p>L’IA traduira une demande comme « un break hybride à moins de 25 000 € » en critères de recherche. Les résultats réuniront les sites d’annonces et les vendeurs connectés, pays après pays.</p></li>
+<li><small>À venir</small><h3>Relier les ventes d’un même véhicule</h3><p>Lorsqu’un véhicule sera identifié dans une nouvelle annonce, sa fiche conservera les annonces précédentes, leurs dates et leurs sources. Les rapports disponibles — HistoVec, carVertical, CARFAX ou d’autres fournisseurs selon le pays — aideront à recouper les déclarations du vendeur et à repérer les écarts.</p></li>
+</ol></details></section>
+</main><script src="/acces/launch.js" defer></script></body></html>
