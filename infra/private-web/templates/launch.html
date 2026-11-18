@@ -18,8 +18,21 @@ body {min-width:0}
 header {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:1.35rem var(--gutter);gap:1rem}
 .brand {display:inline-flex;align-items:center;gap:.6rem;font-size:clamp(1.35rem,2.4vw,2rem);font-weight:750;letter-spacing:-.075em}
 .mark {width:1em;height:.95em;display:inline-block;background:var(--accent);clip-path:polygon(46% 0,72% 0,26% 100%,0 100%,46% 0,80% 0,100% 100%,72% 100%,62% 49%,75% 22%);}
-.login {display:inline-flex;align-items:center;gap:1rem;min-height:44px;padding:.65rem 1.1rem;background:var(--paper);color:#181b18;text-decoration:none;font-weight:650;font-size:.95rem;border-radius:3px}
-.login:hover {background:#ffd1ab}
+.login {--disc:#ffab78;display:inline-flex;align-items:center;justify-content:center;gap:.8rem;min-height:44px;max-width:100%;padding:.27rem .32rem .27rem 1rem;border:1px solid #626662;border-radius:2rem;background:#111718;color:#fff8eb;font-size:.94rem;line-height:1.2;font-weight:600;letter-spacing:-.018em;text-decoration:none}
+.login-icon {display:grid;place-items:center;flex:none;width:1.85rem;height:1.85rem;border-radius:50%;background:var(--disc);color:#21180f}
+.login-icon i {display:block;position:relative;width:.8rem;height:2px;background:currentColor}
+.login-icon i::after {content:"";position:absolute;right:0;top:50%;width:.38rem;height:.38rem;border:solid currentColor;border-width:2px 2px 0 0;transform:translateY(-50%) rotate(45deg)}
+.login:focus-visible,.login:hover {--disc:#ffc29a;border-color:var(--disc);background:#222827}
+.login:active {background:#31302a}
+@media(prefers-reduced-motion:no-preference) {
+  .login {transition:background-color .18s,border-color .18s}
+  .login-icon i {transition:transform .18s}
+  .login:hover .login-icon i,.login:focus-visible .login-icon i {transform:translateX(2px)}
+}
+@media(forced-colors:active) {
+  .login,.login-icon {border:1px solid ButtonText}
+  .login-icon i {color:ButtonText;background:ButtonText;forced-color-adjust:none}
+}
 a:focus-visible,button:focus-visible {outline:3px solid var(--accent);outline-offset:4px}
 .intro {flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:clamp(3rem,8vh,7rem) var(--gutter) clamp(2rem,5vh,4rem);min-height:28rem}
 h1 {max-width:100%;overflow-wrap:anywhere;font-size:clamp(3rem,6.5vw,7rem);line-height:.97;font-weight:600;letter-spacing:-.065em}
@@ -112,7 +125,7 @@ details[open] .chevron {transform:rotate(225deg)}
 </head>
 <body><main><div class="stage">
 <header><div class="brand"><i class="mark" aria-hidden="true"></i>AutoFind</div>
-<a class="login" href="/acces/connexion">Se connecter <span aria-hidden="true">↗</span></a></header>
+<a class="login" href="/acces/connexion">Se connecter<span class="login-icon" aria-hidden="true"><i></i></span></a></header>
 <div class="film" aria-hidden="true"><img src="/acces/launch.webp" alt="" fetchpriority="high" width="1600" height="900"></div>
 <section class="intro" aria-labelledby="headline">
 <h1 id="headline"><span class="line"><span>Une recherche,</span></span> <span class="line"><span><em>sans frontières.</em></span></span></h1>
