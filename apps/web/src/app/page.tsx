@@ -1,7 +1,13 @@
-import { FoundationPreview } from "./preview";
 import Link from "next/link";
+import { connection } from "next/server";
 
-export default function HomePage() {
+import { resolveDemoBackendMode } from "../demo/backend";
+import { FoundationPreview } from "./preview";
+
+export default async function HomePage() {
+  await connection();
+  const demoEnabled = resolveDemoBackendMode() !== "disabled";
+
   return (
     <>
       <a className="site-skip" href="#main" tabIndex={0}>Aller au contenu</a>
@@ -12,7 +18,11 @@ export default function HomePage() {
       <main className="site-container" id="main" tabIndex={-1}>
         <div className="site-intro">
           <h1>Aperçu de l’interface</h1>
-          <p>Des critères lisibles, des actions simples et des réponses claires.</p>
+          {demoEnabled ? (
+            <a className="aw-button site-search-link" href="/demo">Essayer la recherche démo</a>
+          ) : (
+            <p>Des critères lisibles, des actions simples et des réponses claires.</p>
+          )}
           <p className="site-disclosure">Aucune annonce ni recherche réelle.</p>
         </div>
         <FoundationPreview />
