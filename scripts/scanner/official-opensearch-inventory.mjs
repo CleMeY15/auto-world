@@ -342,9 +342,18 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
   const mapped = correspondence(refs, baseline, old, candidate);
   const mappedCandidateFindings = new Set(mapped.flatMap((m) => m.candidateFindings));
   const jars = jarCoverage(refs, candidate);
+  // A physical JAR still shipped at the same path must not silently lose
+  // scanner visibility that the previous report established for that path.
+  const oldJarPaths = new Set(old.packages.filter((p) => p.type === "jar").map((p) => p.file));
+  const lostJarPaths = jars.undetectedJarPaths.filter((file) => oldJarPaths.has(file));
+  const missingBelowFloorAdvisories = mapped.filter((row) => !row.candidateThreshold.meetsFloor &&
+    !row.candidateFindings.length).map((row) => row.historicalFinding);
+  const qualificationReason = lostJarPaths.length ? "scanner_opensearch_jar_detection_loss" :
+    missingBelowFloorAdvisories.length ? "scanner_opensearch_below_floor_advisories_unmeasured" : null;
   const packages = delta(old.packages, candidate.packages, packageKey);
   const findings = delta(old.findings, candidate.findings, findingKey);
   const result = {
+    qualification: qualificationReason ? "failed" : "passed", reason: qualificationReason,
     references: identities,
     history: { run: receipt.run, artifact: { id: "14436050679", size: 923534, sha256: "838d34d5ecbfc9b423342e47e39120be6ccad3908cbf8809a880cce074e1ea0b" },
       inputs: receipt.awsComparisonInputs, historicalInputsMatch, inputComparison,
@@ -359,7 +368,7 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
     candidateFindingsOutsideHistoricalMapping: [...candidate.findings.keys()].filter((i) => !mappedCandidateFindings.has(i)),
     rpmCoverage: { old: checkedRpms(refs, old), candidate: checkedRpms(refs, candidate) }, jarCoverage: jars,
     packages, findings,
-    unresolved: { undetectedStaticJarPaths: jars.undetectedJarPaths.length,
+    unresolved: { lostJarPaths, missingBelowFloorAdvisories, undetectedStaticJarPaths: jars.undetectedJarPaths.length,
       belowHistoricalFloor: mapped.filter((m) => !m.candidateThreshold.meetsFloor).map((m) => m.historicalFinding),
       candidateAdvisoryOccurrences: candidate.findings.length, newlyObservedFindingTuples: findings.added.length },
     sourceEvidence: { coreTagCommit: "b9f09249b4a9922f0d0bc5bb8f62f90cf95e5eea",

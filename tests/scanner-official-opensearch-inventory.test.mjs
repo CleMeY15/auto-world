@@ -77,6 +77,9 @@ test("authenticates archived reports, OCI and static references and replays orig
   assert.equal(r.oldPolicy, "blocked");
   assert.equal(r.candidatePolicy, "clean");
   assert.equal(r.candidate.sbomAdvisoryEntries, 0);
+  assert.equal(r.qualification, "failed");
+  assert.equal(r.unresolved.missingBelowFloorAdvisories.length, 7);
+  assert.ok(r.unresolved.lostJarPaths.length > 0);
   assert.equal(r.findings.removed.length, 82);
   assert.equal(r.correspondence.filter((m) => !m.candidateThreshold.meetsFloor).length, 7);
   const jackson = r.correspondence.find((m) => m.original.InstalledVersion === "2.22.2");

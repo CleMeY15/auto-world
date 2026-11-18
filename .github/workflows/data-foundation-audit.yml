@@ -5,6 +5,7 @@
       "paths": [
         ".github/workflows/data-foundation-audit.yml",
         "infra/scanner/official-release.json",
+        "docs/validation/opensearch-310/**",
         "infra/scanner/scanner-lock.json",
         "infra/scanner/materials/scanner-fixtures/**",
         "scripts/scanner/official-*.mjs",
@@ -22,6 +23,7 @@
       "paths": [
         ".github/workflows/data-foundation-audit.yml",
         "infra/scanner/official-release.json",
+        "docs/validation/opensearch-310/**",
         "infra/scanner/scanner-lock.json",
         "infra/scanner/materials/scanner-fixtures/**",
         "scripts/scanner/official-*.mjs",
@@ -67,7 +69,7 @@
           "id": "tests",
           "timeout-minutes": 5,
           "shell": "bash",
-          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-controls.test.mjs tests/scanner-official-audit.test.mjs tests/scanner-official-workflow.test.mjs"
+          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-controls.test.mjs tests/scanner-official-audit.test.mjs tests/scanner-official-workflow.test.mjs tests/scanner-official-aws-comparator.test.mjs tests/scanner-official-comparison-checkpoint.test.mjs tests/scanner-official-opensearch-inventory.test.mjs tests/scanner-official-opensearch-comparator.test.mjs"
         },
         {
           "name": "Verify official scanner provenance before extraction",
@@ -86,7 +88,7 @@
           "id": "audit",
           "timeout-minutes": 60,
           "shell": "bash",
-          "run": "set -euo pipefail\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node scripts/scanner/official-audit.mjs \\\n  --scanner \"${RUNNER_TEMP}/trivy-provenance/bin/trivy\" \\\n  --build-info \"${RUNNER_TEMP}/trivy-provenance/public/go-build-info.txt\" \\\n  --output \"${RUNNER_TEMP}/data-foundation-audit\""
+          "run": "set -euo pipefail\nexport AW_RAW_STEP_STARTED_SECONDS=\"$EPOCHSECONDS\"\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node scripts/scanner/official-audit.mjs \\\n  --scanner \"${RUNNER_TEMP}/trivy-provenance/bin/trivy\" \\\n  --build-info \"${RUNNER_TEMP}/trivy-provenance/public/go-build-info.txt\" \\\n  --output \"${RUNNER_TEMP}/data-foundation-audit\""
         },
         {
           "name": "Preserve public reports and provenance, including failures",

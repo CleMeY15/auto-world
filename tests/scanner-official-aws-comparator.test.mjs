@@ -291,7 +291,12 @@ async function audit(t, scenario) {
       if (image.role === "aws-cli-previous" && scenario === "candidate-drift") writeFileSync(path.join(output, "image-aws-cli.json"), "{}");
     },
   });
-  if (scenario === "all-current-clean") await run;
+  if (scenario === "all-current-clean") {
+    // This AWS-only fixture supplies no run identity or twelve authenticated leases.
+    await assert.rejects(run, /^Error: scanner_opensearch_prerequisites_failed$/u);
+    assert.equal(receipt.awsCheckpoint.eligible, false);
+    assert.equal(receipt.openSearchComparator.execution, "not_started");
+  }
   else if (cleanFive) await assert.rejects(run, /^Error: scanner_aws_subject_invalid$/u);
   else await assert.rejects(run, /^Error: scanner_official_images_blocked$/u);
   assert.equal(receipt.reports.length, 5);

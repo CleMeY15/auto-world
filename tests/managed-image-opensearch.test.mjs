@@ -488,8 +488,8 @@ test("bounded native output capture is fixed to the three internal-cluster phase
 
   assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
-  // Pin the audit orchestration used with the AWS comparator and retain the native capture limits.
-  assert.equal(sha256(officialAudit), "8e2bd7c167f54792efc5765b8158b604250c9968218dd9d6f58f1dea166c5391");
+  // Pin the audit orchestration used with both upstream comparators and retain the native capture limits.
+  assert.equal(sha256(officialAudit), "cd989f4b843a5a1beb300acff386848b2f9e3a9fae9ec1f967a8dd346ad207f6");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);

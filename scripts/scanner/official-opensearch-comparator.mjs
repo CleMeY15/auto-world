@@ -237,7 +237,7 @@ export async function compareOpenSearchCandidate({ config, receipt, output, oper
     comparison.candidatePolicy = record.result === "passed" ? "clean" : "blocked";
     const inventory = await buildOpenSearchComparison({ oldReport, candidateReport,
       historicalInputsMatch: comparison.inputs.historicalInputsMatch,
-      oldBlockers, candidateBlockers: collected.blockers });
+      currentInputs: receipt.awsComparisonInputs, oldBlockers, candidateBlockers: collected.blockers });
     if (!["passed", "failed"].includes(inventory?.qualification)) fail("scanner_opensearch_inventory_verdict_invalid");
     const reportFiles = [old, candidate].flatMap((image) => formats.map((format) => ({ path: path.join(output, reportName(image, format)), cap })));
     const after = await captureFiles(reportFiles);

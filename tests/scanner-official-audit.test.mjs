@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { candidateDockerArguments } from "../scripts/scanner/audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
-import { auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
+import { remainingRawStepTime, auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
   validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
@@ -231,4 +231,14 @@ test("official report version adaptation retains the existing critical/fixable-h
 test("invalid runtime context/paths fail before any Docker command", async () => {
   await assert.rejects(auditOfficialScanner({ scanner: "relative", buildInfo: "relative-info", output: "relative-output" }),
     /scanner_official_(?:requires_nonroot_linux_actions|path_outside_runner_temp)/u);
+});
+
+test("raw candidate time budget starts at step entry and refuses missing or future timestamps", () => {
+  const start = "1795000000";
+  const now = Number(start) * 1000;
+  assert.equal(remainingRawStepTime(start, now), 3_600_000);
+  assert.equal(remainingRawStepTime(start, now + 47 * 60_000), 13 * 60_000);
+  assert.equal(remainingRawStepTime(start, now + 3_700_000), 0);
+  assert.equal(remainingRawStepTime(start, now - 1), 0);
+  for (const value of [undefined, "", "17.0", "1795000000000"]) assert.equal(remainingRawStepTime(value, now), 0);
 });

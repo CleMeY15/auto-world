@@ -15,6 +15,9 @@ import { diagnoseManagedSeaweedFailedProfile, hasManagedSeaweedSkipReviewEvidenc
   reviewManagedSeaweedNormalProfile } from "./seaweed-normal-skip-review.mjs";
 import { bindManagedSeaweedSourceEvidence, evaluateManagedSeaweedArchiveReport,
   managedSeaweedHashArguments } from "./seaweed-source-profile.mjs";
+import { writeComparisonCheckpoint, readComparisonCheckpoint } from "./official-comparison-checkpoint.mjs";
+import { buildOpenSearchComparison } from "./official-opensearch-inventory.mjs";
+import { compareOpenSearchCandidate } from "./official-opensearch-comparator.mjs";
 import { comparePreviousAws } from "./official-aws-comparator.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
@@ -1005,15 +1008,22 @@ export async function auditAndPublishSeaweedRustSourceReports({ role, files, dir
   return failure ? { result: null, failure } : { result, failure: null };
 }
 
+export function remainingRawStepTime(startedSeconds, nowMs = Date.now()) {
+  if (typeof startedSeconds !== "string" || !/^[1-9][0-9]{9}$/u.test(startedSeconds)) return 0;
+  const elapsed = nowMs - Number(startedSeconds) * 1000;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.max(0, 60 * 60_000 - elapsed) : 0;
+}
+
 export async function runOfficialImageAudits({ config, receipt, output, localImages, managed, carrier, scanner, cache, command, beforeScan, afterScan }) {
   receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
     ? { role: image.role, ...localImages.get(image.role).subject }
     : { role: image.role, kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform });
   const reports = new Map();
   const emitted = new Map();
+  const scanCommands = [];
   const operations = {
     beforeScan,
-    scan: async (image) => {
+    scan: async (image, { runFormat } = {}) => {
       const files = { json: path.join(output, `image-${image.role}.json`), sbom: path.join(output, `image-${image.role}.cdx.json`) };
       reports.set(image.role, files);
       const failures = [];
@@ -1022,13 +1032,20 @@ export async function runOfficialImageAudits({ config, receipt, output, localIma
       for (const format of ["json", "cyclonedx"]) {
         if (local) { await assertFilesUnchanged(local.frozen); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
         const file = format === "json" ? files.json : files.sbom;
+        const commandIndex = receipt.commands.length + 1;
         try {
-          const bytes = command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format)
-            : officialImageScanArguments(carrier, scanner, cache, image, format), { file });
+          const execute = (timeout) => command(DOCKER, local
+            ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format)
+            : officialImageScanArguments(carrier, scanner, cache, image, format), { file, timeout });
+          const bytes = runFormat ? await runFormat(format, execute) : execute();
           if (!managed) emitted.set(file, { sha256: hashBytes(bytes), size: bytes.length });
         } catch (error) {
-          if (image.role === "aws-cli-previous") throw error;
+          if (runFormat || image.role === "aws-cli-previous") throw error;
           failures.push(error);
+        } finally {
+          if (!managed && receipt.commands.length === commandIndex) {
+            scanCommands.push({ role: image.role, format, index: commandIndex });
+          }
         }
         if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await assertFilesUnchanged(local.frozen); }
       }
@@ -1068,8 +1085,30 @@ export async function runOfficialImageAudits({ config, receipt, output, localIma
     writeJson(path.join(output, file), collected);
     const [checkpoint] = await captureFiles([{ path: path.join(output, file), cap: 64 * MiB }]);
     receipt.fiveImageEvidence = { file, size: checkpoint.size, sha256: checkpoint.sha256 };
+    let awsError;
     try { await comparePreviousAws({ config, receipt, output, operations }); }
-    catch (error) { if (!collected.rejections.length) throw error; }
+    catch (error) { awsError = error; }
+
+    // The six pairs and their cleanup must survive loss of the final receipt.
+    let comparisonError;
+    try {
+      const saved = await writeComparisonCheckpoint({ config, receipt, output, operations, scanCommands });
+      receipt.awsCheckpoint = { identity: saved.identity, eligible: saved.eligible, reasons: saved.reasons };
+      if (awsError) throw awsError;
+      if (!saved.eligible) fail("scanner_opensearch_prerequisites_failed");
+      await compareOpenSearchCandidate({ config, receipt, output, operations, buildOpenSearchComparison,
+        remainingTimeMs: () => remainingRawStepTime(process.env.AW_RAW_STEP_STARTED_SECONDS),
+        verifyCheckpoints: async () => {
+          const reread = await readComparisonCheckpoint({ config, output, expectedIdentity: saved.identity, expectedRun: receipt.run });
+          return reread.eligible && reread.candidateEvidence.state === "absent";
+        },
+      });
+    } catch (error) {
+      comparisonError = error;
+      receipt.openSearchComparator ??= { execution: "not_started", qualification: "failed",
+        candidatePolicy: "unmeasured", result: "failed", reason: error.message, commandIndices: [] };
+    }
+    if (!collected.rejections.length && comparisonError) throw comparisonError;
   }
   if (collected.rejections.length) fail("scanner_official_images_blocked");
 }
