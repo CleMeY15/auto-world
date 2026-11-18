@@ -11,8 +11,8 @@ export function VehicleReports({ listingId, hasExampleCorpus }: { readonly listi
           <ul className="demo-evidence-list">
             {reports.map((report) => (
               <li key={report.id}>
-                <a className="site-nav" href={report.href} referrerPolicy="no-referrer">
-                  Consulter l’exemple {providerLabels[report.provider]}
+                <a className="site-nav" href={`${report.href}#depuis-annonce`} target="_blank" rel="noopener noreferrer">
+                  Consulter l’exemple {providerLabels[report.provider]} (nouvel onglet)
                 </a>
                 <span>Provenance déclarée · {report.suppliedBy === "titulaire" ? "Titulaire de la carte grise" : "Vendeur"}</span>
               </li>

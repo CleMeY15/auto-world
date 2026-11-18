@@ -1,8 +1,12 @@
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 
-import { resolveDemoBackendMode } from "../../../../../demo/backend";
-import { providerLabels, reportsForListing } from "../../../../../demo/vehicle-reports";
+import { demoBackendOrigin, resolveDemoBackendMode } from "../../../../../demo/backend";
+import { parseDemoHttpOutcomeV2, parsePublicListingId } from "../../../../../demo/protocol";
+import { readDemoBackendText } from "../../../../../demo/proxy";
+import { providerLabels, reportFixtureVersion, reportsForListing } from "../../../../../demo/vehicle-reports";
+
+import { ReturnToListing } from "../../return-to-listing";
 
 export const metadata = { title: "Document d’exemple — Auto World" };
 
@@ -13,12 +17,27 @@ export default async function ExampleReportPage({ params }: {
   if (resolveDemoBackendMode() !== "offline") notFound();
   const { listingId, documentId } = await params;
   const report = reportsForListing(listingId).find((item) => item.id === documentId);
-  if (!report) notFound();
+  const id = parsePublicListingId(listingId);
+  if (!report || !id) notFound();
+
+  const signal = AbortSignal.timeout(7_000);
+  let fixtureVersion: string | undefined;
+  try {
+    const response = await fetch(`${demoBackendOrigin("offline")}/v2/demo/listings/${id}`, {
+      cache: "no-store", redirect: "error", signal,
+    });
+    const source = await readDemoBackendText(response, signal);
+    const outcome = parseDemoHttpOutcomeV2(source, response.status, new Date().toISOString(), id);
+    if (outcome?.ok) fixtureVersion = outcome.data.fixtureVersion;
+  } catch {
+    // An unavailable listing cannot confirm that this document belongs to the active corpus.
+  }
+  if (fixtureVersion !== reportFixtureVersion) notFound();
 
   return (
     <main className="site-container">
       <nav className="site-toolbar" aria-label="Publication">
-        <a className="site-nav" href={`/demo#detail/${report.listingId}`}>Retour à l’annonce</a>
+        <ReturnToListing listingId={report.listingId} />
       </nav>
       <article className="site-intro">
         <p>{report.vehicle}</p>

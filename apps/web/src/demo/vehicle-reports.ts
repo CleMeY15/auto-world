@@ -1,4 +1,4 @@
-// Public identifiers from the normal synthetic-description-v2 search corpus.
+export const reportFixtureVersion = "synthetic-description-v2";
 const borealB2 = "lst_5696220ef97cf2af439e0279456ea36c70dd3df4e97b4455fc1577fa81aa8863";
 const borealB1 = "lst_5b1bfbea35a7f70ba8a6358f2c1dca6e4a243af7e2e95df49d127fcaae748c09";
 

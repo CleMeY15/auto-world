@@ -7,7 +7,7 @@ const empty = "lst_84b7ff767f88174f457564d86c2e36bcfaea6d1cef341b7c0b69645a25adb
 test("normal demo results open the supplied local documents and switch report sets with the listing", async ({ page, baseURL }) => {
   const external = new Set<string>();
   const documentRequests: string[] = [];
-  page.on("request", (request) => {
+  page.context().on("request", (request) => {
     const url = new URL(request.url());
     if (url.origin !== baseURL) external.add(url.origin);
     if (url.pathname.startsWith("/demo/rapports/")) documentRequests.push(url.pathname);
@@ -21,26 +21,36 @@ test("normal demo results open the supplied local documents and switch report se
   await expect(section.getByRole("link")).toHaveCount(2);
   expect(documentRequests).toEqual([]);
 
-  for (const [provider, document] of [["HistoVec", "b2-parcours"], ["carVertical", "b2-kilometrage"]] as const) {
-    const destination = `/demo/rapports/${multiple}/${document}`;
-    await section.getByRole("link", { name: new RegExp(provider, "u") }).click();
-    await expect(page).toHaveURL(new URL(destination, baseURL).href);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(provider);
-    await page.getByRole("link", { name: "Retour à l’annonce" }).click();
-    await expect(section).toBeVisible();
+  async function readReport(provider: string, listingId: string, document: string) {
+    const trigger = section.getByRole("link", { name: new RegExp(provider, "u") });
+    const [reader] = await Promise.all([page.waitForEvent("popup"), trigger.click()]);
+    const destination = `/demo/rapports/${listingId}/${document}#depuis-annonce`;
+    await expect(reader).toHaveURL(new URL(destination, baseURL).href);
+    await expect(reader.getByRole("heading", { level: 1 })).toContainText(provider);
+    await Promise.all([
+      reader.waitForEvent("close"),
+      reader.getByRole("link", { name: "Retour à l’annonce" }).click(),
+    ]);
+    await expect(page).toHaveURL(new URL(`/demo#detail/${listingId}`, baseURL).href);
   }
+
+  await readReport("HistoVec", multiple, "b2-parcours");
+  await readReport("carVertical", multiple, "b2-kilometrage");
+  await page.getByRole("button", { name: "Retour aux résultats" }).click();
+  await expect(page.locator("#demo-result-open-0")).toBeFocused();
+  await page.locator("#demo-result-open-0").click();
   await page.evaluate((id) => { location.hash = `detail/${id}`; }, single);
   await expect(section.getByRole("link")).toHaveCount(1);
-  await section.getByRole("link", { name: /CARFAX/u }).click();
-  await expect(page).toHaveURL(new URL(`/demo/rapports/${single}/b1-entretien`, baseURL).href);
-  await page.getByRole("link", { name: "Retour à l’annonce" }).click();
+  await readReport("CARFAX", single, "b1-entretien");
   await page.evaluate((id) => { location.hash = `detail/${id}`; }, empty);
-  await expect(section.getByRole("link")).toHaveCount(1);
   await expect(section.getByRole("link")).toHaveAttribute("href", "/historique-vehicule");
   expect(external.size).toBe(0);
 });
 
-test("the reader rejects swapped documents and disabled-demo access", async ({ request }, testInfo) => {
+test("the reader rejects swapped documents and disabled-demo access", async ({ page, request }, testInfo) => {
+  await page.goto(`/demo/rapports/${multiple}/b2-parcours`);
+  await page.getByRole("link", { name: "Retour à l’annonce" }).click();
+  await expect(page.getByRole("region", { name: "Rapports du véhicule" }).getByRole("link")).toHaveCount(2);
   const wrong = await request.get(`/demo/rapports/${single}/b2-parcours`);
   expect(wrong.status()).toBe(404);
   const disabled = String(testInfo.config.metadata.demoDisabledBaseURL);
