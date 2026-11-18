@@ -26,6 +26,29 @@ function appendRow(rows, row, budget) {
   rows.push(row);
 }
 
+// Byte identities of Trivy and its two databases in the authenticated PR251 raw run.
+const historicalInputs = {
+  scanner: { sha256: "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3", size: 176386208 },
+  databases: {
+    "db/trivy.db": { sha256: "b4b9f44be196aac7bf3c359abdcacfaa97a7ccaf56297d04745b7dae554eae86", size: 1759723520 },
+    "java-db/trivy-java.db": { sha256: "a41f53b9b2b3d57ef45aeda3abd8f03dc17dfcacc5aaec277600218919de5e15", size: 1582481408 },
+  },
+};
+
+function historicalContext(inputs) {
+  if (!isDeepStrictEqual(inputs?.scanner, historicalInputs.scanner) || !Array.isArray(inputs.databaseFiles)) {
+    fail("scanner_aws_comparison_inputs_invalid");
+  }
+  let identical = true;
+  for (const [file, expected] of Object.entries(historicalInputs.databases)) {
+    const matches = inputs.databaseFiles.filter((db) => db.file === file);
+    if (matches.length !== 1 || !/^[a-f0-9]{64}$/u.test(matches[0].sha256) ||
+        !Number.isSafeInteger(matches[0].size) || matches[0].size < 1) fail("scanner_aws_comparison_inputs_invalid");
+    identical &&= matches[0].sha256 === expected.sha256 && matches[0].size === expected.size;
+  }
+  return identical ? "identical" : "changed";
+}
+
 async function inventory(image, record, configId, operations) {
   if (!record?.report || record.result !== "passed" && record.reason !== "scanner_image_policy_blocked") {
     fail(record?.reason ?? "scanner_aws_report_missing");
@@ -122,7 +145,10 @@ export async function comparePreviousAws({ config, receipt, output, operations }
     const history = await historicalAws();
     const occurrence = (b) => JSON.stringify([b.target, b.vulnerabilityId, b.packageName, b.installedVersion]);
     const historicalToOld = reconcile(history.orderedBlockers, control.blockers, occurrence);
-    const data = { history, historicalToOld, old, current,
+    comparison.historicalDatabaseContext = historicalContext(receipt.awsComparisonInputs);
+    const historicalReplayMatches = isDeepStrictEqual(history.orderedBlockers,
+      control.blockers.map((blocker) => ({ ...blocker, role: candidate.role })));
+    const data = { history, historicalToOld, historicalInputs, historicalReplayMatches, old, current,
       inventoryScope: "Packages detected by Trivy; bundled or frozen Python dependencies may be absent.",
       packages: reconcile(old.packages, current.packages, packageKey),
       findings: reconcile(old.findings, current.findings, findingKey),
@@ -136,6 +162,7 @@ export async function comparePreviousAws({ config, receipt, output, operations }
     comparison.delta = { file, sha256: identity.sha256, size: identity.size };
     if (old.packageHash !== oldPackageHash || data.missingInventory.length ||
         !current.packages.some((pkg) => pkg.type === "amazon" && pkg.name === "perl-Unicode-Normalize")) fail("scanner_aws_inventory_loss");
+    if (comparison.historicalDatabaseContext === "identical" && !historicalReplayMatches) fail("scanner_aws_historical_replay_changed");
     if (!historicalToOld.matched.length || control.blockers.some((b) => !b.vulnerabilityId)) fail("scanner_aws_unexpected_control");
     comparison.qualification = "passed";
   } catch (error) {

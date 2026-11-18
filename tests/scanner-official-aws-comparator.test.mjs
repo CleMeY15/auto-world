@@ -214,6 +214,12 @@ function reports(ref, scenario) {
   const finding = (v, pkg) => ({ VulnerabilityID: v, PkgName: pkg.Name, InstalledVersion: evr(pkg), Severity: "HIGH", FixedVersion: "2" });
   let vulns = [];
   if (old && scenario !== "clean-old") vulns = ["CVE-2026-92392", "CVE-B", "CVE-2026-92392"].map((v) => finding(v, rpms.find((p) => p.Name === "curl-minimal")));
+  if (old && scenario.startsWith("same-db-")) {
+    const rows = JSON.parse(readFileSync(new URL("../docs/validation/aws-cli-20261118/aws49.json", import.meta.url)));
+    vulns = rows.map(({ oldBlocker: b }) => ({ VulnerabilityID: b.vulnerabilityId, PkgName: b.packageName,
+      InstalledVersion: b.installedVersion, FixedVersion: b.fixedVersion, Severity: b.severity }));
+    if (scenario === "same-db-missing") vulns.pop();
+  }
   if (old && scenario === "unrelated-old") vulns[0].VulnerabilityID = vulns[2].VulnerabilityID = "CVE-OTHER";
   if (current && !["all-current-clean", "clean-five-bad-control"].includes(scenario)) vulns = ["CVE-2026-92392", "CVE-C"].map((v) => finding(v, rpms.find((p) => p.Name === "curl-minimal")));
   const OS = { Family: "amazon", Name: old ? "2023.12.20261021 (Amazon Linux)" : "2023.12.20261112 (Amazon Linux)" };
@@ -236,7 +242,14 @@ function reports(ref, scenario) {
 async function audit(t, scenario) {
   const output = mkdtempSync(path.join(import.meta.dirname, "aws-comparator-test-"));
   t.after(() => rmSync(output, { recursive: true }));
-  const receipt = { commands: [] }, calls = [], checks = [];
+  const receipt = { commands: [], awsComparisonInputs: {
+    scanner: { sha256: "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3", size: 176386208 },
+    databaseFiles: [
+      { file: "db/trivy.db", sha256: scenario.startsWith("same-db-")
+        ? "b4b9f44be196aac7bf3c359abdcacfaa97a7ccaf56297d04745b7dae554eae86" : "f".repeat(64), size: 1759723520 },
+      { file: "java-db/trivy-java.db", sha256: "a41f53b9b2b3d57ef45aeda3abd8f03dc17dfcacc5aaec277600218919de5e15", size: 1582481408 },
+    ],
+  } }, calls = [], checks = [];
   const cleanFive = ["all-current-clean", "clean-five-bad-control"].includes(scenario);
   const config = { ...release, images: release.images.map((image) => image.role !== "aws-cli" ? image : {
     ...image, version: "2.41.0", manifestDigest: "sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea",
@@ -302,6 +315,7 @@ test("the raw orchestration preserves five decisions before comparing two comple
   assert.equal(receipt.fiveImageResult, "rejected");
   assert.equal(comparison.qualification, "passed");
   assert.equal(comparison.oldPolicy, "blocked");
+  assert.equal(comparison.historicalDatabaseContext, "changed");
   assert.deepEqual(comparison.commandIndices, [11, 12]);
   assert.deepEqual(comparison.control.blockers.map((entry) => entry.vulnerabilityId), ["CVE-2026-92392", "CVE-B", "CVE-2026-92392"]);
   assert.deepEqual(checks.slice(-2), [["before", "aws-cli-previous"], ["after", "aws-cli-previous"]]);
@@ -366,4 +380,14 @@ test("operational comparator failure rejects a run with five clean current subje
   assert.equal(receipt.fiveImageResult, "passed");
   assert.equal(comparison.qualification, "failed");
   assert.equal(comparison.reason, "scanner_aws_subject_invalid");
+});
+
+test("identical historical databases require complete ordered replay on the previous AWS image", async (t) => {
+  const good = await audit(t, "same-db-complete");
+  assert.equal(good.comparison.historicalDatabaseContext, "identical");
+  assert.equal(good.comparison.qualification, "passed");
+  const missing = await audit(t, "same-db-missing");
+  assert.equal(missing.comparison.reason, "scanner_aws_historical_replay_changed");
+  assert.equal(missing.comparison.qualification, "failed");
+  assert.equal(missing.receipt.fiveImageResult, "rejected");
 });
