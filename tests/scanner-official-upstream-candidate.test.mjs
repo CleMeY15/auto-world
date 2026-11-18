@@ -50,18 +50,20 @@ test("OpenSearch candidate pins bind the actual registry index, platform and con
     assert.throws(() => validateBindings(config, managed, substituted));
   }
   for (const field of ["manifestDigest", "platform"]) {
-    const changed = structuredClone(config), image = changed.images.find(({ role }) => role === "opensearch");
+    const changed = JSON.parse(JSON.stringify(config)), image = changed.images.find(({ role }) => role === "opensearch");
     if (field === "platform") image.platform.digest = `sha256:${"a".repeat(64)}`;
     else image.manifestDigest = `sha256:${"a".repeat(64)}`;
     assert.throws(() => validateBindings(changed, managed, bytes));
   }
-  const changed = structuredClone(managed);
+  const changed = JSON.parse(JSON.stringify(managed));
   changed.candidates.find(({ role }) => role === "opensearch").baseDigest = `sha256:${"a".repeat(64)}`;
   assert.throws(() => validateBindings(config, changed, bytes));
 });
 
 test("scanner, source references and every other role remain unchanged by this candidate", () => {
-  const unchanged = structuredClone(config), selected = unchanged.images.find(({ role }) => role === "opensearch");
+  const unchanged = JSON.parse(JSON.stringify(config)), selected = unchanged.images.find(({ role }) => role === "opensearch");
+  assert.equal(unchanged.resolvedAt, provenance.observedAt);
+  unchanged.resolvedAt = "2026-11-09T07:21:40.3686192Z";
   delete selected.manifestDigest;
   delete selected.platform.digest;
   assert.equal(sha(JSON.stringify(unchanged)), "b699fc01993b74015c3dbecd12f12f669199576a3a810032a8a4f652e0d52206");
