@@ -187,6 +187,8 @@ test("detail traversal remains readable with keyboard focus at mobile, desktop a
   await expect(page.locator(".demo-result-card")).toHaveCount(3);
   await page.locator("#demo-result-open-1").click();
   await expectPosition(page, 1, 3);
+  // WebKit may release the history entry wrapper while the same detail is still open.
+  await page.requestGC();
   for (const view of [
     { width: 320, height: 780, theme: "light", size: "100%" },
     { width: 390, height: 844, theme: "dark", size: "200%" },

@@ -127,8 +127,8 @@ function subscribeHash(listener: () => void) {
   window.addEventListener("hashchange", listener);
   return () => window.removeEventListener("hashchange", listener);
 }
-function currentHistoryEntry() {
-  return (window as Window & { navigation?: { currentEntry: NavigationHistoryEntry | null } }).navigation?.currentEntry;
+function currentHistoryEntryId() {
+  return (window as Window & { navigation?: { currentEntry: NavigationHistoryEntry | null } }).navigation?.currentEntry?.id;
 }
 
 function getHashSnapshot() { return window.location.hash || "#search"; }
@@ -230,8 +230,9 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [fieldError, setFieldError] = useState<SearchFieldError>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
   const [resultSetKey, setResultSetKey] = useState<string>();
-  const [detailOrigins] = useState(() => new WeakMap<NavigationHistoryEntry, string>());
-  const entry = screen === "detail" ? currentHistoryEntry() : undefined;
+  // WebKit can recreate the JS wrapper for a live history entry between renders.
+  const [detailOrigins] = useState(() => new Map<string, string>());
+  const entry = screen === "detail" ? currentHistoryEntryId() : undefined;
   const entryResultSet = entry ? detailOrigins.get(entry) : location.resultSet;
   const loadedDetailIndex = screen === "detail" && resultSetKey && entryResultSet === resultSetKey
     ? response?.results.findIndex((result) => result.listingId === location.listingId) ?? -1
@@ -349,11 +350,11 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
     if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
-    const detailPrefix = fromResultSet && !currentHistoryEntry() ? `#result-detail/${fromResultSet}/` : "#detail/";
+    const detailPrefix = fromResultSet && !currentHistoryEntryId() ? `#result-detail/${fromResultSet}/` : "#detail/";
     const nextHash = next === "detail" && listingId ? detailPrefix + encodeURIComponent(listingId) : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
     else window.location.hash = nextHash;
-    const entry = fromResultSet && currentHistoryEntry();
+    const entry = fromResultSet && currentHistoryEntryId();
     if (entry && fromResultSet) detailOrigins.set(entry, fromResultSet);
   }, [cancelResultsSort, detailOrigins, invalidateSearchRefinement, screen]);
 
@@ -771,6 +772,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     else if (focusAfter === "refresh" || focusAfter === "results-sort") pendingResponseFocus.current = "demo-screen-title";
     setResponse(next);
     if (!append) {
+      detailOrigins.clear();
       setResultSetKey(crypto.randomUUID());
       setAcceptedCriteria(captureSavedSearchCriteria(requestedQuery, next));
     }
@@ -780,7 +782,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     }
     recordAnalyticsEvent({ eventName: "results_shown", screen: "results", outcome: outcomeForResponse(next) });
     if (!append && focusAfter !== "refresh") navigate("results");
-  }, [ensureCatalogForResponse, focusAfterRender, navigate, pagination]);
+  }, [detailOrigins, ensureCatalogForResponse, focusAfterRender, navigate, pagination]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
