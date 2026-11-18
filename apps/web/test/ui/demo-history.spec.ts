@@ -247,7 +247,20 @@ test("the 256-record boundary exposes every retained observation in order by gro
   await expect(priceHistory).toContainText(/sans conversion/);
   await expect(rows).toHaveCount(8);
   const calls: string[] = [];
-  page.on("request", (request) => { if (request.url().includes("/api/")) calls.push(request.url()); });
+  page.on("request", (request) => calls.push(request.url()));
+  await page.evaluate(() => {
+    const writes: string[] = [];
+    Object.defineProperty(window, "__awHistoryWrites", { value: writes });
+    for (const key of ["setItem", "removeItem", "clear"] as const) {
+      const original = Storage.prototype[key];
+      Object.defineProperty(Storage.prototype, key, {
+        value: function (this: Storage, ...args: string[]) {
+          writes.push(key);
+          return Reflect.apply(original, this, args);
+        },
+      });
+    }
+  });
   await context.setOffline(true);
   const storage = await snapshotStorage(page);
   const more = priceHistory.getByRole("button");
@@ -262,10 +275,11 @@ test("the 256-record boundary exposes every retained observation in order by gro
   await expect(more).toHaveCount(0);
   await expect(priceHistory).toContainText("255 observations sur 255");
   const expected = evidence.slice(0, -1).reverse();
-  expect(await rows.locator("time").evaluateAll((times) => times.map((time) => time.dateTime))).toEqual(expected.map((point) => point.observedAt));
+  expect(await rows.locator("time").evaluateAll((times) => times.map((time) => time.getAttribute("datetime")))).toEqual(expected.map((point) => point.observedAt));
   expect((await rows.locator("[data-observation-value]").allTextContents()).map((text) => text.replace(/\s/gu, "")))
     .toEqual(expected.map((point) => String(point.value.amountMinor) + point.value.currency));
   expect(calls).toEqual([]);
+  expect(await page.evaluate(() => (window as typeof window & { __awHistoryWrites: string[] }).__awHistoryWrites)).toEqual([]);
   expect(await snapshotStorage(page)).toEqual(storage);
 });
 
@@ -325,6 +339,7 @@ test("group control and reading focus fit mobile and desktop", async ({ page, br
     await more.press("Enter");
     await expect(field.getByRole("listitem").nth(8)).toBeFocused();
     await expectHistoryLayout(page);
+    await page.screenshot({ path: path.join(directory, `group-focus-${width}-${browserName}.png`), scale: "css" });
     const target = await more.boundingBox();
     expect(target?.height).toBeGreaterThanOrEqual(44);
     expect(target?.width).toBeGreaterThanOrEqual(44);
@@ -692,20 +707,20 @@ test("256-record native disclosure feedback stays within 100ms under the Chromiu
   }
   await summary.click();
   const groupSamples: number[] = [];
-  for (let sample = 0; sample < 10; sample += 1) {
-    const duration = await details.getByRole("button").evaluate((button) => {
+  for (let previousCount = 8; previousCount < evidence.length - 1; previousCount += 8) {
+    const duration = await details.getByRole("button").evaluate((button, total) => {
       const list = button.closest("details")!.querySelector("ol")!;
       const previous = list.children.length;
       const startTime = performance.now();
       (button as HTMLButtonElement).click();
       return new Promise<number>((resolve, reject) => requestAnimationFrame(() => {
-        if (list.children.length !== previous + 8 || document.activeElement !== list.children[previous]) {
+        if (list.children.length !== Math.min(previous + 8, total) || document.activeElement !== list.children[previous]) {
           reject(new Error("Expected the next group to be mounted and focused before the frame"));
         } else {
           resolve(performance.now() - startTime);
         }
       }));
-    });
+    }, evidence.length - 1);
     groupSamples.push(duration);
   }
   await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
