@@ -6,6 +6,7 @@
         ".github/workflows/data-foundation-audit.yml",
         "infra/scanner/official-release.json",
         "docs/validation/opensearch-310/**",
+        "tests/fixtures/scanner-official/opensearch-comparison-pr253/**",
         "infra/scanner/scanner-lock.json",
         "infra/scanner/materials/scanner-fixtures/**",
         "scripts/scanner/official-*.mjs",
@@ -24,6 +25,7 @@
         ".github/workflows/data-foundation-audit.yml",
         "infra/scanner/official-release.json",
         "docs/validation/opensearch-310/**",
+        "tests/fixtures/scanner-official/opensearch-comparison-pr253/**",
         "infra/scanner/scanner-lock.json",
         "infra/scanner/materials/scanner-fixtures/**",
         "scripts/scanner/official-*.mjs",
@@ -69,7 +71,7 @@
           "id": "tests",
           "timeout-minutes": 5,
           "shell": "bash",
-          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-controls.test.mjs tests/scanner-official-audit.test.mjs tests/scanner-official-workflow.test.mjs tests/scanner-official-aws-comparator.test.mjs tests/scanner-official-comparison-checkpoint.test.mjs tests/scanner-official-opensearch-inventory.test.mjs tests/scanner-official-opensearch-comparator.test.mjs"
+          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-controls.test.mjs tests/scanner-official-audit.test.mjs tests/scanner-official-workflow.test.mjs tests/scanner-official-aws-comparator.test.mjs tests/scanner-official-comparison-checkpoint.test.mjs tests/scanner-official-opensearch-inventory.test.mjs tests/scanner-official-opensearch-comparator.test.mjs tests/scanner-official-opensearch-integration.test.mjs"
         },
         {
           "name": "Verify official scanner provenance before extraction",

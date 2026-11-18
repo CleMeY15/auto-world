@@ -3,7 +3,8 @@ import { statfs, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
-import { captureFiles, readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes, captureFiles, readBoundedJson } from "./controls.mjs";
+import { validateOpenSearchComparisonJson } from "./official-opensearch-inventory.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
 
 const repository = "opensearchproject/opensearch";
@@ -111,36 +112,10 @@ function validateCommand(commands, index) {
   if (command.exitCode !== 0 || command.signal !== null || command.error !== null) fail("scanner_official_command_failed");
 }
 
-// Bound the serialized tree before allocating the complete buffer. Inventory rows
-// may repeat long paths many more times than they occur in the original inputs.
-function boundedBytes(document) {
-  let size = 1; // trailing newline
-  function count(value) {
-    if (value !== null && typeof value === "object") {
-      size += 2;
-      let first = true;
-      for (const key of Object.keys(value)) {
-        if (!first) size++;
-        first = false;
-        if (!Array.isArray(value)) size += Buffer.byteLength(JSON.stringify(key)) + 1;
-        count(value[key]);
-      }
-    } else {
-      if (typeof value === "string" && value.length > cap) fail("scanner_opensearch_delta_limit");
-      size += Buffer.byteLength(JSON.stringify(value));
-    }
-    if (size > cap) fail("scanner_opensearch_delta_limit");
-  }
-  count(document);
-  const bytes = Buffer.from(JSON.stringify(document) + "\n");
-  if (bytes.length !== size) fail("scanner_opensearch_delta_invalid");
-  return bytes;
-}
-
 async function persistDelta(output, document) {
   const file = "image-opensearch-comparison.json";
   const target = path.join(output, file);
-  const bytes = boundedBytes(document);
+  const bytes = boundedJsonBytes(document, cap, "scanner_opensearch_delta_limit");
   await writeFile(target, bytes, { flag: "wx", mode: 0o600 });
   const [readback] = await captureFiles([{ path: target, cap }]);
   if (readback.size !== bytes.length || readback.sha256 !== sha(bytes)) fail("scanner_frozen_input_changed");
@@ -213,6 +188,7 @@ export async function compareOpenSearchCandidate({ config, receipt, output, oper
       if (format === "json") {
         validateSubject(candidate, value);
         evaluateImageReport(value, candidate, [], new Date(), { expectedScannerVersion: config.scanner.version });
+        await validateOpenSearchComparisonJson(value, "candidate");
       }
       identities.push(identity);
       Object.assign(observation, { status: "captured", file, ...identity });

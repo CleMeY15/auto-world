@@ -486,10 +486,10 @@ test("bounded native output capture is fixed to the three internal-cluster phase
   assert.match(build, /\[ "\$grep_status" -eq 1 \]/u);
   assert.doesNotMatch(build, /! grep -Fq 'AUTO_WORLD_TEST_OUTPUT/u);
 
-  assert.equal(sha256(scannerControls), "ca28b19d57e21b3b778da2ff95fa31bf273f814616ce0b190533d1eeaaa82499");
+  assert.equal(sha256(scannerControls), "7b318181c61274b1f1d44c27c933ff112ece89f39a807428201ed348cca7edfe");
   assert.equal(sha256(scannerAuditPolicy), "8ee56aeee8d31f3620987186e1876731ce21d3f4763980a0bdc758511248584f");
   // Pin the audit orchestration used with both upstream comparators and retain the native capture limits.
-  assert.equal(sha256(officialAudit), "cd989f4b843a5a1beb300acff386848b2f9e3a9fae9ec1f967a8dd346ad207f6");
+  assert.equal(sha256(officialAudit), "a8386faba7a566d606ccddce69f2cdd402a62c99e17a60faf32ad497f80fe322");
   assert.match(officialAudit.toString("utf8"), /info\.size > 4 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /total > 64 \* MiB/u);
   assert.match(officialAudit.toString("utf8"), /files\.length >= 4096/u);

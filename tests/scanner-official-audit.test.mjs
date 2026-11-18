@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
+import { boundedJsonBytes } from "../scripts/scanner/controls.mjs";
 import test from "node:test";
 import { candidateDockerArguments } from "../scripts/scanner/audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
-import { remainingRawStepTime, auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
+import { writeRawAuditReceipt, writeRawScanReport, remainingRawStepTime, auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
   validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
@@ -241,4 +243,48 @@ test("raw candidate time budget starts at step entry and refuses missing or futu
   assert.equal(remainingRawStepTime(start, now + 3_700_000), 0);
   assert.equal(remainingRawStepTime(start, now - 1), 0);
   for (const value of [undefined, "", "17.0", "1795000000000"]) assert.equal(remainingRawStepTime(value, now), 0);
+});
+
+test("raw scan only publishes successful stdout within 64 MiB and binds it to this lease", (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "aw-report-"));
+  t.after(() => rmSync(dir, { recursive: true }));
+  const file = path.join(dir, "image-opensearch-candidate.json");
+  const scan = { role: "opensearch-candidate", reference: "opensearchproject/opensearch@" + image.platform.digest, format: "json" };
+  const args = ["--format", "json", scan.reference];
+  const record = { lease: { name, owner } };
+  assert.throws(() => writeRawScanReport(file, Buffer.alloc(65 * 1024 ** 2), scan, record, args, true), /scanner_public_report_limit/u);
+  assert.equal(record.scan.output.size, 65 * 1024 ** 2);
+  assert.deepEqual(readdirSync(dir), []);
+  const bytes = Buffer.from("{}");
+  writeRawScanReport(file, bytes, scan, record, args, false);
+  assert.deepEqual(readdirSync(dir), []);
+  writeRawScanReport(file, bytes, scan, record, args, true);
+  assert.deepEqual(record.scan.lease, record.lease);
+  assert.deepEqual(readFileSync(file), bytes);
+  assert.throws(() => writeRawScanReport(file, Buffer.from("substitution"), scan, record, args, true), { code: "EEXIST" });
+  assert.deepEqual(readFileSync(file), bytes);
+  assert.deepEqual(readdirSync(dir), [path.basename(file)]);
+});
+
+test("bounded receipt sizing preserves escaping and refuses expanded targets before serialization", () => {
+  const text = "a".repeat(4095) + "🚘" + String.fromCharCode(0xd800, 9, 34, 92);
+  const record = { text, nested: [null, undefined, { omit: undefined, text }] };
+  const expected = Buffer.from(JSON.stringify(record) + "\n");
+  assert.deepEqual(boundedJsonBytes(record, expected.length, "oversize"), expected);
+  assert.throws(() => boundedJsonBytes(record, expected.length - 1, "oversize"), /oversize/u);
+  assert.throws(() => boundedJsonBytes(Array(1000).fill(text), 64000, "oversize"), /oversize/u);
+});
+
+test("oversized final raw receipt preserves the failed verdict and checkpoint identities", (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "aw-final-receipt-"));
+  t.after(() => rmSync(dir, { recursive: true }));
+  const file = path.join(dir, "official-audit-receipt.json");
+  const checkpoint = { file: "image-five-subject-results.json", size: 14, sha256: "a".repeat(64) };
+  const receipt = { scope: "upstream", result: "passed", run: { GITHUB_RUN_ID: "10" },
+    fiveImageEvidence: checkpoint, failure: "scanner_official_images_blocked", blockers: Array(65).fill("z".repeat(1024 ** 2)) };
+  assert.throws(() => writeRawAuditReceipt(file, receipt), /scanner_raw_receipt_limit/u);
+  const bytes = readFileSync(file);
+  assert.ok(bytes.length < 1024);
+  assert.deepEqual(JSON.parse(bytes), { scope: "upstream", result: "failed", run: receipt.run,
+    reason: "scanner_raw_receipt_limit", priorFailure: receipt.failure, fiveImageEvidence: checkpoint });
 });

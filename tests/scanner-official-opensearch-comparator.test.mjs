@@ -19,12 +19,27 @@ const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const prop = (key, value) => ({ name: "aquasecurity:trivy:" + key, value });
 const file = (dir, role, format) => path.join(dir, "image-" + role + (format === "json" ? ".json" : ".cdx.json"));
 
+const reference = async (file) => JSON.parse(await readFile(new URL("../docs/validation/opensearch-310/" + file, import.meta.url)));
+const baselineReport = await reference("image-opensearch.json");
+const baselineSbom = await reference("image-opensearch.cdx.json");
+const baselineMetadata = baselineReport.Metadata;
+const candidateImageConfig = await reference("3.10.0-config.json");
+const candidateManifest = await reference("3.10.0-platform.json");
+// ISIZE of the seven authenticated 3.10 layer archives (all below 4 GiB).
+const candidateSizes = [155598848, 11930624, 20992, 1535065600, 1024, 3072, 8192];
+const layerMetadata = {
+  ImageConfig: candidateImageConfig, DiffIDs: candidateImageConfig.rootfs.diff_ids,
+  Layers: candidateManifest.layers.map((layer, i) => ({ Size: candidateSizes[i], Digest: layer.digest, DiffID: candidateImageConfig.rootfs.diff_ids[i] })),
+  Size: candidateSizes.reduce((a, b) => a + b, 0),
+};
+
 function reports(digest, config, blocked) {
   const subject = previous.repository + "@" + digest;
   const purl = "pkg:oci/opensearch@" + digest + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
   return {
     json: { ArtifactName: subject, ArtifactType: "container_image", SchemaVersion: 2, CreatedAt: new Date().toISOString(),
-      Trivy: { Version: "0.76.2" }, Metadata: { ImageID: config, Reference: subject, RepoDigests: [subject], ImageConfig: { os: "linux", architecture: "amd64" } },
+      Trivy: { Version: "0.76.2" }, Metadata: { ...JSON.parse(JSON.stringify(digest === candidatePlatform ? layerMetadata : baselineMetadata)),
+        ImageID: config, Reference: subject, RepoDigests: [subject] },
       Results: [{ Class: "lang-pkgs", Target: "Java", Type: "jar", Packages: [{ Name: "org.example:test", Version: "1" }],
         Vulnerabilities: blocked ? [{ VulnerabilityID: "CVE-TEST", PkgName: "org.example:test", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2" }] : [] }] },
     cyclonedx: { bomFormat: "CycloneDX", specVersion: "1.6", dependencies: [],
@@ -232,36 +247,10 @@ test("bounded delta refuses repeated path expansion before publication", async (
 });
 
 
-// Consecutive equal HIGH blocker objects in the historical OpenSearch policy
-// sequence. This fixture exercises replay ordering, independently of inventory.
 test("exact same-DB replay admits all 82 original ordered blockers", async (t) => {
-  const groups = [
-    [1, "CVE-2026-106451", "at.yawk.lz4:lz4-java", "1.11.2", "1.11.4"],
-    [11, "CVE-2026-89407", "com.fasterxml.jackson.core:jackson-core", "2.22.2", "2.18.11, 2.21.7, 2.22.3"],
-    [11, "CVE-2026-89425", "com.fasterxml.jackson.core:jackson-core", "2.22.2", "2.21.7, 2.22.3, 2.18.11"],
-    [11, "CVE-2026-91776", "com.fasterxml.jackson.core:jackson-databind", "2.22.2", "2.18.11, 2.21.7, 2.22.3"],
-    [11, "CVE-2026-91777", "com.fasterxml.jackson.core:jackson-databind", "2.22.2", "2.21.7, 2.18.11, 2.22.3"],
-    [2, "CVE-2026-102554", "com.google.guava:guava", "32.1.3-jre", "33.7.2"],
-    [1, "CVE-2026-102554", "com.google.guava:guava", "33.0.0-jre", "33.7.2"],
-    [2, "CVE-2026-102554", "com.google.guava:guava", "33.2.1-jre", "33.7.2"],
-    [1, "CVE-2026-102554", "com.google.guava:guava", "33.3.0-jre", "33.7.2"],
-    [1, "CVE-2026-102554", "com.google.guava:guava", "33.5.0-jre", "33.7.2"],
-    [2, "CVE-2026-102554", "com.google.guava:guava", "33.7.1-jre", "33.7.2"],
-    [1, "CVE-2026-77422", "org.jline:jline-builtins", "3.21.0", "4.3.1, 3.30.15"],
-    [2, "CVE-2026-75140", "org.jsoup:jsoup", "1.23.1", "1.23.2"],
-    [1, "CVE-2026-108106", "org.xerial.snappy:snappy-java", "1.1.10.8", "1.1.10.9"],
-    [1, "CVE-2026-93451", "org.xerial.snappy:snappy-java", "1.1.10.8", "1.1.10.9"],
-    [1, "CVE-2026-89425", "tools.jackson.core:jackson-core", "3.2.2", "3.1.7, 3.2.3"],
-    [11, "CVE-2026-91776", "tools.jackson.core:jackson-databind", "3.2.2", "3.1.7, 3.2.3"],
-    [11, "CVE-2026-91777", "tools.jackson.core:jackson-databind", "3.2.2", "3.1.7, 3.2.3"],
-  ];
   const f = await fixture(t, { mutateOld: (pair) => {
-    const result = pair.json.Results[0];
-    result.Packages = groups.map(([, , Name, Version]) => ({ Name, Version }));
-    result.Vulnerabilities = groups.flatMap(([count, VulnerabilityID, PkgName, InstalledVersion, FixedVersion]) =>
-      Array(count).fill({ VulnerabilityID, PkgName, InstalledVersion, FixedVersion, Severity: "HIGH" }));
-    pair.cyclonedx.components = result.Packages.map((pkg, i) => ({ type: "library", name: pkg.Name,
-      version: pkg.Version, "bom-ref": "pkg-" + i, properties: [prop("PkgType", "jar")] }));
+    pair.json = { ...baselineReport, CreatedAt: new Date().toISOString() };
+    pair.cyclonedx = baselineSbom;
     validateOfficialImageSbom(pair.json, pair.cyclonedx, previous);
   } });
   f.receipt.awsComparisonInputs.databaseFiles[0].sha256 = "7244f40ff53c4ac2909d8fba04aa4937354a620c380dc83bbc51df715f6cd68d";

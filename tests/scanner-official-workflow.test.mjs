@@ -194,7 +194,7 @@ test("missing refusal or early extraction is rejected by the ordering regression
 test("raw audit and comparator suites precede authenticated acquisition and scanner execution", () => {
   const tests = step(workflow, "tests");
   for (const file of ["scanner-official-controls.test.mjs", "scanner-official-audit.test.mjs", "scanner-official-workflow.test.mjs",
-    "scanner-official-aws-comparator.test.mjs", "scanner-official-comparison-checkpoint.test.mjs", "scanner-official-opensearch-inventory.test.mjs", "scanner-official-opensearch-comparator.test.mjs"]) {
+    "scanner-official-aws-comparator.test.mjs", "scanner-official-comparison-checkpoint.test.mjs", "scanner-official-opensearch-inventory.test.mjs", "scanner-official-opensearch-comparator.test.mjs", "scanner-official-opensearch-integration.test.mjs"]) {
     assert.ok(tests.run.includes("tests/" + file));
   }
   assert.ok(steps(workflow).indexOf(tests) < steps(workflow).indexOf(step(workflow, "provenance")));
