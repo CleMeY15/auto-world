@@ -12,6 +12,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["NEXT_PUBLIC_PRIVATE_WEB"],
       "outputs": ["dist/**", ".prototype-dist/**", ".next/**"]
     },
     "lint": {

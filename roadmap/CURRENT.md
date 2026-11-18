@@ -72,3 +72,7 @@ PR250 est MAIN_ACCEPTED sur0c2b3d6c ; le parent conserve le dossier M3.
 Prochaine action de cette voie : livrer la documentation sans changement de
 source exécutée, revue d'équivalence et gate qualité, fusion normale PR251,
 puis workflows et revue du main exact. TASK-0005/A restent IN_PROGRESS.
+
+## Préparation du site privé — 18 novembre 2026
+
+[TASK-0130](tasks/TASK-0130-private-web.md) prépare le frontal nominatif d’autofind.tech sur une branche dédiée. [Preuves et limites](../docs/validation/TASK-0130.md). Le parent conserve la décision de livraison, le staging root, le certificat et les essais externes. PR240, PR260 et le runtime 3129 gardent leurs propriétaires.
