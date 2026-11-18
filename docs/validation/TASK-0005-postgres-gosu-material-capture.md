@@ -125,3 +125,60 @@ Run focused positive/refusal and serialized repository checks. Native source/mai
 runs belong to the existing GitHub workflows. Parent owns independent source
 review, original evidence review and protected delivery. Infrastructure only,
 no UI surface, outside the product pilot. No tokens/cost or human effort measured.
+
+## Implementation and local verification
+
+Frozen executable revision `939852dc19e0c0e3af713fd374a8a267a0fa450f`,
+tree `3cffd44310f22d828429282a765bf3c0a233d0d4`. The final handoff
+adds documentation only. The helper emits the compact projection after its
+fourth marker. The wrapper binds the exact bytes to the authenticated RUN
+vertex, streams, checkout, attempt and command. The PostgreSQL local exporter
+gets one of the two existing solves and the same 90-minute deadline.
+
+The adapter compares 15 recipe files against blobs in the workflow commit.
+It streams the 34 exported files into an owned private copy and rechecks the
+export, consumed copy and recipes. It checks the local image/config ID and archive hash/length,
+the source and binary pins, actual runtime inventory, duplicate references,
+six proxy rows, canonical receipt and the independently observed projection.
+Cached vertex counts describe the observed command streams. They do not assert
+a second execution of the offline helper. The public observation records
+measurement, manifest hash and cleanup. Binary bytes, full command lines and
+private filesystem tuples stay in the disposable job. Staging reserves room
+for two 64 MiB exports, up to 64 MiB of private text staging, the recipe and
+descriptor allowances and 25% headroom. This is a preflight, not a Buildx quota.
+
+Local Linux Node v22.23.2, pnpm 10.15.0, frozen install. Quality commands
+were serialized with umask 0077 and a short owned ext4 TMPDIR. The local
+fixtures exercise the real helper and host adapter with synthetic compiler
+and export inputs. They establish refusal and comparison behavior. Native
+material sizes and equality on source/main still require original Actions evidence.
+
+Earlier iterations exposed the TSV COPY allowlist, a missing test import and
+two lint errors from assigning to catch parameters. The final source fixes
+each. Directory identity revalidation also covers exporter-destination
+replacement. The first complete local executable verification uses the frozen
+revision above; intermediate revisions and their runs do not stand in for it.
+
+| Local gate | Frozen executable result |
+| --- | --- |
+| Managed workflow regression command (`node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs`) | 799 passed, 0 failed, one existing non-Linux refusal test skipped on Linux. Log SHA256 `438c8db83c7de46fdb631525337e3750dd2e9ad9175b007fc77b8e197e47b27f`. |
+| `pnpm lint`, `pnpm typecheck`, `pnpm build` | 14/14 lint and 23/23 typecheck uncached; 14/14 build with 8 cached. |
+| `pnpm test` | Initial root 3,342 passed, 4 failed, 123 skipped. Existing signer fixtures rejected the group-writable prepared checkout. Removed group-write permission on the owned checkout root and six single-link attestation input files. The targeted six attestation tests then passed. Full retry: 3,346 root passed, 123 preexisting platform/environment skips, 0 failures; 776 numeric package passes, 28/28 Turbo tasks, 13 cached. No tracked bytes or assertions changed for this retry. |
+| `pnpm secrets:check`, `pnpm run audit:dependencies` | Secretlint passed on 1,477 repository files; full low-severity audit reported no known vulnerabilities. |
+| Browser / native | Browser server port 3210 already occupied by another session; local browser suite not run. Parent verifies hosted quality including browsers, tooling and original native managed/source/main artifacts. No local service operation or synthetic native result. |
+
+First verified local handoff on 18 November at 11:00 UTC. Local logs in
+`.local-data/gosu-material-validation-lowMI9/` include the original failed root
+run, targeted environment retest and full retry. The native first projection,
+real 34-file capture, measured binary size, public artifact membership, cleanup
+and source/main gates still await independent original-evidence review.
+
+AWS holds the merge window. [PR253](https://github.com/CleMeY15/auto-world/pull/253)
+head `83997fcd9e5db707ab082c4b3bcca32dda4f87df` shares the audit adapter and
+exact-source guard. This M3 source descends directly from the PR252 checkpoint.
+After the AWS main is accepted, preserve both behaviors, recompute the guard
+from the integrated adapter bytes and verify AWS/Gosu/OpenSearch and the
+applicable final gates on that new revision. Parent owns the independent reviews
+and protected delivery. TASK-0005/0005A remain IN_PROGRESS, including global
+material closure, capacity, retention, admission/support and final gates.
+Rollback reverts the M3 changes while preserving the AWS increment and evidence.
