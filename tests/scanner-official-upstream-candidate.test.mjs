@@ -60,8 +60,8 @@ test("OpenSearch candidate pins bind the actual registry index, platform and con
   assert.throws(() => validateBindings(config, changed, bytes));
 });
 
-test("scanner, source references and every other role remain unchanged by this candidate", () => {
-  const unchanged = JSON.parse(JSON.stringify(config)), selected = unchanged.images.find(({ role }) => role === "opensearch");
+test("PR251 preserved the scanner, source references and all other roles in its historical release", () => {
+  const unchanged = json("docs/validation/aws-cli-20261118/pr251-official-release.json"), selected = unchanged.images.find(({ role }) => role === "opensearch");
   assert.equal(unchanged.resolvedAt, provenance.observedAt);
   unchanged.resolvedAt = "2026-11-09T07:21:40.3686192Z";
   delete selected.manifestDigest;
