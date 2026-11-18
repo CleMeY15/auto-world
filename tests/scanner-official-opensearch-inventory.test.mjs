@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
-import { buildOpenSearchComparison, openSearchHistoricalInputsMatch, readOpenSearchReferences, validateOpenSearchComparisonJson } from "../scripts/scanner/official-opensearch-inventory.mjs";
+import { buildOpenSearchComparison, openSearchHistoricalInputsMatch, readOpenSearchReferences, validateOpenSearchComparisonJson, validateOpenSearchComparisonPair } from "../scripts/scanner/official-opensearch-inventory.mjs";
 
 const read = (name) => JSON.parse(readFileSync(new URL("../docs/validation/opensearch-310/" + name + ".json", import.meta.url)));
 const oldPin = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url))).images.find((pin) => pin.role === "opensearch");
@@ -17,6 +17,8 @@ const copyKey = (p) => JSON.stringify([p.name, p.version, p.file]);
 const fileOf = (component) => component.properties.find((p) => p.name === "aquasecurity:trivy:FilePath");
 const ml = "usr/share/opensearch/plugins/opensearch-ml/guava-32.1.3-jre.jar";
 const analytics = "usr/share/opensearch/plugins/opensearch-security-analytics/guava-32.1.3-jre.jar";
+
+const samlOwner = (release) => "usr/share/opensearch/plugins/opensearch-security/opensaml-" + release + ".0.0-all.jar";
 
 // Only the old report is a real scan. Model candidate scanner visibility from
 // the independently mapped Maven copies plus all OS packages. Unobserved JAR
@@ -58,23 +60,51 @@ function syntheticCandidate({ fullCoverage = false } = {}) {
   }
   const shipped = new Set(read("jar-paths"));
   const shippedOwner = (file) => shipped.has(file?.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1]);
-  json.Results[1].Packages = json.Results[1].Packages.filter((p) => fullCoverage && shippedOwner(p.FilePath));
+  const matched = read("matched-82");
+  const sourcePackages = json.Results[1].Packages;
+  const originalLayers = new Map(sourcePackages.map((pkg) => [pkg.FilePath, pkg.Layer]));
+  // Use the archived Maven evidence for the neighbours of the renamed aggregate.
+  // Scanner visibility in the candidate is synthetic.
+  const opensaml = read("opensaml-candidate-maven"), oldSaml = samlOwner("3.9"), newSaml = opensaml.file;
+  const samlLayer = json.Metadata.Layers.find((l) => l.Digest === opensaml.layerDigest);
+  assert.equal(originalLayers.get(oldSaml).Digest, samlLayer.Digest);
+  const mappedSaml = new Set(matched.filter((m) => m.original.PkgPath === oldSaml).map((m) => m.original.PkgName));
+  if (fullCoverage) {
+    for (const p of sourcePackages) {
+      if (p.FilePath !== oldSaml || mappedSaml.has(p.Name)) continue;
+      p.FilePath = newSaml;
+      p.Version = opensaml.versions[p.Name];
+      p.Identifier.PURL = "pkg:maven/" + p.Name.replace(":", "/") + "@" + p.Version;
+    }
+    for (const c of sbom.components) {
+      const file = fileOf(c);
+      const name = c.group + ":" + c.name;
+      if (file?.value !== oldSaml || mappedSaml.has(name)) continue;
+      file.value = newSaml;
+      c.version = opensaml.versions[name];
+      c.purl = "pkg:maven/" + c.group + "/" + c.name + "@" + c.version;
+    }
+  }
+  json.Results[1].Packages = sourcePackages.filter((p) => fullCoverage && shippedOwner(p.FilePath));
   json.Results[1].Vulnerabilities = [];
   sbom.components = sbom.components.filter((c) => !c.purl?.startsWith("pkg:maven/") || fullCoverage && shippedOwner(fileOf(c)?.value));
   sbom.dependencies = [];
   sbom.vulnerabilities = [];
   const seen = new Set(json.Results[1].Packages.map((p) => copyKey({ name: p.Name, version: p.Version, file: p.FilePath })));
-  for (const { original, meetsOriginalThreshold, candidate: [file, , { groupId, artifactId, version }] } of read("matched-82")) {
+  for (const { original, meetsOriginalThreshold, candidate: [file, , { groupId, artifactId, version }] } of matched) {
     const name = groupId + ":" + artifactId, key = copyKey({ name, version, file });
+    const { Digest, DiffID } = originalLayers.get(original.PkgPath);
+    const Layer = { Digest, DiffID };
     if (fullCoverage && !meetsOriginalThreshold) {
-      json.Results[1].Vulnerabilities.push({ ...original, PkgPath: file, InstalledVersion: version });
+      json.Results[1].Vulnerabilities.push({ ...original, PkgPath: file, InstalledVersion: version, Layer });
     }
     if (seen.has(key)) continue;
     seen.add(key);
     const purl = "pkg:maven/" + groupId + "/" + artifactId + "@" + version;
-    json.Results[1].Packages.push({ Name: name, Version: version, FilePath: file, Identifier: { PURL: purl } });
+    json.Results[1].Packages.push({ Name: name, Version: version, FilePath: file, Identifier: { PURL: purl }, Layer });
     sbom.components.push({ "bom-ref": "synthetic-" + seen.size, type: "library", name: artifactId, group: groupId, version, purl,
-      properties: [{ name: "aquasecurity:trivy:PkgType", value: "jar" }, { name: "aquasecurity:trivy:FilePath", value: file }] });
+      properties: [{ name: "aquasecurity:trivy:PkgType", value: "jar" }, { name: "aquasecurity:trivy:FilePath", value: file },
+        { name: "aquasecurity:trivy:LayerDigest", value: Digest }, { name: "aquasecurity:trivy:LayerDiffID", value: DiffID }] });
   }
   return { json, sbom };
 }
@@ -126,6 +156,7 @@ test("database drift retains missing historical occurrences and all newly emitte
   for (const file of [ml, analytics]) {
     for (const id of ["CVE-2026-102554", "CVE-SYNTHETIC-NEW"]) {
       data.candidateReport.json.Results[1].Vulnerabilities.push({ VulnerabilityID: id, Severity: "HIGH",
+        Layer: data.candidateReport.json.Results[1].Packages.find((p) => p.FilePath === file).Layer,
         PkgName: "com.google.guava:guava", PkgPath: file, InstalledVersion: "32.1.3-jre", FixedVersion: "33.7.2" });
     }
   }
@@ -242,7 +273,7 @@ test("fixed reference reader refuses missing, oversized and same-size altered OC
 test("unmatched duplicate emissions remain individual occurrences and cannot join an unrelated enclosing JAR", async () => {
   const data = inputs(), result = data.candidateReport.json.Results[1];
   const finding = { VulnerabilityID: "CVE-SYNTHETIC", PkgName: "com.google.guava:guava", InstalledVersion: "32.1.3-jre",
-    PkgPath: analytics, Severity: "HIGH" };
+    PkgPath: analytics, Severity: "HIGH", Layer: result.Packages.find((p) => p.FilePath === analytics).Layer };
   result.Vulnerabilities.push(finding, { ...finding });
   data.candidateBlockers = evaluated(data.candidateReport, candidatePin);
   const compared = await buildOpenSearchComparison(data);
@@ -388,4 +419,116 @@ test("refuses a repeated target that expands beyond the projection budget", asyn
   const data = inputs({ fullCoverage: true });
   data.candidateReport.json.Results[1].Target = "x".repeat(128 * 1024);
   await assert.rejects(buildOpenSearchComparison(data), /scanner_opensearch_projection_limit/u);
+});
+
+test("reconciles every off-advisory copy across a proved owner replacement and records all gaps", async () => {
+  const data = inputs({ fullCoverage: true });
+  const pair = data.candidateReport, file = samlOwner("3.10");
+  const missing = "org.opensaml:opensaml-saml-impl";
+  // Leave this coordinate visible only at its obsolete path in both formats.
+  const stalePkg = pair.json.Results[1].Packages.find((p) => p.Name === missing && p.FilePath === file);
+  const staleLib = pair.sbom.components.find((c) => c.group + ":" + c.name === missing && fileOf(c)?.value === file);
+  stalePkg.FilePath = fileOf(staleLib).value = samlOwner("3.9");
+
+  // A duplicated coordinate cannot stand in for a neighbour. A matching
+  // version in a different inner path cannot stand in for the expected copy.
+  const duplicate = "org.opensaml:opensaml-core-api", moved = "org.opensaml:opensaml-saml-api";
+  const library = (name) => pair.sbom.components.find((c) => c.group + ":" + c.name === name && fileOf(c)?.value === file);
+  const pkg = (name) => pair.json.Results[1].Packages.find((p) => p.Name === name && p.FilePath === file);
+  pair.json.Results[1].Packages.push({ ...pkg(duplicate) });
+  pair.sbom.components.push({ ...library(duplicate), "bom-ref": "duplicate-off-advisory" });
+  pkg(moved).FilePath = fileOf(library(moved)).value = file + "!/nested.jar";
+  const r = await buildOpenSearchComparison(data);
+  assert.equal(r.qualification, "failed");
+  assert.deepEqual(r.unresolved.reasons, ["jar_outside_static_inventory", "unexplained_package_loss", "opensaml_inventory_mismatch"]);
+  const gaps = r.packageCoverage.replacementGaps;
+  assert.deepEqual(gaps.map((g) => [r.old.packages[g.oldPackages[0]].name, g.candidatePackages.length]).sort(),
+    [[missing, 0], [moved, 0], [duplicate, 2]].sort());
+  assert.ok(gaps.every((g) => g.file === file && g.oldPackages.length === 1));
+  assert.equal(r.unresolved.unexplainedPackageLosses.length, 3);
+  assert.deepEqual(r.unresolved.missingMappedCopies, []);
+  assert.equal(r.candidatePolicy, "blocked");
+});
+
+test("changed DB with a below-floor advisory absent on both fresh subjects retains the floor and actual emissions", async () => {
+  const data = inputs({ fullCoverage: true });
+  data.currentInputs = read("official-audit-receipt").awsComparisonInputs;
+  data.currentInputs.databaseFiles.find((d) => d.file === "db/trivy.db").sha256 = "7".repeat(64);
+  data.historicalInputsMatch = false;
+  for (const pair of [data.oldReport, data.candidateReport]) {
+    const result = pair.json.Results[1];
+    result.Vulnerabilities = result.Vulnerabilities.filter((v) => !v.PkgName.endsWith(":jline-builtins"));
+  }
+  data.oldBlockers = evaluated(data.oldReport, oldPin);
+  data.candidateBlockers = evaluated(data.candidateReport, candidatePin);
+  const shared = await buildOpenSearchComparison(data);
+  const jline = shared.correspondence.find((row) => row.original.PkgName.endsWith(":jline-builtins"));
+  assert.equal(shared.qualification, "passed");
+  assert.equal(shared.candidatePolicy, "blocked");
+  assert.equal(shared.unresolved.candidateAdvisoryOccurrences, 6);
+  assert.deepEqual(shared.unresolved.sharedBelowFloorAdvisoryDrift, [jline.historicalFinding]);
+  assert.deepEqual(shared.unresolved.missingBelowFloorAdvisories, [jline.historicalFinding]);
+  assert.equal(shared.unresolved.belowHistoricalFloor.length, 7);
+  assert.ok(shared.unresolved.belowHistoricalFloor.includes(jline.historicalFinding));
+  assert.deepEqual(jline.candidateFindings, []);
+  assert.equal(jline.oldFinding, null);
+  const [candidateOnlyLoss] = data.candidateReport.json.Results[1].Vulnerabilities.splice(0, 1);
+  data.candidateBlockers = evaluated(data.candidateReport, candidatePin);
+  const partial = await buildOpenSearchComparison(data);
+  assert.deepEqual(partial.unresolved.reasons, ["below_floor_advisories_unmeasured"]);
+  assert.deepEqual(partial.unresolved.sharedBelowFloorAdvisoryDrift, [jline.historicalFinding]);
+  assert.equal(partial.unresolved.unexplainedBelowFloorAdvisories.length, 1);
+  assert.equal(partial.correspondence[partial.unresolved.unexplainedBelowFloorAdvisories[0]].file, candidateOnlyLoss.PkgPath);
+});
+
+test("pair gate binds every package, library and advisory to the same actual image layer", async () => {
+  await validateOpenSearchComparisonPair(readOld(), "old");
+  for (const change of ["library", "finding", "missingPackage", "missingFinding", "missingLibrary", "missingAll", "root"]) {
+    const pair = readOld(), result = pair.json.Results[1];
+    const v = result.Vulnerabilities[0];
+    const p = result.Packages.find((row) => row.Name === v.PkgName && row.FilePath === v.PkgPath);
+    const c = pair.sbom.components.find((row) => fileOf(row)?.value === v.PkgPath && row.purl === p.Identifier.PURL);
+    const other = pair.json.Metadata.Layers.find((layer) => layer.Digest !== p.Layer.Digest);
+    if (change === "library") {
+      c.properties.find((prop) => prop.name.endsWith(":LayerDigest")).value = other.Digest;
+      c.properties.find((prop) => prop.name.endsWith(":LayerDiffID")).value = other.DiffID;
+    }
+    if (change === "finding") v.Layer = { Digest: other.Digest, DiffID: other.DiffID };
+    if (change === "missingPackage" || change === "missingAll") delete p.Layer;
+    if (change === "missingFinding" || change === "missingAll") delete v.Layer;
+    if (change === "missingLibrary" || change === "missingAll") c.properties = c.properties.filter((prop) => !prop.name.includes(":Layer"));
+    if (change === "root") pair.json.Metadata.Layers.reverse();
+    await assert.rejects(validateOpenSearchComparisonPair(pair, "old"),
+      /old_json_sbom_copy_mismatch|old_finding_package_mismatch|old_json_layer_invalid|sbom_property_invalid|old_json_subject_invalid/u);
+  }
+});
+
+test("pins the 37 OpenSAML Maven versions and their physical layer independently of candidate emissions", async () => {
+  const data = inputs({ fullCoverage: true }), pair = data.candidateReport;
+  const full = await buildOpenSearchComparison(data);
+  assert.equal(full.references.opensaml.sha256, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146");
+  const { file, coordinates, layer } = full.packageCoverage.opensaml;
+  assert.equal(coordinates.length, 37);
+  assert.ok(coordinates.every((row) => row.matched));
+  const upgrades = full.packageCoverage.provedMigrations.filter((m) => m.versionSource === "opensaml" &&
+    full.old.packages[m.oldPackage].version !== full.candidate.packages[m.candidatePackage].version);
+  assert.equal(upgrades.length, 5);
+  const missing = "org.opensaml:opensaml-saml-impl", stale = "org.apache.httpcomponents.client5:httpclient5";
+  const relocated = "org.opensaml:opensaml-core-api";
+  removeMavenCopy(pair, missing, file);
+  const pkg = (name) => pair.json.Results[1].Packages.find((p) => p.FilePath === file && p.Name === name);
+  const lib = (name) => pair.sbom.components.find((c) => fileOf(c)?.value === file && c.group + ":" + c.name === name);
+  pkg(stale).Version = lib(stale).version = "5.6.4";
+  pkg(stale).Identifier.PURL = lib(stale).purl = "pkg:maven/org.apache.httpcomponents.client5/httpclient5@5.6.4";
+  const other = pair.json.Metadata.Layers.find((l) => l.Digest !== layer.Digest);
+  pkg(relocated).Layer = { Digest: other.Digest, DiffID: other.DiffID };
+  lib(relocated).properties.find((p) => p.name.endsWith(":LayerDigest")).value = other.Digest;
+  lib(relocated).properties.find((p) => p.name.endsWith(":LayerDiffID")).value = other.DiffID;
+  const r = await buildOpenSearchComparison(data);
+  assert.equal(r.reason, "scanner_opensearch_unexplained_package_loss");
+  assert.deepEqual(r.unresolved.unexplainedPackageLosses.map((i) => r.old.packages[i].name).sort(), [missing, stale, relocated].sort());
+  const gaps = r.packageCoverage.opensaml.coordinates.filter((c) => !c.matched);
+  assert.deepEqual(gaps.map((g) => g.name).sort(), [missing, stale, relocated].sort());
+  assert.equal(gaps.find((g) => g.name === stale).version, "5.6.5");
+  assert.deepEqual(r.unresolved.missingMappedCopies, []);
 });
