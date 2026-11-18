@@ -5,11 +5,12 @@
 The final checkpoint in the [PR250 body](https://github.com/CleMeY15/auto-world/pull/250)
 records MAIN_ACCEPTED for source `2d204d5222a1a3832697752a49bbd05bc9394120`,
 main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`, identical tree
-`5315861787a641cc8f7d2d15edf7d6005a943478`. All five main workflows pass
-attempt1, with independent original-evidence approval. Managed44249041549
+`5315861787a641cc8f7d2d15edf7d6005a943478`. Six main workflows ran on attempt 1. Five succeeded.
+The raw upstream audit failed with 243 unwaived blockers. The independent
+review verified all six results. Managed run 44249041549
 retains the first-runtime command25 trace:1201 bytes, SHA256
 `d4a9c96ee0160992ff85c5832d9b174e704831a4e0acdb987814645f33ef6053`,
-four ordered markers/DONE, uncached. Original raw FAILURE/243 remains unwaived.
+four ordered markers/DONE, uncached.
 Earlier pending source/main statements below are historical for this increment;
 the rejected source run lacking this trace remains rejected. The immutable plan
 is unchanged. Seven-data sufficiency under the supplied compiler is accepted,

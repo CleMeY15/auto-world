@@ -28,7 +28,7 @@ hosted CI remains applicable under [the development workflow](../DEVELOPMENT_WOR
 | --- | --- | --- |
 | Frozen preparation source | HEAD/tree/status and all 1,458 hashes before/after each review | Unchanged through Critic intake; later documentary edits are a separate revision |
 | Source evidence | Exact original managed receipt, TSV, offline receipt, trace, DB manifests/metadata, parent acceptance/report and contracts | Rehashed external references; no binary payload survival inferred |
-| Measurements | Recompose rows from originals and compare TSV bytes | Seven data 1,902,664 bytes; image archives 4,130,505,728; DB 3,339,137,024 + 306 metadata; separate subtotals |
+| Measurements | Recompose rows from original receipts and the PR250 source-length pin verified by the build and offline reconstruction. Compare TSV bytes | Seven data 1,902,664 bytes; image archives 4,130,505,728; DB 3,339,137,024 + 306 metadata; separate subtotals |
 | Documents | Relative links/anchors, exact patch reconstruction, changed-file scope and secret checks | Local delivery checks are recorded in the PR; preparation checks alone do not replace repository Secretlint |
 | Frozen dossier integrity | Exact coverage, dirs 0700/files 0600, separate-process rehash | Critic verified 179 external references; parent intake rechecked four dossiers/86 members, 179 references and 1,458 sources without divergence |
 | Independent plan review | Actual Architect, parent corrections, then distinct Critic | WATCH on revision 0; APPROVE on revision 1 only; details below |

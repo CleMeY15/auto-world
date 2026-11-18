@@ -5,9 +5,9 @@
 [PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250) accepts
 source `2d204d5222a1a3832697752a49bbd05bc9394120`, main
 `0c2b3d6c1e67c665f7cd1718f18703baf673409e`, identical tree
-`5315861787a641cc8f7d2d15edf7d6005a943478`. Five main workflows pass attempt1;
-independent original-evidence review approves the first-runtime uncached Gosu
-trace and diagnostic implementation. Raw FAILURE/243 remains unwaived.
+`5315861787a641cc8f7d2d15edf7d6005a943478`. Of six main workflows on attempt 1, five succeeded and the raw upstream audit
+failed with 243 unwaived blockers. Independent review approved the uncached
+Gosu trace from the first runtime build and the diagnostic implementation.
 [Evidence and historical failure](../docs/validation/TASK-0005-gosu-offline-inputs.md#accepted-diagnostic-delivery--18-november-2026).
 
 The separate [capture proposal](plans/TASK-0005-postgres-gosu-material-capture.md)
