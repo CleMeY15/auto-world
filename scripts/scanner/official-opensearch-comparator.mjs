@@ -3,7 +3,8 @@ import { statfs, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
-import { boundedJsonBytes, captureFiles, readBoundedJson } from "./controls.mjs";
+import { captureFiles, readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { validateOpenSearchComparisonJson } from "./official-opensearch-inventory.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
 

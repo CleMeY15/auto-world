@@ -3,7 +3,8 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
-import { boundedJsonBytes, captureFiles, readBoundedJson } from "./controls.mjs";
+import { captureFiles, readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 
 const previous = {
   role: "aws-cli-previous", repository: "amazon/aws-cli", version: "2.38.5",

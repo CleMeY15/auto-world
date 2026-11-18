@@ -6,7 +6,8 @@ import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
-import { assertFilesUnchanged, boundedJsonBytes, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
+import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { acceptsManagedSeaweedRuntimeTests, MANAGED_SEAWEED_IAM_FIXTURE_SOURCES, MANAGED_SEAWEED_MATERIAL, inspectManagedSeaweedTests, readManagedSeaweedStatuses,
   readManagedSeaweedStatusesFromCapture, readManagedSeaweedTestsFromCapture,

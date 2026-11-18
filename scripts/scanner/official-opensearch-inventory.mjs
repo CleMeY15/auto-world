@@ -1,7 +1,8 @@
 import path from "node:path";
 import { URLSearchParams } from "node:url";
 import { isDeepStrictEqual as equal } from "node:util";
-import { boundedJsonBytes, readBoundedJson } from "./controls.mjs";
+import { readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { validateOfficialImageSbom } from "./official-audit.mjs";
 
 const root = path.resolve(import.meta.dirname, "../../docs/validation");
