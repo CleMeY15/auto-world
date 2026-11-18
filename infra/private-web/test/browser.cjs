@@ -15,12 +15,42 @@ async function main() {
     const listing = "lst_5696220ef97cf2af439e0279456ea36c70dd3df4e97b4455fc1577fa81aa8863";
     const target = "/demo?source=test#detail/" + listing;
     const report = "/demo/rapports/" + listing + "/b2-parcours";
+    const landing = await page.goto(base + "/");
+    assert.equal(landing.status(), 200);
+    const signIn = page.getByRole("link", { name: "Se connecter" });
+    await signIn.waitFor();
+    const timer = page.locator("[data-deadline]");
+    assert.equal(await timer.locator("time").getAttribute("datetime"), "2027-01-13");
+    assert.equal(await page.locator(".film img").evaluate(img => img.complete && img.naturalWidth > 0), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const { default: AxeBuilder } = require("../../../apps/web/node_modules/@axe-core/playwright");
+    const landingAudit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+    assert.deepEqual(landingAudit.violations.map(v => v.id), []);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    assert.equal(await page.locator(".film img").evaluate(img => getComputedStyle(img).animationName), "none");
+    if (await timer.getByRole("button", { name: "Figer" }).isVisible()) {
+      await timer.getByRole("button", { name: "Figer" }).click();
+      await timer.getByRole("button", { name: "Reprendre" }).click();
+    }
+    if (process.env.PRIVATE_WEB_EVIDENCE) {
+      mkdirSync(process.env.PRIVATE_WEB_EVIDENCE, { recursive: true });
+      await page.screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/accueil-mobile.png" : "/accueil-bureau.png") });
+    }
+    const expiryContext = await browser.newContext({ ignoreHTTPSErrors: true });
+    const expiry = await expiryContext.newPage();
+    await expiry.clock.install({ time: new Date("2027-01-13T11:00:01Z") });
+    await expiry.goto(base);
+    await expiry.locator(".expired").waitFor();
+    assert.equal(await expiry.locator(".clock").isVisible(), false);
+    await expiryContext.close();
+    await signIn.click();
+    await page.getByLabel("Identifiant").waitFor();
+    assert.equal(new URL(page.url()).pathname, "/acces/connexion");
     const entry = await page.goto(base + target);
     assert.equal(entry.status(), 401);
     assert.match(entry.headers()["cache-control"], /no-store/);
     assert.equal(await page.locator("[name=next]").inputValue(), target);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    const { default: AxeBuilder } = require("../../../apps/web/node_modules/@axe-core/playwright");
     const a11y = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     assert.deepEqual(a11y.violations.map(v => v.id), []);
     const timing = await page.evaluate(() => performance.getEntriesByType("navigation")[0].domContentLoadedEventEnd);
@@ -34,7 +64,7 @@ async function main() {
       await page.screenshot({ path: evidence + (mobile ? "/mobile.png" : "/bureau.png") });
     }
     const req = context.request;
-    for (const path of ["/", "/carte-grise", "/historique-vehicule", "/icon.svg", "/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
+    for (const path of ["/demo", "/carte-grise", "/historique-vehicule", "/icon.svg", "/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
       const response = await req.get(base + path, { headers: { "X-Original-URI": "/demo", "X-Forwarded-User": "invite" } });
       assert.equal(response.status(), 401, path);
       assert.match(response.headers()["cache-control"], /no-store/);
