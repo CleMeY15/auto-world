@@ -1,4 +1,5 @@
-import { Banner } from "@auto-world/design-system/primitives";
+import { memo, useLayoutEffect, useRef, useState } from "react";
+import { Banner, Button } from "@auto-world/design-system/primitives";
 import type { DemoEvidence, DemoResultV2, DemoSearchResponseV2 } from "@auto-world/demo-search-contract";
 import {
   formatExactNumber,
@@ -20,7 +21,7 @@ export function DetailSnapshot({ response, online }: { readonly response: DemoSe
   );
 }
 
-function ObservationValue({ evidence }: { readonly evidence: DemoEvidence }) {
+const ObservationValue = memo(function ObservationValue({ evidence }: { readonly evidence: DemoEvidence }) {
   const value = evidence.field === "price"
     ? formatObservedPrice(evidence.value, "code")
     : `${formatExactNumber(evidence.value.amount)} ${evidence.value.unit}`;
@@ -30,6 +31,54 @@ function ObservationValue({ evidence }: { readonly evidence: DemoEvidence }) {
       <span>Observé le <time dateTime={evidence.observedAt}>{formatObservationTimestamp(evidence.observedAt)}</time></span>
       <span>Confiance de l’observation : {formatObservationConfidence(evidence.confidenceBps)}</span>
     </div>
+  );
+});
+
+const HISTORY_GROUP_SIZE = 8;
+
+function RetainedObservations({ observations, name }: {
+  readonly observations: readonly DemoEvidence[];
+  readonly name: string;
+}) {
+  const [limit, setLimit] = useState(HISTORY_GROUP_SIZE);
+  const list = useRef<HTMLOListElement>(null);
+  const nextFocus = useRef<number | null>(null);
+  const visibleCount = Math.min(limit, observations.length);
+  const remaining = observations.length - visibleCount;
+
+  useLayoutEffect(() => {
+    if (nextFocus.current === null) return;
+    const firstNewRow = list.current?.children.item(nextFocus.current);
+    if (firstNewRow instanceof HTMLElement) firstNewRow.focus();
+    nextFocus.current = null;
+  }, [limit]);
+
+  function revealGroup() {
+    nextFocus.current = visibleCount;
+    setLimit(visibleCount + HISTORY_GROUP_SIZE);
+  }
+
+  return (
+    <>
+      <ol ref={list} className="demo-history-list" role="list" aria-label={`Autres observations de ${name}`}>
+        {observations.slice(0, visibleCount).map((evidence) => (
+          <li key={evidence.evidenceId} tabIndex={-1}>
+            <p className="demo-history-label">Observation conservée</p>
+            <ObservationValue evidence={evidence} />
+          </li>
+        ))}
+      </ol>
+      {observations.length > HISTORY_GROUP_SIZE ? (
+        <div className="demo-history-progress">
+          <p>{visibleCount} observations sur {observations.length}</p>
+          {remaining > 0 ? (
+            <Button variant="secondary" onClick={revealGroup}>
+              {remaining === 1 ? "Afficher la dernière observation" : `Afficher les ${Math.min(remaining, HISTORY_GROUP_SIZE)} suivantes`}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -50,14 +99,7 @@ function FieldHistory({ result, field }: { readonly result: DemoResultV2; readon
       {history.other.length > 0 ? (
         <details className="demo-history-disclosure" data-history-disclosure={field}>
           <summary>Historique du {name} <span>({history.other.length} {history.other.length === 1 ? "autre observation" : "autres observations"})</span></summary>
-          <ol className="demo-history-list" role="list" aria-label={`Autres observations de ${name}`}>
-            {history.other.map((evidence) => (
-              <li key={evidence.evidenceId}>
-                <p className="demo-history-label">Observation conservée</p>
-                <ObservationValue evidence={evidence} />
-              </li>
-            ))}
-          </ol>
+          <RetainedObservations observations={history.other} name={name} />
         </details>
       ) : null}
     </section>
@@ -71,7 +113,7 @@ export function ObservationHistory({ result }: { readonly result: DemoResultV2 }
         <h2 id="evidence-title">Historique des observations</h2>
         <p>Prix et kilométrage de cette publication synthétique. Chaque observation conserve sa date et son niveau de confiance ; cet historique n’est pas un rapport véhicule.</p>
       </div>
-      <div className="demo-history-fields">
+      <div key={result.listingId} className="demo-history-fields">
         <FieldHistory result={result} field="price" />
         <FieldHistory result={result} field="mileage" />
       </div>
