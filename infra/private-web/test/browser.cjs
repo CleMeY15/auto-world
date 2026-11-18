@@ -34,7 +34,7 @@ async function main() {
       await page.screenshot({ path: evidence + (mobile ? "/mobile.png" : "/bureau.png") });
     }
     const req = context.request;
-    for (const path of ["/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
+    for (const path of ["/", "/carte-grise", "/historique-vehicule", "/icon.svg", "/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
       const response = await req.get(base + path, { headers: { "X-Original-URI": "/demo", "X-Forwarded-User": "invite" } });
       assert.equal(response.status(), 401, path);
       assert.match(response.headers()["cache-control"], /no-store/);
@@ -52,7 +52,9 @@ async function main() {
     const auth = (await context.cookies()).find(c => c.name === "__Host-aw-session");
     assert.ok(auth.secure && auth.httpOnly && auth.sameSite === "Lax");
     const asset = await page.locator('script[src^="/_next/static/"]').first().getAttribute("src");
-    assert.equal((await req.get(base + asset)).status(), 200);
+    const assetResponse = await req.get(base + asset);
+    assert.equal(assetResponse.status(), 200);
+    assert.match(assetResponse.headers()["cache-control"], /no-store/);
     assert.equal((await req.get(base + "/admin")).status(), 403);
     assert.equal((await req.post(base + "/api/demo/v2/search", { headers: { Origin: "https://example.org" } })).status(), 403);
     assert.equal((await req.post(base + "/acces/deconnexion", { headers: { Origin: base } })).status(), 403);
@@ -84,10 +86,12 @@ async function main() {
     assert.equal((await req.get(base + asset)).status(), 401);
     await page.goto(base + "/acces/connexion?next=https%3A%2F%2Fexample.org");
     assert.equal(await page.locator("[name=next]").inputValue(), "/demo");
+    await page.locator("[name=next]").evaluate(el => { el.value = "https://example.org/"; });
     await page.getByLabel("Identifiant").fill("invite");
     await page.getByLabel("Mot de passe").fill(process.env.TEST_PASSWORD);
     await login();
     await logoutLink.waitFor();
+    assert.equal(page.url(), base + "/demo");
     const runPython = (args) => assert.equal(spawnSync("python3", args, { stdio: "inherit" }).status, 0);
     runPython(["-m", "django", "shell", "-c", "from django.contrib.sessions.models import Session; from django.utils.timezone import now; Session.objects.update(expire_date=now())"]);
     assert.equal((await req.get(base + asset)).status(), 401);
@@ -100,6 +104,15 @@ async function main() {
     assert.equal((await req.get(base + asset)).status(), 401);
     runPython(["-m", "django", "shell", "-c", "import os; from django.contrib.auth.models import User; User.objects.create_user('invite', password=os.environ['TEST_PASSWORD'])"]);
     assert.equal((await req.get(base + asset)).status(), 401);
+    if (mobile) {
+      let status;
+      for (let count = 0; count < 20 && status !== 429; count++) {
+        status = (await req.post(base + "/acces/connexion", { headers: { Origin: base } })).status();
+        assert.ok(status === 403 || status === 429);
+      }
+      assert.equal(status, 429);
+      assert.equal((await req.get(base + "/acces/deconnexion")).status(), 200);
+    }
     console.log("PASS", process.argv[2], "login, deep link, asset, CSRF, logout and account revocation");
   } finally {
     await browser.close();

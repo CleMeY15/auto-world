@@ -11,7 +11,7 @@
 
 ## Répéter sans root
 
-Sur la machine de test, il faut Node 22.23.2, pnpm 10.15.0, Chromium/WebKit Playwright du lock, openssl, Python avec les paquets Ubuntu python3-django et python3-gunicorn et le binaire nginx avec auth_request. Pour éviter toute installation système, télécharger par APT les paquets signés `nginx python3-django python3-asgiref python3-sqlparse python3-gunicorn python3-packaging` puis les extraire par `dpkg-deb -x` dans un préfixe temporaire personnel. Exporter PYTHONPATH vers son sous-répertoire usr/lib/python3/dist-packages et PRIVATE_WEB_NGINX vers usr/sbin/nginx dans ce préfixe. Les services de distribution ne sont jamais démarrés par cette méthode.
+Sur la machine de test, il faut Node 22.23.2, pnpm 10.15.0, Chromium/WebKit Playwright du lock, openssl, Python avec les paquets Ubuntu python3-django et python3-gunicorn, python3-pexpect pour tester la saisie masquée et le binaire nginx avec auth_request. Pour éviter toute installation système, télécharger par APT les paquets signés `nginx python3-django python3-asgiref python3-sqlparse python3-gunicorn python3-packaging` puis les extraire par `dpkg-deb -x` dans un préfixe temporaire personnel. Exporter PYTHONPATH vers son sous-répertoire usr/lib/python3/dist-packages et PRIVATE_WEB_NGINX vers usr/sbin/nginx dans ce préfixe. Les services de distribution ne sont jamais démarrés par cette méthode.
 
 Depuis la racine du dépôt, en présence de l'API synthétique offline sur 127.0.0.1:3210 (sans redémarrer son propriétaire) :
 

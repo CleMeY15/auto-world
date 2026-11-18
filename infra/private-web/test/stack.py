@@ -1,6 +1,7 @@
 """Exercise the staged boundary on loopback only, without root or service installation."""
 import contextlib
 import os
+import pexpect
 from pathlib import Path
 import secrets
 import shutil
@@ -60,9 +61,15 @@ with tempfile.TemporaryDirectory(prefix="aw-private-") as directory, contextlib.
         return child
 
     run([sys.executable, "-m", "django", "migrate", "--noinput", "--verbosity", "0"])
-    run([sys.executable, "-m", "django", "shell", "-c",
-         "import os; from django.contrib.auth.models import User; "
-         "User.objects.create_user('invite', password=os.environ['TEST_PASSWORD'])"])
+    # A private pty exercises the same masked admin prompts as the host runbook.
+    account = pexpect.spawn(sys.executable, ["accounts.py", "add", "invite"],
+                            env=env, cwd=str(HERE), encoding="utf-8", timeout=10)
+    for prompt in ["Mot de passe : ", "Confirmer : "]:
+        account.expect_exact(prompt)
+        account.sendline(env["TEST_PASSWORD"])
+    account.expect(pexpect.EOF)
+    account.close()
+    assert account.exitstatus == 0
     run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
          "-subj", "/CN=localhost", "-keyout", str(tmp / "privkey"), "-out", str(tmp / "cert")],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -90,8 +97,14 @@ with tempfile.TemporaryDirectory(prefix="aw-private-") as directory, contextlib.
     product = start(["node", str(HERE / "product.cjs")], REPO / "apps/web")
     wait_for(tmp / "auth.sock", auth)
     wait_for(tmp / "web.sock", product)
+    if env.get("PRIVATE_WEB_REQUIRE_REPORTS") == "1":
+        rehearsal = (HERE / "preflight.sh").read_text().replace(
+            "/run/aw-private-auth/auth.sock", str(tmp / "auth.sock")).replace(
+            "/run/aw-private-product/web.sock", env["PRIVATE_WEB_SOCKET"])
+        run(["sh", "-eu"], input=rehearsal, text=True)
     nginx = os.environ.get("PRIVATE_WEB_NGINX") or shutil.which("nginx")
     run([nginx, "-t", "-p", directory, "-c", str(tmp / "nginx.conf")])
+    (tmp / "nginx.pid").unlink(missing_ok=True)  # nginx -t may create an empty pidfile.
     edge = start([nginx, "-p", directory, "-c", str(tmp / "nginx.conf")], HERE)
     wait_for(tmp / "nginx.pid", edge)
     for address in ["127.0.0.1", "[::1]"]:
