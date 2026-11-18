@@ -7,17 +7,16 @@ import path from "node:path";
 import test from "node:test";
 import { collectImageAudits } from "../scripts/scanner/audit.mjs";
 import { readBoundedJson } from "../scripts/scanner/controls.mjs";
+import { comparePreviousAws } from "../scripts/scanner/official-aws-comparator.mjs";
 import { validateOfficialImageSbom } from "../scripts/scanner/official-audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
 import { readComparisonCheckpoint, writeComparisonCheckpoint } from "../scripts/scanner/official-comparison-checkpoint.mjs";
 
 const configUrl = new URL("../infra/scanner/official-release.json", import.meta.url);
 const config = JSON.parse(readFileSync(configUrl));
-const oldConfig = JSON.parse(readFileSync(new URL("../docs/validation/aws-cli-20261118/pr251-official-release.json", import.meta.url)));
-const previous = { ...oldConfig.images.find(({ role }) => role === "aws-cli"), role: "aws-cli-previous" };
-const ids = { opensearch: "sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba",
-  "aws-cli": "sha256:25c7966f5a6c335934d4a1b75584e12c3495a038df0848359d586d669821ffa4",
-  "aws-cli-previous": "sha256:e84d8cf62bb8820751a8575e8d60a55735bb561e53db1f5d44e7c8ab1d147c6e" };
+const pr253 = JSON.parse(readFileSync(new URL("../docs/validation/opensearch-310/official-audit-receipt.json", import.meta.url)));
+const fixtureDir = new URL("./fixtures/scanner-official/opensearch-comparison-pr253/", import.meta.url);
+test.beforeEach((t) => t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-18T14:18:00Z") }));
 const formats = ["json", "cyclonedx"];
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 function save(output, file, object) {
@@ -29,13 +28,13 @@ const load = (output, file) => JSON.parse(readFileSync(path.join(output, file)))
 
 function pair(image, scenario) {
   const subject = image.repository + "@" + image.platform.digest;
-  const id = ids[image.role] ?? "sha256:" + "1".repeat(64);
+  const id = image.role === "opensearch" ? "sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba" : "sha256:" + "1".repeat(64);
   const property = (name, value) => ({ name: "aquasecurity:trivy:" + name, value });
   const targets = image.role === "seaweedfs" ? [["usr/bin/weed", "gobinary"], ["usr/bin/weed-volume", "rustbinary"], ["usr/bin/weed-worker", "rustbinary"]]
     : [["fixture", "jar"]];
   if (image.role === "seaweedfs" && scenario === "missing-target") targets.pop();
   const vuln = { VulnerabilityID: "CVE-2026-1234", PkgName: "lib", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2" };
-  const findings = image.role === previous.role || image.role === "postgres" && scenario !== "clean"
+  const findings = image.role === "postgres" && scenario !== "clean"
     ? [vuln, vuln, { ...vuln, FixedVersion: "" }] : [];
   const Results = targets.map(([Target, Type]) => ({ Target, Type, Class: "lang-pkgs", Packages: [{ Name: "lib", Version: "1" }], Vulnerabilities: findings }));
   const json = { SchemaVersion: 2, Trivy: { Version: "0.76.2" }, CreatedAt: new Date().toISOString(), ArtifactName: subject,
@@ -52,7 +51,7 @@ function pair(image, scenario) {
       properties: [property("Type", "alpine"), property("Class", "os-pkgs")] });
   }
   const sbom = { bomFormat: "CycloneDX", specVersion: "1.6", metadata: { component: { name: subject, "bom-ref": subject,
-    type: "container", properties: [property("ImageID", scenario === "wrong-id" && image.role === "opensearch" ? ids["aws-cli"] : id)] } },
+    type: "container", properties: [property("ImageID", scenario === "wrong-id" && image.role === "opensearch" ? "sha256:" + "2".repeat(64) : id)] } },
   components, dependencies: [] };
   return { json, sbom };
 }
@@ -71,12 +70,24 @@ async function fixture(t, scenario = "") {
   const operations = {
     beforeScan() {}, afterScan() {},
     scan(image) {
-      const { json, sbom } = pair(image, scenario);
-      save(output, "image-" + image.role + ".json", json);
-      save(output, "image-" + image.role + ".cdx.json", sbom);
+      const isAws = ["aws-cli", "aws-cli-previous"].includes(image.role);
+      const synthetic = isAws ? null : pair(image, scenario);
       for (const format of formats) {
-        receipt.commands.push({ executable: "docker", exitCode: 0, error: null, signal: null,
-          lease: { name: "aw-official-" + randomUUID(), owner }, cleanup: { inspected: 1, removed: false }, ownedContainerAbsent: true });
+        const json = format === "json";
+        const file = "image-" + image.role + (json ? ".json" : ".cdx.json");
+        let bytes = isAws ? readFileSync(new URL(file, fixtureDir)) : Buffer.from(JSON.stringify(json ? synthetic.json : synthetic.sbom));
+        if (file === "image-aws-cli-previous.json" && scenario === "duplicate-old-package") {
+          const report = JSON.parse(bytes);
+          const packages = report.Results[0].Packages;
+          packages.push(packages[0]);
+          bytes = Buffer.from(JSON.stringify(report));
+        }
+        writeFileSync(path.join(output, file), bytes);
+        const lease = { name: "aw-official-" + randomUUID(), owner };
+        receipt.commands.push({ executable: "docker", exitCode: 0, error: null, signal: null, lease,
+          scan: { role: image.role, format, reference: image.repository + "@" + image.platform.digest, lease: { ...lease },
+            output: { sha256: hash(bytes), size: bytes.length } },
+          cleanup: { inspected: 1, removed: false }, ownedContainerAbsent: true });
         scanCommands.push({ role: image.role, format, index: receipt.commands.length });
       }
       if (scenario === "technical" && image.role === "redis") throw new Error("scanner_official_command_failed");
@@ -97,19 +108,14 @@ async function fixture(t, scenario = "") {
   Object.assign(receipt, five);
   receipt.fiveImageEvidence = save(output, "image-five-subject-results.json", five);
   receipt.fiveImageResult = five.rejections.length ? "rejected" : "passed";
-  const control = await collectImageAudits([previous], operations);
-  receipt.awsComparisonInputs = { scanner: { sha256: config.scanner.binarySha256, size: 176386208 },
-    databaseFiles: ["db/trivy.db", "db/metadata.json", "java-db/trivy-java.db", "java-db/metadata.json"].map((file) => ({ file, size: 10, sha256: hash(file) })) };
-  function side(image, record) {
-    return { subject: image.repository + "@" + image.platform.digest, configId: ids[image.role],
-      json: { file: "image-" + image.role + ".json", ...record.report[0] }, sbom: { file: "image-" + image.role + ".cdx.json", ...record.report[1] } };
+  receipt.awsComparisonInputs = JSON.parse(JSON.stringify(pr253.awsComparisonInputs));
+  const comparison = comparePreviousAws({ config: release, receipt, output, operations });
+  if (scenario === "duplicate-old-package") {
+    await assert.rejects(comparison, /scanner_aws_inventory_loss/u);
+  } else {
+    await comparison;
+    assert.deepEqual(receipt.awsComparator.delta, pr253.awsComparator.delta);
   }
-  const last = config.images.find(({ role }) => role === "aws-cli");
-  const delta = save(output, "image-aws-cli-comparison.json", { old: side(previous, control.reports[0]), current: side(last, five.reports.at(-1)),
-    historicalInputs: { scanner: receipt.awsComparisonInputs.scanner, databases: Object.fromEntries(receipt.awsComparisonInputs.databaseFiles
-      .filter(({ file }) => file.endsWith(".db")).map(({ file }) => [file, { size: 9, sha256: hash(file) }])) } });
-  receipt.awsComparator = { previousSubject: previous, qualification: "passed", oldPolicy: "blocked", control, delta,
-    historicalDatabaseContext: "changed", commandIndices: scanCommands.slice(-2).map(({ index }) => index) };
   return { config: release, receipt, output, operations, scanCommands };
 }
 
@@ -203,6 +209,13 @@ test("refuses missing inputs, invalid mappings, leases, execution and cleanup", 
     (f) => { f.scanCommands[1].index = 2; },
     (f) => { f.receipt.commands[2].lease.name = f.receipt.commands[1].lease.name; },
     (f) => { f.receipt.commands[5].lease.owner = randomUUID(); },
+    (f) => { delete f.receipt.commands[2].scan; },
+    (f) => { f.receipt.commands[2].scan.role = "aws-cli-previous"; },
+    (f) => { f.receipt.commands[2].scan.format = "json"; },
+    (f) => { f.receipt.commands[2].scan.reference = "amazon/aws-cli@latest"; },
+    (f) => { f.receipt.commands[2].scan.lease.owner = randomUUID(); },
+    (f) => { f.receipt.commands[2].scan.output.sha256 = "0".repeat(64); },
+    (f) => { f.receipt.commands[2].scan.output.size++; },
     (f) => { f.receipt.commands[6].ownedContainerAbsent = false; },
     (f) => { f.receipt.commands[7].cleanup = { inspected: 0, removed: false }; },
     (f) => { delete f.receipt.commands[8]; },
@@ -216,6 +229,51 @@ test("refuses missing inputs, invalid mappings, leases, execution and cleanup", 
     change(f);
     assert.equal((await writeComparisonCheckpoint(f)).eligible, false, String(change));
   }
+});
+
+test("refuses valid leases exchanged between formats before sealing", async (t) => {
+  const f = await fixture(t);
+  const [json, sbom] = f.receipt.commands.slice(-2);
+  [json.lease, sbom.lease] = [sbom.lease, json.lease];
+  const result = await writeComparisonCheckpoint(f);
+  assert.equal(result.eligible, false);
+  assert.ok(result.reasons.some(({ stage, reason }) => stage === "commands" && reason === "scanner_comparison_scan_binding_mismatch"));
+});
+
+test("recomputes the complete AWS delta even when the delta and checkpoint are correctly sealed", async (t) => {
+  const f = await fixture(t);
+  const { checkpoint, identity, eligible } = await writeComparisonCheckpoint(f);
+  assert.equal(eligible, true);
+  const file = checkpoint.awsComparator.delta.file;
+  const original = load(f.output, file);
+  const { old, current, historicalInputs } = original;
+  const identityOnly = ({ subject, configId, json, sbom }) => ({ subject, configId, json, sbom });
+  for (const altered of [
+    { old: identityOnly(old), current: identityOnly(current), historicalInputs },
+    { ...original, missingInventory: [0] },
+    { ...original, old: { ...old, packageHash: current.packageHash } },
+    { ...original, historicalToOld: { ...original.historicalToOld, matched: [] } },
+    { ...original, historicalReplayMatches: false },
+  ]) {
+    checkpoint.awsComparator.delta = save(f.output, file, altered);
+    const seal = save(f.output, identity.file, checkpoint);
+    save(f.output, "image-aws-comparison-checkpoint-identity.json", seal);
+    const result = await readComparisonCheckpoint({ config, output: f.output, expectedIdentity: seal });
+    assert.deepEqual(result.reasons, [{ stage: "aws", reason: "scanner_comparison_aws_delta_mismatch" }]);
+    assert.equal(result.eligible, false);
+  }
+});
+
+test("a complete authentic delta still requires successful inventory qualification", async (t) => {
+  const f = await fixture(t, "duplicate-old-package");
+  const { awsComparator } = f.receipt;
+  assert.equal(awsComparator.qualification, "failed");
+  assert.ok(load(f.output, awsComparator.delta.file).missingInventory.length > 0);
+  awsComparator.qualification = "passed";
+  delete awsComparator.reason;
+  const result = await writeComparisonCheckpoint(f);
+  assert.deepEqual(result.reasons, [{ stage: "aws", reason: "scanner_aws_inventory_loss" }]);
+  assert.equal(result.eligible, false);
 });
 
 test("fresh reader detects missing or altered checkpoints, reports, delta and command records", async (t) => {

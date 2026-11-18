@@ -3,8 +3,9 @@ import { lstat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual as equal } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
-import { captureFiles, readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes, captureFiles, readBoundedJson } from "./controls.mjs";
 import { validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity } from "./official-audit.mjs";
+import { deriveAwsComparison, readPreviousAwsInventory } from "./official-aws-comparator.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
 
 const fiveFile = "image-five-subject-results.json";
@@ -40,13 +41,22 @@ async function boundFile(output, file, expected) {
   return value;
 }
 
+async function readReportPair(output, image, identities) {
+  const [json, sbom] = reportNames(image.role);
+  return {
+    json: await boundFile(output, json, { file: json, ...identities[0] }),
+    sbom: await boundFile(output, sbom, { file: sbom, ...identities[1] }),
+  };
+}
+
 function validateCommands(config, checkpoint) {
   const { commands, commandCount, awsComparator } = checkpoint;
-  const roles = [...config.images.map(({ role }) => role), previousRole];
+  const images = [...config.images, awsComparator?.previousSubject];
   requireEvidence(commands.length === 12 && Number.isSafeInteger(commandCount) && commandCount >= 12, "scanner_comparison_command_mapping_invalid");
   const names = new Set();
-  for (const [i, { role, format, index, record }] of commands.entries()) {
-    requireEvidence(role === roles[Math.floor(i / 2)] && format === formats[i % 2] && index === commandCount - 11 + i,
+  for (const [i, { role, format, index, record, report }] of commands.entries()) {
+    const image = images[Math.floor(i / 2)];
+    requireEvidence(role === image?.role && format === formats[i % 2] && index === commandCount - 11 + i,
       "scanner_comparison_command_mapping_invalid");
     const lease = record?.lease;
     requireEvidence(record?.executable === "docker" && record.exitCode === 0 && record.signal === null && record.error === null &&
@@ -54,6 +64,10 @@ function validateCommands(config, checkpoint) {
         record.cleanup?.inspected === 0 && record.cleanup.removed === true), "scanner_comparison_execution_invalid");
     requireEvidence(typeof lease?.name === "string" && lease.name.startsWith("aw-official-") && uuid.test(lease.name.slice(12)) &&
       uuid.test(lease.owner) && lease.owner === commands[0].record.lease.owner && !names.has(lease.name), "scanner_comparison_lease_invalid");
+    requireEvidence(validIdentity(report, reportCap) && equal(record.scan, {
+      role, format, reference: image.repository + "@" + image.platform.digest,
+      lease: { name: lease.name, owner: lease.owner }, output: { sha256: report.sha256, size: report.size },
+    }), "scanner_comparison_scan_binding_mismatch");
     names.add(lease.name);
   }
   requireEvidence(equal(awsComparator?.commandIndices, commands.slice(-2).map(({ index }) => index)), "scanner_comparison_command_mapping_invalid");
@@ -104,10 +118,7 @@ async function replay(config, images, original, output, operations, at) {
     },
     async readReport(image, captured) {
       if (operations) return operations.readReport(image, captured);
-      const names = reportNames(image.role);
-      const json = await boundFile(output, names[0], { file: names[0], ...captured.identity[0] });
-      const sbom = await boundFile(output, names[1], { file: names[1], ...captured.identity[1] });
-      return { json, sbom };
+      return readReportPair(output, image, captured.identity);
     },
     async evaluate(image, reports) {
       const expectedId = imageIds[image.role];
@@ -154,20 +165,15 @@ async function verifyAws(config, checkpoint, output, five, operations, at) {
   requireEvidence(aws.oldPolicy === (old.result === "passed" ? "clean" : "blocked"), "scanner_comparison_aws_policy_mismatch");
   const delta = await boundFile(output, awsFile, aws.delta);
   const current = config.images.find(({ role }) => role === "aws-cli");
-  for (const [side, image, report] of [[delta.old, previous, old], [delta.current, current, five?.reports.find(({ role }) => role === current.role)]]) {
-    const [json, sbom] = reportNames(image.role);
-    requireEvidence(side?.configId === imageIds[image.role] && side.subject === image.repository + "@" + image.platform.digest && report?.report?.length === 2 &&
-      equal(side.json, { file: json, ...report.report[0] }) && equal(side.sbom, { file: sbom, ...report.report[1] }),
-    "scanner_comparison_aws_delta_mismatch");
-  }
-  const inputs = checkpoint.awsComparisonInputs;
-  requireEvidence(equal(delta.historicalInputs?.scanner, inputs.scanner), "scanner_comparison_aws_inputs_mismatch");
-  const payloads = inputs.databaseFiles.filter(({ file }) => file.endsWith(".db"));
-  requireEvidence(payloads.length === 2 && payloads.every(({ file }) => validIdentity(delta.historicalInputs.databases?.[file], Number.MAX_SAFE_INTEGER)),
-    "scanner_comparison_aws_inputs_mismatch");
-  const identical = payloads.every(({ file, size, sha256 }) => equal({ size, sha256 }, delta.historicalInputs.databases[file]));
-  requireEvidence(aws.historicalDatabaseContext === (identical ? "identical" : "changed") &&
-    (!identical || delta.historicalReplayMatches === true), "scanner_comparison_aws_inputs_mismatch");
+  const readPair = (image, expected) => readReportPair(output, image, expected);
+  const derived = await deriveAwsComparison({
+    old: await readPreviousAwsInventory(aws.control, readPair),
+    candidate: current, control: aws.control, currentRecord: five?.reports.find(({ role }) => role === current.role),
+    inputs: checkpoint.awsComparisonInputs, readPair,
+  });
+  requireEvidence(equal(delta, derived.data), "scanner_comparison_aws_delta_mismatch");
+  requireEvidence(aws.historicalDatabaseContext === derived.historicalDatabaseContext, "scanner_comparison_aws_inputs_mismatch");
+  if (derived.reason) throw new Error(derived.reason);
 }
 
 async function check(config, checkpoint, output, operations, receipt) {
@@ -200,8 +206,7 @@ async function check(config, checkpoint, output, operations, receipt) {
 }
 
 async function writeBounded(output, file, value) {
-  const bytes = Buffer.from(JSON.stringify(value) + "\n");
-  requireEvidence(bytes.length <= reportCap, "scanner_comparison_checkpoint_limit");
+  const bytes = boundedJsonBytes(value, reportCap, "scanner_comparison_checkpoint_limit");
   await writeFile(path.join(output, file), bytes, { flag: "wx", mode: 0o600 });
   return { file, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
