@@ -20,7 +20,7 @@
   ],
   "candidates": [
     {"role": "postgres", "dockerfile": "infra/managed-images/Dockerfile.postgres", "baseDigest": "sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2"},
-    {"role": "opensearch", "dockerfile": "infra/managed-images/Dockerfile.opensearch-core", "baseDigest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"},
+    {"role": "opensearch", "dockerfile": "infra/managed-images/Dockerfile.opensearch-core", "baseDigest": "sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2"},
     {"role": "aws-cli", "dockerfile": "infra/managed-images/Dockerfile.aws-cli", "baseDigest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"},
     {"role": "seaweedfs", "dockerfile": "infra/managed-images/Dockerfile.seaweedfs", "baseDigest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"}
   ],

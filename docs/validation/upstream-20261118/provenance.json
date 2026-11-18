@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-11-18T06:08:53.025387+00:00",
+  "repository": "opensearchproject/opensearch",
+  "tag": "3.9.0",
+  "state": "REGISTRY_BYTES_ONLY_NOT_QUALIFIED",
+  "index": {
+    "url": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/3.9.0",
+    "sha256": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+    "bytes": 647,
+    "file": "opensearch-3.9.0-index.json"
+  },
+  "platform": {
+    "url": "https://registry-1.docker.io/v2/opensearchproject/opensearch/manifests/sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2",
+    "sha256": "sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2",
+    "bytes": 1622,
+    "file": "opensearch-3.9.0-platform.json"
+  },
+  "config": {
+    "url": "https://registry-1.docker.io/v2/opensearchproject/opensearch/blobs/sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba",
+    "sha256": "sha256:d7fb1e7bde3bdfe89c1066d8297621fe75af28d2c7e9dc9f3b8c7f2106537fba",
+    "bytes": 6546,
+    "file": "opensearch-3.9.0-config.json"
+  }
+}

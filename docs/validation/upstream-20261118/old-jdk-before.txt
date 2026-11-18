@@ -1,0 +1,488 @@
+JDK_TAR_METADATA_NUMERIC_OWNERS_MTIME_NORMALIZED
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./
+-rw-r--r-- 1000/1000      2400 1970-01-01 00:00:00 ./NOTICE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./bin/
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jar
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jarsigner
+-rwxr-xr-x 1000/1000     16264 1970-01-01 00:00:00 ./bin/java
+-rwxr-xr-x 1000/1000     16360 1970-01-01 00:00:00 ./bin/javac
+-rwxr-xr-x 1000/1000     16368 1970-01-01 00:00:00 ./bin/javadoc
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/javap
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jcmd
+-rwxr-xr-x 1000/1000     16400 1970-01-01 00:00:00 ./bin/jconsole
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jdb
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jdeprscan
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jdeps
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jfr
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jhsdb
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jimage
+-rwxr-xr-x 1000/1000     16360 1970-01-01 00:00:00 ./bin/jinfo
+-rwxr-xr-x 1000/1000     16360 1970-01-01 00:00:00 ./bin/jlink
+-rwxr-xr-x 1000/1000     16360 1970-01-01 00:00:00 ./bin/jmap
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jmod
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jnativescan
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jpackage
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jps
+-rwxr-xr-x 1000/1000     16368 1970-01-01 00:00:00 ./bin/jrunscript
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jshell
+-rwxr-xr-x 1000/1000     16368 1970-01-01 00:00:00 ./bin/jstack
+-rwxr-xr-x 1000/1000     16328 1970-01-01 00:00:00 ./bin/jstat
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jstatd
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/jwebserver
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/keytool
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/rmiregistry
+-rwxr-xr-x 1000/1000     16336 1970-01-01 00:00:00 ./bin/serialver
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/
+-rw-r--r-- 1000/1000      4937 1970-01-01 00:00:00 ./conf/jaxp-strict.properties.template
+-rw-r--r-- 1000/1000      8222 1970-01-01 00:00:00 ./conf/jaxp.properties
+-rw-r--r-- 1000/1000      2740 1970-01-01 00:00:00 ./conf/logging.properties
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/management/
+-rw-r--r-- 1000/1000      3997 1970-01-01 00:00:00 ./conf/management/jmxremote.access
+-rw-r--r-- 1000/1000      5690 1970-01-01 00:00:00 ./conf/management/jmxremote.password.template
+-rw-r--r-- 1000/1000     15015 1970-01-01 00:00:00 ./conf/management/management.properties
+-rw-r--r-- 1000/1000      7341 1970-01-01 00:00:00 ./conf/net.properties
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/sdp/
+-rw-r--r-- 1000/1000      1455 1970-01-01 00:00:00 ./conf/sdp/sdp.conf.template
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/security/
+-rw-r--r-- 1000/1000     74132 1970-01-01 00:00:00 ./conf/security/java.security
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/security/policy/
+-rw-r--r-- 1000/1000      2390 1970-01-01 00:00:00 ./conf/security/policy/README.txt
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/security/policy/limited/
+-rw-r--r-- 1000/1000       146 1970-01-01 00:00:00 ./conf/security/policy/limited/default_US_export.policy
+-rw-r--r-- 1000/1000       647 1970-01-01 00:00:00 ./conf/security/policy/limited/default_local.policy
+-rw-r--r-- 1000/1000       566 1970-01-01 00:00:00 ./conf/security/policy/limited/exempt_local.policy
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./conf/security/policy/unlimited/
+-rw-r--r-- 1000/1000       146 1970-01-01 00:00:00 ./conf/security/policy/unlimited/default_US_export.policy
+-rw-r--r-- 1000/1000       193 1970-01-01 00:00:00 ./conf/security/policy/unlimited/default_local.policy
+-rw-r--r-- 1000/1000      1210 1970-01-01 00:00:00 ./conf/sound.properties
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./include/
+-rw-r--r-- 1000/1000     22155 1970-01-01 00:00:00 ./include/classfile_constants.h
+-rw-r--r-- 1000/1000     12458 1970-01-01 00:00:00 ./include/jawt.h
+-rw-r--r-- 1000/1000      8166 1970-01-01 00:00:00 ./include/jdwpTransport.h
+-rw-r--r-- 1000/1000     76300 1970-01-01 00:00:00 ./include/jni.h
+-rw-r--r-- 1000/1000     83241 1970-01-01 00:00:00 ./include/jvmti.h
+-rw-r--r-- 1000/1000      4771 1970-01-01 00:00:00 ./include/jvmticmlr.h
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./include/linux/
+-rw-r--r-- 1000/1000      1965 1970-01-01 00:00:00 ./include/linux/jawt_md.h
+-rw-r--r-- 1000/1000      2191 1970-01-01 00:00:00 ./include/linux/jni_md.h
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.base/
+-rw-r--r-- 1000/1000      2114 1970-01-01 00:00:00 ./legal/java.base/ADDITIONAL_LICENSE_INFO
+-rw-r--r-- 1000/1000      1514 1970-01-01 00:00:00 ./legal/java.base/ASSEMBLY_EXCEPTION
+-rw-r--r-- 1000/1000     19274 1970-01-01 00:00:00 ./legal/java.base/LICENSE
+-rw-r--r-- 1000/1000      1444 1970-01-01 00:00:00 ./legal/java.base/aes.md
+-rw-r--r-- 1000/1000      1556 1970-01-01 00:00:00 ./legal/java.base/c-libutl.md
+-rw-r--r-- 1000/1000      8790 1970-01-01 00:00:00 ./legal/java.base/cldr.md
+-rw-r--r-- 1000/1000    128099 1970-01-01 00:00:00 ./legal/java.base/gcc.md
+-rw-r--r-- 1000/1000      4147 1970-01-01 00:00:00 ./legal/java.base/icu.md
+-rw-r--r-- 1000/1000     17783 1970-01-01 00:00:00 ./legal/java.base/public_suffix.md
+-rw-r--r-- 1000/1000      8256 1970-01-01 00:00:00 ./legal/java.base/siphash.md
+-rw-r--r-- 1000/1000     15098 1970-01-01 00:00:00 ./legal/java.base/unicode.md
+-rw-r--r-- 1000/1000      1010 1970-01-01 00:00:00 ./legal/java.base/zlib.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.compiler/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.compiler/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.compiler/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.compiler/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.datatransfer/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.datatransfer/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.datatransfer/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.datatransfer/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.desktop/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.desktop/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.desktop/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.desktop/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000       167 1970-01-01 00:00:00 ./legal/java.desktop/colorimaging.md
+-rw-r--r-- 1000/1000     30570 1970-01-01 00:00:00 ./legal/java.desktop/freetype.md
+-rw-r--r-- 1000/1000      1689 1970-01-01 00:00:00 ./legal/java.desktop/giflib.md
+-rw-r--r-- 1000/1000      3629 1970-01-01 00:00:00 ./legal/java.desktop/harfbuzz.md
+-rw-r--r-- 1000/1000      3474 1970-01-01 00:00:00 ./legal/java.desktop/jpeg.md
+-rw-r--r-- 1000/1000      2655 1970-01-01 00:00:00 ./legal/java.desktop/lcms.md
+-rw-r--r-- 1000/1000      7519 1970-01-01 00:00:00 ./legal/java.desktop/libpng.md
+-rw-r--r-- 1000/1000      5732 1970-01-01 00:00:00 ./legal/java.desktop/mesa3d.md
+-rw-r--r-- 1000/1000      1479 1970-01-01 00:00:00 ./legal/java.desktop/pipewire.md
+-rw-r--r-- 1000/1000      1348 1970-01-01 00:00:00 ./legal/java.desktop/xwd.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.instrument/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.instrument/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.instrument/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.instrument/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.logging/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.logging/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.logging/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.logging/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management.rmi/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management.rmi/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management.rmi/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.management.rmi/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.naming/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.naming/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.naming/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.naming/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.net.http/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.net.http/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.net.http/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.net.http/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.prefs/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.prefs/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.prefs/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.prefs/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.rmi/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.rmi/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.rmi/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.rmi/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.scripting/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.scripting/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.scripting/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.scripting/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.se/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.se/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.se/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.se/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.jgss/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.jgss/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.jgss/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.jgss/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.sasl/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.sasl/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.sasl/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.security.sasl/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.smartcardio/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.smartcardio/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.smartcardio/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.smartcardio/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      2155 1970-01-01 00:00:00 ./legal/java.smartcardio/pcsclite.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql.rowset/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql.rowset/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql.rowset/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.sql.rowset/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.transaction.xa/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.transaction.xa/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.transaction.xa/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.transaction.xa/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000     11196 1970-01-01 00:00:00 ./legal/java.xml/bcel.md
+-rw-r--r-- 1000/1000      3761 1970-01-01 00:00:00 ./legal/java.xml/dom.md
+-rw-r--r-- 1000/1000      1448 1970-01-01 00:00:00 ./legal/java.xml/jcup.md
+-rw-r--r-- 1000/1000      2138 1970-01-01 00:00:00 ./legal/java.xml/schema10part1.md
+-rw-r--r-- 1000/1000      2136 1970-01-01 00:00:00 ./legal/java.xml/schema10part2.md
+-rw-r--r-- 1000/1000     13477 1970-01-01 00:00:00 ./legal/java.xml/xalan.md
+-rw-r--r-- 1000/1000     11848 1970-01-01 00:00:00 ./legal/java.xml/xerces.md
+-rw-r--r-- 1000/1000      2634 1970-01-01 00:00:00 ./legal/java.xml/xhtml10.md
+-rw-r--r-- 1000/1000      7521 1970-01-01 00:00:00 ./legal/java.xml/xhtml10schema.md
+-rw-r--r-- 1000/1000      3258 1970-01-01 00:00:00 ./legal/java.xml/xhtml11.md
+-rw-r--r-- 1000/1000      3224 1970-01-01 00:00:00 ./legal/java.xml/xhtml11schema.md
+-rw-r--r-- 1000/1000      2719 1970-01-01 00:00:00 ./legal/java.xml/xmlspec.md
+-rw-r--r-- 1000/1000      1951 1970-01-01 00:00:00 ./legal/java.xml/xmlxsd.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml.crypto/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml.crypto/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml.crypto/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/java.xml.crypto/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000     11505 1970-01-01 00:00:00 ./legal/java.xml.crypto/santuario.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.accessibility/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.accessibility/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.accessibility/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.accessibility/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.attach/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.attach/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.attach/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.attach/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.charsets/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.charsets/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.charsets/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.charsets/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.compiler/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.compiler/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.compiler/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.compiler/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      4095 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/pkcs11cryptotoken.md
+-rw-r--r-- 1000/1000      2131 1970-01-01 00:00:00 ./legal/jdk.crypto.cryptoki/pkcs11wrapper.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.ec/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.ec/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.ec/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.crypto.ec/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.dynalink/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.dynalink/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.dynalink/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.dynalink/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      1502 1970-01-01 00:00:00 ./legal/jdk.dynalink/dynalink.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.editpad/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.editpad/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.editpad/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.editpad/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler.management/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler.management/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler.management/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.graal.compiler.management/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.hotspot.agent/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.hotspot.agent/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.hotspot.agent/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.hotspot.agent/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.httpserver/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.httpserver/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.httpserver/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.httpserver/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.incubator.vector/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.incubator.vector/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.incubator.vector/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.incubator.vector/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000     20491 1970-01-01 00:00:00 ./legal/jdk.incubator.vector/sleef.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.ed/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.ed/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.ed/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.ed/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.jvmstat/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.jvmstat/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.jvmstat/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.jvmstat/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.le/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.le/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.le/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.le/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      1579 1970-01-01 00:00:00 ./legal/jdk.internal.le/jline.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.md/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.md/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.md/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.md/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      1354 1970-01-01 00:00:00 ./legal/jdk.internal.md/commonmark.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.opt/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.opt/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.opt/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.opt/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      1122 1970-01-01 00:00:00 ./legal/jdk.internal.opt/jopt-simple.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.vm.ci/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.vm.ci/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.vm.ci/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.internal.vm.ci/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jartool/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jartool/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jartool/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jartool/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.javadoc/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.javadoc/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.javadoc/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.javadoc/LICENSE -> ../java.base/LICENSE
+-rw-r--r-- 1000/1000      8841 1970-01-01 00:00:00 ./legal/jdk.javadoc/dejavufonts.md
+-rw-r--r-- 1000/1000      1573 1970-01-01 00:00:00 ./legal/jdk.javadoc/highlightjs.md
+-rw-r--r-- 1000/1000      1157 1970-01-01 00:00:00 ./legal/jdk.javadoc/jquery.md
+-rw-r--r-- 1000/1000      1871 1970-01-01 00:00:00 ./legal/jdk.javadoc/jqueryUI.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jcmd/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jcmd/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jcmd/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jcmd/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jconsole/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jconsole/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jconsole/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jconsole/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdeps/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdeps/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdeps/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdeps/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdi/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdi/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdi/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdi/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdwp.agent/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdwp.agent/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdwp.agent/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jdwp.agent/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jfr/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jfr/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jfr/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jfr/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jlink/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jlink/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jlink/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jlink/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jpackage/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jpackage/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jpackage/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jpackage/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jshell/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jshell/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jshell/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jshell/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jsobject/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jsobject/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jsobject/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jsobject/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jstatd/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jstatd/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jstatd/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.jstatd/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.localedata/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.localedata/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.localedata/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.localedata/LICENSE -> ../java.base/LICENSE
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.localedata/cldr.md -> ../java.base/cldr.md
+-rw-r--r-- 1000/1000      1346 1970-01-01 00:00:00 ./legal/jdk.localedata/thaidict.md
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.agent/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.agent/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.agent/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.agent/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.jfr/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.jfr/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.jfr/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.management.jfr/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.dns/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.dns/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.dns/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.dns/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.rmi/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.rmi/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.rmi/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.naming.rmi/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.net/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.net/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.net/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.net/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.nio.mapmode/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.nio.mapmode/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.nio.mapmode/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.nio.mapmode/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.sctp/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.sctp/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.sctp/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.sctp/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.auth/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.auth/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.auth/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.auth/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.jgss/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.jgss/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.jgss/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.security.jgss/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported.desktop/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported.desktop/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported.desktop/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.unsupported.desktop/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.xml.dom/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.xml.dom/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.xml.dom/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.xml.dom/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.zipfs/
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.zipfs/ADDITIONAL_LICENSE_INFO -> ../java.base/ADDITIONAL_LICENSE_INFO
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.zipfs/ASSEMBLY_EXCEPTION -> ../java.base/ASSEMBLY_EXCEPTION
+lrwxrwxrwx 1000/1000         0 1970-01-01 00:00:00 ./legal/jdk.zipfs/LICENSE -> ../java.base/LICENSE
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./lib/
+-rw-r--r-- 1000/1000     84836 1970-01-01 00:00:00 ./lib/classlist
+-rw-r--r-- 1000/1000  10871906 1970-01-01 00:00:00 ./lib/ct.sym
+-rw-r--r-- 1000/1000     16576 1970-01-01 00:00:00 ./lib/jexec
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./lib/jfr/
+-rw-r--r-- 1000/1000     40505 1970-01-01 00:00:00 ./lib/jfr/default.jfc
+-rw-r--r-- 1000/1000     40387 1970-01-01 00:00:00 ./lib/jfr/profile.jfc
+-rw-r--r-- 1000/1000    109855 1970-01-01 00:00:00 ./lib/jrt-fs.jar
+-rwxr-xr-x 1000/1000     21896 1970-01-01 00:00:00 ./lib/jspawnhelper
+-rw-r--r-- 1000/1000        29 1970-01-01 00:00:00 ./lib/jvm.cfg
+-rw-r--r-- 1000/1000     16784 1970-01-01 00:00:00 ./lib/libattach.so
+-rw-r--r-- 1000/1000    928312 1970-01-01 00:00:00 ./lib/libawt.so
+-rw-r--r-- 1000/1000     39880 1970-01-01 00:00:00 ./lib/libawt_headless.so
+-rw-r--r-- 1000/1000    525032 1970-01-01 00:00:00 ./lib/libawt_xawt.so
+-rw-r--r-- 1000/1000     35992 1970-01-01 00:00:00 ./lib/libdt_socket.so
+-rw-r--r-- 1000/1000     16776 1970-01-01 00:00:00 ./lib/libextnet.so
+-rw-r--r-- 1000/1000   2017800 1970-01-01 00:00:00 ./lib/libfontmanager.so
+-rw-r--r-- 1000/1000    779680 1970-01-01 00:00:00 ./lib/libfreetype.so
+-rw-r--r-- 1000/1000     54528 1970-01-01 00:00:00 ./lib/libinstrument.so
+-rw-r--r-- 1000/1000     55064 1970-01-01 00:00:00 ./lib/libj2gss.so
+-rw-r--r-- 1000/1000     21336 1970-01-01 00:00:00 ./lib/libj2pcsc.so
+-rw-r--r-- 1000/1000    100696 1970-01-01 00:00:00 ./lib/libj2pkcs11.so
+-rw-r--r-- 1000/1000     15664 1970-01-01 00:00:00 ./lib/libjaas.so
+-rw-r--r-- 1000/1000    180056 1970-01-01 00:00:00 ./lib/libjava.so
+-rw-r--r-- 1000/1000    243800 1970-01-01 00:00:00 ./lib/libjavajpeg.so
+-rw-r--r-- 1000/1000     15600 1970-01-01 00:00:00 ./lib/libjawt.so
+-rw-r--r-- 1000/1000    306840 1970-01-01 00:00:00 ./lib/libjdwp.so
+-rw-r--r-- 1000/1000    171704 1970-01-01 00:00:00 ./lib/libjimage.so
+-rw-r--r-- 1000/1000    124736 1970-01-01 00:00:00 ./lib/libjli.so
+-rw-r--r-- 1000/1000     16728 1970-01-01 00:00:00 ./lib/libjsig.so
+-rw-r--r-- 1000/1000     85328 1970-01-01 00:00:00 ./lib/libjsound.so
+-rw-r--r-- 1000/1000    871040 1970-01-01 00:00:00 ./lib/libjsvml.so
+-rw-r--r-- 1000/1000    537312 1970-01-01 00:00:00 ./lib/liblcms.so
+-rw-r--r-- 1000/1000     29344 1970-01-01 00:00:00 ./lib/libmanagement.so
+-rw-r--r-- 1000/1000     15600 1970-01-01 00:00:00 ./lib/libmanagement_agent.so
+-rw-r--r-- 1000/1000     37032 1970-01-01 00:00:00 ./lib/libmanagement_ext.so
+-rw-r--r-- 1000/1000    606840 1970-01-01 00:00:00 ./lib/libmlib_image.so
+-rw-r--r-- 1000/1000     65680 1970-01-01 00:00:00 ./lib/libnet.so
+-rw-r--r-- 1000/1000    114144 1970-01-01 00:00:00 ./lib/libnio.so
+-rw-r--r-- 1000/1000     15792 1970-01-01 00:00:00 ./lib/libprefs.so
+-rw-r--r-- 1000/1000     15336 1970-01-01 00:00:00 ./lib/librmi.so
+-rw-r--r-- 1000/1000    210744 1970-01-01 00:00:00 ./lib/libsaproc.so
+-rw-r--r-- 1000/1000     36048 1970-01-01 00:00:00 ./lib/libsctp.so
+-rw-r--r-- 1000/1000    270368 1970-01-01 00:00:00 ./lib/libsimdsort.so
+-rw-r--r-- 1000/1000    366696 1970-01-01 00:00:00 ./lib/libsplashscreen.so
+-rw-r--r-- 1000/1000     15232 1970-01-01 00:00:00 ./lib/libsyslookup.so
+-rw-r--r-- 1000/1000     72232 1970-01-01 00:00:00 ./lib/libverify.so
+-rw-r--r-- 1000/1000    132712 1970-01-01 00:00:00 ./lib/libzip.so
+-rw-r--r-- 1000/1000 146008035 1970-01-01 00:00:00 ./lib/modules
+-rw-r--r-- 1000/1000      3793 1970-01-01 00:00:00 ./lib/psfont.properties.ja
+-rw-r--r-- 1000/1000     11402 1970-01-01 00:00:00 ./lib/psfontj2d.properties
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./lib/security/
+-rw-r--r-- 1000/1000      2488 1970-01-01 00:00:00 ./lib/security/blocked.certs
+-rw-r--r-- 1000/1000    153428 1970-01-01 00:00:00 ./lib/security/cacerts
+-rw-r--r-- 1000/1000    227396 1970-01-01 00:00:00 ./lib/security/public_suffix_list.dat
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./lib/server/
+-rw-r--r-- 1000/1000  15654912 1970-01-01 00:00:00 ./lib/server/classes.jsa
+-rw-r--r-- 1000/1000  16351232 1970-01-01 00:00:00 ./lib/server/classes_coh.jsa
+-rw-r--r-- 1000/1000  16048128 1970-01-01 00:00:00 ./lib/server/classes_nocoops.jsa
+-rw-r--r-- 1000/1000  16687104 1970-01-01 00:00:00 ./lib/server/classes_nocoops_coh.jsa
+-rw-r--r-- 1000/1000     16728 1970-01-01 00:00:00 ./lib/server/libjsig.so
+-rw-r--r-- 1000/1000  29875592 1970-01-01 00:00:00 ./lib/server/libjvm.so
+-rw-r--r-- 1000/1000    102956 1970-01-01 00:00:00 ./lib/tzdb.dat
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./man/
+drwxr-xr-x 1000/1000         0 1970-01-01 00:00:00 ./man/man1/
+-rw-r--r-- 1000/1000     13405 1970-01-01 00:00:00 ./man/man1/jar.1
+-rw-r--r-- 1000/1000     52194 1970-01-01 00:00:00 ./man/man1/jarsigner.1
+-rw-r--r-- 1000/1000    204556 1970-01-01 00:00:00 ./man/man1/java.1
+-rw-r--r-- 1000/1000     86222 1970-01-01 00:00:00 ./man/man1/javac.1
+-rw-r--r-- 1000/1000     58902 1970-01-01 00:00:00 ./man/man1/javadoc.1
+-rw-r--r-- 1000/1000      6024 1970-01-01 00:00:00 ./man/man1/javap.1
+-rw-r--r-- 1000/1000     40653 1970-01-01 00:00:00 ./man/man1/jcmd.1
+-rw-r--r-- 1000/1000      2512 1970-01-01 00:00:00 ./man/man1/jconsole.1
+-rw-r--r-- 1000/1000      9214 1970-01-01 00:00:00 ./man/man1/jdb.1
+-rw-r--r-- 1000/1000      6737 1970-01-01 00:00:00 ./man/man1/jdeprscan.1
+-rw-r--r-- 1000/1000     10363 1970-01-01 00:00:00 ./man/man1/jdeps.1
+-rw-r--r-- 1000/1000     12979 1970-01-01 00:00:00 ./man/man1/jfr.1
+-rw-r--r-- 1000/1000      6078 1970-01-01 00:00:00 ./man/man1/jhsdb.1
+-rw-r--r-- 1000/1000      2322 1970-01-01 00:00:00 ./man/man1/jinfo.1
+-rw-r--r-- 1000/1000     10558 1970-01-01 00:00:00 ./man/man1/jlink.1
+-rw-r--r-- 1000/1000      2338 1970-01-01 00:00:00 ./man/man1/jmap.1
+-rw-r--r-- 1000/1000     11168 1970-01-01 00:00:00 ./man/man1/jmod.1
+-rw-r--r-- 1000/1000      6314 1970-01-01 00:00:00 ./man/man1/jnativescan.1
+-rw-r--r-- 1000/1000     23660 1970-01-01 00:00:00 ./man/man1/jpackage.1
+-rw-r--r-- 1000/1000      7222 1970-01-01 00:00:00 ./man/man1/jps.1
+-rw-r--r-- 1000/1000      4078 1970-01-01 00:00:00 ./man/man1/jrunscript.1
+-rw-r--r-- 1000/1000     41781 1970-01-01 00:00:00 ./man/man1/jshell.1
+-rw-r--r-- 1000/1000      1919 1970-01-01 00:00:00 ./man/man1/jstack.1
+-rw-r--r-- 1000/1000     21407 1970-01-01 00:00:00 ./man/man1/jstat.1
+-rw-r--r-- 1000/1000      6231 1970-01-01 00:00:00 ./man/man1/jstatd.1
+-rw-r--r-- 1000/1000      4945 1970-01-01 00:00:00 ./man/man1/jwebserver.1
+-rw-r--r-- 1000/1000    109902 1970-01-01 00:00:00 ./man/man1/keytool.1
+-rw-r--r-- 1000/1000      2133 1970-01-01 00:00:00 ./man/man1/rmiregistry.1
+-rw-r--r-- 1000/1000      1492 1970-01-01 00:00:00 ./man/man1/serialver.1
+-rw-r--r-- 1000/1000      1615 1970-01-01 00:00:00 ./release
+JDK_TREE_TAR_SHA256
+ce4730aa9409975e1e4cb9c8f6c4eb7c58723f0f37bc873898955811e41c4cff  -

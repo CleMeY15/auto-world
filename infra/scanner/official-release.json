@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "state": "DIAGNOSTIC_ONLY_NOT_ADMITTED",
-  "resolvedAt": "2026-11-09T07:21:40.3686192Z",
+  "resolvedAt": "2026-11-18T06:08:53.025387+00:00",
   "scanner": {
     "version": "0.76.2",
     "sourceCommit": "3f6334d223b52188324af3b9923b4249cd206652",
@@ -39,12 +39,12 @@
       "role": "opensearch",
       "repository": "opensearchproject/opensearch",
       "version": "3.9.0",
-      "manifestDigest": "sha256:adfa61f85025d06b4aeb562e7e74fde7e31c437039c93c3862c17e9acebd6c7c",
+      "manifestDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
       "platform": {
         "os": "linux",
         "architecture": "amd64",
         "variant": null,
-        "digest": "sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84"
+        "digest": "sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2"
       },
       "source": {
         "repository": "opensearch-project/OpenSearch",
