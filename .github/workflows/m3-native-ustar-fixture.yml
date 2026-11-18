@@ -4,11 +4,13 @@ on:
     paths:
       - '.github/workflows/m3-native-ustar-fixture.yml'
       - 'scripts/fixtures/m3_native_ustar.py'
+      - 'scripts/fixtures/test_m3_native_ustar.py'
   push:
     branches: [main]
     paths:
       - '.github/workflows/m3-native-ustar-fixture.yml'
       - 'scripts/fixtures/m3_native_ustar.py'
+      - 'scripts/fixtures/test_m3_native_ustar.py'
 
 permissions:
   contents: read
@@ -32,6 +34,8 @@ jobs:
         with:
           ref: ${{ env.EXPECTED_CHECKOUT }}
           persist-credentials: false
+      - name: Verify subprocess deadline handling
+        run: python -I -B -m unittest discover -s scripts/fixtures -p test_m3_native_ustar.py
       - name: Write and independently read the seven fixtures
         shell: pwsh
         run: |

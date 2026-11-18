@@ -181,18 +181,20 @@ def native_read(tar, stream, manifest, name, size, digest):
     # -O reads both listed members in archive order. No filesystem extraction.
     stream.seek(0)
     with subprocess.Popen([tar, "-xOf", "-"], stdin=stream, stdout=subprocess.PIPE) as proc:
-        watchdog = Timer(remaining(), proc.kill)
-        watchdog.start()
         try:
-            with proc.stdout as out:
-                require(out.read(len(manifest)) == manifest, "native manifest mismatch")
-                measured = hash_payload(out, size, digest)
-                require(not out.read(1), "native reader returned excess bytes")
-            proc_exit = proc.wait(timeout=remaining())
-            require(proc_exit == 0, f"native TAR exited {proc_exit}")
+            watchdog = Timer(remaining(), proc.kill)
+            watchdog.start()
+            try:
+                with proc.stdout as out:
+                    require(out.read(len(manifest)) == manifest, "native manifest mismatch")
+                    measured = hash_payload(out, size, digest)
+                    require(not out.read(1), "native reader returned excess bytes")
+                proc_exit = proc.wait(timeout=remaining())
+                require(proc_exit == 0, f"native TAR exited {proc_exit}")
+            finally:
+                watchdog.cancel()
+                watchdog.join()
         finally:
-            watchdog.cancel()
-            watchdog.join()
             if proc.poll() is None:
                 proc.kill()
             code = proc.wait()
@@ -235,7 +237,7 @@ def run(report):
     tar = Path(os.environ["SystemRoot"]) / "System32" / "tar.exe" if windows else Path("/usr/bin/tar")
     parent = os.environ.get("RUNNER_TEMP") or (os.environ["TEMP"] if windows else os.getenv("TMPDIR", "/tmp"))
     report.update(platform=platform.platform(), python=sys.version, tar=str(tar),
-                  tarVersion=subprocess.check_output([tar, "--version"], text=True, timeout=30).splitlines()[0])
+                  tarVersion=subprocess.check_output([tar, "--version"], text=True, timeout=min(30, remaining())).splitlines()[0])
     with owned_file(Path(parent), report) as (stream, path):
         if windows:
             report["volume"] = ntfs_volume(stream)
@@ -258,9 +260,11 @@ if __name__ == "__main__":
     report = {"scope": "synthetic USTAR", "cases": [], "status": "FAILED",
               "startedUtc": datetime.now(timezone.utc).isoformat(),
               "scriptSha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-              "source": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
               "runId": os.getenv("GITHUB_RUN_ID"), "attempt": os.getenv("GITHUB_RUN_ATTEMPT")}
     try:
+        report["source"] = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, timeout=min(30, remaining())
+        ).strip()
         if os.getenv("EXPECTED_CHECKOUT"):
             require(report["source"] == os.environ["EXPECTED_CHECKOUT"], "checkout mismatch")
         run(report)
