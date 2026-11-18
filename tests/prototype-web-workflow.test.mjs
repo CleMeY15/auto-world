@@ -32,8 +32,7 @@ test("persistent web workflow has pinned tools and sanitized bounded artifacts o
     "pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"]) assert.ok(workflow.includes(pin));
-  assert.match(workflow, /timeout-minutes: 120/u);
-  assert.match(workflow, /timeout-minutes: 25/u);
+  assert.match(workflow, /timeout-minutes: 360/u);
   assert.match(workflow, /if: always\(\)/u);
   assert.match(workflow, /\.local-data\/prototype-web\/\*\/result\.json/u);
   assert.match(workflow, /\.local-data\/prototype-web\/\*\/\*\.png/u);

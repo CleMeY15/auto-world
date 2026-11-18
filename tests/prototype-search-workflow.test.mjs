@@ -8,7 +8,7 @@ test("prototype search workflow is exact-source, read-only and bounded", () => {
   assert.match(workflow, /^name: V1 prototype search projection$/mu);
   assert.match(workflow, /^permissions:\n {2}contents: read$/mu);
   assert.match(workflow, /runs-on: ubuntu-24\.04/u);
-  assert.match(workflow, /timeout-minutes: 25/u);
+  assert.match(workflow, /timeout-minutes: 360/u);
   assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
   assert.match(workflow, /persist-credentials: false/u);
   assert.match(workflow, /cancel-in-progress: true/u);

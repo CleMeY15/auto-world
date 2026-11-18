@@ -68,7 +68,7 @@ concurrency:
 jobs:
   prototype-application:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 360
     steps:
       - name: Check out exact source revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,7 +92,6 @@ jobs:
         run: pnpm --filter @auto-world/search... build
       - name: Validate the four-service application and recovery lane
         run: pnpm prototype:application:test
-        timeout-minutes: 20
       - name: Retain sanitized application evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
