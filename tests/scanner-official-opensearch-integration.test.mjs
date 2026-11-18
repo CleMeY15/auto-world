@@ -47,6 +47,18 @@ function syntheticCandidate() {
   // The uncompressed sizes are synthetic. Only layer digests and DiffIDs
   // come from the pinned candidate manifest and config.
   const layers = manifest.layers.map((layer, i) => ({ Size: json.Metadata.Layers[i].Size, Digest: layer.digest, DiffID: diffIds[i] }));
+  const candidateLayer = new Map(json.Metadata.Layers.map((old, i) => [old.Digest, layers[i]]));
+  for (const pkg of json.Results[0].Packages) {
+    const layer = candidateLayer.get(pkg.Layer.Digest);
+    pkg.Layer = { Digest: layer.Digest, DiffID: layer.DiffID };
+  }
+  for (const item of sbom.components) {
+    const digest = item.properties?.find((p) => p.name.endsWith(":LayerDigest"));
+    if (!digest) continue;
+    const layer = candidateLayer.get(digest.value);
+    digest.value = layer.Digest;
+    item.properties.find((p) => p.name.endsWith(":LayerDiffID")).value = layer.DiffID;
+  }
   Object.assign(json.Metadata, { Reference: candidateRef, ImageID: manifest.config.digest, RepoDigests: [candidateRef],
     ImageConfig: imageConfig, DiffIDs: diffIds, Layers: layers });
   json.ArtifactName = candidateRef;
@@ -69,7 +81,8 @@ function syntheticCandidate() {
   java.Packages = java.Packages.flatMap((pkg) => {
     const replacement = mapped.get(copy(pkg.FilePath, pkg.Name, pkg.Version));
     const file = replacement?.[0] ?? pkg.FilePath;
-    if (!shipped.has(file)) return [];
+    const outerJar = file.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
+    if (!shipped.has(outerJar)) return [];
     const [group, name] = pkg.Name.split(":");
     const version = replacement?.[2].version ?? pkg.Version;
     const purl = "pkg:maven/" + group + "/" + name + "@" + version;

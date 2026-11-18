@@ -176,6 +176,12 @@ for (const [name, options, reason, expectedCommands] of [
   ["malformed JSON", { stdout: (fmt) => fmt === "json" ? "{" : undefined }, /json_file_invalid/u, 1],
   ["substituted valid bytes", { afterWrite: (fmt, target) => fmt === "json" && writeFile(target, "{}", { flag: "w" }) }, /frozen_input_changed/u, 1],
   ["wrong config", { mutatePair: (p) => { p.json.Metadata.ImageID = previousConfig; } }, /json_subject_invalid/u, 1],
+  ["3.9 layer DiffIDs under the correct 3.10 config label", { mutatePair: (p) => {
+    p.json.Metadata.DiffIDs = baselineMetadata.DiffIDs;
+  } }, /scanner_opensearch_/u, 1],
+  ["3.9 layer descriptors under the correct 3.10 config label", { mutatePair: (p) => {
+    p.json.Metadata.Layers = baselineMetadata.Layers;
+  } }, /scanner_opensearch_/u, 1],
   ["wrong subject", { mutatePair: (p) => { p.json.ArtifactName = previous.repository; } }, /json_subject_invalid/u, 1],
   ["wrong schema", { mutatePair: (p) => { p.json.SchemaVersion = 1; } }, /image_report_invalid/u, 1],
   ["wrong SBOM config", { mutatePair: (p) => { p.cyclonedx.metadata.component.properties[0].value = previousConfig; } }, /sbom_subject_invalid/u, 2],
