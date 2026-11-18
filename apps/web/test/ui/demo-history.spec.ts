@@ -249,15 +249,11 @@ test("the 256-record boundary exposes every retained observation in order by gro
   await page.evaluate(() => {
     const writes: string[] = [];
     Object.defineProperty(window, "__awHistoryWrites", { value: writes });
-    for (const key of ["setItem", "removeItem", "clear"] as const) {
-      const original = Storage.prototype[key];
-      Object.defineProperty(Storage.prototype, key, {
-        value: function (this: Storage, ...args: string[]) {
-          writes.push(key);
-          return Reflect.apply(original, this, args);
-        },
-      });
-    }
+    // A same-origin frame receives local and session storage events, including property assignments.
+    const observer = document.createElement("iframe");
+    observer.hidden = true;
+    document.body.append(observer);
+    observer.contentWindow!.addEventListener("storage", (event) => writes.push(event.key ?? "clear"));
   });
   await context.setOffline(true);
   const more = priceHistory.getByRole("button");
