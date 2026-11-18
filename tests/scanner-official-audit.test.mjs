@@ -6,7 +6,7 @@ import { boundedJsonBytes } from "../scripts/scanner/official-report-bytes.mjs";
 import test from "node:test";
 import { candidateDockerArguments } from "../scripts/scanner/audit.mjs";
 import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
-import { writeRawAuditReceipt, writeRawScanReport, remainingRawStepTime, auditOfficialScanner, commandFailureDiagnostic, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
+import { writeRawAuditReceipt, writeRawScanReport, remainingRawStepTime, auditOfficialScanner, commandFailureDiagnostic, confirmScanContainerAbsent, officialImageScanArguments, ownedRunArguments, parseOfficialAuditArguments,
   validateContainerAbsence, validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity, validateOwnedContainer } from "../scripts/scanner/official-audit.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
@@ -287,4 +287,60 @@ test("oversized final raw receipt preserves the failed verdict and checkpoint id
   assert.ok(bytes.length < 1024);
   assert.deepEqual(JSON.parse(bytes), { scope: "upstream", result: "failed", run: receipt.run,
     reason: "scanner_raw_receipt_limit", priorFailure: receipt.failure, fiveImageEvidence: checkpoint });
+});
+
+test("compact receipt preserves uncertain candidate cleanup when the five-subject policy already failed", (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "aw-compact-cleanup-"));
+  t.after(() => rmSync(dir, { recursive: true }));
+  const receipt = JSON.parse(readFileSync(new URL("../docs/validation/opensearch-310/official-audit-receipt.json", import.meta.url)));
+  assert.equal(receipt.blockers.length, 110);
+  const subject = { role: "opensearch-candidate", format: "json",
+    reference: "opensearchproject/opensearch@sha256:ffa260e43be96b49144fb7ececbb135c3fd7081567adc781c49ec9232ce1e47f" };
+  const record = { executable: "docker", exitCode: 0, signal: null, error: null, lease: { name, owner } };
+  const index = receipt.commands.push(record);
+  const output = path.join(dir, "image-opensearch-candidate.json");
+  const stdout = Buffer.from('{"fixture":true}\n');
+  writeRawScanReport(output, stdout, subject, record, ["run", "--format", "json", subject.reference], true);
+  const reason = "scanner_official_cleanup_uncertain";
+  let inspections = 0;
+  const invoke = (_executable, args, timeout) => {
+    inspections++;
+    assert.deepEqual(args, ["container", "inspect", name]);
+    assert.equal(timeout, 15_000);
+    return { status: 1, signal: null, stdout: Buffer.alloc(0), stderr: Buffer.from("Cannot connect to the Docker daemon") };
+  };
+  assert.throws(() => confirmScanContainerAbsent({ invoke, record, name, owner }), { message: reason });
+  assert.equal(inspections, 1);
+  receipt.openSearchComparator = { execution: "partial", qualification: "failed", candidatePolicy: "unmeasured",
+    result: "failed", reason, commandIndices: [index], formats: [{ format: "json", status: "command_failed", reason }] };
+  receipt.phases.push({ large: Array(65).fill("x".repeat(1024 ** 2)) });
+  const file = path.join(dir, "official-audit-receipt.json");
+  assert.throws(() => writeRawAuditReceipt(file, receipt), /scanner_raw_receipt_limit/u);
+  const compact = JSON.parse(readFileSync(file));
+  assert.equal(compact.priorFailure, "scanner_official_images_blocked");
+  assert.equal(compact.result, "failed");
+  assert.deepEqual(compact.fiveImageEvidence, receipt.fiveImageEvidence);
+  assert.deepEqual(compact.execution.openSearchComparator, receipt.openSearchComparator);
+  assert.deepEqual(compact.execution.awsComparator.delta, receipt.awsComparator.delta);
+  assert.deepEqual(compact.execution.scanCommands, [{ index, ...record, ownedContainerAbsent: null }]);
+  assert.equal(compact.execution.scanCommands[0].cleanup.removed, false);
+  assert.equal(compact.execution.scanCommands[0].cleanup.diagnostic.stderrTail, "Cannot connect to the Docker daemon");
+  assert.deepEqual(readFileSync(output), stdout);
+});
+
+test("compact receipt retains the unfinished role and last lease before all five decisions exist", (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "aw-compact-five-"));
+  t.after(() => rmSync(dir, { recursive: true }));
+  const record = { executable: "docker", exitCode: 1, signal: null, error: null,
+    lease: { name, owner }, cleanup: { inspected: 1, removed: false } };
+  const interruption = { role: "postgres", reason: "scanner_official_cleanup_uncertain",
+    commands: [{ role: "postgres", format: "cyclonedx", index: 1 }], notStarted: ["opensearch", "redis", "seaweedfs", "aws-cli"] };
+  const receipt = { fiveImageResult: "incomplete", commands: [record], fiveImageInterruption: interruption,
+    failure: interruption.reason, phases: Array(65).fill("z".repeat(1024 ** 2)) };
+  const file = path.join(dir, "official-audit-receipt.json");
+  assert.throws(() => writeRawAuditReceipt(file, receipt), /scanner_raw_receipt_limit/u);
+  const { execution } = JSON.parse(readFileSync(file));
+  assert.equal(execution.fiveImageResult, "incomplete");
+  assert.deepEqual(execution.fiveImageInterruption, interruption);
+  assert.deepEqual(execution.scanCommands, [{ index: 1, ...record, ownedContainerAbsent: null }]);
 });

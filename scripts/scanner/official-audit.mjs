@@ -1025,15 +1025,65 @@ export function writeRawScanReport(file, stdout, scan, record, args, succeeded) 
   } finally { unlinkSync(staging); }
 }
 
+const successful = (result) => !result.error && result.status === 0 && result.signal === null;
+
+export function confirmScanContainerAbsent({ invoke, name, owner, record }) {
+  const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
+  record.cleanup = { inspected: inspected.status, removed: false };
+  if (!validateContainerAbsence(inspected, name)) {
+    record.cleanup.diagnostic = commandFailureDiagnostic(inspected);
+    if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
+    const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
+    const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
+    if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed); fail("scanner_official_cleanup_uncertain"); }
+    record.cleanup.removed = true;
+    const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
+    if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence); fail("scanner_official_cleanup_uncertain"); }
+  }
+  record.ownedContainerAbsent = true;
+}
+
+// The checkpoint covers the five subjects and AWS control. Later commands and
+// interrupted pairs also need durable cleanup evidence when the full receipt
+// exceeds its budget. These rows come from the command runner, not image data.
+function compactRawExecution(receipt) {
+  const candidate = receipt.openSearchComparator;
+  const interruption = receipt.fiveImageInterruption;
+  const aws = receipt.awsComparator;
+  const commands = [];
+  const interruptedIndices = new Set(interruption?.commands.map(({ index }) => index));
+  const candidateIndices = new Set(candidate?.commandIndices);
+  for (const [offset, record] of (receipt.commands ?? []).entries()) {
+    const index = offset + 1;
+    if (!record.scan && !interruptedIndices.has(index) && !candidateIndices.has(index)) continue;
+    commands.push({ index, scan: record.scan, executable: record.executable, exitCode: record.exitCode,
+      signal: record.signal, error: record.error, lease: record.lease, cleanup: record.cleanup,
+      ownedContainerAbsent: record.ownedContainerAbsent ?? null });
+  }
+  if (!commands.length && !candidate && !interruption && !aws) return undefined;
+  return {
+    scanCommands: commands,
+    fiveImageResult: receipt.fiveImageResult,
+    fiveImageInterruption: interruption && { ...interruption, reason: interruption.reason?.slice(0, 1024) },
+    awsComparator: aws && { qualification: aws.qualification, oldPolicy: aws.oldPolicy,
+      reason: aws.reason?.slice(0, 1024), delta: aws.delta },
+    openSearchComparator: candidate && { execution: candidate.execution, qualification: candidate.qualification,
+      candidatePolicy: candidate.candidatePolicy, result: candidate.result, reason: candidate.reason?.slice(0, 1024),
+      commandIndices: candidate.commandIndices, diskPreflight: candidate.diskPreflight,
+      formats: candidate.formats?.map((row) => ({ ...row, reason: row.reason?.slice(0, 1024) })) },
+  };
+}
+
 export function writeRawAuditReceipt(file, receipt) {
   let bytes;
   try { bytes = boundedJsonBytes(receipt, 64 * MiB, "scanner_raw_receipt_limit"); }
   catch (error) {
-    // A compact refusal binds the earlier checkpoints even when the aggregate
-    // exceeds the public evidence budget. All identifiers originate in this job.
-    writeJson(file, { run: receipt.run, scope: "upstream", result: "failed", reason: error.message,
+    const compact = { run: receipt.run, scope: "upstream", result: "failed", reason: error.message,
       priorFailure: receipt.failure?.slice(0, 1024), fiveImageEvidence: receipt.fiveImageEvidence,
-      awsCheckpoint: receipt.awsCheckpoint?.identity, openSearchDelta: receipt.openSearchComparator?.delta });
+      awsCheckpoint: receipt.awsCheckpoint?.identity, openSearchDelta: receipt.openSearchComparator?.delta,
+      execution: compactRawExecution(receipt) };
+    const compactBytes = boundedJsonBytes(compact, 2 * MiB, "scanner_raw_compact_receipt_limit");
+    writeFileSync(file, compactBytes, { flag: "wx", mode: 0o600 });
     throw error;
   }
   writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
@@ -1197,7 +1247,6 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   const owner = randomUUID();
   let cleanupUncertain = false;
   const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
-  const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
     expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false, scan } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
@@ -1217,19 +1266,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     } finally {
       if (name) {
         try {
-          const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
-          record.cleanup = { inspected: inspected.status, removed: false };
-          if (!validateContainerAbsence(inspected, name)) {
-            record.cleanup.diagnostic = commandFailureDiagnostic(inspected);
-            if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
-            const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
-            const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
-            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed); fail("scanner_official_cleanup_uncertain"); }
-            record.cleanup.removed = true;
-            const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
-            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence); fail("scanner_official_cleanup_uncertain"); }
-          }
-          record.ownedContainerAbsent = true;
+          confirmScanContainerAbsent({ invoke, name, owner, record });
         } catch {
           cleanupUncertain = true;
           fail("scanner_official_cleanup_uncertain");
