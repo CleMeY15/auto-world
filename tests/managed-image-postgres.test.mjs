@@ -32,7 +32,8 @@ function assertMaterialBoundary(source, metadata = lock, moduleBytes = goMod, su
   assert.ok(source.includes(`test "$(wc -c < /tmp/gosu-source.tar.gz)" = ${metadata.gosu.archiveBytes};`));
   assert.equal(sha256(moduleBytes), metadata.gosu.goModSha256);
   assert.equal(sha256(sumBytes), metadata.gosu.goSumSha256);
-  assert.equal([...source.matchAll(/^FROM /gmu)].length, 5);
+  assert.equal([...source.matchAll(/^FROM /gmu)].length, 6);
+  assert.match(source, new RegExp(`^FROM golang@${compiler.platform.digest} AS gosu-offline-reconstruction$`, "mu"));
   assert.doesNotMatch(source, /^ARG |^FROM [^@\s]+:(?:latest|[0-9])/mu);
   const build = stage(source, "gosu-build");
   const download = build.indexOf("go mod download -json all");
@@ -158,6 +159,7 @@ test("Go's zero upstream cases stay explicit and the evidence export cannot incl
     "FROM scratch AS evidence",
     "COPY --from=gosu-build /out/evidence/ /",
     "COPY --from=gosu-functional /evidence/ /",
+    "COPY --from=gosu-offline-reconstruction /gosu-offline/evidence/offline-reconstruction.json /offline-reconstruction.json",
   ]);
   assert.doesNotMatch(build, /(?:cp|mv|ln)\s+(?:[^;]*\s)?(?:\/out\/gosu|\/tmp\/gosu-source\.tar\.gz)\s+\/out\/evidence/u);
   assert.doesNotMatch(build, /cp .*\/materials\/licenses\/\*/u);

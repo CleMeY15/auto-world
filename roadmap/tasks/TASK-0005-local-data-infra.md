@@ -1,5 +1,10 @@
 # TASK-0005 — Local data infrastructure
 
+18 November continuation: implement and qualify the reviewed
+[Gosu offline-input reconstruction prerequisite](../../docs/validation/TASK-0005-gosu-offline-inputs.md).
+This resolves one representation question before complete M3 capture design;
+TASK-0005 remains IN_PROGRESS and actual source/main execution is pending.
+
 17 November 2026, final observation delivery: [PR247 checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
 accepts main `73ad4eddec190f3d6928f41f86c3e33858598683` after five main
 workflows and independent original-evidence review. The scanner material-retention

@@ -104,6 +104,20 @@ RUN --network=none set -eu; \
        /materials/licenses/go-LICENSE /materials/licenses/go-PATENTS /out/evidence/licenses/; \
     cp /materials/DERIVATIVE-NOTICE.txt /out/evidence/
 
+# No producer filesystem or warm cache is inherited by this sibling stage.
+FROM golang@sha256:bff16a94c0b4b6d9642581e2a3aa81beb3edb940b2f5a3aac1d22c6a68cb7747 AS gosu-offline-reconstruction
+COPY --from=gosu-build --chmod=0444 /tmp/gosu-source.tar.gz /offline-inputs/gosu-source.tar.gz
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/github.com/moby/sys/user/@v/v0.4.1.info /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.info
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/github.com/moby/sys/user/@v/v0.4.1.mod /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.mod
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/github.com/moby/sys/user/@v/v0.4.1.zip /offline-inputs/proxy/github.com/moby/sys/user/@v/v0.4.1.zip
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/golang.org/x/sys/@v/v0.1.0.info /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.info
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/golang.org/x/sys/@v/v0.1.0.mod /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.mod
+COPY --from=gosu-build --chmod=0444 /go/pkg/mod/cache/download/golang.org/x/sys/@v/v0.1.0.zip /offline-inputs/proxy/golang.org/x/sys/@v/v0.1.0.zip
+COPY --from=gosu-build --chmod=0444 /out/evidence/module-proxy-payloads.tsv /offline-references/module-proxy-payloads.tsv
+COPY --chmod=0444 infra/managed-images/postgres/go.mod infra/managed-images/postgres/go.sum /offline-references/
+COPY --chmod=0555 infra/managed-images/postgres/gosu-offline-reconstruction.sh /usr/local/bin/gosu-offline-reconstruction
+RUN --network=none --mount=type=bind,from=gosu-build,source=/out/gosu,target=/reference-gosu,readonly /usr/local/bin/gosu-offline-reconstruction
+
 FROM postgres@sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2 AS postgres-base
 
 # The deliberately insecure upstream fixtures exist only in this disposable stage.
@@ -128,6 +142,7 @@ RUN --network=none /usr/local/bin/gosu-functional-tests exec-check > /evidence/p
 FROM scratch AS evidence
 COPY --from=gosu-build /out/evidence/ /
 COPY --from=gosu-functional /evidence/ /
+COPY --from=gosu-offline-reconstruction /gosu-offline/evidence/offline-reconstruction.json /offline-reconstruction.json
 
 # Starting from the untouched base prevents fixture users, ENV and setuid modes
 # from entering the runtime. COPY explicitly resets binary ownership and mode.
@@ -140,7 +155,11 @@ LABEL org.opencontainers.image.source="https://github.com/CleMeY15/auto-world" \
       io.auto-world.gosu.component="auto-world-gosu/1.20-go1.27.3-r1" \
       io.auto-world.gosu.source="https://github.com/tianon/gosu/commit/29b939aa5bd4dc588af765b8248f6e39150d2565" \
       io.auto-world.gosu.authority="diagnostic-only-not-admitted"
-RUN --network=none --mount=type=bind,from=gosu-build,source=/out/gosu,target=/tmp/expected-gosu,readonly set -eu; \
+RUN --network=none --mount=type=bind,from=gosu-build,source=/out/gosu,target=/tmp/expected-gosu,readonly \
+    --mount=type=bind,from=gosu-offline-reconstruction,source=/gosu-offline/evidence/offline-reconstruction.json,target=/tmp/offline-reconstruction.json,readonly set -eu; \
+    test -s /tmp/offline-reconstruction.json; \
+    test "$(wc -c < /tmp/offline-reconstruction.json)" -le 4096; \
+    grep -F '"kind":"GOSU_OFFLINE_INPUTS_SAME_TOOLCHAIN_V1"' /tmp/offline-reconstruction.json > /dev/null; \
     cmp /usr/local/bin/gosu /tmp/expected-gosu; \
     test "$(stat -c '%u:%g:%a' /usr/local/bin/gosu)" = '0:0:755'; \
     test -z "${GOSU_PLEASE_LET_ME_BE_COMPLETELY_INSECURE_I_GET_TO_KEEP_ALL_THE_PIECES+x}"; \

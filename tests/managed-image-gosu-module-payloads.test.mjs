@@ -103,8 +103,10 @@ test("the Gosu recipe measures one closed, ordered six-file proxy set between ve
   const measurement = recipe.indexOf("module_proxy_output=");
   const offline = recipe.indexOf("RUN --network=none");
   assert.ok(verify < inventory && inventory < measurement && measurement < offline);
-  assert.equal(recipe.split(outputLiteral).length - 1, 1);
-  assert.doesNotMatch(recipe, /COPY .*module-proxy-payloads\.tsv/u);
+  assert.equal(recipe.split(outputLiteral).length - 1, 2);
+  assert.deepEqual(recipe.split("\n").filter((line) => /^COPY .*module-proxy-payloads\.tsv/u.test(line)), [
+    "COPY --from=gosu-build --chmod=0444 /out/evidence/module-proxy-payloads.tsv /offline-references/module-proxy-payloads.tsv",
+  ]);
 });
 
 test("the extracted production leaf hashes the six actual files and emits exact canonical TSV bytes", { skip: !linux }, (context) => {

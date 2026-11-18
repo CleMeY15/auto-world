@@ -11,6 +11,16 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 
 ## Maintenance sécurité du17 novembre2026
 
+Continuation infrastructure du 18 novembre : la livraison documentaire PR249 est
+acceptée sur main `7c49d34d` par son
+[checkpoint final](https://github.com/CleMeY15/auto-world/pull/249#issuecomment-6966235450),
+après reprise qualité tentative 2 ; la tentative 1 annulée reste non acceptée.
+Le [prérequis Gosu hors réseau](../docs/validation/TASK-0005-gosu-offline-inputs.md)
+est implémenté, les contrôles locaux disponibles passent et les revues de code et
+d'architecture sont favorables, après Architect puis Critic sur le plan figé.
+La suite navigateur et sa preuve native source/main restent à établir. Il prépare une
+décision de représentation, sans achever l'inventaire, la capacité ou la rétention M3.
+
 La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
 est acceptée sur main `32f5253c646cc1b77be6bdb090792079fcd22782`, livré par
 [PR248](https://github.com/CleMeY15/auto-world/pull/248) : sept workflows

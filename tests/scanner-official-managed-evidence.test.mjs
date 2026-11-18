@@ -141,7 +141,7 @@ test("managed evidence exports exact original bytes and independently computed h
 test("only both Seaweed Buildx invocations receive the fixed offline resolver mapping", () => {
   const mapping = '...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : [])';
   assert.equal(officialAuditSource.split(mapping).length - 1, 2);
-  assert.equal(officialAuditSource.match(/"buildx", "build"/gu)?.length, 2);
+  assert.equal(officialAuditSource.match(/command\(DOCKER, \["buildx", "build"/gu)?.length, 2);
 });
 
 test("managed evidence accepts real prefixed licence basenames, Go manifests, statuses and allowed text extensions", (t) => {

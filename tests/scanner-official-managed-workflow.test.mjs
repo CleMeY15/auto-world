@@ -33,8 +33,9 @@ test("managed diagnostic failures remain failures and only validated evidence is
   const paths = upload.with.path.split("\n");
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json"));
+  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-gosu-runtime-trace.json"));
   for (const file of paths) {
-    assert.doesNotMatch(file, /\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
+    assert.doesNotMatch(file, /command-|\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
     assert.notEqual(file, "${{ runner.temp }}/data-foundation-audit/**");
   }
   const enforce = steps.at(-1);
