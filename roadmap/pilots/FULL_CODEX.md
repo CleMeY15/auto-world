@@ -1,6 +1,6 @@
 # Pilote de développement full Codex
 
-Statut : **préparé, 0 tâche produit inscrite**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
+Statut : **en cours, 1 tâche produit inscrite**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
 
 ## Entrée et déroulement
 
@@ -78,3 +78,5 @@ Each verdict keeps its exact scope; source/main documentary acceptance pending.
 Costs/tokens/human time unknown, no measured savings or product entry consumed.
 
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.
+
+Entrée 1/6, 18 novembre 2026, [TASK-0126](../tasks/TASK-0126-loaded-listing-navigation.md), parcours UI à risque local. Dépendances, propriétaire et ressources consignés avant réalisation. [Mesures](../../docs/validation/TASK-0126.md).
