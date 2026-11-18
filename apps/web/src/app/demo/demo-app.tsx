@@ -49,6 +49,7 @@ import { ComparisonLinkReview, type ComparisonLinkLoadState, type ComparisonLink
 import { DetailSnapshot } from "./history-components";
 import { SaveComparisonControl, SavedComparisonsSection, type SaveComparisonResult } from "./saved-comparison-components";
 import { SavedSearchesSection } from "./saved-search-components";
+import { VehicleReports } from "./vehicle-reports";
 import { PublicationLinkCreator, SearchLinkCreator, SearchLinkReview } from "./search-link-components";
 
 type Screen = "search" | "results" | "detail" | "saved" | "compare" | "shared" | "received-comparison";
@@ -1695,6 +1696,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
               <NeutralIllustration />
               <p className="demo-status">{acceptedDetail.result.availability === "active" ? "Publication active" : acceptedDetail.result.availability === "withdrawn" ? "Publication retirée" : acceptedDetail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p>
               <ResultSummary result={acceptedDetail.result} catalog={matchingCatalog(catalogData, acceptedDetail.response)} />
+              <VehicleReports listingId={acceptedDetail.result.listingId} hasExampleCorpus={storageNamespace === "offline" && acceptedDetail.response.fixtureVersion === "synthetic-description-v2"} />
               <DetailSnapshot response={acceptedDetail.response} online={online} />
               <PublicationLinkCreator listingId={acceptedDetail.result.listingId} />
               <EvidenceDetails result={acceptedDetail.result} catalog={matchingCatalog(catalogData, acceptedDetail.response)} />
