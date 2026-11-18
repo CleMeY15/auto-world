@@ -38,16 +38,19 @@ function candidateReports(blocked) {
   const purl = "pkg:oci/opensearch@" + candidatePlatform + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
   const { Digest, DiffID } = layerMetadata.Layers[3];
   const Layer = { Digest, DiffID };
+  const FilePath = "usr/share/opensearch/lib/example-test-1.jar";
+  const Identifier = { PURL: "pkg:maven/org.example/test@1" };
   return {
     json: { ArtifactName: subject, ArtifactType: "container_image", SchemaVersion: 2, CreatedAt: new Date().toISOString(),
       Trivy: { Version: "0.76.2" }, Metadata: { ...globalThis.structuredClone(layerMetadata),
         ImageID: candidateConfig, Reference: subject, RepoDigests: [subject] },
-      Results: [{ Class: "lang-pkgs", Target: "Java", Type: "jar", Packages: [{ Name: "org.example:test", Version: "1", Layer }],
-        Vulnerabilities: blocked ? [{ VulnerabilityID: "CVE-TEST", PkgName: "org.example:test", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2", Layer }] : [] }] },
+      Results: [{ Class: "lang-pkgs", Target: "Java", Type: "jar", Packages: [{ Name: "org.example:test", Version: "1", FilePath, Identifier, Layer }],
+        Vulnerabilities: blocked ? [{ VulnerabilityID: "CVE-TEST", PkgName: "org.example:test", InstalledVersion: "1", Severity: "HIGH", FixedVersion: "2", PkgPath: FilePath, PkgIdentifier: Identifier, Layer }] : [] }] },
     cyclonedx: { bomFormat: "CycloneDX", specVersion: "1.6", dependencies: [],
       metadata: { component: { type: "container", name: subject, purl, "bom-ref": purl,
         properties: [prop("ImageID", candidateConfig), prop("Reference", subject), prop("RepoDigest", subject)] } },
-      components: [{ type: "library", name: "org.example:test", version: "1", "bom-ref": "example", properties: [prop("PkgType", "jar")] }] },
+      components: [{ type: "library", group: "org.example", name: "test", version: "1", "bom-ref": "example", purl: Identifier.PURL,
+        properties: [prop("PkgType", "jar"), prop("FilePath", FilePath), prop("LayerDigest", Digest), prop("LayerDiffID", DiffID)] }] },
   };
 }
 
@@ -178,6 +181,12 @@ for (const [name, mutate, reason] of [
 for (const [name, options, reason, expectedCommands] of [
   ["malformed JSON", { stdout: (fmt) => fmt === "json" ? "{" : undefined }, /json_file_invalid/u, 1],
   ["substituted valid bytes", { afterWrite: (fmt, target) => fmt === "json" && writeFile(target, "{}", { flag: "w" }) }, /frozen_input_changed/u, 1],
+  ["valid but different layers for a package and its finding", { blocked: true, mutatePair: (p) => {
+    const { Digest, DiffID } = p.json.Metadata.Layers[0];
+    const v = p.json.Results[0].Vulnerabilities[0];
+    assert.notDeepEqual(v.Layer, { Digest, DiffID });
+    v.Layer = { Digest, DiffID };
+  } }, /candidate_finding_package_mismatch/u, 1],
   ["wrong config", { mutatePair: (p) => { p.json.Metadata.ImageID = previousConfig; } }, /json_subject_invalid/u, 1],
   ["3.9 layer DiffIDs under the correct 3.10 config label", { mutatePair: (p) => {
     p.json.Metadata.DiffIDs = baselineMetadata.DiffIDs;

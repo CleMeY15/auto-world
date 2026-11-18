@@ -76,7 +76,7 @@ async function readSubjectOci(side) {
   return refs;
 }
 export async function validateOpenSearchComparisonJson(json, side = "candidate") {
-  validateJsonSubject(json, side, await readSubjectOci(side));
+  jsonInventory(json, side, await readSubjectOci(side), { bytes: 0 });
 }
 export async function validateOpenSearchComparisonPair(pair, side, { requireHistoricalPaths = false } = {}) {
   const measured = inventory(pair, side, await readSubjectOci(side), { bytes: 0 });
@@ -194,24 +194,13 @@ function append(rows, row, budget) {
   requireEvidence(budget.bytes <= comparisonByteLimit && rows.length < 100000, "projection_limit");
   rows.push(row);
 }
-function inventory(pair, side, refs, budget) {
-  const { json, sbom } = pair ?? {};
+function jsonInventory(json, side, refs, budget) {
   validateJsonSubject(json, side, refs);
-  const pin = subject(side), ref = json.ArtifactName, rootComponent = sbom?.metadata?.component;
-  const purl = "pkg:oci/opensearch@" + pin.platform.digest + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
-  requireEvidence(rootComponent?.purl === purl && rootComponent["bom-ref"] === purl &&
-    property(rootComponent, "ImageID") === pin.configId && property(rootComponent, "Reference") === ref &&
-    property(rootComponent, "RepoDigest") === ref, side + "_sbom_subject_invalid");
-  const ids = rootComponent.properties.filter((p) => p.name === "aquasecurity:trivy:DiffID").map((p) => p.value);
-  requireEvidence(equal(ids, [...json.Metadata.DiffIDs].sort()), side + "_sbom_subject_invalid");
-  const layerIds = new Map(json.Metadata.Layers.map((layer) => [layer.Digest, layer.DiffID]));
-  validateOfficialImageSbom(json, sbom, pin);
-
   const packages = [], findings = [];
   for (const [resultIndex, result] of json.Results.entries()) {
     const os = result.Class === "os-pkgs";
     if (os) requireEvidence(result.Type === "amazon" && json.Metadata.OS?.Family === "amazon" &&
-      result.Target === ref + " (amazon " + json.Metadata.OS.Name + ")", "rpm_target_invalid");
+      result.Target === json.ArtifactName + " (amazon " + json.Metadata.OS.Name + ")", "rpm_target_invalid");
     const location = { class: result.Class, type: result.Type, target: os ? null : result.Target };
     const local = [];
     for (const [i, raw] of result.Packages.entries()) {
@@ -238,6 +227,22 @@ function inventory(pair, side, refs, budget) {
         fixed: v.FixedVersion ?? "", severity: v.Severity, packageIndex, resultIndex, index: i }, budget);
     }
   }
+  return { packages, findings };
+}
+
+function inventory(pair, side, refs, budget) {
+  const { json, sbom } = pair ?? {};
+  const { packages, findings } = jsonInventory(json, side, refs, budget);
+  const pin = subject(side), ref = json.ArtifactName, rootComponent = sbom?.metadata?.component;
+  const purl = "pkg:oci/opensearch@" + pin.platform.digest + "?arch=amd64&repository_url=index.docker.io%2Fopensearchproject%2Fopensearch";
+  requireEvidence(rootComponent?.purl === purl && rootComponent["bom-ref"] === purl &&
+    property(rootComponent, "ImageID") === pin.configId && property(rootComponent, "Reference") === ref &&
+    property(rootComponent, "RepoDigest") === ref, side + "_sbom_subject_invalid");
+  const ids = rootComponent.properties.filter((p) => p.name === "aquasecurity:trivy:DiffID").map((p) => p.value);
+  requireEvidence(equal(ids, [...json.Metadata.DiffIDs].sort()), side + "_sbom_subject_invalid");
+  const layerIds = new Map(json.Metadata.Layers.map((layer) => [layer.Digest, layer.DiffID]));
+  validateOfficialImageSbom(json, sbom, pin);
+
   const libraries = [];
   for (const [index, c] of sbom.components.entries()) {
     if (c.type !== "library") continue;
@@ -489,9 +494,12 @@ export async function buildOpenSearchComparison({ oldReport, candidateReport, hi
   const lostJarPaths = jars.undetectedJarPaths.filter((file) => oldJarPaths.has(file));
   const missingBelowFloorAdvisories = mapped.filter((row) => !row.candidateThreshold.meetsFloor &&
     !row.candidateFindings.length).map((row) => row.historicalFinding);
-  const changedDatabase = inputComparison?.some((entry) => entry.file !== "scanner" && !entry.identical);
+  // JAR identity comes from the Java index. Advisory changes require a
+  // change in the vulnerability DB while the same package copies remain visible.
+  const changedAdvisories = inputComparison?.some((entry) => entry.file === "db/trivy.db" && !entry.identical);
   const sharedBelowFloorAdvisoryDrift = missingBelowFloorAdvisories.filter((index) =>
-    changedDatabase && mapped[index].oldFinding === null && mapped[index].oldPackage !== null && mapped[index].candidatePackage !== null);
+    changedAdvisories && mapped[index].original.InstalledVersion === mapped[index].coordinate.version &&
+    mapped[index].oldFinding === null && mapped[index].oldPackage !== null && mapped[index].candidatePackage !== null);
   const unexplainedBelowFloorAdvisories = missingBelowFloorAdvisories.filter((index) => !sharedBelowFloorAdvisoryDrift.includes(index));
   const packages = delta(old.packages, candidate.packages, packageKey);
   const opensaml = openSamlCoverage(refs, baseline, candidate);

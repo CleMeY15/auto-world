@@ -43,6 +43,7 @@ assert.equal(identity(opensamlBytes).sha256, "42618c9c2f56573088d487ccfff064756b
 const opensaml = JSON.parse(opensamlBytes);
 const opensamlWitness = "org.opensaml:opensaml-saml-impl";
 const jline = "org.jline:jline-builtins";
+const omitSharedJline = (scenario) => scenario === "jline-db-drift" || scenario === "jline-java-index-only";
 
 // This is a transport fixture, never an observed 3.10 scan. Model retained
 // coordinates at still-shipped paths, apply the published per-copy mappings,
@@ -115,7 +116,13 @@ function syntheticCandidate(scenario) {
       PkgPath: pkg.FilePath, InstalledVersion: pkg.Version, Layer: pkg.Layer };
   });
   assert.equal(java.Vulnerabilities.length, 7);
-  if (scenario === "jline-db-drift") java.Vulnerabilities = java.Vulnerabilities.filter((v) => v.PkgName !== jline);
+  if (scenario === "finding-wrong-layer") {
+    const finding = java.Vulnerabilities.find((v) => v.PkgName === jline);
+    const { Digest, DiffID } = layers[0];
+    assert.notDeepEqual(finding.Layer, { Digest, DiffID });
+    finding.Layer = { Digest, DiffID };
+  }
+  if (omitSharedJline(scenario)) java.Vulnerabilities = java.Vulnerabilities.filter((v) => v.PkgName !== jline);
   java.Vulnerabilities.push({ ...java.Vulnerabilities[0], VulnerabilityID: "CVE-SYNTHETIC-NEW" });
   return { json, cyclonedx: sbom };
 }
@@ -135,7 +142,7 @@ function reportBytes(role, format, scenario, candidate) {
     for (const result of json.Results) delete result.Vulnerabilities;
     return Buffer.from(JSON.stringify(json));
   }
-  if (role === "opensearch" && scenario === "jline-db-drift") {
+  if (role === "opensearch" && omitSharedJline(scenario)) {
     const json = JSON.parse(bytes);
     const java = json.Results.find((result) => result.Type === "jar");
     java.Vulnerabilities = java.Vulnerabilities.filter((v) => v.PkgName !== jline);
@@ -180,6 +187,9 @@ async function worker(scenario, output) {
     // Clearing current findings models a changed database. Identical inputs
     // would (correctly) require the original 82 ordered OpenSearch blockers.
     receipt.awsComparisonInputs.databaseFiles.find((p) => p.file === "db/trivy.db").sha256 = "1".repeat(64);
+  }
+  if (scenario === "jline-java-index-only") {
+    receipt.awsComparisonInputs.databaseFiles.find((entry) => entry.file === "java-db/trivy-java.db").sha256 = "2".repeat(64);
   }
   if (scenario === "interrupt") {
     mock.method(Date, "now", () => {
@@ -353,6 +363,39 @@ if (process.argv[2] === "recover") {
     assert.equal(comparison.execution, "complete");
     assert.equal(comparison.candidatePolicy, "blocked");
     assert.equal(comparison.qualification, "passed", comparison.reason);
+  });
+
+  test("a finding in another valid layer stops raw scanning after the candidate JSON", async (t) => {
+    const output = run(t, "finding-wrong-layer", ["json"]);
+    const receipt = disk(output, "official-audit-receipt.json");
+    const comparison = receipt.openSearchComparator;
+    assert.deepEqual(comparison.commandIndices, [13]);
+    assert.deepEqual(comparison.formats.map((row) => [row.format, row.status]), [["json", "report_failed"]]);
+    assert.match(comparison.reason, /candidate_finding_package_mismatch/u);
+    assert.equal(comparison.execution, "partial");
+    assert.equal(comparison.candidatePolicy, "unmeasured");
+    assert.equal(comparison.qualification, "failed");
+    assert.deepEqual(receipt.blockers, historical.blockers);
+    const saved = await readComparisonCheckpoint({ config, output, expectedIdentity: receipt.awsCheckpoint.identity });
+    assert.equal(saved.checkpoint.awsComparator.qualification, "passed");
+    assert.deepEqual(saved.candidateEvidence, { state: "partial", files: ["image-opensearch-candidate.json"] });
+  });
+
+  test("a changed Java artifact index alone cannot explain a shared missing JLine advisory", (t) => {
+    const output = run(t, "jline-java-index-only", formats);
+    const comparison = disk(output, "official-audit-receipt.json").openSearchComparator;
+    const { inventory } = disk(output, comparison.delta.file);
+    assert.deepEqual(inventory.history.inputComparison.filter((entry) => !entry.identical).map((entry) => entry.file), ["java-db/trivy-java.db"]);
+    const jlineRow = inventory.correspondence.find((row) => row.original.PkgName === jline);
+    assert.equal(jlineRow.oldFinding, null);
+    assert.deepEqual(jlineRow.candidateFindings, []);
+    assert.equal(jlineRow.candidateThreshold.meetsFloor, false);
+    assert.deepEqual(inventory.unresolved.sharedBelowFloorAdvisoryDrift, []);
+    assert.deepEqual(inventory.unresolved.unexplainedBelowFloorAdvisories, [jlineRow.historicalFinding]);
+    assert.ok(inventory.unresolved.reasons.includes("below_floor_advisories_unmeasured"));
+    assert.equal(comparison.execution, "complete");
+    assert.equal(comparison.candidatePolicy, "blocked");
+    assert.equal(comparison.qualification, "failed");
   });
 
   for (const scenario of ["mixed", "technical", "aws-failure"]) {
