@@ -130,6 +130,11 @@ function reportBytes(role, format, scenario, candidate) {
     return Buffer.from(JSON.stringify(sbom));
   }
   if (format !== "json") return bytes;
+  if (role === "opensearch" && scenario === "old-erased-findings") {
+    const json = JSON.parse(bytes);
+    for (const result of json.Results) delete result.Vulnerabilities;
+    return Buffer.from(JSON.stringify(json));
+  }
   if (role === "opensearch" && scenario === "jline-db-drift") {
     const json = JSON.parse(bytes);
     const java = json.Results.find((result) => result.Type === "jar");
@@ -305,6 +310,20 @@ if (process.argv[2] === "recover") {
     assert.equal(inventory.qualification, "failed");
     assert.equal(comparison.qualification, "failed");
     assert.equal(comparison.reason, "scanner_opensearch_unexplained_package_loss");
+  });
+
+  test("erased old advisories on the original DBs keep the other four decisions and start zero candidate commands", async (t) => {
+    const output = run(t, "old-erased-findings", []);
+    const receipt = disk(output, "official-audit-receipt.json");
+    assert.equal(receipt.failure, "scanner_official_images_blocked");
+    assert.deepEqual(receipt.blockers, historical.blockers.filter((row) => row.role !== "opensearch"));
+    assert.equal(receipt.openSearchComparator.execution, "not_started");
+    assert.deepEqual(receipt.openSearchComparator.commandIndices, []);
+    const saved = await readComparisonCheckpoint({ config, output, expectedIdentity: receipt.awsCheckpoint.identity });
+    assert.deepEqual(saved.reasons, [{ stage: "opensearch_3_9", reason: "scanner_opensearch_historical_replay_changed" }]);
+    assert.equal(saved.eligible, false);
+    assert.equal(saved.candidateEvidence.state, "absent");
+    assert.equal(saved.checkpoint.awsComparator.qualification, "passed");
   });
 
   test("an old 3.9 SBOM with the correct subject label and a wrong root DiffID stops both candidate commands", (t) => {

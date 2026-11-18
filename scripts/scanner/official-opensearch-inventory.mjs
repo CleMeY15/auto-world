@@ -78,8 +78,13 @@ async function readSubjectOci(side) {
 export async function validateOpenSearchComparisonJson(json, side = "candidate") {
   validateJsonSubject(json, side, await readSubjectOci(side));
 }
-export async function validateOpenSearchComparisonPair(pair, side) {
-  inventory(pair, side, await readSubjectOci(side), { bytes: 0 });
+export async function validateOpenSearchComparisonPair(pair, side, { requireHistoricalPaths = false } = {}) {
+  const measured = inventory(pair, side, await readSubjectOci(side), { bytes: 0 });
+  if (requireHistoricalPaths) {
+    const { value: rows } = await readReference(root, "correspondence");
+    requireEvidence(side === "old" && equal(measured.findings.map(historicalProjection), rows.map((row) => row.original)),
+      "historical_replay_changed");
+  }
 }
 function validateJsonSubject(json, side, refs) {
   const pin = subject(side), ref = repository + "@" + pin.platform.digest;

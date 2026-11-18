@@ -35,7 +35,14 @@ function pair(image, scenario) {
     if (scenario === "wrong-id") properties.find((p) => p.name === "aquasecurity:trivy:ImageID").value = "sha256:" + "2".repeat(64);
     if (scenario === "old-json-diffid") json.Metadata.DiffIDs[0] = json.Metadata.DiffIDs[1];
     if (scenario === "old-sbom-diffid") properties.find((p) => p.name === "aquasecurity:trivy:DiffID").value = "sha256:" + "2".repeat(64);
-    if (scenario === "clean") for (const result of json.Results) delete result.Vulnerabilities;
+    if (scenario === "old-swapped-paths") {
+      const rows = json.Results.find((result) => result.Type === "jar").Vulnerabilities;
+      assert.notEqual(rows[1].PkgPath, rows[2].PkgPath);
+      [rows[1], rows[2]] = [rows[2], rows[1]];
+    }
+    if (scenario === "clean" || scenario === "old-erased-findings") {
+      for (const result of json.Results) delete result.Vulnerabilities;
+    }
     return { json, sbom };
   }
   const subject = image.repository + "@" + image.platform.digest;
@@ -120,6 +127,7 @@ async function fixture(t, scenario = "") {
   receipt.fiveImageEvidence = save(output, "image-five-subject-results.json", five);
   receipt.fiveImageResult = five.rejections.length ? "rejected" : "passed";
   receipt.awsComparisonInputs = JSON.parse(JSON.stringify(pr253.awsComparisonInputs));
+  if (scenario === "clean") receipt.awsComparisonInputs.databaseFiles.find((row) => row.file === "db/trivy.db").sha256 = "1".repeat(64);
   const comparison = comparePreviousAws({ config: release, receipt, output, operations });
   if (scenario === "duplicate-old-package") {
     await assert.rejects(comparison, /scanner_aws_inventory_loss/u);
@@ -196,6 +204,30 @@ for (const [scenario, reason] of [["old-json-diffid", "scanner_opensearch_old_js
     assert.equal(fresh.candidateEvidence.state, "absent");
     assert.deepEqual(load(f.output, checkpoint.fiveImageEvidence.file), decisions);
     assert.deepEqual(checkpoint.awsComparator, f.receipt.awsComparator);
+  });
+}
+
+for (const scenario of ["old-erased-findings", "old-swapped-paths"]) {
+  test("fresh checkpoint reader rejects same-DB " + scenario + " after resealing", async (t) => {
+    const f = await fixture(t, scenario);
+    const decisions = load(f.output, f.receipt.fiveImageEvidence.file);
+    const blockers = decisions.blockers.filter((row) => row.role === "opensearch");
+    const historical = pr253.blockers.filter((row) => row.role === "opensearch");
+    assert.deepEqual(blockers, scenario === "old-swapped-paths" ? historical : []);
+    const saved = await writeComparisonCheckpoint(f);
+    const refusal = [{ stage: "opensearch_3_9", reason: "scanner_opensearch_historical_replay_changed" }];
+    assert.equal(saved.eligible, false);
+    assert.deepEqual(saved.checkpoint.reasons, refusal);
+    saved.checkpoint.reasons = [];
+    const seal = save(f.output, saved.identity.file, saved.checkpoint);
+    save(f.output, "image-aws-comparison-checkpoint-identity.json", seal);
+    assert.equal(existsSync(path.join(f.output, "official-audit-receipt.json")), false);
+    const recovered = readInFreshProcess(f.output, seal);
+    assert.equal(recovered.eligible, false);
+    assert.deepEqual(recovered.reasons, refusal);
+    assert.equal(recovered.candidateEvidence.state, "absent");
+    assert.deepEqual(load(f.output, f.receipt.fiveImageEvidence.file), decisions);
+    assert.deepEqual(recovered.checkpoint.awsComparator, f.receipt.awsComparator);
   });
 }
 

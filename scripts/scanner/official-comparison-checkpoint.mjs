@@ -8,7 +8,7 @@ import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { validateOfficialImageSbom, validateOfficialReleaseConfig, validateOfficialScannerIdentity } from "./official-audit.mjs";
 import { deriveAwsComparison, readPreviousAwsInventory } from "./official-aws-comparator.mjs";
 import { evaluateImageReport } from "./official-controls.mjs";
-import { validateOpenSearchComparisonPair } from "./official-opensearch-inventory.mjs";
+import { compareOpenSearchInputs, validateOpenSearchBaseline } from "./official-opensearch-comparator.mjs";
 
 const fiveFile = "image-five-subject-results.json";
 const awsFile = "image-aws-cli-comparison.json";
@@ -195,7 +195,8 @@ async function check(config, checkpoint, output, operations, receipt) {
     if (receipt) requireEvidence(equal(five, { reports: receipt.reports, blockers: receipt.blockers, rejections: receipt.rejections }),
       "scanner_comparison_five_receipt_mismatch");
     await replay(config, config.images, five, output, operations, at, (image, pair) => {
-      if (image.role === "opensearch") return inspect("opensearch_3_9", () => validateOpenSearchComparisonPair(pair, "old"));
+      if (image.role === "opensearch") return inspect("opensearch_3_9", () => validateOpenSearchBaseline(pair,
+        five.blockers.filter((row) => row.role === image.role), compareOpenSearchInputs(checkpoint.awsComparisonInputs)));
     });
   });
   await inspect("report_mapping", () => {

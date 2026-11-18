@@ -44,7 +44,7 @@ const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const fail = (reason) => { throw new Error(reason); };
 const reportName = (image, format) => `image-${image.role}${format === "json" ? ".json" : ".cdx.json"}`;
 
-function compareInputs(inputs) {
+export function compareOpenSearchInputs(inputs) {
   if (!isDeepStrictEqual(inputs?.scanner, historical.scanner) || !Array.isArray(inputs.databaseFiles)) {
     fail("scanner_opensearch_inputs_invalid");
   }
@@ -58,6 +58,16 @@ function compareInputs(inputs) {
     return { file: db.file, sha256: db.sha256, size: db.size };
   });
   return { scanner: inputs.scanner, databases, historicalInputsMatch: isDeepStrictEqual(databases, historical.databaseFiles) };
+}
+
+// Both the live comparator and the disk-only checkpoint reader use this gate.
+export async function validateOpenSearchBaseline(pair, blockers, inputs) {
+  if (inputs.historicalInputsMatch) {
+    if (blockers.length !== 82) fail("scanner_opensearch_historical_replay_changed");
+    const rows = blockers.map((row) => Object.fromEntries(Object.keys(row).sort().map((key) => [key, row[key]])));
+    if (sha(JSON.stringify(rows)) !== historical.oldOrderedBlockersSha256) fail("scanner_opensearch_historical_replay_changed");
+  }
+  await validateOpenSearchComparisonPair(pair, "old", { requireHistoricalPaths: inputs.historicalInputsMatch });
 }
 
 function validateSubject(image, json, sbom) {
@@ -144,15 +154,11 @@ export async function compareOpenSearchCandidate({ config, receipt, output, oper
         baseline[0].manifestDigest !== old.manifestDigest || !isDeepStrictEqual(baseline[0].platform, old.platform)) {
       fail("scanner_opensearch_baseline_invalid");
     }
-    comparison.inputs = compareInputs(receipt.awsComparisonInputs);
+    comparison.inputs = compareOpenSearchInputs(receipt.awsComparisonInputs);
     const oldBlockers = receipt.blockers.filter((row) => row.role === old.role);
-    if (comparison.inputs.historicalInputsMatch) {
-      const sortedRows = oldBlockers.map((row) => Object.fromEntries(Object.keys(row).sort().map((key) => [key, row[key]])));
-      if (sha(JSON.stringify(sortedRows)) !== historical.oldOrderedBlockersSha256) fail("scanner_opensearch_historical_replay_changed");
-    }
     const oldIdentity = receipt.reports.find((row) => row.role === old.role)?.report;
     const oldReport = await readPair(output, old, oldIdentity);
-    await validateOpenSearchComparisonPair(oldReport, "old");
+    await validateOpenSearchBaseline(oldReport, oldBlockers, comparison.inputs);
     const runFormat = async (format, execute) => {
       const index = identities.length;
       if (activeFormat || index >= formats.length || format !== formats[index] || receipt.commands.length !== start + index) fail("scanner_opensearch_format_order_invalid");
