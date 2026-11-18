@@ -66,8 +66,7 @@ function verifyOci(side, refs) {
     (side === "old" || manifest.layers.reduce((n, l) => n + l.size, 0) === 1160663754), "oci_layers_invalid");
 }
 
-// The first-format gate reads only the three pinned OCI objects. The complete
-// comparison reuses the same predicate with its already authenticated inputs.
+// The candidate's early gate also needs the distribution's physical JAR list.
 async function readSubjectOci(side) {
   requireEvidence(["old", "candidate"].includes(side), "subject_role_invalid");
   const refs = {};
@@ -75,14 +74,19 @@ async function readSubjectOci(side) {
     const key = side + suffix;
     refs[key] = (await readReference(root, key)).value;
   }
+  if (side === "candidate") refs.jars = (await readReference(root, "jars")).value;
   verifyOci(side, refs);
   return refs;
 }
 export async function validateOpenSearchComparisonJson(json, side = "candidate") {
-  jsonInventory(json, side, await readSubjectOci(side), { bytes: 0 });
+  const refs = await readSubjectOci(side);
+  const measured = jsonInventory(json, side, refs, { bytes: 0 });
+  if (side === "candidate") verifyCandidateJarLayers(refs, measured.packages);
 }
 export async function validateOpenSearchComparisonPair(pair, side, { requireHistoricalPaths = false } = {}) {
-  const measured = inventory(pair, side, await readSubjectOci(side), { bytes: 0 });
+  const refs = await readSubjectOci(side);
+  const measured = inventory(pair, side, refs, { bytes: 0 });
+  if (side === "candidate") verifyCandidateJarLayers(refs, measured.packages);
   if (requireHistoricalPaths) {
     const { value: rows } = await readReference(root, "correspondence");
     requireEvidence(side === "old" && equal(measured.findings.map(historicalProjection), rows.map((row) => row.original)),
@@ -142,17 +146,18 @@ export function openSearchHistoricalInputsMatch(inputs) {
   return historicalInputComparison(inputs).every((entry) => entry.identical);
 }
 
-function positions(rows, key) {
+function positions(rows, key, excluded) {
   const index = new Map();
   for (const [i, row] of rows.entries()) {
+    if (excluded?.has(i)) continue;
     const k = key(row);
     if (!index.has(k)) index.set(k, []);
     index.get(k).push(i);
   }
   return index;
 }
-function delta(before, after, key = JSON.stringify) {
-  const available = positions(after, key);
+function delta(before, after, key = JSON.stringify, unattributed) {
+  const available = positions(after, key, unattributed);
   for (const occurrences of available.values()) occurrences.reverse();
   const matched = [], removed = [], used = new Set();
   for (const [i, row] of before.entries()) {
@@ -296,7 +301,26 @@ function threshold(version, fixed) {
 function outerJar(file) {
   return file.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
 }
-function jarCoverage(refs, candidate) {
+
+// All 949 physical paths were read from layer 3 of the pinned 3.10 image.
+// Inner archives inherit their enclosing JAR's layer.
+function candidateJarLayers(refs, packages) {
+  const shipped = new Set(refs.jars);
+  const expectedLayer = { Digest: refs.candidatePlatform.layers[3].digest, DiffID: refs.candidateConfig.rootfs.diff_ids[3] };
+  const wrongLayerPackages = new Set();
+  for (const [i, p] of packages.entries()) {
+    if (p.type === "jar" && shipped.has(outerJar(p.file)) && !equal(p.layer, expectedLayer)) wrongLayerPackages.add(i);
+  }
+  return { expectedLayer, wrongLayerPackages };
+}
+function verifyCandidateJarLayers(refs, packages) {
+  const { wrongLayerPackages } = candidateJarLayers(refs, packages);
+  if (wrongLayerPackages.size) {
+    const p = packages[wrongLayerPackages.values().next().value];
+    requireEvidence(false, "candidate_jar_layer_mismatch: Results[" + p.resultIndex + "].Packages[" + p.index + "] " + p.file);
+  }
+}
+function jarCoverage(refs, candidate, { expectedLayer, wrongLayerPackages }) {
   const paths = new Set(refs.jars), detected = new Map();
   const outsideStaticInventory = [];
   for (const [i, pkg] of candidate.packages.entries()) {
@@ -308,6 +332,7 @@ function jarCoverage(refs, candidate) {
       outsideStaticInventory.push(i);
       continue;
     }
+    if (wrongLayerPackages.has(i)) continue;
     if (!detected.has(outer)) detected.set(outer, []);
     detected.get(outer).push(i);
   }
@@ -318,7 +343,8 @@ function jarCoverage(refs, candidate) {
     return { file, jarPaths: paths.length, detectedPaths: paths.filter((j) => j.packages.length).length };
   });
   requireEvidence(paths.size === 949 && descriptors.filter((d) => d.file.includes("/plugins/")).length === 26, "static_coverage_invalid");
-  return { jars, descriptors, outsideStaticInventory, undetectedJarPaths: jars.filter((j) => !j.packages.length).map((j) => j.file),
+  return { jars, descriptors, outsideStaticInventory, expectedLayer, wrongLayerPackages: [...wrongLayerPackages],
+    undetectedJarPaths: jars.filter((j) => !j.packages.length).map((j) => j.file),
     jdkRelease: refs.descriptors["usr/share/opensearch/jdk/release"] };
 }
 
@@ -336,13 +362,14 @@ function historicalProjection(f) {
   return { target: f.target, VulnerabilityID: f.vulnerabilityId, PkgName: f.name, PkgPath: f.file,
     InstalledVersion: f.installed, FixedVersion: f.fixed, Severity: f.severity };
 }
-function javaIndex(inv) {
-  return positions(inv.packages, (p) => p.type === "jar" ? copyKey(p.name, p.version, p.file) : null);
+function javaIndex(inv, unattributed) {
+  return positions(inv.packages, (p) => p.type === "jar" ? copyKey(p.name, p.version, p.file) : null, unattributed);
 }
-function correspondence(refs, baseline, old, candidate) {
-  const oldCopies = javaIndex(old), newCopies = javaIndex(candidate);
+function correspondence(refs, baseline, old, candidate, wrongLayerPackages, wrongLayerFindings) {
+  const oldCopies = javaIndex(old), newCopies = javaIndex(candidate, wrongLayerPackages);
   const byAdvisory = (v) => JSON.stringify([v.target, v.vulnerabilityId, v.name, v.file, v.installed]);
-  const oldFindings = positions(old.findings, byAdvisory), newFindings = positions(candidate.findings, byAdvisory);
+  const oldFindings = positions(old.findings, byAdvisory);
+  const newFindings = positions(candidate.findings, byAdvisory, wrongLayerFindings);
   for (const index of [oldFindings, newFindings]) for (const matches of index.values()) matches.reverse();
   return refs.correspondence.map(({ original, candidate: [file, evidence, coordinate, jarDigest] }, index) => {
     const base = baseline.findings[index];
@@ -610,9 +637,14 @@ export function compareOpenSearchReportData({ values: refs, identities }, {
   const orderedFindingPathsMatch = equal(baseline.findings.map(findingKey), old.findings.map(findingKey));
   const historicalPackages = delta(baseline.packages, old.packages, (p) => JSON.stringify([packageKey(p), p.layer]));
   requireEvidence(baseline.findings.length === 82 && refs.correspondence.length === 82, "historical_finding_count_invalid");
-  const mapped = correspondence(refs, baseline, old, candidate);
+  const layers = candidateJarLayers(refs, candidate.packages);
+  const wrongLayerFindings = new Set();
+  for (const [i, finding] of candidate.findings.entries()) {
+    if (layers.wrongLayerPackages.has(finding.packageIndex)) wrongLayerFindings.add(i);
+  }
+  const mapped = correspondence(refs, baseline, old, candidate, layers.wrongLayerPackages, wrongLayerFindings);
   const mappedCandidateFindings = new Set(mapped.flatMap((m) => m.candidateFindings));
-  const jars = jarCoverage(refs, candidate);
+  const jars = jarCoverage(refs, candidate, layers);
   // A physical JAR still shipped at the same path must not silently lose
   // scanner visibility that the previous report established for that path.
   const oldJarPaths = new Set(old.packages.filter((p) => p.type === "jar").map((p) => outerJar(p.file)));
@@ -626,7 +658,7 @@ export function compareOpenSearchReportData({ values: refs, identities }, {
     changedAdvisories && mapped[index].original.InstalledVersion === mapped[index].coordinate.version &&
     mapped[index].oldFinding === null && mapped[index].oldPackage !== null && mapped[index].candidatePackage !== null);
   const unexplainedBelowFloorAdvisories = missingBelowFloorAdvisories.filter((index) => !sharedBelowFloorAdvisoryDrift.includes(index));
-  const packages = delta(old.packages, candidate.packages, packageKey);
+  const packages = delta(old.packages, candidate.packages, packageKey, layers.wrongLayerPackages);
   const opensaml = openSamlCoverage(refs, baseline, candidate);
   const { provedMigrations, removedJarOwners, unresolvedOwnerPackages, unexplainedPackageLosses, replacementGaps } =
     reconcileRemovedPackages({ old, candidate, packages, mapped, refs, baseline, opensaml, historicalPackages,
@@ -649,7 +681,8 @@ export function compareOpenSearchReportData({ values: refs, identities }, {
   if (ambiguousOwnerVersions.length) reasons.push("ambiguous_owner_version");
   if (opensaml.coordinates.some((c) => !c.matched)) reasons.push("opensaml_inventory_mismatch");
   if (unexplainedBelowFloorAdvisories.length) reasons.push("below_floor_advisories_unmeasured");
-  const findings = delta(old.findings, candidate.findings, findingKey);
+  if (layers.wrongLayerPackages.size) reasons.push("candidate_jar_layer_mismatch");
+  const findings = delta(old.findings, candidate.findings, findingKey, wrongLayerFindings);
   const result = {
     qualification: reasons.length ? "failed" : "passed", reason: reasons.length ? "scanner_opensearch_" + reasons[0] : null,
     references: identities,
@@ -662,7 +695,7 @@ export function compareOpenSearchReportData({ values: refs, identities }, {
     old, candidate, correspondence: mapped, paths: pathDelta(old, candidate),
     // Coordinate coverage at the exact path ignores only version/EVR. The
     // owner evidence identifies which changes have a per-copy explanation.
-    packageCoverage: { ...delta(old.packages, candidate.packages, (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch, p.file])),
+    packageCoverage: { ...delta(old.packages, candidate.packages, (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch, p.file]), layers.wrongLayerPackages),
       provedMigrations, removedJarOwners, unresolvedOwnerPackages, replacementGaps, unresolvedOwners: refs.renamedOwners.unresolved, opensaml },
     candidateFindingsOutsideHistoricalMapping: [...candidate.findings.keys()].filter((i) => !mappedCandidateFindings.has(i)),
     rpmCoverage: { old: oldRpms.matched, candidate: candidateRpms.matched, gaps: rpmGaps }, jarCoverage: jars,

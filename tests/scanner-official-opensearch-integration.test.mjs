@@ -9,6 +9,8 @@ import path from "node:path";
 import { mock, test } from "node:test";
 import { runOfficialImageAudits } from "../scripts/scanner/official-audit.mjs";
 import { readComparisonCheckpoint } from "../scripts/scanner/official-comparison-checkpoint.mjs";
+import { evaluateImageReport } from "../scripts/scanner/official-controls.mjs";
+import { buildOpenSearchComparison } from "../scripts/scanner/official-opensearch-inventory.mjs";
 
 const config = JSON.parse(readFileSync(new URL("../infra/scanner/official-release.json", import.meta.url)));
 const evidence = new URL("../docs/validation/opensearch-310/", import.meta.url);
@@ -140,6 +142,10 @@ function syntheticCandidate(scenario) {
     if (!shipped.has(outerJar)) {
       assert.equal(oldOwner, ownerReference.removed[0].oldFile);
       return [];
+    }
+    if (scenario === "retained-jar-wrong-layer" && file === "usr/share/opensearch/plugins/opensearch-ml/jsr305-3.0.2.jar") {
+      assert.equal(layer.Digest, layers[3].Digest);
+      layer = layers[0];
     }
     const [group, name] = pkg.Name.split(":");
     if (replacement) assert.deepEqual([file, version], [replacement[0], replacement[2].version]);
@@ -474,6 +480,48 @@ if (process.argv[2] === "recover") {
     const saved = await readComparisonCheckpoint({ config, output, expectedIdentity: receipt.awsCheckpoint.identity });
     assert.equal(saved.checkpoint.awsComparator.qualification, "passed");
     assert.deepEqual(saved.candidateEvidence, { state: "partial", files: ["image-opensearch-candidate.json"] });
+  });
+
+  test("a retained ML JAR in a contradictory layer stops after JSON and preserves the original package index", async (t) => {
+    const output = run(t, "retained-jar-wrong-layer", ["json"]);
+    const receipt = disk(output, "official-audit-receipt.json");
+    const comparison = receipt.openSearchComparator;
+    assert.deepEqual(receipt.blockers, historical.blockers);
+    assert.equal(receipt.awsComparator.qualification, "passed");
+    assert.equal(comparison.execution, "partial");
+    assert.equal(comparison.candidatePolicy, "unmeasured");
+    assert.equal(comparison.qualification, "failed");
+    assert.deepEqual(comparison.commandIndices, [13]);
+    assert.deepEqual(comparison.formats.map((f) => [f.format, f.status]), [["json", "report_failed"]]);
+    const bytes = readFileSync(path.join(output, "image-opensearch-candidate.json"));
+    assert.deepEqual(receipt.commands[12].scan.output, identity(bytes));
+    const json = JSON.parse(bytes);
+    const pkg = json.Results[1].Packages[109];
+    assert.equal(pkg.Name, "com.google.code.findbugs:jsr305");
+    assert.equal(pkg.Layer.Digest, json.Metadata.Layers[0].Digest);
+    assert.ok(comparison.reason.includes("candidate_jar_layer_mismatch"));
+    assert.ok(comparison.reason.includes("Results[1].Packages[109]"));
+    assert.ok(comparison.reason.includes(pkg.FilePath));
+    const saved = await readComparisonCheckpoint({ config, output, expectedIdentity: receipt.awsCheckpoint.identity });
+    assert.deepEqual(saved.candidateEvidence, { state: "partial", files: ["image-opensearch-candidate.json"] });
+
+    // Replay the deliberately inconsistent synthetic pair offline. Its
+    // CycloneDX fixture was never run or published by the interrupted audit.
+    const replay = await buildOpenSearchComparison({
+      oldReport: { json: read("image-opensearch"), sbom: read("image-opensearch.cdx") },
+      candidateReport: { json, sbom: syntheticCandidate("retained-jar-wrong-layer").cyclonedx },
+      historicalInputsMatch: true, currentInputs: receipt.awsComparisonInputs,
+      oldBlockers: historical.blockers.filter((b) => b.role === "opensearch"),
+      candidateBlockers: evaluateImageReport(json, comparison.candidate, [], new Date(json.CreatedAt)).blockers,
+    });
+    assert.equal(replay.qualification, "failed");
+    assert.equal(replay.candidatePolicy, "blocked");
+    assert.equal(replay.unresolved.ambiguousOwnerVersions.length, 10);
+    assert.deepEqual(replay.jarCoverage.wrongLayerPackages, [220]);
+    assert.deepEqual(replay.unresolved.unexplainedPackageLosses, [220]);
+    assert.equal(replay.candidate.packages[220].file, pkg.FilePath);
+    assert.equal(replay.packageCoverage.provedMigrations.length, 374);
+    assert.equal(replay.packageCoverage.removedJarOwners.length, 1);
   });
 
   test("a changed Java artifact index alone cannot explain a shared missing JLine advisory", (t) => {

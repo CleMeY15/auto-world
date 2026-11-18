@@ -618,13 +618,59 @@ test("requires Notifications Core and Nimbus copies at the attested path, versio
   c.properties.find((prop) => prop.name.endsWith(":LayerDigest")).value = layer.Digest;
   c.properties.find((prop) => prop.name.endsWith(":LayerDiffID")).value = layer.DiffID;
   const r = await witnessedComparison(data);
-  assert.deepEqual(r.unresolved.reasons, ["unexplained_package_loss"]);
+  assert.deepEqual(r.unresolved.reasons, ["unexplained_package_loss", "candidate_jar_layer_mismatch"]);
   assert.deepEqual(r.unresolved.unexplainedPackageLosses.map((i) => r.old.packages[i].name).sort(), [missing, moved].sort());
   assert.deepEqual(r.packageCoverage.replacementGaps.map((g) => [g.file, g.version, g.candidatePackages.length]).sort(),
     [[notifications, "1.12.687", 0], [nimbus, "2.14.0", 1]].sort());
   assert.deepEqual(r.unresolved.missingMappedCopies, []);
   assert.deepEqual(r.unresolved.lostJarPaths, []);
   assert.equal(r.candidatePolicy, positive.candidatePolicy);
+});
+
+test("retained ML, nested JaCoCo and advisory-bearing JARs require their physical candidate layer", async () => {
+  const data = inputs({ fullCoverage: true }), pair = data.candidateReport;
+  const java = pair.json.Results[1];
+  const files = [
+    "usr/share/opensearch/plugins/opensearch-ml/jsr305-3.0.2.jar",
+    "usr/share/opensearch/plugins/opensearch-anomaly-detection/org.jacoco.agent-0.8.14.jar/jacocoagent.jar",
+    ml,
+  ];
+  const packages = files.map((file) => java.Packages.find((p) => p.FilePath === file));
+  assert.ok(packages.every(Boolean));
+  for (const pkg of packages) {
+    const lib = pair.sbom.components.find((c) => c.purl === pkg.Identifier.PURL && fileOf(c)?.value === pkg.FilePath);
+    const wrong = pair.json.Metadata.Layers[0];
+    assert.equal(pkg.Layer.Digest, pair.json.Metadata.Layers[3].Digest);
+    pkg.Layer = wrong;
+    lib.properties.find((p) => p.name.endsWith(":LayerDigest")).value = wrong.Digest;
+    lib.properties.find((p) => p.name.endsWith(":LayerDiffID")).value = wrong.DiffID;
+    for (const v of java.Vulnerabilities.filter((f) => f.PkgPath === pkg.FilePath && f.PkgName === pkg.Name)) v.Layer = wrong;
+  }
+  const reduced = await witnessedComparison(data);
+  assert.equal(reduced.qualification, "failed");
+  const full = await buildOpenSearchComparison(data);
+  for (const r of [full, reduced]) {
+    assert.equal(r.candidatePolicy, "blocked");
+    assert.ok(r.unresolved.reasons.includes("candidate_jar_layer_mismatch"));
+    const indices = packages.map((pkg) => r.candidate.packages.findIndex((p) => p.file === pkg.FilePath && p.name === pkg.Name)).sort((a, b) => a - b);
+    assert.deepEqual(r.jarCoverage.wrongLayerPackages, indices);
+    for (const i of indices) {
+      const p = r.candidate.packages[i];
+      assert.equal(p.layer.Digest, pair.json.Metadata.Layers[0].Digest);
+      assert.ok(Number.isInteger(p.sbomComponent));
+      assert.ok(r.packages.added.includes(i) && r.packageCoverage.added.includes(i));
+      assert.ok(!r.packageCoverage.provedMigrations.some((m) => m.candidatePackage === i));
+      assert.ok(!r.jarCoverage.jars.some((j) => j.packages.includes(i)));
+    }
+    const anchor = r.correspondence.find((c) => c.file === ml);
+    assert.equal(anchor.candidatePackage, null);
+    const emitted = r.candidate.findings.findIndex((f) => f.file === ml);
+    assert.notEqual(emitted, -1);
+    assert.ok(r.candidateFindingsOutsideHistoricalMapping.includes(emitted));
+    assert.ok(r.findings.added.includes(emitted));
+  }
+  await assert.rejects(validateOpenSearchComparisonJson(pair.json), /candidate_jar_layer_mismatch/u);
+  await assert.rejects(validateOpenSearchComparisonPair(pair, "candidate"), /candidate_jar_layer_mismatch/u);
 });
 
 test("keeps the archived SES and Gson indices on top of the ten ambiguous SDK owners", async () => {
@@ -756,7 +802,7 @@ test("separates ten physically observed SDK copies from publication ambiguity an
   wrongLayer.lib.properties.find((p) => p.name.endsWith(":LayerDigest")).value = layer.Digest;
   wrongLayer.lib.properties.find((p) => p.name.endsWith(":LayerDiffID")).value = layer.DiffID;
   const partial = await buildOpenSearchComparison(data);
-  assert.deepEqual(partial.unresolved.reasons, ["unexplained_package_loss", "ambiguous_owner_version"]);
+  assert.deepEqual(partial.unresolved.reasons, ["unexplained_package_loss", "ambiguous_owner_version", "candidate_jar_layer_mismatch"]);
   assert.equal(partial.unresolved.ambiguousOwnerVersions.length, 6);
   assert.equal(partial.unresolved.unexplainedPackageLosses.length, 4);
   for (const [item, status] of [[missing, "copy_not_observed"], [wrongHash, "copy_evidence_mismatch"],
