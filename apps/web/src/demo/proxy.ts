@@ -80,6 +80,13 @@ async function readBounded(stream: ReadableStream<Uint8Array> | null, limit: num
 }
 function decodeUtf8(bytes: Uint8Array): string { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
 
+export async function readDemoBackendText(response: Response, signal: AbortSignal): Promise<string> {
+  if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(response.headers.get("content-type") ?? "")) throw new TypeError("expected JSON");
+  const declared = response.headers.get("content-length");
+  if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > responseLimit)) throw new RangeError("invalid response size");
+  return decodeUtf8(await readBounded(response.body, responseLimit, signal));
+}
+
 export function createDemoProxyHandler(options: DemoProxyOptions): (request: Request, listingId?: string) => Promise<Response> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const clock = options.clock ?? (() => new Date());
@@ -150,11 +157,8 @@ export function createDemoProxyHandler(options: DemoProxyOptions): (request: Req
         redirect: "error",
       });
       if (controller.signal.aborted) return finish(localError("cancelled", schemaVersion), "cancelled");
-      if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(upstream.headers.get("content-type") ?? "")) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
-      const declared = upstream.headers.get("content-length");
-      if (declared !== null && (!/^(?:0|[1-9][0-9]*)$/u.test(declared) || Number(declared) > responseLimit)) return finish(localError("read_unavailable", schemaVersion), "read_unavailable");
       let source: string;
-      try { source = decodeUtf8(await readBounded(upstream.body, responseLimit, controller.signal)); }
+      try { source = await readDemoBackendText(upstream, controller.signal); }
       catch {
         const code: DemoHttpErrorCode = controller.signal.aborted ? "cancelled" : "read_unavailable";
         return finish(localError(code, schemaVersion), code);

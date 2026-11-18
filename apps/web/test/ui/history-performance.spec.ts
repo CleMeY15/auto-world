@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arch, cpus, totalmem } from "node:os";
 import path from "node:path";
@@ -17,6 +17,7 @@ type BrowserMeasurements = {
 type Sample = {
   readonly cls: number;
   readonly disclosureMs: number;
+  readonly messageDisclosureMs: number;
   readonly lcpMs: number;
   readonly sample: number;
 };
@@ -26,12 +27,36 @@ function percentile75(values: readonly number[]) {
   return ordered[Math.ceil(ordered.length * 0.75) - 1]!;
 }
 
+async function measureDisclosure(page: Page, details: Locator) {
+  const summary = details.locator("summary");
+  await page.evaluate(() => { Object.defineProperty(window, "__awHistoryGuideDisclosureMs", { configurable: true, writable: true, value: -1 }); });
+  await summary.evaluate((element) => {
+    const disclosure = element.parentElement as HTMLDetailsElement;
+    element.addEventListener("click", () => {
+      const started = performance.now();
+      const observer = new MutationObserver(() => {
+        if (!disclosure.open) return;
+        observer.disconnect();
+        requestAnimationFrame(() => {
+          (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs = performance.now() - started;
+        });
+      });
+      observer.observe(disclosure, { attributes: true, attributeFilter: ["open"] });
+    }, { once: true });
+  });
+  await summary.click();
+  await expect(details).toHaveJSProperty("open", true);
+  await page.waitForFunction(() => (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs >= 0);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  return page.evaluate(() => (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs);
+}
+
 test("the static history guide meets cold-load and native disclosure budgets", async ({ browser, browserName, context, page }, testInfo) => {
   test.setTimeout(180_000);
   await page.setViewportSize({ width: 390, height: 844 });
   if (browserName !== "chromium") {
     await page.goto("/historique-vehicule");
-    const details = page.locator("details");
+    const details = page.locator("details:has(#history-help)");
     const summary = details.locator("summary");
     await summary.focus();
     await expect(summary).toBeFocused();
@@ -82,32 +107,10 @@ test("the static history guide meets cold-load and native disclosure budgets", a
         return measurement?.observersReady === true && measurement.lcp > 0;
       });
 
-      const details = page.locator("details");
-      const summary = details.locator("summary");
-      await page.evaluate(() => { Object.defineProperty(window, "__awHistoryGuideDisclosureMs", { configurable: true, writable: true, value: -1 }); });
-      await summary.evaluate((element) => {
-        const disclosure = element.parentElement as HTMLDetailsElement;
-        element.addEventListener("click", () => {
-          const started = performance.now();
-          const observer = new MutationObserver(() => {
-            if (!disclosure.open) return;
-            observer.disconnect();
-            requestAnimationFrame(() => {
-              (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs = performance.now() - started;
-            });
-          });
-          observer.observe(disclosure, { attributes: true, attributeFilter: ["open"] });
-        }, { once: true });
-      });
-      await summary.click();
-      await expect(details).toHaveJSProperty("open", true);
-      await page.waitForFunction(() => (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs >= 0);
-      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      const measurement = await page.evaluate(() => ({
-        ...((window as typeof window & { __awHistoryGuidePerformance: BrowserMeasurements }).__awHistoryGuidePerformance),
-        disclosureMs: (window as typeof window & { __awHistoryGuideDisclosureMs: number }).__awHistoryGuideDisclosureMs,
-      }));
-      samples.push({ cls: measurement.cls, disclosureMs: measurement.disclosureMs, lcpMs: measurement.lcp, sample: index + 1 });
+      const disclosureMs = await measureDisclosure(page, page.locator("details:has(#history-help)"));
+      const messageDisclosureMs = await measureDisclosure(page, page.locator(".history-guide-steps details"));
+      const measurement = await page.evaluate(() => (window as typeof window & { __awHistoryGuidePerformance: BrowserMeasurements }).__awHistoryGuidePerformance);
+      samples.push({ cls: measurement.cls, disclosureMs, messageDisclosureMs, lcpMs: measurement.lcp, sample: index + 1 });
     }
   } finally {
     await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
@@ -121,6 +124,7 @@ test("the static history guide meets cold-load and native disclosure budgets", a
 
   const p75 = {
     cls: percentile75(samples.map((sample) => sample.cls)),
+    messageDisclosureMs: percentile75(samples.map((sample) => sample.messageDisclosureMs)),
     disclosureMs: percentile75(samples.map((sample) => sample.disclosureMs)),
     lcpMs: percentile75(samples.map((sample) => sample.lcpMs)),
   };
@@ -155,5 +159,6 @@ test("the static history guide meets cold-load and native disclosure budgets", a
   expect(samples).toHaveLength(SAMPLE_COUNT);
   expect(p75.lcpMs, "LCP p75 should remain within the mobile lab budget").toBeLessThanOrEqual(LCP_BUDGET_MS);
   expect(p75.cls, "CLS p75 should remain within the mobile lab budget").toBeLessThanOrEqual(CLS_BUDGET);
+  expect(Math.max(...samples.map((sample) => sample.messageDisclosureMs)), "Seller message disclosure budget").toBeLessThanOrEqual(DISCLOSURE_BUDGET_MS);
   expect(Math.max(...samples.map((sample) => sample.disclosureMs)), "Every native details disclosure should reach the next animation-frame callback within 100ms").toBeLessThanOrEqual(DISCLOSURE_BUDGET_MS);
 });
