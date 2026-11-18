@@ -231,18 +231,104 @@ test("a replacement detail closes disclosure state and presents the replacement 
   await expect(replacement.locator(".demo-history-selected [data-observation-value]")).toContainText(/40[\s\u00a0\u202f]?000,00\s*USD/u);
 });
 
-test("the 256-record boundary exposes every retained observation without truncation", async ({ page }) => {
+test("the 256-record boundary exposes every retained observation in order by groups", async ({ page, context }) => {
   const first = Date.parse("2026-10-13T08:00:00.000Z");
-  const evidence = Array.from({ length: 256 }, (_, index) => price(1_000 + index, new Date(first + index).toISOString(), 1_000_000 + index, "EUR", index % 10_001));
+  const evidence = Array.from({ length: 256 }, (_, index) =>
+    price(1_000 + index, new Date(first + Math.floor(index / 3)).toISOString(), 1_000_000 + index, index % 2 ? "JPY" : "KRW", index));
   const result = publication("lst_history-boundary", evidence);
   await interceptDetail(page, [result]);
   await openDirectDetail(page, result.listingId);
   const priceHistory = historyField(page, "price");
+  const rows = priceHistory.getByRole("listitem");
   await expect(priceHistory.locator("summary")).toHaveAccessibleName(/255 autres observations/i);
   await priceHistory.locator("summary").click();
-  await expect(priceHistory.locator(".demo-history-selected")).toHaveCount(1);
-  await expect(priceHistory.getByRole("list", { name: "Autres observations de prix" }).getByRole("listitem")).toHaveCount(255);
-  await expect(priceHistory).not.toContainText(/tronqu|charger plus/i);
+  await expect(priceHistory.locator(".demo-history-selected")).toContainText(/1.000.255\s*JPY/);
+  await expect(priceHistory).toContainText(/même instant/);
+  await expect(priceHistory).toContainText(/sans conversion/);
+  await expect(rows).toHaveCount(8);
+  const calls: string[] = [];
+  page.on("request", (request) => { if (request.url().includes("/api/")) calls.push(request.url()); });
+  await context.setOffline(true);
+  const storage = await snapshotStorage(page);
+  const more = priceHistory.getByRole("button");
+  await more.focus();
+  for (let previous = 8; previous < 255; previous += 8) {
+    await expect(more).toBeFocused();
+    await more.press("Enter");
+    await expect(rows).toHaveCount(Math.min(previous + 8, 255));
+    await expect(rows.nth(previous)).toBeFocused();
+    if (previous + 8 < 255) await page.keyboard.press("Tab");
+  }
+  await expect(more).toHaveCount(0);
+  await expect(priceHistory).toContainText("255 observations sur 255");
+  const expected = evidence.slice(0, -1).reverse();
+  expect(await rows.locator("time").evaluateAll((times) => times.map((time) => time.dateTime))).toEqual(expected.map((point) => point.observedAt));
+  expect((await rows.locator("[data-observation-value]").allTextContents()).map((text) => text.replace(/\s/gu, "")))
+    .toEqual(expected.map((point) => String(point.value.amountMinor) + point.value.currency));
+  expect(calls).toEqual([]);
+  expect(await snapshotStorage(page)).toEqual(storage);
+});
+
+function groupedPublication(listingId: string, retainedPrices: number) {
+  const instant = "2026-10-14T08:00:00.000Z";
+  return publication(listingId, [
+    ...Array.from({ length: retainedPrices + 1 }, (_, i) => price(100 + i, instant, 3_250_000 + i, "EUR")),
+    ...Array.from({ length: 10 }, (_, i) => mileage(200 + i, instant, 28_500 + i, i % 2 ? "mi" : "km")),
+  ]);
+}
+
+test("progress is independent per field and resets on replacement", async ({ page }) => {
+  const first = groupedPublication("lst_group-first", 9);
+  const second = groupedPublication("lst_group-second", 8);
+  await mockDemoCatalog(page);
+  await page.route("**/api/demo/v2/listings/*", (route) => fulfillJson(route, v2Envelope(validResponse([
+    route.request().url().endsWith(first.listingId) ? first : second,
+  ]))));
+  await openDirectDetail(page, first.listingId);
+  const prices = historyField(page, "price");
+  const distance = historyField(page, "mileage");
+  await prices.locator("summary").click();
+  await distance.locator("summary").click();
+  await distance.getByRole("button", { name: "Afficher la dernière observation" }).press("Space");
+  await expect(distance.getByRole("listitem").last()).toBeFocused();
+  await expect(distance.getByRole("listitem").last()).toContainText(/28.500 km/);
+  await expect(prices.getByRole("listitem")).toHaveCount(8);
+  await distance.locator("summary").click();
+  await distance.locator("summary").click();
+  await expect(distance.getByRole("listitem")).toHaveCount(9);
+  await page.evaluate((id) => { window.location.hash = `#detail/${id}`; }, second.listingId);
+  await expect(prices.locator("summary")).toHaveAccessibleName(/8 autres observations/);
+  await expect(distance.locator("details")).toHaveJSProperty("open", false);
+  await prices.locator("summary").click();
+  await expect(prices.getByRole("button")).toHaveCount(0);
+  await distance.locator("summary").click();
+  await expect(distance.getByRole("listitem")).toHaveCount(8);
+});
+
+test("group control and reading focus fit mobile and desktop", async ({ page, browserName }, testInfo) => {
+  const result = groupedPublication("lst_group-layout", 17);
+  await interceptDetail(page, [result]);
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: width === 320 ? 780 : 900 });
+    await openDirectDetail(page, result.listingId, String(width));
+    await page.getByLabel("Apparence").selectOption(width === 320 ? "dark" : "light");
+    const field = historyField(page, "price");
+    await field.locator("summary").click();
+    const more = field.getByRole("button");
+    await more.focus();
+    await expectHistoryLayout(page);
+    const directory = process.env.AW_SCREENSHOT_DIR ?? testInfo.outputDir;
+    await mkdir(directory, { recursive: true });
+    await more.evaluate((button) => button.scrollIntoView({ block: "center" }));
+    await page.screenshot({ path: path.join(directory, `group-${width}-${browserName}.png`), scale: "css" });
+    if (width === 320) await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await more.press("Enter");
+    await expect(field.getByRole("listitem").nth(8)).toBeFocused();
+    await expectHistoryLayout(page);
+    const target = await more.boundingBox();
+    expect(target?.height).toBeGreaterThanOrEqual(44);
+    expect(target?.width).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test("a field with one observation has no empty disclosure", async ({ page }) => {
@@ -604,16 +690,35 @@ test("256-record native disclosure feedback stays within 100ms under the Chromiu
     const durationMs = await page.evaluate(() => (window as typeof window & { __awHistorySamples: number[] }).__awHistorySamples.at(-1)!);
     samples.push({ durationMs, operation: expectedOpen ? "expand" : "collapse", sample: index + 1 });
   }
+  await summary.click();
+  const groupSamples: number[] = [];
+  for (let sample = 0; sample < 10; sample += 1) {
+    const duration = await details.getByRole("button").evaluate((button) => {
+      const list = button.closest("details")!.querySelector("ol")!;
+      const previous = list.children.length;
+      const startTime = performance.now();
+      (button as HTMLButtonElement).click();
+      return new Promise<number>((resolve, reject) => requestAnimationFrame(() => {
+        if (list.children.length !== previous + 8 || document.activeElement !== list.children[previous]) {
+          reject(new Error("Expected the next group to be mounted and focused before the frame"));
+        } else {
+          resolve(performance.now() - startTime);
+        }
+      }));
+    });
+    groupSamples.push(duration);
+  }
   await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
 
   const report = {
     browserVersion: browser.version(),
     budgetMaxMs: 100,
-    caveat: "Bounded synthetic Chromium lab measurement under 4x CPU slowdown; event to native details open mutation to next rendered frame. This is not production INP or physical-device evidence.",
+    caveat: "Bounded synthetic Chromium lab measurement under 4x CPU slowdown; native details toggle or local group activation to next animation-frame callback with mounted, focused rows. This is not production INP or physical-device evidence.",
     collectedAt: new Date().toISOString(),
     host: { architecture: arch(), logicalCpus: cpus().length, cpuModel: cpus()[0]?.model, memoryBytes: totalmem() },
     profile: { cpuSlowdownMultiplier: 4, evidenceRecords: 256, viewport: { width: 390, height: 844 } },
     samples,
+    groupSamples,
   };
   const serialized = JSON.stringify(report, null, 2) + "\n";
   await testInfo.attach("demo-history-native-disclosure-performance.json", { body: Buffer.from(serialized), contentType: "application/json" });
@@ -621,5 +726,6 @@ test("256-record native disclosure feedback stays within 100ms under the Chromiu
     await mkdir(process.env.AW_SCREENSHOT_DIR, { recursive: true });
     await writeFile(path.join(process.env.AW_SCREENSHOT_DIR, "demo-history-native-disclosure-performance.json"), serialized);
   }
+  expect(Math.max(...groupSamples), "Every new group should reach the next frame within 100ms").toBeLessThanOrEqual(100);
   expect(Math.max(...samples.map((sample) => sample.durationMs)), "Every expand/collapse should paint within100ms").toBeLessThanOrEqual(100);
 });
