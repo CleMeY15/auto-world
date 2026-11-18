@@ -103,7 +103,8 @@ snapshot_inputs() (
 snapshot_inputs "$work/inputs.before"
 export GOENV=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 export GOPRIVATE= GONOPROXY= GONOSUMDB= GOFLAGS= GOSUMDB=off
-test "$(go version)" = 'go version go1.27.3 linux/amd64'
+compiler_version=$(go version)
+test "$compiler_version" = 'go version go1.27.3 linux/amd64'
 
 prepare_case() (
     case_root=$1; omitted=$2
@@ -211,3 +212,17 @@ printf '{"schemaVersion":1,"kind":"GOSU_OFFLINE_INPUTS_SAME_TOOLCHAIN_V1","sourc
 test "$(wc -c < "$work/receipt.tmp")" -le 4096
 mv "$work/receipt.tmp" "$work/evidence/offline-reconstruction.json"
 printf '%s\n' 'gosu_offline_reconstruction_passed'
+# The first runtime solve observes these bytes on the authenticated RUN vertex.
+projection_file() (
+    observed=$(identity "$1" "$2")
+    size=$(printf '%s' "$observed" | cut -d '|' -f 5)
+    printf '{"size":%s,"sha256":"%s"}' "$size" "${observed##*|}"
+)
+source_entry=$(projection_file "$inputs/gosu-source.tar.gz" 18160)
+mod_entry=$(projection_file "$references/go.mod" 1024)
+sum_entry=$(projection_file "$references/go.sum" 1024)
+tsv_entry=$(projection_file "$references/module-proxy-payloads.tsv" 1024)
+receipt_entry=$(projection_file "$work/evidence/offline-reconstruction.json" 4096)
+binary_entry=$(projection_file "$reference_binary" 16777216)
+printf 'gosu_material_input_v1:{"schemaVersion":1,"kind":"GOSU_MATERIAL_INPUT_PROJECTION_V1","source":%s,"goMod":%s,"goSum":%s,"moduleProxyTsv":%s,"offlineReceipt":%s,"referenceBinary":%s,"compilerVersion":"%s"}\n' \
+    "$source_entry" "$mod_entry" "$sum_entry" "$tsv_entry" "$receipt_entry" "$binary_entry" "$compiler_version"

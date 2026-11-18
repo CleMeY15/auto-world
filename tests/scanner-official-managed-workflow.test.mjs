@@ -31,9 +31,14 @@ test("managed diagnostic failures remain failures and only validated evidence is
   assert.equal(upload.if, "${{ always() }}");
   assert.equal(upload.with["retention-days"], 14);
   const paths = upload.with.path.split("\n");
-  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
+  for (const role of ["aws-cli", "opensearch", "opensearch-runtime", "seaweedfs", "seaweedfs-runtime", "seaweed-rust-source"]) {
+    assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/" + role + "/**"));
+  }
+  assert.ok(!paths.includes("${{ runner.temp }}/data-foundation-audit/managed-public-evidence/**"));
   assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-runtime-result.json"));
-  assert.ok(paths.includes("${{ runner.temp }}/data-foundation-audit/managed-gosu-runtime-trace.json"));
+  assert.ok(paths.includes("${{ steps.audit.outputs.gosu_evidence_paths }}"));
+  assert.ok(paths.every((pattern) => !pattern.includes("/managed-public-evidence/postgres") &&
+    !pattern.includes("/managed-gosu-material-capture.json") && !pattern.includes("/managed-gosu-runtime-trace.json")));
   for (const file of paths) {
     assert.doesNotMatch(file, /command-|\.(?:tar|tgz|gz|zip)(?:$|\/)|\/managed-evidence\/|\/cache\/|\/bin\//u);
     assert.notEqual(file, "${{ runner.temp }}/data-foundation-audit/**");
@@ -45,10 +50,16 @@ test("managed diagnostic failures remain failures and only validated evidence is
 
 test("produced-service integration triggers diagnostics but stays outside pre-build pure tests", () => {
   const integration = "tests/managed-image-runtime.integration.mjs";
-  for (const event of ["pull_request", "push"]) assert.ok(workflow.on[event].paths.includes(integration));
+  for (const event of ["pull_request", "push"]) {
+    for (const file of [integration, "tests/fixtures/managed-runtime-settlement.mjs",
+      "scripts/data-infra/runtime.mjs", "scripts/data-infra/cancellation.mjs", "tests/data-infra-runtime.test.mjs"]) {
+      assert.ok(workflow.on[event].paths.includes(file), file);
+    }
+  }
   const tests = steps.find((step) => step.id === "tests");
   assert.ok(!tests.run.includes(integration));
   assert.match(tests.run, /tests\/managed-image-\*\.test\.mjs/u);
+  assert.ok(tests.run.includes("tests/data-infra-runtime.test.mjs"));
   assert.ok(!integration.endsWith(".test.mjs"));
 });
 
