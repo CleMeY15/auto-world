@@ -1,5 +1,7 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
+18 November 2026. [AWS CLI 2.41.0 diagnostic qualification](../../docs/validation/TASK-0005-aws-cli-2.41.md) is in progress on the accepted PR252 documentation base. PR251 measured 159 upstream blocking occurrences, including 49 in AWS CLI 2.38.5. TASK-0005/0005A remain IN_PROGRESS.
+
 18 November 2026, accepted diagnostic checkpoint: [PR250's body](https://github.com/CleMeY15/auto-world/pull/250)
 accepts main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`; earlier Gosu pending
 statements are historical. The [PostgreSQL/Gosu capture proposal](../plans/TASK-0005-postgres-gosu-material-capture.md)

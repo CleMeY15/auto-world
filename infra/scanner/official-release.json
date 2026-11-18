@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "state": "DIAGNOSTIC_ONLY_NOT_ADMITTED",
-  "resolvedAt": "2026-11-18T06:08:53.025387+00:00",
+  "resolvedAt": "2026-11-18T10:49:04.586628+00:00",
   "scanner": {
     "version": "0.76.2",
     "sourceCommit": "3f6334d223b52188324af3b9923b4249cd206652",
@@ -86,17 +86,17 @@
     {
       "role": "aws-cli",
       "repository": "amazon/aws-cli",
-      "version": "2.38.5",
-      "manifestDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "version": "2.41.0",
+      "manifestDigest": "sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea",
       "platform": {
         "os": "linux",
         "architecture": "amd64",
         "variant": null,
-        "digest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"
+        "digest": "sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090"
       },
       "source": {
         "repository": "aws/aws-cli",
-        "commit": "31563df3204a0215ff9da3b72e4c8f8cf1b80cc6"
+        "commit": "7e6f97cb7b149863b5133857b2095bca3f3cab47"
       }
     }
   ]
