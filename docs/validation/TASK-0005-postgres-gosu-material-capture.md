@@ -182,3 +182,23 @@ applicable final gates on that new revision. Parent owns the independent reviews
 and protected delivery. TASK-0005/0005A remain IN_PROGRESS, including global
 material closure, capacity, retention, admission/support and final gates.
 Rollback reverts the M3 changes while preserving the AWS increment and evidence.
+
+### First architecture review and corrections
+
+The independent architecture review on PR254 source `6875c6a2` returned
+BLOCK. A legal 64-line selection could exceed the original 8 KiB budget when
+the input projection was embedded in the trace. Also, deleting private staging
+could mask an unconfirmed container cleanup. The correction keeps the trace in
+its original format and binds the separate projection to its SHA-256 in the
+same command receipt. An unresolved container cleanup leaves overall cleanup
+UNKNOWN even after the directory has been removed.
+
+A failed capture writes its bounded failure observation before recursive
+removal and replaces that observation after the cleanup check. PostgreSQL text
+inventories are attached after their complete directories are promoted.
+Regression cases include interrupted publication, failure before the final
+metadata read, the longest supported line count and the container/directory
+cleanup distinction. Local focused ESLint passed. The full managed regression
+command passed 803 cases with one platform exclusion and zero failures. These
+checks cover fixtures. Native outcomes and the independent verdict on the
+revised source are recorded separately.

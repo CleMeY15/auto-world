@@ -89,7 +89,7 @@ function projectionLine(entries) {
 
 // Retain only fixed public lines from the FIRST PostgreSQL runtime solve.
 // The full command streams remain private; their hashes identify the selection.
-export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandIndex, args } = {}) {
+export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandIndex, args, materialInput } = {}) {
   const invalid = () => fail("scanner_gosu_runtime_trace_invalid");
   if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length + stderr.length > 8 * MiB ||
       !Number.isSafeInteger(commandIndex) || commandIndex < 1 || commandIndex > 10000 ||
@@ -159,10 +159,11 @@ export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandInd
     run: Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]
       .map((key) => [key, run[key]])),
     stdout: observed(stdout), stderr: observed(stderr), stream: stream === 0 ? "stdout" : "stderr",
-    materialInput: { vertex, line: projection, ...observed(Buffer.from(projection)), eof: true },
     selection: "exact Gosu RUN headers, interleave separators, four markers and DONE; other output omitted", lines: selected };
   const bytes = Buffer.from(`${JSON.stringify(value)}\n`);
   if (bytes.length > 8192) invalid();
+  if (materialInput) Object.assign(materialInput, { traceSha256: hashBytes(bytes), vertex,
+    line: projection, ...observed(Buffer.from(projection)), eof: true });
   return bytes;
 }
 
@@ -505,7 +506,7 @@ export function bindPostgresExport({ build, command, evidence, artifacts, publis
 }
 
 // The nonce and parent/root inode checks keep failure cleanup confined to this allocation.
-export function withGosuCaptureRoot(work, status, consume) {
+export function withGosuCaptureRoot(work, status, consume, beforeFailureCleanup) {
   let root, rootId, parentId, nonce;
   const children = new Map();
   const dirId = (dir) => {
@@ -533,10 +534,12 @@ export function withGosuCaptureRoot(work, status, consume) {
       return dir;
     };
     return consume(root, createDirectory);
-  } catch {
+  } catch (error) {
     status.result = "FAILED";
-    status.reason = "scanner_gosu_material_capture_invalid";
-    throw new Error(status.reason);
+    status.reason = error?.message === "scanner_official_cleanup_uncertain"
+      ? "scanner_gosu_material_cleanup_unknown" : "scanner_gosu_material_capture_invalid";
+    if (root && beforeFailureCleanup) beforeFailureCleanup();
+    fail(status.reason);
   } finally {
     if (root) {
       try {
@@ -549,7 +552,7 @@ export function withGosuCaptureRoot(work, status, consume) {
         }
         rmSync(root, { recursive: true });
         if (lstatSync(root, { throwIfNoEntry: false })) materialInvalid();
-        status.cleanup = "REMOVED";
+        if (status.reason !== "scanner_gosu_material_cleanup_unknown") status.cleanup = "REMOVED";
       } catch {
         status.result = "FAILED"; status.reason = "scanner_gosu_material_cleanup_unknown";
         fail(status.reason);
@@ -569,14 +572,23 @@ function checkSolveRecord({ args, record }) {
 }
 
 const gosuObservationName = "managed-gosu-material-capture.json";
-function publishGosuObservation(work, output, bytes) {
+function publishGosuObservation(work, output, bytes, previous) {
   const staging = path.join(work, "gosu-observation-" + randomUUID());
   const destination = path.join(output, gosuObservationName);
-  if (bytes.length > 32768 || lstatSync(destination, { throwIfNoEntry: false })) materialInvalid();
+  if (bytes.length > 32768) materialInvalid();
+  if (previous) {
+    if (previous.path !== gosuObservationName || captureMember(destination, 32768).sha256 !== previous.sha256) materialInvalid();
+  } else if (lstatSync(destination, { throwIfNoEntry: false })) materialInvalid();
   writeFileSync(staging, bytes, { flag: "wx", mode: 0o400 });
   if (captureMember(staging, 32768).sha256 !== hashBytes(bytes)) materialInvalid();
   renameSync(staging, destination);
   return { path: gosuObservationName, ...byteIdentity(bytes) };
+}
+
+function writeGosuFailureObservation(work, output, status) {
+  const observation = { schemaVersion: 1, kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1",
+    status: "FAILED", reason: status.reason, cleanup: status.cleanup };
+  Object.assign(status, publishGosuObservation(work, output, jsonLine(observation), status.path ? status : undefined));
 }
 
 export function recordGosuCaptureFailure(work, output, status, firstRuntime = false) {
@@ -585,8 +597,7 @@ export function recordGosuCaptureFailure(work, output, status, firstRuntime = fa
     ? "scanner_gosu_material_cleanup_unknown" : "scanner_gosu_material_capture_invalid";
   try {
     if (!["REMOVED", "UNKNOWN", "NOT_CREATED"].includes(status.cleanup)) materialInvalid();
-    Object.assign(status, publishGosuObservation(work, output, jsonLine({ schemaVersion: 1,
-      kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1", status: status.result, reason: status.reason, cleanup: status.cleanup })));
+    writeGosuFailureObservation(work, output, status);
   } catch { status.observationWrite = "FAILED"; }
   return new Error(status.reason);
 }
@@ -607,12 +618,13 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
       build.gosuRuntimeTrace.path !== "managed-gosu-runtime-trace.json") materialInvalid();
   const traceBytes = readFileSync(traceFile);
   const trace = JSON.parse(traceBytes);
+  const { materialInput } = firstSolve;
   checkSolveRecord(firstSolve);
   if (firstSolve.args.at(-3) !== metadata.path ||
       hashBytes(Buffer.from(JSON.stringify(firstSolve.args))) !== trace.argumentsSha256 || hashBytes(traceBytes) !== build.gosuRuntimeTrace.sha256 || traceBytes.length !== build.gosuRuntimeTrace.size ||
       !isDeepStrictEqual(trace.run, run) || trace.commandIndex !== firstSolve.record.commandIndex ||
       trace.argumentsSha256 !== firstSolve.record.argumentsSha256 || !isDeepStrictEqual(trace.stdout, firstSolve.record.stdout) ||
-      !isDeepStrictEqual(trace.stderr, firstSolve.record.stderr) || !trace.materialInput.eof) materialInvalid();
+      !isDeepStrictEqual(trace.stderr, firstSolve.record.stderr) || materialInput?.traceSha256 !== build.gosuRuntimeTrace.sha256 || materialInput.eof !== true) materialInvalid();
   const compiler = managed.buildTools.find((tool) => tool.role === "go-builder");
   const recipe = readFileSync(path.join(ROOT, "infra/managed-images/Dockerfile.postgres"), "utf8").split("\n");
   if (compiler.repository !== "library/golang" || !digest(compiler.platform.digest) ||
@@ -633,11 +645,11 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
       ["DERIVATIVE-NOTICE.txt", "go.mod", "go.sum"].includes(entry))) {
       if (recipes["infra/managed-images/postgres/" + name].sha256 !== frozen.files["evidence/" + name].sha256) materialInvalid();
     }
-    const bound = bindGosuMaterialFiles(copy, frozen, trace.materialInput.line);
-    if (bound.inputProjection.sha256 !== trace.materialInput.sha256 || bound.inputProjection.size !== trace.materialInput.size) materialInvalid();
+    const bound = bindGosuMaterialFiles(copy, frozen, materialInput.line);
+    if (bound.inputProjection.sha256 !== materialInput.sha256 || bound.inputProjection.size !== materialInput.size) materialInvalid();
     const evidence = path.join(copy, "evidence");
-    build.publicEvidence = exportManagedTextEvidence(evidence, path.join(privateText, "postgres"));
-    bindPostgresExport({ build, command, evidence, artifacts: root, published: privateText });
+    const candidate = { subject: build.subject, publicEvidence: exportManagedTextEvidence(evidence, path.join(privateText, "postgres")) };
+    bindPostgresExport({ build: candidate, command, evidence, artifacts: root, published: privateText });
     const text = captureManagedTextEvidence(path.join(privateText, "postgres"), path.join(published, "postgres"));
     const runtimeText = captureManagedTextEvidence(path.join(privateText, "postgres-runtime"), path.join(published, "postgres-runtime"));
     const expectedText = publicRows(frozen.files).filter((row) => row.path.startsWith("evidence/"))
@@ -652,14 +664,14 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
     const metadataBytes = readFileSync(exportMetadata);
     const exportRecord = JSON.parse(metadataBytes);
     if (hashBytes(metadataBytes) !== metadata.sha256 || !exportRecord || typeof exportRecord !== "object" || Array.isArray(exportRecord)) materialInvalid();
-    return { text, runtimeText, stamps: original.files, observation: {
+    return { text, runtimeText, candidate, stamps: original.files, observation: {
       schemaVersion: 1, kind: "GOSU_MATERIAL_CAPTURE_DIAGNOSTIC_V1", status: "CAPTURED_IN_JOB_ONLY",
       platform: "linux/amd64", run: trace.run, firstRuntime: { ...firstSolve.record, trace: build.gosuRuntimeTrace,
-        vertex: trace.materialInput.vertex, metadataSha256: local.frozen[0].sha256 }, exportSolve: { ...secondSolve.record,
+        vertex: materialInput.vertex, metadataSha256: local.frozen[0].sha256 }, exportSolve: { ...secondSolve.record,
         metadataSha256: metadata.sha256 }, recipes: publicRows(recipes), compilerSubject: compiler.repository + "@" + compiler.platform.digest, imageId: build.subject.imageId, archiveBytes: build.subject.archiveBytes,
       archiveSha256: build.subject.archiveSha256, ...bound, exportedFiles: gosuExportNames.length, exportBytes: original.total,
       beforeAfterEqual: true, survival: "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE" } };
-  });
+  }, () => writeGosuFailureObservation(work, output, build.materialCapture));
   await assertFilesUnchanged(local.frozen);
   await assertManagedArchiveUnchanged(local.archiveSnapshot);
   const observation = { ...captured.observation, cleanup: build.materialCapture.cleanup };
@@ -671,8 +683,36 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
   if (captureMember(manifestFile, 65536).sha256 !== hashBytes(manifest)) materialInvalid();
   const bytes = jsonLine({ ...observation, manifest: byteIdentity(manifest) });
   if (bytes.length > 32768) materialInvalid();
-  writeManagedTextEvidence(captured.text, path.join(published, "postgres"));
-  writeManagedTextEvidence(captured.runtimeText, path.join(published, "postgres-runtime"));
+  for (const [role, files, field] of [["postgres", captured.text, "publicEvidence"],
+    ["postgres-runtime", captured.runtimeText, "runtimeGosuEvidence"]]) {
+    const staging = mkdtempSync(path.join(work, "gosu-public-"));
+    const owned = statOf(staging);
+    try {
+      const rows = writeManagedTextMembers(files, staging);
+      const destination = path.join(published, role);
+      if (lstatSync(destination, { throwIfNoEntry: false })) materialInvalid();
+      renameSync(staging, destination);
+      build[field] = rows;
+    } catch {
+      const status = build.materialCapture;
+      status.result = "FAILED";
+      status.cleanup = "UNKNOWN";
+      status.reason = "scanner_gosu_material_capture_invalid";
+      try {
+        writeGosuFailureObservation(work, output, status);
+      } finally {
+        const current = statOf(staging);
+        if (!current.isDirectory() || realpathSync(staging) !== staging ||
+            current.dev !== owned.dev || current.ino !== owned.ino) fail("scanner_gosu_material_cleanup_unknown");
+        rmSync(staging, { recursive: true });
+        if (lstatSync(staging, { throwIfNoEntry: false })) fail("scanner_gosu_material_cleanup_unknown");
+        status.cleanup = "REMOVED";
+      }
+      materialInvalid();
+    }
+  }
+  const { gosuSourceEvidence, gosuModulePayloads, gosuOfflineReconstruction } = captured.candidate;
+  Object.assign(build, { gosuSourceEvidence, gosuModulePayloads, gosuOfflineReconstruction });
   build.materialCapture = { result: "CAPTURED_IN_JOB_ONLY", cleanup: observation.cleanup, ...publishGosuObservation(work, output, bytes) };
   local.gosuEvidence = build.gosuSourceEvidence;
 }
@@ -835,6 +875,10 @@ function capturedView(files) {
 
 function writeManagedTextEvidence(files, destination) {
   mkdirSync(destination, { mode: 0o700 });
+  return writeManagedTextMembers(files, destination);
+}
+
+function writeManagedTextMembers(files, destination) {
   for (const file of files) {
     const target = path.join(destination, file.relative);
     mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
@@ -1454,11 +1498,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     if (gosuRuntimeTrace) {
       if (executable !== DOCKER || scope !== "managed" || privateOutput) fail("scanner_gosu_runtime_trace_invalid");
+      const materialInput = {};
       const bytes = captureManagedGosuRuntimeTrace(result.stdout, result.stderr,
-        { run: receipt.run, commandIndex: receipt.commands.length, args });
+        { run: receipt.run, commandIndex: receipt.commands.length, args, materialInput });
       const traceFile = "managed-gosu-runtime-trace.json";
       try { writeFileSync(path.join(output, traceFile), bytes, { flag: "wx", mode: 0o400 }); }
       catch { fail("scanner_private_command_write_failed"); }
+      record.gosuMaterialInput = materialInput;
+      if (solveObservation) solveObservation.materialInput = materialInput;
       record.gosuRuntimeTrace = { path: traceFile, size: bytes.length, sha256: hashBytes(bytes) };
     }
     return result.stdout;

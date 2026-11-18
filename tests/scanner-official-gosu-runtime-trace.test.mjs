@@ -38,7 +38,7 @@ test("first runtime trace retains exact native lines and invocation/stream ident
   const stderr = encode(["#7 [other 1/1] RUN private-command", "#7 0.1 private-value", selected[0],
     "#21 0.100 private module download JSON", ...selected.slice(1)]);
   const stdout = Buffer.from("private stdout\n");
-  const options = binding();
+  const options = { ...binding(), materialInput: {} };
   const bytes = capture(stderr, options, stdout), proof = JSON.parse(bytes);
   assert.ok(bytes.length <= 8192);
   assert.deepEqual(proof.lines, selected);
@@ -49,7 +49,8 @@ test("first runtime trace retains exact native lines and invocation/stream ident
   assert.deepEqual(proof.stderr, { size: stderr.length, sha256: hashBytes(stderr) });
   assert.deepEqual(proof.stdout, { size: stdout.length, sha256: hashBytes(stdout) });
   assert.doesNotMatch(bytes.toString(), /private-value|private-command|private stdout|private module|fixture-metadata/u);
-  assert.deepEqual(proof.materialInput, { vertex: "21", line: projection + "\n", size: projection.length + 1, sha256: hashBytes(projection + "\n"), eof: true });
+  assert.equal(Object.hasOwn(proof, "materialInput"), false);
+  assert.deepEqual(options.materialInput, { traceSha256: hashBytes(bytes), vertex: "21", line: projection + "\n", size: projection.length + 1, sha256: hashBytes(projection + "\n"), eof: true });
   assert.equal(proof.stream, "stderr");
   options.run.GITHUB_SHA = "b".repeat(40); stderr.fill(0);
   assert.equal(JSON.parse(bytes).run.GITHUB_SHA, run.GITHUB_SHA);
@@ -62,6 +63,20 @@ test("plain printer interleaving preserves repeated headers and separators for o
   assert.deepEqual(proof.lines, lines.filter((line) => line.startsWith("#21 ")));
   assert.equal(JSON.parse(capture(empty, binding(), encode())).stream, "stdout");
   assert.equal(JSON.parse(capture(encode(selected.map((line) => line.replace("RUN --mount", "RUN --network=none --mount"))))).lines.length, 6);
+});
+
+test("the 64-line legacy trace and its material projection have independent budgets", () => {
+  const vertex = "#123456";
+  const headers = Array(32).fill(header.replace("#21", vertex).replace("RUN --mount", "RUN --network=none --mount"));
+  const lines = [...headers, ...Array(27).fill(vertex + " ..."),
+    ...selected.slice(1, -1).map((line) => line.replace("#21", vertex)),
+    vertex + " 1.410 " + projection, vertex + " DONE 1.5s"];
+  const materialInput = {};
+  const bytes = capture(raw(lines), { ...binding(), materialInput });
+  assert.equal(JSON.parse(bytes).lines.length, 64);
+  assert.ok(bytes.length <= 8192);
+  assert.ok(Buffer.byteLength(JSON.stringify({ ...JSON.parse(bytes), materialInput })) > 8192);
+  assert.equal(materialInput.traceSha256, hashBytes(bytes));
 });
 
 test("cached, missing, duplicate, reordered and ambiguous native observations refuse", async (t) => {

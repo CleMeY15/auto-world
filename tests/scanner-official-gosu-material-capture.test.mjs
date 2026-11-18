@@ -164,10 +164,11 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     "#6 0.1 gosu_offline_missing_zip_refused:github.com/moby/sys/user@v0.4.1", "#6 0.2 gosu_offline_missing_zip_refused:golang.org/x/sys@v0.1.0",
     "#6 0.3 gosu_offline_upstream_go_test_cases=0", "#6 0.4 gosu_offline_reconstruction_passed", "#6 0.5 " + projection(files),
     "#6 DONE 1.0s", ""].join("\n"));
-  const trace = adapter.captureManagedGosuRuntimeTrace(Buffer.alloc(0), stderr, { run, args, commandIndex: 1 });
+  const materialInput = {};
+  const trace = adapter.captureManagedGosuRuntimeTrace(Buffer.alloc(0), stderr, { run, args, commandIndex: 1, materialInput });
   const traceFile = "managed-gosu-runtime-trace.json";
   put(output, traceFile, trace);
-  const firstSolve = { args, record: { commandIndex: 1, argumentsSha256: hash(JSON.stringify(args)), stdout: identity(Buffer.alloc(0)),
+  const firstSolve = { args, materialInput, record: { commandIndex: 1, argumentsSha256: hash(JSON.stringify(args)), stdout: identity(Buffer.alloc(0)),
     stderr: identity(stderr), exitCode: 0, eof: true, cachedVertices: 0 } };
   const build = { subject, gosuRuntimeTrace: { path: traceFile, ...identity(trace) }, materialCapture: { cleanup: "NOT_CREATED" } };
   const secondSolve = {}, recipes = adapter.recipeSnapshot(source);
@@ -196,6 +197,7 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
     if (mutation === "metadata") rmSync(meta);
   };
   const command = (_docker, _arguments, options) => {
+    if (mutation === "container-cleanup") throw new Error("scanner_official_cleanup_uncertain");
     if (mutation === "post-copy") put(exportPath, "materials/reference-gosu", "changed");
     writeFileSync(options.file, finalInventory);
     return finalInventory;
@@ -208,10 +210,66 @@ async function scenario(t, checkout, mutation = "", cachedVertices = 0) {
   const execute = () => adapter.capturePostgresMaterials({ build, local, work, output, published, command, exportSolve, firstSolve,
     secondSolve, recipes, run, managed, source });
   const filename = "managed-gosu-material-capture.json";
+  if (mutation === "write-failure") {
+    const write = fs.writeFileSync;
+    const hook = t.mock.method(fs, "writeFileSync", (file, ...args) => {
+      if (typeof file === "string" && file.includes("/gosu-public-") && file.endsWith("/build-info.txt")) throw new Error("fixture write failure");
+      return write(file, ...args);
+    });
+    syncBuiltinESMExports();
+    t.after(() => { hook.mock.restore(); syncBuiltinESMExports(); });
+  }
+  if (mutation === "publication") {
+    const rename = fs.renameSync;
+    const hook = t.mock.method(fs, "renameSync", (from, to) => {
+      if (to === path.join(published, "postgres-runtime")) throw new Error("fixture publish failure");
+      return rename(from, to);
+    });
+    syncBuiltinESMExports();
+    t.after(() => { hook.mock.restore(); syncBuiltinESMExports(); });
+  }
+  if (mutation === "metadata" || mutation === "container-cleanup") {
+    const remove = fs.rmSync;
+    let observed = false;
+    const hook = t.mock.method(fs, "rmSync", (dir, options) => {
+      if (exportPath && dir === path.dirname(exportPath)) {
+        const before = JSON.parse(readFileSync(path.join(output, filename)));
+        assert.equal(before.status, "FAILED");
+        assert.equal(before.cleanup, "UNKNOWN");
+        observed = true;
+      }
+      return remove(dir, options);
+    });
+    syncBuiltinESMExports();
+    t.after(() => { hook.mock.restore(); syncBuiltinESMExports(); assert.ok(observed); });
+  }
+
   if (mutation) {
     await assert.rejects(execute);
-    assert.equal(local.gosuEvidence, undefined); assert.equal(existsSync(path.join(output, filename)), false);
-    assert.deepEqual(readdirSync(published), []);
+    assert.equal(local.gosuEvidence, undefined);
+    if (existsSync(path.join(output, filename))) {
+      // The provisional receipt survives interruption and precedes the final cleanup verdict.
+      assert.equal(JSON.parse(readFileSync(path.join(output, filename))).cleanup, "UNKNOWN");
+    }
+    adapter.recordGosuCaptureFailure(work, output, build.materialCapture);
+    const failed = JSON.parse(readFileSync(path.join(output, filename)));
+    assert.equal(failed.status, "FAILED");
+    assert.equal(failed.cleanup, build.materialCapture.cleanup);
+    if (mutation === "container-cleanup") {
+      assert.equal(failed.cleanup, "UNKNOWN");
+      assert.equal(failed.reason, "scanner_gosu_material_cleanup_unknown");
+    }
+    if (mutation === "metadata") assert.equal(failed.cleanup, "REMOVED");
+    if (mutation === "publication") {
+      assert.deepEqual(build.publicEvidence.map((file) => file.path).sort(), [...evidenceNames].sort());
+      assert.ok(build.publicEvidence.every((file) => hash(readFileSync(path.join(published, "postgres", file.path))) === file.sha256));
+      assert.equal(existsSync(path.join(published, "postgres-runtime")), false);
+    } else {
+      assert.deepEqual(readdirSync(published), []);
+      assert.equal(build.publicEvidence, undefined);
+    }
+    assert.equal(build.runtimeGosuEvidence, undefined);
+    assert.equal(readdirSync(work).some((name) => name.startsWith("gosu-public-")), false);
   } else {
     await execute();
     const bytes = readFileSync(path.join(output, filename)), record = JSON.parse(bytes);
@@ -233,7 +291,7 @@ test("two-solve binding uses the observed first projection and exact recipe, arc
   for (const cached of [0, 3]) await t.test("positive fixture, observed cached vertices " + cached, (c) => scenario(c, checkout, "", cached));
   for (const mutation of ["zip", "coordinated", "member evidence/go.mod", "member evidence/go.sum", "member evidence/" + tsv,
     "member materials/gosu-source.tar.gz", "member materials/reference-gosu", "attempt", "config", "archive", "platform",
-    "recipe", "credential", "post-copy", "metadata", "public-extra"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
+    "recipe", "credential", "post-copy", "metadata", "public-extra", "container-cleanup", "publication", "write-failure"]) await t.test(mutation, (c) => scenario(c, checkout, mutation));
 });
 
 test("wrapper and cleanup failures keep the global receipt and resolved upload free of private diagnostics", { skip: process.platform !== "linux" }, (t) => {
