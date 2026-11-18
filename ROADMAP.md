@@ -1,5 +1,12 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
+accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded
+two-solve [implementation and validation](docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-and-local-verification)
+are ready for independent source review. Source/main native evidence and
+protected delivery remain pending. TASK-0005/0005A stay IN_PROGRESS; PR251's
+raw 159 blockers remain unwaived. The earlier checkpoints below are historical.
+
 TASK-0005, 18 November 2026: [PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250)
 accepts the Gosu diagnostic on main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`.
 The next [PostgreSQL/Gosu proposal](roadmap/plans/TASK-0005-postgres-gosu-material-capture.md)

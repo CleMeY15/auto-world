@@ -32,7 +32,7 @@ function assertMaterialBoundary(source, metadata = lock, moduleBytes = goMod, su
   assert.ok(source.includes(`test "$(wc -c < /tmp/gosu-source.tar.gz)" = ${metadata.gosu.archiveBytes};`));
   assert.equal(sha256(moduleBytes), metadata.gosu.goModSha256);
   assert.equal(sha256(sumBytes), metadata.gosu.goSumSha256);
-  assert.equal([...source.matchAll(/^FROM /gmu)].length, 6);
+  assert.equal([...source.matchAll(/^FROM /gmu)].length, 7);
   assert.match(source, new RegExp(`^FROM golang@${compiler.platform.digest} AS gosu-offline-reconstruction$`, "mu"));
   assert.doesNotMatch(source, /^ARG |^FROM [^@\s]+:(?:latest|[0-9])/mu);
   const build = stage(source, "gosu-build");

@@ -98,8 +98,8 @@ function exportedFixture(t) {
 }
 
 const source = readFileSync(new URL("../scripts/scanner/official-audit.mjs", import.meta.url), "utf8");
-const postgres = source.split('if (candidate.role === "postgres" && build.result === "passed") {')[1]
-  .split('if (candidate.role === "opensearch" && build.result === "passed") {')[0];
+const postgres = source.split("export function bindPostgresExport(")[1]
+  .split("// The nonce")[0];
 const assignment = postgres.match(/let gosuModulePayloadBytes;[\s\S]*?build\.gosuModulePayloads = parseManagedGosuModulePayloads\([\s\S]*?\);\r?\n/u)?.[0];
 assert.ok(assignment, "exercise the actual fixed PostgreSQL call site");
 const applyActualAssignment = (fixture) => runInNewContext(assignment, {

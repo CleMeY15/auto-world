@@ -130,6 +130,38 @@ test("cleanup requires the exact unique name, owner label and canonical returned
   }
 });
 
+test("each failed cleanup step preserves the command's diagnostic privacy", () => {
+  const id = "b".repeat(64);
+  const inspected = { status: 0, signal: null, stdout: Buffer.from(JSON.stringify([
+    { Name: `/${name}`, Id: id, Config: { Labels: { "io.auto-world.scanner-official": owner } } },
+  ])), stderr: Buffer.alloc(0) };
+  const removed = { status: 0, signal: null, stdout: Buffer.from(id), stderr: Buffer.alloc(0) };
+  const failed = { status: 1, signal: null, stdout: Buffer.from("fixture stdout"), stderr: Buffer.from("fixture cleanup error") };
+  const commands = [["container", "inspect", name], ["container", "rm", "--force", id], ["container", "inspect", name]];
+  for (const prior of [[], [inspected], [inspected, removed]]) {
+    for (const privateOutput of [true, false]) {
+      const responses = [...prior, failed];
+      const record = {};
+      let calls = 0;
+      const invoke = (_executable, args) => {
+        assert.deepEqual(args, commands[calls]);
+        return responses[calls++];
+      };
+      assert.throws(() => confirmScanContainerAbsent({ invoke, name, owner, record, privateOutput }),
+        { message: "scanner_official_cleanup_uncertain" });
+      assert.equal(calls, responses.length);
+      assert.equal(record.ownedContainerAbsent, undefined);
+      if (privateOutput) {
+        assert.deepEqual(record.cleanup.diagnostic, { stdoutBytes: failed.stdout.length,
+          stderrBytes: failed.stderr.length, reason: "private_runtime_output_not_published" });
+      } else {
+        assert.equal(record.cleanup.diagnostic.stdoutTail, "fixture stdout");
+        assert.equal(record.cleanup.diagnostic.stderrTail, "fixture cleanup error");
+      }
+    }
+  }
+});
+
 test("absence proof rejects transport errors, foreign names and killed inspection", () => {
   const result = { status: 1, signal: null, stderr: Buffer.from(`Error response from daemon: No such container: ${name}\n`) };
   assert.equal(validateContainerAbsence(result, name), true);
