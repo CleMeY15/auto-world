@@ -328,7 +328,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     setSlow(false);
   }, []);
 
-  const navigate = useCallback((next: Screen, listingId?: ListingId) => {
+  const navigate = useCallback((next: Screen, listingId?: ListingId, fromResultSet?: string) => {
     if (next !== "results") {
       cancelResultsSort();
     }
@@ -342,15 +342,17 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
     const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
-    else window.location.hash = nextHash;
+    else {
+      const oldURL = window.location.href;
+      window.history.pushState(fromResultSet ? { awResultSet: fromResultSet } : null, "", nextHash);
+      window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL, newURL: window.location.href }));
+    }
   }, [cancelResultsSort, invalidateSearchRefinement, screen]);
 
   function openLoadedDetail(index: number) {
     const target = response?.results[index];
     if (!target || !resultSetKey || getHashSnapshot() !== hash) return;
-    navigate("detail", target.listingId);
-    // The history entry identifies a result set only for the lifetime of this search.
-    window.history.replaceState({ ...window.history.state, awResultSet: resultSetKey }, "");
+    navigate("detail", target.listingId, resultSetKey);
     recordAnalyticsEvent({ eventName: "detail_opened", screen, outcome: "success" });
   }
 

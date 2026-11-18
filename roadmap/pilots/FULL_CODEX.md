@@ -10,7 +10,7 @@ Comparer des tâches de nature comparable, séparer UI et frontières sensibles.
 
 | Entrée | Tâche / type / risque | Inscription / propriétaire | Validation / issue |
 | --- | --- | --- | --- |
-| 1 | Non sélectionnée | Non ouverte | Non exécutée |
+| 1 | [TASK-0126](../tasks/TASK-0126-loaded-listing-navigation.md), parcours UI, risque local | 18 novembre, propriétaire produit Codex gpt-6.2-astra / ultra | [Validation en cours](../../docs/validation/TASK-0126.md) |
 | 2 | Non sélectionnée | Non ouverte | Non exécutée |
 | 3 | Non sélectionnée | Non ouverte | Non exécutée |
 | 4 | Non sélectionnée | Non ouverte | Non exécutée |
@@ -78,5 +78,3 @@ Each verdict keeps its exact scope; source/main documentary acceptance pending.
 Costs/tokens/human time unknown, no measured savings or product entry consumed.
 
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.
-
-Entrée 1/6, 18 novembre 2026, [TASK-0126](../tasks/TASK-0126-loaded-listing-navigation.md), parcours UI à risque local. Dépendances, propriétaire et ressources consignés avant réalisation. [Mesures](../../docs/validation/TASK-0126.md).
