@@ -1,5 +1,12 @@
 # TASK-0005A — Managed image tooling and corrected scanner
 
+18 November 2026, accepted diagnostic checkpoint: [PR250's body](https://github.com/CleMeY15/auto-world/pull/250)
+accepts main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`; earlier Gosu pending
+statements are historical. The [PostgreSQL/Gosu capture proposal](../plans/TASK-0005-postgres-gosu-material-capture.md)
+is PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING. This task remains
+IN_PROGRESS; raw243 on that main, global M3 closure/capacity/retention and
+admission/support/final gates remain open. No operation follows from drafting.
+
 18 November continuation: implement and qualify the reviewed
 [Gosu offline-input reconstruction prerequisite](../../docs/validation/TASK-0005-gosu-offline-inputs.md).
 This resolves one representation question before complete M3 capture design;

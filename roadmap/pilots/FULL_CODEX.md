@@ -68,3 +68,11 @@ nouveau sujet,159restantes. Les reprises locales umask/tmpfs/chemin de socket
 sont conservées ; préparation environnement seulement, assertions inchangées.
 La documentation finale et le main restent à livrer. Modèle/effort inchangés,
 coûts/tokens/gains unknown, hors cohorte produit.
+
+Infrastructure preparation,18 November2026: [PostgreSQL/Gosu dossier](../../docs/validation/TASK-0005-postgres-gosu-material-capture.md),
+outside product cohort; unique author Codex gpt-6-astra/ultra, inherited settings
+recorded before work. Architect WATCH on revision0; parent clarified N1–N3
+in revision1, then distinct Critic APPROVE on that exact plan. Parent revision2
+clarifies C1 (existing trace repetitions/interleavings) and delivery state only.
+Each verdict keeps its exact scope; source/main documentary acceptance pending.
+Costs/tokens/human time unknown, no measured savings or product entry consumed.

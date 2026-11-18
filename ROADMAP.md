@@ -1,5 +1,13 @@
 # ROADMAP MASTER — Auto World Search
 
+TASK-0005, 18 November 2026: [PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250)
+accepts the Gosu diagnostic on main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`.
+The next [PostgreSQL/Gosu proposal](roadmap/plans/TASK-0005-postgres-gosu-material-capture.md)
+is PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING, not selected execution.
+TASK-0005/0005A remain IN_PROGRESS; raw243 on that main is unwaived.
+Earlier Gosu delivery pending records are historical; full M3 closure, capacity,
+retention, admission/support and final gates remain open.
+
 TASK-0005 checkpoint, 17 November 2026: [PR247's final acceptance](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
 accepts observation delivery on main `73ad4eddec190f3d6928f41f86c3e33858598683`.
 All five main workflows and independent original-evidence reviews pass. The

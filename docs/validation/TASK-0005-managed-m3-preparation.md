@@ -1,5 +1,13 @@
 # TASK-0005 — Private retention preparation after diagnostic M2
 
+18 November 2026: [PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250)
+accepts the Gosu diagnostic on main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`.
+Earlier Gosu pending statements below are historical. The [new observations](TASK-0005-m3-material-measurements-20261118.md)
+keep job measurements distinct from surviving bytes and the17November annex.
+The [capture proposal](../../roadmap/plans/TASK-0005-postgres-gosu-material-capture.md)
+is PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING. Complete inventory,
+capacity and retained restoration remain open; no new operation is authorized.
+
 Status on 2026-11-09: `PREPARATION_ONLY / NO_PUBLICATION_AUTHORITY`.
 TASK-0005 and TASK-0005A remain `IN_PROGRESS`. Support dates remain null for
 these candidates. This record does not alter historical admissions or archives.
