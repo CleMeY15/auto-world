@@ -7,7 +7,7 @@ Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base in
 | Produit V1 synthétique | [TASK-0124](tasks/TASK-0124-results-sort.md) acceptée `DONE_FOR_V1_PROTOTYPE`, source `aa447e2427bd295a5b4c6533199ffbf56047b5ba`, main `f554c475b6748fb1b53281985588fab287c811ed`, [checkpoint PR235](https://github.com/CleMeY15/auto-world/pull/235#issuecomment-6745769896). Les anciens statuts pending sont historiques. | Aucun successeur produit sélectionné ici. La navigation entre annonces déjà chargées reste un candidat de la roadmap, à cadrer avant exécution. |
 | Processus de développement | [TASK-0125](tasks/TASK-0125-full-codex-workflow.md), mise en place autorisée ; **full Codex** pour tous les rôles. [Preuves et limites](../docs/validation/TASK-0125.md). | Terminer revue et livraison ; ouvrir ensuite la première entrée admissible du [pilote](pilots/FULL_CODEX.md). |
 | Développement VPS | [PR240](https://github.com/CleMeY15/auto-world/pull/240) observée ouverte ; son auteur conserve la livraison et les preuves privées. | Ne pas modifier son checkout, ses processus ou ses validations. Disponibilité du VPS ne signifie pas acceptation de cette PR. |
-| Infrastructure / qualification | [PR247 final checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598): observation delivery accepted on main `73ad4eddec190f3d6928f41f86c3e33858598683`, five workflows/six jobs and independent reviews pass. Scanner material-retention row closed; [actual C:/NTFS operation](../docs/validation/TASK-0005-nexus-observation.md) remains on f630339b. | Complete the [measured service-material inventory](../docs/validation/TASK-0005-managed-m3-preparation.md), separating historical measurements from surviving bytes and unknowns, then review a bounded capture plan. TASK-0005/0005A stay IN_PROGRESS; 243 blockers unwaived; no new publisher/copy/restore, admission or support activation. |
+| Infrastructure / qualification | [PR250 body checkpoint](https://github.com/CleMeY15/auto-world/pull/250): Gosu diagnostic MAIN_ACCEPTED on `0c2b3d6c1e67c665f7cd1718f18703baf673409e`, five main workflows attempt1 and independent originals accepted; raw243 unwaived. PR247 scanner retention remains separately accepted. | [PostgreSQL/Gosu preparation](plans/TASK-0005-postgres-gosu-material-capture.md), PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING. Architect WATCH on revision0 and Critic APPROVE on revision1 are recorded; deliver documents before instrumentation. No capture/publisher/copy/restore operation. Global M3 closure/capacity and admission/support/final gates open. |
 
 ## Maintenance sécurité du17 novembre2026
 
@@ -16,10 +16,14 @@ acceptée sur main `7c49d34d` par son
 [checkpoint final](https://github.com/CleMeY15/auto-world/pull/249#issuecomment-6966235450),
 après reprise qualité tentative 2 ; la tentative 1 annulée reste non acceptée.
 Le [prérequis Gosu hors réseau](../docs/validation/TASK-0005-gosu-offline-inputs.md)
-est implémenté, les contrôles locaux disponibles passent et les revues de code et
-d'architecture sont favorables, après Architect puis Critic sur le plan figé.
-La suite navigateur et sa preuve native source/main restent à établir. Il prépare une
-décision de représentation, sans achever l'inventaire, la capacité ou la rétention M3.
+est désormais MAIN_ACCEPTED par PR250 sur0c2b3d6c, avec preuve native du
+premier runtime non caché ; les pending antérieurs sont historiques.
+Le plan suivant a reçu Architect WATCH sur révision0 puis Critic APPROVE sur
+révision1 ; la livraison documentaire et les preuves natives restent distinctes.
+La remédiation upstream PR251 possède son autre thread/worktree ; son état
+159 rapporté par ce propriétaire n'est pas le raw243 de0c2b. Revalider main et
+les sujets avant livraison ; aucune mesure ne se transfère à un nouveau sujet.
+
 
 La [correction Picomatch](../docs/validation/picomatch-security-2026-11-17.md)
 est acceptée sur main `32f5253c646cc1b77be6bdb090792079fcd22782`, livré par

@@ -54,3 +54,11 @@ Infrastructure du 17 novembre 2026 : [PR247 acceptée](https://github.com/CleMeY
 hors cohorte produit. Coordinateur, recherche et revues en contextes Codex
 gpt-6-astra/ultra distincts ; coûts, tokens et gains unknown. Aucune entrée produit
 consommée, aucun nouveau résultat opérationnel ni suivi à sept jours revendiqué.
+
+Infrastructure preparation,18 November2026: [PostgreSQL/Gosu dossier](../../docs/validation/TASK-0005-postgres-gosu-material-capture.md),
+outside product cohort; unique author Codex gpt-6-astra/ultra, inherited settings
+recorded before work. Architect WATCH on revision0; parent clarified N1–N3
+in revision1, then distinct Critic APPROVE on that exact plan. Parent revision2
+clarifies C1 (existing trace repetitions/interleavings) and delivery state only.
+Each verdict keeps its exact scope; source/main documentary acceptance pending.
+Costs/tokens/human time unknown, no measured savings or product entry consumed.

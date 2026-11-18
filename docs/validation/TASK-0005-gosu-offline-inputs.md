@@ -1,5 +1,21 @@
 # TASK-0005 — Gosu offline input reconstruction
 
+## Accepted diagnostic delivery — 18 November 2026
+
+The final checkpoint in the [PR250 body](https://github.com/CleMeY15/auto-world/pull/250)
+records MAIN_ACCEPTED for source `2d204d5222a1a3832697752a49bbd05bc9394120`,
+main `0c2b3d6c1e67c665f7cd1718f18703baf673409e`, identical tree
+`5315861787a641cc8f7d2d15edf7d6005a943478`. All five main workflows pass
+attempt1, with independent original-evidence approval. Managed44249041549
+retains the first-runtime command25 trace:1201 bytes, SHA256
+`d4a9c96ee0160992ff85c5832d9b174e704831a4e0acdb987814645f33ef6053`,
+four ordered markers/DONE, uncached. Original raw FAILURE/243 remains unwaived.
+Earlier pending source/main statements below are historical for this increment;
+the rejected source run lacking this trace remains rejected. The immutable plan
+is unchanged. Seven-data sufficiency under the supplied compiler is accepted,
+not complete material retention. Next: the [preparatory capture proposal](TASK-0005-postgres-gosu-material-capture.md),
+PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING, no operational authority.
+
 Status: `SOURCE_IMPLEMENTED / HOSTED_VALIDATION_PENDING`, 18 November 2026.
 TASK-0005/0005A remain IN_PROGRESS. No representation, retention or admission
 success is asserted until the applicable actual source/main evidence passes.

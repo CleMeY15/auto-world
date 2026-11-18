@@ -1,5 +1,19 @@
 # Auto World delivery ledger
 
+## TASK-0005 Gosu diagnostic accepted — 18 November 2026
+
+[PR250's body checkpoint](https://github.com/CleMeY15/auto-world/pull/250) accepts
+source `2d204d5222a1a3832697752a49bbd05bc9394120`, main
+`0c2b3d6c1e67c665f7cd1718f18703baf673409e`, identical tree
+`5315861787a641cc8f7d2d15edf7d6005a943478`. Five main workflows pass attempt1;
+independent original-evidence review approves the first-runtime uncached Gosu
+trace and diagnostic implementation. Raw FAILURE/243 remains unwaived.
+[Evidence and historical failure](../docs/validation/TASK-0005-gosu-offline-inputs.md#accepted-diagnostic-delivery--18-november-2026).
+
+The separate [capture proposal](plans/TASK-0005-postgres-gosu-material-capture.md)
+is PLAN_REVIEWED / DOCUMENTATION_DELIVERY_PENDING, not a delivered
+implementation or retained payload acceptance. TASK-0005/0005A IN_PROGRESS.
+
 ## TASK-0005 scanner material retention — 2026-11-17
 
 [PR247's final checkpoint](https://github.com/CleMeY15/auto-world/pull/247#issuecomment-6964012598)
