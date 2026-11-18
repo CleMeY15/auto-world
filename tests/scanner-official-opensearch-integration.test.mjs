@@ -43,6 +43,15 @@ assert.equal(identity(opensamlBytes).sha256, "42618c9c2f56573088d487ccfff064756b
 const opensaml = JSON.parse(opensamlBytes);
 const opensamlWitness = "org.opensaml:opensaml-saml-impl";
 const jline = "org.jline:jline-builtins";
+const ownerReference = read("renamed-jar-owners");
+const renamedWitnesses = [
+  { scenario: "missing-notifications-ses", oldFile: "usr/share/opensearch/plugins/opensearch-notifications-core/opensearch-notifications-core-spi-3.9.0.0.jar",
+    file: "usr/share/opensearch/plugins/opensearch-notifications-core/opensearch-notifications-core-spi-3.10.0.0.jar",
+    missing: "com.amazonaws:aws-java-sdk-ses", present: "com.amazonaws:aws-java-sdk-core", version: "1.12.687" },
+  { scenario: "missing-nimbus-gson", oldFile: "usr/share/opensearch/plugins/opensearch-security/nimbus-jose-jwt-10.9.1.jar",
+    file: "usr/share/opensearch/plugins/opensearch-security/nimbus-jose-jwt-10.10.jar",
+    missing: "com.google.code.gson:gson", present: "com.nimbusds:nimbus-jose-jwt", version: "10.10" },
+];
 const omitSharedJline = (scenario) => scenario === "jline-db-drift" || scenario === "jline-java-index-only";
 
 // This is a transport fixture, never an observed 3.10 scan. Model retained
@@ -78,6 +87,13 @@ function syntheticCandidate(scenario) {
   const prop = (key, value) => ({ name: "aquasecurity:trivy:" + key, value });
   component.properties = [...[...diffIds].sort().map((id) => prop("DiffID", id)), prop("Reference", candidateRef),
     prop("ImageID", manifest.config.digest), prop("RepoDigest", candidateRef)];
+  const sdkFiles = new Set(ownerReference.unresolved.map((r) => r.oldFile));
+  const sdkHashes = new Map();
+  for (const item of sbom.components) {
+    const file = item.properties?.find((p) => p.name === "aquasecurity:trivy:FilePath")?.value;
+    if (sdkFiles.has(file)) sdkHashes.set(file, item.hashes);
+  }
+  assert.equal(sdkHashes.size, 10);
   sbom.components = sbom.components.filter((c) => !c.purl?.startsWith("pkg:maven/"));
   sbom.dependencies = [];
   sbom.vulnerabilities = [];
@@ -85,11 +101,16 @@ function syntheticCandidate(scenario) {
   const shipped = new Set(read("jar-paths"));
   const rows = read("matched-82");
   const copy = (file, name, version) => JSON.stringify([file, name, version]);
+  const renamed = new Map(ownerReference.owners.map((entry) => [entry.oldFile, entry]));
+  const aliasFiles = new Map(ownerReference.unresolved.map(({ oldFile, candidates }) => {
+    const samePlugin = candidates.filter((file) => path.posix.dirname(file) === path.posix.dirname(oldFile));
+    assert.equal(samePlugin.length, 1);
+    return [oldFile, samePlugin[0]];
+  }));
+  const removedWitness = renamedWitnesses.find((witness) => witness.scenario === scenario);
   const mapped = new Map(rows.map(({ original: old, candidate }) => [copy(old.PkgPath, old.PkgName, old.InstalledVersion), candidate]));
   const owner = rows.find(({ candidate }) => candidate[0] === opensaml.file);
   assert.equal(owner.candidate[3], opensaml.jarSha256);
-  const measuredLayer = layers.find((layer) => layer.Digest === opensaml.layerDigest);
-  assert.ok(measuredLayer);
   const java = json.Results.find((result) => result.Type === "jar");
   assert.deepEqual(java.Packages.filter((pkg) => pkg.FilePath === owner.original.PkgPath).map((pkg) => pkg.Name).sort(),
     Object.keys(opensaml.versions).sort());
@@ -98,15 +119,33 @@ function syntheticCandidate(scenario) {
     const replacement = mapped.get(copy(pkg.FilePath, pkg.Name, pkg.Version));
     const inOpenSaml = pkg.FilePath === owner.original.PkgPath;
     if (inOpenSaml && scenario === "missing-opensaml" && pkg.Name === opensamlWitness) return [];
-    const file = inOpenSaml ? opensaml.file : replacement?.[0] ?? pkg.FilePath;
+    const oldOwner = pkg.FilePath.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
+    const successor = renamed.get(oldOwner);
+    if (removedWitness?.oldFile === oldOwner && removedWitness.missing === pkg.Name) return [];
+    // Identical SDK bytes were published under several labels. Model the old
+    // scanner label and its real component hash at the same plugin's new path.
+    const alias = aliasFiles.get(oldOwner);
+    let file = alias ?? replacement?.[0] ?? pkg.FilePath;
+    let version = replacement?.[2].version ?? pkg.Version;
+    let layer = candidateLayer.get(pkg.Layer.Digest);
+    if (successor) {
+      const evidence = successor.coordinates.filter((row) => row.name === pkg.Name);
+      assert.equal(evidence.length, 1, pkg.FilePath + " " + pkg.Name);
+      file = successor.file + pkg.FilePath.slice(oldOwner.length);
+      version = evidence[0].version;
+      layer = layers.find((item) => item.Digest === successor.layerDigest);
+    }
     const outerJar = file.match(/^(.+?\.jar)(?:[!/:]|$)/u)?.[1];
-    if (!shipped.has(outerJar)) return [];
+    if (!shipped.has(outerJar)) {
+      assert.equal(oldOwner, ownerReference.removed[0].oldFile);
+      return [];
+    }
     const [group, name] = pkg.Name.split(":");
-    const version = inOpenSaml ? opensaml.versions[pkg.Name] : replacement?.[2].version ?? pkg.Version;
     if (replacement) assert.deepEqual([file, version], [replacement[0], replacement[2].version]);
-    const { Digest, DiffID } = inOpenSaml ? measuredLayer : candidateLayer.get(pkg.Layer.Digest);
+    const { Digest, DiffID } = layer;
     const purl = "pkg:maven/" + group + "/" + name + "@" + version;
     sbom.components.push({ "bom-ref": "synthetic-" + sbom.components.length, type: "library", group, name, version, purl,
+      ...(alias ? { hashes: sdkHashes.get(oldOwner) } : {}),
       properties: [prop("PkgType", "jar"), prop("FilePath", file), prop("LayerDigest", Digest), prop("LayerDiffID", DiffID)] });
     return [{ Name: pkg.Name, Version: version, FilePath: file, Layer: { Digest, DiffID }, Identifier: { PURL: purl } }];
   });
@@ -292,12 +331,45 @@ if (process.argv[2] === "recover") {
       assert.equal(inventory.history.orderedFindingPathsMatch, !clean);
       assert.deepEqual(Object.fromEntries(inventory.candidate.packages.filter((p) => p.file === opensaml.file)
         .map((p) => [p.name, p.version])), opensaml.versions);
+      for (const { file } of renamedWitnesses) {
+        const expected = ownerReference.owners.find((row) => row.file === file).coordinates;
+        const observed = inventory.candidate.packages.filter((p) => p.file === file).map(({ name, version }) => ({ name, version }));
+        assert.deepEqual(observed.sort((a, b) => a.name.localeCompare(b.name)),
+          [...expected].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      const [removed] = ownerReference.removed;
+      assert.deepEqual(inventory.candidate.packages.filter((p) => p.name === removed.name && p.version === removed.version)
+        .map((p) => p.file).sort(), removed.otherOwners.map((p) => p.file).sort());
+      const sdkVersions = inventory.candidate.packages.filter((p) => p.name.startsWith("org.opensearch:opensearch-remote-metadata-sdk"))
+        .map((p) => p.version);
+      assert.deepEqual(sdkVersions.sort(), [...Array(2).fill("3.3.0.0"), ...Array(8).fill("3.7.0.0")]);
       assert.equal(inventory.correspondence.length, 82);
       assert.equal(inventory.rpmCoverage.candidate.length, 111);
       assert.equal(inventory.candidatePolicy, "blocked");
       assert.equal(candidateBlockers.length, 8);
       assert.deepEqual(inventory.candidateFindingsOutsideHistoricalMapping.map((i) => inventory.candidate.findings[i].vulnerabilityId),
         ["CVE-SYNTHETIC-NEW"]);
+    });
+  }
+
+  for (const witness of renamedWitnesses) {
+    test("raw audit retains the missing coordinate and its surviving neighbour after " + witness.scenario, (t) => {
+      const output = run(t, witness.scenario, formats);
+      const receipt = disk(output, "official-audit-receipt.json");
+      assert.deepEqual(receipt.blockers, historical.blockers);
+      assert.equal(receipt.awsComparator.qualification, "passed");
+      const comparison = receipt.openSearchComparator;
+      assert.deepEqual(comparison.commandIndices, [13, 14]);
+      assert.equal(comparison.execution, "complete");
+      assert.equal(comparison.candidatePolicy, "blocked");
+      const { inventory } = disk(output, comparison.delta.file);
+      const previous = inventory.old.packages.findIndex((p) => p.file === witness.oldFile && p.name === witness.missing);
+      assert.notEqual(previous, -1);
+      const seen = inventory.candidate.packages.filter((p) => p.file === witness.file);
+      assert.ok(seen.some((p) => p.name === witness.present && p.version === witness.version));
+      assert.ok(!seen.some((p) => p.name === witness.missing));
+      assert.ok(inventory.unresolved.unexplainedPackageLosses.includes(previous), "missing historical package index " + previous);
+      assert.equal(comparison.qualification, "failed");
     });
   }
 
