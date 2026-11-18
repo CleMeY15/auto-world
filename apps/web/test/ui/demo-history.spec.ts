@@ -327,10 +327,12 @@ test("group control and reading focus fit mobile and desktop", async ({ page, br
     await more.focus();
     const directory = process.env.AW_SCREENSHOT_DIR ?? testInfo.outputDir;
     await mkdir(directory, { recursive: true });
-    await more.evaluate((button) => button.scrollIntoView({ block: "center" }));
+    await more.evaluate((button) => button.scrollIntoView({ block: "center", behavior: "instant" }));
     await page.screenshot({ path: path.join(directory, `group-${width}-${browserName}.png`), scale: "css" });
     await more.press("Enter");
-    await expect(field.getByRole("listitem").nth(8)).toBeFocused();
+    const firstNewRow = field.getByRole("listitem").nth(8);
+    await expect(firstNewRow).toBeFocused();
+    await expect(firstNewRow).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: path.join(directory, `group-focus-${width}-${browserName}.png`), scale: "css" });
     await expectHistoryLayout(page);
     const target = await more.boundingBox();
