@@ -285,3 +285,35 @@ upload and the serialized receipt. A missing PostgreSQL identity file yields
 the fixed `scanner_gosu_material_capture_invalid` rejection. Local managed
 tests passed 853 cases with one platform exclusion. Hosted evidence and the
 independent review attach to the resulting revision.
+
+### Managed runtime failure on the integrated source
+
+On `82ddb2f7`, the managed job passed nine phases, including Gosu capture
+and the five image audits. The runtime child exited 1 after the phase had run
+for 21 seconds. Its result matched the expected run and image identities.
+The parent rejected a case entry. The public evidence identifies neither the
+affected case nor the runtime cleanup outcome. The quality job succeeded on
+attempt 2 following the browser installation timeout on attempt 1.
+[Managed job](https://github.com/CleMeY15/auto-world/actions/runs/44325644773/job/134893829076)
+· [Quality recovery](https://github.com/CleMeY15/auto-world/actions/runs/44325644692/attempts/2)
+
+A synthetic probe on the hosted Node version, 22.23.4, demonstrated that
+`await test()` can return while its callback still holds an active operation.
+The probe produced a first case marked `not_run` followed by three passes.
+The initiating error in the hosted job remains unknown.
+
+The supervisor registers all four cases in the same parent context. If a
+case ends early, it records failure, cancels the operation and waits for it
+to settle before cleanup. A pipe read error follows the subprocess
+termination and close checks. If termination remains uncertain, cleanup
+preserves the runtime work directory. The production result validator still requires
+the four ordered cases and verified cleanup for success.
+
+The local fixtures run under the official Linux Node 22.23.4 binary used by
+the managed workflow. They cover successful siblings, an ordinary
+failure, an interrupted callback that finishes after cancellation, and an
+actual child with an injected pipe read error. They record which operations
+started and when cleanup became reachable. Separate tests exercise both
+output streams with a delayed close and preserve the work directory when
+termination is uncertain. Rollback of this supervisor change
+restores the previous scheduling and pipe behavior.

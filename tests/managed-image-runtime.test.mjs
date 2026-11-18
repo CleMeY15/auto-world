@@ -8,7 +8,7 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { CASE_NAMES, containerSignature, createRuntimeCompose, prepareRuntimeContext, readVerifiedRuntimeFile,
+import { CASE_NAMES, cleanupRuntimeContext, containerSignature, createRuntimeCompose, prepareRuntimeContext, readVerifiedRuntimeFile,
   validateRuntimeInput, verifyRuntimeReferences } from "./managed-image-runtime.integration.mjs";
 import { collectManagedRuntimeEvidence } from "../scripts/scanner/official-audit.mjs";
 
@@ -69,6 +69,42 @@ test("runtime contract import exposes four gated cases without executing or regi
     { env: { SystemRoot: process.env.SystemRoot ?? "", GITHUB_ACTIONS: "false" }, timeout: 5000, maxBuffer: MiB, encoding: "utf8" });
   assert.equal(imported.error, undefined); assert.equal(imported.status, 0); assert.equal(imported.stdout, ""); assert.equal(imported.stderr, "");
 });
+test("unverified child termination preserves the runtime work directory", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-cleanup-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const identity = await fs.lstat(directory, { bigint: true });
+  const context = { blocked: true, helpers: new Set(), projects: [], directories: new Map([[directory, identity]]) };
+  await assert.rejects(cleanupRuntimeContext(context), { message: "failed" });
+  assert.equal((await fs.lstat(directory, { bigint: true })).ino, identity.ino);
+  assert.equal(context.cleanupDeadline, undefined);
+});
+for (const outcome of ["success", "reject", "interrupted", "pipe-error"]) {
+  test(`managed runtime records settled case outcomes before cleanup: ${outcome}`, async (t) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "aw-runtime-settlement-"));
+    t.after(() => fs.rm(directory, { recursive: true, force: true }));
+    const result = path.join(directory, "result.json");
+    const env = { ...process.env, AW_FIXTURE_RESULT: result, AW_FIXTURE_OUTCOME: outcome };
+    delete env.NODE_TEST_CONTEXT;
+    const child = spawnSync(process.execPath, ["--test", "--test-reporter=tap",
+      fileURLToPath(new URL("./fixtures/managed-runtime-settlement.mjs", import.meta.url))],
+    { env, encoding: "utf8", timeout: 10_000 });
+    assert.equal(child.error, undefined);
+    assert.equal(child.status, outcome === "success" ? 0 : 1, child.stdout);
+    if (outcome === "interrupted") assert.match(child.stdout, /detached fixture rejection/u);
+    const { events, cases } = JSON.parse(await fs.readFile(result, "utf8"));
+    const expectedTail = {
+      success: ["finish 1", "start 2", "finish 2", "start 3", "finish 3"],
+      reject: [],
+      interrupted: ["cancelled", "finish 1"],
+      "pipe-error": ["child closed", "process_io_failed"],
+    };
+    assert.deepEqual(events, ["start 0", "finish 0", "start 1", ...expectedTail[outcome], "cleanup"]);
+    const statuses = outcome === "success" ? Array(4).fill("passed") : ["passed", "failed", "not_run", "not_run"];
+    assert.deepEqual(cases, CASE_NAMES.map((name, i) => ({
+      name, status: statuses[i], code: statuses[i] === "passed" ? "verified" : statuses[i],
+    })));
+  });
+}
 test("runtime input accepts complete frozen synthetic proofs and exact byte caps without mutation", () => {
   const value = fixture(); value.sourceInputs[0].size = MiB;
   for (const role of value.roles) { role.reports.json.size = 64 * MiB; role.evidence[0].size = 4 * MiB; if (role.subject.archiveCapBytes) role.subject.archiveBytes = role.subject.archiveCapBytes; }

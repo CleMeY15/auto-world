@@ -11,6 +11,10 @@
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
         "roadmap/plans/TASK-0005-managed-image-corrections.md",
+        "scripts/data-infra/cancellation.mjs",
+        "scripts/data-infra/runtime.mjs",
+        "tests/data-infra-runtime.test.mjs",
+        "tests/fixtures/managed-runtime-settlement.mjs",
         "tests/managed-image-runtime.integration.mjs"
       ]
     },
@@ -27,6 +31,10 @@
         "tests/managed-image-*.test.mjs",
         "docs/decisions/ADR-0026-data-foundation-managed-tools.md",
         "roadmap/plans/TASK-0005-managed-image-corrections.md",
+        "scripts/data-infra/cancellation.mjs",
+        "scripts/data-infra/runtime.mjs",
+        "tests/data-infra-runtime.test.mjs",
+        "tests/fixtures/managed-runtime-settlement.mjs",
         "tests/managed-image-runtime.integration.mjs"
       ]
     }
@@ -65,7 +73,7 @@
           "id": "tests",
           "timeout-minutes": 5,
           "shell": "bash",
-          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs"
+          "run": "set -euo pipefail\ntest \"$(node --version)\" = v22.23.4\nenv -u GH_TOKEN -u GITHUB_TOKEN -u NODE_AUTH_TOKEN node --test tests/scanner-official-*.test.mjs tests/managed-image-*.test.mjs tests/data-infra-runtime.test.mjs"
         },
         {
           "name": "Verify official scanner provenance before extraction",
