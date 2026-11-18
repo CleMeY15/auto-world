@@ -38,7 +38,7 @@ function original(role, format) {
 
 // Public projection of META-INF/maven/<group>/<artifact>/pom.properties from
 // the already captured candidate JAR, restricted to coordinates seen in PR253.
-const opensamlBytes = readFileSync(new URL("opensaml-candidate-maven.json", fixtures));
+const opensamlBytes = readFileSync(new URL("opensaml-candidate-maven.json", evidence));
 assert.equal(identity(opensamlBytes).sha256, "42618c9c2f56573088d487ccfff064756b1d62c85d5be64c08e0332022c82146");
 const opensaml = JSON.parse(opensamlBytes);
 const opensamlWitness = "org.opensaml:opensaml-saml-impl";
