@@ -35,7 +35,7 @@ Utiliser un shell root **uniquement pour la préparation hôte**, sans exécuter
 ```sh
 install -d -m 0755 /opt/aw-private-web/templates /opt/aw-private-web/bin
 install -m 0644 infra/private-web/*.py infra/private-web/product.cjs infra/private-web/nginx.conf /opt/aw-private-web/
-install -m 0644 infra/private-web/templates/access.html infra/private-web/templates/launch.html /opt/aw-private-web/templates/
+install -m 0644 infra/private-web/templates/access.html infra/private-web/templates/launch.html infra/private-web/templates/brand.css /opt/aw-private-web/templates/
 install -d -m 0755 /opt/aw-private-web/launch
 install -m 0644 infra/private-web/launch/launch.js infra/private-web/launch/launch.webp /opt/aw-private-web/launch/
 install -m 0755 infra/private-web/manage infra/private-web/preflight.sh infra/private-web/render-edge /opt/aw-private-web/
