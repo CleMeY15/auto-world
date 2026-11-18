@@ -57,7 +57,9 @@ jobs:
 
       - name: Install browser test runtimes
         timeout-minutes: 25
-        run: pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit
+        run: |
+          sudo /usr/bin/python3.12 -I -S scripts/ci/playwright-apt-mirror.py /etc/apt/apt-mirrors.txt
+          pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit
 
       - name: Web interactions, accessibility and visual evidence
         run: pnpm test:ui

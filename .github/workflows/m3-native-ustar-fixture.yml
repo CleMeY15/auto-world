@@ -1,0 +1,51 @@
+name: M3 synthetic large USTAR
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/m3-native-ustar-fixture.yml'
+      - 'scripts/fixtures/m3_native_ustar.py'
+      - 'scripts/fixtures/test_m3_native_ustar.py'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/m3-native-ustar-fixture.yml'
+      - 'scripts/fixtures/m3_native_ustar.py'
+      - 'scripts/fixtures/test_m3_native_ustar.py'
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      EXPECTED_CHECKOUT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Preserve source line endings on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ env.EXPECTED_CHECKOUT }}
+          persist-credentials: false
+      - name: Verify subprocess deadline handling
+        run: python -I -B -m unittest discover -s scripts/fixtures -p test_m3_native_ustar.py
+      - name: Write and independently read the seven fixtures
+        shell: pwsh
+        run: |
+          python -I -B scripts/fixtures/m3_native_ustar.py > m3-result.json
+          exit $LASTEXITCODE
+      - name: Preserve this OS result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: m3-ustar-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: m3-result.json
+          if-no-files-found: error
+          retention-days: 14

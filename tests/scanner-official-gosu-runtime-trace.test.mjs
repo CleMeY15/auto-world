@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import { captureManagedGosuRuntimeTrace } from "../scripts/scanner/official-audit.mjs";
+import { captureManagedGosuRuntimeTrace, commandFailureDiagnostic } from "../scripts/scanner/official-audit.mjs";
 
 // Synthetic BuildKit syntax fixtures: these are not native build evidence.
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -23,7 +23,12 @@ const selected = [header,
   "#21 0.202 gosu_offline_missing_zip_refused:golang.org/x/sys@v0.1.0",
   "#21 0.303 gosu_offline_upstream_go_test_cases=0",
   "#21 1.404 gosu_offline_reconstruction_passed", "#21 DONE 1.5s"];
-const encode = (lines = selected) => Buffer.from(`${lines.join("\n")}\n`);
+const entry = { size: 3, sha256: hashBytes("abc") };
+const projection = "gosu_material_input_v1:" + JSON.stringify({ schemaVersion: 1, kind: "GOSU_MATERIAL_INPUT_PROJECTION_V1",
+  source: entry, goMod: entry, goSum: entry, moduleProxyTsv: entry, offlineReceipt: entry, referenceBinary: entry,
+  compilerVersion: "go version go1.27.3 linux/amd64" });
+const raw = (lines) => Buffer.from(lines.join("\n") + "\n");
+const encode = (lines = selected) => raw(lines.flatMap((line) => line === selected[4] ? [line, "#21 1.410 " + projection] : [line]));
 const empty = Buffer.alloc(0);
 const failure = { message: "scanner_gosu_runtime_trace_invalid" };
 const capture = (stderr = encode(), options = binding(), stdout = empty) =>
@@ -33,7 +38,7 @@ test("first runtime trace retains exact native lines and invocation/stream ident
   const stderr = encode(["#7 [other 1/1] RUN private-command", "#7 0.1 private-value", selected[0],
     "#21 0.100 private module download JSON", ...selected.slice(1)]);
   const stdout = Buffer.from("private stdout\n");
-  const options = binding();
+  const options = { ...binding(), materialInput: {} };
   const bytes = capture(stderr, options, stdout), proof = JSON.parse(bytes);
   assert.ok(bytes.length <= 8192);
   assert.deepEqual(proof.lines, selected);
@@ -44,6 +49,8 @@ test("first runtime trace retains exact native lines and invocation/stream ident
   assert.deepEqual(proof.stderr, { size: stderr.length, sha256: hashBytes(stderr) });
   assert.deepEqual(proof.stdout, { size: stdout.length, sha256: hashBytes(stdout) });
   assert.doesNotMatch(bytes.toString(), /private-value|private-command|private stdout|private module|fixture-metadata/u);
+  assert.equal(Object.hasOwn(proof, "materialInput"), false);
+  assert.deepEqual(options.materialInput, { traceSha256: hashBytes(bytes), vertex: "21", line: projection + "\n", size: projection.length + 1, sha256: hashBytes(projection + "\n"), eof: true });
   assert.equal(proof.stream, "stderr");
   options.run.GITHUB_SHA = "b".repeat(40); stderr.fill(0);
   assert.equal(JSON.parse(bytes).run.GITHUB_SHA, run.GITHUB_SHA);
@@ -56,6 +63,20 @@ test("plain printer interleaving preserves repeated headers and separators for o
   assert.deepEqual(proof.lines, lines.filter((line) => line.startsWith("#21 ")));
   assert.equal(JSON.parse(capture(empty, binding(), encode())).stream, "stdout");
   assert.equal(JSON.parse(capture(encode(selected.map((line) => line.replace("RUN --mount", "RUN --network=none --mount"))))).lines.length, 6);
+});
+
+test("the 64-line legacy trace and its material projection have independent budgets", () => {
+  const vertex = "#123456";
+  const headers = Array(32).fill(header.replace("#21", vertex).replace("RUN --mount", "RUN --network=none --mount"));
+  const lines = [...headers, ...Array(27).fill(vertex + " ..."),
+    ...selected.slice(1, -1).map((line) => line.replace("#21", vertex)),
+    vertex + " 1.410 " + projection, vertex + " DONE 1.5s"];
+  const materialInput = {};
+  const bytes = capture(raw(lines), { ...binding(), materialInput });
+  assert.equal(JSON.parse(bytes).lines.length, 64);
+  assert.ok(bytes.length <= 8192);
+  assert.ok(Buffer.byteLength(JSON.stringify({ ...JSON.parse(bytes), materialInput })) > 8192);
+  assert.equal(materialInput.traceSha256, hashBytes(bytes));
 });
 
 test("cached, missing, duplicate, reordered and ambiguous native observations refuse", async (t) => {
@@ -113,8 +134,9 @@ test("actual command wrapper publishes only a successful first-runtime selection
   const command = runInNewContext(`(() => { ${source.slice(start, end)} return command; })()`, {
     Buffer, path, writeFileSync, output: root, DOCKER: "/fixture/docker", environment: {}, receipt,
     scope: "managed", cleanupUncertain: false, captureManagedGosuRuntimeTrace, hashBytes,
+    byteIdentity: (bytes) => ({ size: bytes.length, sha256: hashBytes(bytes) }),
     invoke: () => result, successful: (r) => !r.error && r.status === 0 && r.signal === null,
-    fail: (code) => { throw new Error(code); }, commandFailureDiagnostic: () => ({ fixture: true }),
+    fail: (code) => { throw new Error(code); }, commandFailureDiagnostic,
   });
   command("/fixture/docker", args, { gosuRuntimeTrace: true });
   const bytes = readFileSync(path.join(root, "managed-gosu-runtime-trace.json"));
@@ -129,8 +151,25 @@ test("actual command wrapper publishes only a successful first-runtime selection
   result = { ...result, status: 1, stderr: encode() };
   assert.throws(() => command("/fixture/docker", args, { gosuRuntimeTrace: true }), /scanner_official_command_failed/u);
   assert.equal(Object.hasOwn(receipt.commands[2], "gosuRuntimeTrace"), false);
-  result = { ...result, status: 0 };
-  command("/fixture/docker", args, {});
+  result = { ...result, status: 0, stdout: Buffer.from("#7 CACHED\n#8 CACHED\n"), stderr: Buffer.from("#7 CACHED\n") };
+  const solveObservation = {};
+  command("/fixture/docker", args, { privateOutput: true, solveObservation });
+  assert.equal(solveObservation.record.cachedVertices, 2);
+  assert.deepEqual(Array.from(solveObservation.args), args);
+  assert.equal(solveObservation.record.argumentsSha256, hashBytes(Buffer.from(JSON.stringify(args))));
+  assert.equal(solveObservation.record.exitCode, 0);
+  assert.equal(solveObservation.record.eof, true);
   assert.equal(Object.hasOwn(receipt.commands[3], "gosuRuntimeTrace"), false);
   assert.equal(readdirSync(root).includes("managed-gosu-runtime-trace.json"), false);
+});
+
+test("material projection must occur once, in canonical grammar in the first successful RUN interval", () => {
+  const line = "#21 1.405 " + projection;
+  for (const lines of [selected, [...selected, line], [line, ...selected],
+    [...selected.slice(0, -1), line, line, selected.at(-1)], [...selected.slice(0, 4), line, ...selected.slice(4)]])
+    assert.throws(() => capture(raw(lines)), failure);
+  for (const changed of [line.replace("#21", "#22"), line.replace('{"size":3', '{"size":3,"size":3'),
+    line.replace('"source"', '"extra":0,"source"'), line.replace(':3,', ':3.0,'), line + " ", line.replace("amd64", "arm64")])
+    assert.throws(() => capture(raw([...selected.slice(0, -1), changed, selected.at(-1)])), failure);
+  assert.throws(() => capture(raw(selected), binding(), raw([line])), failure);
 });

@@ -164,6 +164,9 @@ export function run(command, args, { input, env, timeoutMs, signal = operationSi
     child.stderr.on("data", (chunk) => {
       stderr = collect(stderr, chunk);
     });
+    const readError = (cause) => fail(new InfraError("process_io_failed", { cause }));
+    child.stdout.on("error", readError);
+    child.stderr.on("error", readError);
     child.stdin.on("error", (cause) => {
       if (cause?.code !== "EPIPE") fail(new InfraError("process_io_failed", { cause }));
     });
