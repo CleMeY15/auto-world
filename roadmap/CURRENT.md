@@ -51,3 +51,16 @@ responsabilité du parent. Matrice originale243 conservée, revues séquentielle
 Architect/Critic et comparaison JDK arrêtée réussies. Scans/CI du nouveau sujet,
 revues originales et livraison restent requis ; aucune fusion concurrente de
 main pendant l'acceptation parent, aucun TASK DONE/admission/support déduit.
+
+## Checkpoint source upstream — 18 novembre 2026
+
+[PR251](https://github.com/CleMeY15/auto-world/pull/251), implémentationadba7380,
+possède les revues source/qualité/raw/managed indépendantes. Le nouveau sujet
+OpenSearch corrige84occurrences RPM avec inventaires complets et mêmes bases ;
+raw reste FAILED159, anciens243 historiques inchangés. Managed valide ses dix
+phases et quatre cas runtime diagnostiques ; aucune admission/support/M3 déduite.
+[Preuves et limites](../docs/validation/TASK-0005-upstream-20261118.md).
+PR250 est MAIN_ACCEPTED sur0c2b3d6c ; le parent conserve le dossier M3.
+Prochaine action de cette voie : livrer la documentation sans changement de
+source exécutée, revue d'équivalence et gate qualité, fusion normale PR251,
+puis workflows et revue du main exact. TASK-0005/A restent IN_PROGRESS.

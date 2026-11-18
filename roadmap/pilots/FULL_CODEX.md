@@ -61,3 +61,10 @@ contextes Codex gpt-6-astra/ultra hérités ; coût/tokens/gains unknown. V1 de 
 rejetée pour contrôle JDK manquant, V2 approuvée ; premier préflight arrêté sur
 identité locale Docker29, second corrigé avec preuve JDK identique. Aucun gain ni
 acceptation finale revendiqué, aucune entrée produit consommée.
+
+Suite de la voie upstream18novembre : sourceadba7380 et originaux raw/qualité/
+managed approuvés par contextes indépendants,84occurrences RPM corrigées sur le
+nouveau sujet,159restantes. Les reprises locales umask/tmpfs/chemin de socket
+sont conservées ; préparation environnement seulement, assertions inchangées.
+La documentation finale et le main restent à livrer. Modèle/effort inchangés,
+coûts/tokens/gains unknown, hors cohorte produit.

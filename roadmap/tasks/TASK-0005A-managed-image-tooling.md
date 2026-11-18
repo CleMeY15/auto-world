@@ -320,3 +320,11 @@ retains the full243-finding historical matrix and selects the rebuilt official
 OpenSearch3.9.0 base after ordered plan review and stopped-image JDK equality.
 Fresh source/image/native/runtime/cleanup and independent CI review remain
 pending. PR250/Gosu and parent retention are separate; TASK remains IN_PROGRESS.
+
+18 November2026 source checkpoint: [PR251 implementationadba7380](https://github.com/CleMeY15/auto-world/pull/251)
+has independent source, quality, raw and managed evidence approval. The rebuilt
+OpenSearch subject resolves84RPM occurrences with complete inventory/same DB;
+raw remains FAILED159 and historical243 remain unwaived. Managed ten phases and
+four diagnostic runtime cases pass. [Exact evidence and coverage limits](../../docs/validation/TASK-0005-upstream-20261118.md).
+Final evidence-only delivery and actual merged-main acceptance remain required;
+TASK stays IN_PROGRESS, no admission/support/M3 closure follows.
