@@ -277,3 +277,18 @@ test("wrapper and cleanup failures keep the global receipt and resolved upload f
     for (const entry of readdirSync(output)) rmSync(path.join(output, entry));
   }
 });
+
+test("cleanup preserves a substituted exporter destination even under the original owned parent", { skip: process.platform !== "linux" }, (t) => {
+  const parent = temp(t), status = {};
+  let foreign;
+  assert.throws(() => withGosuCaptureRoot(parent, status, (_root, createDirectory) => {
+    const destination = createDirectory("export");
+    renameSync(destination, destination + "-original");
+    mkdirSync(destination);
+    foreign = path.join(destination, "keep");
+    writeFileSync(foreign, "foreign");
+    throw new Error("export interrupted");
+  }), { message: "scanner_gosu_material_cleanup_unknown" });
+  assert.equal(status.cleanup, "UNKNOWN");
+  assert.equal(readFileSync(foreign, "utf8"), "foreign");
+});

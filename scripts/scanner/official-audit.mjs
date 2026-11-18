@@ -354,7 +354,8 @@ const byteIdentity = (bytes) => ({ size: bytes.length, sha256: hashBytes(bytes) 
 const fileStamp = (stat) => [stat.dev, stat.ino, stat.mode, stat.nlink, stat.uid, stat.gid, stat.size, stat.mtimeNs, stat.ctimeNs].join(":");
 const statOf = (file) => lstatSync(file, { bigint: true });
 
-function captureMember(file, cap, copy) {
+function captureMember(file, cap, copy, collectText = false) {
+  if (collectText && cap > 4096) materialInvalid();
   if (realpathSync(file) !== file) materialInvalid();
   const before = statOf(file);
   if (!before.isFile() || before.nlink !== 1n || before.size < 1n || before.size > BigInt(cap)) materialInvalid();
@@ -369,6 +370,7 @@ function captureMember(file, cap, copy) {
       dest = openSync(copy, "wx", 0o400);
     }
     const buffer = Buffer.allocUnsafe(Math.min(Number(before.size), MiB)), hash = createHash("sha256");
+    const chunks = [];
     let size = 0;
     for (;;) {
       const count = readSync(fd, buffer, 0, buffer.length);
@@ -376,11 +378,12 @@ function captureMember(file, cap, copy) {
       size += count;
       if (BigInt(size) > before.size) materialInvalid();
       hash.update(buffer.subarray(0, count));
+      if (collectText) chunks.push(Buffer.from(buffer.subarray(0, count)));
       if (copy && writeSync(dest, buffer, 0, count) !== count) materialInvalid();
     }
     if (BigInt(size) !== before.size || fileStamp(fstatSync(fd, { bigint: true })) !== stamp ||
         realpathSync(file) !== file || fileStamp(statOf(file)) !== stamp) materialInvalid();
-    return { size, sha256: hash.digest("hex"), stamp };
+    return { size, sha256: hash.digest("hex"), stamp, ...(collectText ? { bytes: Buffer.concat(chunks) } : {}) };
   } finally { try { if (dest !== undefined) closeSync(dest); } finally { closeSync(fd); } }
 }
 
@@ -452,9 +455,9 @@ export function bindGosuMaterialFiles(root, snapshot, observedLine) {
   const { files } = snapshot;
   const read = (name) => {
     const row = files[name];
-    const bytes = readFileSync(path.join(root, name));
-    if (bytes.length !== row.size || hashBytes(bytes) !== row.sha256) materialInvalid();
-    return bytes;
+    const current = captureMember(path.join(root, name), Math.min(memberCap(name), 4096), undefined, true);
+    if (current.size !== row.size || current.sha256 !== row.sha256 || current.stamp !== row.stamp) materialInvalid();
+    return current.bytes;
   };
   const entries = Object.fromEntries(Object.entries(materialRoles).map(([name, role]) => [role, files["materials/" + name]]));
   entries.offlineReceipt = files["evidence/" + offlineReceipt];
@@ -504,6 +507,7 @@ export function bindPostgresExport({ build, command, evidence, artifacts, publis
 // The nonce and parent/root inode checks keep failure cleanup confined to this allocation.
 export function withGosuCaptureRoot(work, status, consume) {
   let root, rootId, parentId, nonce;
+  const children = new Map();
   const dirId = (dir) => {
     const st = statOf(dir);
     if (realpathSync(dir) !== dir || !st.isDirectory() || st.uid !== BigInt(process.getuid())) materialInvalid();
@@ -513,13 +517,22 @@ export function withGosuCaptureRoot(work, status, consume) {
   try {
     parentId = dirId(work);
     const disk = statfsSync(work);
-    if (disk.bavail * disk.bsize < Math.ceil((130 * MiB + 96 * 1024) * 1.25)) materialInvalid();
+    // Export, checked copy, bounded private text staging, recipes and descriptors.
+    if (disk.bavail * disk.bsize < Math.ceil((194 * MiB + 96 * 1024) * 1.25)) materialInvalid();
     root = mkdtempSync(path.join(work, "gosu-material-"));
     status.cleanup = "UNKNOWN";
     rootId = dirId(root);
     nonce = randomUUID();
     writeFileSync(path.join(root, "owner"), nonce, { flag: "wx", mode: 0o400 });
-    return consume(root);
+    const createDirectory = (name) => {
+      if (!["export", "snapshot", "text", "recipes"].includes(name)) materialInvalid();
+      const dir = path.join(root, name);
+      mkdirSync(dir, { mode: 0o700 });
+      const stat = statOf(dir);
+      children.set(dir, [stat.dev, stat.ino].join(":"));
+      return dir;
+    };
+    return consume(root, createDirectory);
   } catch {
     status.result = "FAILED";
     status.reason = "scanner_gosu_material_capture_invalid";
@@ -529,6 +542,11 @@ export function withGosuCaptureRoot(work, status, consume) {
       try {
         if (dirId(work) !== parentId || dirId(root) !== rootId ||
             captureMember(path.join(root, "owner"), 36).sha256 !== hashBytes(nonce)) materialInvalid();
+        for (const [dir, original] of children) {
+          const stat = statOf(dir);
+          if (realpathSync(dir) !== dir || !stat.isDirectory() || stat.uid !== BigInt(process.getuid()) ||
+              [stat.dev, stat.ino].join(":") !== original) materialInvalid();
+        }
         rmSync(root, { recursive: true });
         if (lstatSync(root, { throwIfNoEntry: false })) materialInvalid();
         status.cleanup = "REMOVED";
@@ -599,11 +617,10 @@ export async function capturePostgresMaterials({ build, local, work, output, pub
   const recipe = readFileSync(path.join(ROOT, "infra/managed-images/Dockerfile.postgres"), "utf8").split("\n");
   if (compiler.repository !== "library/golang" || !digest(compiler.platform.digest) ||
       !["gosu-build", "gosu-offline-reconstruction"].every((stage) => recipe.includes(`FROM golang@${compiler.platform.digest} AS ${stage}`))) materialInvalid();
-  const captured = withGosuCaptureRoot(work, build.materialCapture, (root) => {
-    const dest = path.join(root, "export"), copy = path.join(root, "snapshot");
-    const privateText = path.join(root, "text"), exportMetadata = path.join(root, "export-metadata.json");
-    for (const dir of [dest, copy, privateText]) mkdirSync(dir, { mode: 0o700 });
-    if (!isDeepStrictEqual(recipeSnapshot(source, path.join(root, "recipes")), recipes)) materialInvalid();
+  const captured = withGosuCaptureRoot(work, build.materialCapture, (root, createDirectory) => {
+    const dest = createDirectory("export"), copy = createDirectory("snapshot");
+    const privateText = createDirectory("text"), exportMetadata = path.join(root, "export-metadata.json");
+    if (!isDeepStrictEqual(recipeSnapshot(source, createDirectory("recipes")), recipes)) materialInvalid();
     exportSolve("material-capture", dest, exportMetadata);
     checkSolveRecord(secondSolve);
     if (secondSolve.record.commandIndex <= firstSolve.record.commandIndex || !isDeepStrictEqual(secondSolve.args,
@@ -1641,10 +1658,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               archiveCapBytes: archiveSnapshot.cap, artifactName: `/${path.basename(archive)}` };
             build.result = "passed"; localImages.set(candidate.role, { ...candidate, archive, archiveSnapshot, frozen, subject: build.subject,
               ...(seaweedInspections ? { seaweedInspections } : {}) });
-          } catch (error) {
-            if (postgres) {
-              error = recordGosuCaptureFailure(work, output, build.materialCapture, true);
-            }
+          } catch (caught) {
+            const error = postgres ? recordGosuCaptureFailure(work, output, build.materialCapture, true) : caught;
             build.reason = error.message;
             if (receipt.commands.at(-1)?.error || cleanupUncertain) throw error;
           }
@@ -1712,11 +1727,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
               build.runtimeJdkEvidence = exportManagedTextEvidence(runtime, path.join(published, "opensearch-runtime"));
             }
             build.evidenceExport = "passed";
-          } catch (error) {
-            if (postgres) {
-              if (build.materialCapture.cleanup === "UNKNOWN") cleanupUncertain = true;
-              error = recordGosuCaptureFailure(work, output, build.materialCapture);
-            }
+          } catch (caught) {
+            if (postgres && build.materialCapture.cleanup === "UNKNOWN") cleanupUncertain = true;
+            const error = postgres ? recordGosuCaptureFailure(work, output, build.materialCapture) : caught;
             build.evidenceExport = "failed"; build.evidenceReason = error.message;
             const diagnostic = managedEvidenceDiagnostic(error);
             if (diagnostic) build.evidenceDiagnostic = diagnostic;
