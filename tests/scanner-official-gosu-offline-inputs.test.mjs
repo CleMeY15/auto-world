@@ -206,7 +206,7 @@ test("actual export catch cannot turn missing, substituted or foreign-producer p
 });
 
 test("actual Buildx calls invalidate only the PostgreSQL reconstruction stage in the existing runtime solve", () => {
-  const calls = [...source.matchAll(/command\(DOCKER, \["buildx", "build",[\s\S]*?\], \{ timeout: 90 \* 60_000 \}\);/gu)].map(([call]) => call);
+  const calls = [...source.matchAll(/command\(DOCKER, \["buildx", "build",[\s\S]*?\],\s*\{ timeout: 90 \* 60_000(?:, gosuRuntimeTrace: candidate.role === "postgres")? \}\);/gu)].map(([call]) => call);
   assert.equal(calls.length, 2, "runtime plus evidence, with no additional solve");
   for (const role of ["postgres", "opensearch", "seaweedfs", "aws-cli"]) {
     const observed = [];
@@ -221,6 +221,7 @@ test("actual Buildx calls invalidate only the PostgreSQL reconstruction stage in
       assert.equal(args.includes("--no-cache"), false);
       assert.equal(args.includes("--push"), false);
       assert.equal(options.timeout, 90 * 60_000);
+      assert.equal(options.gosuRuntimeTrace === true, role === "postgres" && index === 0);
     }
   }
 });

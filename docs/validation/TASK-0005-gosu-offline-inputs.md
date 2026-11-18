@@ -88,6 +88,51 @@ and independent original-result reviews remain required before acceptance.
 
 ## Remaining gates and rollback
 
+### PR250 trace-retention correction, 18 November
+
+The first source managed run `44221570880`, attempt 1, succeeds operationally,
+but its independent final review is **REQUEST_CHANGES**: the original artifact
+does not retain the first runtime solve's BuildKit trace. This run cannot prove
+the explicit uncached-RUN criterion, and its later exported JSON cannot replace
+that observation. The failure is preserved; no historical transcript is invented.
+
+The correction selects only the existing helper's native RUN header, four fixed
+markers and DONE from that first PostgreSQL/runtime command. Plain-printer
+interleaving may repeat the identical header and `...` separator for the same
+vertex; a different vertex/header, CACHED/error/cancellation, missing/repeated or
+reordered markers, incomplete output or oversize evidence refuses acceptance.
+The helper, compiler, seven data inputs and functional runtime binary are unchanged.
+
+`managed-gosu-runtime-trace.json` is a separate, explicit upload entry, maximum
+8 KiB/64 selected lines from at most 8 MiB of command output. It preserves the
+selected lines exactly, the run/checkout/command ordinal, runtime target and
+hashes of the arguments and complete private streams. It does not export other
+command output, arbitrary diagnostics, host paths or environment. The command
+record and PostgreSQL build bind its size/hash. Capture is required before the
+runtime build can be marked passed; the evidence solve cannot supply it.
+No broader wildcard, permission, deadline, builder or third solve is introduced.
+
+Focused tests cover the parser, actual command wrapper, upload boundary and
+existing runtime/evidence calls. They are synthetic syntax/boundary fixtures,
+not native execution. New source and main runs must still furnish the actual
+trace and all previous gates before acceptance. The immutable original plan
+remains unchanged; this fixes its missing observation channel. Rollback removes
+the selector and explicit upload entry together, preserving the rejected run.
+
+Final local correction checks pass: 107 focused tests; 3,318 root passes with
+123 local exclusions; 776 package passes plus the two smoke suites; lint,
+typecheck, build, secrets and the unchanged full low audit. The first root run's
+one structural-guard failure is retained: it counted the expected-arguments
+constant as a third Buildx invocation. The corrected guard counts the two actual
+calls and retains the Seaweed mapping assertions. Architecture review is CLEAR;
+the code review's LOW BOM-fidelity finding is corrected, with BOM and incomplete
+final-line refusals covered. These are local source results; browser execution
+was unavailable on the occupied port 3210, and hosted/native acceptance is pending.
+
+Format references: BuildKit's [plain printer](https://github.com/moby/buildkit/blob/master/util/progress/progressui/printer.go)
+and [RUN display name](https://github.com/moby/buildkit/blob/master/frontend/dockerfile/dockerfile2llb/convert.go).
+These explain syntax only, not the installed backend version or a native run.
+
 This can establish sufficiency of seven selected data payloads under the same
 supplied compiler, not a complete PostgreSQL material closure. Historical proxy
 hashes are observations, not new future pins. Compiler/OS/base source closure,

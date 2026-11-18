@@ -78,6 +78,72 @@ const writeJson = (file, value) => writeFileSync(file, `${JSON.stringify(value, 
 const safePath = (value) => typeof value === "string" && path.isAbsolute(value) && !/[\0,\r\n]/u.test(value);
 const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
 
+// Retain only fixed public lines from the FIRST PostgreSQL runtime solve.
+// The full command streams remain private; their hashes identify the selection.
+export function captureManagedGosuRuntimeTrace(stdout, stderr, { run, commandIndex, args } = {}) {
+  const invalid = () => fail("scanner_gosu_runtime_trace_invalid");
+  if (!Buffer.isBuffer(stdout) || !Buffer.isBuffer(stderr) || stdout.length + stderr.length > 8 * MiB ||
+      !Number.isSafeInteger(commandIndex) || commandIndex < 1 || commandIndex > 10000 ||
+      !run || run.GITHUB_REPOSITORY !== "CleMeY15/auto-world" ||
+      !/^[a-f0-9]{40}$/u.test(run.GITHUB_SHA ?? "") || run.GITHUB_WORKFLOW_SHA !== run.GITHUB_SHA ||
+      !/^[1-9][0-9]*$/u.test(run.GITHUB_RUN_ID ?? "") || !/^[1-9][0-9]*$/u.test(run.GITHUB_RUN_ATTEMPT ?? "") ||
+      !Array.isArray(args) || args.some((arg) => typeof arg !== "string")) invalid();
+  const expected = ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file",
+    path.join(ROOT, "infra/managed-images/Dockerfile.postgres"), "--no-cache-filter", "gosu-offline-reconstruction",
+    "--target", "runtime", "--tag", `auto-world-managed/postgres:${run.GITHUB_SHA}`, "--metadata-file"];
+  if (args.length !== expected.length + 3 || expected.some((arg, index) => args[index] !== arg) ||
+      !safePath(args[expected.length]) || args.at(-2) !== "--load" || args.at(-1) !== ROOT) invalid();
+  const streams = [stdout, stderr].map((bytes) => {
+    try { return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes).split("\n"); }
+    catch { return invalid(); }
+  });
+  const header = /^#([1-9][0-9]{0,5}) \[gosu-offline-reconstruction [1-9][0-9]{0,2}\/[1-9][0-9]{0,2}\] RUN (?:--network=none )?--mount=type=bind,from=gosu-build,source=\/out\/gosu,target=\/reference-gosu,readonly \/usr\/local\/bin\/gosu-offline-reconstruction$/u;
+  const headers = streams.flatMap((lines, stream) => lines.flatMap((line, index) => {
+    const match = header.exec(line);
+    return match ? [{ stream, index, vertex: match[1] }] : [];
+  }));
+  if (headers.length === 0 || headers.length > 32 || new Set(headers.map(({ stream, vertex }) => `${stream}:${vertex}`)).size !== 1) invalid();
+  const { stream, index, vertex } = headers[0];
+  if (streams[stream].at(-1) !== "") invalid();
+  const prefix = `#${vertex} `;
+  if (streams[1 - stream].some((line) => line.startsWith(prefix)) ||
+      streams[stream].slice(0, index).some((line) => line.startsWith(prefix))) invalid();
+  const markers = ["gosu_offline_missing_zip_refused:github.com/moby/sys/user@v0.4.1",
+    "gosu_offline_missing_zip_refused:golang.org/x/sys@v0.1.0", "gosu_offline_upstream_go_test_cases=0",
+    "gosu_offline_reconstruction_passed"];
+  const selected = [streams[stream][index]];
+  let marker = 0, done = false;
+  for (const line of streams[stream].slice(index + 1)) {
+    if (!line.startsWith(prefix)) continue;
+    if (done) invalid();
+    const body = line.slice(prefix.length);
+    // BuildKit's plain printer repeats a vertex header after interleaving.
+    if (line === selected[0] || body === "...") { selected.push(line); continue; }
+    if (/^DONE(?: [0-9]+(?:\.[0-9]+)?s)?$/u.test(body)) {
+      if (marker !== markers.length) invalid();
+      selected.push(line); done = true; continue;
+    }
+    const output = /^([0-9]+(?:\.[0-9]+)?) (.*)$/u.exec(body);
+    // CACHED, ERROR, duplicate headers, cancellation and unknown status refuse.
+    if (!output || line.length > 16384) invalid();
+    if (output[2].startsWith("gosu_offline_")) {
+      if (output[2] !== markers[marker]) invalid();
+      selected.push(line); marker += 1;
+    }
+  }
+  if (!done || selected.length > 64) invalid();
+  const observed = (bytes) => ({ size: bytes.length, sha256: hashBytes(bytes) });
+  const value = { schemaVersion: 1, kind: "GOSU_RUNTIME_BUILDKIT_TRACE_V1", role: "postgres", target: "runtime",
+    commandIndex, argumentsSha256: hashBytes(Buffer.from(JSON.stringify(args))),
+    run: Object.fromEntries(["GITHUB_REPOSITORY", "GITHUB_SHA", "GITHUB_WORKFLOW_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"]
+      .map((key) => [key, run[key]])),
+    stdout: observed(stdout), stderr: observed(stderr), stream: stream === 0 ? "stdout" : "stderr",
+    selection: "exact Gosu RUN headers, interleave separators, four markers and DONE; other output omitted", lines: selected };
+  const bytes = Buffer.from(`${JSON.stringify(value)}\n`);
+  if (bytes.length > 8192) invalid();
+  return bytes;
+}
+
 export function managedEvidenceDiagnostic(error) {
   return managedEvidenceDiagnostics.get(error);
 }
@@ -964,7 +1030,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
   const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
-    expectedStdout, requireEmptyStderr = false } = {}) => {
+    expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
@@ -1000,6 +1066,14 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     }
     if (!successful(result) || expectedStdout !== undefined && !Buffer.from(expectedStdout).equals(result.stdout ?? Buffer.alloc(0)) ||
         requireEmptyStderr && (result.stderr?.length ?? 0) !== 0) fail("scanner_official_command_failed");
+    if (gosuRuntimeTrace) {
+      if (executable !== DOCKER || scope !== "managed" || privateOutput) fail("scanner_gosu_runtime_trace_invalid");
+      const bytes = captureManagedGosuRuntimeTrace(result.stdout, result.stderr,
+        { run: receipt.run, commandIndex: receipt.commands.length, args });
+      const traceFile = "managed-gosu-runtime-trace.json";
+      writeFileSync(path.join(output, traceFile), bytes, { flag: "wx", mode: 0o400 });
+      record.gosuRuntimeTrace = { path: traceFile, size: bytes.length, sha256: hashBytes(bytes) };
+    }
     return result.stdout;
   };
   const phase = async (name, operation) => {
@@ -1161,7 +1235,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
             command(DOCKER, ["buildx", "build", "--platform", "linux/amd64", "--progress", "plain", "--file", path.join(ROOT, candidate.dockerfile),
               ...(candidate.role === "seaweedfs" ? ["--add-host", "oauth2.googleapis.com:142.250.72.10"] : []),
               ...(candidate.role === "postgres" ? ["--no-cache-filter", "gosu-offline-reconstruction"] : []),
-              "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT], { timeout: 90 * 60_000 });
+              "--target", "runtime", "--tag", tag, "--metadata-file", metadataFile, "--load", ROOT],
+            { timeout: 90 * 60_000, gosuRuntimeTrace: candidate.role === "postgres" });
+            if (candidate.role === "postgres") build.gosuRuntimeTrace = receipt.commands.at(-1).gosuRuntimeTrace;
             const inspectedFile = path.join(output, `managed-${candidate.role}-inspect.json`);
             const inspectedBytes = command(DOCKER, ["image", "inspect", tag], { file: inspectedFile });
             const inspected = JSON.parse(inspectedBytes.toString("utf8"));
