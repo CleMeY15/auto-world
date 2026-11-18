@@ -121,7 +121,7 @@
 .demo-history-disclosure summary:focus-visible, .demo-saved-search-disclosure summary:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
 .demo-history-list { list-style: none; margin: 0; padding: 0; }
 .demo-history-list li { border-bottom: 1px solid var(--aw-color-border); min-width: 0; padding-block: var(--aw-space-4); }
-.demo-history-disclosure .demo-history-list li:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: -3px; }
+.demo-history-disclosure .demo-history-list li:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 2px; }
 .demo-history-progress { display: grid; gap: var(--aw-space-2); justify-items: start; padding-block: var(--aw-space-3); }
 .demo-history-progress p { color: var(--aw-color-text-muted); font-size: var(--aw-font-size-small); }
 .demo-history-progress button { max-width: 100%; overflow-wrap: anywhere; }
