@@ -762,7 +762,7 @@ test("all preparation scripts have valid Bash syntax without building or executi
 
 test("the recipe pins source/build/base identities and preserves the original JDK rather than replacing it", () => {
   assert.match(recipe, /^FROM eclipse-temurin@sha256:39f1dc7747322dce71fe783d43904bac3f84d0b65a3f47b78ecefac6d8b992d3 AS builder$/mu);
-  assert.match(recipe, /^FROM opensearchproject\/opensearch@sha256:13487e0953520edf6cc866dfc672fd67a70ab122aa7d84d4a6c97106f84d3f84 AS prepared-base$/mu);
+  assert.match(recipe, /^FROM opensearchproject\/opensearch@sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2 AS prepared-base$/mu);
   assert.match(recipe, /ADD --keep-git-dir=true --chown=1000:1000 https:\/\/github\.com\/opensearch-project\/OpenSearch\.git#4ee42a94e87f66fbf1e62a9871b1b87f91e02472 /u);
   assert.doesNotMatch(recipe, /^ARG\s|apt(?:-get)? install|ADD https?:.*\.tar/mu);
   assert.match(recipe, /^ {4}JAVA25_HOME=\/opt\/java\/openjdk \\$/mu);

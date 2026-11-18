@@ -54,3 +54,10 @@ Infrastructure du 17 novembre 2026 : [PR247 acceptée](https://github.com/CleMeY
 hors cohorte produit. Coordinateur, recherche et revues en contextes Codex
 gpt-6-astra/ultra distincts ; coûts, tokens et gains unknown. Aucune entrée produit
 consommée, aucun nouveau résultat opérationnel ni suivi à sept jours revendiqué.
+
+Infrastructure du18novembre2026 : [remédiation upstream indépendante](../../docs/validation/TASK-0005-upstream-20261118.md),
+hors cohorte produit. Responsable, deux recherches et revues Architect/Critic en
+contextes Codex gpt-6-astra/ultra hérités ; coût/tokens/gains unknown. V1 de plan
+rejetée pour contrôle JDK manquant, V2 approuvée ; premier préflight arrêté sur
+identité locale Docker29, second corrigé avec preuve JDK identique. Aucun gain ni
+acceptation finale revendiqué, aucune entrée produit consommée.
