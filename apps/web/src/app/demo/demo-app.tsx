@@ -127,6 +127,10 @@ function subscribeHash(listener: () => void) {
   window.addEventListener("hashchange", listener);
   return () => window.removeEventListener("hashchange", listener);
 }
+function currentHistoryEntry() {
+  return (window as Window & { navigation?: { currentEntry: NavigationHistoryEntry | null } }).navigation?.currentEntry;
+}
+
 function getHashSnapshot() { return window.location.hash || "#search"; }
 function getHashServerSnapshot() { return "#search"; }
 function subscribeOnline(listener: () => void) {
@@ -136,18 +140,20 @@ function subscribeOnline(listener: () => void) {
 function getOnlineSnapshot() { return navigator.onLine; }
 function getOnlineServerSnapshot() { return true; }
 
-function parseLocation(hash: string): { readonly screen: Screen; readonly listingId?: ListingId; readonly invalid?: boolean } {
+function parseLocation(hash: string): { readonly screen: Screen; readonly listingId?: ListingId; readonly resultSet?: string; readonly invalid?: boolean } {
   if (isComparisonLinkFragment(hash)) return { screen: "received-comparison" };
   if (isSearchLinkFragment(hash)) return { screen: "shared" };
   if (hash === "#demo-main") return { screen: "search" };
   if (hash === "#saved") return { screen: "saved" };
   if (hash === "#results") return { screen: "results" };
   if (hash === "#compare") return { screen: "compare" };
-  if (hash.startsWith("#detail/")) {
+  // Older engines lack entry identity. Keep their result-set nonce in the local route.
+  const contextual = /^#result-detail\/([0-9a-f-]{36})\/(.+)$/u.exec(hash);
+  if (hash.startsWith("#detail/") || contextual) {
     let raw: string;
-    try { raw = decodeURIComponent(hash.slice(8)); } catch { return { screen: "search", invalid: true }; }
+    try { raw = decodeURIComponent(contextual?.[2] ?? hash.slice(8)); } catch { return { screen: "search", invalid: true }; }
     const parsed = parsePublicListingId(raw);
-    return parsed === undefined ? { screen: "search", invalid: true } : { screen: "detail", listingId: parsed };
+    return parsed === undefined ? { screen: "search", invalid: true } : { screen: "detail", listingId: parsed, ...(contextual ? { resultSet: contextual[1] } : {}) };
   }
   return { screen: "search", invalid: hash !== "" && hash !== "#search" };
 }
@@ -224,7 +230,10 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const [fieldError, setFieldError] = useState<SearchFieldError>();
   const [response, setResponse] = useState<DemoSearchResponseV2>();
   const [resultSetKey, setResultSetKey] = useState<string>();
-  const loadedDetailIndex = screen === "detail" && resultSetKey && window.history.state?.awResultSet === resultSetKey
+  const [detailOrigins] = useState(() => new WeakMap<NavigationHistoryEntry, string>());
+  const entry = screen === "detail" ? currentHistoryEntry() : undefined;
+  const entryResultSet = entry ? detailOrigins.get(entry) : location.resultSet;
+  const loadedDetailIndex = screen === "detail" && resultSetKey && entryResultSet === resultSetKey
     ? response?.results.findIndex((result) => result.listingId === location.listingId) ?? -1
     : -1;
   const [comparisonIds, setComparisonIds] = useState<readonly string[]>([]);
@@ -340,14 +349,13 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
     savedComparisonRenameDraftRef.current = undefined;
     setSavedComparisonRenameDraft(undefined);
     if (screen === "results" && (next === "detail" || next === "compare")) resultsScroll.current = window.scrollY;
-    const nextHash = next === "detail" && listingId ? `#detail/${encodeURIComponent(listingId)}` : `#${next}`;
+    const detailPrefix = fromResultSet && !currentHistoryEntry() ? `#result-detail/${fromResultSet}/` : "#detail/";
+    const nextHash = next === "detail" && listingId ? detailPrefix + encodeURIComponent(listingId) : `#${next}`;
     if (window.location.hash === nextHash) window.dispatchEvent(new HashChangeEvent("hashchange"));
-    else {
-      const oldURL = window.location.href;
-      window.history.pushState(fromResultSet ? { awResultSet: fromResultSet } : null, "", nextHash);
-      window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL, newURL: window.location.href }));
-    }
-  }, [cancelResultsSort, invalidateSearchRefinement, screen]);
+    else window.location.hash = nextHash;
+    const entry = fromResultSet && currentHistoryEntry();
+    if (entry && fromResultSet) detailOrigins.set(entry, fromResultSet);
+  }, [cancelResultsSort, detailOrigins, invalidateSearchRefinement, screen]);
 
   function openLoadedDetail(index: number) {
     const target = response?.results[index];

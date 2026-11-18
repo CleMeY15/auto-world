@@ -277,3 +277,20 @@ test("the neighbor position responds within the local action budget", async ({ p
   });
   expect(Math.max(...samples)).toBeLessThanOrEqual(100);
 });
+
+test("legacy fragment history keeps traversal while a standalone detail has no result origin", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined }));
+  await installFixtures(page);
+  await search(page);
+  await page.locator("#demo-result-open-0").click();
+  await expect(navigation(page)).toContainText("Annonce 1 sur 2");
+  await next(page).click();
+  await expect(navigation(page)).toContainText("Annonce 2 sur 2");
+  await page.goBack();
+  await expect(navigation(page)).toContainText("Annonce 1 sur 2");
+  await page.goForward();
+  await expect(navigation(page)).toContainText("Annonce 2 sur 2");
+  await page.evaluate((id) => { window.location.hash = `#detail/${id}`; }, ids[1]);
+  await expect(page.locator(".demo-detail")).toBeVisible();
+  await expect(navigation(page)).toHaveCount(0);
+});
