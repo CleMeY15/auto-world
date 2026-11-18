@@ -1,0 +1,11 @@
+.preview-intro {
+  align-items: center;
+  display: grid;
+  gap: var(--aw-space-3);
+}
+.preview-intro h1 { margin: 0; overflow-wrap: anywhere; text-wrap: balance; }
+.preview-entry { min-inline-size: 0; }
+.preview-entry p { color: var(--aw-color-text-muted); margin-block-end: 0; }
+@media (min-width: 64rem) {
+  .preview-intro { grid-template-columns: minmax(0, 1fr) auto; }
+}

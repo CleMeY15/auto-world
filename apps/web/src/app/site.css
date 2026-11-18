@@ -1,21 +1,19 @@
-html { color-scheme: light; scroll-behavior: smooth; }
-@media (prefers-color-scheme: dark) { html:not([data-aw-theme]) { color-scheme: dark; } }
-html[data-aw-theme="dark"] { color-scheme: dark; }
-html[data-aw-theme="light"] { color-scheme: light; }
+html { scroll-behavior: smooth; }
 body { background: var(--aw-color-canvas); color: var(--aw-color-text); font: 400 var(--aw-font-size-body)/var(--aw-line-height-body) var(--aw-font-family); margin: 0; }
 *, *::before, *::after { box-sizing: border-box; }
 a { color: inherit; text-underline-offset: 0.25em; }
 button, input, select { font: inherit; }
 h1, h2, h3, p { margin-top: 0; }
-h1, h2, h3 { line-height: 1.2; }
+h1, h2, h3 { line-height: 1.14; overflow-wrap: anywhere; }
 h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 600; letter-spacing: -0.04em; margin-bottom: 1rem; }
 h2 { font-size: var(--aw-font-size-title); font-weight: 600; letter-spacing: -0.025em; margin-bottom: var(--aw-space-6); }
 h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; }
 main:focus { outline: none; }
 .site-container { margin-inline: auto; max-width: var(--aw-layout-content-max); padding-inline: clamp(var(--aw-space-4), 4vw, 3rem); }
-.site-header { align-items: center; display: flex; gap: 1rem; justify-content: space-between; min-height: 6rem; }
-.site-wordmark { align-items: baseline; color: var(--aw-color-action); display: inline-flex; font-size: var(--aw-font-size-title); font-weight: 750; gap: 0.2rem; letter-spacing: -0.06em; min-height: var(--aw-size-touch); padding-block: 0.3rem; text-decoration: none; }
-.site-wordmark span { color: var(--aw-color-text); font-weight: 500; }
+.site-header { align-items: center; display: flex; flex-wrap: wrap; gap: .25rem 1rem; justify-content: space-between; min-height: 5rem; padding-block: .625rem; }
+.site-wordmark { align-items: center; color: var(--aw-color-text); display: inline-flex; font-size: clamp(1.35rem, 2.4vw, 2rem); font-weight: 750; gap: .6rem; letter-spacing: -.075em; line-height: 1; min-height: var(--aw-size-touch); text-decoration: none; }
+.site-mark { background: var(--aw-color-action); clip-path: polygon(46% 0,72% 0,26% 100%,0 100%,46% 0,80% 0,100% 100%,72% 100%,62% 49%,75% 22%); display: inline-block; flex: none; height: .95em; width: 1em; }
+@media (forced-colors: active) { .site-mark { background: LinkText; forced-color-adjust: none; } }
 .site-nav { align-items: center; display: inline-flex; font-size: var(--aw-font-size-small); font-weight: 600; min-height: var(--aw-size-touch); }
 .site-tools { display: flex; flex-wrap: wrap; gap: var(--aw-space-2) var(--aw-space-6); }
 .site-intro { border-top: 1px solid var(--aw-color-border); padding-block: 3rem 2rem; }
@@ -38,7 +36,6 @@ main:focus { outline: none; }
 .site-example-card > .aw-icon { color: var(--aw-color-action); margin-bottom: 1.5rem; }
 .site-example-card p { color: var(--aw-color-text-muted); }
 .site-card-note { border-top: 1px solid var(--aw-color-border); color: var(--aw-color-text-muted); font-size: 0.875rem; padding-top: 1rem; }
-.site-caption { color: var(--aw-color-text-muted); font-size: 0.875rem; margin-block: 1rem 0; }
 .site-states { border-top: 1px solid var(--aw-color-border); padding-block: 2rem; scroll-margin-top: 1rem; }
 .site-states-heading { display: flex; flex-wrap: wrap; gap: 1rem 2rem; justify-content: space-between; margin-bottom: 1.5rem; }
 .site-states-heading h2 { margin-bottom: 0.5rem; }
@@ -63,3 +60,11 @@ main:focus { outline: none; }
   .site-chip-row { margin-block: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.report-reader { padding-block: clamp(2rem, 7vw, 6rem); }
+.report-reader article { max-width: var(--aw-layout-reading-max); }
+.report-reader h2 { margin-block: 2rem .75rem; }
+.report-reader p { overflow-wrap: anywhere; }
+.report-reader .report-vehicle { color: var(--aw-color-action); font-weight: 650; margin-bottom: .75rem; }
+.report-source { border-block-start: 1px solid var(--aw-color-border); color: var(--aw-color-text-muted); margin-top: 1.5rem; padding-top: 1rem; }
+.private-session-footer { padding-block: .5rem 1rem; }

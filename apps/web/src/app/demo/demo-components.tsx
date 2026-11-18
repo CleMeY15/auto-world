@@ -1,6 +1,8 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { Banner, BookmarkIcon, Button, Card, ChevronLeftIcon, Skeleton } from "@auto-world/design-system/primitives";
 import type { DemoCatalogResponseV2, DemoResultV2, DemoSearchQueryV2, DemoSearchQueryV3 } from "@auto-world/demo-search-contract";
+import launchScene from "../../../../../infra/private-web/launch/launch.webp";
 import { resolveDescription } from "../../demo/catalog";
 import { formatExactNumber, formatObservedPrice } from "../../demo/observation-history";
 import type { SearchCriterion } from "../../demo/search-refinement";
@@ -10,14 +12,23 @@ export function SyntheticDisclosure({ persistent = false }: { readonly persisten
   return <p className="demo-disclosure">{persistent ? "Prototype local persistant sur données entièrement synthétiques. Aucun véhicule à vendre." : "Données entièrement synthétiques. Aucun véhicule à vendre."}</p>;
 }
 
-export function NeutralIllustration() {
+export function SearchScene() {
   return (
-    <svg aria-label="Illustration de démonstration" className="demo-illustration" role="img" viewBox="0 0 320 160">
-      <rect x="1" y="1" width="318" height="158" rx="8" />
-      <path d="M56 104h208M78 103l18-36h119l28 36M109 67l15-21h57l24 21" />
-      <circle cx="105" cy="108" r="18" /><circle cx="220" cy="108" r="18" />
-      <path d="M37 126h246" />
-    </svg>
+    <div aria-hidden="true" className="demo-search-scene">
+      <Image alt="" src={launchScene} unoptimized />
+    </div>
+  );
+}
+
+export function DemoPhotoPlaceholder() {
+  return (
+    <p className="demo-photo-placeholder">
+      <svg aria-hidden="true" className="aw-icon" fill="none" viewBox="0 0 24 24">
+        <path d="M3 7h4l2-3h6l2 3h4v13H3z" />
+        <circle cx="12" cy="13" r="3.5" />
+      </svg>
+      Aucune photo pour cette publication synthétique.
+    </p>
   );
 }
 
@@ -123,11 +134,14 @@ export function ResultCard({ index, result, catalog, saved, selectedForCompariso
   return (
     <Card className="demo-result-card">
       <div className="demo-result-copy">
-        <p className="demo-status">{availabilityLabel(result.availability)}</p>
-        <p className="demo-result-number">Publication synthétique {String(index + 1).padStart(2, "0")}</p>
+        <div className="demo-result-meta">
+          <p className="demo-result-number">Publication synthétique {String(index + 1).padStart(2, "0")}</p>
+          <p className="demo-status">{availabilityLabel(result.availability)}</p>
+        </div>
         <ResultSummary result={result} catalog={catalog} />
       </div>
       <div className="demo-card-actions">
+        <Button id={`demo-result-open-${index}`} disabled={detailDisabled} onClick={onOpen}>Voir le détail</Button>
         <Button
           id={`demo-result-compare-${index}`}
           variant="secondary"
@@ -141,7 +155,6 @@ export function ResultCard({ index, result, catalog, saved, selectedForCompariso
         <Button variant="secondary" onClick={onToggleSaved} aria-pressed={saved}>
           <BookmarkIcon />{saved ? "Retirer des favoris" : "Ajouter aux favoris"}
         </Button>
-        <Button id={`demo-result-open-${index}`} disabled={detailDisabled} onClick={onOpen}>Voir le détail</Button>
       </div>
     </Card>
   );

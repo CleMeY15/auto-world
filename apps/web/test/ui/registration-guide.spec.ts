@@ -230,6 +230,7 @@ test("the required light and dark viewport matrix fits and passes WCAG checks", 
       await page.emulateMedia({ colorScheme: theme });
       await page.goto(`${REGISTRATION_PATH}?visual=${browserName}-${width}-${theme}`);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("Estimer ma carte grise");
+      await expect(page.locator("body")).toHaveCSS("color-scheme", theme);
       await screenshot(page, testInfo, `registration-${browserName}-${width}-${theme}-collapsed.png`);
       await page.locator("details > summary").click();
       await expectNoHorizontalOverflow(page);

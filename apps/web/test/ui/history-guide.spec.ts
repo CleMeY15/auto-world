@@ -246,7 +246,7 @@ test("the buyer guide states the holder workflow and its limits without claiming
   await expect(main).toContainText(/acheteur|vous/iu);
   await expect(main).toContainText(/demand\w*.{0,100}vendeur.{0,100}lien|vendeur.{0,100}partag\w*.{0,100}lien/iu);
   await expect(main).toContainText(/site général.{0,100}(?:ne|n’|n').{0,40}(?:donne|ouvre|récupère|retrouve).{0,80}rapport|rapport.{0,100}lien.{0,80}partag/iu);
-  await expect(main).toContainText(/Auto World.{0,80}(?:ne|n’|n').{0,30}(?:récupère|vérifie)|(?:ne|n’|n').{0,30}(?:récupéré|vérifié).{0,60}Auto World/iu);
+  await expect(main).toContainText(/AutoFind.{0,80}(?:ne|n’|n').{0,30}(?:récupère|vérifie)|(?:ne|n’|n').{0,30}(?:récupéré|vérifié).{0,60}AutoFind/iu);
   await expect(main).toContainText(/(?:ne|n’|n').{0,40}garanti.{0,80}(?:état|condition)|(?:état|condition).{0,80}(?:ne|n’|n').{0,40}garanti/iu);
   await expect(main.locator("ol > li")).toHaveCount(3);
   await page.locator(HELP).locator("summary").click();
@@ -453,6 +453,7 @@ test("the required light and dark viewport matrix fits and passes WCAG checks", 
       await page.emulateMedia({ colorScheme: theme });
       await page.goto(`${HISTORY_PATH}?visual=${browserName}-${width}-${theme}`);
       await expect(page.locator("#history-title")).toHaveText("Demander un rapport HistoVec");
+      await expect(page.locator("body")).toHaveCSS("color-scheme", theme);
       await screenshot(page, testInfo, `history-${browserName}-${width}-${theme}-collapsed.png`);
       await page.locator(MESSAGE).locator("summary").click();
       await expectMinimumTarget(page.locator(MESSAGE).locator("summary"));
