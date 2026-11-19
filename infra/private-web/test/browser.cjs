@@ -41,13 +41,31 @@ async function main() {
     await summary.focus();
     await summary.press("Enter");
     await roadmap.locator('[aria-current="step"]').waitFor();
-    assert.equal(await roadmap.locator("li").count(), 4);
-    assert.equal(await roadmap.locator("li").first().evaluate(el => getComputedStyle(el).animationName), "none");
+    assert.equal(await roadmap.locator("li").count(), 6);
+    assert.equal(await roadmap.locator('[aria-current="step"] h3').innerText(), "Auditer le parcours");
+    assert.equal(await page.getByText("McLaren 600LT", { exact: true }).count(), 0);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await roadmap.locator(".chapter").first().evaluate(el => getComputedStyle(el).animationName), "none");
     if (process.env.PRIVATE_WEB_EVIDENCE) {
       await page.locator(".road").screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/etapes-mobile.png" : "/etapes-bureau.png") });
     }
     await summary.press("Space");
     assert.equal(await roadmap.getAttribute("open"), null);
+    const plain = await browser.newContext({
+      ignoreHTTPSErrors: true, javaScriptEnabled: false, viewport: { width: 320, height: 740 },
+    });
+    const plainPage = await plain.newPage();
+    plainPage.setDefaultTimeout(10000);
+    await plainPage.route(base + "/", async route => {
+      const response = await route.fetch();
+      const body = (await response.text()).replace("</head>", "<style>html { font-size: 200% }</style></head>");
+      await route.fulfill({ response, body });
+    });
+    await plainPage.goto(base);
+    await plainPage.locator(".road summary").press("Enter");
+    assert.ok(await plainPage.getByRole("heading", { name: "Suivre les remises en vente" }).isVisible());
+    assert.ok(await plainPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await plain.close();
     const expiryContext = await browser.newContext({ ignoreHTTPSErrors: true });
     const expiry = await expiryContext.newPage();
     await expiry.clock.install({ time: new Date("2027-01-13T11:00:01Z") });
