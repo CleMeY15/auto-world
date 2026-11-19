@@ -29,6 +29,7 @@ export default async function DemoPage() {
         <nav className="site-tools" aria-label="Outils">
           <a className="site-nav" href="/carte-grise">Carte grise</a>
           <a className="site-nav" href="/historique-vehicule">Historique du véhicule</a>
+          <a className="site-nav" href="/importation">Dossier d’importation</a>
         </nav>
       </footer>
     </>

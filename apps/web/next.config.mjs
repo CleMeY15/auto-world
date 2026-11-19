@@ -13,6 +13,9 @@ export default {
       source: "/carte-grise",
       headers: [{ key: "X-DNS-Prefetch-Control", value: "off" }],
     }, {
+      source: "/importation",
+      headers: [{ key: "X-DNS-Prefetch-Control", value: "off" }],
+    }, {
       source: "/historique-vehicule",
       headers: [{ key: "X-DNS-Prefetch-Control", value: "off" }],
     }];
