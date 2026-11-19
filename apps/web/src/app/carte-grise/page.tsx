@@ -44,6 +44,10 @@ export default function RegistrationGuidePage() {
             <p className="guide-muted">Choisissez votre démarche dans le simulateur. D’autres informations peuvent être demandées selon votre situation, et certains cas ne sont pas couverts.</p>
           </section>
         </div>
+        <section className="guide-support" aria-label="Achat en Allemagne">
+          <h2>Vous achetez votre voiture en Allemagne ?</h2>
+          <a className="guide-help" href="/importation">Préparer mon dossier d’importation</a>
+        </section>
         <section className="guide-support" aria-label="Informations pratiques">
           <p>Aucune information sur votre véhicule n’est demandée ici. La saisie se fait directement sur Service Public, selon ses propres règles de confidentialité.</p>
           <details>

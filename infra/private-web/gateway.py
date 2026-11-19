@@ -10,7 +10,7 @@ from django.shortcuts import render
 from django.urls import path, re_path
 from django.views.decorators.http import require_http_methods
 
-PAGES = {"/", "/demo", "/carte-grise", "/historique-vehicule"}
+PAGES = {"/", "/demo", "/carte-grise", "/historique-vehicule", "/importation"}
 REPORT = re.compile(r"/demo/rapports/[\w-]+/[\w-]+", re.ASCII)
 STATIC = re.compile(r"/_next/static/(?:[\w.@~-]+/)*[\w.@~-]+", re.ASCII)
 API = re.compile(r"/api/demo/(?:v2/catalog|(?:v2/|v3/)?search|(?:v2/)?listings/[\w-]+)", re.ASCII)

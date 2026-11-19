@@ -76,7 +76,7 @@ async function main() {
       await page.screenshot({ path: evidence + (mobile ? "/mobile.png" : "/bureau.png") });
     }
     const req = context.request;
-    for (const path of ["/demo", "/carte-grise", "/historique-vehicule", "/icon.svg", "/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
+    for (const path of ["/demo", "/carte-grise", "/historique-vehicule", "/importation", "/icon.svg", "/api/demo/v2/catalog", "/_next/static/chunks/example.js", report]) {
       const response = await req.get(base + path, { headers: { "X-Original-URI": "/demo", "X-Forwarded-User": "invite" } });
       assert.equal(response.status(), 401, path);
       assert.match(response.headers()["cache-control"], /no-store/);
@@ -98,6 +98,15 @@ async function main() {
     assert.equal(assetResponse.status(), 200);
     assert.match(assetResponse.headers()["cache-control"], /no-store/);
     assert.equal((await req.get(base + "/admin")).status(), 403);
+    const dossier = await context.newPage();
+    assert.equal((await dossier.goto(base + "/importation")).status(), 200);
+    await dossier.getByRole("combobox", { name: "Type de vendeur" }).selectOption(mobile ? "professional" : "private");
+    await dossier.getByRole("checkbox", { name: "Certificat d’immatriculation allemand" }).check();
+    if (evidence) {
+      await dossier.locator("h1").scrollIntoViewIfNeeded();
+      await dossier.screenshot({ path: evidence + (mobile ? "/importation-mobile.png" : "/importation-bureau.png"), fullPage: true });
+    }
+    await dossier.close();
     assert.equal((await req.post(base + "/api/demo/v2/search", { headers: { Origin: "https://example.org" } })).status(), 403);
     assert.equal((await req.post(base + "/acces/deconnexion", { headers: { Origin: base } })).status(), 403);
     assert.equal((await req.get(base + "/api/demo/v2/catalog")).status(), 200);
