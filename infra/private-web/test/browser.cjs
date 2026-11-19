@@ -42,9 +42,12 @@ async function main() {
     await summary.press("Enter");
     await roadmap.locator('[aria-current="step"]').waitFor();
     const headings = await roadmap.locator("li h3").allTextContents();
-    assert.equal(headings.length, 8);
-    const worldwideTitle = "Parcourir les annonces du monde entier";
-    assert.deepEqual(headings.slice(-2), ["Parcourir les annonces de toute l’Europe", worldwideTitle]);
+    assert.equal(headings.length, 9);
+    const auctionTitle = "Enchérir sur des voitures du monde entier";
+    assert.deepEqual(headings.slice(-3), [
+      "Parcourir les annonces de toute l’Europe", "Parcourir les annonces du monde entier", auctionTitle,
+    ]);
+    await expect(roadmap.locator("li").last().locator("small")).toHaveText("À terme · sans date annoncée");
     assert.equal(await roadmap.locator('[aria-current="step"] h3').innerText(), "Ouvrir un rapport depuis l’annonce");
     const track = roadmap.locator(".road-track");
     const stops = await track.locator("li").evaluateAll(items => items.map(item => {
@@ -104,7 +107,7 @@ async function main() {
     await plainTrack.focus();
     await plainTrack.press("ArrowRight");
     await expect.poll(() => plainTrack.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-    const finalHeading = plainTrack.getByRole("heading", { name: worldwideTitle });
+    const finalHeading = plainTrack.getByRole("heading", { name: auctionTitle });
     await finalHeading.scrollIntoViewIfNeeded();
     const headingBox = await finalHeading.boundingBox();
     const trackBox = await plainTrack.boundingBox();
