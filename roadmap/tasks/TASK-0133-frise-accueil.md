@@ -1,0 +1,16 @@
+# TASK-0133 — Lire les déblocages produit sur l’accueil
+
+Audit visuel du propriétaire, voie produit sur product/0133-frise-accueil, base 2672b708. Responsable Codex gpt-6.2-astra / ultra. Dépendances livrées par PR262, PR263 et PR265. Coûts non mesurés.
+
+Depuis l’accueil public, déplier la frise au clavier ou au toucher, repérer l’audit en cours et lire les capacités déjà disponibles sur exemples puis les ouvertures prévues. Retirer la légende du modèle, conserver le visuel. Utiliser le dépliant natif de TASK-0131 et la palette AutoFind. Deux déblocages successifs sont géographiques. L’acheteur pourra parcourir les annonces de toute l’Europe dans une seule interface, puis étendre sa recherche au monde entier. Le jalon suivant décrit une interface d’enchères mondiale, à terme et sans date annoncée. Le calendrier d’intégration des sources reste prévisionnel.
+
+Le propriétaire précise que l’axe reste horizontal à toute largeur. Chaque titre décrit une action d’acheteur. Sur téléphone, la frise seule défile au toucher ou au clavier. Les annonces et documents de l’audit sont explicitement fictifs.
+
+Valider la lisibilité sur téléphone et bureau, le contenu sans JavaScript, le texte agrandi, le mouvement réduit et la connexion existante. Modifier le template, sa navigation progressive dans le script d’accueil et la recette ciblée. Retour arrière par restauration du template et du script précédents.
+
+## Pistes produit à évaluer
+
+1. **Être prévenu quand une favorite passe sous son budget.** Premier essai proposé dans Mes listes sur les favoris et observations synthétiques existants. L’acheteur choisirait un seuil, puis verrait l’ancien prix, le nouveau et la date du franchissement. Un même franchissement déclencherait une seule alerte. mobile.de documente les alertes de prix sur les voitures suivies. [Fonctionnement de mobile.de](https://www.mobile.de/magazin/artikel/registrierung-bei-mobile-de-26994)
+2. **Savoir jusqu’où enchérir avec un budget tout compris.** À partir d’un budget livré et immatriculé en France, calculer une mise plafond dans la devise du lot en tenant compte de la commission, du change, du transport et des frais d’importation renseignés. Pour un premier essai, utiliser un lot fictif et un barème explicite. Afficher les postes manquants avant de proposer un plafond. Le barème de Cars & Bids illustre une commission acheteur qui s’ajoute à la mise. [FAQ acheteur de Cars & Bids](https://carsandbids.com/faq/)
+3. **Voir combien se sont vendues des voitures comparables.** Afficher quelques ventes conclues de la même génération et version, avec kilométrage, date, prix, devise, frais inclus ou exclus et provenance. Commencer avec des ventes fictives. L’étape réelle nécessiterait des résultats de vente autorisés et suffisamment comparables. [Méthode des ventes comparables de CLASSIC.COM](https://support.classic.com/how-to-use-comps)
+4. **Savoir quels documents demander avant d’importer.** Première version pour un véhicule d’occasion acheté en Allemagne à immatriculer en France. L’acheteur pourrait cocher les pièces reçues et retrouver celles à demander au vendeur, avec un lien vers la démarche officielle datée. Cette liste compléterait le guide d’immatriculation existant. [Démarches officielles pour un véhicule acheté à l’étranger](https://www.service-public.gouv.fr/particuliers/vosdroits/F20992?lang=fr)

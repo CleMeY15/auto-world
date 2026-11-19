@@ -78,3 +78,5 @@ puis workflows et revue du main exact. TASK-0005/A restent IN_PROGRESS.
 [TASK-0130](tasks/TASK-0130-private-web.md) prépare le frontal nominatif d’autofind.tech sur une branche dédiée. [Preuves et limites](../docs/validation/TASK-0130.md). Le parent conserve la décision de livraison, le staging root, le certificat et les essais externes. PR240, PR260 et le runtime 3129 gardent leurs propriétaires.
 
 Voie produit du 18 novembre, branche dédiée. [TASK-0132](tasks/TASK-0132-private-product-identity.md) applique la marque AutoFind aux écrans connectés. [Recette et aperçus](../docs/validation/TASK-0132.md) sur les branches intégrées. La [PR263](https://github.com/CleMeY15/auto-world/pull/263) attend la livraison coordonnée de ses dépendances.
+
+Audit de l’accueil public : [TASK-0133, déblocages produit sur la frise](tasks/TASK-0133-frise-accueil.md), en validation. [Aperçus mobile et bureau](../docs/validation/TASK-0133.md).
