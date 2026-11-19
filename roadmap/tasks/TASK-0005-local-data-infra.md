@@ -1,5 +1,7 @@
 # TASK-0005 — Local data infrastructure
 
+18 November 2026. The [first full OpenSearch 3.10 comparison](../../docs/validation/TASK-0005-opensearch-3.10.md#first-full-distribution-measurement-on-pr257) measured seven HIGH occurrences on the candidate and 82 on the 3.9 control using the same databases. Candidate inventory qualification failed. The five catalogue images reproduced all 110 ordered blockers. TASK-0005/A remain IN_PROGRESS.
+
 18 November 2026. [AWS CLI 2.41.0 diagnostic qualification](../../docs/validation/TASK-0005-aws-cli-2.41.md) is in progress on the accepted PR252 documentation base. PR251 measured 159 upstream blocking occurrences, including 49 in AWS CLI 2.38.5. TASK-0005/0005A remain IN_PROGRESS.
 
 18 November 2026, accepted diagnostic checkpoint: [PR250's body](https://github.com/CleMeY15/auto-world/pull/250)
