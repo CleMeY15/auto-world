@@ -1,0 +1,38 @@
+{
+  "org.opensearch:opensearch-remote-metadata-sdk": {
+    "componentSha1": "103bad1d49215eab3dbfcef3b6f179a11688ba23",
+    "jarSha256": "2aa697a68f4cf038a96c4c7df5105a4c778f94d5142dfe8ed53e807e078fd4e7",
+    "publications": [
+      "3.7.0.0",
+      "3.9.0.0",
+      "3.10.0.0"
+    ]
+  },
+  "org.opensearch:opensearch-remote-metadata-sdk-aos-client": {
+    "componentSha1": "2c362c4b5f4e41053ba053cf814d6434efa5398d",
+    "jarSha256": "59315906688d997d4e5dd830f1ee482f252649893c7514eb33f3934834d273c6",
+    "publications": [
+      "3.3.0.0",
+      "3.9.0.0",
+      "3.10.0.0"
+    ]
+  },
+  "org.opensearch:opensearch-remote-metadata-sdk-ddb-client": {
+    "componentSha1": "f9655b92f29dc3fa08debe7cfdafe488f5fc0a42",
+    "jarSha256": "02433db3e363647150269cf28b17e57033aa07edafb297ca6309bbda7f8222d4",
+    "publications": [
+      "3.7.0.0",
+      "3.9.0.0",
+      "3.10.0.0"
+    ]
+  },
+  "org.opensearch:opensearch-remote-metadata-sdk-remote-client": {
+    "componentSha1": "e8d9499ea97ba23baa71f08689db78881397c221",
+    "jarSha256": "6f534e79cd49c56f89541563f8c5eb17d76f33ee16026ce3768ce595185f919a",
+    "publications": [
+      "3.7.0.0",
+      "3.9.0.0",
+      "3.10.0.0"
+    ]
+  }
+}

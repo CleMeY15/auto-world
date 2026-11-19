@@ -479,11 +479,12 @@ test("PostgreSQL inspection and immutable archive save keep failed command outpu
   // Only Docker and the surrounding runner bootstrap are replaced.
   const harness = original + `
     export async function exercise({work, output, artifacts, archive, tag, metadataFile, githubOutput, invoke, finishAudit}) {
+      const scope = "managed";
       const candidate = { role: "postgres" }, postgres = true, environment = {}, localImages = new Map();
       const build = { role: "postgres", result: "failed", materialCapture: { cleanup: "NOT_CREATED" } };
       const receipt = { builds: [build], commands: [] };
       let cleanupUncertain = false, frozenPostgresInspection;
-      ${section("  const successful = (result)", "  const phase = async")}
+      ${section("  const command = (executable, originalArgs,", "  const phase = async")}
       try {
         ${section("            const inspectedFile = path.join(output,", '          if (build.result !== "passed" &&')}
       finishAudit();

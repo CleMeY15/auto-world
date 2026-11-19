@@ -4,6 +4,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { collectImageAudits } from "./audit.mjs";
 import { captureFiles, readBoundedJson } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 
 const previous = {
   role: "aws-cli-previous", repository: "amazon/aws-cli", version: "2.38.5",
@@ -21,8 +22,7 @@ const fail = (message) => { throw new Error(message); };
 // Keep the comparison's projected rows within the original 64 MiB report budget,
 // including repeated target strings that occur just once in a raw result.
 function appendRow(rows, row, budget) {
-  budget.bytes += Buffer.byteLength(JSON.stringify(row)) + 1;
-  if (budget.bytes > 24 * 1024 ** 2) fail("scanner_aws_comparison_limit");
+  budget.bytes += boundedJsonBytes(row, 24 * 1024 ** 2 - budget.bytes, "scanner_aws_comparison_limit").length;
   rows.push(row);
 }
 
@@ -49,13 +49,11 @@ function historicalContext(inputs) {
   return identical ? "identical" : "changed";
 }
 
-async function inventory(image, record, configId, operations) {
+async function inventory(image, record, configId, readPair) {
   if (!record?.report || record.result !== "passed" && record.reason !== "scanner_image_policy_blocked") {
     fail(record?.reason ?? "scanner_aws_report_missing");
   }
-  const captured = await operations.captureReport(image);
-  if (!isDeepStrictEqual(captured.identity, record.report)) fail("scanner_frozen_input_changed");
-  const { json, sbom } = await operations.readReport(image, captured);
+  const { json, sbom } = await readPair(image, record.report);
   const subject = image.repository + "@" + image.platform.digest;
   const component = sbom.metadata.component;
   const purl = "pkg:oci/aws-cli@" + image.platform.digest + "?arch=amd64&repository_url=index.docker.io%2Famazon%2Faws-cli";
@@ -83,8 +81,8 @@ async function inventory(image, record, configId, operations) {
     }
   }
   const identities = packages.map((p) => JSON.stringify([p.class, p.type, p.name, p.epoch, p.version, p.release, p.arch, p.file]));
-  return { subject, configId, json: { file: path.basename(captured.files.json), ...record.report[0] },
-    sbom: { file: path.basename(captured.files.sbom), ...record.report[1] }, packages, findings, packageHash: sha(identities.sort().join("\n")) };
+  return { subject, configId, json: { file: `image-${image.role}.json`, ...record.report[0] },
+    sbom: { file: `image-${image.role}.cdx.json`, ...record.report[1] }, packages, findings, packageHash: sha(identities.sort().join("\n")) };
 }
 
 // Indices refer to the complete ordered rows on each side. Consume duplicate
@@ -121,6 +119,43 @@ async function historicalAws() {
   };
 }
 
+export function readPreviousAwsInventory(control, readPair) {
+  return inventory(previous, control.reports[0], oldConfig, readPair);
+}
+
+// Both the live producer and the disk reader derive every row and the qualification
+// from authenticated report pairs. Keep the measured delta even on qualification failure.
+export async function deriveAwsComparison({ candidate, control, old, currentRecord, inputs, readPair }) {
+  if (candidate?.repository !== previous.repository || candidate.version !== "2.41.0" ||
+      candidate.manifestDigest !== "sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea" ||
+      candidate.platform.digest !== "sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090") fail("scanner_aws_candidate_invalid");
+  const current = await inventory(candidate, currentRecord, newConfig, readPair);
+  const packageKey = (p) => JSON.stringify(p);
+  const findingKey = (f) => JSON.stringify([f.class, f.type, f.target, f.name, f.packagePath, f.vulnerabilityId]);
+  const coverageKey = (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch]);
+  const history = await historicalAws();
+  const occurrence = (b) => JSON.stringify([b.target, b.vulnerabilityId, b.packageName, b.installedVersion]);
+  const historicalToOld = reconcile(history.orderedBlockers, control.blockers, occurrence);
+  const historicalDatabaseContext = historicalContext(inputs);
+  const historicalReplayMatches = isDeepStrictEqual(history.orderedBlockers,
+    control.blockers.map((blocker) => ({ ...blocker, role: candidate.role })));
+  const data = { history, historicalToOld, historicalInputs, historicalReplayMatches, old, current,
+    inventoryScope: "Packages detected by Trivy; bundled or frozen Python dependencies may be absent.",
+    packages: reconcile(old.packages, current.packages, packageKey),
+    findings: reconcile(old.findings, current.findings, findingKey),
+    missingInventory: reconcile(old.packages, current.packages, coverageKey).removed };
+  const reason = qualificationFailure(data, historicalDatabaseContext, control);
+  return { data, historicalDatabaseContext, reason };
+}
+
+function qualificationFailure({ old, current, missingInventory, historicalReplayMatches, historicalToOld }, historicalDatabaseContext, control) {
+  if (old.packageHash !== oldPackageHash || missingInventory.length ||
+      !current.packages.some((pkg) => pkg.type === "amazon" && pkg.name === "perl-Unicode-Normalize")) return "scanner_aws_inventory_loss";
+  if (historicalDatabaseContext === "identical" && !historicalReplayMatches) return "scanner_aws_historical_replay_changed";
+  if (!historicalToOld.matched.length || control.blockers.some((b) => !b.vulnerabilityId)) return "scanner_aws_unexpected_control";
+  return null;
+}
+
 export async function comparePreviousAws({ config, receipt, output, operations }) {
   const candidate = config.images.find((image) => image.role === "aws-cli");
   const comparison = { previousSubject: previous, qualification: "failed", oldPolicy: "unmeasured" };
@@ -130,40 +165,29 @@ export async function comparePreviousAws({ config, receipt, output, operations }
     const control = await collectImageAudits([previous], operations);
     comparison.control = control;
     const [record] = control.reports;
-    const old = await inventory(previous, record, oldConfig, operations);
+    async function readPair(image, expected) {
+      const captured = await operations.captureReport(image);
+      const files = { json: path.join(output, `image-${image.role}.json`), sbom: path.join(output, `image-${image.role}.cdx.json`) };
+      if (!isDeepStrictEqual(captured.files, files) || !isDeepStrictEqual(captured.identity, expected)) fail("scanner_frozen_input_changed");
+      return operations.readReport(image, captured);
+    }
+    const old = await readPreviousAwsInventory(control, readPair);
     const commands = receipt.commands.slice(commandStart);
     if (commands.length !== 2 || commands.some((entry) => entry.ownedContainerAbsent !== true ||
         entry.exitCode !== 0 || entry.signal !== null || entry.error !== null)) fail("scanner_aws_control_execution_invalid");
     comparison.oldPolicy = record.result === "passed" ? "clean" : "blocked";
-    if (candidate?.repository !== previous.repository || candidate.version !== "2.41.0" ||
-        candidate.manifestDigest !== "sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea" ||
-        candidate.platform.digest !== "sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090") fail("scanner_aws_candidate_invalid");
-    const current = await inventory(candidate, receipt.reports.find((entry) => entry.role === candidate.role), newConfig, operations);
-    const packageKey = (p) => JSON.stringify(p);
-    const findingKey = (f) => JSON.stringify([f.class, f.type, f.target, f.name, f.packagePath, f.vulnerabilityId]);
-    const coverageKey = (p) => JSON.stringify([p.class, p.type, p.target, p.name, p.arch]);
-    const history = await historicalAws();
-    const occurrence = (b) => JSON.stringify([b.target, b.vulnerabilityId, b.packageName, b.installedVersion]);
-    const historicalToOld = reconcile(history.orderedBlockers, control.blockers, occurrence);
-    comparison.historicalDatabaseContext = historicalContext(receipt.awsComparisonInputs);
-    const historicalReplayMatches = isDeepStrictEqual(history.orderedBlockers,
-      control.blockers.map((blocker) => ({ ...blocker, role: candidate.role })));
-    const data = { history, historicalToOld, historicalInputs, historicalReplayMatches, old, current,
-      inventoryScope: "Packages detected by Trivy; bundled or frozen Python dependencies may be absent.",
-      packages: reconcile(old.packages, current.packages, packageKey),
-      findings: reconcile(old.findings, current.findings, findingKey),
-      missingInventory: reconcile(old.packages, current.packages, coverageKey).removed };
+    const { data, historicalDatabaseContext, reason } = await deriveAwsComparison({
+      candidate, control, old, currentRecord: receipt.reports.find((entry) => entry.role === candidate?.role),
+      inputs: receipt.awsComparisonInputs, readPair,
+    });
+    comparison.historicalDatabaseContext = historicalDatabaseContext;
     const file = "image-aws-cli-comparison.json";
-    const bytes = Buffer.from(JSON.stringify(data) + "\n");
-    if (bytes.length > 64 * 1024 ** 2) fail("scanner_aws_comparison_limit");
+    const bytes = boundedJsonBytes(data, 64 * 1024 ** 2, "scanner_aws_comparison_limit");
     writeFileSync(path.join(output, file), bytes, { flag: "wx", mode: 0o600 });
     const [identity] = await captureFiles([{ path: path.join(output, file), cap: 64 * 1024 ** 2 }]);
     if (identity.sha256 !== sha(bytes) || identity.size !== bytes.length) fail("scanner_frozen_input_changed");
     comparison.delta = { file, sha256: identity.sha256, size: identity.size };
-    if (old.packageHash !== oldPackageHash || data.missingInventory.length ||
-        !current.packages.some((pkg) => pkg.type === "amazon" && pkg.name === "perl-Unicode-Normalize")) fail("scanner_aws_inventory_loss");
-    if (comparison.historicalDatabaseContext === "identical" && !historicalReplayMatches) fail("scanner_aws_historical_replay_changed");
-    if (!historicalToOld.matched.length || control.blockers.some((b) => !b.vulnerabilityId)) fail("scanner_aws_unexpected_control");
+    if (reason) fail(reason);
     comparison.qualification = "passed";
   } catch (error) {
     comparison.reason = error.message;

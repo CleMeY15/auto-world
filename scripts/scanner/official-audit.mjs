@@ -1,12 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, constants, closeSync, fstatSync, openSync, readSync, renameSync, rmSync, unlinkSync, writeSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, statfsSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, constants, copyFileSync, existsSync, fstatSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, statfsSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual, TextDecoder } from "node:util";
 import { baselineFixtureArguments, candidateDockerArguments, collectImageAudits, databaseDownloadDockerArguments, databaseEvidence,
   fixtureScanMode, projectAuditBudget, validateDatabaseRegistryManifest, versionProbeBytes } from "./audit.mjs";
 import { assertFilesUnchanged, captureFiles, compareSameDatabase, readBoundedJson, validateFixtureReport } from "./controls.mjs";
+import { boundedJsonBytes } from "./official-report-bytes.mjs";
 import { assertManagedArchiveUnchanged, captureManagedArchive } from "./managed-archive.mjs";
 import { acceptsManagedSeaweedRuntimeTests, MANAGED_SEAWEED_IAM_FIXTURE_SOURCES, MANAGED_SEAWEED_MATERIAL, inspectManagedSeaweedTests, readManagedSeaweedStatuses,
   readManagedSeaweedStatusesFromCapture, readManagedSeaweedTestsFromCapture,
@@ -15,6 +16,9 @@ import { diagnoseManagedSeaweedFailedProfile, hasManagedSeaweedSkipReviewEvidenc
   reviewManagedSeaweedNormalProfile } from "./seaweed-normal-skip-review.mjs";
 import { bindManagedSeaweedSourceEvidence, evaluateManagedSeaweedArchiveReport,
   managedSeaweedHashArguments } from "./seaweed-source-profile.mjs";
+import { writeComparisonCheckpoint, readComparisonCheckpoint } from "./official-comparison-checkpoint.mjs";
+import { buildOpenSearchComparison } from "./official-opensearch-inventory.mjs";
+import { compareOpenSearchCandidate } from "./official-opensearch-comparator.mjs";
 import { comparePreviousAws } from "./official-aws-comparator.mjs";
 import { parseOfficialGoBuildInfo } from "./official-build-info.mjs";
 import { evaluateArchiveImageReport, evaluateImageReport, MANAGED_GOSU_SOURCE, validateSelfReport, validateVersionProbeReport } from "./official-controls.mjs";
@@ -1507,15 +1511,102 @@ export async function auditAndPublishSeaweedRustSourceReports({ role, files, dir
   return failure ? { result: null, failure } : { result, failure: null };
 }
 
+// Only completed, bounded stdout can acquire an uploadable name. A short
+// write or ENOSPC leaves its private staging path outside the upload wildcard.
+export function writeRawScanReport(file, stdout, scan, record, args, succeeded) {
+  if (!record.lease || scan.reference !== args.at(-1) ||
+      scan.format !== args[args.indexOf("--format") + 1]) fail("scanner_comparison_command_mapping_invalid");
+  record.scan = { ...scan, lease: { ...record.lease }, output: { sha256: hashBytes(stdout), size: stdout.length } };
+  if (stdout.length > 64 * MiB) fail("scanner_public_report_limit");
+  if (!succeeded) return;
+  const staging = path.join(path.dirname(file), `.raw-report-${randomUUID()}`);
+  const fd = openSync(staging, "wx", 0o600);
+  try {
+    try { writeFileSync(fd, stdout); } finally { closeSync(fd); }
+    linkSync(staging, file);
+  } finally { unlinkSync(staging); }
+}
+
+const successful = (result) => !result.error && result.status === 0 && result.signal === null;
+
+export function confirmScanContainerAbsent({ invoke, name, owner, record, privateOutput = false }) {
+  const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
+  record.cleanup = { inspected: inspected.status, removed: false };
+  if (!validateContainerAbsence(inspected, name)) {
+    record.cleanup.diagnostic = commandFailureDiagnostic(inspected, { privateOutput });
+    if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
+    const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
+    const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
+    if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
+    record.cleanup.removed = true;
+    const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
+    if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
+  }
+  record.ownedContainerAbsent = true;
+}
+
+// The checkpoint covers the five subjects and AWS control. Later commands and
+// interrupted pairs also need durable cleanup evidence when the full receipt
+// exceeds its budget. These rows come from the command runner, not image data.
+function compactRawExecution(receipt) {
+  const candidate = receipt.openSearchComparator;
+  const interruption = receipt.fiveImageInterruption;
+  const aws = receipt.awsComparator;
+  const commands = [];
+  const interruptedIndices = new Set(interruption?.commands.map(({ index }) => index));
+  const candidateIndices = new Set(candidate?.commandIndices);
+  for (const [offset, record] of (receipt.commands ?? []).entries()) {
+    const index = offset + 1;
+    if (!record.scan && !interruptedIndices.has(index) && !candidateIndices.has(index)) continue;
+    commands.push({ index, scan: record.scan, executable: record.executable, exitCode: record.exitCode,
+      signal: record.signal, error: record.error, lease: record.lease, cleanup: record.cleanup,
+      ownedContainerAbsent: record.ownedContainerAbsent ?? null });
+  }
+  if (!commands.length && !candidate && !interruption && !aws) return undefined;
+  return {
+    scanCommands: commands,
+    fiveImageResult: receipt.fiveImageResult,
+    fiveImageInterruption: interruption && { ...interruption, reason: interruption.reason?.slice(0, 1024) },
+    awsComparator: aws && { qualification: aws.qualification, oldPolicy: aws.oldPolicy,
+      reason: aws.reason?.slice(0, 1024), delta: aws.delta },
+    openSearchComparator: candidate && { execution: candidate.execution, qualification: candidate.qualification,
+      candidatePolicy: candidate.candidatePolicy, result: candidate.result, reason: candidate.reason?.slice(0, 1024),
+      commandIndices: candidate.commandIndices, diskPreflight: candidate.diskPreflight,
+      formats: candidate.formats?.map((row) => ({ ...row, reason: row.reason?.slice(0, 1024) })) },
+  };
+}
+
+export function writeRawAuditReceipt(file, receipt) {
+  let bytes;
+  try { bytes = boundedJsonBytes(receipt, 64 * MiB, "scanner_raw_receipt_limit"); }
+  catch (error) {
+    const compact = { run: receipt.run, scope: "upstream", result: "failed", reason: error.message,
+      priorFailure: receipt.failure?.slice(0, 1024), fiveImageEvidence: receipt.fiveImageEvidence,
+      awsCheckpoint: receipt.awsCheckpoint?.identity, openSearchDelta: receipt.openSearchComparator?.delta,
+      execution: compactRawExecution(receipt) };
+    const compactBytes = boundedJsonBytes(compact, 2 * MiB, "scanner_raw_compact_receipt_limit");
+    writeFileSync(file, compactBytes, { flag: "wx", mode: 0o600 });
+    throw error;
+  }
+  writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
+}
+
+export function remainingRawStepTime(startedSeconds, nowMs = Date.now()) {
+  if (typeof startedSeconds !== "string" || !/^[1-9][0-9]{9}$/u.test(startedSeconds)) return 0;
+  const elapsed = nowMs - Number(startedSeconds) * 1000;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.max(0, 60 * 60_000 - elapsed) : 0;
+}
+
 export async function runOfficialImageAudits({ config, receipt, output, localImages, managed, carrier, scanner, cache, command, beforeScan, afterScan }) {
   receipt.runtimeSubjects = config.images.map((image) => localImages.has(image.role)
     ? { role: image.role, ...localImages.get(image.role).subject }
     : { role: image.role, kind: "UPSTREAM_REGISTRY_SUBJECT", repository: image.repository, manifestDigest: image.manifestDigest, platform: image.platform });
   const reports = new Map();
   const emitted = new Map();
+  const scanCommands = [];
   const operations = {
     beforeScan,
-    scan: async (image) => {
+    scan: async (image, { runFormat } = {}) => {
       const files = { json: path.join(output, `image-${image.role}.json`), sbom: path.join(output, `image-${image.role}.cdx.json`) };
       reports.set(image.role, files);
       const failures = [];
@@ -1524,13 +1615,21 @@ export async function runOfficialImageAudits({ config, receipt, output, localIma
       for (const format of ["json", "cyclonedx"]) {
         if (local) { await recheckImageFiles(local); await assertManagedArchiveUnchanged(local.archiveSnapshot); }
         const file = format === "json" ? files.json : files.sbom;
+        const commandIndex = receipt.commands.length + 1;
+        const scan = managed ? undefined : { role: image.role, format, reference: image.repository + "@" + image.platform.digest };
         try {
-          const bytes = command(DOCKER, local ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format)
-            : officialImageScanArguments(carrier, scanner, cache, image, format), { file });
+          const execute = (timeout) => command(DOCKER, local
+            ? officialArchiveScanArguments(carrier, scanner, cache, local.archive, format)
+            : officialImageScanArguments(carrier, scanner, cache, image, format), { file, timeout, scan });
+          const bytes = runFormat ? await runFormat(format, execute) : execute();
           if (!managed) emitted.set(file, { sha256: hashBytes(bytes), size: bytes.length });
         } catch (error) {
-          if (image.role === "aws-cli-previous") throw error;
+          if (runFormat || image.role === "aws-cli-previous" || error.message === "scanner_official_cleanup_uncertain") throw error;
           failures.push(error);
+        } finally {
+          if (!managed && receipt.commands.length === commandIndex) {
+            scanCommands.push({ role: image.role, format, index: commandIndex });
+          }
         }
         if (local) { await assertManagedArchiveUnchanged(local.archiveSnapshot); await recheckImageFiles(local); }
       }
@@ -1562,16 +1661,66 @@ export async function runOfficialImageAudits({ config, receipt, output, localIma
       return evaluateImageReport(report.json, image, [], new Date(), { expectedScannerVersion: config.scanner.version });
     },
   };
-  const collected = await collectImageAudits(config.images, operations);
+  const collected = { reports: [], blockers: [], rejections: [] };
+  if (managed) {
+    Object.assign(collected, await collectImageAudits(config.images, operations));
+  } else {
+    // Commit one role's decisions before entering the next role's global guards.
+    // An uncertain cleanup can stop collection between roles or inside a pair.
+    for (const image of config.images) {
+      const firstCommand = receipt.commands.length;
+      try {
+        const decision = await collectImageAudits([image], operations);
+        const complete = { reports: collected.reports.concat(decision.reports),
+          blockers: collected.blockers.concat(decision.blockers), rejections: collected.rejections.concat(decision.rejections) };
+        boundedJsonBytes(complete, 64 * MiB, "scanner_comparison_five_limit");
+        Object.assign(collected, complete);
+        if (receipt.commands.slice(firstCommand).some((row) => row.ownedContainerAbsent !== true)) fail("scanner_official_cleanup_uncertain");
+      } catch (error) {
+        Object.assign(receipt, collected);
+        receipt.fiveImageResult = "incomplete";
+        const attempted = new Set(scanCommands.map((entry) => entry.role));
+        receipt.fiveImageInterruption = { role: image.role, reason: error.message, commands: scanCommands,
+          notStarted: config.images.map((entry) => entry.role).filter((role) => !attempted.has(role)) };
+        const file = "image-five-subject-partial.json";
+        const bytes = boundedJsonBytes(collected, 64 * MiB, "scanner_comparison_five_limit");
+        writeFileSync(path.join(output, file), bytes, { flag: "wx", mode: 0o600 });
+        receipt.fiveImageEvidence = { file, size: bytes.length, sha256: hashBytes(bytes) };
+        throw error;
+      }
+    }
+  }
   receipt.reports = collected.reports; receipt.blockers = collected.blockers; receipt.rejections = collected.rejections;
   if (!managed) {
     receipt.fiveImageResult = collected.rejections.length ? "rejected" : "passed";
     const file = "image-five-subject-results.json";
-    writeJson(path.join(output, file), collected);
+    writeFileSync(path.join(output, file), boundedJsonBytes(collected, 64 * MiB, "scanner_comparison_five_limit"), { flag: "wx", mode: 0o600 });
     const [checkpoint] = await captureFiles([{ path: path.join(output, file), cap: 64 * MiB }]);
     receipt.fiveImageEvidence = { file, size: checkpoint.size, sha256: checkpoint.sha256 };
+    let awsError;
     try { await comparePreviousAws({ config, receipt, output, operations }); }
-    catch (error) { if (!collected.rejections.length) throw error; }
+    catch (error) { awsError = error; }
+
+    // The six pairs and their cleanup must survive loss of the final receipt.
+    let comparisonError;
+    try {
+      const saved = await writeComparisonCheckpoint({ config, receipt, output, operations, scanCommands });
+      receipt.awsCheckpoint = { identity: saved.identity, eligible: saved.eligible, reasons: saved.reasons };
+      if (awsError) throw awsError;
+      if (!saved.eligible) fail("scanner_opensearch_prerequisites_failed");
+      await compareOpenSearchCandidate({ config, receipt, output, operations, buildOpenSearchComparison,
+        remainingTimeMs: () => remainingRawStepTime(process.env.AW_RAW_STEP_STARTED_SECONDS),
+        verifyCheckpoints: async () => {
+          const reread = await readComparisonCheckpoint({ config, output, expectedIdentity: saved.identity, expectedRun: receipt.run });
+          return reread.eligible && reread.candidateEvidence.state === "absent";
+        },
+      });
+    } catch (error) {
+      comparisonError = error;
+      receipt.openSearchComparator ??= { execution: "not_started", qualification: "failed",
+        candidatePolicy: "unmeasured", result: "failed", reason: error.message, commandIndices: [] };
+    }
+    if (!collected.rejections.length && comparisonError) throw comparisonError;
   }
   if (collected.rejections.length) fail("scanner_official_images_blocked");
 }
@@ -1602,9 +1751,8 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
   const owner = randomUUID();
   let cleanupUncertain = false;
   const invoke = (executable, args, timeout, env = environment) => spawnSync(executable, args, { timeout, maxBuffer: 128 * MiB, encoding: null, windowsHide: true, env });
-  const successful = (result) => !result.error && result.status === 0 && result.signal === null;
   const command = (executable, originalArgs, { file, timeout = 10 * 60_000, env = environment, privateOutput = false,
-    expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false, solveObservation } = {}) => {
+    expectedStdout, requireEmptyStderr = false, gosuRuntimeTrace = false, scan, solveObservation } = {}) => {
     if (cleanupUncertain) fail("scanner_official_cleanup_uncertain");
     const name = executable === DOCKER && originalArgs[0] === "run" ? `aw-official-${randomUUID()}` : null;
     const args = name ? ownedRunArguments(originalArgs, name, owner) : originalArgs;
@@ -1615,7 +1763,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     if (!successful(result)) record.diagnostic = commandFailureDiagnostic(result, { privateOutput: privateOutput || gosuRuntimeTrace });
     receipt.commands.push(record);
     try {
-      writeFileSync(file ?? path.join(output, `${prefix}.stdout`), result.stdout ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
+      const stdout = result.stdout ?? Buffer.alloc(0);
+      if (scan) writeRawScanReport(file, stdout, scan, record, originalArgs, successful(result));
+      else writeFileSync(file ?? path.join(output, `${prefix}.stdout`), stdout, { flag: "wx", mode: 0o600 });
       writeFileSync(path.join(output, `${prefix}.stderr`), result.stderr ?? Buffer.alloc(0), { flag: "wx", mode: 0o600 });
     } catch (error) {
       if (gosuRuntimeTrace || solveObservation) fail("scanner_private_command_write_failed");
@@ -1623,19 +1773,7 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
     } finally {
       if (name) {
         try {
-          const inspected = invoke(DOCKER, ["container", "inspect", name], 15_000);
-          record.cleanup = { inspected: inspected.status, removed: false };
-          if (!validateContainerAbsence(inspected, name)) {
-            record.cleanup.diagnostic = commandFailureDiagnostic(inspected, { privateOutput });
-            if (!successful(inspected)) fail("scanner_official_cleanup_uncertain");
-            const id = validateOwnedContainer(JSON.parse(inspected.stdout.toString("utf8")), name, owner);
-            const removed = invoke(DOCKER, ["container", "rm", "--force", id], 30_000);
-            if (!successful(removed)) { record.cleanup.diagnostic = commandFailureDiagnostic(removed, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
-            record.cleanup.removed = true;
-            const absence = invoke(DOCKER, ["container", "inspect", name], 15_000);
-            if (!validateContainerAbsence(absence, name)) { record.cleanup.diagnostic = commandFailureDiagnostic(absence, { privateOutput }); fail("scanner_official_cleanup_uncertain"); }
-          }
-          record.ownedContainerAbsent = true;
+          confirmScanContainerAbsent({ invoke, name, owner, record, privateOutput });
         } catch {
           cleanupUncertain = true;
           fail("scanner_official_cleanup_uncertain");
@@ -2269,7 +2407,9 @@ export async function auditOfficialScanner({ scanner: inputScanner, buildInfo, o
         fail(receipt.failure);
       }
     } finally {
-      writeJson(path.join(output, "official-audit-receipt.json"), receipt);
+      const file = path.join(output, "official-audit-receipt.json");
+      if (scope === "upstream") writeRawAuditReceipt(file, receipt);
+      else writeJson(file, receipt);
     }
   }
   return receipt;
