@@ -79,6 +79,8 @@ puis workflows et revue du main exact. TASK-0005/A restent IN_PROGRESS.
 
 Voie produit du 18 novembre, branche dédiée. [TASK-0132](tasks/TASK-0132-private-product-identity.md) applique la marque AutoFind aux écrans connectés. [Recette et aperçus](../docs/validation/TASK-0132.md) sur les branches intégrées. La [PR263](https://github.com/CleMeY15/auto-world/pull/263) attend la livraison coordonnée de ses dépendances.
 
+Audit de l’accueil public : [TASK-0133, déblocages produit sur la frise](tasks/TASK-0133-frise-accueil.md), en validation. [Aperçus mobile et bureau](../docs/validation/TASK-0133.md).
+
 ## Dossier d’importation — 19 novembre 2026
 
 [TASK-0134](tasks/TASK-0134-dossier-import.md) prépare le dossier d’un particulier qui importe une voiture d’occasion d’Allemagne en France. [Recette locale](../docs/validation/TASK-0134.md) et [PR267](https://github.com/CleMeY15/auto-world/pull/267). Les contrôles GitHub et l’installation sur le domaine sont suivis séparément. La frise de PR266 reste gérée dans sa branche.
