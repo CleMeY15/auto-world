@@ -37,3 +37,31 @@
   document.addEventListener("visibilitychange", sync);
   sync();
 })();
+
+(() => {
+  const track = document.querySelector(".road-track");
+  if (!track) return;
+  const navigation = document.querySelector(".road-nav");
+  const [previous, next] = navigation.querySelectorAll("button");
+  const stops = [...track.querySelectorAll(".milestones li")];
+
+  function updateNavigation() {
+    const end = track.scrollWidth - track.clientWidth;
+    navigation.hidden = end <= 1;
+    track.tabIndex = navigation.hidden ? -1 : 0;
+    previous.setAttribute("aria-disabled", String(track.scrollLeft <= 1));
+    next.setAttribute("aria-disabled", String(track.scrollLeft >= end - 1));
+  }
+
+  function move(forward) {
+    const left = track.getBoundingClientRect().left;
+    const offsets = stops.map(stop => stop.getBoundingClientRect().left - left);
+    const distance = forward ? offsets.find(x => x > 1) : offsets.findLast(x => x < -1);
+    if (distance !== undefined) track.scrollBy({ left: distance });
+  }
+
+  previous.addEventListener("click", () => move(false));
+  next.addEventListener("click", () => move(true));
+  track.addEventListener("scroll", updateNavigation, { passive: true });
+  new ResizeObserver(updateNavigation).observe(track);
+})();

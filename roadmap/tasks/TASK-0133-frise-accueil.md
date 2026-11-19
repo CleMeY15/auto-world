@@ -4,4 +4,6 @@ Audit visuel du propriétaire, voie produit sur product/0133-frise-accueil, base
 
 Depuis l’accueil public, déplier la frise au clavier ou au toucher, repérer l’audit en cours et lire les capacités déjà disponibles sur exemples puis les ouvertures prévues. Retirer la légende du modèle, conserver le visuel. Utiliser le dépliant natif de TASK-0131 et la palette AutoFind. Le calendrier d’intégration des sources reste prévisionnel.
 
-Valider la lisibilité sur téléphone et bureau, le contenu sans JavaScript, le texte agrandi, le mouvement réduit et la connexion existante. Modifier le template et sa recette ciblée. Retour arrière par restauration du template précédent.
+Le propriétaire précise que l’axe reste horizontal à toute largeur. Chaque titre décrit une action d’acheteur. Sur téléphone, la frise seule défile au toucher ou au clavier. Les annonces et documents de l’audit sont explicitement fictifs.
+
+Valider la lisibilité sur téléphone et bureau, le contenu sans JavaScript, le texte agrandi, le mouvement réduit et la connexion existante. Modifier le template, sa navigation progressive dans le script d’accueil et la recette ciblée. Retour arrière par restauration du template et du script précédents.

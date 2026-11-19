@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
 const { mkdirSync } = require("node:fs");
-const { chromium, webkit } = require("../../../apps/web/node_modules/@playwright/test");
+const { chromium, expect, webkit } = require("../../../apps/web/node_modules/@playwright/test");
 
 async function main() {
   const mobile = process.argv[2] === "webkit";
@@ -42,12 +42,42 @@ async function main() {
     await summary.press("Enter");
     await roadmap.locator('[aria-current="step"]').waitFor();
     assert.equal(await roadmap.locator("li").count(), 6);
-    assert.equal(await roadmap.locator('[aria-current="step"] h3').innerText(), "Auditer le parcours");
+    assert.equal(await roadmap.locator('[aria-current="step"] h3').innerText(), "Ouvrir un rapport depuis l’annonce");
+    const track = roadmap.locator(".road-track");
+    const stops = await track.locator("li").evaluateAll(items => items.map(item => {
+      const { left, top } = item.getBoundingClientRect();
+      return { left, top };
+    }));
+    assert.ok(stops.every((stop, index) => stop.top === stops[0].top && (!index || stop.left > stops[index - 1].left)));
+    const previous = roadmap.getByRole("button", { name: "Fonctionnalité précédente" });
+    const next = roadmap.getByRole("button", { name: "Fonctionnalité suivante" });
+    const lastStop = track.locator("li").last();
+    if (mobile) {
+      await next.waitFor();
+      assert.equal(await previous.getAttribute("aria-disabled"), "true");
+      await next.focus();
+      await next.press("Enter");
+      await expect.poll(() => track.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+    } else {
+      assert.equal(await next.isVisible(), false);
+    }
     assert.equal(await page.getByText("McLaren 600LT", { exact: true }).count(), 0);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     assert.equal(await roadmap.locator(".chapter").first().evaluate(el => getComputedStyle(el).animationName), "none");
     if (process.env.PRIVATE_WEB_EVIDENCE) {
+      await roadmap.evaluate(() => document.activeElement.blur());
       await page.locator(".road").screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/etapes-mobile.png" : "/etapes-bureau.png") });
+    }
+    if (mobile) {
+      for (let i = 0; i < stops.length && await next.getAttribute("aria-disabled") !== "true"; i++) {
+        await next.press("Enter");
+      }
+      await expect(next).toHaveAttribute("aria-disabled", "true");
+      const last = await lastStop.boundingBox();
+      const frame = await track.boundingBox();
+      assert.ok(last.x >= frame.x - 1 && last.x + last.width <= frame.x + frame.width + 1);
+      await previous.press("Enter");
+      await expect(next).toHaveAttribute("aria-disabled", "false");
     }
     await summary.press("Space");
     assert.equal(await roadmap.getAttribute("open"), null);
@@ -63,7 +93,16 @@ async function main() {
     });
     await plainPage.goto(base);
     await plainPage.locator(".road summary").press("Enter");
-    assert.ok(await plainPage.getByRole("heading", { name: "Suivre les remises en vente" }).isVisible());
+    const plainTrack = plainPage.locator(".road-track");
+    await plainTrack.scrollIntoViewIfNeeded();
+    await plainTrack.focus();
+    await plainTrack.press("ArrowRight");
+    await expect.poll(() => plainTrack.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+    const finalHeading = plainTrack.getByRole("heading", { name: "Réunir les rapports d’un même véhicule" });
+    await finalHeading.scrollIntoViewIfNeeded();
+    const headingBox = await finalHeading.boundingBox();
+    const trackBox = await plainTrack.boundingBox();
+    assert.ok(headingBox.x >= trackBox.x - 1 && headingBox.x + headingBox.width <= trackBox.x + trackBox.width + 1);
     assert.ok(await plainPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await plain.close();
     const expiryContext = await browser.newContext({ ignoreHTTPSErrors: true });
