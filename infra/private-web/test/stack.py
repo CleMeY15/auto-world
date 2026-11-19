@@ -77,7 +77,6 @@ with tempfile.TemporaryDirectory(prefix="aw-private-") as directory, contextlib.
     run([str(HERE / "render-edge"), "loopback"])
     config = (tmp / "nginx.conf").read_text()
     for public, isolated in {
-        "syslog:server=unix:/dev/log,tag=aw-private-edge": str(tmp / "access.log"),
         "listen 127.0.0.1:18080 ": f"listen 127.0.0.1:{http_port} ",
         "listen 127.0.0.1:18443 ": f"listen 127.0.0.1:{tls_port} ",
         "listen [::1]:18080 ": f"listen [::1]:{http_port} ",
@@ -104,6 +103,10 @@ with tempfile.TemporaryDirectory(prefix="aw-private-") as directory, contextlib.
         run(["sh", "-eu"], input=rehearsal, text=True)
     nginx = os.environ.get("PRIVATE_WEB_NGINX") or shutil.which("nginx")
     run([nginx, "-t", "-p", directory, "-c", str(tmp / "nginx.conf")])
+    # Validate the shipped syslog directive before isolating test traffic from the host journal.
+    syslog_target = "syslog:server=unix:/dev/log,tag=aw_private_edge"
+    assert syslog_target in config
+    (tmp / "nginx.conf").write_text(config.replace(syslog_target, str(tmp / "access.log")))
     (tmp / "nginx.pid").unlink(missing_ok=True)  # nginx -t may create an empty pidfile.
     edge = start([nginx, "-p", directory, "-c", str(tmp / "nginx.conf")], HERE)
     wait_for(tmp / "nginx.pid", edge)
