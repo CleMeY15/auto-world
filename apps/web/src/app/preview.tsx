@@ -8,7 +8,7 @@ type PreviewState = "empty" | "loading" | "error" | "success";
 type Theme = "system" | "light" | "dark";
 
 export function FoundationPreview() {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [budget, setBudget] = useState("");
   const [error, setError] = useState<string>();
   const [applied, setApplied] = useState(false);
@@ -55,7 +55,7 @@ export function FoundationPreview() {
 
   return (
     <>
-      <div className="site-toolbar">
+      <div className="site-toolbar" data-aw-default-theme={theme}>
         <p>Un aperçu à essayer</p>
         <label className="site-select-label" htmlFor="theme">Apparence
           <select className="site-select" id="theme" value={theme} onChange={(event) => changeTheme(event.target.value as Theme)}>
@@ -85,7 +85,6 @@ export function FoundationPreview() {
             <p>Un titre, les informations utiles, puis les détails. Chaque élément garde sa place.</p>
             <div className="site-card-note">Exemple de carte sans données de véhicule.</div>
           </Card>
-          <p className="site-caption">Les couleurs suivent votre préférence d’apparence. Le clavier et le toucher sont pris en compte dès les premiers composants.</p>
         </section>
       </div>
       <section id="states" aria-labelledby="states-title" className="site-states">

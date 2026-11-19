@@ -24,6 +24,8 @@ for (const theme of ["light", "dark"]) {
       ["text/surface", colors.text, colors.surface],
       ["muted/surface", colors.textMuted, colors.surface],
       ["action", colors.onAction, colors.action],
+      ["action link/surface", colors.action, colors.surface],
+      ["action link/subtle surface", colors.action, colors.surfaceSubtle],
       ["success", colors.onSuccess, colors.success],
       ["warning", colors.onWarning, colors.warning],
       ["danger", colors.onDanger, colors.danger],

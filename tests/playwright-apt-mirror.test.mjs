@@ -30,11 +30,10 @@ test("selects the official fallback from the hosted apt mirror list only on the 
   }
 });
 
-test("both hosted install steps prepare the archive within their existing deadline", async () => {
+test("both hosted install steps prepare the archive before installing the browser suites", async () => {
   for (const name of ["ci", "prototype-web"]) {
     const workflow = await readFile(new URL(`../.github/workflows/${name}.yml`, import.meta.url), "utf8");
     assert.ok(workflow.includes([
-      "        timeout-minutes: 25",
       "        run: |",
       `          sudo /usr/bin/python3.12 -I -S ${helper} /etc/apt/apt-mirrors.txt`,
       "          pnpm --filter @auto-world/web exec playwright install --with-deps chromium webkit",

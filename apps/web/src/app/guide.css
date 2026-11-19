@@ -1,0 +1,57 @@
+.guide-header { flex-wrap: wrap; padding-block: var(--aw-space-3); }
+.guide {
+  border-block-start: 1px solid var(--aw-color-border);
+  overflow-wrap: anywhere;
+}
+.guide-layout {
+  display: grid;
+  gap: var(--aw-space-8);
+  padding-block: clamp(1.5rem, 4vw, 4rem);
+}
+.guide-intro, .guide-aside { min-inline-size: 0; }
+.guide-intro h1 {
+  max-inline-size: 17ch;
+  text-wrap: balance;
+}
+.guide-intro h1 span, .guide-aside li::marker, .guide summary::marker { color: var(--aw-color-action); }
+.guide-intro p { max-inline-size: 56ch; }
+.guide-intro h1 + p { font-size: clamp(1rem, 1.5vw, 1.2rem); }
+.guide-muted, .guide-handoff, .guide-note, .guide-support > p, .guide-aside li p { color: var(--aw-color-text-muted); }
+.guide-primary { line-height: 1.4; max-inline-size: 100%; text-align: center; text-decoration: none; }
+.guide-note, .guide-handoff { font-size: var(--aw-font-size-small); }
+.guide-note { margin-block: var(--aw-space-2) 0; }
+.guide-handoff { margin-block: var(--aw-space-4) 0; }
+
+.guide-aside {
+  border-block-start: 1px solid var(--aw-color-border);
+  padding-block-start: var(--aw-space-6);
+}
+.guide-aside h2 { margin-block-end: var(--aw-space-4); }
+.guide-aside ul, .guide-aside ol { margin-block: 0; padding-inline-start: 1.75em; }
+.guide-aside li { padding: var(--aw-space-2) 0 var(--aw-space-2) var(--aw-space-1); }
+.guide-aside li + li { border-block-start: 1px solid var(--aw-color-border); }
+.guide-aside li::marker { font-weight: 650; }
+.guide-aside li p { margin-block: var(--aw-space-1) 0; }
+.guide-aside ul + p { margin-block: var(--aw-space-4) 0; }
+.guide-support {
+  border-block-start: 1px solid var(--aw-color-border);
+  padding-block: var(--aw-space-6);
+}
+.guide-support > * { max-inline-size: 66ch; }
+.guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-block-size: var(--aw-size-touch);
+  padding-block: var(--aw-space-3);
+}
+.guide-help {
+  align-items: center;
+  color: var(--aw-color-action);
+  display: inline-flex;
+  min-block-size: var(--aw-size-touch);
+}
+.guide summary:focus-visible, .guide-help:focus-visible { outline: 3px solid var(--aw-color-focus); outline-offset: 3px; }
+@media (min-width: 64rem) {
+  .guide-layout { column-gap: clamp(3rem, 6vw, 6rem); grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .guide-aside { border-block-start: 0; border-inline-start: 1px solid var(--aw-color-border); padding: 0 0 0 var(--aw-space-8); }
+}

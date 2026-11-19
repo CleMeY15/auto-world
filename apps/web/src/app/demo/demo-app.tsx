@@ -37,7 +37,8 @@ import {
   ActiveCriteria,
   EvidenceDetails,
   LoadingResults,
-  NeutralIllustration,
+  DemoPhotoPlaceholder,
+  SearchScene,
   ResultCard,
   ResultSummary,
   ScreenHeader,
@@ -220,7 +221,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   const favoriteSnapshot = useSyncExternalStore(favorites.subscribe, favorites.getSnapshot, favorites.getServerSnapshot);
   const savedSearchSnapshot = useSyncExternalStore(savedSearches.subscribe, savedSearches.getSnapshot, savedSearches.getServerSnapshot);
   const savedComparisonSnapshot = useSyncExternalStore(savedComparisons.subscribe, savedComparisons.getSnapshot, savedComparisons.getServerSnapshot);
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [text, setText] = useState("");
   const [price, setPrice] = useState("");
   const [mileage, setMileage] = useState("");
@@ -387,7 +388,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); savedComparisons.hydrate(); }, [favorites, savedComparisons, savedSearches]);
   useEffect(() => {
     const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : screen === "received-comparison" ? "Comparaison reçue" : "Mes listes";
-    document.title = `${label} — Auto World`;
+    document.title = `${label} — AutoFind`;
   }, [screen]);
   useEffect(() => {
     if (["session", "corrupt", "future", "denied", "quota"].includes(favoriteSnapshot.storageStatus)) {
@@ -1591,7 +1592,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   }, [enabled, localComparisonFragment, receivedComparisonFragment, receivedComparisonHash, screen]);
 
   return (
-    <main className="demo-shell demo-main" id="demo-main" ref={markHydrated} tabIndex={-1}>
+    <main className="demo-shell demo-main" data-aw-default-theme={theme} id="demo-main" ref={markHydrated} tabIndex={-1}>
       <SyntheticDisclosure persistent={storageNamespace === "prototype"} />
       <div className="demo-toolbar" aria-label="Navigation de la démonstration">
         <nav aria-label="Sections principales">
@@ -1604,13 +1605,13 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
       {enabled && catalog.status === "error" ? <div className="demo-catalog-error"><Banner tone="warning">{catalog.mismatch ? "Le catalogue ne correspond pas aux publications affichées." : catalog.empty ? "Le catalogue synthétique ne contient aucune marque." : catalog.code === "offline" || !online ? "Le catalogue est indisponible hors connexion." : "Les libellés synthétiques sont indisponibles."} Le budget, le kilométrage et l’année restent utilisables.</Banner><Button type="button" variant="secondary" onClick={retryCatalog}>Réessayer les libellés</Button></div> : null}
 
       {(screen === "search" || effectiveSearch) && enabled ? (
-        <section aria-labelledby="demo-screen-title">
-          <ScreenHeader title="Explorer la démo" description="Ajustez des critères déterministes, puis parcourez uniquement les publications synthétiques actives." />
-          {linkedCriteriaNotice ? <p className="demo-loaded-link">{linkedCriteriaNotice}</p> : null}
-          {searchRefinement ? <div className="demo-refinement-notice"><Banner tone="info">Le critère est retiré du formulaire. Lancez Rechercher pour appliquer ce changement aux résultats.</Banner><Button id="demo-refinement-cancel" type="button" variant="secondary" onClick={cancelSearchRefinement}>Annuler l’ajustement</Button></div> : null}
-          {location.invalid ? <Banner tone="warning">Le lien demandé n’est pas valide. La recherche est de nouveau disponible.</Banner> : null}
-          {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
-          <div className="demo-search-layout">
+        <section aria-labelledby="demo-screen-title" className="demo-search-layout">
+          <div className="demo-search-controls">
+            <ScreenHeader title="Explorer la démo" description="Indiquez un modèle ou un budget pour parcourir les annonces." />
+            {linkedCriteriaNotice ? <p className="demo-loaded-link">{linkedCriteriaNotice}</p> : null}
+            {searchRefinement ? <div className="demo-refinement-notice"><Banner tone="info">Le critère est retiré du formulaire. Lancez Rechercher pour appliquer ce changement aux résultats.</Banner><Button id="demo-refinement-cancel" type="button" variant="secondary" onClick={cancelSearchRefinement}>Annuler l’ajustement</Button></div> : null}
+            {location.invalid ? <Banner tone="warning">Le lien demandé n’est pas valide. La recherche est de nouveau disponible.</Banner> : null}
+            {effectiveSearch ? <Banner tone="info">Les résultats ne sont pas conservés après un rechargement. Relancez la recherche avec vos critères.</Banner> : null}
             <form className="demo-search-form" noValidate onSubmit={submitSearch}>
               <Field id="demo-text" label="Recherche par mots" value={text} onChange={(event) => { invalidateSearchRefinement(); setText(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "text" ? fieldError.message : undefined} hint="Marque ou modèle fictifs. Tous les mots sont recherchés." autoComplete="off" />
               <Field id="demo-priceMaxEUR" label="Budget maximum (€)" inputMode="decimal" value={price} onChange={(event) => { invalidateSearchRefinement(); setPrice(event.target.value); setFieldError(undefined); }} error={fieldError?.field === "priceMaxEUR" ? fieldError.message : undefined} autoComplete="off" />
@@ -1624,12 +1625,15 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
                 <p className="demo-field-hint" id="demo-identity-hint">Libellés fournis par le catalogue de démonstration validé. Ils ne décrivent aucun véhicule réel.</p>
                 <label htmlFor="demo-sort">Trier les résultats<select id="demo-sort" value={sort} onChange={(event) => { invalidateSearchRefinement(); setSort(event.target.value as DemoSearchSort); setFieldError(undefined); }}>{RESULT_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               </div> : null}
-              <div className="demo-form-actions"><Button type="submit" loading={loading}>{loading ? "Recherche…" : "Rechercher"}</Button><Button type="button" variant="secondary" onClick={resetFilters}>Réinitialiser les critères</Button></div>
+              <div className="demo-form-actions"><Button type="submit" className="demo-search-submit" variant="secondary" loading={loading}>
+                {loading ? "Recherche…" : "Rechercher"}
+                <span aria-hidden="true" className="demo-submit-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12h15m-6-6 6 6-6 6" /></svg></span>
+              </Button><Button type="button" variant="secondary" onClick={resetFilters}>Réinitialiser les critères</Button></div>
               {slow && loading ? <p className="demo-slow" role="status">La lecture prend plus de temps que prévu. Vous pouvez continuer à parcourir la page.</p> : null}
             </form>
-            <NeutralIllustration />
+            {searchError ? <StatePanel tone="danger" title="Recherche indisponible" action={<Button onClick={retrySearch}>Réessayer</Button>}><p>{errorCopy(searchError)}</p></StatePanel> : null}
           </div>
-          {searchError ? <StatePanel tone="danger" title="Recherche indisponible" action={<Button onClick={retrySearch}>Réessayer</Button>}><p>{errorCopy(searchError)}</p></StatePanel> : null}
+          <SearchScene />
         </section>
       ) : null}
 
@@ -1735,7 +1739,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
           {detail.status === "error" ? <StatePanel tone="danger" title={detail.code === "not_found" ? "Publication non disponible" : "Détail indisponible"} action={<Button onClick={() => setDetailRetry((value) => value + 1)}>Réessayer</Button>}><p>{detail.code === "not_found" ? "Cette publication synthétique est introuvable dans cette lecture." : detail.code === "offline" ? "Reconnectez-vous pour charger ce détail, puis réessayez." : "Le détail ne peut pas être chargé pour le moment. Réessayez ou revenez à la recherche."}</p></StatePanel> : null}
           {acceptedDetail !== undefined ? (
             <div className="demo-detail" key={`${acceptedDetail.result.listingId}:${acceptedDetail.response.dataAsOf}`}>
-              <NeutralIllustration />
+              <DemoPhotoPlaceholder />
               <p className="demo-status">{acceptedDetail.result.availability === "active" ? "Publication active" : acceptedDetail.result.availability === "withdrawn" ? "Publication retirée" : acceptedDetail.result.availability === "deleted" ? "Publication supprimée" : "Publication introuvable"}</p>
               <ResultSummary result={acceptedDetail.result} catalog={matchingCatalog(catalogData, acceptedDetail.response)} />
               <VehicleReports listingId={acceptedDetail.result.listingId} hasExampleCorpus={storageNamespace === "offline" && acceptedDetail.response.fixtureVersion === reportFixtureVersion} />

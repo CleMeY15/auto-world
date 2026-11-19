@@ -134,9 +134,10 @@ test("narrow startup remains usable with wider platform font metrics", async ({ 
 test("system dark preference, reduced motion and 200% text remain usable", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto("/");
-  await expect(page.getByLabel("Apparence")).toHaveValue("system");
+  await expect(page.getByLabel("Apparence")).toHaveValue("dark");
+  await page.getByLabel("Apparence").selectOption("system");
   const colors = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(colors).toBe("rgb(21, 24, 21)");
+  expect(colors).toBe("rgb(10, 14, 16)");
   await page.getByLabel("État de l’aperçu").selectOption("loading");
   expect(await page.locator(".aw-skeleton").first().evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
   await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });

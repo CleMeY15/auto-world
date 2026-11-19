@@ -5,8 +5,8 @@ import "@auto-world/design-system/styles.css";
 import "./site.css";
 
 export const metadata: Metadata = {
-  title: "Auto World — Aperçu de l’interface",
-  description: "Les premiers composants de l’interface Auto World.",
+  title: "AutoFind · Espace privé",
+  description: "L’espace privé AutoFind pour rechercher, consulter et comparer les annonces de démonstration.",
   robots: { index: false, follow: false },
 };
 

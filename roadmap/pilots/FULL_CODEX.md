@@ -1,6 +1,6 @@
 # Pilote de développement full Codex
 
-Statut : **en cours, 4 tâches produit inscrites**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
+Statut : **en cours, 6 tâches produit inscrites**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.
 
 ## Entrée et déroulement
 
@@ -14,8 +14,8 @@ Comparer des tâches de nature comparable, séparer UI et frontières sensibles.
 | 2 | TASK-0127 · Accès à la recherche depuis l’accueil | 18 novembre, responsable propre au lot | [PR259](https://github.com/CleMeY15/auto-world/pull/259), livraison en cours |
 | 3 | TASK-0128 · Lecture progressive des historiques | 18 novembre, responsable propre au lot | [PR258](https://github.com/CleMeY15/auto-world/pull/258), livraison en cours |
 | 4 | TASK-0129 · Rapports liés au véhicule de l’annonce | 18 novembre, responsable propre au lot | [PR260](https://github.com/CleMeY15/auto-world/pull/260), livraison en cours |
-| 5 | Non sélectionnée | Non ouverte | Non exécutée |
-| 6 | Non sélectionnée | Non ouverte | Non exécutée |
+| 5 | [TASK-0131 · Accueil AutoFind](../tasks/TASK-0131-beta-landing.md) | 18 novembre, propriétaire produit. Entrée rapprochée lors de TASK-0132, mesures initiales inconnues | [PR262](https://github.com/CleMeY15/auto-world/pull/262), validation source |
+| 6 | [TASK-0132 · Identité du produit connecté](../tasks/TASK-0132-private-product-identity.md) | 18 novembre, propriétaire produit Codex gpt-6.2-astra / ultra | [Recette](../../docs/validation/TASK-0132.md), en cours |
 
 Direction du propriétaire, 18 novembre 2026 : jusqu’à quatre lots produit indépendants en parallèle avec arbres dédiés, fusions séquentielles et vérification du main. Présenter tôt le rendu mobile/bureau et le parcours à essayer. Privilégier les tests locaux ciblés ; la CI porte la suite exhaustive. Le risque de régression guide les vérifications supplémentaires, notamment à texte agrandi. Choisir le modèle Codex et l’effort par intervention et consigner les escalades. La voie produit reste limitée au prototype synthétique ADR-0028.
 

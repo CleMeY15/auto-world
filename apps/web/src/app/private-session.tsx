@@ -21,5 +21,5 @@ export function PrivateSession() {
     };
   }, []);
 
-  return <footer className="site-container"><a className="site-nav" href="/acces/deconnexion">Se déconnecter</a></footer>;
+  return <nav className="site-container private-session-footer" aria-label="Session privée"><a className="site-nav" href="/acces/deconnexion">Se déconnecter</a></nav>;
 }

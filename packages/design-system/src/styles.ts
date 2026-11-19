@@ -21,7 +21,8 @@ function variables(theme: keyof typeof tokens.color): string {
   --aw-color-focus: ${color.focus};`;
 }
 
-export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
+export const styles = `:root, [data-aw-theme="light"] {
+  color-scheme: light;${variables("light")}
   --aw-font-family: ${tokens.font.family};
   --aw-font-numeric: ${tokens.font.monoNumeric};
   --aw-font-size-small: ${tokens.font.size.small};
@@ -38,6 +39,7 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
   --aw-space-8: ${tokens.space[8]};
   --aw-radius-control: ${tokens.radius.control};
   --aw-radius-card: ${tokens.radius.card};
+  --aw-radius-pill: ${tokens.radius.pill};
   --aw-size-touch: ${tokens.size.touch};
   --aw-elevation-raised: ${tokens.elevation.raised};
   --aw-motion-quick: ${tokens.motion.quick};
@@ -50,10 +52,11 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
   --aw-layout-reading-max: ${tokens.layout.readingMax};
 }
 
-[data-aw-theme="dark"] {${variables("dark")}}
+[data-aw-theme="dark"], :root:not([data-aw-theme]):has([data-aw-default-theme="dark"]) {
+  color-scheme: dark;${variables("dark")}}
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-aw-theme]) {${variables("dark")}}
+  :root:not([data-aw-theme]) { color-scheme: dark;${variables("dark")}}
 }
 
 .aw-button, .aw-field, .aw-field *, .aw-chip, .aw-card, .aw-banner, .aw-skeleton, .aw-icon { box-sizing: border-box; }
@@ -62,13 +65,14 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
   align-items: center;
   background: var(--aw-color-action);
   border: 1px solid transparent;
-  border-radius: var(--aw-radius-control);
+  border-radius: var(--aw-radius-pill);
   color: var(--aw-color-on-action);
   cursor: pointer;
   display: inline-flex;
   font: 600 1rem/1 var(--aw-font-family);
   gap: 0.5rem;
   justify-content: center;
+  max-width: 100%;
   min-height: var(--aw-size-touch);
   min-width: var(--aw-size-touch);
   padding: 0.75rem 1rem;
@@ -76,7 +80,12 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
 }
 
 .aw-button--secondary { background: var(--aw-color-surface); border-color: var(--aw-color-control-border); color: var(--aw-color-text); }
-.aw-button:disabled { cursor: not-allowed; opacity: 0.58; }
+.aw-button:disabled, .aw-chip:disabled {
+  background: var(--aw-color-surface-subtle);
+  border-color: var(--aw-color-border);
+  color: var(--aw-color-text-muted);
+  cursor: not-allowed;
+}
 .aw-button:focus-visible, .aw-field__control:focus-visible, .aw-chip:focus-visible {
   outline: ${tokens.focus.width} solid var(--aw-color-focus);
   outline-offset: ${tokens.focus.offset};
@@ -104,16 +113,17 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
   align-items: center;
   background: var(--aw-color-surface);
   border: 1px solid var(--aw-color-control-border);
-  border-radius: var(--aw-radius-control);
+  border-radius: var(--aw-radius-pill);
   color: var(--aw-color-text);
   cursor: pointer;
   display: inline-flex;
   font: 600 0.875rem/1.2 var(--aw-font-family);
+  max-width: 100%;
   min-height: var(--aw-size-touch);
   min-width: var(--aw-size-touch);
   padding: 0.5rem 0.75rem;
 }
-.aw-chip[aria-pressed="true"] { background: var(--aw-color-action); border-color: var(--aw-color-action); color: var(--aw-color-on-action); }
+.aw-chip[aria-pressed="true"]:not(:disabled) { background: var(--aw-color-action); border-color: var(--aw-color-action); color: var(--aw-color-on-action); }
 
 .aw-card { background: var(--aw-color-surface); border: 1px solid var(--aw-color-border); border-radius: var(--aw-radius-card); color: var(--aw-color-text); padding: 1rem; }
 
@@ -128,12 +138,19 @@ export const styles = `:root, [data-aw-theme="light"] {${variables("light")}
 
 @media (hover: hover) {
   .aw-button:not(:disabled):hover { background: color-mix(in srgb, var(--aw-color-action) 90%, black); }
-  .aw-button--secondary:not(:disabled):hover, .aw-chip:not(:disabled):hover { background: var(--aw-color-surface-subtle); }
+  .aw-button--secondary:not(:disabled):hover, .aw-chip:not(:disabled):hover { background: var(--aw-color-surface-subtle); border-color: var(--aw-color-action); }
   .aw-chip[aria-pressed="true"]:not(:disabled):hover { background: color-mix(in srgb, var(--aw-color-action) 90%, black); }
 }
 .aw-button:not(:disabled):active { background: color-mix(in srgb, var(--aw-color-action) 84%, black); }
 .aw-button--secondary:not(:disabled):active, .aw-chip:not(:disabled):active { background: color-mix(in srgb, var(--aw-color-surface-subtle) 84%, black); }
 .aw-chip[aria-pressed="true"]:not(:disabled):active { background: color-mix(in srgb, var(--aw-color-action) 84%, black); }
+
+@media (forced-colors: active) {
+  .aw-button, .aw-chip { border-color: ButtonText; }
+  .aw-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -4px; }
+  .aw-chip[aria-pressed="true"]:focus-visible { outline-offset: ${tokens.focus.offset}; text-decoration: underline; }
+  .aw-button:disabled, .aw-chip:disabled { border-color: GrayText; color: GrayText; }
+}
 
 @keyframes aw-skeleton-pulse { from { opacity: 0.58; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .aw-button, .aw-skeleton { animation: none; transition: none; } }

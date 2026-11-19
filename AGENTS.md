@@ -13,6 +13,10 @@ After `ROADMAP.md`, read [the current handoff](roadmap/CURRENT.md) and [the deve
 - After two attempts at the same failure without new evidence, change the diagnostic hypothesis before retrying. Continue authorized reversible work autonomously; ask only for a material unresolved decision, new authority or indispensable input.
 - Maintain [the pilot](roadmap/pilots/FULL_CODEX.md) without inventing costs or claiming unmeasured savings. These rules never weaken the Definition of Done or ADR-0028.
 
+## GitHub Actions validation time
+
+For every new general CI or product validation workflow on GitHub-hosted runners, use the full six-hour job allowance (360 minutes) and let downloads, builds and test steps share it. Split work into independent jobs if a suite approaches six hours. Keep functional timeouts for individual requests, health checks, and user-facing performance assertions. Existing infrastructure admission, signing and publication workflows follow their owners’ contracts.
+
 ## Mission
 Build a global, mobile-first automotive search platform aggregating permitted/contracted vehicle listings, normalizing them into one canonical vehicle model, deduplicating identical vehicles, adding price/history/import intelligence, and exposing search through web, mobile and AI interfaces.
 

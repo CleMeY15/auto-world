@@ -358,3 +358,13 @@ test("tracks only the environment example", () => {
 
   assert.deepEqual(trackedEnvironmentFiles, [".env.example"]);
 });
+
+test("product and general CI workflows allow the full hosted job duration", () => {
+  for (const file of readdirSync(path.join(root, ".github/workflows"))) {
+    if (!/^(?:ci|tooling-compatibility|prototype-[\w-]+)\.ya?ml$/u.test(file)) continue;
+    const workflow = read(`.github/workflows/${file}`);
+    for (const match of workflow.matchAll(/^\s*timeout-minutes:\s*([^\n]+)$/gmu)) {
+      assert.equal(match[1].trim(), "360", file);
+    }
+  }
+});

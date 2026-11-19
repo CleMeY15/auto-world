@@ -6,9 +6,10 @@ import { parseDemoHttpOutcomeV2, parsePublicListingId } from "../../../../../dem
 import { readDemoBackendText } from "../../../../../demo/proxy";
 import { providerLabels, reportFixtureVersion, reportsForListing } from "../../../../../demo/vehicle-reports";
 
+import { ProductWordmark } from "../../../../product-wordmark";
 import { ReturnToListing } from "../../return-to-listing";
 
-export const metadata = { title: "Document d’exemple — Auto World" };
+export const metadata = { title: "Document d’exemple · AutoFind" };
 
 export default async function ExampleReportPage({ params }: {
   readonly params: Promise<{ listingId: string; documentId: string }>;
@@ -35,18 +36,22 @@ export default async function ExampleReportPage({ params }: {
   if (fixtureVersion !== reportFixtureVersion) notFound();
 
   return (
-    <main className="site-container">
-      <nav className="site-toolbar" aria-label="Publication">
+    <>
+      <a className="site-skip" href="#rapport">Aller au contenu</a>
+      <header className="site-container site-header">
+        <ProductWordmark />
         <ReturnToListing listingId={report.listingId} />
-      </nav>
-      <article className="site-intro">
-        <p>{report.vehicle}</p>
-        <h1>Exemple de rapport {providerLabels[report.provider]}</h1>
-        <p>Simulation créée par Auto World. Toutes les données de ce document sont fictives.</p>
-        <h2>Observation du véhicule</h2>
-        <p>{report.observation}</p>
-        <p>Provenance déclarée dans le scénario · {report.suppliedBy === "titulaire" ? "Titulaire de la carte grise" : "Vendeur"}</p>
-      </article>
-    </main>
+      </header>
+      <main id="rapport" data-aw-default-theme="dark" tabIndex={-1} className="site-container report-reader">
+        <article>
+          <p className="report-vehicle">{report.vehicle}</p>
+          <h1>Exemple de rapport {providerLabels[report.provider]}</h1>
+          <p>Simulation créée par AutoFind. Toutes les données de ce document sont fictives.</p>
+          <h2>Observation du véhicule</h2>
+          <p>{report.observation}</p>
+          <p className="report-source">Provenance déclarée dans le scénario · {report.suppliedBy === "titulaire" ? "Titulaire de la carte grise" : "Vendeur"}</p>
+        </article>
+      </main>
+    </>
   );
 }

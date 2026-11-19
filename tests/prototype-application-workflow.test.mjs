@@ -18,8 +18,8 @@ test("prototype application workflow is exact-source, read-only and bounded", ()
   assert.match(workflow, /^name: V1 prototype application recovery$/mu);
   assert.match(workflow, /^permissions:\n {2}contents: read$/mu);
   assert.match(workflow, /runs-on: ubuntu-24\.04/u);
-  assert.match(workflow, /timeout-minutes: 30/u);
-  assert.match(workflow, /run: pnpm prototype:application:test\n {8}timeout-minutes: 20/u);
+  assert.match(workflow, /timeout-minutes: 360/u);
+  assert.match(workflow, /run: pnpm prototype:application:test\n/u);
   assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u);
   assert.match(workflow, /persist-credentials: false/u);
   assert.match(workflow, /cancel-in-progress: true/u);

@@ -134,9 +134,17 @@ async function main() {
     await login();
     await logoutLink.waitFor();
     assert.equal(page.url(), base + "/demo");
+    await page.getByRole("link", { name: "AutoFind, accueil" }).waitFor();
+    const scene = page.locator(".demo-search-scene img");
+    await scene.scrollIntoViewIfNeeded();
+    await scene.evaluate(img => img.decode());
+    const illustration = new URL(await scene.getAttribute("src"), base);
+    assert.equal(illustration.origin, base);
+    assert.match(illustration.pathname, /^\/_next\/static\/media\/.+\.webp$/);
     const runPython = (args) => assert.equal(spawnSync("python3", args, { stdio: "inherit" }).status, 0);
     runPython(["-m", "django", "shell", "-c", "from django.contrib.sessions.models import Session; from django.utils.timezone import now; Session.objects.update(expire_date=now())"]);
     assert.equal((await req.get(base + asset)).status(), 401);
+    assert.equal((await req.get(illustration.href)).status(), 401);
     await page.goto(base + "/acces/connexion");
     await page.getByLabel("Identifiant").fill("invite");
     await page.getByLabel("Mot de passe").fill(process.env.TEST_PASSWORD);

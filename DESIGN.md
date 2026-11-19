@@ -1,8 +1,8 @@
-# Auto World design contract
+# AutoFind design contract
 
 ## Source of truth
 - Status: Active. Product increments through TASK-0117 are accepted on main through their delivery checkpoints. TASK-0118 adds name-only editing under its own [task gates](roadmap/tasks/TASK-0118-rename-saved-comparisons.md), without infrastructure admission.
-- Last refreshed: 2026-11-04.
+- Last refreshed 2026-11-18 for the signed-in AutoFind web experience.
 - Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
@@ -34,10 +34,10 @@
 - Tradeoff: the synthetic slice has less automotive detail than the target product, but never pretends placeholder content is verified inventory.
 
 ## Visual language
-- Color: working demo direction is warm ivory surfaces, graphite text and one deep-petrol action accent, with semantic warning/error colors; light/dark values and measured contrast are specified together in TASK-0007. Avoid decorative gradients.
+- The private workspace opens on the same charcoal canvas, warm ivory type and papaya accent as the [AutoFind sign-in](infra/private-web/templates/access.html). Use the accent for primary actions, links, active controls and keyboard focus. The light variant uses warm paper with a darker orange for legibility. The private search and interface preview open in dark mode and offer Light and System. The static guides follow the device’s preference before the first paint. Success, warning and error retain their own text and semantic colors. Use [the shared tokens](packages/design-system/src/tokens.ts) for both appearances.
 - Typography: intentional platform-native stack—San Francisco through the iOS system UI font, Roboto through the Android system UI font, and Segoe UI Variable on Windows, with `system-ui` fallback. This is a branded performance/accessibility choice: instant offline rendering, familiar native reading rhythm and no copied/proprietary font asset or remote request. Distinction comes from a restrained large display line, precise weight/spacing and tabular price numerals, not a generic default paragraph style. Product/UX must reject it at TASK-0007 visual sign-off if the result lacks premium character; a self-hosted licensed typeface would then require a reviewed follow-up.
 - Spacing/layout rhythm: consistent token scale, generous touch spacing and stable card geometry.
-- Shape/radius/elevation: one coherent scale with elevation only where it clarifies interaction.
+- Use capsule buttons, compact field corners and thin separators. Reserve the entrance artwork for editorial surfaces. Listing evidence, histories and comparison rows take priority in the workspace.
 - Motion: brief, interruptible feedback; no transition may delay the primary action; honor reduced motion.
 - Imagery/iconography: no external seller media; use a clearly labeled local illustration/placeholder, never a photo implying an actual vehicle. Use one small, consistent line-icon family implemented from reviewed local vectors.
 
@@ -146,7 +146,7 @@
 - Independent static `/carte-grise`, reached through root/demo footer links. Not a synthetic vehicle result or an Auto World calculation. Keep existing root/demo navigation and disclosures unchanged.
 - Clear title, short context for an already French-registered vehicle, one primary official simulator link. Visible and programmatically associated new-tab notice; fixed destination, no data/referrer/opener. No duplicate form or card stack.
 - Short nonexhaustive preparation list using the existing certificate, first circulation date, P.6, P.3 and residence department; official service owns further questions/applicability. No fiscal amounts or eligibility claim.
-- Reuse ivory/graphite/petrol semantic tokens, platform font, native links/details and shared button styling. Responsive one-column reading order; wider two-column preparation layout only when content fits. No external images, new font, dependency or client island.
+- Reuse shared semantic tokens, platform font, native links/details and shared button styling. Responsive one-column reading order; wider two-column preparation layout only when content fits. No external images, new font, dependency or client island.
 - Native help disclosure handles connection/external-service limitations with the official guidance link. Static content remains usable after disconnect; no fabricated availability status or completion message. Page works without JavaScript and independently of demo flag.
 - Validate both engines at320/390/768/1440 light/dark,200% platform/Verdana,44px/focus/keyboard/axe/reduced motion/content fit, actual screenshots, LCP/CLS and disclosure latency. Source/CI/main delivery stays separate from design approval.
 
@@ -155,7 +155,7 @@
 - Independent static `/historique-vehicule`, reached from root/demo footer « Historique du véhicule ». Preserve existing navigation, registration entry and synthetic disclosure. No listing-specific association.
 - H1 « Demander un rapport HistoVec ». Explain current certificate-holder generation, buyer request and access through the holder's shared report link. One primary « Ouvrir le site officiel HistoVec » action opens the general site, not a report. Visible/associated new-tab notice; no opener/referrer/prefill.
 - Three short steps and one native help disclosure. Explicitly distinguish administrative history from condition guarantees and separate sale checks. Auto World does not retrieve or verify a report. No input, upload, technical data panel, confidence badge or fake completion state.
-- Reuse ivory/graphite/petrol tokens, platform fonts and shared action styling. Calm one-column mobile reading order; desktop separation only when content fits. Small route-owned styles, no shared provider framework, decorative card stack or imagery.
+- Reuse shared semantic tokens, platform fonts and shared action styling. Calm one-column mobile reading order; desktop separation only when content fits. Small route-owned styles, no shared provider framework, decorative card stack or imagery.
 - Help explains connection needs and unavailable report links with a secondary official sale-guidance link. Native operation without JS/demo, local loaded content remains useful offline. No automatic external traffic or collected data.
 - Validate both engines320/390/768/1440 light/dark and200% platform/Verdana, keyboard/focus/44px/axe/reduced motion, actual pixels and existing performance budgets before acceptance. [Task](roadmap/tasks/TASK-0115-official-history-guide.md) governs delivery, not merely compilation.
 

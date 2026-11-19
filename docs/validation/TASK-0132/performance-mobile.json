@@ -1,0 +1,176 @@
+{
+  "browserVersion": "156.0.8078.4",
+  "collectedAt": "2026-11-18T20:43:36.357Z",
+  "platform": "linux",
+  "host": {
+    "architecture": "x64",
+    "logicalCpus": 8,
+    "cpuModel": "AMD EPYC 9354P 32-Core Processor",
+    "memoryBytes": 33648418816
+  },
+  "scenario": "Actual separately started synthetic API; no UI route interception. Cold Search, real typing/submit, Results, persisted favorite, comparison selection/open, saved-search and criteria-restore DOM feedback through the next animation frame.",
+  "budgets": {
+    "clsP75": 0.1,
+    "comparisonSelectMaxMs": 100,
+    "comparisonOpenMaxMs": 100,
+    "favoriteFeedbackMaxMs": 100,
+    "restoreFeedbackMaxMs": 100,
+    "savedSearchFeedbackMaxMs": 100,
+    "interactionDurationP75Ms": 200,
+    "lcpP75Ms": 2500
+  },
+  "caveat": "The interaction value is bounded lab Event Timing evidence from real keyboard/click input; it is not a production INP claim.",
+  "profile": {
+    "cpuSlowdownMultiplier": 4,
+    "downloadBitsPerSecond": 1600000,
+    "latencyMs": 150,
+    "uploadBitsPerSecond": 750000,
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "p75": {
+    "cls": 0,
+    "comparisonSelectMs": 18.5,
+    "comparisonOpenMs": 50.19999998807907,
+    "favoriteFeedbackMs": 20.19999998807907,
+    "restoreFeedbackMs": 26.900000035762787,
+    "savedSearchFeedbackMs": 19.30000001192093,
+    "interactionDurationMs": 72,
+    "lcpMs": 1728
+  },
+  "sampleCount": 10,
+  "samples": [
+    {
+      "cls": 0,
+      "comparisonSelectMs": 13.5,
+      "comparisonOpenMs": 58.10000002384186,
+      "favoriteFeedbackMs": 20,
+      "restoreFeedbackMs": 28.5,
+      "savedSearchFeedbackMs": 22.69999998807907,
+      "interactionDurationMs": 80,
+      "interactionEntryCount": 173,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1832,
+      "sample": 1
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 22,
+      "comparisonOpenMs": 38,
+      "favoriteFeedbackMs": 21.200000047683716,
+      "restoreFeedbackMs": 26.900000035762787,
+      "savedSearchFeedbackMs": 15.400000035762787,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 206,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1732,
+      "sample": 2
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 15.199999988079071,
+      "comparisonOpenMs": 50.19999998807907,
+      "favoriteFeedbackMs": 16.19999998807907,
+      "restoreFeedbackMs": 23.399999976158142,
+      "savedSearchFeedbackMs": 19.30000001192093,
+      "interactionDurationMs": 72,
+      "interactionEntryCount": 184,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1728,
+      "sample": 3
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 12.599999964237213,
+      "comparisonOpenMs": 54.5,
+      "favoriteFeedbackMs": 16.600000023841858,
+      "restoreFeedbackMs": 21,
+      "savedSearchFeedbackMs": 22.399999976158142,
+      "interactionDurationMs": 72,
+      "interactionEntryCount": 182,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1696,
+      "sample": 4
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 14.899999976158142,
+      "comparisonOpenMs": 45.10000002384186,
+      "favoriteFeedbackMs": 15.899999976158142,
+      "restoreFeedbackMs": 21.30000001192093,
+      "savedSearchFeedbackMs": 16.5,
+      "interactionDurationMs": 64,
+      "interactionEntryCount": 178,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1716,
+      "sample": 5
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 14.899999976158142,
+      "comparisonOpenMs": 32.19999998807907,
+      "favoriteFeedbackMs": 20.19999998807907,
+      "restoreFeedbackMs": 27.599999964237213,
+      "savedSearchFeedbackMs": 15.900000035762787,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 179,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1712,
+      "sample": 6
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 18.5,
+      "comparisonOpenMs": 36,
+      "favoriteFeedbackMs": 13.099999964237213,
+      "restoreFeedbackMs": 25.899999976158142,
+      "savedSearchFeedbackMs": 15.300000011920929,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 184,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1724,
+      "sample": 7
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 11.899999976158142,
+      "comparisonOpenMs": 33.200000047683716,
+      "favoriteFeedbackMs": 15.199999988079071,
+      "restoreFeedbackMs": 23.100000023841858,
+      "savedSearchFeedbackMs": 17.80000001192093,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 176,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1708,
+      "sample": 8
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 19.5,
+      "comparisonOpenMs": 28.19999998807907,
+      "favoriteFeedbackMs": 28.69999998807907,
+      "restoreFeedbackMs": 21.5,
+      "savedSearchFeedbackMs": 16.19999998807907,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 165,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1708,
+      "sample": 9
+    },
+    {
+      "cls": 0,
+      "comparisonSelectMs": 13.5,
+      "comparisonOpenMs": 36.299999952316284,
+      "favoriteFeedbackMs": 13.800000011920929,
+      "restoreFeedbackMs": 25.5,
+      "savedSearchFeedbackMs": 14.399999976158142,
+      "interactionDurationMs": 48,
+      "interactionEntryCount": 207,
+      "interactionMeasurement": "event-timing",
+      "lcpMs": 1720,
+      "sample": 10
+    }
+  ]
+}
