@@ -1,0 +1,32 @@
+{
+  "name": "org.opensearch:opensearch-agent",
+  "file": "usr/share/opensearch/agent/opensearch-agent.jar",
+  "old": {
+    "version": "3.9.0",
+    "size": 17297,
+    "jarSha256": "aff88daa0e9b59473fb00b80208b3b1a834625b4311ba3bbb17338f4a2cd0241",
+    "componentSha1": "e3b8fd7545887a498c7c985dde0fefa303408b26",
+    "layer": {
+      "Digest": "sha256:46f4de2e42368e789b979a0030f3a3aa45099d7580b9a7c2fe0ea978f90100b9",
+      "DiffID": "sha256:9af9c72a24728346180dc2990925f78805c3131a84ea59449d26c20b138fe98b"
+    },
+    "publication": "https://repo.maven.apache.org/maven2/org/opensearch/opensearch-agent/3.9.0/opensearch-agent-3.9.0.jar.sha256"
+  },
+  "candidate": {
+    "version": "3.10.0",
+    "size": 17300,
+    "jarSha256": "75571a72918f86c58d88b88b1256d282ed484ec789b1176ad62eeb965270a474",
+    "componentSha1": "6b558e12ca343801389be899892648e517708212",
+    "layer": {
+      "Digest": "sha256:4b22fdab5b5d70fe865dfd695d8ea0511b3e787942d0eb8b4735f2d1e56e1d18",
+      "DiffID": "sha256:06f01e1cc3d2aa861ff7ddac38a05afffce325a252b83dfd95ae7fbcc77d7117"
+    },
+    "publication": "https://repo.maven.apache.org/maven2/org/opensearch/opensearch-agent/3.10.0/opensearch-agent-3.10.0.jar.sha256"
+  },
+  "evidence": {
+    "old": "Computed both hashes on the 17,297-byte Maven Central publication and verified its published SHA-256. The pinned historical JSON package Results[1].Packages[742] and CycloneDX components[907] bind the path, GAV, layer and component SHA-1. The old image member was not independently extracted for this witness.",
+    "candidate": "Run 44410639400/1, artifact 14476838922, loss mapping oldIndex 853. Both hashes were measured on the candidate layer member and its SHA-256 matches the Maven publication. Neither candidate report observed the agent in this run.",
+    "mappingSha256": "bdac76b08df188082975c57bb85d2d2d4313aa48332a26e69d341f1c5a4d6f6e",
+    "publicationsSha256": "a800abbcff40c9afc80229f1fd9ac158cb53af8fc1897b4db454b560e550b04c"
+  }
+}

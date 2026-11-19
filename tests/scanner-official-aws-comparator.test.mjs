@@ -272,6 +272,10 @@ async function audit(t, scenario) {
     calls.push(args);
     const record = { exitCode: 0, error: null, signal: null, ownedContainerAbsent: true };
     receipt.commands.push(record);
+    if (scenario === "second-current-uncertain" && ref.endsWith(config.images[1].platform.digest)) {
+      record.ownedContainerAbsent = false;
+      throw new Error("scanner_official_cleanup_uncertain");
+    }
     const pair = reports(ref, scenario);
     const stdout = Buffer.from(JSON.stringify(json ? pair.json : pair.sbom));
     if (!(old && !json && scenario === "missing")) writeFileSync(file, stdout, { flag: "wx" });
@@ -291,7 +295,24 @@ async function audit(t, scenario) {
       if (image.role === "aws-cli-previous" && scenario === "candidate-drift") writeFileSync(path.join(output, "image-aws-cli.json"), "{}");
     },
   });
-  if (scenario === "all-current-clean") await run;
+  if (scenario === "second-current-uncertain") {
+    await assert.rejects(run, /scanner_official_cleanup_uncertain/u);
+    assert.equal(calls.length, 3);
+    assert.equal(receipt.fiveImageResult, "incomplete");
+    assert.equal(receipt.fiveImageInterruption.role, "opensearch");
+    assert.deepEqual(receipt.fiveImageInterruption.notStarted, ["redis", "seaweedfs", "aws-cli"]);
+    const evidence = readFileSync(path.join(output, receipt.fiveImageEvidence.file));
+    assert.equal(sha(evidence), receipt.fiveImageEvidence.sha256);
+    assert.deepEqual(JSON.parse(evidence).reports.map((entry) => [entry.role, entry.result]),
+      [["postgres", "passed"], ["opensearch", "rejected"]]);
+    return;
+  }
+  if (scenario === "all-current-clean") {
+    // This AWS-only fixture supplies no run identity or twelve authenticated leases.
+    await assert.rejects(run, /^Error: scanner_opensearch_prerequisites_failed$/u);
+    assert.equal(receipt.awsCheckpoint.eligible, false);
+    assert.equal(receipt.openSearchComparator.execution, "not_started");
+  }
   else if (cleanFive) await assert.rejects(run, /^Error: scanner_aws_subject_invalid$/u);
   else await assert.rejects(run, /^Error: scanner_official_images_blocked$/u);
   assert.equal(receipt.reports.length, 5);
@@ -390,4 +411,8 @@ test("identical historical databases require complete ordered replay on the prev
   assert.equal(missing.comparison.reason, "scanner_aws_historical_replay_changed");
   assert.equal(missing.comparison.qualification, "failed");
   assert.equal(missing.receipt.fiveImageResult, "rejected");
+});
+
+test("uncertain cleanup on the second raw role retains prior decisions and stops all further scans", async (t) => {
+  await audit(t, "second-current-uncertain");
 });

@@ -144,6 +144,15 @@ test("automatic audit triggers cover release, evaluator and fixture inputs on PR
     "scripts/scanner/official-*.mjs", "scripts/scanner/audit.mjs",
     "scripts/scanner/audit-policy.mjs", "scripts/scanner/controls.mjs", "tests/scanner-official-*.test.mjs",
   ]) assert.ok(workflow.on.pull_request.paths.includes(required));
+  for (const input of [
+    "docs/validation/upstream-20261118/opensearch-3.9.0-index.json",
+    "docs/validation/upstream-20261118/opensearch-3.9.0-platform.json",
+    "docs/validation/upstream-20261118/opensearch-3.9.0-config.json",
+    "docs/validation/opensearch-310/3.10.0-platform.json",
+    "tests/fixtures/scanner-official/opensearch-comparison-pr253/image-aws-cli.json",
+  ]) {
+    assert.ok(workflow.on.pull_request.paths.some((pattern) => path.posix.matchesGlob(input, pattern)), input);
+  }
   assert.doesNotMatch(JSON.stringify(workflow.on), /pull_request_target|workflow_run/u);
 });
 
@@ -191,9 +200,10 @@ test("missing refusal or early extraction is rejected by the ordering regression
   assert.throws(() => assertQualificationOrder(earlyExtraction));
 });
 
-test("three pure suites precede authenticated acquisition and scanner execution", () => {
+test("raw audit and comparator suites precede authenticated acquisition and scanner execution", () => {
   const tests = step(workflow, "tests");
-  for (const file of ["scanner-official-controls.test.mjs", "scanner-official-audit.test.mjs", "scanner-official-workflow.test.mjs"]) {
+  for (const file of ["scanner-official-controls.test.mjs", "scanner-official-audit.test.mjs", "scanner-official-workflow.test.mjs",
+    "scanner-official-aws-comparator.test.mjs", "scanner-official-comparison-checkpoint.test.mjs", "scanner-official-opensearch-inventory.test.mjs", "scanner-official-opensearch-comparator.test.mjs", "scanner-official-opensearch-integration.test.mjs"]) {
     assert.ok(tests.run.includes("tests/" + file));
   }
   assert.ok(steps(workflow).indexOf(tests) < steps(workflow).indexOf(step(workflow, "provenance")));

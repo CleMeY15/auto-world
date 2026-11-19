@@ -1,0 +1,4595 @@
+{
+  "schemaVersion": 1,
+  "state": "diagnostic_only",
+  "admission": "NOT_AUTHORIZED",
+  "scope": "upstream",
+  "result": "failed",
+  "phases": [
+    {
+      "name": "diagnostic_carrier",
+      "result": "passed",
+      "durationMs": 6887
+    },
+    {
+      "name": "database_download",
+      "result": "passed",
+      "durationMs": 45203
+    },
+    {
+      "name": "self_audit",
+      "result": "passed",
+      "durationMs": 4351
+    },
+    {
+      "name": "main_version_probe",
+      "result": "passed",
+      "durationMs": 4184
+    },
+    {
+      "name": "fixtures_and_same_database_baseline",
+      "result": "passed",
+      "durationMs": 13860
+    },
+    {
+      "name": "five_image_audits",
+      "result": "failed",
+      "reason": "scanner_official_images_blocked",
+      "durationMs": 130217
+    }
+  ],
+  "reports": [
+    {
+      "role": "postgres",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "4962a7f8135f35543af898ce56396a2d26c2deaa7e4d9689ff1dfbda24706c7f",
+          "size": 311484
+        },
+        {
+          "sha256": "a00ebfcb200e5a32eb10c369eb7436e385e50fd556423d77cdc5b3ad960cb162",
+          "size": 83378
+        }
+      ],
+      "findingCount": 26,
+      "blockerCount": 26,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    },
+    {
+      "role": "opensearch",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "56668110157c3e5acd463912679c5939af61829fb820c35bb1191dcd8eeb224c",
+          "size": 1701419
+        },
+        {
+          "sha256": "ffb0fd9a50935de5009c4b1fe0db590235b494531579a66dfa977695f237a730",
+          "size": 1492475
+        }
+      ],
+      "findingCount": 82,
+      "blockerCount": 82,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    },
+    {
+      "role": "redis",
+      "result": "passed",
+      "report": [
+        {
+          "sha256": "23a9e9163af00b100eb46e630b9312429698fc96210f7365b1740d3755dae59b",
+          "size": 68739
+        },
+        {
+          "sha256": "147c9771c22b79e7a2e194647385044c9fb129301063e0e89f94a3afbff4e682",
+          "size": 39513
+        }
+      ],
+      "findingCount": 0,
+      "blockerCount": 0
+    },
+    {
+      "role": "seaweedfs",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "a85a0ebaf4966b39e677b76d4c71e70204750d936ee8657861b5dd8fed0e10f4",
+          "size": 209696
+        },
+        {
+          "sha256": "c386ae777daad5263736a5eb0a5e972bf02156cfe5b5ada48c51611b66e6d7ca",
+          "size": 302082
+        }
+      ],
+      "findingCount": 2,
+      "blockerCount": 2,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    },
+    {
+      "role": "aws-cli",
+      "result": "passed",
+      "report": [
+        {
+          "sha256": "3dd72b8252cc934d8b77f23c24ee24b4560e111fbde288f28525c35abb2589f4",
+          "size": 845807
+        },
+        {
+          "sha256": "6f51ce50abca6d8de89a1ab0c17c309ef2fc5a3ceee8a993e174f62ac0bbfd29",
+          "size": 408331
+        }
+      ],
+      "findingCount": 0,
+      "blockerCount": 0
+    }
+  ],
+  "blockers": [
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2025-68121",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "CRITICAL",
+      "fixedVersion": "1.24.13, 1.25.7, 1.26.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2025-61726",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.24.12, 1.25.6",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2025-61729",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.24.11, 1.25.5",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-111943",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.26.10, 1.27.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-25679",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.8, 1.26.1",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-27145",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.11, 1.26.4",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-32280",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.9, 1.26.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-32281",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.9, 1.26.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-32283",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.9, 1.26.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-33811",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.10, 1.26.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-33814",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.10, 1.26.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-33818",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-39820",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.10, 1.26.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-39821",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-39822",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.12, 1.26.5, 1.27.0-rc.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-39836",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.10, 1.26.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-42499",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.10, 1.26.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-42504",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.11, 1.26.4",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-56853",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-56858",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-56859",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-56860",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-56862",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.25.13, 1.26.6, 1.27.0-rc.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-78667",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.26.9, 1.27.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-78669",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.26.9, 1.27.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "postgres",
+      "imageDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "target": "usr/local/bin/gosu",
+      "vulnerabilityId": "CVE-2026-97031",
+      "packageName": "stdlib",
+      "installedVersion": "v1.24.6",
+      "severity": "HIGH",
+      "fixedVersion": "1.26.9, 1.27.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-106451",
+      "packageName": "at.yawk.lz4:lz4-java",
+      "installedVersion": "1.11.2",
+      "severity": "HIGH",
+      "fixedVersion": "1.11.4",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89407",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "com.fasterxml.jackson.core:jackson-core",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.22.3, 2.18.11",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.18.11, 2.21.7, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "com.fasterxml.jackson.core:jackson-databind",
+      "installedVersion": "2.22.2",
+      "severity": "HIGH",
+      "fixedVersion": "2.21.7, 2.18.11, 2.22.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "32.1.3-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "32.1.3-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.0.0-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.2.1-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.2.1-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.3.0-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.5.0-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.7.1-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-102554",
+      "packageName": "com.google.guava:guava",
+      "installedVersion": "33.7.1-jre",
+      "severity": "HIGH",
+      "fixedVersion": "33.7.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-77422",
+      "packageName": "org.jline:jline-builtins",
+      "installedVersion": "3.21.0",
+      "severity": "HIGH",
+      "fixedVersion": "4.3.1, 3.30.15",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-75140",
+      "packageName": "org.jsoup:jsoup",
+      "installedVersion": "1.23.1",
+      "severity": "HIGH",
+      "fixedVersion": "1.23.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-75140",
+      "packageName": "org.jsoup:jsoup",
+      "installedVersion": "1.23.1",
+      "severity": "HIGH",
+      "fixedVersion": "1.23.2",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-108106",
+      "packageName": "org.xerial.snappy:snappy-java",
+      "installedVersion": "1.1.10.8",
+      "severity": "HIGH",
+      "fixedVersion": "1.1.10.9",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-93451",
+      "packageName": "org.xerial.snappy:snappy-java",
+      "installedVersion": "1.1.10.8",
+      "severity": "HIGH",
+      "fixedVersion": "1.1.10.9",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-89425",
+      "packageName": "tools.jackson.core:jackson-core",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91776",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "opensearch",
+      "imageDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "target": "Java",
+      "vulnerabilityId": "CVE-2026-91777",
+      "packageName": "tools.jackson.core:jackson-databind",
+      "installedVersion": "3.2.2",
+      "severity": "HIGH",
+      "fixedVersion": "3.1.7, 3.2.3",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "seaweedfs",
+      "imageDigest": "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
+      "target": "usr/bin/weed",
+      "vulnerabilityId": "CVE-2026-116587",
+      "packageName": "github.com/go-jose/go-jose/v4",
+      "installedVersion": "v4.1.5",
+      "severity": "HIGH",
+      "fixedVersion": "4.1.6",
+      "code": "image_vulnerability_blocked"
+    },
+    {
+      "role": "seaweedfs",
+      "imageDigest": "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
+      "target": "usr/bin/weed",
+      "vulnerabilityId": "CVE-2026-78661",
+      "packageName": "golang.org/x/net",
+      "installedVersion": "v0.61.0",
+      "severity": "HIGH",
+      "fixedVersion": "0.62.0",
+      "code": "image_vulnerability_blocked"
+    }
+  ],
+  "commands": [
+    {
+      "executable": "trivy",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-27d9cdd0-becc-457a-83b5-7b610eaa0616",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-89728978-4cb5-4998-b0d6-d2a28cc1291a",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-06d6d698-7ed8-4c3b-b269-1eb6e3eeb484",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-aa36a87d-7d89-47fc-adc9-7ab7e7778661",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-0887e821-1bd3-4abf-b527-85b418c79070",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-9cddba3e-a924-4395-97bb-a1b473c37646",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-05e097c8-407e-4230-a466-a61fa8e20d69",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-85c39670-2a03-4a58-91a7-7356ef714fb0",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-b7d862c6-fdf4-4ac6-8318-1dd96e2479bb",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-c26e921e-45ba-46d3-a7eb-5f9cfdde7c05",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-fae9c4de-f966-4309-8218-372fa18f9e36",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-1d714198-6459-43d3-9ec3-fd6db8ac0c94",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-152d609f-719f-4797-9e8e-23c9de31c25e",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-acc99cde-52b9-4dc9-94d4-c8ecce8ea057",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-84c923fc-5e12-4eab-a672-a997378985d9",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-7ce3b156-ef2d-46e8-9a21-90930b4a0296",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-2e920fe9-a722-4000-b4e2-a85881fa8378",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-eb722ccc-eaaa-4355-86b4-18ca8985e8a4",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-7f84f96b-6d01-4735-b44c-800edc4f1e19",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-777d960b-de3d-4e1a-ba51-efc7c0e51587",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-63b4b1cc-808f-4208-a900-3edfefb978ec",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    },
+    {
+      "executable": "docker",
+      "exitCode": 0,
+      "signal": null,
+      "error": null,
+      "lease": {
+        "name": "aw-official-af0a71c7-b34c-4bd7-9e18-6490026caef9",
+        "owner": "fbdf9a75-9f6e-4bb6-8bde-c3464c95c787"
+      },
+      "cleanup": {
+        "inspected": 1,
+        "removed": false
+      },
+      "ownedContainerAbsent": true
+    }
+  ],
+  "run": {
+    "GITHUB_REPOSITORY": "CleMeY15/auto-world",
+    "GITHUB_SHA": "5d0599cdeb3589b0c2ab0e42778769c9ad771b32",
+    "GITHUB_WORKFLOW_SHA": "5d0599cdeb3589b0c2ab0e42778769c9ad771b32",
+    "GITHUB_RUN_ID": "44321947040",
+    "GITHUB_RUN_ATTEMPT": "1"
+  },
+  "subject": {
+    "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/subject/trivy",
+    "sha256": "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3",
+    "size": 176386208,
+    "cap": 536870912
+  },
+  "buildInventory": {
+    "stdlib": {
+      "path": "stdlib",
+      "version": "v1.27.3"
+    },
+    "main": {
+      "path": "github.com/aquasecurity/trivy",
+      "version": "v0.76.2",
+      "sum": ""
+    },
+    "dependencies": [
+      {
+        "path": "cel.dev/expr",
+        "version": "v0.25.2",
+        "sum": "h1:K6j46C81hXtZQfuX60cVWQFBJahKSE2gfRbNuvr5bFs="
+      },
+      {
+        "path": "cloud.google.com/go",
+        "version": "v0.123.0",
+        "sum": "h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE="
+      },
+      {
+        "path": "cloud.google.com/go/auth",
+        "version": "v0.23.3",
+        "sum": "h1:UMK+oBtuNGMCR/6i6mmySUItqjOazpJrbmZyhGbGBWo="
+      },
+      {
+        "path": "cloud.google.com/go/auth/oauth2adapt",
+        "version": "v0.2.8",
+        "sum": "h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIiLpZnkHRbnc="
+      },
+      {
+        "path": "cloud.google.com/go/compute/metadata",
+        "version": "v0.9.1",
+        "sum": "h1:CTE1OWBQ0vnF5uHwdFAQJvMQ0Fi/KRcqqKTo9V0F8Ik="
+      },
+      {
+        "path": "cloud.google.com/go/iam",
+        "version": "v1.13.0",
+        "sum": "h1:ufT3FPT5rFFXu6UtLkNoxaOaV5EuA1dsSkmemCSTo6U="
+      },
+      {
+        "path": "cloud.google.com/go/monitoring",
+        "version": "v1.30.0",
+        "sum": "h1:r/d+JUbyKmJ8b07iznuKfzVzrIXTWxHQ3lBRm3x2LlY="
+      },
+      {
+        "path": "cloud.google.com/go/storage",
+        "version": "v1.68.0",
+        "sum": "h1:gqrAMJ51OZjYgU6AJ2U60um90YQhSjq8HEIQNtJ4C/8="
+      },
+      {
+        "path": "dario.cat/mergo",
+        "version": "v1.0.2",
+        "sum": "h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8="
+      },
+      {
+        "path": "github.com/agext/levenshtein",
+        "version": "v1.2.3",
+        "sum": "h1:YB2fHEn0UJagG8T1rrWknE3ZQzWM06O8AMAatNn7lmo="
+      },
+      {
+        "path": "github.com/agnivade/levenshtein",
+        "version": "v1.2.1",
+        "sum": "h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM="
+      },
+      {
+        "path": "github.com/alecthomas/chroma",
+        "version": "v0.10.0",
+        "sum": "h1:7XDcGkCQopCNKjZHfYrNLraA+M7e0fMiJ/Mfikbfjek="
+      },
+      {
+        "path": "github.com/anchore/go-struct-converter",
+        "version": "v0.1.0",
+        "sum": "h1:2rDRssAl6mgKBSLNiVCMADgZRhoqtw9dedlWa0OhD30="
+      },
+      {
+        "path": "github.com/apparentlymart/go-cidr",
+        "version": "v1.1.1",
+        "sum": "h1:oEEk8CE0HP0YpHxsegk/TaOtR2FLHdWv4p3eM4ceUwg="
+      },
+      {
+        "path": "github.com/apparentlymart/go-textseg/v15",
+        "version": "v15.0.0",
+        "sum": "h1:uYvfpb3DyLSCGWnctWKGj857c6ew1u1fNQOlOtuGxQY="
+      },
+      {
+        "path": "github.com/apparentlymart/go-textseg/v17",
+        "version": "v17.0.1",
+        "sum": "h1:bpMXRgQ5cEoRNuQke1a80/Nl6w3G5eoIbWo9f3gXkAs="
+      },
+      {
+        "path": "github.com/aquasecurity/go-gem-version",
+        "version": "v0.0.0-20201115065557-8eed6fe000ce",
+        "sum": "h1:QgBRgJvtEOBtUXilDb1MLi1p1MWoyFDXAu5DEUl5nwM="
+      },
+      {
+        "path": "github.com/aquasecurity/go-npm-version",
+        "version": "v0.0.3-0.20261005070944-1f16ed76cf11",
+        "sum": "h1:9Uynd6NSMYrNDj4ImDJsS/bdC8rSUsQSNEkUhlu09gI="
+      },
+      {
+        "path": "github.com/aquasecurity/go-pep440-version",
+        "version": "v0.0.2-0.20260224065243-f9bba28c51a4",
+        "sum": "h1:QC8nsF3LvAGHUxkr5bvcekaUQPE9Zk4jyMugyg5Fxy0="
+      },
+      {
+        "path": "github.com/aquasecurity/go-version",
+        "version": "v0.0.1",
+        "sum": "h1:4cNl516agK0TCn5F7mmYN+xVs1E3S45LkgZk3cbaW2E="
+      },
+      {
+        "path": "github.com/aquasecurity/iamgo",
+        "version": "v0.0.10",
+        "sum": "h1:t/HG/MI1eSephztDc+Rzh/YfgEa+NqgYRSfr6pHdSCQ="
+      },
+      {
+        "path": "github.com/aquasecurity/jfather",
+        "version": "v0.0.8",
+        "sum": "h1:tUjPoLGdlkJU0qE7dSzd1MHk2nQFNPR0ZfF+6shaExE="
+      },
+      {
+        "path": "github.com/aquasecurity/table",
+        "version": "v1.11.0",
+        "sum": "h1:SzgCAv7dZcv/gyAyzxorS6OgEk7w/WU5iT2pStIkpl4="
+      },
+      {
+        "path": "github.com/aquasecurity/tml",
+        "version": "v0.6.1",
+        "sum": "h1:y2ZlGSfrhnn7t4ZJ/0rotuH+v5Jgv6BDDO5jB6A9gwo="
+      },
+      {
+        "path": "github.com/aquasecurity/trivy-checks",
+        "version": "v1.12.2-0.20261012053351-ac85645895ed",
+        "sum": "h1:Xbjt/2tD9S177jE1DVGBS59uDMgeunwABk51V5a6alI="
+      },
+      {
+        "path": "github.com/aquasecurity/trivy-db",
+        "version": "v0.0.0-20261012084708-cbebf2ecd6df",
+        "sum": "h1:i4nhZSJ8kL5fHz/ksCdLZQRxmAgHBHu7h8kUS4IqoG4="
+      },
+      {
+        "path": "github.com/aquasecurity/trivy-java-db",
+        "version": "v0.0.0-20240109071736-184bd7481d48",
+        "sum": "h1:JVgBIuIYbwG+ekC5lUHUpGJboPYiCcxiz06RCtz8neI="
+      },
+      {
+        "path": "github.com/aquasecurity/trivy-kubernetes",
+        "version": "v0.9.1",
+        "sum": "h1:bSErQcavKXDh7XMwbGX7Vy//jR5+xhe/bOgfn9G+9lQ="
+      },
+      {
+        "path": "github.com/asaskevich/govalidator",
+        "version": "v0.0.0-20230301143203-a9d515a09cc2",
+        "sum": "h1:DklsrG3dyBCFEj5IhUbnKptjxatkF07cF2ak3yi77so="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2",
+        "version": "v1.47.3",
+        "sum": "h1:HRoT/MkNi3bjO5xF4dCzLzvVmkvRGHj3/cLINDnJejk="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+        "version": "v1.7.22",
+        "sum": "h1:oiEmPz/YMMeh/JvAE8xSxNCIsvWE6lpFe4ZPlyFykQI="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/config",
+        "version": "v1.33.9",
+        "sum": "h1:Hv6bcQUJVnmuWaKjqD6Ot8sE75NrWsWV20oGT5aWle0="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/credentials",
+        "version": "v1.20.9",
+        "sum": "h1:SNO55PnWhaDafsOcv16lCA0kdoFMl/YlegWoVsU02s0="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
+        "version": "v1.20.3",
+        "sum": "h1:gr3b87OLB29jymWPzp/CAyXwQRJVE+sC4Wm0qBIKHsk="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/internal/configsources",
+        "version": "v1.5.6",
+        "sum": "h1:CqL8NN3p4I0JTwwV5MEoatIl4Y2amZ2X9dRD+0hbRL0="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
+        "version": "v2.8.6",
+        "sum": "h1:FpBq24TG6WVSObTNhQOv7Q0088rounUUlwn3zlNItkM="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/internal/v4a",
+        "version": "v1.5.6",
+        "sum": "h1:Qmn60RWuk9+bd2ddvJJqwf3Cpac3VvGMOdbGemtUhX4="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/ebs",
+        "version": "v1.22.1",
+        "sum": "h1:SeDJWG4pmye+/aO6k+zt9clPTUy1MXqUmkW8rbAddQg="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/ec2",
+        "version": "v1.338.4",
+        "sum": "h1:1PZfVMz36He601uRm1PiKyDcsEKBk76QYwyISwjOjjY="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/ecr",
+        "version": "v1.66.4",
+        "sum": "h1:qnnwXADWCoti36pKognFfw3L4bPYW1wIlsm4JqYmjDY="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
+        "version": "v1.13.21",
+        "sum": "h1:e6YW5uME30TkrElR+4/xcY7NB6CCj2dcv7vtmGXhfhQ="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/internal/checksum",
+        "version": "v1.11.7",
+        "sum": "h1:CwvFlKw0uUScfgOMflXSRZa+ayXgOf6wk7lhyMemQYU="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+        "version": "v1.14.6",
+        "sum": "h1:LHHdobjo5le1sjJdolitV7uVvYg3wkaeM1Ju2fDgeZQ="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/internal/s3shared",
+        "version": "v1.20.6",
+        "sum": "h1:mYViDr2azcgxOpRrObZOl631bvavqILoE/L+Kxgbwys="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/s3",
+        "version": "v1.114.3",
+        "sum": "h1:NyeuyXkZL476uoAowNActm4XJO1QPKf7aassgXHpiqA="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/signin",
+        "version": "v1.10.4",
+        "sum": "h1:tvpDjuUvgKURf3Yk4hOaGbZ4QdY+070OWcA5d6LUv2A="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/sso",
+        "version": "v1.38.4",
+        "sum": "h1:ChCtagixSFOxltv0o6E3NT8F7ksvZtZGPwUBynO5Nmk="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
+        "version": "v1.43.4",
+        "sum": "h1:j6c+HA4AoS0EBEjArPjavFEBrucJEryfrQU0TffmACk="
+      },
+      {
+        "path": "github.com/aws/aws-sdk-go-v2/service/sts",
+        "version": "v1.51.4",
+        "sum": "h1:OKEfbf2tcfsF2pBk/S9QqNpo6alaAtiBs4hysCsBjPw="
+      },
+      {
+        "path": "github.com/aws/smithy-go",
+        "version": "v1.28.5",
+        "sum": "h1:OqbqKtzY9NUnr2yAe9+hiTdFb20tNaK/lI0PMOGXX9k="
+      },
+      {
+        "path": "github.com/Azure/azure-sdk-for-go/sdk/azcore",
+        "version": "v1.23.3",
+        "sum": "h1:qgnWTiWs1G7AqcKZegFvkJD1bmXJcaDU3uC0ELSgZ5U="
+      },
+      {
+        "path": "github.com/Azure/azure-sdk-for-go/sdk/azidentity",
+        "version": "v1.15.0",
+        "sum": "h1:w3gDUJlJ0BfBsHH02DCBDwbkmMSXJqBj6nBOCo9iocY="
+      },
+      {
+        "path": "github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry",
+        "version": "v0.2.3",
+        "sum": "h1:ldKsKtEIblsgsr6mPwrd9yRntoX6uLz/K89wsldwx/k="
+      },
+      {
+        "path": "github.com/Azure/azure-sdk-for-go/sdk/internal",
+        "version": "v1.13.0",
+        "sum": "h1:Terj1CMW4+NY5CpWjSRkqLoxh2DkYDdv/FH2z0897Uc="
+      },
+      {
+        "path": "github.com/AzureAD/microsoft-authentication-library-for-go",
+        "version": "v1.10.1",
+        "sum": "h1:0O6j18nQDoIff6/mtosT5LNU2WehEwp+LqfX6699oqY="
+      },
+      {
+        "path": "github.com/beorn7/perks",
+        "version": "v1.0.1",
+        "sum": "h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM="
+      },
+      {
+        "path": "github.com/bgentry/go-netrc",
+        "version": "v0.0.0-20140422174119-9fd32a8b3d3d",
+        "sum": "h1:xDfNPAt8lFiC1UJrqV3uuy861HCTo708pDMbjHHdCas="
+      },
+      {
+        "path": "github.com/bitnami/go-version",
+        "version": "v0.0.0-20231130084017-bb00604d650c",
+        "sum": "h1:C4UZIaS+HAw+X6jGUsoP2ZbM99PuqhCttjomg1yhNAI="
+      },
+      {
+        "path": "github.com/blang/semver/v4",
+        "version": "v4.0.0",
+        "sum": "h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM="
+      },
+      {
+        "path": "github.com/bmatcuk/doublestar/v4",
+        "version": "v4.10.3",
+        "sum": "h1:1UIv1+fqH3++ViVkpnaPTB+Pi1UHycnPFAq14zgK+gI="
+      },
+      {
+        "path": "github.com/briandowns/spinner",
+        "version": "v1.23.0",
+        "sum": "h1:alDF2guRWqa/FOZZYWjlMIx2L6H0wyewPxo/CH4Pt2A="
+      },
+      {
+        "path": "github.com/BurntSushi/toml",
+        "version": "v1.6.0",
+        "sum": "h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk="
+      },
+      {
+        "path": "github.com/cenkalti/backoff/v5",
+        "version": "v5.0.3",
+        "sum": "h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM="
+      },
+      {
+        "path": "github.com/cenkalti/backoff/v6",
+        "version": "v6.0.1",
+        "sum": "h1:sjqUu1q4wY0FfFEkBmM3bVIHfr1QGq4nATg9M5VWj1U="
+      },
+      {
+        "path": "github.com/cespare/xxhash/v2",
+        "version": "v2.3.0",
+        "sum": "h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs="
+      },
+      {
+        "path": "github.com/chai2010/gettext-go",
+        "version": "v1.0.2",
+        "sum": "h1:1Lwwip6Q2QGsAdl/ZKPCwTe9fe0CjlUbqj5bFNSjIRk="
+      },
+      {
+        "path": "github.com/cheggaaa/pb/v3",
+        "version": "v3.2.1",
+        "sum": "h1:aprZbFRG+B7+ug76S8QZ6Y1PW168UHzOmbC3wa+aU6I="
+      },
+      {
+        "path": "github.com/clipperhouse/uax29/v2",
+        "version": "v2.7.0",
+        "sum": "h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk="
+      },
+      {
+        "path": "github.com/cloudflare/circl",
+        "version": "v1.6.5",
+        "sum": "h1:O64F26HEqNhznd/hrC5KZXVKYuKM2rx4deZDTc4ihQA="
+      },
+      {
+        "path": "github.com/cncf/xds/go",
+        "version": "v0.0.0-20260202195803-dba9d589def2",
+        "sum": "h1:aBangftG7EVZoUb69Os8IaYg++6uMOdKK83QtkkvJik="
+      },
+      {
+        "path": "github.com/containerd/containerd/api",
+        "version": "v1.12.0",
+        "sum": "h1:kuQm82SbDrCuO4n7hf2L8zsBtZLuympyq5X/VotfX2A="
+      },
+      {
+        "path": "github.com/containerd/containerd/v2",
+        "version": "v2.4.2",
+        "sum": "h1:p6Qg+xbEz8lvwdhHDx0U469xENvp4LgGBx+E7djXkGw="
+      },
+      {
+        "path": "github.com/containerd/continuity",
+        "version": "v0.5.0",
+        "sum": "h1:7a85HZpCSs+1Zps0Ee3DPSuAWY+0SJM1JNM51nlEVDg="
+      },
+      {
+        "path": "github.com/containerd/errdefs",
+        "version": "v1.0.0",
+        "sum": "h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI="
+      },
+      {
+        "path": "github.com/containerd/errdefs/pkg",
+        "version": "v0.3.0",
+        "sum": "h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE="
+      },
+      {
+        "path": "github.com/containerd/fifo",
+        "version": "v1.1.0",
+        "sum": "h1:4I2mbh5stb1u6ycIABlBw9zgtlK8viPI9QkQNRQEEmY="
+      },
+      {
+        "path": "github.com/containerd/log",
+        "version": "v0.2.0",
+        "sum": "h1:BewD/umNgVnoczglOpX8eRMyEy5t5iPlu5AIpnWDONc="
+      },
+      {
+        "path": "github.com/containerd/log/otel",
+        "version": "v0.1.0",
+        "sum": "h1:Az5rFFo0+c4v2yC8ROR63sWsZpKl/vhtUnUhqLSpE6U="
+      },
+      {
+        "path": "github.com/containerd/platforms",
+        "version": "v1.0.0-rc.5",
+        "sum": "h1:vXd569rDrz8LeMXzAnBsy6LADV5YtsD8oyaRarxdmSU="
+      },
+      {
+        "path": "github.com/containerd/plugin",
+        "version": "v1.1.0",
+        "sum": "h1:O+7lczNJVMy8rz0YNx3xGB8tTf5qY4i5abF041Ew19U="
+      },
+      {
+        "path": "github.com/containerd/ttrpc",
+        "version": "v1.2.10",
+        "sum": "h1:qQvy3mokhoXON7FXiOOc05O7Up6nrNj6amJF8urNvDc="
+      },
+      {
+        "path": "github.com/containerd/typeurl/v2",
+        "version": "v2.3.0",
+        "sum": "h1:HZHPhRWo5XMy3QGQoPrUzbW/2ckwjfweHmOwlkIrPAQ="
+      },
+      {
+        "path": "github.com/CycloneDX/cyclonedx-go",
+        "version": "v0.12.0",
+        "sum": "h1:/7Jum36UA6V043tQZ/fE3jf+Nf9gn/qxUFfd7QReMy8="
+      },
+      {
+        "path": "github.com/cyphar/filepath-securejoin",
+        "version": "v0.7.0",
+        "sum": "h1:s0Y3ITPy6sQn5xt54DuYvTF8hu134ooYLUb58DX/HjE="
+      },
+      {
+        "path": "github.com/davecgh/go-spew",
+        "version": "v1.1.2-0.20180830191138-d8f796af33cc",
+        "sum": "h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM="
+      },
+      {
+        "path": "github.com/distribution/reference",
+        "version": "v0.6.0",
+        "sum": "h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk="
+      },
+      {
+        "path": "github.com/dlclark/regexp2",
+        "version": "v1.11.0",
+        "sum": "h1:G/nrcoOa7ZXlpoa/91N3X7mM3r8eIlMBBJZvsz/mxKI="
+      },
+      {
+        "path": "github.com/docker/cli",
+        "version": "v29.8.2+incompatible",
+        "sum": "h1:2zgdFuoFst2T80oS42vhKGxkd0JRo305eIEKTsxR7pQ="
+      },
+      {
+        "path": "github.com/docker/docker-credential-helpers",
+        "version": "v0.9.9",
+        "sum": "h1:BkydjIgZ46JnDbqyM2p2fc63KMw6y+KHL3Em/2AGJ7w="
+      },
+      {
+        "path": "github.com/docker/go-connections",
+        "version": "v0.8.1",
+        "sum": "h1:JibmG5hULs5qXSr/cp/w3Pw5fZuStt4MOHMUExb29/M="
+      },
+      {
+        "path": "github.com/docker/go-units",
+        "version": "v0.5.0",
+        "sum": "h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4="
+      },
+      {
+        "path": "github.com/dsnet/compress",
+        "version": "v0.0.2-0.20230904184137-39efe44ab707",
+        "sum": "h1:2tV76y6Q9BB+NEBasnqvs7e49aEBFI8ejC89PSnWH+4="
+      },
+      {
+        "path": "github.com/dustin/go-humanize",
+        "version": "v1.1.0",
+        "sum": "h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg="
+      },
+      {
+        "path": "github.com/dylibso/observe-sdk/go",
+        "version": "v0.0.0-20240819160327-2d926c5d788a",
+        "sum": "h1:UwSIFv5g5lIvbGgtf3tVwC7Ky9rmMFBp0RMs+6f6YqE="
+      },
+      {
+        "path": "github.com/emicklei/go-restful/v3",
+        "version": "v3.13.0",
+        "sum": "h1:C4Bl2xDndpU6nJ4bc1jXd+uTmYPVUwkD6bFY/oTyCes="
+      },
+      {
+        "path": "github.com/emirpasic/gods",
+        "version": "v1.18.1",
+        "sum": "h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc="
+      },
+      {
+        "path": "github.com/envoyproxy/go-control-plane/envoy",
+        "version": "v1.37.0",
+        "sum": "h1:u3riX6BoYRfF4Dr7dwSOroNfdSbEPe9Yyl09/B6wBrQ="
+      },
+      {
+        "path": "github.com/envoyproxy/protoc-gen-validate",
+        "version": "v1.3.3",
+        "sum": "h1:MVQghNeW+LZcmXe7SY1V36Z+WFMDjpqGAGacLe2T0ds="
+      },
+      {
+        "path": "github.com/evanphx/json-patch/v5",
+        "version": "v5.9.11",
+        "sum": "h1:/8HVnzMq13/3x9TPvjG08wUGqBTmZBsCWzjTM0wiaDU="
+      },
+      {
+        "path": "github.com/exponent-io/jsonpath",
+        "version": "v0.0.0-20210407135951-1de76d718b3f",
+        "sum": "h1:Wl78ApPPB2Wvf/TIe2xdyJxTlb6obmF18d8QdkxNDu4="
+      },
+      {
+        "path": "github.com/extism/go-sdk",
+        "version": "v1.7.1",
+        "sum": "h1:lWJos6uY+tRFdlIHR+SJjwFDApY7OypS/2nMhiVQ9Sw="
+      },
+      {
+        "path": "github.com/fatih/color",
+        "version": "v1.19.0",
+        "sum": "h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w="
+      },
+      {
+        "path": "github.com/felixge/httpsnoop",
+        "version": "v1.1.0",
+        "sum": "h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc="
+      },
+      {
+        "path": "github.com/fluxcd/cli-utils",
+        "version": "v1.2.2",
+        "sum": "h1:adDOmwE+LSwTzmYUaoEFPblruOuaQEKAg1ZNTmPJObE="
+      },
+      {
+        "path": "github.com/fsnotify/fsnotify",
+        "version": "v1.10.1",
+        "sum": "h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho="
+      },
+      {
+        "path": "github.com/fvbommel/sortorder",
+        "version": "v1.2.0",
+        "sum": "h1:TRIiRiGX+djh3Yf4FVxmWmAcYfIr5dH0NbzJWOSAWZk="
+      },
+      {
+        "path": "github.com/fxamacker/cbor/v2",
+        "version": "v2.9.4",
+        "sum": "h1:xwjVlxEMR3S605oUlgBjKLTTeGFciYPGYCtF/35LKGo="
+      },
+      {
+        "path": "github.com/go-errors/errors",
+        "version": "v1.5.1",
+        "sum": "h1:ZwEMSLRCapFLflTpT7NKaAc7ukJ8ZPEjzlxt8rPN8bk="
+      },
+      {
+        "path": "github.com/go-git/gcfg",
+        "version": "v1.5.1-0.20230307220236-3a3c6141e376",
+        "sum": "h1:+zs/tPmkDkHx3U66DAb0lQFJrpS6731Oaa12ikc+DiI="
+      },
+      {
+        "path": "github.com/go-git/go-billy/v5",
+        "version": "v5.9.2",
+        "sum": "h1:OXFSRyz4g20upsGDJgQG9Bak1l/ZEv8GHVYB52O71sE="
+      },
+      {
+        "path": "github.com/go-git/go-git/v5",
+        "version": "v5.19.3",
+        "sum": "h1:qHttbZ+Am7wEjdTpR1XMQ4rl42FK9SIXzZ4o9x7s6M4="
+      },
+      {
+        "path": "github.com/go-gorp/gorp/v3",
+        "version": "v3.1.0",
+        "sum": "h1:ItKF/Vbuj31dmV4jxA1qblpSwkl9g1typ24xoe70IGs="
+      },
+      {
+        "path": "github.com/go-jose/go-jose/v4",
+        "version": "v4.1.6",
+        "sum": "h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4="
+      },
+      {
+        "path": "github.com/go-logr/logr",
+        "version": "v1.4.4",
+        "sum": "h1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8="
+      },
+      {
+        "path": "github.com/go-logr/stdr",
+        "version": "v1.2.2",
+        "sum": "h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag="
+      },
+      {
+        "path": "github.com/go-openapi/analysis",
+        "version": "v1.0.0",
+        "sum": "h1:sNvbAGCJqUTqIAodr9IVqJMmuZas3YS9ms1dGK9yiJ4="
+      },
+      {
+        "path": "github.com/go-openapi/errors",
+        "version": "v0.22.9",
+        "sum": "h1:HI9+SyVYiRzyeBQGv0CbWbQa+u2S0nny7G7AhY+UMiM="
+      },
+      {
+        "path": "github.com/go-openapi/jsonpointer",
+        "version": "v1.0.1",
+        "sum": "h1:2KxywRmNwJkT/FMBa3iRNHEaAxSJvjqoufQZy3au1Mg="
+      },
+      {
+        "path": "github.com/go-openapi/jsonreference",
+        "version": "v1.0.1",
+        "sum": "h1:4zJ7AmYDKNmD3aSpfPnFNCFA5E80/xMHUNKgydaLh38="
+      },
+      {
+        "path": "github.com/go-openapi/loads",
+        "version": "v0.25.2",
+        "sum": "h1:+uNsDlRQfYtZTrh+3pdwampcAqZVPuBJW0IA82aZHII="
+      },
+      {
+        "path": "github.com/go-openapi/runtime",
+        "version": "v0.33.2",
+        "sum": "h1:HSxskMs0WmpCdQvBWVxHt2t2mXMwn8DDav3VtVidwig="
+      },
+      {
+        "path": "github.com/go-openapi/runtime/server-middleware",
+        "version": "v0.33.2",
+        "sum": "h1:BVFjAaW4Jh/kZ4QSsgDrGzLuSuaKzSiyvappUFKxgUk="
+      },
+      {
+        "path": "github.com/go-openapi/spec",
+        "version": "v1.0.0",
+        "sum": "h1:JtB/GHOj+eetjse6YvxqLze88oEekl/4uPBethvzRrA="
+      },
+      {
+        "path": "github.com/go-openapi/strfmt",
+        "version": "v0.27.2",
+        "sum": "h1:SG32SlbwNy92s0KJiVxt2joJeFdqIYHvwrA0OU6HqzQ="
+      },
+      {
+        "path": "github.com/go-openapi/swag",
+        "version": "v0.29.2",
+        "sum": "h1:9n8frkcsuQRA0INU31VbxNxt1zBaHxrHYGEf5BUjFi4="
+      },
+      {
+        "path": "github.com/go-openapi/swag/cmdutils",
+        "version": "v0.29.2",
+        "sum": "h1:cXEzX/nWCODon251f+1HgL75/R4XXML5IZxgLCWMoro="
+      },
+      {
+        "path": "github.com/go-openapi/swag/conv",
+        "version": "v0.29.2",
+        "sum": "h1:8c9shoB8l0QRSR6ymq1llHdBWDqpIgJfjTGHx3Vuhm0="
+      },
+      {
+        "path": "github.com/go-openapi/swag/fileutils",
+        "version": "v0.29.2",
+        "sum": "h1:mdUL+Vw5ah1fO1AvFCoHeIyv7YZsCz2MN3KNqd/lLVI="
+      },
+      {
+        "path": "github.com/go-openapi/swag/jsonutils",
+        "version": "v0.29.2",
+        "sum": "h1:uZNSD2/rJDYAfvsLYkykTzXuyxM3QpDKV9jhRHrMu6k="
+      },
+      {
+        "path": "github.com/go-openapi/swag/loading",
+        "version": "v0.29.2",
+        "sum": "h1:QU1ry24e6r6Shoxe380Nx0X5iKkpRO+hJffsyJ2dVlY="
+      },
+      {
+        "path": "github.com/go-openapi/swag/mangling",
+        "version": "v0.29.2",
+        "sum": "h1:ltdo3K0tTP4P6zWhVVWDU9D37/YYBuMJRdZxiS2Dtog="
+      },
+      {
+        "path": "github.com/go-openapi/swag/netutils",
+        "version": "v0.29.2",
+        "sum": "h1:dBli6jyUa93sDS/XYWShJzf4+nnVfFKfvY9SLUaUzB8="
+      },
+      {
+        "path": "github.com/go-openapi/swag/pools",
+        "version": "v0.29.2",
+        "sum": "h1:PlGoDRF8WtSyXkedZZkpW3f9wDhFf3u8KtaBcmgmh8c="
+      },
+      {
+        "path": "github.com/go-openapi/swag/stringutils",
+        "version": "v0.29.2",
+        "sum": "h1:lcnBxwAaysT3bMUVBfn9V/PkfVqkurpqufKU6rTUMGk="
+      },
+      {
+        "path": "github.com/go-openapi/swag/typeutils",
+        "version": "v0.29.2",
+        "sum": "h1:O7aVvkTs3pXwikgtrPLenigEMdQFgONKRooQA9pgf2I="
+      },
+      {
+        "path": "github.com/go-openapi/swag/yamlutils",
+        "version": "v0.29.2",
+        "sum": "h1:IFKFFeDnuIwzfsuWRQU+rI8iL3g4XyAYjV/RlnlxPLM="
+      },
+      {
+        "path": "github.com/go-openapi/validate",
+        "version": "v1.0.0",
+        "sum": "h1:dFsYCLVUQUL6Vi2lQSexgwmCXDuHe7eWRDhQxkE+xYA="
+      },
+      {
+        "path": "github.com/go-viper/mapstructure/v2",
+        "version": "v2.5.0",
+        "sum": "h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPEgAXnvj1Ro="
+      },
+      {
+        "path": "github.com/gobwas/glob",
+        "version": "v1.0.0",
+        "sum": "h1:p+FKbLEIsK1yZ39/OINwFvqNb5oyPY4H8xcy6uYu8dg="
+      },
+      {
+        "path": "github.com/gocsaf/csaf/v3",
+        "version": "v3.7.0",
+        "sum": "h1:eKsxfE6l53jW6iVysVRpq3B6PKn2FW/qokX++TmJ9Z0="
+      },
+      {
+        "path": "github.com/golang-jwt/jwt/v5",
+        "version": "v5.3.1",
+        "sum": "h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY="
+      },
+      {
+        "path": "github.com/golang/groupcache",
+        "version": "v0.0.0-20241129210726-2c02b8208cf8",
+        "sum": "h1:f+oWsMOmNPc8JmEHVZIycC7hBoQxHH9pNKQORJNozsQ="
+      },
+      {
+        "path": "github.com/google/btree",
+        "version": "v1.1.3",
+        "sum": "h1:CVpQJjYgC4VbzxeGVHfvZrv1ctoYCAI8vbl07Fcxlyg="
+      },
+      {
+        "path": "github.com/google/gnostic-models",
+        "version": "v0.7.1",
+        "sum": "h1:SisTfuFKJSKM5CPZkffwi6coztzzeYUhc3v4yxLWH8c="
+      },
+      {
+        "path": "github.com/google/go-cmp",
+        "version": "v0.7.0",
+        "sum": "h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8="
+      },
+      {
+        "path": "github.com/google/go-containerregistry",
+        "version": "v0.22.1",
+        "sum": "h1:RZuuSYhTvlDvtsK+NkutoCZ//C0X2ebLK8X8l3ULs84="
+      },
+      {
+        "path": "github.com/google/go-github/v62",
+        "version": "v62.0.0",
+        "sum": "h1:/6mGCaRywZz9MuHyw9gD1CwsbmBX8GWsbFkwMmHdhl4="
+      },
+      {
+        "path": "github.com/google/go-querystring",
+        "version": "v1.1.0",
+        "sum": "h1:AnCroh3fv4ZBgVIf1Iwtovgjaw/GiKJo8M8yD/fhyJ8="
+      },
+      {
+        "path": "github.com/google/jsonschema-go",
+        "version": "v0.4.3",
+        "sum": "h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0="
+      },
+      {
+        "path": "github.com/google/licenseclassifier/v2",
+        "version": "v2.0.0",
+        "sum": "h1:1Y57HHILNf4m0ABuMVb6xk4vAJYEUO0gDxNpog0pyeA="
+      },
+      {
+        "path": "github.com/google/s2a-go",
+        "version": "v0.1.10",
+        "sum": "h1:EMp+aOuXN6l8cE/gjF5Bt+vyZxsUuyCWe9chDWR/+uU="
+      },
+      {
+        "path": "github.com/google/uuid",
+        "version": "v1.6.0",
+        "sum": "h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0="
+      },
+      {
+        "path": "github.com/googleapis/enterprise-certificate-proxy",
+        "version": "v0.3.22",
+        "sum": "h1:NU4XpII6jD+Dxcot94fqjE+AfJoE/lQP9q3faYGzC/c="
+      },
+      {
+        "path": "github.com/googleapis/gax-go/v2",
+        "version": "v2.24.1",
+        "sum": "h1:AtqTN21IXMMWo99LiEVAiBfNNQmO40d8xUfZI640mc0="
+      },
+      {
+        "path": "github.com/GoogleCloudPlatform/docker-credential-gcr/v2",
+        "version": "v2.2.1",
+        "sum": "h1:hlWYvaYrCCH1nTnUf39MdE+FOEmf2GYUYNF4ED9S3S0="
+      },
+      {
+        "path": "github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp",
+        "version": "v1.34.0",
+        "sum": "h1:yzIYdwuro811Z27D3T80Wkd3rqZzb0K43nner7Eh1yE="
+      },
+      {
+        "path": "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric",
+        "version": "v0.57.0",
+        "sum": "h1:jLdiS1vO+XJFyDSWRHBx56r4s/NNtcl5J6KyCcWUX/w="
+      },
+      {
+        "path": "github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping",
+        "version": "v0.57.0",
+        "sum": "h1:RoO5+d7uCmDqovLrHCr2/BuViUXvdcrNxyNM1pN9dDQ="
+      },
+      {
+        "path": "github.com/gosuri/uitable",
+        "version": "v0.0.4",
+        "sum": "h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY="
+      },
+      {
+        "path": "github.com/grpc-ecosystem/grpc-gateway/v2",
+        "version": "v2.31.0",
+        "sum": "h1:Bd7KaOxzULLxtZ/K5s1aLbWhR0+5RToO65TXHsf3bqQ="
+      },
+      {
+        "path": "github.com/hashicorp/aws-sdk-go-base/v2",
+        "version": "v2.0.0-beta.74",
+        "sum": "h1:mymLUKThnV9wFvogOK8NnsMP9/vlhnjXY98gr2QIGW8="
+      },
+      {
+        "path": "github.com/hashicorp/errwrap",
+        "version": "v1.1.0",
+        "sum": "h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I="
+      },
+      {
+        "path": "github.com/hashicorp/go-cleanhttp",
+        "version": "v0.5.2",
+        "sum": "h1:035FKYIWjmULyFRBKPs8TBQoi0x6d9G4xc9neXJWAZQ="
+      },
+      {
+        "path": "github.com/hashicorp/go-getter",
+        "version": "v1.8.10",
+        "sum": "h1:uufJp+uacA0fSDRxclsHkiE6yUQTKgwv5b25QexgVM8="
+      },
+      {
+        "path": "github.com/hashicorp/go-multierror",
+        "version": "v1.1.1",
+        "sum": "h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+lD48awMYo="
+      },
+      {
+        "path": "github.com/hashicorp/go-retryablehttp",
+        "version": "v0.7.8",
+        "sum": "h1:ylXZWnqa7Lhqpk0L1P1LzDtGcCR0rPVUrx/c8Unxc48="
+      },
+      {
+        "path": "github.com/hashicorp/go-uuid",
+        "version": "v1.0.4",
+        "sum": "h1:ZrN80XjMzpRYk+2FxMDy2A2zz0d5QjJ7GMFSkZLj12A="
+      },
+      {
+        "path": "github.com/hashicorp/go-version",
+        "version": "v1.9.0",
+        "sum": "h1:CeOIz6k+LoN3qX9Z0tyQrPtiB1DFYRPfCIBtaXPSCnA="
+      },
+      {
+        "path": "github.com/hashicorp/golang-lru/v2",
+        "version": "v2.0.7",
+        "sum": "h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k="
+      },
+      {
+        "path": "github.com/hashicorp/hcl/v2",
+        "version": "v2.25.0",
+        "sum": "h1:HmmQVYRny4MaBo4b20TjmL46wyuUxpnMWkPZ4+NTbWk="
+      },
+      {
+        "path": "github.com/huandu/xstrings",
+        "version": "v1.6.2",
+        "sum": "h1:+X5X6N46b40cmDw7FFJFU6Eoq0yJS8lbYigT2EFau4c="
+      },
+      {
+        "path": "github.com/ianlancetaylor/demangle",
+        "version": "v0.0.0-20240805132620-81f5be970eca",
+        "sum": "h1:T54Ema1DU8ngI+aef9ZhAhNGQhcRTrWxVeG07F+c/Rw="
+      },
+      {
+        "path": "github.com/in-toto/attestation",
+        "version": "v1.2.0",
+        "sum": "h1:aPRUZ3azbqD7yEBD5fP3TD8Dszf+YHo284SOcpahjQk="
+      },
+      {
+        "path": "github.com/in-toto/in-toto-golang",
+        "version": "v0.11.0",
+        "sum": "h1:nfidMYBFx+E0lnmX5KUnN2Pdm8zdNKal1ayjJuzzRoA="
+      },
+      {
+        "path": "github.com/Intevation/gval",
+        "version": "v1.3.0",
+        "sum": "h1:+Ze5sft5MmGbZrHj06NVUbcxCb67l9RaPTLMNr37mjw="
+      },
+      {
+        "path": "github.com/Intevation/jsonpath",
+        "version": "v0.2.1",
+        "sum": "h1:rINNQJ0Pts5XTFEG+zamtdL7l9uuE1z0FBA+r55Sw+A="
+      },
+      {
+        "path": "github.com/jbenet/go-context",
+        "version": "v0.0.0-20150711004518-d14ea06fba99",
+        "sum": "h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A="
+      },
+      {
+        "path": "github.com/jmoiron/sqlx",
+        "version": "v1.4.0",
+        "sum": "h1:1PLqN7S1UYp5t4SrVVnt4nUVNemrDAtxlulVe+Qgm3o="
+      },
+      {
+        "path": "github.com/josephburnett/jd/v2",
+        "version": "v2.3.0",
+        "sum": "h1:AyNT0zSStJ2j28zutWDO4fkc95JoICryWQRmDTRzPTQ="
+      },
+      {
+        "path": "github.com/json-iterator/go",
+        "version": "v1.1.12",
+        "sum": "h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM="
+      },
+      {
+        "path": "github.com/kevinburke/ssh_config",
+        "version": "v1.2.0",
+        "sum": "h1:x584FjTGwHzMwvHx18PXxbBVzfnxogHaAReU4gf13a4="
+      },
+      {
+        "path": "github.com/klauspost/compress",
+        "version": "v1.20.1",
+        "sum": "h1:T7kKElXUMXrUJ2E9QhQhxFtcK5rPyLdsGZvdbLMPdiQ="
+      },
+      {
+        "path": "github.com/knqyf263/go-apk-version",
+        "version": "v0.0.0-20200609155635-041fdbb8563f",
+        "sum": "h1:GvCU5GXhHq+7LeOzx/haG7HSIZokl3/0GkoUFzsRJjg="
+      },
+      {
+        "path": "github.com/knqyf263/go-deb-version",
+        "version": "v0.0.0-20241115132648-6f4aee6ccd23",
+        "sum": "h1:dWzdsqjh1p2gNtRKqNwuBvKqMNwnLOPLzVZT1n6DK7s="
+      },
+      {
+        "path": "github.com/knqyf263/go-rpm-version",
+        "version": "v0.0.0-20260811110310-1815e1f1b790",
+        "sum": "h1:2R0QOkcV/csVHDigcH1sMNP3fQLw4Wi1ZxG0oC+29Ts="
+      },
+      {
+        "path": "github.com/knqyf263/go-rpmdb",
+        "version": "v0.1.1",
+        "sum": "h1:oh68mTCvp1XzxdU7EfafcWzzfstUZAEa3MW0IJye584="
+      },
+      {
+        "path": "github.com/knqyf263/nested",
+        "version": "v0.0.1",
+        "sum": "h1:Sv26CegUMhjt19zqbBKntjwESdxe5hxVPSk0+AKjdUc="
+      },
+      {
+        "path": "github.com/kylelemons/godebug",
+        "version": "v1.1.0",
+        "sum": "h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc="
+      },
+      {
+        "path": "github.com/lann/builder",
+        "version": "v0.0.0-20180802200727-47ae307949d0",
+        "sum": "h1:SOEGU9fKiNWd/HOJuq6+3iTQz8KNCLtVX6idSoTLdUw="
+      },
+      {
+        "path": "github.com/lann/ps",
+        "version": "v0.0.0-20150810152359-62de8c46ede0",
+        "sum": "h1:P6pPBnrTSX3DEVR4fDembhRWSsG5rVo6hYhAB/ADZrk="
+      },
+      {
+        "path": "github.com/lestrrat-go/blackmagic",
+        "version": "v1.0.4",
+        "sum": "h1:IwQibdnf8l2KoO+qC3uT4OaTWsW7tuRQXy9TRN9QanA="
+      },
+      {
+        "path": "github.com/lestrrat-go/dsig",
+        "version": "v1.4.0",
+        "sum": "h1:g7LUjK8cT74A5DzBXJI5HzsJuLhoYN0Wzj4nuOMIrH8="
+      },
+      {
+        "path": "github.com/lestrrat-go/httpcc",
+        "version": "v1.0.1",
+        "sum": "h1:ydWCStUeJLkpYyjLDHihupbn2tYmZ7m22BGkcvZZrIE="
+      },
+      {
+        "path": "github.com/lestrrat-go/httprc/v3",
+        "version": "v3.0.6",
+        "sum": "h1:4FpLQ18KK/ypPbVU3NLWJNRvH3kcYiqKqWfKGqNWxxI="
+      },
+      {
+        "path": "github.com/lestrrat-go/jwx/v3",
+        "version": "v3.3.0",
+        "sum": "h1:OXcYvQOQ7cxWzeZ/Q9sYk8ABe/kCSI371WmuACiCT+4="
+      },
+      {
+        "path": "github.com/lestrrat-go/option/v2",
+        "version": "v2.0.0",
+        "sum": "h1:XxrcaJESE1fokHy3FpaQ/cXW8ZsIdWcdFzzLOcID3Ss="
+      },
+      {
+        "path": "github.com/lib/pq",
+        "version": "v1.12.3",
+        "sum": "h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ="
+      },
+      {
+        "path": "github.com/liggitt/tabwriter",
+        "version": "v0.0.0-20181228230101-89fcab3d43de",
+        "sum": "h1:9TO3cAIGXtEhnIaL+V+BEER86oLrvS+kWobKpbJuye0="
+      },
+      {
+        "path": "github.com/lunixbochs/struc",
+        "version": "v0.0.0-20200707160740-784aaebc1d40",
+        "sum": "h1:EnfXoSqDfSNJv0VBNqY/88RNnhSGYkrHaO0mmFGbVsc="
+      },
+      {
+        "path": "github.com/MakeNowJust/heredoc",
+        "version": "v1.0.0",
+        "sum": "h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ="
+      },
+      {
+        "path": "github.com/masahiro331/go-disk",
+        "version": "v0.0.0-20260423015231-f7a470ebd472",
+        "sum": "h1:QAY4If99Ee10TUP4mdcB6Qlm036ayfYruTLjvlaczbs="
+      },
+      {
+        "path": "github.com/masahiro331/go-ebs-file",
+        "version": "v0.0.0-20260422020928-9d24e29aac27",
+        "sum": "h1:IrxbYTVKTDTckgMf7DZz2LZ+izZZpidH2mDP4D7GUt4="
+      },
+      {
+        "path": "github.com/masahiro331/go-ext4-filesystem",
+        "version": "v0.0.0-20260423010602-fe51f5b5e52b",
+        "sum": "h1:IAYuiQq6BVizPeXTKBoY3Jcin3gGn8No7h31lvH0aKo="
+      },
+      {
+        "path": "github.com/masahiro331/go-mvn-version",
+        "version": "v0.0.0-20260119054159-d21fcd2e7de1",
+        "sum": "h1:XC9v1PB6rMOCTnQIInoFvgSA+vhTCt0wQ7B+Tjpombk="
+      },
+      {
+        "path": "github.com/masahiro331/go-vmdk-parser",
+        "version": "v0.0.0-20260423020818-08305fa668d2",
+        "sum": "h1:38MMtiCO8na0qZ8MAD3d1z6JVt15RTx8Z2EA/txYnkQ="
+      },
+      {
+        "path": "github.com/masahiro331/go-xfs-filesystem",
+        "version": "v0.0.0-20260422061116-d21e5e4481bb",
+        "sum": "h1:2c5hvZu2o6ccumpPVlyGiRT3aXvc6Yxj1Kqh+usy1iM="
+      },
+      {
+        "path": "github.com/Masterminds/goutils",
+        "version": "v1.1.1",
+        "sum": "h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI="
+      },
+      {
+        "path": "github.com/Masterminds/semver/v3",
+        "version": "v3.5.0",
+        "sum": "h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE="
+      },
+      {
+        "path": "github.com/Masterminds/sprig/v3",
+        "version": "v3.3.0",
+        "sum": "h1:mQh0Yrg1XPo6vjYXgtf5OtijNAKJRNcTdOOGZe3tPhs="
+      },
+      {
+        "path": "github.com/Masterminds/squirrel",
+        "version": "v1.5.4",
+        "sum": "h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM="
+      },
+      {
+        "path": "github.com/mattn/go-colorable",
+        "version": "v0.1.15",
+        "sum": "h1:+u9SLTRGnXv73cEsnsmoZBom+dMU88B2M0aDcWy0/jY="
+      },
+      {
+        "path": "github.com/mattn/go-isatty",
+        "version": "v0.0.24",
+        "sum": "h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI="
+      },
+      {
+        "path": "github.com/mattn/go-runewidth",
+        "version": "v0.0.30",
+        "sum": "h1:+KUuiDA4fF0R1p5FeueHefjDm+GIM+kWfFnDjybOPgk="
+      },
+      {
+        "path": "github.com/mattn/go-shellwords",
+        "version": "v1.0.16",
+        "sum": "h1:RRxAaRzU1YbzOSCj9NJqg2/VIbSWv0dnPoD3EwE8kxI="
+      },
+      {
+        "path": "github.com/mitchellh/copystructure",
+        "version": "v1.2.0",
+        "sum": "h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw="
+      },
+      {
+        "path": "github.com/mitchellh/go-homedir",
+        "version": "v1.1.0",
+        "sum": "h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y="
+      },
+      {
+        "path": "github.com/mitchellh/go-wordwrap",
+        "version": "v1.0.1",
+        "sum": "h1:TLuKupo69TCn6TQSyGxwI1EblZZEsQ0vMlAFQflz0v0="
+      },
+      {
+        "path": "github.com/mitchellh/hashstructure/v2",
+        "version": "v2.0.2",
+        "sum": "h1:vGKWl0YJqUNxE8d+h8f6NJLcCJrgbhC4NcD46KavDd4="
+      },
+      {
+        "path": "github.com/mitchellh/mapstructure",
+        "version": "v1.5.1-0.20231216201459-8508981c8b6c",
+        "sum": "h1:cqn374mizHuIWj+OSJCajGr/phAmuMug9qIX3l9CflE="
+      },
+      {
+        "path": "github.com/mitchellh/reflectwalk",
+        "version": "v1.0.2",
+        "sum": "h1:G2LzWKi524PWgd3mLHV8Y5k7s6XUvT0Gef6zxSIeXaQ="
+      },
+      {
+        "path": "github.com/moby/buildkit",
+        "version": "v0.34.0",
+        "sum": "h1:bG5h2y1s5IVvc/uSGo6hVlYbd2eXVFRuADl9Zf+jeJM="
+      },
+      {
+        "path": "github.com/moby/docker-image-spec",
+        "version": "v1.3.1",
+        "sum": "h1:jMKff3w6PgbfSa69GfNg+zN/XLhfXJGnEx3Nl2EsFP0="
+      },
+      {
+        "path": "github.com/moby/locker",
+        "version": "v1.0.1",
+        "sum": "h1:fOXqR41zeveg4fFODix+1Ch4mj/gT0NE1XJbp/epuBg="
+      },
+      {
+        "path": "github.com/moby/moby/api",
+        "version": "v1.56.1",
+        "sum": "h1:PpWkvVPB7Fr/No8w+TfyJ/I6rWZ2YPZhT3JorIg+06c="
+      },
+      {
+        "path": "github.com/moby/moby/client",
+        "version": "v0.6.1",
+        "sum": "h1:gvfKmdcWw+9MzXYP0vAUKQtBTGu1L8475K2nsmL7O98="
+      },
+      {
+        "path": "github.com/moby/sys/atomicwriter",
+        "version": "v0.1.0",
+        "sum": "h1:kw5D/EqkBwsBFi0ss9v1VG3wIkVhzGvLklJ+w3A14Sw="
+      },
+      {
+        "path": "github.com/moby/sys/mountinfo",
+        "version": "v0.7.2",
+        "sum": "h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg="
+      },
+      {
+        "path": "github.com/moby/sys/sequential",
+        "version": "v0.7.0",
+        "sum": "h1:ASQNGNROJSuOO6LL6bPHbKvuZu6NU8P4ldPWk31zj/8="
+      },
+      {
+        "path": "github.com/moby/sys/signal",
+        "version": "v0.7.1",
+        "sum": "h1:PrQxdvxcGijdo6UXXo/lU/TvHUWyPhj7UOpSo8tuvk0="
+      },
+      {
+        "path": "github.com/moby/sys/user",
+        "version": "v0.4.1",
+        "sum": "h1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0="
+      },
+      {
+        "path": "github.com/moby/sys/userns",
+        "version": "v0.2.1",
+        "sum": "h1:4OvdM7BcPkASbuouHsbW3aeMJSFlYDldBRnXVZhaRk8="
+      },
+      {
+        "path": "github.com/moby/term",
+        "version": "v0.5.2",
+        "sum": "h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ="
+      },
+      {
+        "path": "github.com/modern-go/concurrent",
+        "version": "v0.0.0-20180306012644-bacd9c7ef1dd",
+        "sum": "h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg="
+      },
+      {
+        "path": "github.com/modern-go/reflect2",
+        "version": "v1.0.3-0.20250322232337-35a7c28c31ee",
+        "sum": "h1:W5t00kpgFdJifH4BDsTlE89Zl93FEloxaWZfGcifgq8="
+      },
+      {
+        "path": "github.com/monochromegane/go-gitignore",
+        "version": "v0.0.0-20200626010858-205db1a8cc00",
+        "sum": "h1:n6/2gBQ3RWajuToeY6ZtZTIKv2v7ThUy5KKusIT0yc0="
+      },
+      {
+        "path": "github.com/morikuni/aec",
+        "version": "v1.1.0",
+        "sum": "h1:vBBl0pUnvi/Je71dsRrhMBtreIqNMYErSAbEeb8jrXQ="
+      },
+      {
+        "path": "github.com/munnerz/goautoneg",
+        "version": "v0.0.0-20191010083416-a7dc8b61c822",
+        "sum": "h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA="
+      },
+      {
+        "path": "github.com/nikolalohinski/gonja/v2",
+        "version": "v2.9.1",
+        "sum": "h1:ZDG0zYs5oR3fsqQFAlkaWiWYxPOBrCUK9k2IsRZhMa8="
+      },
+      {
+        "path": "github.com/NYTimes/gziphandler",
+        "version": "v1.1.1",
+        "sum": "h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I="
+      },
+      {
+        "path": "github.com/oklog/ulid/v2",
+        "version": "v2.1.2",
+        "sum": "h1:IEclFb9JNvzYA6MW2SCxbLzcHTVsfqm3PrqGQJH5zec="
+      },
+      {
+        "path": "github.com/open-policy-agent/opa",
+        "version": "v1.21.2",
+        "sum": "h1:9hXcLNZ5Z4/K2icDsoQwjCuCg6XelMxKOLjR404XDus="
+      },
+      {
+        "path": "github.com/opencontainers/go-digest",
+        "version": "v1.0.0",
+        "sum": "h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U="
+      },
+      {
+        "path": "github.com/opencontainers/image-spec",
+        "version": "v1.1.1",
+        "sum": "h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040="
+      },
+      {
+        "path": "github.com/opencontainers/runtime-spec",
+        "version": "v1.3.0",
+        "sum": "h1:YZupQUdctfhpZy3TM39nN9Ika5CBWT5diQ8ibYCRkxg="
+      },
+      {
+        "path": "github.com/openvex/go-vex",
+        "version": "v0.2.9",
+        "sum": "h1:InBYPjk5FQtDjnSQ12RUyQcnMlDO5QAg4QK848LIFm8="
+      },
+      {
+        "path": "github.com/owenrumney/go-sarif/v2",
+        "version": "v2.3.3",
+        "sum": "h1:ubWDJcF5i3L/EIOER+ZyQ03IfplbSU1BLOE26uKQIIU="
+      },
+      {
+        "path": "github.com/owenrumney/squealer",
+        "version": "v1.2.12",
+        "sum": "h1:6VQxQ323q7q0eKNP5p7MX4nbTW1z8wK44YvyHLwDcx0="
+      },
+      {
+        "path": "github.com/package-url/packageurl-go",
+        "version": "v0.1.7",
+        "sum": "h1:iFWg6tzAjLA6F/qX3M5nZaiMHJgc+p2zxVyr/fY+sZY="
+      },
+      {
+        "path": "github.com/pandatix/go-cvss",
+        "version": "v0.6.2",
+        "sum": "h1:TFiHlzUkT67s6UkelHmK6s1INKVUG7nlKYiWWDTITGI="
+      },
+      {
+        "path": "github.com/pelletier/go-toml/v2",
+        "version": "v2.4.3",
+        "sum": "h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY="
+      },
+      {
+        "path": "github.com/peterbourgon/diskv",
+        "version": "v2.0.1+incompatible",
+        "sum": "h1:UBdAOUP5p4RWqPBg048CAvpKN+vxiaj6gdUUzhl4XmI="
+      },
+      {
+        "path": "github.com/pjbgf/sha1cd",
+        "version": "v0.7.0",
+        "sum": "h1:ZRNPKHj+gfkLBf0KJv/p1Hmz+7bqCT5o311YX0nq+DA="
+      },
+      {
+        "path": "github.com/pkg/browser",
+        "version": "v0.0.0-20240102092130-5ac0b6a4141c",
+        "sum": "h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ="
+      },
+      {
+        "path": "github.com/pkg/errors",
+        "version": "v0.9.1",
+        "sum": "h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4="
+      },
+      {
+        "path": "github.com/planetscale/vtprotobuf",
+        "version": "v0.6.1-0.20240319094008-0393e58bdf10",
+        "sum": "h1:GFCKgmp0tecUJ0sJuv4pzYCqS9+RGSn52M3FUwPs+uo="
+      },
+      {
+        "path": "github.com/pmezard/go-difflib",
+        "version": "v1.0.1-0.20181226105442-5d4384ee4fb2",
+        "sum": "h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U="
+      },
+      {
+        "path": "github.com/prometheus/client_golang",
+        "version": "v1.24.1",
+        "sum": "h1:JnJkREXzWxUdCuPFpIWZiPispT9xVV59uiuyR2bPlnU="
+      },
+      {
+        "path": "github.com/prometheus/client_model",
+        "version": "v0.6.3",
+        "sum": "h1:O0jaTVAYNxTHYInEPFJt5I3+sN8zqBtVMPTB1qyxiEo="
+      },
+      {
+        "path": "github.com/prometheus/common",
+        "version": "v0.72.0",
+        "sum": "h1:tAYsE+sPJxIncDAobm4H5aQjmox9ZxEIIqPbiffa8G4="
+      },
+      {
+        "path": "github.com/prometheus/procfs",
+        "version": "v0.22.0",
+        "sum": "h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0oics="
+      },
+      {
+        "path": "github.com/ProtonMail/go-crypto",
+        "version": "v1.5.2",
+        "sum": "h1:cucYnvqcY7UOXVD//mSyjeaPY0SSN3v5cDkYPxumINk="
+      },
+      {
+        "path": "github.com/rcrowley/go-metrics",
+        "version": "v0.0.0-20250401214520-65e299d6c5c9",
+        "sum": "h1:bsUq1dX0N8AOIL7EB/X911+m4EHsnWEHeJ0c+3TTBrg="
+      },
+      {
+        "path": "github.com/redis/go-redis/v9",
+        "version": "v9.23.0",
+        "sum": "h1:/TTVdJa8BRNsybwwGGnmiYktHNlUXtbOQxlWpHBPL3s="
+      },
+      {
+        "path": "github.com/remyoudompheng/bigfft",
+        "version": "v0.0.0-20230129092748-24d4a6f8daec",
+        "sum": "h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE="
+      },
+      {
+        "path": "github.com/rubenv/sql-migrate",
+        "version": "v1.8.1",
+        "sum": "h1:EPNwCvjAowHI3TnZ+4fQu3a915OpnQoPAjTXCGOy2U0="
+      },
+      {
+        "path": "github.com/russross/blackfriday/v2",
+        "version": "v2.1.0",
+        "sum": "h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk="
+      },
+      {
+        "path": "github.com/rust-secure-code/go-rustaudit",
+        "version": "v0.0.0-20250226111315-e20ec32e963c",
+        "sum": "h1:8gOLsYwaY2JwlTMT4brS5/9XJdrdIbmk2obvQ748CC0="
+      },
+      {
+        "path": "github.com/sagikazarmark/locafero",
+        "version": "v0.12.0",
+        "sum": "h1:/NQhBAkUb4+fH1jivKHWusDYFjMOOKU88eegjfxfHb4="
+      },
+      {
+        "path": "github.com/samber/lo",
+        "version": "v1.53.0",
+        "sum": "h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM="
+      },
+      {
+        "path": "github.com/samber/oops",
+        "version": "v1.18.1",
+        "sum": "h1:qjhZbqbdyhWBKntkY8sxrDNKA8b4c5VHlmI1rli7X7M="
+      },
+      {
+        "path": "github.com/santhosh-tekuri/jsonschema/v6",
+        "version": "v6.0.3",
+        "sum": "h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28="
+      },
+      {
+        "path": "github.com/sassoftware/go-rpmutils",
+        "version": "v0.4.0",
+        "sum": "h1:ojND82NYBxgwrV+mX1CWsd5QJvvEZTKddtCdFLPWhpg="
+      },
+      {
+        "path": "github.com/secure-systems-lab/go-securesystemslib",
+        "version": "v0.11.1",
+        "sum": "h1:ayahDPjfSIqKegyt5YVGEvQ7SAi72GHXTy+b2YjUd5w="
+      },
+      {
+        "path": "github.com/sergi/go-diff",
+        "version": "v1.4.0",
+        "sum": "h1:n/SP9D5ad1fORl+llWyN+D6qoUETXNZARKjyY2/KVCw="
+      },
+      {
+        "path": "github.com/shibumi/go-pathspec",
+        "version": "v1.3.0",
+        "sum": "h1:QUyMZhFo0Md5B8zV8x2tesohbb5kfbpTi9rBnKh5dkI="
+      },
+      {
+        "path": "github.com/shopspring/decimal",
+        "version": "v1.5.0",
+        "sum": "h1:HxSWk31RmJv0EyY4oLiGQB9u7WPludUwPBdvQZnYFPc="
+      },
+      {
+        "path": "github.com/sigstore/protobuf-specs",
+        "version": "v0.5.1",
+        "sum": "h1:/5OPaNuolRJmQfeZLayJGFXMpsRJEdgC6ah1/+7Px7U="
+      },
+      {
+        "path": "github.com/sigstore/rekor",
+        "version": "v1.5.4",
+        "sum": "h1:A9zITTrkRwO+8lfq7L/gBR7rDHHcBQJRI+a0JQo4xDM="
+      },
+      {
+        "path": "github.com/sigstore/sigstore",
+        "version": "v1.10.9",
+        "sum": "h1:7Dcpt+ibnltHQZ8XhaU0dFmhHaf/T491eJfA9WDex4Y="
+      },
+      {
+        "path": "github.com/sirupsen/logrus",
+        "version": "v1.10.2",
+        "sum": "h1:G2SED73/qrAu6YwbdxOD6peLkCBI3z7L+ykJFTXJBBo="
+      },
+      {
+        "path": "github.com/skeema/knownhosts",
+        "version": "v1.3.1",
+        "sum": "h1:X2osQ+RAjK76shCbvhHHHVl3ZlgDm8apHEHFqRjnBY8="
+      },
+      {
+        "path": "github.com/spdx/tools-golang",
+        "version": "v0.5.7",
+        "sum": "h1:+sWcKGnhwp3vLdMqPcLdA6QK679vd86cK9hQWH3AwCg="
+      },
+      {
+        "path": "github.com/spf13/afero",
+        "version": "v1.15.0",
+        "sum": "h1:b/YBCLWAJdFWJTN9cLhiXXcD7mzKn9Dm86dNnfyQw1I="
+      },
+      {
+        "path": "github.com/spf13/cast",
+        "version": "v1.10.0",
+        "sum": "h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY="
+      },
+      {
+        "path": "github.com/spf13/cobra",
+        "version": "v1.10.2",
+        "sum": "h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU="
+      },
+      {
+        "path": "github.com/spf13/pflag",
+        "version": "v1.0.10",
+        "sum": "h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk="
+      },
+      {
+        "path": "github.com/spf13/viper",
+        "version": "v1.21.0",
+        "sum": "h1:x5S+0EU27Lbphp4UKm1C+1oQO+rKx36vfCoaVebLFSU="
+      },
+      {
+        "path": "github.com/spiffe/go-spiffe/v2",
+        "version": "v2.8.1",
+        "sum": "h1:eXZMLsu+3MLEPJyGJkolqtVrteZfQdUpOWj6LTiDl/E="
+      },
+      {
+        "path": "github.com/stretchr/objx",
+        "version": "v0.5.3",
+        "sum": "h1:jmXUvGomnU1o3W/V5h2VEradbpJDwGrzugQQvL0POH4="
+      },
+      {
+        "path": "github.com/stretchr/testify",
+        "version": "v1.12.1",
+        "sum": "h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE="
+      },
+      {
+        "path": "github.com/subosito/gotenv",
+        "version": "v1.6.0",
+        "sum": "h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8="
+      },
+      {
+        "path": "github.com/tchap/go-patricia/v2",
+        "version": "v2.3.3",
+        "sum": "h1:xfNEsODumaEcCcY3gI0hYPZ/PcpVv5ju6RMAhgwZDDc="
+      },
+      {
+        "path": "github.com/tetratelabs/wabin",
+        "version": "v0.0.0-20230304001439-f6f874872834",
+        "sum": "h1:ZF+QBjOI+tILZjBaFj3HgFonKXUcwgJ4djLb6i42S3Q="
+      },
+      {
+        "path": "github.com/tetratelabs/wazero",
+        "version": "v1.12.0",
+        "sum": "h1:DuWcpNu/FzgEXgGBDp8J1Spc+CWOvvtvVyjKlaZopYU="
+      },
+      {
+        "path": "github.com/tonistiigi/go-csvvalue",
+        "version": "v0.0.0-20240814133006-030d3b2625d0",
+        "sum": "h1:2f304B10LaZdB8kkVEaoXvAMVan2tl9AiK4G0odjQtE="
+      },
+      {
+        "path": "github.com/toqueteos/webbrowser",
+        "version": "v1.2.1",
+        "sum": "h1:O7IsnnU7XQyJ1nHMRfAktUUJOAZD3aQyUVnxzhWphCg="
+      },
+      {
+        "path": "github.com/twitchtv/twirp",
+        "version": "v8.1.3+incompatible",
+        "sum": "h1:+F4TdErPgSUbMZMwp13Q/KgDVuI7HJXP61mNV3/7iuU="
+      },
+      {
+        "path": "github.com/ulikunitz/xz",
+        "version": "v0.5.17",
+        "sum": "h1:flR0y/x1hgM8EGV1AW3Xll6T413G0glV8UfBwR617V4="
+      },
+      {
+        "path": "github.com/valyala/fastjson",
+        "version": "v1.6.10",
+        "sum": "h1:/yjJg8jaVQdYR3arGxPE2X5z89xrlhS0eGXdv+ADTh4="
+      },
+      {
+        "path": "github.com/vektah/gqlparser/v2",
+        "version": "v2.5.59",
+        "sum": "h1:7BfPIupBJ2yIKxD91/zv30d6chKQkerS4ylKmVy8r4g="
+      },
+      {
+        "path": "github.com/VividCortex/ewma",
+        "version": "v1.2.0",
+        "sum": "h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1ow="
+      },
+      {
+        "path": "github.com/vmihailenco/msgpack/v5",
+        "version": "v5.4.1",
+        "sum": "h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8="
+      },
+      {
+        "path": "github.com/vmihailenco/tagparser/v2",
+        "version": "v2.0.0",
+        "sum": "h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g="
+      },
+      {
+        "path": "github.com/x448/float16",
+        "version": "v0.8.4",
+        "sum": "h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM="
+      },
+      {
+        "path": "github.com/xanzy/ssh-agent",
+        "version": "v0.3.3",
+        "sum": "h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM="
+      },
+      {
+        "path": "github.com/xeipuuv/gojsonpointer",
+        "version": "v0.0.0-20190905194746-02993c407bfb",
+        "sum": "h1:zGWFAtiMcyryUHoUjUJX0/lt1H2+i2Ka2n+D3DImSNo="
+      },
+      {
+        "path": "github.com/xeipuuv/gojsonreference",
+        "version": "v0.0.0-20180127040603-bd5ef7bd5415",
+        "sum": "h1:EzJWgHovont7NscjpAxXsDA8S8BMYve8Y5+7cuRE7R0="
+      },
+      {
+        "path": "github.com/xi2/xz",
+        "version": "v0.0.0-20171230120015-48954b6210f8",
+        "sum": "h1:nIPpBwaJSVYIxUFsDv3M8ofmx9yWTog9BfvIu0q41lo="
+      },
+      {
+        "path": "github.com/xlab/treeprint",
+        "version": "v1.2.0",
+        "sum": "h1:HzHnuAF1plUN2zGlAFHbSQP2qJ0ZAD3XF5XD7OesXRQ="
+      },
+      {
+        "path": "github.com/yashtewari/glob-intersection",
+        "version": "v0.2.0",
+        "sum": "h1:8iuHdN88yYuCzCdjt0gDe+6bAhUwBeEWqThExu54RFg="
+      },
+      {
+        "path": "github.com/youmark/pkcs8",
+        "version": "v0.0.0-20240726163527-a2c0da244d78",
+        "sum": "h1:ilQV1hzziu+LLM3zUTJ0trRztfwgjqKnBWNtSRkbmwM="
+      },
+      {
+        "path": "github.com/zclconf/go-cty",
+        "version": "v1.19.0",
+        "sum": "h1:IV8WdqYZc2c5rLX9bEoLNXKojBAp0MZPBHMIrCoa/s4="
+      },
+      {
+        "path": "github.com/zclconf/go-cty-yaml",
+        "version": "v1.2.0",
+        "sum": "h1:GDyL4+e/Qe/S0B7YaecMLbVvAR/Mp21CXMOSiCTOi1M="
+      },
+      {
+        "path": "go.etcd.io/bbolt",
+        "version": "v1.5.0",
+        "sum": "h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU="
+      },
+      {
+        "path": "go.opentelemetry.io/auto/sdk",
+        "version": "v1.2.1",
+        "sum": "h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64="
+      },
+      {
+        "path": "go.opentelemetry.io/contrib/detectors/gcp",
+        "version": "v1.44.0",
+        "sum": "h1:NmLfL734pJhM0JKaYd2Y28+nY9dPRWYAAbxhRCrKXPw="
+      },
+      {
+        "path": "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+        "version": "v0.71.0",
+        "sum": "h1:B2h3uqicet1CT2N5TOFhS+Gq++9i0/CLmaxvhmhtP5s="
+      },
+      {
+        "path": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+        "version": "v0.71.0",
+        "sum": "h1:3g7B90UzBltIDKq1/5mrTGxTnOFDV0ICOhLoxiZ8jlg="
+      },
+      {
+        "path": "go.opentelemetry.io/otel",
+        "version": "v1.46.0",
+        "sum": "h1:FHt5/CDyVxi/8IM1CH7VE/rRgq3kLHa2mSTVMO8AWyc="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
+        "version": "v1.46.0",
+        "sum": "h1:qkDYCAFiZXLcs1L4aY+tP2wguQ4kURANqHOQMA2et2s="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+        "version": "v1.46.0",
+        "sum": "h1:OFnwLJr+pF3iHrlGSzbxyuo6/6HyBlnlN1CWEJmBVcw="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
+        "version": "v1.46.0",
+        "sum": "h1:w53CDeOA/Kurp7yRsegSr6pbbr759dOvJ+yNmWM6Hxs="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/metric",
+        "version": "v1.46.0",
+        "sum": "h1:yBnkXvgV7AXFILZc5K6IZe/CBFF3OS7BJ8ov6/lj0K8="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/sdk",
+        "version": "v1.46.0",
+        "sum": "h1:h5CNQQjEbuQXY/JfZtgt3i7HVFV3aHPO2OAwO2eTYPI="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/sdk/metric",
+        "version": "v1.46.0",
+        "sum": "h1:0piZ26EG4RBfebb2jhDH6ERCYHoVWduc3kLgPCwSnSE="
+      },
+      {
+        "path": "go.opentelemetry.io/otel/trace",
+        "version": "v1.46.0",
+        "sum": "h1:OULy7ccdJnZtJ0UDYFOIGaCmiWzJ8Vi2G/Rsu60qs1c="
+      },
+      {
+        "path": "go.opentelemetry.io/proto/otlp",
+        "version": "v1.11.1",
+        "sum": "h1:SCrPqH9NE5CmBrOqpjNCiT0X5mGwMyGERXdogfR7Yjw="
+      },
+      {
+        "path": "go.uber.org/atomic",
+        "version": "v1.12.0",
+        "sum": "h1:BvcXdFKuviU4fTL/f+SxdQ5qJX/Jix8pAkgdUcb3XOE="
+      },
+      {
+        "path": "go.uber.org/multierr",
+        "version": "v1.11.0",
+        "sum": "h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0="
+      },
+      {
+        "path": "go.uber.org/zap",
+        "version": "v1.28.0",
+        "sum": "h1:IZzaP1Fv73/T/pBMLk4VutPl36uNC+OSUh3JLG3FIjo="
+      },
+      {
+        "path": "go.yaml.in/yaml/v2",
+        "version": "v2.4.4",
+        "sum": "h1:tuyd0P+2Ont/d6e2rl3be67goVK4R6deVxCUX5vyPaQ="
+      },
+      {
+        "path": "go.yaml.in/yaml/v3",
+        "version": "v3.0.5",
+        "sum": "h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw="
+      },
+      {
+        "path": "go.yaml.in/yaml/v4",
+        "version": "v4.0.0-rc.3",
+        "sum": "h1:3h1fjsh1CTAPjW7q/EMe+C8shx5d8ctzZTrLcs/j8Go="
+      },
+      {
+        "path": "golang.org/x/crypto",
+        "version": "v0.58.0",
+        "sum": "h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54="
+      },
+      {
+        "path": "golang.org/x/exp",
+        "version": "v0.0.0-20260908205506-85c1c2202aba",
+        "sum": "h1:Ck8QetSgk912qxWLMCKxd0in+aiyBQyDSMae6e/xmpU="
+      },
+      {
+        "path": "golang.org/x/mod",
+        "version": "v0.42.0",
+        "sum": "h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg="
+      },
+      {
+        "path": "golang.org/x/net",
+        "version": "v0.62.0",
+        "sum": "h1:18ELalfM5+XNRwzM2nYqXsZQ9ByS1uhj2O/U7+5jqRY="
+      },
+      {
+        "path": "golang.org/x/oauth2",
+        "version": "v0.37.0",
+        "sum": "h1:JUlcxA8oAtauLfiH8FX2/FkAWHAdi0QtGCGc+hofE98="
+      },
+      {
+        "path": "golang.org/x/sync",
+        "version": "v0.24.0",
+        "sum": "h1:iqiDrGoDgyuvAKrhLQthUEzU/R378N78gXbBjxed7oA="
+      },
+      {
+        "path": "golang.org/x/sys",
+        "version": "v0.49.0",
+        "sum": "h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA="
+      },
+      {
+        "path": "golang.org/x/term",
+        "version": "v0.47.0",
+        "sum": "h1:cpyOwQkr2Nzxe2p6KnrTG7Ei2wtzjsuSjhpXXepZ/BM="
+      },
+      {
+        "path": "golang.org/x/text",
+        "version": "v0.43.0",
+        "sum": "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc="
+      },
+      {
+        "path": "golang.org/x/time",
+        "version": "v0.16.0",
+        "sum": "h1:vMb6ptszcQMkcwiRTAuNNU50gom6++Q/6gY2hDM6VDE="
+      },
+      {
+        "path": "golang.org/x/xerrors",
+        "version": "v0.0.0-20240903120638-7835f813f4da",
+        "sum": "h1:noIWHXmPHxILtqtCOPIhSt0ABwskkZKjD3bXGnZGpNY="
+      },
+      {
+        "path": "google.golang.org/api",
+        "version": "v0.299.0",
+        "sum": "h1:b3K+ydSMd0kh6TQI6bJyApRQfqQX2MfSOaVkpM59mJw="
+      },
+      {
+        "path": "google.golang.org/genproto",
+        "version": "v0.0.0-20260715232425-e75dac1f907d",
+        "sum": "h1:C9v1o0/4quuhOAfmRXA2j+we0PqZIp8traLdeogF3Ms="
+      },
+      {
+        "path": "google.golang.org/genproto/googleapis/api",
+        "version": "v0.0.0-20260928230214-8a89bd6388cc",
+        "sum": "h1:rZHRz0ogq4Pid1IKtA/ivHi8XONVF5tqUQXA2TtgpkE="
+      },
+      {
+        "path": "google.golang.org/genproto/googleapis/rpc",
+        "version": "v0.0.0-20260928230214-8a89bd6388cc",
+        "sum": "h1:4bNTbnb44EqGVy9HaQxSY2jnafSUdgV3qHtedvNpDKg="
+      },
+      {
+        "path": "google.golang.org/grpc",
+        "version": "v1.84.0",
+        "sum": "h1:soMyaPJ8pAak5PIQ0DGBUir0XRo2fRoMqhNWMLlLxO0="
+      },
+      {
+        "path": "google.golang.org/protobuf",
+        "version": "v1.36.12",
+        "sum": "h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fwxc="
+      },
+      {
+        "path": "gopkg.in/evanphx/json-patch.v4",
+        "version": "v4.13.0",
+        "sum": "h1:czT3CmqEaQ1aanPc5SdlgQrrEIb8w/wwCvWWnfEbYzo="
+      },
+      {
+        "path": "gopkg.in/inf.v0",
+        "version": "v0.9.1",
+        "sum": "h1:73M5CoZyi3ZLMOyDlQh031Cx6N9NDJ2Vvfl76EDAgDc="
+      },
+      {
+        "path": "gopkg.in/ini.v1",
+        "version": "v1.67.3",
+        "sum": "h1:iM9Lhz5MRSGhHVGGwCuzG9KO8PoirCXj/m/qTmOJJQw="
+      },
+      {
+        "path": "gopkg.in/warnings.v0",
+        "version": "v0.1.2",
+        "sum": "h1:wFXVbFY8DY5/xOe1ECiWdKCzZlxgshcYVNkBHstARME="
+      },
+      {
+        "path": "gopkg.in/yaml.v3",
+        "version": "v3.0.1",
+        "sum": "h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA="
+      },
+      {
+        "path": "helm.sh/helm/v4",
+        "version": "v4.3.1",
+        "sum": "h1:UndCoLe9UPmNoL7IvWzaUXveL7T5t/ijoorEmgJdI9g="
+      },
+      {
+        "path": "k8s.io/api",
+        "version": "v0.37.1",
+        "sum": "h1:l6N77U7tjwB5L056bgrBTJIEdevac/naBZ3iSvDNfpM="
+      },
+      {
+        "path": "k8s.io/apiextensions-apiserver",
+        "version": "v0.37.1",
+        "sum": "h1:7fIQG8eThDSTVYBWg/DOpI8v5wYfKCo0N8/TDMjj+zY="
+      },
+      {
+        "path": "k8s.io/apimachinery",
+        "version": "v0.37.1",
+        "sum": "h1:hGCYyvKHCwtwMitj2vU4vYx0Z16N9GyZk9BBnz0wDAE="
+      },
+      {
+        "path": "k8s.io/apiserver",
+        "version": "v0.37.1",
+        "sum": "h1:dUsNwjsvItyVKNpC1N0AhQ0OBSiUJKfWz004vPifOe0="
+      },
+      {
+        "path": "k8s.io/cli-runtime",
+        "version": "v0.37.1",
+        "sum": "h1:3mir5bM4XjMJHW3SMRk++3Ylf4YQne0XFFsW+IGT85U="
+      },
+      {
+        "path": "k8s.io/client-go",
+        "version": "v0.37.1",
+        "sum": "h1:QTv/5ha4jAHtW9qxxVBkQVFBRDb4jHfFopQqqMdc+wM="
+      },
+      {
+        "path": "k8s.io/component-base",
+        "version": "v0.37.1",
+        "sum": "h1:93DMmlENnK7gNLkL4pMqLO5M/HVf3p3sM4q/GasLveY="
+      },
+      {
+        "path": "k8s.io/klog/v2",
+        "version": "v2.140.0",
+        "sum": "h1:Tf+J3AH7xnUzZyVVXhTgGhEKnFqye14aadWv7bzXdzc="
+      },
+      {
+        "path": "k8s.io/kube-openapi",
+        "version": "v0.0.0-20260721132016-d427ff9ee9ad",
+        "sum": "h1:oXImqH8mQNk7PmvzKhmN3ddJoY6OnyM225MXwGHPm0A="
+      },
+      {
+        "path": "k8s.io/kubectl",
+        "version": "v0.37.1",
+        "sum": "h1:n1VCIntOJiX943uByXCThSZQmE+4v9jGS8S9u94/aHU="
+      },
+      {
+        "path": "k8s.io/utils",
+        "version": "v0.0.0-20260626114624-be93311217bd",
+        "sum": "h1:Ea7fgQ5we8Y9T0OX5o0dAHzQOBRI07D/dEYRaB9ZZEs="
+      },
+      {
+        "path": "modernc.org/libc",
+        "version": "v1.77.1",
+        "sum": "h1:Ct8j47QtiZ1Enj2DtFXQtUqrPCAjdCmPjtCuvrYQ0Hs="
+      },
+      {
+        "path": "modernc.org/mathutil",
+        "version": "v1.7.1",
+        "sum": "h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU="
+      },
+      {
+        "path": "modernc.org/memory",
+        "version": "v1.12.1",
+        "sum": "h1:nFMiWrpStgZczNl6XI9GnIk/rWhYIyHGUaR04pGbp9g="
+      },
+      {
+        "path": "modernc.org/sqlite",
+        "version": "v1.60.1",
+        "sum": "h1:/blz53O951KWFOso4QQvEs/Fq6cDBKLtMVrYNSeJVKw="
+      },
+      {
+        "path": "mvdan.cc/sh/v3",
+        "version": "v3.13.1",
+        "sum": "h1:DP3TfgZhDkT7lerUdnp6PTGKyxxzz6T+cOlY/xEvfWk="
+      },
+      {
+        "path": "oras.land/oras-go/v2",
+        "version": "v2.6.2",
+        "sum": "h1:N04RXngAp1LJKTG6ifz3xHPipasEkWr+hFmInja5YKo="
+      },
+      {
+        "path": "sigs.k8s.io/controller-runtime",
+        "version": "v0.25.2",
+        "sum": "h1:bEkK3PVOIVK9X8QWLGVhJgmFc++47vfT6wakSzAOLsQ="
+      },
+      {
+        "path": "sigs.k8s.io/json",
+        "version": "v0.0.0-20250730193827-2d320260d730",
+        "sum": "h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg="
+      },
+      {
+        "path": "sigs.k8s.io/kustomize/api",
+        "version": "v0.21.1",
+        "sum": "h1:lzqbzvz2CSvsjIUZUBNFKtIMsEw7hVLJp0JeSIVmuJs="
+      },
+      {
+        "path": "sigs.k8s.io/kustomize/kyaml",
+        "version": "v0.21.2",
+        "sum": "h1:1javwStFk7cgOeLU7yJtPmXcgMEhQgC2X0WjFT6U0p0="
+      },
+      {
+        "path": "sigs.k8s.io/randfill",
+        "version": "v1.0.0",
+        "sum": "h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU="
+      },
+      {
+        "path": "sigs.k8s.io/structured-merge-diff/v6",
+        "version": "v6.4.2",
+        "sum": "h1:qdOxHwrl2Kaag1aQEarlYcOA9vSyGCp3CIki3aW8c4Q="
+      },
+      {
+        "path": "sigs.k8s.io/yaml",
+        "version": "v1.6.0",
+        "sum": "h1:G8fkbMSAFqgEFgh4b1wmtzDnioxFCUgTZhlbj5P9QYs="
+      }
+    ],
+    "settings": {
+      "-buildmode": "exe",
+      "-compiler": "gc",
+      "-ldflags": "\"-s -w -extldflags '-static' -X github.com/aquasecurity/trivy/pkg/version/app.ver=0.76.2\"",
+      "CGO_ENABLED": "0",
+      "GOARCH": "amd64",
+      "GOOS": "linux",
+      "GOAMD64": "v1",
+      "vcs": "git",
+      "vcs.revision": "3f6334d223b52188324af3b9923b4249cd206652",
+      "vcs.time": "2026-11-05T11:50:03Z",
+      "vcs.modified": "false"
+    }
+  },
+  "databaseRegistries": {
+    "before": [
+      {
+        "name": "vulnerability",
+        "repository": "ghcr.io/aquasecurity/trivy-db",
+        "tag": "2",
+        "digest": "sha256:6286e461a3398081a660bc27aa44f04ee375023a49085c4c7c18185c10ebe734",
+        "size": 616,
+        "layerBytes": 140439104
+      },
+      {
+        "name": "java",
+        "repository": "ghcr.io/aquasecurity/trivy-java-db",
+        "tag": "1",
+        "digest": "sha256:fbc1d1ae10f04f777a4228bc595485853e4d2add4a018002466cb82da32ac808",
+        "size": 625,
+        "layerBytes": 1001477787
+      }
+    ],
+    "after": [
+      {
+        "name": "vulnerability",
+        "repository": "ghcr.io/aquasecurity/trivy-db",
+        "tag": "2",
+        "digest": "sha256:6286e461a3398081a660bc27aa44f04ee375023a49085c4c7c18185c10ebe734",
+        "size": 616,
+        "layerBytes": 140439104
+      },
+      {
+        "name": "java",
+        "repository": "ghcr.io/aquasecurity/trivy-java-db",
+        "tag": "1",
+        "digest": "sha256:fbc1d1ae10f04f777a4228bc595485853e4d2add4a018002466cb82da32ac808",
+        "size": 625,
+        "layerBytes": 1001477787
+      }
+    ]
+  },
+  "awsComparisonInputs": {
+    "scanner": {
+      "size": 176386208,
+      "sha256": "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3"
+    },
+    "databaseFiles": [
+      {
+        "file": "db/trivy.db",
+        "size": 1760485376,
+        "sha256": "7244f40ff53c4ac2909d8fba04aa4937354a620c380dc83bbc51df715f6cd68d"
+      },
+      {
+        "file": "db/metadata.json",
+        "size": 153,
+        "sha256": "28c7a78e56ee650a758ca9f5286a98549007e171924cbf1b0730b73b82bcd1ac"
+      },
+      {
+        "file": "java-db/trivy-java.db",
+        "size": 1582481408,
+        "sha256": "a41f53b9b2b3d57ef45aeda3abd8f03dc17dfcacc5aaec277600218919de5e15"
+      },
+      {
+        "file": "java-db/metadata.json",
+        "size": 153,
+        "sha256": "48607d4eb03c317543849f5731ab0ef32f1b093b978e9cc31d2f9bb73463d818"
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/official-release.json",
+      "sha256": "9f6aeec0526120412590c020691e43019ee6c3dbde690cd5b42a01dccd6aa854",
+      "size": 3480,
+      "cap": 1048576
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/scanner-lock.json",
+      "sha256": "a01bc85432f1a8c70ba3a0fe0642d1e5b4542df5e781c3786652c8ef8153b84a",
+      "size": 7208,
+      "cap": 1048576
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/subject/trivy",
+      "sha256": "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3",
+      "size": 176386208,
+      "cap": 536870912
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/scanner-version-probe/go.mod",
+      "sha256": "490c72b7ef93b9cc9484ac81728382ca546d327f8a31cb20165ddf1f77550695",
+      "size": 98,
+      "cap": 1048576
+    },
+    {
+      "path": "/home/runner/work/_temp/trivy-provenance/bin/trivy",
+      "sha256": "6a972c69606c7b3ea4c6bdcc6fc9332ea9ad38381624310c1e85cc77345909f3",
+      "size": 176386208,
+      "cap": 536870912
+    },
+    {
+      "path": "/home/runner/work/_temp/trivy-provenance/public/go-build-info.txt",
+      "sha256": "d11460976d702309229ce77f78631eff0ad7a20d52ac4ae0d046ab738ad8d2c9",
+      "size": 37057,
+      "cap": 8388608
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/manifest.json",
+      "sha256": "bf9f3296c0753b19f2b0c5631538338cd5457ea5d07ac72357428b71e8ae7591",
+      "size": 7632,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/go.mod",
+      "sha256": "7aa955bee64bed627284bdd91365c5f53f996467364a142802f20cd8e032549f",
+      "size": 1069,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/go.sum",
+      "sha256": "2ca549d11f4fb30aea32e489e8d65596f20988dc15dbc19c085449a0f8931527",
+      "size": 129439,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/submod/go.mod",
+      "sha256": "8179a58ea1404e5aece47303b75970ada1bb7c292fc45183ad3cc0474176e954",
+      "size": 117,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/submod/go.sum",
+      "sha256": "40841aa4376c744fdbe69526232cd205ffd9bb3abdf243ea6c11d9836f9c4804",
+      "size": 1048,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/submod2/go.mod",
+      "sha256": "8689f776807a618b0f33a8d99b2dd9033cc7120f2f635b572951046f7aff3929",
+      "size": 101,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/gomod/submod2/go.sum",
+      "sha256": "708f2019e08317d697dd0075b855ef8e1c843b33acfe56c45f5d106667800b2f",
+      "size": 1404,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/java/jackson-core-2.18.11.jar",
+      "sha256": "825fa72dfb9e2f8a642322f1390dbac22c30d15ebd6dc6b3772158821ee124eb",
+      "size": 588755,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/auto-world/auto-world/infra/scanner/materials/scanner-fixtures/java/test.war",
+      "sha256": "b852f605a56a1e109bdd17aaa8d85007c4327708bf6e3b4b56a9876b4a1077ba",
+      "size": 2525883,
+      "cap": 4194304
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/cache/db/trivy.db",
+      "sha256": "7244f40ff53c4ac2909d8fba04aa4937354a620c380dc83bbc51df715f6cd68d",
+      "size": 1760485376,
+      "cap": 2147483648
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/cache/db/metadata.json",
+      "sha256": "28c7a78e56ee650a758ca9f5286a98549007e171924cbf1b0730b73b82bcd1ac",
+      "size": 153,
+      "cap": 8388608
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/cache/java-db/trivy-java.db",
+      "sha256": "a41f53b9b2b3d57ef45aeda3abd8f03dc17dfcacc5aaec277600218919de5e15",
+      "size": 1582481408,
+      "cap": 2147483648
+    },
+    {
+      "path": "/home/runner/work/_temp/aw-official-scanner-mO9dv6/cache/java-db/metadata.json",
+      "sha256": "48607d4eb03c317543849f5731ab0ef32f1b093b978e9cc31d2f9bb73463d818",
+      "size": 153,
+      "cap": 8388608
+    }
+  ],
+  "budget": {
+    "buildInputBytes": 176423265,
+    "materialBytes": 3255448,
+    "databaseBytes": 3342967090,
+    "baselineImageBytes": 190307614,
+    "versionProbeBytes": 98,
+    "transientDownloadBytes": 4294967296,
+    "candidateTmpfsBytes": 2147483648,
+    "transientCandidateBytes": 4294967296,
+    "transientJobBytes": 4294967296,
+    "projectedJobBytes": 8007920811,
+    "artifactLimitBytes": 6442450944,
+    "jobLimitBytes": 8589934592
+  },
+  "runtimeSubjects": [
+    {
+      "role": "postgres",
+      "kind": "UPSTREAM_REGISTRY_SUBJECT",
+      "repository": "library/postgres",
+      "manifestDigest": "sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:005c5c37db96c1e6652a79ea31f9886402fba81ac95dc2db897739121dd7f8f2"
+      }
+    },
+    {
+      "role": "opensearch",
+      "kind": "UPSTREAM_REGISTRY_SUBJECT",
+      "repository": "opensearchproject/opensearch",
+      "manifestDigest": "sha256:3bf4fe26aeb9f7b03c0ebcb1302bb24e855ee6b89fd926d26a71a83ef6f7e076",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:84871c53f4d8ec5ecc9019d234951ef0c37ca60ced365c9db2ba96e4662daef2"
+      }
+    },
+    {
+      "role": "redis",
+      "kind": "UPSTREAM_REGISTRY_SUBJECT",
+      "repository": "library/redis",
+      "manifestDigest": "sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:16b124a2d3eacd620d917ead6fd26cbf1f1d7117fa94122398971931cfe2d403"
+      }
+    },
+    {
+      "role": "seaweedfs",
+      "kind": "UPSTREAM_REGISTRY_SUBJECT",
+      "repository": "chrislusf/seaweedfs",
+      "manifestDigest": "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:3a522c379599e163433a636e75022630848b63a74f08ea37bf06f8d776e9a707"
+      }
+    },
+    {
+      "role": "aws-cli",
+      "kind": "UPSTREAM_REGISTRY_SUBJECT",
+      "repository": "amazon/aws-cli",
+      "manifestDigest": "sha256:c5d442efed03350a3c3d7a42b23f42a8e7b76acf5dbb4b021f2641bcd36680ea",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "variant": null,
+        "digest": "sha256:eb3b4742dbfd983bcb79e2df22fbcfde9ad5b3f8277ff1d4050bd7f9cdd9c090"
+      }
+    }
+  ],
+  "rejections": [
+    {
+      "role": "postgres",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "4962a7f8135f35543af898ce56396a2d26c2deaa7e4d9689ff1dfbda24706c7f",
+          "size": 311484
+        },
+        {
+          "sha256": "a00ebfcb200e5a32eb10c369eb7436e385e50fd556423d77cdc5b3ad960cb162",
+          "size": 83378
+        }
+      ],
+      "findingCount": 26,
+      "blockerCount": 26,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    },
+    {
+      "role": "opensearch",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "56668110157c3e5acd463912679c5939af61829fb820c35bb1191dcd8eeb224c",
+          "size": 1701419
+        },
+        {
+          "sha256": "ffb0fd9a50935de5009c4b1fe0db590235b494531579a66dfa977695f237a730",
+          "size": 1492475
+        }
+      ],
+      "findingCount": 82,
+      "blockerCount": 82,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    },
+    {
+      "role": "seaweedfs",
+      "result": "rejected",
+      "report": [
+        {
+          "sha256": "a85a0ebaf4966b39e677b76d4c71e70204750d936ee8657861b5dd8fed0e10f4",
+          "size": 209696
+        },
+        {
+          "sha256": "c386ae777daad5263736a5eb0a5e972bf02156cfe5b5ada48c51611b66e6d7ca",
+          "size": 302082
+        }
+      ],
+      "findingCount": 2,
+      "blockerCount": 2,
+      "stage": "policy",
+      "reason": "scanner_image_policy_blocked"
+    }
+  ],
+  "fiveImageResult": "rejected",
+  "fiveImageEvidence": {
+    "file": "image-five-subject-results.json",
+    "size": 48922,
+    "sha256": "845dbeaa34387cf8bccdfe5f7b552b0094713fe4f2524a922cab3054d272a2b6"
+  },
+  "awsComparator": {
+    "previousSubject": {
+      "role": "aws-cli-previous",
+      "repository": "amazon/aws-cli",
+      "version": "2.38.5",
+      "manifestDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+      "platform": {
+        "os": "linux",
+        "architecture": "amd64",
+        "digest": "sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9"
+      }
+    },
+    "qualification": "passed",
+    "oldPolicy": "blocked",
+    "control": {
+      "reports": [
+        {
+          "role": "aws-cli-previous",
+          "result": "rejected",
+          "report": [
+            {
+              "sha256": "5f3872de4b00a4964aae6f10f7788024e815ce2d6d1a8869a87f408a9ada00fc",
+              "size": 1014821
+            },
+            {
+              "sha256": "680236bf762703114e499b03c9206e09e196d2c6c9166f0f98cad5ec3323b617",
+              "size": 405818
+            }
+          ],
+          "findingCount": 49,
+          "blockerCount": 49,
+          "stage": "policy",
+          "reason": "scanner_image_policy_blocked"
+        }
+      ],
+      "blockers": [
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-92392",
+          "packageName": "curl-minimal",
+          "installedVersion": "8.21.0-5.amzn2023.0.2",
+          "severity": "HIGH",
+          "fixedVersion": "8.21.0-5.amzn2023.0.3",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-86805",
+          "packageName": "glibc",
+          "installedVersion": "2.34-231.amzn2023.0.5",
+          "severity": "HIGH",
+          "fixedVersion": "2.34-231.amzn2023.0.6",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-86805",
+          "packageName": "glibc-common",
+          "installedVersion": "2.34-231.amzn2023.0.5",
+          "severity": "HIGH",
+          "fixedVersion": "2.34-231.amzn2023.0.6",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-86805",
+          "packageName": "glibc-minimal-langpack",
+          "installedVersion": "2.34-231.amzn2023.0.5",
+          "severity": "HIGH",
+          "fixedVersion": "2.34-231.amzn2023.0.6",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-78659",
+          "packageName": "libcap",
+          "installedVersion": "2.73-1.amzn2023.0.7",
+          "severity": "HIGH",
+          "fixedVersion": "2.73-1.amzn2023.0.8",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-78667",
+          "packageName": "libcap",
+          "installedVersion": "2.73-1.amzn2023.0.7",
+          "severity": "HIGH",
+          "fixedVersion": "2.73-1.amzn2023.0.8",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-94440",
+          "packageName": "libcap",
+          "installedVersion": "2.73-1.amzn2023.0.7",
+          "severity": "HIGH",
+          "fixedVersion": "2.73-1.amzn2023.0.8",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-92392",
+          "packageName": "libcurl-minimal",
+          "installedVersion": "8.21.0-5.amzn2023.0.2",
+          "severity": "HIGH",
+          "fixedVersion": "8.21.0-5.amzn2023.0.3",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103111",
+          "packageName": "pcre2",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-86145",
+          "packageName": "pcre2",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-89156",
+          "packageName": "pcre2",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-89160",
+          "packageName": "pcre2",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103111",
+          "packageName": "pcre2-syntax",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-86145",
+          "packageName": "pcre2-syntax",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-89156",
+          "packageName": "pcre2-syntax",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-89160",
+          "packageName": "pcre2-syntax",
+          "installedVersion": "10.40-1.amzn2023.0.4",
+          "severity": "HIGH",
+          "fixedVersion": "10.40-1.amzn2023.0.5",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-19553",
+          "packageName": "python3",
+          "installedVersion": "3.9.25-1.amzn2023.0.9",
+          "severity": "HIGH",
+          "fixedVersion": "3.9.25-1.amzn2023.0.11",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-19553",
+          "packageName": "python3-libs",
+          "installedVersion": "3.9.25-1.amzn2023.0.9",
+          "severity": "HIGH",
+          "fixedVersion": "3.9.25-1.amzn2023.0.11",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103242",
+          "packageName": "python3-rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-84837",
+          "packageName": "python3-rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95519",
+          "packageName": "python3-rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95520",
+          "packageName": "python3-rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95521",
+          "packageName": "python3-rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103242",
+          "packageName": "rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-84837",
+          "packageName": "rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95519",
+          "packageName": "rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95520",
+          "packageName": "rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95521",
+          "packageName": "rpm",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103242",
+          "packageName": "rpm-build-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-84837",
+          "packageName": "rpm-build-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95519",
+          "packageName": "rpm-build-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95520",
+          "packageName": "rpm-build-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95521",
+          "packageName": "rpm-build-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103242",
+          "packageName": "rpm-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-84837",
+          "packageName": "rpm-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95519",
+          "packageName": "rpm-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95520",
+          "packageName": "rpm-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95521",
+          "packageName": "rpm-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-103242",
+          "packageName": "rpm-sign-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-84837",
+          "packageName": "rpm-sign-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95519",
+          "packageName": "rpm-sign-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95520",
+          "packageName": "rpm-sign-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-95521",
+          "packageName": "rpm-sign-libs",
+          "installedVersion": "4.16.1.3-29.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "4.16.1.3-29.amzn2023.0.10",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119371",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119372",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119373",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119375",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119376",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        },
+        {
+          "role": "aws-cli-previous",
+          "imageDigest": "sha256:c8156a0e74e13929a42d7e60f0d4e14e7d28d980cd21822505d4bff80e5460c1",
+          "target": "amazon/aws-cli@sha256:25fea7c13a5b32ac8bde048af1cd286e41f07d5d37e6649f23c14a6f9bf284d9 (amazon 2023.12.20261021 (Amazon Linux))",
+          "vulnerabilityId": "CVE-2026-119378",
+          "packageName": "sqlite-libs",
+          "installedVersion": "3.40.0-1.amzn2023.0.8",
+          "severity": "HIGH",
+          "fixedVersion": "3.40.0-1.amzn2023.0.9",
+          "code": "image_vulnerability_blocked"
+        }
+      ],
+      "rejections": [
+        {
+          "role": "aws-cli-previous",
+          "result": "rejected",
+          "report": [
+            {
+              "sha256": "5f3872de4b00a4964aae6f10f7788024e815ce2d6d1a8869a87f408a9ada00fc",
+              "size": 1014821
+            },
+            {
+              "sha256": "680236bf762703114e499b03c9206e09e196d2c6c9166f0f98cad5ec3323b617",
+              "size": 405818
+            }
+          ],
+          "findingCount": 49,
+          "blockerCount": 49,
+          "stage": "policy",
+          "reason": "scanner_image_policy_blocked"
+        }
+      ]
+    },
+    "historicalDatabaseContext": "changed",
+    "delta": {
+      "file": "image-aws-cli-comparison.json",
+      "sha256": "5ca1cb040d96e43d3a7999cb08e49942c2d1f0e3b34c0a42ec89aff0676be825",
+      "size": 94218
+    },
+    "commandIndices": [
+      30,
+      31
+    ]
+  },
+  "failure": "scanner_official_images_blocked",
+  "workRetention": "DISPOSABLE_RUNNER_JOB_ONLY_NOT_SUPPORTED_ARCHIVE"
+}
