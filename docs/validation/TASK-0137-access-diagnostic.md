@@ -46,4 +46,31 @@ Retour arrière : retirer le nouveau mode et le workflow dédié ; conserver les
 
 ## Exécution
 
-Non encore réalisée. Les résultats, identités de révision/run et limites seront ajoutés après l'essai.
+### Réalisation locale avant l'essai
+
+Première proposition complète présentée le 22 novembre 2026 à 13:34:31 UTC. Node 22.23.2 et pnpm 10.15.0 ; aucune navigation réelle locale.
+
+- `node --test tests/leboncoin-spike.test.mjs` : 59/59 PASS, zéro échec/exclusion/retry.
+- ESLint ciblé sur le connecteur et son relais : PASS.
+- Secretlint : PASS sur 1 683 fichiers du dépôt.
+- Diff et syntaxe/portée YAML : PASS.
+- Prérevue indépendante : chiffrement, corrélation et transport cohérents. Deux qualifications trop affirmatives ont été corrigées avant le gel final : un mot dans le HTML devient un marqueur heuristique ; `rate_limited` exige HTTP 429. Les 59 tests et le lint ont ensuite été réexécutés avec succès. Cette reprise est conservée, sans prétendre qu'aucun défaut n'a été trouvé.
+
+SHA-256 des fichiers gelés pour la revue finale :
+
+| Fichier | Empreinte |
+| --- | --- |
+| `leboncoin-access-diagnostic.yml` | `1f2c1bb0274398092be133c38d0b35367d242015a4cfa638ae7dfa935c6cbe51` |
+| `access-diagnostic.mjs` | `e2e7b3d55e46534909b89d37f74987ea5b42f7f629754e3ba5bc411cf8a12c6d` |
+| `diagnose-access.mjs` | `79c5011a20080aad84469951ff1f9ee3fbc3b203cbfb929cb57d645267a14851` |
+| `access-diagnostic.test.mjs` | `ee52c0f4dfdeb30010f7e28d70e77e978644a554ff70dd416e5e59ad91848e97` |
+| `collect-browser.mjs` | `2b7d84405b76453c6b2f85b2f19b0f33adc719e9408658274699b871fa1c8004` |
+| `autonomous-probe.mjs` | `0e0ccbc5305c0ba0e29a053183b12d41ed554a6c2a2aa7348faa4adbdd49d18e` |
+
+La clé publique du fichier PEM a l'empreinte de fichier `fc1458ad4f2ca6873dd1f8eeb757b891b8f1d680f1c412b80bd8485d84c4fd8f` ; l'empreinte de destinataire utilisée par le protocole est celle du SPKI DER déclarée dans le plan. Ces deux empreintes ne portent pas sur les mêmes octets.
+
+Revue finale indépendante : **APPROUVÉ**, aucun défaut bloquant identifié sur les huit fichiers code/tests/clé/workflow stables. Le reviewer a aussi vérifié le SPKI DER avec OpenSSL. Il n'a pas relancé les tests ni effectué de navigation ; les résultats de l'exécutant et ceux du responsable restent attribués séparément. La récupération réelle devra vérifier fragments, enveloppe, AAD et tag, puis comparer le résumé déchiffré au reçu public.
+
+### Résultat réel
+
+Non encore réalisé. Les identités de révision/run, la récupération et l'inspection privée seront ajoutées après l'essai. Un job vert signifie uniquement qu'un diagnostic a été conservé, pas qu'une annonce a été extraite.

@@ -157,26 +157,28 @@ export async function runAutonomousSequence({ run, wait, clock, publish, metadat
   return receipt;
 }
 
-async function readBounded(path) {
+export async function readBounded(path, limit = MAX_FILE_BYTES) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_FILE_BYTES) throw new Error("file_limit");
   const handle = await open(path, "r");
   try {
     const info = await handle.stat();
-    if (!info.isFile() || info.size < 1 || info.size > MAX_FILE_BYTES) throw new Error("file_limit");
-    const buffer = Buffer.alloc(MAX_FILE_BYTES + 1);
+    if (!info.isFile() || info.size < 1 || info.size > limit) throw new Error("file_limit");
+    const buffer = Buffer.alloc(limit + 1);
     let size = 0;
     while (size < buffer.length) {
       const { bytesRead } = await handle.read(buffer, size, buffer.length - size, size);
       if (bytesRead === 0) break;
       size += bytesRead;
     }
-    if (size < 1 || size > MAX_FILE_BYTES) throw new Error("file_limit");
+    if (size < 1 || size > limit) throw new Error("file_limit");
     return buffer.subarray(0, size);
   } finally { await handle.close(); }
 }
 
-function executeCollector(directory) {
+export function executeCollector(directory, { accessDiagnostic = false } = {}) {
   return new Promise((resolveResult) => {
-    const child = spawn(process.execPath, [COLLECTOR, "--url", TARGET_URL, "--out", directory], {
+    const child = spawn(process.execPath, [COLLECTOR, "--url", TARGET_URL, "--out", directory,
+      ...(accessDiagnostic ? ["--diagnostic-access"] : [])], {
       detached: true, stdio: "ignore",
     });
     let settled = false;

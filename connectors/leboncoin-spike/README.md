@@ -75,6 +75,36 @@ Le workflow est limité au premier push d'implémentation sur la branche dédié
 
 Un pilote horaire ChatGPT préexistant utilise séparément la recherche native pour découvrir des identifiants, puis le navigateur cloud pour observer les fiches et conserver une petite archive privée. Son lot initial comprend trois annonces et trois photos copiées ; la première exécution programmée reste à vérifier. Il ne s'exécute pas dans ce code et n'alimente pas la base de production. Cette dépendance externe ne qualifie pas le moteur propre demandé pour AutoFindex.
 
+## Diagnostic inspectable du refus — une seule invocation
+
+Le [plan revu](../../docs/validation/TASK-0137-access-diagnostic.md) ajoute un mode facultatif au même collecteur. Il conserve l'URL connue, Playwright 1.64.0, Chromium sandboxé, le contexte neuf, le mode headless et le routage initial. Le workflow dédié appelle :
+
+```sh
+node connectors/leboncoin-spike/diagnose-access.mjs --out "$RUNNER_TEMP/autofindex-leboncoin-access-diagnostic"
+```
+
+Le dossier doit être nouveau. La clé publique RSA 3072 bits et l'identité GitHub sont validées avant le démarrage du navigateur. Le programme appelle le collecteur une seule fois, sans relance. Le collecteur conserve sa limite globale de 30 secondes ; le parent arrête son groupe de processus après 45 secondes. Le mode de diagnostic s'arrête à l'observation du document et ne déplie pas les critères d'une éventuelle annonce.
+
+La capture utilise uniquement les événements CDP et au maximum un `Network.getResponseBody`, sans relecture réseau. Le document doit correspondre à la frame principale, au requestId, au loaderId et à l'URL attendue. Une redirection, une réutilisation d'identité ou un second document principal invalide son attribution. Les navigations supplémentaires initiées sont bloquées lorsqu'elles passent par le routage ; les redirections que le navigateur suit automatiquement restent observées et invalidantes. `goto_calls`, les événements document observés et les navigations admises/bloquées sont des compteurs distincts : aucun n'est présenté comme une preuve isolée du nombre exact de requêtes HTTP sur le réseau.
+
+Les tampons CDP sont limités à 64 Kio par ressource et 128 Kio pour la session. Le corps conservé est limité à 64 Kio ; une indisponibilité, une éviction, une ambiguïté ou un dépassement reste explicite. `cdp_body_sha256` identifie les octets fournis par CDP, éventuellement issus d'un texte réencodé en UTF-8. Il ne représente pas les octets HTTP compressés sur le réseau. Aucun screenshot ni profil/cookie de navigateur n'est exporté.
+
+### Sorties et récupération
+
+| Fichier | Contenu et destination |
+| --- | --- |
+| `public-diagnostic.json` | Reçu assaini : statuts, signes techniques, compteurs, heures, versions, tailles et empreintes. Publiable. |
+| `sealed-response.json` | Enveloppe chiffrée contenant le document attribué, les en-têtes sélectionnés et le corps CDP. Publiable sous cette forme chiffrée seulement. |
+| `attempt-1/attempt.json` | Rapport privé du collecteur ; aucun upload de ce dossier. |
+| `attempt-1/access-response.private.json` | Capture inerte privée, créée avec permissions 0600, dans un dossier 0700. Elle peut contenir des jetons et URL du corps reçu. |
+| `attempt-1/access-summary.json` et `attempt-1/sealed-response.json` | Résumé et enveloppe originaux, vérifiés par le parent avant publication des deux fichiers autorisés. |
+
+Les champs de `sealed-response.json` sont `schema_version`, `algorithm`, `key_fingerprint_sha256`, `aad_base64`, `wrapped_key_base64`, `nonce_base64`, `tag_base64` et `ciphertext_base64`. Le chiffrement est RSA-OAEP-SHA256 pour envelopper une nouvelle clé AES-256-GCM, avec nonce de 12 octets et tag de 16 octets. Le décodage de `aad_base64` donne les octets exacts à fournir à GCM : version, révision Git, run, tentative, identifiant de capture et empreinte de l'URL attendue. Leur contenu doit également correspondre au reçu et au run attendu. Seule la clé publique épinglée est présente dans le dépôt.
+
+Les logs `AUTO_FINDEX_ACCESS_DIAGNOSTIC` contiennent le reçu assaini. Les lignes `AUTO_FINDEX_SEALED` transportent les octets de la même enveloppe chiffrée en fragments de moins de 4 Kio. `decodeSealedFragments(lines)`, exporté par `access-diagnostic.mjs`, vérifie ordre, nombre, taille totale et SHA-256 avant de rendre les octets exacts de `sealed-response.json`. Il rejette les fragments manquants, inversés ou modifiés. Aucun texte brut n'est utilisé comme solution de secours. Le déchiffrement se fait séparément avec la clé privée conservée hors dépôt, puis le corps est inspecté comme donnée, sans exécuter ses scripts ni ouvrir ses URL.
+
+Le code de sortie 0 signifie qu'un diagnostic vérifié et chiffré est enregistré, y compris une réponse HTTP 403 ou une indisponibilité documentée. Le code 2 signifie que ce dossier de diagnostic n'a pas pu être produit. **Aucun de ces états ne qualifie l'accès durable aux annonces.** Les signes de JavaScript requis, vérification humaine, refus générique ou limitation de débit sont des observations de contenu, pas une attribution certaine à une règle serveur. `verification_markers_observed` est un indice textuel heuristique : le mot « captcha » peut aussi apparaître dans un script d'une page ordinaire. Seule l'inspection de la réponse déchiffrée permettra de qualifier un éventuel challenge explicite. Le premier reçu historique reste inchangé ; les résultats de ce nouvel essai seront consignés séparément.
+
 ## Limites de ce premier essai
 
 Trois fiches d'une même marque, choisies via des URL trouvées dans un moteur de recherche : échantillon de commodité, pas mesure représentative du catalogue. Les résultats du moteur n'alimentent pas les captures et ne sont pas comptés comme succès du connecteur.
