@@ -3,6 +3,7 @@
 ## Brief / Definition of Ready
 
 - Statut : IN_PROGRESS / OWN_ACCESS_BLOCKED, priorité utilisateur du 22 novembre 2026. Le runner démarre Chromium puis reçoit HTTP 403 sur sa seule navigation ; zéro extraction. [Résultat et limites](../../docs/validation/TASK-0137.md).
+- Suite explicitement demandée : [diagnostic inspectable du 403](../../docs/validation/TASK-0137-access-diagnostic.md), plan revu à publier avant code ; réponse privée récupérable, sans modification des paramètres d'accès ni promesse de correction du refus.
 - Responsable/exécutant : contexte Codex principal ; revue indépendante : contexte Codex distinct. Modèle annoncé GPT-6 Astra Pro ; effort effectif et coût non exposés, `unknown`.
 - Branche : `spike/0137-leboncoin-autonomous`, base TASK-0136 `e935eb923624894afd5ea8fc020cf14fb7e17c03`. PR empilée sur `spike/0136-leboncoin-feasibility`.
 - Résultat demandé : notre propre code ouvre une annonce réelle, enregistre les champs utiles puis recommence automatiquement à des dates distinctes. Une exécution planifiée qui échoue n'est pas une collecte réussie.
