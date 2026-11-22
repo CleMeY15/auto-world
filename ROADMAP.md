@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Collecte propre à AutoFindex — 22 novembre 2026
+
+[TASK-0135](roadmap/tasks/TASK-0135-owned-acquisition.md) ouvre, à la demande de l'utilisateur, une voie séparée pour notre moteur d'acquisition mondial et notre API. Première brique : capture HTTP bornée, conservation du contenu original, extraction automobile et historique via le SDK existant. [ADR-0036](docs/decisions/ADR-0036-owned-acquisition.md), [PR268](https://github.com/CleMeY15/auto-world/pull/268), [preuves](docs/validation/TASK-0135.md). La cible initiale est leboncoin ; aucune collecte réelle, permission de source ou couverture complète n'est établie par les tests sur serveur contrôlé. État : IN_PROGRESS, validation et revue de la branche séparée. Les autres voies et leurs qualifications conservent leur état.
+
 TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
 accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded
 two-solve [implementation and validation](docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-and-local-verification)

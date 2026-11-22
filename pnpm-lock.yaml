@@ -102,6 +102,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/vehicle-schema
 
+  connectors/http-acquisition:
+    dependencies:
+      '@auto-world/connector-sdk':
+        specifier: workspace:*
+        version: link:../_sdk
+      '@auto-world/source-registry':
+        specifier: workspace:*
+        version: link:../../packages/source-registry
+      '@auto-world/vehicle-schema':
+        specifier: workspace:*
+        version: link:../../packages/vehicle-schema
+      parse5:
+        specifier: 8.1.1
+        version: 8.1.1
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.2
+        version: 22.20.2
+
   connectors/synthetic:
     devDependencies:
       '@auto-world/connector-sdk':
@@ -957,6 +976,10 @@ packages:
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
+  entities@9.0.0:
+    resolution: {integrity: sha512-oJFNDJg3kTPwAD1cNn2+WmUq4wFoo09npc3Ydf1D7ED4smRiWrsKnaLxykrTWgyGEcusc87P5dxlAleol9kpkg==}
+    engines: {node: '>=20.19.0'}
+
   environment@1.1.0:
     resolution: {integrity: sha512-xUtoPkMggbz0MPyPiIWr1Kp4aeWJjDZ6SMvURhimjdZgsRuDplF5/s9hcgGhyXMhs+6vpnuoiZ2kFiu3FMnS8Q==}
     engines: {node: '>=18'}
@@ -1254,6 +1277,9 @@ packages:
   p-map@7.0.7:
     resolution: {integrity: sha512-VaWRu2i4FJNRtiRWCuuQRgfQ1B7a6+gMSrO+3j0EQi/k0ULfS9kosRxGoiqwzIjZTDI02tGfk5mXXltLg6QtfQ==}
     engines: {node: '>=18'}
+
+  parse5@8.1.1:
+    resolution: {integrity: sha512-EcR/6WDcU7b2N3vQSxKALCk9lXGtUMQxXio008OEMBE0kavu/7JLfBEeFPzi43nMqVDSbEn3QCK+BMCc9zO//w==}
 
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
@@ -2316,6 +2342,8 @@ snapshots:
 
   emoji-regex@8.0.0: {}
 
+  entities@9.0.0: {}
+
   environment@1.1.0: {}
 
   escalade@3.2.0: {}
@@ -2635,6 +2663,10 @@ snapshots:
       p-limit: 3.1.0
 
   p-map@7.0.7: {}
+
+  parse5@8.1.1:
+    dependencies:
+      entities: 9.0.0
 
   path-exists@4.0.0: {}
 
