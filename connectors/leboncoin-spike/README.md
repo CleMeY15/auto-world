@@ -105,6 +105,26 @@ Les logs `AUTO_FINDEX_ACCESS_DIAGNOSTIC` contiennent le reçu assaini. Les ligne
 
 Le code de sortie 0 signifie qu'un diagnostic vérifié et chiffré est enregistré, y compris une réponse HTTP 403 ou une indisponibilité documentée. Le code 2 signifie que ce dossier de diagnostic n'a pas pu être produit. **Aucun de ces états ne qualifie l'accès durable aux annonces.** Les signes de JavaScript requis, vérification humaine, refus générique ou limitation de débit sont des observations de contenu, pas une attribution certaine à une règle serveur. `verification_markers_observed` est un indice textuel heuristique : le mot « captcha » peut aussi apparaître dans un script d'une page ordinaire. Seule l'inspection de la réponse déchiffrée permettra de qualifier un éventuel challenge explicite. Le premier reçu historique reste inchangé ; les résultats de ce nouvel essai seront consignés séparément.
 
+## Parcours automatique normal — essai isolé
+
+Le [plan](../../docs/validation/TASK-0137-normal-flow.md) ajoute `probe-native-flow.mjs`, avec `native-flow.mjs` et ses tests hors réseau. Les anciens collecteurs et diagnostics restent distincts. Entrée prévue pour le workflow dédié :
+
+```sh
+node connectors/leboncoin-spike/probe-native-flow.mjs --out "$RUNNER_TEMP/autofindex-leboncoin-native-flow"
+```
+
+Le programme conserve Chromium/Playwright, UA/viewport par défaut, mode headless, sandbox et contexte neuf. Il laisse se charger les ressources HTTP(S), images et iframes normales. Les cookies créés par la navigation restent natifs au contexte : aucun import, fabrication, lecture ou export de cookie. Une invocation `goto`, puis au plus un retour automatique exact après le 403 initial ; aucun `reload`, second `goto`, clic ou résolution de vérification n'est émis par le programme. Navigation inattendue, redirection, popup, 429 pertinent, refus explicite ou demande humaine visible arrêtent le parcours. Un domaine contenant « captcha » ou une simple attente de vérification ne suffit pas à conclure à un CAPTCHA interactif.
+
+Le budget global reste 30 secondes depuis le début du collecteur, sans remise à zéro au retour. Le parent déclenche la terminaison du groupe enfant à 45 secondes, puis dispose de deux secondes supplémentaires avant la destruction forcée si nécessaire. Un parcours inachevé à l'échéance reste `verification_timeout` ; cela ne prouve pas un refus définitif.
+
+La preuve privée conserve séparément les identités CDP, heures et statuts du document initial et de l'éventuel retour. Une lecture passive facultative du corps initial conserve au maximum 8 Kio, sans fallback et avec garde d'attribution avant/après lecture et avant chiffrement. Le DOM final reste un échantillon rendu, jamais un corps HTTP. Jusqu'à quatre frames visibles sont conservées, au maximum 4 Kio sérialisés chacune ; les frames omises ou inaccessibles rendent la couverture explicitement incomplète. « Aucun CAPTCHA observé » ne certifie pas son absence. Une couverture incomplète ne qualifie pas une collecte réussie.
+
+L'extraction réutilise le parseur existant, sans déplier de critères : HTTP 200 final à l'URL exacte, titre visible, prix/kilométrage/marque/modèle valides, aucune anomalie et identité de document stable jusqu'à la fermeture du navigateur. Le snapshot est plafonné à 64 Kio, la normalisation à 32 Kio et le dossier complet à **128 Kio de JSON réellement sérialisé**, échappements inclus. Un dépassement devient `evidence_limit`, sans succès de collecte.
+
+Les deux sorties publiables sont `public-native-flow.json` et `sealed-native-flow.json`. Le reçu contient `collection_success` séparément de `evidence_status`, ainsi que `initial_status`, `return_status`, les compteurs, dates et empreintes. Le dossier `attempt-1/` reste privé, notamment `native-flow.private.json`. Les logs `AUTO_FINDEX_NATIVE_FLOW` contiennent le reçu fermé ; les fragments `AUTO_FINDEX_SEALED` transportent exactement l'enveloppe chiffrée, selon le même protocole vérifié précédemment. L'AAD utilise `nativeFlowIdentity(env, capture_id)` avec la version `leboncoin-native-flow-capture/v1`.
+
+Un job vert signifie que la preuve chiffrée a été conservée. Seul `collection_success: true` établit une extraction dans cet essai ; ni répétition réussie ni couverture du catalogue n'en découlent.
+
 ## Limites de ce premier essai
 
 Trois fiches d'une même marque, choisies via des URL trouvées dans un moteur de recherche : échantillon de commodité, pas mesure représentative du catalogue. Les résultats du moteur n'alimentent pas les captures et ne sont pas comptés comme succès du connecteur.

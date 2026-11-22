@@ -42,4 +42,26 @@ TASK-0137 reste IN_PROGRESS tant que la collecte propre répétée n'est pas pro
 - [DataDome response pages](https://docs.datadome.co/docs/response-pages) : les trois états sont distincts.
 - [Tag JavaScript et iframes DataDome](https://docs.datadome.co/docs/javascript-tag).
 
-Implémentation et essai non encore réalisés à la publication du présent plan. Les preuves seront ajoutées après exécution.
+Le plan a été publié dans PR270 sur `61aec6f13794a20fc892d38553e943747ec8131e` avant le code. Le workflow dédié a reçu une revue indépendante favorable de ses gardes, actions épinglées et chemins de publication. Le code est en réalisation ; aucun résultat en ligne n'est encore attribué à cette tranche.
+
+Un [dossier préparatoire d'identification du robot](TASK-0137-bot-access.md) est disponible si le parcours normal aboutit à un refus. Il distingue vérification de l'identité par DataDome et décision d'accès du site ; aucune soumission externe n'a été effectuée.
+
+### Réalisation locale et contrôles
+
+Proposition complète et contrôles locaux présentés le 22 novembre 2026 à 14:00 UTC. Trois fichiers isolés ajoutent le tracker et parcours, la supervision CLI et les tests. Le collecteur historique et son diagnostic restent inchangés. Le délai fonctionnel du navigateur reste de 30 secondes ; le parent demande une terminaison à 45 secondes, puis force l'arrêt du groupe possédé après deux secondes supplémentaires si nécessaire.
+
+- Exécutant : `node --test tests/leboncoin-spike.test.mjs`, **74/74 PASS**, zéro échec/exclusion/retry ; ESLint ciblé PASS.
+- Responsable : Secretlint **1 689 fichiers PASS** ; portée/gardes YAML et diff PASS.
+- Prérevue indépendante : correction d'une possible attribution erronée du corps après redirection réutilisant son identifiant ; contrôle ajouté avant/après lecture et avant chiffrement. Les tests conservent aussi le cas valide d'un retour automatique avec un nouvel identifiant.
+- Détection : ajout des demandes explicites « press and hold » sans confondre une attente automatique. Une dernière revue locale a remplacé la vérification de visibilité d'iframe par une vérification tenant compte de l'opacité ; les 74 tests et le lint ont été réexécutés, puis Secretlint repassé sur le gel final. Ces reprises sont conservées, sans présenter le premier jet comme exempt de défaut.
+
+SHA-256 des fichiers gelés :
+
+| Fichier | Empreinte |
+| --- | --- |
+| `native-flow.mjs` | `dae94a9adb8870b4dd7d404daa176bdb2648acaf6e5643b7e064cc44d0a8d7ba` |
+| `probe-native-flow.mjs` | `bc3304a7f2d4ccac8b85401ae794c06e9d9311ce2af0142a066df1e19cea47ac` |
+| `native-flow.test.mjs` | `5fd4e84a585b3740f9e559100b27c2306d91be460f7f882a281e51dbbc4fbe28` |
+| `leboncoin-native-flow.yml` | `6acc7919225d0b61494511739e07613ef22e7919ab621ceb2a9ae51dfadbb36a` |
+
+Revue finale indépendante : **APPROUVÉ**, aucun défaut bloquant restant sur les cinq fichiers code/tests/workflow vérifiés. Le reviewer a confirmé les corrections sur leurs empreintes finales, sans relancer les contrôles ni effectuer de requête source. Le résultat réel reste à enregistrer ; aucun accès source local ni succès de collecte anticipé, gates CI généraux séparés.
