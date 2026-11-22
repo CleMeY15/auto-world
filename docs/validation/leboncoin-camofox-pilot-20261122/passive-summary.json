@@ -1,0 +1,150 @@
+{
+  "schema_version": "leboncoin-camofox-pilot-summary/v2",
+  "manifest_sha256": "df2236de53548fb82abc89a5191bded281f8624351d122ac76c4994b3b338589",
+  "plan": {
+    "schema_version": "leboncoin-camofox-pilot-plan/v2",
+    "seeds": [
+      {
+        "id": "3305814470",
+        "url": "https://www.leboncoin.fr/ad/voitures/3305814470"
+      },
+      {
+        "id": "3312238672",
+        "url": "https://www.leboncoin.fr/ad/voitures/3312238672"
+      },
+      {
+        "id": "3308374007",
+        "url": "https://www.leboncoin.fr/ad/voitures/3308374007"
+      }
+    ],
+    "rounds": 2,
+    "between_observations_ms": 30000,
+    "between_rounds_ms": 300000,
+    "max_observations": 6,
+    "browser_context": "fresh_instance_per_observation",
+    "retries": 0,
+    "passive_settle_ms": 5000
+  },
+  "started_at": "2026-11-22T17:52:10.026Z",
+  "completed_at": "2026-11-22T17:53:00.056Z",
+  "planned_observations": 6,
+  "attempted_observations": 2,
+  "successful_observations": 1,
+  "not_attempted": 4,
+  "stop_reason": "verification_present",
+  "round_gap_ms": null,
+  "observations": [
+    {
+      "id": "3305814470",
+      "round": 1,
+      "ordinal": 1,
+      "outcome": "listing_observed",
+      "started_at": "2026-11-22T17:52:10.030Z",
+      "completed_at": "2026-11-22T17:52:19.578Z",
+      "identity": {
+        "schema_version": "leboncoin-camofox-capture/v1",
+        "commit_sha": "8181d3fc5854e9a70259f0102b19d1e3ad44f743",
+        "github_run_id": "45051751652",
+        "github_run_attempt": 1,
+        "capture_id": "3a878e18538f50e984fe362fc187a185",
+        "target_url_sha256": "b9b1cde16ec7289d8c02611b067817efc400f43fa57ac07e8813a3e7e14e9e60",
+        "pilot_round": 1,
+        "pilot_ordinal": 1,
+        "pilot_manifest_sha256": "df2236de53548fb82abc89a5191bded281f8624351d122ac76c4994b3b338589"
+      },
+      "sealed_sha256": "70fc8d9ee9936d65e080212b692839dc2ec9f84a3abe03970e20bb0975c4500d",
+      "sealed_bytes": 25473,
+      "dom_sha256": "c77273b9b313e14d7d35d9b375243a63330aa2cf1150a5791b1e1a9013803e49",
+      "original_receipt_outcome": "partial_or_unknown",
+      "previous_observation_gap_ms": null,
+      "navigation_status": 200,
+      "api_status": 200,
+      "navigation_status_scope": "initial_goto_reported_by_camofox",
+      "general_snapshot_truncated": true,
+      "passive_settling_observed": false,
+      "passive_waited_ms": null,
+      "initial_dom_sha256": null,
+      "initial_verification_observed": false,
+      "final_verification_observed": false,
+      "core_fields_observed": true,
+      "model_year_observed": true,
+      "issues_count": 0,
+      "criteria_count": 8,
+      "photo_references_count": 3,
+      "photos_downloaded": false,
+      "normalized_sha256": "37a36b16a268bab88bc7917fb55534f130e23af30e19dccf915c8ee4f2140228",
+      "values_sha256": "02a80d4b2a7c5469ec5c0fc16d4d740fb4f8806ab522db135ebcbe03e93bf508",
+      "cleanup_established": true,
+      "http_response_body": "not_captured",
+      "frame_body_coverage": "not_established"
+    },
+    {
+      "id": "3312238672",
+      "round": 1,
+      "ordinal": 2,
+      "outcome": "verification_present",
+      "started_at": "2026-11-22T17:52:49.608Z",
+      "completed_at": "2026-11-22T17:53:00.050Z",
+      "identity": {
+        "schema_version": "leboncoin-camofox-capture/v1",
+        "commit_sha": "8181d3fc5854e9a70259f0102b19d1e3ad44f743",
+        "github_run_id": "45051751652",
+        "github_run_attempt": 1,
+        "capture_id": "0af66b9e27720b337670d6d911eb43e2",
+        "target_url_sha256": "57bf6a4a9b0a0ffd9775402b13289500a55600b7d30b14c4186c922434f4f0b5",
+        "pilot_round": 1,
+        "pilot_ordinal": 2,
+        "pilot_manifest_sha256": "df2236de53548fb82abc89a5191bded281f8624351d122ac76c4994b3b338589"
+      },
+      "sealed_sha256": "8610ed02c1ebdd1e0b42f7fc8c168bf4fb8c05751ebfe0b335af84697e755b5f",
+      "sealed_bytes": 54205,
+      "dom_sha256": "654997b62bcd027dc2785548810df66d714581d2746427ac22907913fea26fed",
+      "original_receipt_outcome": "verification_present",
+      "previous_observation_gap_ms": 30030,
+      "navigation_status": 200,
+      "api_status": 200,
+      "navigation_status_scope": "initial_goto_reported_by_camofox",
+      "general_snapshot_truncated": false,
+      "passive_settling_observed": true,
+      "passive_waited_ms": 5002,
+      "initial_dom_sha256": "599680ae9ce2f7566c2c8c79da77d36bc85d639ff92f2a4781c10fe058d0368c",
+      "initial_verification_observed": true,
+      "final_verification_observed": true,
+      "core_fields_observed": false,
+      "model_year_observed": false,
+      "issues_count": null,
+      "criteria_count": 0,
+      "photo_references_count": 0,
+      "photos_downloaded": false,
+      "normalized_sha256": null,
+      "values_sha256": null,
+      "cleanup_established": true,
+      "http_response_body": "not_captured",
+      "frame_body_coverage": "not_established"
+    }
+  ],
+  "repeat_pairs": [
+    {
+      "id": "3305814470",
+      "gap_ms": null,
+      "repeat_observed": false,
+      "changed_fields": null
+    },
+    {
+      "id": "3312238672",
+      "gap_ms": null,
+      "repeat_observed": false,
+      "changed_fields": null
+    },
+    {
+      "id": "3308374007",
+      "gap_ms": null,
+      "repeat_observed": false,
+      "changed_fields": null
+    }
+  ],
+  "small_sample_repeatability_observed": false,
+  "recurring_collection_proven": false,
+  "catalog_coverage_proven": false,
+  "product_database_updated": false
+}

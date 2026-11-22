@@ -1,5 +1,39 @@
 # TASK-0137 — Pilote Camofox sur trois annonces
 
+## Résultat final de cette fenêtre — 22 novembre 2026
+
+**Deux annonces ont fourni leurs données dans deux campagnes distinctes, espacées d'environ douze minutes. Le protocole complet de trois annonces sur deux passages n'a pas été réalisé.** Chaque campagne s'arrête à la deuxième annonce parce qu'un cadre de vérification reste détecté, alors que ses données automobiles sont présentes. État de la tâche : IN_PROGRESS / REPEAT_PENDING ; aucun collecteur permanent ni registre/base produit activé.
+
+| Campagne | Révision exécutée | Ouvertures tentées / prévues | DOM automobiles valides après rejeu | Observations qualifiées par le protocole |
+| --- | --- | --- | --- | --- |
+| [Initiale, run 45050640500](https://github.com/CleMeY15/auto-world/actions/runs/45050640500) | `668680d4b08fe6acd68341ced8b82f4f2979c801` | 2 / 6 | 2 | 1 ; arrêt verification_present |
+| [Observation passive, run 45051751652](https://github.com/CleMeY15/auto-world/actions/runs/45051751652) | `8181d3fc5854e9a70259f0102b19d1e3ad44f743` | 2 / 6 | 2, y compris avant/après attente | 1 ; arrêt verification_present |
+
+Les quatre réponses de navigation initiale sont HTTP 200 ; ce constat ne couvre pas les statuts des sous-requêtes. Les trois paires prévues et la pause inter-passage de cinq minutes ne sont atteintes dans aucune campagne. Le Macan n'a pas été ouvert par ces deux campagnes : aucun échec d'accès ne lui est attribué.
+
+### Données effectivement relues
+
+| Annonce | Modèle | Année modèle structurée | Prix | Kilométrage | Comparaison des huit champs suivis |
+| --- | --- | --- | --- | --- | --- |
+| 3305814470 | Porsche 911 Carrera S | 2021 | 146 990 EUR | 23 000 km | Identiques entre campagnes |
+| 3312238672 | Porsche 911 Carrera | 2020 | 119 900 EUR | 29 800 km | Identiques entre campagnes |
+
+Chaque capture contient huit critères et trois références de photos ; aucun fichier photo téléchargé. La deuxième annonce mentionne 2021 dans son titre mais 2020 dans le champ Année modèle : la divergence est conservée. Les débuts d'observation sont espacés de 701 826 ms et 705 684 ms ; les écarts fin-début correspondants sont 696 137 ms et 700 537 ms. Il s'agit de deux campagnes différentes, pas d'une validation rétroactive des passages manquants. [Comparaison factuelle](leboncoin-camofox-pilot-20261122/content-comparison.json).
+
+### Résultat de l'attente passive
+
+Dans la campagne complémentaire, la deuxième annonce est observée à 17:52:54.589 UTC, puis le programme attend **5 002 ms**. La relecture finit à 17:52:59.910 UTC ; nettoyage terminé à 17:53:00.050 UTC. Le même chemin /interstitial/ est encore signalé par le contrôle de visibilité. Les valeurs automobiles initiales et finales sont présentes et identiques. Il n'y a ni nouvelle ouverture de cette annonce, ni clic, ni reload, ni interaction CAPTCHA.
+
+Le signal de vérification ne disparaît donc pas pendant cette attente. La capture ne conserve pas les dimensions, la position, l'occlusion ni le contenu interne du cadre ; elle ne permet pas d'affirmer qu'il recouvre la fiche, empêche sa consultation ou exige une interaction humaine. L'arrêt est celui de la règle du pilote face à ce signal, et ne doit être présenté ni comme une absence de données, ni comme un HTTP 403, ni comme un refus humain confirmé. Avant une nouvelle expérience, distinguer géométrie/affichage réel et résultat du contrôle plutôt que multiplier les mêmes essais.
+
+### Preuves et clôture de l'essai
+
+Les reçus [initial](leboncoin-camofox-pilot-20261122/initial-summary.json) et [complémentaire](leboncoin-camofox-pilot-20261122/passive-summary.json) sont conservés sans réécriture. Pour la campagne complémentaire : 37 fragments, deux enveloppes, identités/AAD/SHA/tailles/DOM/chronologie vérifiés et déchiffrement authentifié effectué par le coordinateur. Rejeu de la deuxième fiche avant/après attente et comparaison entre campagnes vérifiés séparément. Revue indépendante finale favorable sur les preuves, sans lecture de clé privée ni nouvelle requête source.
+
+Les journaux attestent une ouverture par annonce, une paire de lectures pour la première et deux pour la seconde ; neuf processus suivis et zéro restant par observation. Les 61 tests passent dans le job natif Node 22.23.2. Son statut SUCCESS atteste l'exécution et la conservation des preuves, pas la réussite du protocole de répétabilité. Artefact complémentaire 14765288129, 65 799 octets, expiration 29 novembre 2026 ; preuves vérifiées depuis les fragments chiffrés des logs, ZIP non téléchargé localement.
+
+La collecte continue, la découverte du catalogue, la couverture des photos, l'installation durable et l'alimentation du produit restent non démontrées. Les workflows sont bornés à leurs commits/runs ; le pilote ChatGPT historique reste désactivé. Aucun nouveau retry ni service permanent activé après cette fenêtre. Les plans et validations historiques ci-dessous conservent leur périmètre.
+
 ## Pilote de répétabilité Camofox — plan du 22 novembre 2026
 
 Autorisation utilisateur : « Vas-y on fait ça », après proposition d'un petit pilote multi-annonces et répété. Propriétaire : coordinateur Codex ; implémentation, tests ciblés délégués et revue indépendante en contextes distincts, modèle/effort hérités sans changement demandé (effort exact non exposé). Périmètre TASK-0137, branche existante ; point de départ ff7b9558ba5f0e672619ee77cad2ac7086e42903.

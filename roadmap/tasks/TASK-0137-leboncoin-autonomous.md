@@ -1,6 +1,10 @@
 # TASK-0137 — Prouver une collecte leboncoin autonome et répétée
 
-## Dernier résultat — 22 novembre 2026, Camofox
+## Dernier résultat — pilote Camofox du 22 novembre 2026
+
+**IN_PROGRESS / REPEAT_PENDING.** Les campagnes 45050640500 (source 668680d4) et 45051751652 (source 8181d3fc) ont chacune lu les champs de deux annonces avec HTTP 200 initial. Les valeurs comparées sont identiques à environ douze minutes d'écart. Le protocole qualifie la première fiche, puis s'arrête à la deuxième sur un cadre de vérification détecté, même après l'attente passive de 5 002 ms de la campagne complémentaire. Le DOM de la deuxième annonce reste exploitable ; ne pas convertir son statut de qualification en absence de données. La géométrie et le contenu interne du cadre ne sont pas établis, donc aucun blocage visuel ou demande humaine précise ne peut être déduit. Troisième annonce et secondes passes non atteintes. [Compte rendu complet, plans, tests et reçus originaux](../../docs/validation/TASK-0137-camofox-pilot.md). Revue indépendante des sources et preuves favorable ; 61 tests ciblés passent aussi en natif. Aucune collecte continue, catalogue complet, base produit ou source activée. Les étapes suivantes sont historiques et ne remplacent pas ce bilan.
+
+## Essai ponctuel antérieur — 22 novembre 2026, Camofox
 
 **IN_PROGRESS / OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING.** Le [run Camofox](https://github.com/CleMeY15/auto-world/actions/runs/45048184974) reçoit HTTP 200 et permet de relever les champs centraux de la même annonce. [Compte rendu et reçu original](../../docs/validation/TASK-0137-camofox.md). Relecture indépendante favorable ; le reçu automatique conservateur reste partiel à cause du snapshot tronqué, tandis que le DOM et les champs normalisés sont vérifiés. Aucun passage récurrent ni accès à l'ensemble du catalogue prouvé ; aucune production modifiée. Les étapes Chromium ci-dessous sont historiques. La piste email et le dossier de contact restent en pause.
 

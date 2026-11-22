@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Pilote Camofox — deux annonces relues, contrôle non résolu
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : deux campagnes réelles ont chacune obtenu les données de deux annonces avec des goto initiaux HTTP 200. Valeurs comparées identiques à environ douze minutes d'écart. Chaque campagne s'arrête à la deuxième fiche sur un cadre de vérification détecté ; celui-ci persiste après l'attente passive de 5 002 ms de la seconde campagne, sans disparition des champs automobiles. Troisième annonce et secondes passes non atteintes. [Bilan, preuves et limites](docs/validation/TASK-0137-camofox-pilot.md). IN_PROGRESS / REPEAT_PENDING ; aucune collecte continue, source ou base produit activée. Les checkpoints plus bas sont historiques. Le pilote ChatGPT antérieur reste désactivé.
+
 ## Essai Camofox — accès ponctuel confirmé le 22 novembre 2026
 
 [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le [run Camofox 45048184974](https://github.com/CleMeY15/auto-world/actions/runs/45048184974), source 1821670e, reçoit HTTP 200 et observe la même annonce Porsche 911 (2021, 23 000 km, 146 990 EUR). Champs centraux extraits et preuves relues. Le reçu automatique reste partiel à cause du snapshot général tronqué ; le DOM structuré confirme les données. [Preuves et portée](docs/validation/TASK-0137-camofox.md). État : OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING. Aucune collecte régulière, activation de source ou intégration en base n'est déduite. La piste email reste en pause ; les essais Chromium précédents gardent leurs résultats historiques.
