@@ -15,7 +15,7 @@ const MAX_API_BYTES = 128 * 1024;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const status = (value) => Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
 
-export function classifyCamofox(record) {
+export function classifyCamofox(record, targetUrl = ACCESS_TARGET_URL) {
   const navigation = record?.navigation;
   const dom = record?.dom;
   const text = [dom?.title, dom?.text, record?.snapshot?.snapshot,
@@ -24,8 +24,8 @@ export function classifyCamofox(record) {
     || /you (?:have been|are) blocked|access denied|access is temporarily restricted|acc[èe]s refus[ée]|request blocked/iu.test(text)) return "source_refused";
   if (/verify (?:that )?you are human|verification required|v[ée]rifiez que vous [êe]tes (?:un )?humain|slide right|press and hold|checking your browser|please enable (?:js|javascript) and disable/iu.test(text)
     || (dom?.frames ?? []).some((frame) => frame.visible && /captcha-delivery\.com|recaptcha|hcaptcha/iu.test(`${frame.src} ${frame.title}`))) return "verification_present";
-  if (record?.api_status === 200 && navigation?.httpStatus === 200 && navigation.url === ACCESS_TARGET_URL
-    && dom?.url === ACCESS_TARGET_URL && record?.snapshot?.truncated === false
+  if (record?.api_status === 200 && navigation?.httpStatus === 200 && navigation.url === targetUrl
+    && dom?.url === targetUrl && record?.snapshot?.truncated === false
     && dom?.listing?.titles?.length === 1 && typeof dom.listing.titles[0] === "string" && dom.listing.titles[0].trim().length > 0
     && dom?.listing?.prices?.length === 1 && typeof dom.listing.prices[0] === "string"
     && /^(\d+|\d{1,3}(?:[ \u00a0\u202f]\d{3})+)(?:[,.]\d{1,2})?[ \u00a0\u202f]*€$/u.test(dom.listing.prices[0].trim())) return "listing_page_observed";
@@ -42,10 +42,11 @@ function readPage() {
 }
 
 /** One creation only; later API operations read the already-open page. */
-export async function probeOnce(api) {
+export async function probeOnce(api, targetUrl = ACCESS_TARGET_URL) {
+  if (!/^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/[1-9][0-9]{0,19}$/u.test(targetUrl)) throw new Error("invalid_target");
   const record = { stage: "create", api_status: null, navigation: null, dom: null, snapshot: null, creation_calls: 1 };
   try {
-    const opened = await api("POST", "/tabs", { userId: USER_ID, sessionKey: "single", url: ACCESS_TARGET_URL }, 40_000);
+    const opened = await api("POST", "/tabs", { userId: USER_ID, sessionKey: "single", url: targetUrl }, 40_000);
     record.api_status = status(opened.status);
     record.create_response = opened.data;
     if (opened.status !== 200 || !opened.data || typeof opened.data.tabId !== "string"
@@ -148,11 +149,16 @@ export async function stopOwnedProcesses(rootPid) {
   return { established: settled && remaining === 0, tracked: owned.size, remaining };
 }
 
-async function main(args) {
-  if (args.length !== 4 || args[0] !== "--runtime" || args[2] !== "--out" || process.platform !== "linux") throw new Error("invalid_arguments");
-  const runtime = resolve(args[1]); const out = resolve(args[3]);
+export async function captureCamofox({ runtime, out, targetUrl = ACCESS_TARGET_URL, pilotContext = null }) {
+  if (process.platform !== "linux" || typeof runtime !== "string" || typeof out !== "string"
+    || !/^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/[1-9][0-9]{0,19}$/u.test(targetUrl)) throw new Error("invalid_arguments");
+  if (pilotContext && (![1, 2].includes(pilotContext.round) || !Number.isInteger(pilotContext.ordinal)
+    || pilotContext.ordinal < 1 || pilotContext.ordinal > 6 || !/^[a-f0-9]{64}$/u.test(pilotContext.manifestSha))) throw new Error("diagnostic_identity_invalid");
+  runtime = resolve(runtime); out = resolve(out);
   const key = await loadDiagnosticPublicKey();
-  const identity = { ...diagnosticIdentity(process.env), schema_version: "leboncoin-camofox-capture/v1" };
+  const identity = { ...diagnosticIdentity(process.env), schema_version: "leboncoin-camofox-capture/v1", target_url_sha256: hash(targetUrl),
+    ...(pilotContext ? { pilot_round: pilotContext.round, pilot_ordinal: pilotContext.ordinal,
+      pilot_manifest_sha256: pilotContext.manifestSha } : {}) };
   await mkdir(out, { mode: 0o700 });
   const packageJson = JSON.parse(await readFile(join(runtime, "package.json"), "utf8"));
   if (packageJson.name !== "@askjo/camofox-browser" || packageJson.version !== "1.19.0") throw new Error("runtime_mismatch");
@@ -187,7 +193,7 @@ async function main(args) {
       } catch { /* Only local startup readiness is polled; no source request. */ }
       await delay(250);
     }
-    if (ready) record = await probeOnce(api);
+    if (ready) record = await probeOnce(api, targetUrl);
   } finally {
     controller.abort();
     cleanup = await stopOwnedProcesses(child.pid);
@@ -195,7 +201,7 @@ async function main(args) {
     globalThis.clearTimeout(timer);
   }
   const completed = new Date().toISOString();
-  const outcome = classifyCamofox(record);
+  const outcome = classifyCamofox(record, targetUrl);
   const capture = { identity, started_at: started, completed_at: completed, camofox_revision: CAMOFOX_REVISION,
     camofox_version: packageJson.version, browser_manifest: browserManifest, node: process.version,
     evidence_kind: "camofox_rest_status_and_rendered_dom", http_response_body: "not_exposed_by_rest_api",
@@ -208,7 +214,7 @@ async function main(args) {
     engine: "camofox_firefox", outcome, listing_page_observed: outcome === "listing_page_observed",
     recurring_collection_proven: false, creation_calls: record.creation_calls, api_status: status(record.api_status),
     navigation_status: status(record.navigation?.httpStatus), navigation_status_scope: "initial_goto_reported_by_camofox",
-    final_url_matches: record.dom?.url === ACCESS_TARGET_URL,
+    final_url_matches: record.dom?.url === targetUrl,
     title_observed: !!record.dom?.listing?.titles?.some((item) => typeof item === "string" && item.trim()),
     price_observed: !!record.dom?.listing?.prices?.some((item) => typeof item === "string" && item.trim()),
     process_started: processStarted, process_exited: processExited, cleanup, http_response_body: "not_captured",
@@ -216,6 +222,12 @@ async function main(args) {
     dom_sha256: record.dom ? hash(JSON.stringify(record.dom)) : null };
   await writeFile(join(out, "sealed-camofox.json"), sealed, { mode: 0o600, flag: "wx" });
   await writeFile(join(out, "public-camofox.json"), `${JSON.stringify(receipt)}\n`, { mode: 0o600, flag: "wx" });
+  return { capture, receipt, sealed };
+}
+
+async function main(args) {
+  if (args.length !== 4 || args[0] !== "--runtime" || args[2] !== "--out") throw new Error("invalid_arguments");
+  const { receipt, sealed } = await captureCamofox({ runtime: args[1], out: args[3] });
   process.stdout.write(`AUTO_FINDEX_CAMOFOX ${JSON.stringify(receipt)}\n`);
   for (const line of encodeSealedFragments(sealed)) process.stdout.write(`${line}\n`);
 }

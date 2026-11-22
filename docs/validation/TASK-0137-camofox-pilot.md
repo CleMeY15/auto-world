@@ -16,6 +16,23 @@ Autorisation utilisateur : « Vas-y on fait ça », après proposition d'un peti
 
 Prérevue indépendante favorable sur ce protocole. Implémentation et essai à venir ; aucun résultat de répétabilité anticipé.
 
-## Résultats
+## Implémentation et validation locale
 
-Implémentation et exécution en préparation ; aucun résultat supplémentaire établi.
+Le plan documentaire est publié dans `f3c30d19afedcd796804e84b2a63bc4c93175cb5`. Le lecteur historique garde sa cible et son comportement par défaut ; un export paramétrable permet trois cibles fixes. Le pilote ajoute les identités par passage/ordinal/manifeste, un verdict de normalisation distinct du snapshot général, un bilan fermé et une preuve chiffrée séparée par observation. Les fichiers de profils et cookies ne sont pas dans les artefacts.
+
+- `node --test connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs` : **41 PASS**, zéro échec/exclusion/retry, Node 24.22.3 local ; nouvelle exécution Node 22.23.2 prévue dans le job natif.
+- `pnpm exec eslint ...` : lancement refusé avant lint, versions locales pnpm 11.25.0 / Node 24.22.3 différentes des versions prescrites. Aucun seuil ni exigence modifié.
+- `node node_modules/eslint/bin/eslint.js connectors/leboncoin-spike/probe-camofox.mjs connectors/leboncoin-spike/pilot-camofox.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs --max-warnings=0` : **PASS**, linter installé du dépôt exécuté directement.
+- `node scripts/check-secrets.mjs` : **PASS**, 1 698 fichiers.
+- Syntaxe YAML, garde du parent de plan, absence de schedule durable, disponibilité de la clé de déchiffrement et `git diff --check` : **PASS**.
+- Aucun package TypeScript, application ou schéma de production changé ; les gates généraux GitHub restent distincts de ces contrôles ciblés.
+
+Prérevue et revue finale indépendantes favorables. Défaut trouvé avant présentation et corrigé : contrôler également les intervalles entre horodatages des captures, pas seulement les attentes du programme. Le cas contradictoire est couvert par un test. Les captures synthétiques des tests ne servent pas de preuve d'accès réel.
+
+Empreintes source gelées avant exécution : probe `868a5b0c8a87612d558af6e0abced678e42ee2fad829b1d52b5d1574518e45bf`, pilote `0893a5f0678aa69c6ceaaa3b02eef9cdf462f8d5331b7d06ec72b37d703f1df8`, tests `ecfefde56c927a86bcbccaa73157545ee698516382b4d8026da13fd1eefdb35f`, workflow `f93486cba3e4e03ccdc16b5aa6d5eff652b83160d720d699b176866973e63c7f`.
+
+Les comparaisons portent sur les huit champs normalisés title, brand, model, model_year, price, mileage, issuance_date et vin ; elles ne portent pas sur toute la page. Les valeurs et la normalisation sont reconstructibles depuis le DOM chiffré et la source figée ; seuls leurs hashes sont dans le bilan public. Le statut HTTP est celui du goto initial rapporté par Camofox, pas un statut final corrélé. Corps HTTP et couverture complète des iframes restent non établis. Les photos sont des références, pas des fichiers téléchargés.
+
+## Résultats réels
+
+Exécution native à lancer ; aucun résultat supplémentaire établi. Le pilote horaire ChatGPT antérieur a été relu comme désactivé avant ce lancement ; il reste distinct et n'a pas été réactivé.
