@@ -1,0 +1,3 @@
+// Run the isolated connector's offline contract tests in the existing root CI suite.
+import "../connectors/leboncoin-spike/extract.test.mjs";
+import "../connectors/leboncoin-spike/capture-dom.test.mjs";

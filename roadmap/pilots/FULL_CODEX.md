@@ -1,5 +1,7 @@
 # Pilote de développement full Codex
 
+22 novembre 2026 : [TASK-0136, essai réel leboncoin](../tasks/TASK-0136-leboncoin-feasibility.md), priorité utilisateur avant la suite du produit, hors cohorte des six tâches. Plan en [PR269](https://github.com/CleMeY15/auto-world/pull/269) avant implémentation ; root pilote et observe, spécialistes extraction/runtime, revue indépendante en lecture seule. Préflight exploratoire antérieur au plan : GET 403, navigateur cloud lisible. Coût, tokens, temps humain et heure de début exacte unknown. Aucune économie revendiquée. [Validation](../../docs/validation/TASK-0136.md) distincte de la production.
+
 22 novembre 2026 : [TASK-0135, collecte propre à AutoFindex](../tasks/TASK-0135-owned-acquisition.md), voie d'acquisition distincte des six entrées historiques de la cohorte. Implémentation répartie entre root, extraction et tests réseau ; revue architecture/code indépendante en lecture seule. [Résultats et limites](../../docs/validation/TASK-0135.md). Modèle/effort exact, coût/tokens/temps humain inconnus dans cette session ; aucune économie revendiquée. Les six entrées et leurs historiques restent inchangés.
 
 Statut : **en cours, 6 tâches produit inscrites**. Mise en place : [TASK-0125](../tasks/TASK-0125-full-codex-workflow.md). Coordination, réalisation, recherche et revue exclusivement Codex. Pilote manuel, sans nouveau fournisseur ni orchestration en arrière-plan.

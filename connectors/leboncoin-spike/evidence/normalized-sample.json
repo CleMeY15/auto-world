@@ -1,0 +1,225 @@
+{
+  "schema_version": "autofindex-leboncoin-sample/v1",
+  "scope": "three_cloud_browser_observations_not_autonomous_collection",
+  "records": [
+    {
+      "source": {
+        "name": "leboncoin",
+        "listing_id": "3305814470",
+        "original_url": "https://www.leboncoin.fr/ad/voitures/3305814470"
+      },
+      "provenance": {
+        "acquisition": "chatgpt_cloud_browser_dom",
+        "captured_at": "2026-11-22T12:04:03.719Z",
+        "evidence_kind": "provided_dom_observation_json",
+        "hash_identifies": "exact_observation_file_not_http_body"
+      },
+      "observation_sha256": "beb7ae797078365be1e05e85c2032bc99f0604f415b68258c0f8a0725a06a703",
+      "core_fields_observed": true,
+      "fields": {
+        "title": {
+          "status": "observed",
+          "value": "✅ Porsche 911 Carrera S, Boite Manuelle, 09/2021, 23.000 km, Entretien à jour, CT Ok, Garantie 1 an"
+        },
+        "price": {
+          "status": "observed",
+          "value": {
+            "amountMinor": 14699000,
+            "currency": "EUR"
+          }
+        },
+        "mileage": {
+          "status": "observed",
+          "value": {
+            "amount": 23000,
+            "unit": "km"
+          }
+        },
+        "brand": {
+          "status": "observed",
+          "value": "PORSCHE"
+        },
+        "model": {
+          "status": "observed",
+          "value": "911"
+        },
+        "model_year": {
+          "status": "observed",
+          "value": 2021
+        },
+        "issuance_date": {
+          "status": "observed",
+          "value": {
+            "month": 9,
+            "year": 2021,
+            "precision": "month"
+          }
+        },
+        "vin": {
+          "status": "not_observed"
+        }
+      },
+      "photo_references": [
+        {
+          "position": 1,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/14/d2/23/14d223eb0f1875f293fbbd7d62ad0b0c8fb1a982.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 2,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/36/13/77/361377ea3f3a23b6cd77da01240cc2e1c8651feb.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 3,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/45/28/dd/4528dd95f2fec627cde17c51a44ffffff05d0329.jpg?rule=classified-1200x800-webp"
+        }
+      ],
+      "image_files_copied": false
+    },
+    {
+      "source": {
+        "name": "leboncoin",
+        "listing_id": "3312238672",
+        "original_url": "https://www.leboncoin.fr/ad/voitures/3312238672"
+      },
+      "provenance": {
+        "acquisition": "chatgpt_cloud_browser_dom",
+        "captured_at": "2026-11-22T12:04:57.057Z",
+        "evidence_kind": "provided_dom_observation_json",
+        "hash_identifies": "exact_observation_file_not_http_body"
+      },
+      "observation_sha256": "6cbe8dc7c7cb749708ed1ed2ff9ea94b9901b4988ce5d37bfa6fcb12b6508d6a",
+      "core_fields_observed": true,
+      "fields": {
+        "title": {
+          "status": "observed",
+          "value": "Porsche 911 carrera (992) – 2021 – 385 ch – pdk – 29 800 km"
+        },
+        "price": {
+          "status": "observed",
+          "value": {
+            "amountMinor": 11990000,
+            "currency": "EUR"
+          }
+        },
+        "mileage": {
+          "status": "observed",
+          "value": {
+            "amount": 29800,
+            "unit": "km"
+          }
+        },
+        "brand": {
+          "status": "observed",
+          "value": "PORSCHE"
+        },
+        "model": {
+          "status": "observed",
+          "value": "911"
+        },
+        "model_year": {
+          "status": "observed",
+          "value": 2020
+        },
+        "issuance_date": {
+          "status": "observed",
+          "value": {
+            "month": 8,
+            "year": 2020,
+            "precision": "month"
+          }
+        },
+        "vin": {
+          "status": "not_observed"
+        }
+      },
+      "photo_references": [
+        {
+          "position": 1,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/fd/b9/87/fdb98723ef81d4342bddea725c79f2e70be2069c.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 2,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/ca/a6/64/caa664c9347fd50a6a22158548d6e6d60ff10099.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 3,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/35/78/79/3578797526d03e9bf8023f51becf95a24eb3de29.jpg?rule=classified-1200x800-webp"
+        }
+      ],
+      "image_files_copied": false
+    },
+    {
+      "source": {
+        "name": "leboncoin",
+        "listing_id": "3308374007",
+        "original_url": "https://www.leboncoin.fr/ad/voitures/3308374007"
+      },
+      "provenance": {
+        "acquisition": "chatgpt_cloud_browser_dom",
+        "captured_at": "2026-11-22T12:05:10.838Z",
+        "evidence_kind": "provided_dom_observation_json",
+        "hash_identifies": "exact_observation_file_not_http_body"
+      },
+      "observation_sha256": "2dfa94b3957836d8e61bc89cd73d8ea41ab63daade0cb950b2b84c0220c880be",
+      "core_fields_observed": true,
+      "fields": {
+        "title": {
+          "status": "observed",
+          "value": "Porsche Macan S 2021 / 45000KM"
+        },
+        "price": {
+          "status": "observed",
+          "value": {
+            "amountMinor": 6200000,
+            "currency": "EUR"
+          }
+        },
+        "mileage": {
+          "status": "observed",
+          "value": {
+            "amount": 45000,
+            "unit": "km"
+          }
+        },
+        "brand": {
+          "status": "observed",
+          "value": "PORSCHE"
+        },
+        "model": {
+          "status": "observed",
+          "value": "Macan"
+        },
+        "model_year": {
+          "status": "observed",
+          "value": 2021
+        },
+        "issuance_date": {
+          "status": "observed",
+          "value": {
+            "month": 9,
+            "year": 2021,
+            "precision": "month"
+          }
+        },
+        "vin": {
+          "status": "not_observed"
+        }
+      },
+      "photo_references": [
+        {
+          "position": 1,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/d0/9e/fb/d09efb862e04d4ee144b787cda99cdc14207d525.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 2,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/c7/b5/fa/c7b5fa9855b0875a7ab7ec0b209c927a97ea07da.jpg?rule=classified-1200x800-webp"
+        },
+        {
+          "position": 3,
+          "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/f8/93/03/f8930341fd35f67dfa93a35c954ba72f49d1fc51.jpg?rule=classified-1200x800-webp"
+        }
+      ],
+      "image_files_copied": false
+    }
+  ]
+}
