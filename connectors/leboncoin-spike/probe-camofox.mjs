@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { ACCESS_TARGET_URL, diagnosticIdentity, encodeSealedFragments, inspectSealedEnvelope, loadDiagnosticPublicKey, sealAccessCapture } from "./access-diagnostic.mjs";
 import { readVisibleLeboncoinDom } from "./capture-dom.mjs";
+import { extractLeboncoinDomObservation } from "./extract.mjs";
 
 export const CAMOFOX_REVISION = "31376c27db94204ffdc635ae71a7f61328e91a5e";
 const USER_ID = "autofindex-camofox-probe";
@@ -14,22 +15,50 @@ const API_ROOT = "http://127.0.0.1:9377";
 const MAX_API_BYTES = 128 * 1024;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const status = (value) => Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
+const REFUSAL_TEXT = /you (?:have been|are) blocked|access denied|access is temporarily restricted|acc[èe]s refus[ée]|request blocked/iu;
+const VERIFICATION_TEXT = /verify (?:that )?you are human|verification required|v[ée]rifiez que vous [êe]tes (?:un )?humain|i(?: am|['’]m) not a robot|je ne suis pas un robot|confirm you are human|confirmez que vous [êe]tes (?:un )?humain|slide right|press and hold|checking your browser|please enable (?:js|javascript) and disable/iu;
+const observedText = (record) => [record?.dom?.title, record?.dom?.text, record?.snapshot?.snapshot,
+  ...(record?.dom?.frames ?? []).filter((frame) => frame.visible).map((frame) => frame.title)].join("\n");
+const verificationFrames = (record) => (record?.dom?.frames ?? []).filter((frame) => frame.visible
+  && /captcha-delivery\.com|recaptcha|hcaptcha|verification|vérification/iu.test(`${frame.src} ${frame.title}`));
 
 export function classifyCamofox(record, targetUrl = ACCESS_TARGET_URL) {
   const navigation = record?.navigation;
   const dom = record?.dom;
-  const text = [dom?.title, dom?.text, record?.snapshot?.snapshot,
-    ...(dom?.frames ?? []).filter((frame) => frame.visible).map((frame) => frame.title)].join("\n");
+  const text = observedText(record);
   if ([403, 429].includes(navigation?.httpStatus)
-    || /you (?:have been|are) blocked|access denied|access is temporarily restricted|acc[èe]s refus[ée]|request blocked/iu.test(text)) return "source_refused";
-  if (/verify (?:that )?you are human|verification required|v[ée]rifiez que vous [êe]tes (?:un )?humain|slide right|press and hold|checking your browser|please enable (?:js|javascript) and disable/iu.test(text)
-    || (dom?.frames ?? []).some((frame) => frame.visible && /captcha-delivery\.com|recaptcha|hcaptcha/iu.test(`${frame.src} ${frame.title}`))) return "verification_present";
+    || REFUSAL_TEXT.test(text)) return "source_refused";
+  if (VERIFICATION_TEXT.test(text)
+    || verificationFrames(record).length > 0) return "verification_present";
   if (record?.api_status === 200 && navigation?.httpStatus === 200 && navigation.url === targetUrl
     && dom?.url === targetUrl && record?.snapshot?.truncated === false
     && dom?.listing?.titles?.length === 1 && typeof dom.listing.titles[0] === "string" && dom.listing.titles[0].trim().length > 0
     && dom?.listing?.prices?.length === 1 && typeof dom.listing.prices[0] === "string"
     && /^(\d+|\d{1,3}(?:[ \u00a0\u202f]\d{3})+)(?:[,.]\d{1,2})?[ \u00a0\u202f]*€$/u.test(dom.listing.prices[0].trim())) return "listing_page_observed";
   return !navigation && record?.error ? "environment_error" : "partial_or_unknown";
+}
+
+/** Eligibility for one passive loading observation, never an interaction. */
+export function canObserveInterstitial(record, targetUrl, capturedAt) {
+  if (record?.api_status !== 200 || record?.navigation?.httpStatus !== 200
+    || record.navigation.url !== targetUrl || record?.dom?.url !== targetUrl || record?.snapshot?.url !== targetUrl
+    || record.error || REFUSAL_TEXT.test(observedText(record)) || VERIFICATION_TEXT.test(observedText(record))) return false;
+  const controls = verificationFrames(record);
+  if (controls.length === 0 || controls.some((frame) => {
+    try {
+      const url = new URL(frame.src);
+      return url.protocol !== "https:" || url.hostname !== "geo.captcha-delivery.com" || url.pathname !== "/interstitial/"
+        || !!url.username || !!url.password || !!url.port || !!url.hash;
+    } catch { return true; }
+  })) return false;
+  const listing = record.dom.listing;
+  if (listing?.titles?.length !== 1 || listing?.prices?.length !== 1) return false;
+  const id = /^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/([1-9][0-9]{0,19})$/u.exec(targetUrl)?.[1];
+  const observation = { ...listing, acquisition: "own_playwright_dom", captured_at: capturedAt,
+    requested_url: targetUrl, url: record.dom.url };
+  const normalized = extractLeboncoinDomObservation(Buffer.from(JSON.stringify(observation)), { expectedUrl: targetUrl, expectedListingId: id });
+  return normalized.status === "listing" && normalized.core_fields_observed === true
+    && normalized.fields.model_year.status === "observed" && normalized.issues.length === 0;
 }
 
 function readPage() {
@@ -42,8 +71,9 @@ function readPage() {
 }
 
 /** One creation only; later API operations read the already-open page. */
-export async function probeOnce(api, targetUrl = ACCESS_TARGET_URL) {
+export async function probeOnce(api, targetUrl = ACCESS_TARGET_URL, { settleMs = 0, wait = delay, now = Date.now, signal } = {}) {
   if (!/^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/[1-9][0-9]{0,19}$/u.test(targetUrl)) throw new Error("invalid_target");
+  if (![0, 5000].includes(settleMs)) throw new Error("invalid_arguments");
   const record = { stage: "create", api_status: null, navigation: null, dom: null, snapshot: null, creation_calls: 1 };
   try {
     const opened = await api("POST", "/tabs", { userId: USER_ID, sessionKey: "single", url: targetUrl }, 40_000);
@@ -54,23 +84,41 @@ export async function probeOnce(api, targetUrl = ACCESS_TARGET_URL) {
     record.navigation = { httpStatus: status(opened.data.httpStatus), url: opened.data.url,
       navigationOk: opened.data.navigationOk === true };
     const path = `/tabs/${opened.data.tabId}`;
-    record.stage = "snapshot";
-    try {
-      const snapshot = await api("GET", `${path}/snapshot?userId=${USER_ID}`, null, 10_000);
-      if (snapshot.status === 200 && typeof snapshot.data?.snapshot === "string") {
-        record.snapshot = { snapshot: snapshot.data.snapshot.slice(0, 8000),
-          truncated: snapshot.data.truncated !== false || snapshot.data.snapshot.length > 8000,
-          url: snapshot.data.url };
-      } else record.snapshot_error = "snapshot_failed";
-    } catch { record.snapshot_error = "snapshot_failed"; }
-    record.stage = "dom";
-    const expression = `(() => { const result = (${readPage.toString()})(); result.listing = (${readVisibleLeboncoinDom.toString()})(); return result; })()`;
-    const evaluated = await api("POST", `${path}/evaluate`, { userId: USER_ID, expression, timeoutMs: 5000 }, 7000);
-    if (evaluated.status !== 200 || !evaluated.data?.ok || !evaluated.data.result) throw new Error("dom_failed");
-    record.dom = evaluated.data.result;
-    record.stage = "observed";
+    const readOpenTab = async () => {
+      record.stage = "snapshot";
+      try {
+        const snapshot = await api("GET", `${path}/snapshot?userId=${USER_ID}`, null, 10_000);
+        if (snapshot.status === 200 && typeof snapshot.data?.snapshot === "string") {
+          record.snapshot = { snapshot: snapshot.data.snapshot.slice(0, 8000),
+            truncated: snapshot.data.truncated !== false || snapshot.data.snapshot.length > 8000,
+            url: snapshot.data.url };
+        } else record.snapshot_error = "snapshot_failed";
+      } catch { record.snapshot_error = "snapshot_failed"; }
+      record.stage = "dom";
+      const expression = `(() => { const result = (${readPage.toString()})(); result.listing = (${readVisibleLeboncoinDom.toString()})(); return result; })()`;
+      const evaluated = await api("POST", `${path}/evaluate`, { userId: USER_ID, expression, timeoutMs: 5000 }, 7000);
+      if (evaluated.status !== 200 || !evaluated.data?.ok || !evaluated.data.result) throw new Error("dom_failed");
+      record.dom = evaluated.data.result;
+      record.stage = "observed";
+    };
+    await readOpenTab();
+    if (settleMs && canObserveInterstitial(record, targetUrl, new Date(now()).toISOString())) {
+      record.initial_observation = { stage: record.stage, api_status: record.api_status, navigation: record.navigation,
+        dom: record.dom, snapshot: record.snapshot, observed_at: new Date(now()).toISOString() };
+      record.dom = null; record.snapshot = null; record.stage = "settling";
+      delete record.snapshot_error;
+      const before = now();
+      record.settling = { attempted: true, wait_ms: settleMs, started_at: new Date(before).toISOString(), waited_ms: null, completed_at: null };
+      try {
+        await wait(settleMs, undefined, { signal });
+        record.settling.waited_ms = now() - before;
+        if (signal?.aborted || record.settling.waited_ms < settleMs) throw new Error("settling_interval_not_met");
+        await readOpenTab();
+        if (!record.snapshot || record.snapshot_error) throw new Error("settled_snapshot_failed");
+      } finally { record.settling.completed_at = new Date(now()).toISOString(); }
+    }
   } catch (error) {
-    record.error = ["creation_failed", "dom_failed"].includes(error?.message) ? error.message : "operation_failed";
+    record.error = ["creation_failed", "dom_failed", "settling_interval_not_met", "settled_snapshot_failed"].includes(error?.message) ? error.message : "operation_failed";
   }
   return record;
 }
@@ -149,9 +197,10 @@ export async function stopOwnedProcesses(rootPid) {
   return { established: settled && remaining === 0, tracked: owned.size, remaining };
 }
 
-export async function captureCamofox({ runtime, out, targetUrl = ACCESS_TARGET_URL, pilotContext = null }) {
+export async function captureCamofox({ runtime, out, targetUrl = ACCESS_TARGET_URL, pilotContext = null, settleMs = 0 }) {
   if (process.platform !== "linux" || typeof runtime !== "string" || typeof out !== "string"
-    || !/^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/[1-9][0-9]{0,19}$/u.test(targetUrl)) throw new Error("invalid_arguments");
+    || !/^https:\/\/www\.leboncoin\.fr\/ad\/voitures\/[1-9][0-9]{0,19}$/u.test(targetUrl)
+    || ![0, 5000].includes(settleMs)) throw new Error("invalid_arguments");
   if (pilotContext && (![1, 2].includes(pilotContext.round) || !Number.isInteger(pilotContext.ordinal)
     || pilotContext.ordinal < 1 || pilotContext.ordinal > 6 || !/^[a-f0-9]{64}$/u.test(pilotContext.manifestSha))) throw new Error("diagnostic_identity_invalid");
   runtime = resolve(runtime); out = resolve(out);
@@ -193,7 +242,7 @@ export async function captureCamofox({ runtime, out, targetUrl = ACCESS_TARGET_U
       } catch { /* Only local startup readiness is polled; no source request. */ }
       await delay(250);
     }
-    if (ready) record = await probeOnce(api, targetUrl);
+    if (ready) record = await probeOnce(api, targetUrl, { settleMs, signal: controller.signal });
   } finally {
     controller.abort();
     cleanup = await stopOwnedProcesses(child.pid);

@@ -10,9 +10,9 @@ import { captureCamofox, classifyCamofox } from "./probe-camofox.mjs";
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 export const PILOT_SEEDS = Object.freeze(["3305814470", "3312238672", "3308374007"]
   .map((id) => Object.freeze({ id, url: `https://www.leboncoin.fr/ad/voitures/${id}` })));
-export const PILOT_PLAN = Object.freeze({ schema_version: "leboncoin-camofox-pilot-plan/v1", seeds: PILOT_SEEDS,
+export const PILOT_PLAN = Object.freeze({ schema_version: "leboncoin-camofox-pilot-plan/v2", seeds: PILOT_SEEDS,
   rounds: 2, between_observations_ms: 30_000, between_rounds_ms: 300_000,
-  max_observations: 6, browser_context: "fresh_instance_per_observation", retries: 0 });
+  max_observations: 6, browser_context: "fresh_instance_per_observation", retries: 0, passive_settle_ms: 5000 });
 export const PILOT_MANIFEST_SHA256 = hash(JSON.stringify(PILOT_PLAN));
 const COMPARABLE_FIELDS = ["title", "brand", "model", "model_year", "price", "mileage", "issuance_date", "vin"];
 const isoTime = (value) => typeof value === "string" && Number.isFinite(Date.parse(value))
@@ -56,6 +56,11 @@ export function assessPilotObservation(capture, seed, context) {
     navigation_status: record?.navigation?.httpStatus ?? null, api_status: record?.api_status ?? null,
     navigation_status_scope: "initial_goto_reported_by_camofox",
     general_snapshot_truncated: record?.snapshot?.truncated ?? null,
+    passive_settling_observed: record?.settling?.attempted === true,
+    passive_waited_ms: record?.settling?.waited_ms ?? null,
+    initial_dom_sha256: record?.initial_observation?.dom ? hash(JSON.stringify(record.initial_observation.dom)) : null,
+    initial_verification_observed: record?.initial_observation ? classifyCamofox(record.initial_observation, seed.url) === "verification_present" : false,
+    final_verification_observed: legacy === "verification_present",
     core_fields_observed: normalized?.core_fields_observed === true,
     model_year_observed: normalized?.fields?.model_year?.status === "observed",
     issues_count: normalized?.issues?.length ?? null,
@@ -136,7 +141,7 @@ export async function runPilot({ observe, wait = delay, now = Date.now, onObserv
   const firstLast = observations.find((item) => item.ordinal === 3);
   const secondFirst = observations.find((item) => item.ordinal === 4);
   const roundGap = firstLast && secondFirst ? Date.parse(secondFirst.started_at) - Date.parse(firstLast.completed_at) : null;
-  return { schema_version: "leboncoin-camofox-pilot-summary/v1", manifest_sha256: PILOT_MANIFEST_SHA256,
+  return { schema_version: "leboncoin-camofox-pilot-summary/v2", manifest_sha256: PILOT_MANIFEST_SHA256,
     plan: PILOT_PLAN, started_at: started, completed_at: new Date(now()).toISOString(),
     planned_observations: PILOT_PLAN.max_observations, attempted_observations: observations.length,
     successful_observations: observations.filter((item) => item.outcome === "listing_observed").length,
@@ -153,7 +158,7 @@ async function main(args) {
   await mkdir(out, { mode: 0o700 });
   const summary = await runPilot({
     observe: async ({ seed, round, ordinal, manifestSha }) => captureCamofox({ runtime,
-      out: join(out, `observation-${ordinal}`), targetUrl: seed.url, pilotContext: { round, ordinal, manifestSha } }),
+      out: join(out, `observation-${ordinal}`), targetUrl: seed.url, pilotContext: { round, ordinal, manifestSha }, settleMs: PILOT_PLAN.passive_settle_ms }),
     onObservation: async ({ result, observation }) => {
       await writeFile(join(out, `observation-${observation.ordinal}.json`), `${JSON.stringify(observation)}\n`, { mode: 0o600, flag: "wx" });
       process.stdout.write(`AUTO_FINDEX_CAMOFOX_PILOT_OBSERVATION ${JSON.stringify(observation)}\n`);

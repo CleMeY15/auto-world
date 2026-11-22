@@ -56,4 +56,13 @@ Conserver les états initial et final dans la même capture chiffrée avec leurs
 La revue indépendante considère cette attente passive comme une expérience discriminante raisonnable. L'hypothèse n'est pas présentée comme une correction prouvée.
 
 
-État de ce nouveau protocole : PLAN_REVIEWED, implémentation et nouveau résultat à venir. Aucun succès anticipé ni activation de source/base.
+Le plan complémentaire est publié dans `ae541d7dfcae9422eb1017bc5a61137066f187be`. Le manifeste est versionné v2. Le délai passif unique conserve le signal du budget global de 90 s ; il ne crée ni nouvelle navigation ni nouveau budget. Les états initial et final ainsi que les durées sont conservés. Le lecteur historique garde son défaut sans attente ; le pilote demande explicitement cinq secondes.
+
+### Validation locale du protocole complémentaire
+
+- **61 tests PASS**, zéro échec/exclusion/retry : les deux fichiers historiques du pilote plus `probe-camofox-settling.test.mjs` (20 tests dédiés).
+- Lint direct avec le linter installé du dépôt : PASS ; recherche de secrets ciblée sur les quatre fichiers changés : PASS ; YAML, garde parent/run 2/tentative 1 et diff : PASS.
+- Deux défauts de préparation corrigés avant présentation : demandes humaines « pas un robot » reconnues explicitement, erreur explicite si la seconde lecture de snapshot échoue. Tests également sur transition vers un CAPTCHA, URL finale différente, signal d'annulation et horodatage trop court.
+- Empreintes gelées : probe `4bd112b0c78fd464121fb4eee5bb581a9dc6b981e78cd9b272898061efb4ab25`, pilote `2a9b4902360b8ccac1e72a7add27ae0a980895219d680a4cc7ae2fbe8b9e8290`, tests dédiés `b42f59347a77d1ee526c89342c4d49574c1fc3ec2e2e03b66934efdbd087ac55`, workflow `9560ed7cdd9065ae68f69f678e20a9661064b2299718a60e31327745f291c905`.
+
+Prérevue et revue finale indépendantes favorables sur les quatre empreintes gelées ; 20 tests dédiés relus. Proposition locale complète validée le 22 novembre 2026 à 17:50 UTC. Nouveau résultat natif à venir. Aucun succès anticipé ni activation de source/base. La documentation officielle [Device Check](https://docs.datadome.co/docs/device-check) décrit une vérification qui peut s'exécuter sans intervention ; le [JavaScript Tag](https://docs.datadome.co/docs/javascript-tag) peut afficher une réponse après une requête XHR/fetch, même si le document principal est chargé. Ces documents justifient la distinction entre contenu observé et résultat du contrôle ; ils ne prouvent pas la nature ni l'issue de notre iframe particulière.

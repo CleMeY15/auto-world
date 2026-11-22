@@ -18,8 +18,8 @@ jobs:
       github.repository == 'CleMeY15/auto-world' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/spike/0137-leboncoin-autonomous' &&
-      github.event.before == 'f3c30d19afedcd796804e84b2a63bc4c93175cb5' &&
-      github.run_attempt == 1 && github.run_number == 1
+      github.event.before == 'ae541d7dfcae9422eb1017bc5a61137066f187be' &&
+      github.run_attempt == 1 && github.run_number == 2
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:
@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - name: Verify the published plan parent
-        run: test "$(git rev-parse HEAD^)" = 'f3c30d19afedcd796804e84b2a63bc4c93175cb5'
+        run: test "$(git rev-parse HEAD^)" = 'ae541d7dfcae9422eb1017bc5a61137066f187be'
 
       - name: Check out the pinned upstream runtime separately
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +47,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Check the offline pilot behavior
-        run: node --test connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs
+        run: node --test connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs connectors/leboncoin-spike/probe-camofox-settling.test.mjs
 
       - name: Install upstream runtime with its lockfile
         working-directory: .camofox-runtime
