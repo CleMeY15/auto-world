@@ -1,4 +1,30 @@
+## Pilote 100 — test réel arrêté à la deuxième fiche
+
+22 novembre 2026, [run 45076524445](https://github.com/CleMeY15/auto-world/actions/runs/45076524445), commit `b01d950e` : nouvelle voie Camofox avec garde locale, 100 annonces maximum mais arrêt sur la **2e** (`verification_obstructing`, HTTP 200). **1 annonce complète**, 13 candidats découverts ; la garde est validée 4/4, sans perte, nettoyage confirmé. [Bilan vérifiable](../docs/validation/TASK-0137-session100.md). La base de préparation CI a 1 entrée, sans insertion dans le VPS. Les 22 annonces précédentes restent stockées dans le schéma privé. La cause précise du contrôle n'est pas établie, aucune nouvelle relance. La collecte exhaustive/récurrente n'est toujours pas qualifiée.
+
 # Passation courante
+
+## Diagnostic d'accès — correction locale testée
+
+22 novembre 2026, [TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), PR270 : les pauses entre fiches peuvent laisser Camofox détruire une session devenue vide. Une nouvelle route avec onglet local de garde et vérification avant/après lecture passe 117 tests hors réseau et le lint. [Preuves, plan et limites](../docs/validation/TASK-0137-session-continuity.md). Aucun nouvel essai source ni import ; 22 reste le nombre réel stocké. La garde vise la continuité locale, pas une garantie d'accès ni une qualification de production.
+
+## Lot réel leboncoin — 22 annonces dans la base du VPS
+
+22 novembre 2026, [TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : [lot direct 45062255767](https://github.com/CleMeY15/auto-world/actions/runs/45062255767), source `3ccf52ef4e8626724d24518a13eade29e27338d8`, 22 annonces complètes / 22 fiches HTTP 200 / 53 candidats. Arrêt logiciel à 9 999 ms, corrigé par attente résiduelle bornée. [Reprise 45064032767](https://github.com/CleMeY15/auto-world/actions/runs/45064032767), source `6f13fe64575196260ed2b9864ff47bcb02c7946e` : première fiche HTTP 403 avec contrôle obstruant, 0 nouvelle annonce. Les preuves des trois exécutions sont authentifiées et conservées.
+
+Import autorisé effectué dans la base privée du projet, avec vérification après écriture de **22 annonces distinctes**. Le [reçu d'import](../docs/validation/evidence/TASK-0137-project-import-receipt.json) et les métadonnées techniques de la cible sont publiés avec l'autorisation explicite de l'utilisateur du 22 novembre 2026. [Preuves détaillées](../docs/validation/TASK-0137-batch100.md). Objectif 100 non atteint ; accès régulier non démontré, aucune relance de la page refusée. Le site offline n'affiche pas encore ces données ; source/registre produit, anciens pilotes et piste email restent inchangés. Prochaine décision : fiabiliser l'accès source ou raccorder explicitement le lot privé au produit, sans confondre ces deux résultats. TASK-0137 demeure IN_PROGRESS. Les anciens états « VPS non connecté » ci-dessous sont historiques.
+
+## Pilote Camofox — deux annonces relues, contrôle non résolu
+
+22 novembre 2026, [TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : runs [45050640500](https://github.com/CleMeY15/auto-world/actions/runs/45050640500) / [45051751652](https://github.com/CleMeY15/auto-world/actions/runs/45051751652), sources 668680d4 / 8181d3fc. Chacun ouvre deux annonces, reçoit deux statuts initiaux HTTP 200 et conserve deux DOM automobiles valides ; qualification 1/2, arrêt verification_present sur la deuxième fiche. Son cadre reste détecté après 5 002 ms dans la campagne complémentaire ; les données restent présentes. Valeurs comparées inchangées à environ douze minutes d'écart. Aucune troisième annonce ni seconde passe complète. [Preuves et limites d'interprétation](../docs/validation/TASK-0137-camofox-pilot.md). IN_PROGRESS / REPEAT_PENDING. Prochaine question discriminante : dimensions/affichage réel/contenu du cadre, non établis par la capture actuelle ; ne pas répéter les mêmes essais sans preuve nouvelle. Aucune base/source produit ni collecte durable activée. Le pilote ChatGPT historique est désactivé ; les indications plus anciennes d'activation sont historiques.
+
+## Essai Camofox — accès ponctuel confirmé le 22 novembre 2026
+
+[TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le [run Camofox 45048184974](https://github.com/CleMeY15/auto-world/actions/runs/45048184974), source 1821670e, reçoit HTTP 200 et observe la même annonce Porsche 911 (2021, 23 000 km, 146 990 EUR). Champs centraux extraits et preuves relues. Le reçu automatique reste partiel à cause du snapshot général tronqué ; le DOM structuré confirme les données. [Preuves et portée](../docs/validation/TASK-0137-camofox.md). État : OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING. Aucune collecte régulière, activation de source ou intégration en base n'est déduite. La piste email reste en pause ; les essais Chromium précédents gardent leurs résultats historiques.
+
+## Collecte autonome — TASK-0137, 22 novembre 2026
+
+[PR270](https://github.com/CleMeY15/auto-world/pull/270), base TASK-0136, plan publié avant implémentation dans `6085c0e`. Run 45024088325 sur source 85ab8da : navigateur lancé, une navigation HTTP 403, zéro extraction ; aucun deuxième passage ou retry. [Compte rendu](../docs/validation/TASK-0137.md). La lecture cloud a réussi séparément, sans établir l'accès de notre worker. Un pilote horaire ChatGPT préexistant est activé ; son premier lancement programmé reste à vérifier. Le VPS demeure non connecté depuis cette session ; aucun service serveur ni registre n'est modifié.
 
 ## Priorité utilisateur — faisabilité leboncoin, 22 novembre 2026
 

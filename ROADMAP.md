@@ -1,4 +1,28 @@
+## Pilote 100 Camofox — arrêt au deuxième accès, session intacte
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [run 45076524445](https://github.com/CleMeY15/auto-world/actions/runs/45076524445) : sur 100 fiches maximum prévues, **2 tentées / 1 complète**, deuxième fiche HTTP 200 mais contrôle de vérification réellement obstruant. Arrêt immédiat `verification_obstructing`, sans retry, 13 candidats détectés. La garde de session est valide sur 4/4 contrôles, donc pas de perte du contexte observée. [Bilan et limites](docs/validation/TASK-0137-session100.md). Les 22 fiches déjà importées dans PostgreSQL restent intactes ; ce nouveau run ne modifie pas le VPS. Accès stable et 100 annonces non prouvés ; TASK-0137 reste IN_PROGRESS.
+
 # ROADMAP MASTER — Auto World Search
+
+## Diagnostic d'accès — continuité du contexte navigateur
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md) : l'audit du Camofox épinglé révèle que fermer le dernier onglet peut laisser son nettoyage périodique détruire la session entre deux fiches. Une voie séparée avec garde locale de continuité passe 117 tests hors réseau et le lint ; [analyse et portée](docs/validation/TASK-0137-session-continuity.md). Ce mécanisme ne démontre pas la cause du 403, ni une collecte régulière ou exhaustive. Les 22 annonces importées restent le dernier résultat réel.
+
+## Lot réel leboncoin — 22 annonces insérées dans PostgreSQL
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le lot direct a extrait 22 annonces distinctes avec HTTP 200. Après correction d'une attente interrompue à 9 999 ms, la reprise reçoit HTTP 403 dès sa première fiche et n'ajoute rien. Le lot valide est maintenant inséré dans la base privée du projet ; une nouvelle connexion après écriture confirme 22 annonces distinctes. La publication du [reçu d'import](docs/validation/evidence/TASK-0137-project-import-receipt.json) et des métadonnées techniques de la cible a été explicitement autorisée par l'utilisateur. [Exécutions, import et limites](docs/validation/TASK-0137-batch100.md). Objectif de 100 non atteint ; collecte régulière et couverture catalogue non démontrées. Le catalogue du site et le registre source restent inchangés. TASK-0137 demeure IN_PROGRESS. Les checkpoints suivants sont historiques.
+
+## Pilote Camofox — deux annonces relues, contrôle non résolu
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : deux campagnes réelles ont chacune obtenu les données de deux annonces avec des goto initiaux HTTP 200. Valeurs comparées identiques à environ douze minutes d'écart. Chaque campagne s'arrête à la deuxième fiche sur un cadre de vérification détecté ; celui-ci persiste après l'attente passive de 5 002 ms de la seconde campagne, sans disparition des champs automobiles. Troisième annonce et secondes passes non atteintes. [Bilan, preuves et limites](docs/validation/TASK-0137-camofox-pilot.md). IN_PROGRESS / REPEAT_PENDING ; aucune collecte continue, source ou base produit activée. Les checkpoints plus bas sont historiques. Le pilote ChatGPT antérieur reste désactivé.
+
+## Essai Camofox — accès ponctuel confirmé le 22 novembre 2026
+
+[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le [run Camofox 45048184974](https://github.com/CleMeY15/auto-world/actions/runs/45048184974), source 1821670e, reçoit HTTP 200 et observe la même annonce Porsche 911 (2021, 23 000 km, 146 990 EUR). Champs centraux extraits et preuves relues. Le reçu automatique reste partiel à cause du snapshot général tronqué ; le DOM structuré confirme les données. [Preuves et portée](docs/validation/TASK-0137-camofox.md). État : OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING. Aucune collecte régulière, activation de source ou intégration en base n'est déduite. La piste email reste en pause ; les essais Chromium précédents gardent leurs résultats historiques.
+
+## Collecte autonome demandée — 22 novembre 2026
+
+[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le navigateur propre démarre sur Linux, mais la première navigation reçoit HTTP 403. Zéro extraction, arrêt sans deuxième passage. [État et preuves](docs/validation/TASK-0137.md). Une nouvelle lecture cloud a réussi séparément ; elle ne qualifie pas le worker indépendant. Le pilote horaire ChatGPT préexistant reste un essai distinct, avec premier lancement programmé à vérifier. L'accès propre durable et la couverture du catalogue restent ouverts.
 
 ## Priorité : essai leboncoin avant extension du produit
 

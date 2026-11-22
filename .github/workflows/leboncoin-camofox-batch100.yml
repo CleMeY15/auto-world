@@ -1,0 +1,80 @@
+name: Collect a bounded leboncoin trial batch
+
+on:
+  push:
+    branches: [spike/0137-leboncoin-autonomous]
+    paths: [.github/workflows/leboncoin-camofox-batch100.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leboncoin-camofox-batch100
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0137-leboncoin-autonomous' &&
+      github.event.before == '083c44021a2b6d645a86aa55b50d85bc08c422e7' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the exact batch revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify the plan parent
+        run: test "$(git rev-parse HEAD^)" = '083c44021a2b6d645a86aa55b50d85bc08c422e7'
+
+      - name: Check out pinned upstream Camofox
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jo-inc/camofox-browser
+          ref: 31376c27db94204ffdc635ae71a7f61328e91a5e
+          path: .camofox-runtime
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check collection and historical pilot behavior
+        run: node --test connectors/leboncoin-spike/batch-dom.test.mjs connectors/leboncoin-spike/batch-camofox.test.mjs connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs connectors/leboncoin-spike/probe-camofox-settling.test.mjs
+
+      - name: Check private import integrity and replay
+        run: python3 connectors/leboncoin-spike/batch-store.test.py
+
+      - name: Install upstream from its lockfile
+        working-directory: .camofox-runtime
+        run: npm ci --omit=dev
+
+      - name: Install Firefox system dependencies
+        working-directory: .camofox-runtime
+        run: node node_modules/playwright-core/cli.js install-deps firefox
+
+      - name: Collect at most 100 distinct listings
+        run: node connectors/leboncoin-spike/batch-camofox.mjs --runtime "$GITHUB_WORKSPACE/.camofox-runtime" --out "$RUNNER_TEMP/autofindex-batch100"
+
+      - name: Verify the private staging database and prepare the project import
+        run: python3 connectors/leboncoin-spike/batch-store.py --bundle "$RUNNER_TEMP/autofindex-batch100/batch-bundle.private.json" --out-dir "$RUNNER_TEMP/autofindex-batch100/staging"
+
+      - name: Retain closed receipts and sealed evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: leboncoin-batch100-evidence
+          path: |
+            ${{ runner.temp }}/autofindex-batch100/batch-summary.json
+            ${{ runner.temp }}/autofindex-batch100/page-*.receipt.json
+            ${{ runner.temp }}/autofindex-batch100/page-*.sealed.json
+            ${{ runner.temp }}/autofindex-batch100/staging/import-receipt.json
+          if-no-files-found: warn
+          retention-days: 7

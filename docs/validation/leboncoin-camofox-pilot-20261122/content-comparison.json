@@ -1,0 +1,139 @@
+{
+  "schema_version": "leboncoin-content-comparison/v1",
+  "sources": [
+    {
+      "run": "45050640500",
+      "sha": "668680d4b08fe6acd68341ced8b82f4f2979c801"
+    },
+    {
+      "run": "45051751652",
+      "sha": "8181d3fc5854e9a70259f0102b19d1e3ad44f743"
+    }
+  ],
+  "rows": [
+    {
+      "id": "3305814470",
+      "url": "https://www.leboncoin.fr/ad/voitures/3305814470",
+      "comparison_scope": "two_separate_campaigns_not_completed_pilot_rounds",
+      "changed_fields": [],
+      "observations": [
+        {
+          "run": "45050640500",
+          "source_sha": "668680d4b08fe6acd68341ced8b82f4f2979c801",
+          "started_at": "2026-11-22T17:40:28.204Z",
+          "completed_at": "2026-11-22T17:40:33.893Z",
+          "capture_id": "306c76955b27ea18923f44d0fa3bfdc6",
+          "dom_sha256": "b7c985b2f8881161a03fd0098e34ede750726bdff9209fa2bea6eadfd3f66790",
+          "values_sha256": "02a80d4b2a7c5469ec5c0fc16d4d740fb4f8806ab522db135ebcbe03e93bf508",
+          "content_core_fields_observed": true,
+          "issues": [],
+          "brand": "PORSCHE",
+          "model": "911",
+          "model_year": 2021,
+          "price": {
+            "amountMinor": 14699000,
+            "currency": "EUR"
+          },
+          "mileage": {
+            "amount": 23000,
+            "unit": "km"
+          },
+          "criteria_count": 8,
+          "photo_references": 3,
+          "photo_files_downloaded": false,
+          "verification_frame_observed": false
+        },
+        {
+          "run": "45051751652",
+          "source_sha": "8181d3fc5854e9a70259f0102b19d1e3ad44f743",
+          "started_at": "2026-11-22T17:52:10.030Z",
+          "completed_at": "2026-11-22T17:52:19.578Z",
+          "capture_id": "3a878e18538f50e984fe362fc187a185",
+          "dom_sha256": "c77273b9b313e14d7d35d9b375243a63330aa2cf1150a5791b1e1a9013803e49",
+          "values_sha256": "02a80d4b2a7c5469ec5c0fc16d4d740fb4f8806ab522db135ebcbe03e93bf508",
+          "content_core_fields_observed": true,
+          "issues": [],
+          "brand": "PORSCHE",
+          "model": "911",
+          "model_year": 2021,
+          "price": {
+            "amountMinor": 14699000,
+            "currency": "EUR"
+          },
+          "mileage": {
+            "amount": 23000,
+            "unit": "km"
+          },
+          "criteria_count": 8,
+          "photo_references": 3,
+          "photo_files_downloaded": false,
+          "verification_frame_observed": false
+        }
+      ],
+      "between_observations_ms": 696137
+    },
+    {
+      "id": "3312238672",
+      "url": "https://www.leboncoin.fr/ad/voitures/3312238672",
+      "comparison_scope": "two_separate_campaigns_not_completed_pilot_rounds",
+      "changed_fields": [],
+      "observations": [
+        {
+          "run": "45050640500",
+          "source_sha": "668680d4b08fe6acd68341ced8b82f4f2979c801",
+          "started_at": "2026-11-22T17:41:03.924Z",
+          "completed_at": "2026-11-22T17:41:09.071Z",
+          "capture_id": "565cc94237d9f2d3507d803288d910fb",
+          "dom_sha256": "606968ec774a4c64ceef16ce4f70029d20d1e5caa3fa40c11d68b7cef96a14ac",
+          "values_sha256": "7db5c4487372700a659f9e7c7ca0a8d3835eeb8e7a2b0dd0d36750c0105e1900",
+          "content_core_fields_observed": true,
+          "issues": [],
+          "brand": "PORSCHE",
+          "model": "911",
+          "model_year": 2020,
+          "price": {
+            "amountMinor": 11990000,
+            "currency": "EUR"
+          },
+          "mileage": {
+            "amount": 29800,
+            "unit": "km"
+          },
+          "criteria_count": 8,
+          "photo_references": 3,
+          "photo_files_downloaded": false,
+          "verification_frame_observed": true
+        },
+        {
+          "run": "45051751652",
+          "source_sha": "8181d3fc5854e9a70259f0102b19d1e3ad44f743",
+          "started_at": "2026-11-22T17:52:49.608Z",
+          "completed_at": "2026-11-22T17:53:00.050Z",
+          "capture_id": "0af66b9e27720b337670d6d911eb43e2",
+          "dom_sha256": "654997b62bcd027dc2785548810df66d714581d2746427ac22907913fea26fed",
+          "values_sha256": "7db5c4487372700a659f9e7c7ca0a8d3835eeb8e7a2b0dd0d36750c0105e1900",
+          "content_core_fields_observed": true,
+          "issues": [],
+          "brand": "PORSCHE",
+          "model": "911",
+          "model_year": 2020,
+          "price": {
+            "amountMinor": 11990000,
+            "currency": "EUR"
+          },
+          "mileage": {
+            "amount": 29800,
+            "unit": "km"
+          },
+          "criteria_count": 8,
+          "photo_references": 3,
+          "photo_files_downloaded": false,
+          "verification_frame_observed": true
+        }
+      ],
+      "between_observations_ms": 700537
+    }
+  ],
+  "pilot_completed": false,
+  "recurring_collection_proven": false
+}
