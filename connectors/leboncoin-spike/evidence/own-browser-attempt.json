@@ -1,0 +1,26 @@
+{
+  "schema_version": "leboncoin-own-browser-attempt/v1",
+  "acquisition": "own_playwright_dom",
+  "requested_url": "https://www.leboncoin.fr/ad/voitures/3305814470",
+  "url": null,
+  "captured_at": "2026-11-22T12:11:06.018Z",
+  "status": "environment_error",
+  "navigation_status": null,
+  "transport": {
+    "engine": "playwright_chromium",
+    "navigation_attempts": 0,
+    "retries": 0,
+    "redirect_policy": "ordinary_browser_follow_then_reject_capture",
+    "redirect_chain": [],
+    "redirect_count": 0,
+    "image_requests_blocked": 0
+  },
+  "runtime": {
+    "node": "v22.23.2",
+    "context": "fresh_nonpersistent",
+    "headless": true,
+    "executable_path": "/usr/bin/chromium",
+    "shared_profile": false
+  },
+  "reason": "launch:operation_failed"
+}

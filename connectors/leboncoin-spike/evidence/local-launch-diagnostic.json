@@ -1,0 +1,11 @@
+{
+  "method": "chromium_launch_only_no_navigation",
+  "observed_on": "2026-11-22",
+  "navigation_attempts": 0,
+  "launch": "failed",
+  "diagnostic_excerpt": "FATAL:chrome/browser/process_singleton_posix.cc:297 Check failed: . socket() failed: Operation not permitted (1)",
+  "classification": "local_socket_permission_denied",
+  "interpretation": "The local browser failed before opening a target page. This is an environment restriction, not a response or rejection from leboncoin.",
+  "recovery": "No launch options, sandbox settings, network path or permissions were changed. No further collector run.",
+  "revision_note": "The initial collector recorded launch:operation_failed. The final code has refined diagnostic, capture and normalization behavior; it was not rerun against the blocked local environment. The original attempt remains unchanged."
+}

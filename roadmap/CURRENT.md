@@ -1,5 +1,9 @@
 # Passation courante
 
+## Priorité utilisateur — faisabilité leboncoin, 22 novembre 2026
+
+[TASK-0136](tasks/TASK-0136-leboncoin-feasibility.md), [PR269 en brouillon](https://github.com/CleMeY15/auto-world/pull/269), empilée sur PR268 : trois fiches réelles ouvertes dans le navigateur cloud et normalisées hors réseau. Le GET direct a reçu HTTP403 avec vérification JavaScript ; notre CLI Playwright n'a pas pu démarrer Chromium (socket local refusé), zéro navigation. **L'accès autonome et la viabilité durable restent non qualifiés.** [Preuves et limites](../docs/validation/TASK-0136.md). Prochain jalon : un essai du même programme dans l'environnement de déploiement où Chromium peut démarrer, avant développement supplémentaire du site. Aucun registre source, site ou catalogue de production activé.
+
 ## Collecte AutoFindex — 22 novembre 2026
 
 [TASK-0135](tasks/TASK-0135-owned-acquisition.md), branche `product/0135-owned-acquisition`, [PR268](https://github.com/CleMeY15/auto-world/pull/268) en brouillon : première brique propre de capture HTML et extraction intégrée au Connector SDK. Base vérifiée `44c59c8be1bc65456595a6e081a8c7996d1a508f`. [Validation locale](../docs/validation/TASK-0135.md) et revue indépendante réussies ; livraison GitHub/main à vérifier séparément. Le serveur de test contient des annonces fictives ; leboncoin reste la première cible, sans accès approuvé ni catalogue collecté. Cette voie ne modifie ni le site actuel ni la qualification TASK-0005.

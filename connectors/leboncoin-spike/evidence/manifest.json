@@ -1,0 +1,70 @@
+{
+  "scope": "Reviewed local diagnostic code and evidence. No successful autonomous acquisition implied.",
+  "files": [
+    {
+      "path": "connectors/leboncoin-spike/capture-dom.mjs",
+      "sha256": "02c93883f793a9b08c2093ce69224d45056d6ddf2a8effc78c8111c65a965823",
+      "bytes": 1967
+    },
+    {
+      "path": "connectors/leboncoin-spike/capture-dom.test.mjs",
+      "sha256": "3f935155685ec482eab25edad15756e66217d3d5a1655f01260b79b9bbd1c95a",
+      "bytes": 2428
+    },
+    {
+      "path": "connectors/leboncoin-spike/collect-browser.mjs",
+      "sha256": "3bcce2e9dfaed9306a3e2a06640d30f0aeaa7b729aed03e84f6b11f0a145b6b5",
+      "bytes": 9977
+    },
+    {
+      "path": "connectors/leboncoin-spike/evidence/http-preflight.json",
+      "sha256": "4562f98d029cadd43bff0a9fcba6444a2f230a0be078a0314bcab37bf23d6274",
+      "bytes": 1108
+    },
+    {
+      "path": "connectors/leboncoin-spike/evidence/local-launch-diagnostic.json",
+      "sha256": "50ba1bb19f99ead6441547fb31e55ae6a7fe71e3bfcb51eb678fe41967579f4f",
+      "bytes": 857
+    },
+    {
+      "path": "connectors/leboncoin-spike/evidence/normalized-sample.json",
+      "sha256": "60a162f027be9dcf48c92613b7eee3f6f4848e0be9f253cfdba3a6eb44dfe03b",
+      "bytes": 6844
+    },
+    {
+      "path": "connectors/leboncoin-spike/evidence/own-browser-attempt.json",
+      "sha256": "2114bb5f9df63da718e44c0d3ed4d12a501cfc01aacb48afcc639e55d3c2ee19",
+      "bytes": 765
+    },
+    {
+      "path": "connectors/leboncoin-spike/extract.mjs",
+      "sha256": "d9af29c2ccb5ae7d9224b5a485463da9804c97a009f0a5ffb92ae0db683aeff3",
+      "bytes": 10220
+    },
+    {
+      "path": "connectors/leboncoin-spike/extract.test.mjs",
+      "sha256": "22a2fb542744b219806e403478a5b86930741f0f44e1890ab44c41427256ee6a",
+      "bytes": 9823
+    },
+    {
+      "path": "connectors/leboncoin-spike/fixtures/3305814470.json",
+      "sha256": "beb7ae797078365be1e05e85c2032bc99f0604f415b68258c0f8a0725a06a703",
+      "bytes": 3819
+    },
+    {
+      "path": "connectors/leboncoin-spike/fixtures/3308374007.json",
+      "sha256": "2dfa94b3957836d8e61bc89cd73d8ea41ab63daade0cb950b2b84c0220c880be",
+      "bytes": 3089
+    },
+    {
+      "path": "connectors/leboncoin-spike/fixtures/3312238672.json",
+      "sha256": "6cbe8dc7c7cb749708ed1ed2ff9ea94b9901b4988ce5d37bfa6fcb12b6508d6a",
+      "bytes": 3118
+    },
+    {
+      "path": "connectors/leboncoin-spike/replay.mjs",
+      "sha256": "697179fe4fcc4c980d0ffaecbf1d21b7878accabb5844f757c54b1a2f6ec6503",
+      "bytes": 1323
+    }
+  ]
+}

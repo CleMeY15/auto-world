@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Priorité : essai leboncoin avant extension du produit
+
+[TASK-0136](roadmap/tasks/TASK-0136-leboncoin-feasibility.md), [PR269](https://github.com/CleMeY15/auto-world/pull/269) en brouillon : trois observations réelles obtenues dans le navigateur cloud et normalisées. Le GET HTTP direct est refusé ; le programme autonome est bloqué avant navigation par l'environnement local. La faisabilité durable reste ouverte. [Compte rendu précis](docs/validation/TASK-0136.md). Vérifier ce programme dans l'environnement de déploiement avant de poursuivre le développement général.
+
 ## Collecte propre à AutoFindex — 22 novembre 2026
 
 [TASK-0135](roadmap/tasks/TASK-0135-owned-acquisition.md) ouvre, à la demande de l'utilisateur, une voie séparée pour notre moteur d'acquisition mondial et notre API. Première brique : capture HTTP bornée, conservation du contenu original, extraction automobile et historique via le SDK existant. [ADR-0036](docs/decisions/ADR-0036-owned-acquisition.md), [PR268](https://github.com/CleMeY15/auto-world/pull/268), [preuves](docs/validation/TASK-0135.md). La cible initiale est leboncoin ; aucune collecte réelle, permission de source ou couverture complète n'est établie par les tests sur serveur contrôlé. État : IN_PROGRESS, validation et revue de la branche séparée. Les autres voies et leurs qualifications conservent leur état.

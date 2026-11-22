@@ -1,0 +1,128 @@
+{
+  "schema_version": "leboncoin-dom-observation/v1",
+  "acquisition": "chatgpt_cloud_browser_dom",
+  "requested_url": "https://www.leboncoin.fr/ad/voitures/3308374007",
+  "url": "https://www.leboncoin.fr/ad/voitures/3308374007",
+  "captured_at": "2026-11-22T12:05:10.838Z",
+  "titles": [
+    "Porsche Macan S 2021 / 45000KM"
+  ],
+  "prices": [
+    "62 000 €"
+  ],
+  "criteria": [
+    {
+      "key": "u_car_brand",
+      "label": "Marque",
+      "value": "PORSCHE"
+    },
+    {
+      "key": "u_car_model",
+      "label": "Modèle",
+      "value": "Macan"
+    },
+    {
+      "key": "regdate",
+      "label": "Année modèle",
+      "value": "2021"
+    },
+    {
+      "key": "mileage",
+      "label": "Kilométrage",
+      "value": "45000 km"
+    },
+    {
+      "key": "fuel",
+      "label": "Énergie",
+      "value": "Essence"
+    },
+    {
+      "key": "gearbox",
+      "label": "Boîte de vitesse",
+      "value": "Automatique"
+    },
+    {
+      "key": "doors",
+      "label": "Nombre de portes",
+      "value": "5"
+    },
+    {
+      "key": "seats",
+      "label": "Nombre de place(s)",
+      "value": "5"
+    },
+    {
+      "key": "u_car_finition",
+      "label": "Finition Constructeur",
+      "value": "S"
+    },
+    {
+      "key": "u_car_version",
+      "label": "Version Constructeur",
+      "value": "Macan 3.0 V6 354ch S PDK MY21"
+    },
+    {
+      "key": "issuance_date",
+      "label": "Date de première mise en circulation",
+      "value": "09/2021"
+    },
+    {
+      "key": "vehicle_damage",
+      "label": "État du véhicule",
+      "value": "Bon état général"
+    },
+    {
+      "key": "vehicle_type",
+      "label": "Type de véhicule",
+      "value": "4x4, SUV, Crossover & Pick-up"
+    },
+    {
+      "key": "vehicle_upholstery",
+      "label": "Sellerie",
+      "value": "Tout cuir"
+    },
+    {
+      "key": "vehicle_maintenance",
+      "label": "Entretien du véhicule",
+      "value": "Carnet d'entretien disponible, Véhicule non fumeur"
+    },
+    {
+      "key": "vehicule_color",
+      "label": "Couleur",
+      "value": "Gris"
+    },
+    {
+      "key": "horsepower",
+      "label": "Puissance fiscale",
+      "value": "24 Cv"
+    },
+    {
+      "key": "horse_power_din",
+      "label": "Puissance DIN",
+      "value": "354 Ch"
+    },
+    {
+      "key": "vehicle_vsp",
+      "label": "Permis",
+      "value": "Avec permis"
+    }
+  ],
+  "photos": [
+    {
+      "alt": "Porsche Macan S 2021 / 45000KM (image 1)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/d0/9e/fb/d09efb862e04d4ee144b787cda99cdc14207d525.jpg?rule=classified-1200x800-webp"
+    },
+    {
+      "alt": "Porsche Macan S 2021 / 45000KM (image 2)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/c7/b5/fa/c7b5fa9855b0875a7ab7ec0b209c927a97ea07da.jpg?rule=classified-1200x800-webp"
+    },
+    {
+      "alt": "Porsche Macan S 2021 / 45000KM (image 3)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/f8/93/03/f8930341fd35f67dfa93a35c954ba72f49d1fc51.jpg?rule=classified-1200x800-webp"
+    }
+  ],
+  "times": [],
+  "location": [
+    "Beausoleil"
+  ]
+}

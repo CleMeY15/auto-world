@@ -1,0 +1,123 @@
+{
+  "schema_version": "leboncoin-dom-observation/v1",
+  "acquisition": "chatgpt_cloud_browser_dom",
+  "requested_url": "https://www.leboncoin.fr/ad/voitures/3312238672",
+  "url": "https://www.leboncoin.fr/ad/voitures/3312238672",
+  "captured_at": "2026-11-22T12:04:57.057Z",
+  "titles": [
+    "Porsche 911 carrera (992) – 2021 – 385 ch – pdk – 29 800 km"
+  ],
+  "prices": [
+    "119 900 €"
+  ],
+  "criteria": [
+    {
+      "key": "u_car_brand",
+      "label": "Marque",
+      "value": "PORSCHE"
+    },
+    {
+      "key": "u_car_model",
+      "label": "Modèle",
+      "value": "911"
+    },
+    {
+      "key": "regdate",
+      "label": "Année modèle",
+      "value": "2020"
+    },
+    {
+      "key": "mileage",
+      "label": "Kilométrage",
+      "value": "29800 km"
+    },
+    {
+      "key": "fuel",
+      "label": "Énergie",
+      "value": "Essence"
+    },
+    {
+      "key": "gearbox",
+      "label": "Boîte de vitesse",
+      "value": "Automatique"
+    },
+    {
+      "key": "doors",
+      "label": "Nombre de portes",
+      "value": "2"
+    },
+    {
+      "key": "seats",
+      "label": "Nombre de place(s)",
+      "value": "4"
+    },
+    {
+      "key": "vehicle_technical_inspection_valid",
+      "label": "Contrôle technique valide",
+      "value": "Oui"
+    },
+    {
+      "key": "issuance_date",
+      "label": "Date de première mise en circulation",
+      "value": "08/2020"
+    },
+    {
+      "key": "vehicle_damage",
+      "label": "État du véhicule",
+      "value": "Excellent état (proche du neuf)"
+    },
+    {
+      "key": "vehicle_type",
+      "label": "Type de véhicule",
+      "value": "Autre"
+    },
+    {
+      "key": "vehicle_upholstery",
+      "label": "Sellerie",
+      "value": "Tout cuir"
+    },
+    {
+      "key": "vehicle_maintenance",
+      "label": "Entretien du véhicule",
+      "value": "Carnet d'entretien disponible, Factures disponibles"
+    },
+    {
+      "key": "vehicule_color",
+      "label": "Couleur",
+      "value": "Noir"
+    },
+    {
+      "key": "horsepower",
+      "label": "Puissance fiscale",
+      "value": "28 Cv"
+    },
+    {
+      "key": "horse_power_din",
+      "label": "Puissance DIN",
+      "value": "385 Ch"
+    },
+    {
+      "key": "vehicle_vsp",
+      "label": "Permis",
+      "value": "Avec permis"
+    }
+  ],
+  "photos": [
+    {
+      "alt": "Porsche 911 carrera (992) – 2021 – 385 ch – pdk – 29 800 km (image 1)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/fd/b9/87/fdb98723ef81d4342bddea725c79f2e70be2069c.jpg?rule=classified-1200x800-webp"
+    },
+    {
+      "alt": "Porsche 911 carrera (992) – 2021 – 385 ch – pdk – 29 800 km (image 2)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/ca/a6/64/caa664c9347fd50a6a22158548d6e6d60ff10099.jpg?rule=classified-1200x800-webp"
+    },
+    {
+      "alt": "Porsche 911 carrera (992) – 2021 – 385 ch – pdk – 29 800 km (image 3)",
+      "url": "https://img.leboncoin.fr/api/v1/lbcpb1/images/35/78/79/3578797526d03e9bf8023f51becf95a24eb3de29.jpg?rule=classified-1200x800-webp"
+    }
+  ],
+  "times": [],
+  "location": [
+    "Paris"
+  ]
+}

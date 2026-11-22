@@ -10,7 +10,7 @@
   "scripts": {
     "build": "turbo run build --concurrency=1",
     "dev": "turbo run dev --parallel",
-    "lint": "eslint eslint.config.mjs scripts tests --max-warnings=0 && turbo run lint --concurrency=2",
+    "lint": "eslint eslint.config.mjs scripts tests connectors/leboncoin-spike --max-warnings=0 && turbo run lint --concurrency=2",
     "typecheck": "turbo run typecheck --concurrency=1",
     "test": "node --test tests/*.test.mjs && turbo run test --concurrency=1",
     "test:ui": "pnpm --filter @auto-world/web test:ui",
