@@ -1,0 +1,40 @@
+{
+  "schema_version": "leboncoin-camofox-summary/v1",
+  "identity": {
+    "schema_version": "leboncoin-camofox-capture/v1",
+    "commit_sha": "1821670efe0c5252a5f9fde217b4431814fee72a",
+    "github_run_id": "45048184974",
+    "github_run_attempt": 1,
+    "capture_id": "c0f3f43da996501b6c90e8e968fd6cf5",
+    "target_url_sha256": "b9b1cde16ec7289d8c02611b067817efc400f43fa57ac07e8813a3e7e14e9e60"
+  },
+  "started_at": "2026-11-22T17:13:57.570Z",
+  "completed_at": "2026-11-22T17:14:04.630Z",
+  "camofox_revision": "31376c27db94204ffdc635ae71a7f61328e91a5e",
+  "camofox_version": "1.19.0",
+  "browser_manifest": "152.0.4-beta.30",
+  "node": "v22.23.2",
+  "engine": "camofox_firefox",
+  "outcome": "partial_or_unknown",
+  "listing_page_observed": false,
+  "recurring_collection_proven": false,
+  "creation_calls": 1,
+  "api_status": 200,
+  "navigation_status": 200,
+  "navigation_status_scope": "initial_goto_reported_by_camofox",
+  "final_url_matches": true,
+  "title_observed": true,
+  "price_observed": true,
+  "process_started": true,
+  "process_exited": true,
+  "cleanup": {
+    "established": true,
+    "tracked": 9,
+    "remaining": 0
+  },
+  "http_response_body": "not_captured",
+  "frame_body_coverage": "not_established",
+  "sealed_sha256": "c2acd061ef9d845fa8ea50004e031e2e4e028a755de2eaabbf49e7449285f81c",
+  "sealed_bytes": 30765,
+  "dom_sha256": "e4d5fdf08349bf405c5da37aef66e040a00d105c7739e7021fa7ad5349fd3a0c"
+}

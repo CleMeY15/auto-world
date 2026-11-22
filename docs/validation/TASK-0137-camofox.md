@@ -36,3 +36,42 @@ Plan publié dans le corps de PR270 puis au commit cc4bdbf26b8438f75e7f115f29cdc
 Prérevue : fermeture insuffisante du seul groupe serveur détectée. Correction : geler et identifier l'arbre via /proc (PID et date de naissance système), terminer aussi ses descendants détachés, vérifier leur disparition ; test réel hors réseau ajouté. Autre défaut corrigé avant vérification : un indicateur de snapshot absent ne signifie plus « non tronqué ». Vérification et revue finales de ces corrections à consigner avant le lancement.
 
 Vérification finale avant publication : 18/18 tests hors réseau PASS, dont le vrai processus enfant détaché ; lint ciblé PASS après suppression d'une initialisation inutile signalée par ESLint ; Secretlint ciblé et diff check PASS. Aucun package TypeScript ou produit modifié, pas de build applicatif déclenché localement. Les gates CI généraux restent distincts de cet essai. Revue indépendante acquisition_design_review : APPROUVÉ pour ce lancement unique ; nettoyage à déclarer vérifié seulement si cleanup.established est true et remaining vaut 0. Aucune exécution Camofox anticipée comme réussie.
+
+
+## Résultat réel du 22 novembre 2026 — accès ponctuel confirmé
+
+Le [run 45048184974](https://github.com/CleMeY15/auto-world/actions/runs/45048184974), job 137287261221, exécute la source 1821670efe0c5252a5f9fde217b4431814fee72a. Installation, 18 tests hors réseau, lancement du vrai serveur Camofox et conservation des preuves réussis. Fenêtre de l'essai : 17:13:57.570–17:14:04.630 UTC (18:13:57–18:14:04 Europe/Paris), soit 7,060 secondes hors installation.
+
+| Observation | Résultat |
+| --- | --- |
+| Serveur | Camofox Browser 1.19.0, commit amont 31376c27db94204ffdc635ae71a7f61328e91a5e |
+| Navigateur | Manifest Camoufox 152.0.4-beta.30 ; lancement Linux avec Xvfb, défaut amont, une tentative |
+| API locale | HTTP 200 |
+| Statut de navigation | HTTP 200 du goto initial remonté par Camofox |
+| Destination | Même URL dans navigation, snapshot et DOM |
+| Véhicule | Porsche 911 Carrera S, année modèle 2021 |
+| Prix et kilométrage | 146 990 EUR ; 23 000 km |
+| Autres critères visibles | Essence, boîte manuelle, 2 portes, 4 places ; 8 critères au total |
+| Photos | 3 références observées ; aucun téléchargement séparé des fichiers image |
+| Extraction hors réseau | listing, core_fields_observed=true, issues=[] |
+| Nettoyage | Établi : 9 processus suivis, zéro restant |
+
+### Reçu conservateur et observation complémentaire
+
+Le [reçu original](leboncoin-camofox-20261122/public-camofox.json) reste inchangé : outcome=partial_or_unknown et listing_page_observed=false. La cause est le snapshot général tronqué à 8 000 caractères, incompatible avec le critère conservateur de ce classifieur. Le DOM structuré, enregistré séparément, contient un titre et un prix uniques ainsi que les caractéristiques vérifiées. La relecture et la normalisation hors réseau confirment donc un accès ponctuel à l'annonce et une extraction des champs centraux. Ce constat complémentaire ne réécrit pas le reçu et ne qualifie pas la collecte régulière.
+
+### Preuves vérifiées
+
+- 14 fragments récupérés dans les logs authentifiés et recomposés : enveloppe de 30 765 octets, SHA-256 c2acd061ef9d845fa8ea50004e031e2e4e028a755de2eaabbf49e7449285f81c.
+- Identité AAD, commit, run, cible, empreinte, taille et tag GCM vérifiés localement par le responsable ; clé privée jamais envoyée au runner ni publiée.
+- Empreinte DOM e4d5fdf08349bf405c5da37aef66e040a00d105c7739e7021fa7ad5349fd3a0c vérifiée.
+- Artefact GitHub 14764172619 : 24 161 octets compressés, conservation jusqu'au 29 novembre 2026. Une référence de téléchargement a été obtenue ; les octets utilisés pour cette vérification proviennent des fragments de logs, pas du ZIP.
+- Reviewer indépendant : recomposition des fragments identique au fichier chiffré, AAD/capture/reçu et DOM concordants, champs normalisés cohérents. Il n'a pas lu la clé privée ni répété la validation du tag GCM. Conclusion APPROUVÉE : accès ponctuel et champs centraux observés ; reçu automatique partiel conservé.
+
+### Portée et suite
+
+L'essai est exécuté par notre code sur un runner GitHub, sans utilisation du navigateur ChatGPT, sans proxy ajouté, cookies importés ou intervention sur une vérification humaine. Il conserve les comportements ordinaires du navigateur Camofox, qui est modifié ; ce n'est pas un Firefox standard. Aucune nouvelle navigation n'a été déclenchée par notre client après la création de l'onglet.
+
+Une annonce a été observée. La récurrence, la découverte de nouvelles annonces, l'exhaustivité, les fichiers photo, la couverture complète des iframes et l'intégration en base ne sont pas qualifiés. La classe d'hébergement est comparable à l'essai Chromium, mais ni son adresse réseau ni son heure ne sont identiques ; on ne peut attribuer causalement la différence au seul navigateur.
+
+Statut de TASK-0137 : OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING. Le workflow est à usage unique ; aucun ordonnanceur durable activé, aucune fusion ou activation de source en production.

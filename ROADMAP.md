@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Essai Camofox — accès ponctuel confirmé le 22 novembre 2026
+
+[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le [run Camofox 45048184974](https://github.com/CleMeY15/auto-world/actions/runs/45048184974), source 1821670e, reçoit HTTP 200 et observe la même annonce Porsche 911 (2021, 23 000 km, 146 990 EUR). Champs centraux extraits et preuves relues. Le reçu automatique reste partiel à cause du snapshot général tronqué ; le DOM structuré confirme les données. [Preuves et portée](docs/validation/TASK-0137-camofox.md). État : OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING. Aucune collecte régulière, activation de source ou intégration en base n'est déduite. La piste email reste en pause ; les essais Chromium précédents gardent leurs résultats historiques.
+
 ## Collecte autonome demandée — 22 novembre 2026
 
 [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le navigateur propre démarre sur Linux, mais la première navigation reçoit HTTP 403. Zéro extraction, arrêt sans deuxième passage. [État et preuves](docs/validation/TASK-0137.md). Une nouvelle lecture cloud a réussi séparément ; elle ne qualifie pas le worker indépendant. Le pilote horaire ChatGPT préexistant reste un essai distinct, avec premier lancement programmé à vérifier. L'accès propre durable et la couverture du catalogue restent ouverts.

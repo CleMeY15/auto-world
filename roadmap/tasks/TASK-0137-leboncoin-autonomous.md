@@ -1,5 +1,9 @@
 # TASK-0137 — Prouver une collecte leboncoin autonome et répétée
 
+## Dernier résultat — 22 novembre 2026, Camofox
+
+**IN_PROGRESS / OWN_ACCESS_OBSERVED_ONCE / REPEAT_PENDING.** Le [run Camofox](https://github.com/CleMeY15/auto-world/actions/runs/45048184974) reçoit HTTP 200 et permet de relever les champs centraux de la même annonce. [Compte rendu et reçu original](../../docs/validation/TASK-0137-camofox.md). Relecture indépendante favorable ; le reçu automatique conservateur reste partiel à cause du snapshot tronqué, tandis que le DOM et les champs normalisés sont vérifiés. Aucun passage récurrent ni accès à l'ensemble du catalogue prouvé ; aucune production modifiée. Les étapes Chromium ci-dessous sont historiques. La piste email et le dossier de contact restent en pause.
+
 ## Brief / Definition of Ready
 
 - Statut : IN_PROGRESS / OWN_ACCESS_BLOCKED, priorité utilisateur du 22 novembre 2026. Le [parcours normal testé sur `4a47c3c6`](../../docs/validation/TASK-0137-normal-flow.md#résultat-réel--refus-explicite-après-chargement-de-la-vérification) charge la vérification DataDome puis observe un refus explicite : HTTP 403, aucun retour, zéro extraction. La règle déclenchée reste inconnue ; collecte propre répétée non démontrée.
