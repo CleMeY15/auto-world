@@ -1,0 +1,78 @@
+name: Validate up to 100 public leboncoin listings in one guarded Camofox session
+
+on:
+  push:
+    branches: [spike/0137-leboncoin-autonomous]
+    paths: [.github/workflows/leboncoin-camofox-session100.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leboncoin-camofox-session100
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0137-leboncoin-autonomous' &&
+      github.event.before == '953a7d8d57e3538253b67537014e52be621f911a' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout exact guarded collection source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify the plan parent
+        run: test "$(git rev-parse HEAD^)" = '953a7d8d57e3538253b67537014e52be621f911a'
+      - name: Checkout pinned upstream Camofox
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jo-inc/camofox-browser
+          ref: 31376c27db94204ffdc635ae71a7f61328e91a5e
+          path: .camofox-runtime
+          persist-credentials: false
+      - name: Set up project Node version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Test guarded session, bounds, and refusal handling
+        run: node --test connectors/leboncoin-spike/batch-dom.test.mjs connectors/leboncoin-spike/batch-camofox.test.mjs connectors/leboncoin-spike/batch-session.test.mjs connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs connectors/leboncoin-spike/probe-camofox-settling.test.mjs
+      - name: Test private batch storage and idempotent replay
+        run: python3 connectors/leboncoin-spike/batch-store.test.py
+      - name: Install upstream from its lockfile
+        working-directory: .camofox-runtime
+        run: npm ci --omit=dev
+      - name: Install Firefox system dependencies
+        working-directory: .camofox-runtime
+        run: node node_modules/playwright-core/cli.js install-deps firefox
+      - name: Collect up to 100 unique observed listing URLs, stop at first refusal
+        run: node connectors/leboncoin-spike/batch-camofox.mjs --runtime "$GITHUB_WORKSPACE/.camofox-runtime" --out "$RUNNER_TEMP/autofindex-session100" --route session-known-details
+      - name: Build local SQLite staging and idempotent import script, no VPS write
+        run: python3 connectors/leboncoin-spike/batch-store.py --bundle "$RUNNER_TEMP/autofindex-session100/batch-bundle.private.json" --out-dir "$RUNNER_TEMP/autofindex-session100/staging"
+      - name: Print only bounded counters from the result
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/autofindex-session100/batch-summary.json"; then
+            node -e 'const s=require(process.argv[1]);console.log(JSON.stringify({status:s.status,stop_reason:s.stop_reason,attempted:s.attempted,complete:s.complete,partial:s.partial,rejected:s.rejected,discovered:s.discovered,control_signals:s.control_signals,local_session_guard_verified:s.local_session_guard_verified,session_guard:s.session_guard,network_request_count:s.network_request_count,project_database_updated:s.project_database_updated}))' "$RUNNER_TEMP/autofindex-session100/batch-summary.json"
+          else
+            echo "No batch summary: environment or setup failed"
+          fi
+      - name: Upload diagnostic receipts and sealed captures only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: leboncoin-session100-evidence
+          path: |
+            ${{ runner.temp }}/autofindex-session100/batch-summary.json
+            ${{ runner.temp }}/autofindex-session100/page-*.receipt.json
+            ${{ runner.temp }}/autofindex-session100/page-*.sealed.json
+            ${{ runner.temp }}/autofindex-session100/staging/import-receipt.json
+          if-no-files-found: warn
+          retention-days: 7
