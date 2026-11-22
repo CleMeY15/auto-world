@@ -1,0 +1,69 @@
+name: Validate a bounded three-listing Camofox session
+on:
+  push:
+    branches: [spike/0137-leboncoin-autonomous]
+    paths: [.github/workflows/leboncoin-camofox-session3.yml]
+permissions:
+  contents: read
+concurrency:
+  group: leboncoin-camofox-session3
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0137-leboncoin-autonomous' &&
+      github.event.before == '1d1985b77047db4532b1ae1fb35c39a86f5c37e6' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout the exact validation source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify approved plan parent
+        run: test "$(git rev-parse HEAD^)" = '1d1985b77047db4532b1ae1fb35c39a86f5c37e6'
+      - name: Checkout pinned Camofox browser
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jo-inc/camofox-browser
+          ref: 31376c27db94204ffdc635ae71a7f61328e91a5e
+          path: .camofox-runtime
+          persist-credentials: false
+      - name: Set up project Node version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Verify bounded probe and session lifecycle
+        run: node --test connectors/leboncoin-spike/batch-dom.test.mjs connectors/leboncoin-spike/batch-camofox.test.mjs connectors/leboncoin-spike/batch-session.test.mjs connectors/leboncoin-spike/probe-camofox.test.mjs connectors/leboncoin-spike/pilot-camofox.test.mjs connectors/leboncoin-spike/probe-camofox-settling.test.mjs
+      - name: Install upstream from lockfile
+        working-directory: .camofox-runtime
+        run: npm ci --omit=dev
+      - name: Install Firefox dependencies
+        working-directory: .camofox-runtime
+        run: node node_modules/playwright-core/cli.js install-deps firefox
+      - name: Observe at most three known public listings
+        run: node connectors/leboncoin-spike/batch-camofox.mjs --runtime "$GITHUB_WORKSPACE/.camofox-runtime" --out "$RUNNER_TEMP/autofindex-session3" --route session-probe
+      - name: Summarize observed access (not a success gate)
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/autofindex-session3/batch-summary.json"; then
+            node -e 'const s=require(process.argv[1]);console.log(JSON.stringify({status:s.status,stop_reason:s.stop_reason,attempted:s.attempted,complete:s.complete,session_guard:s.session_guard,network_request_count:s.network_request_count}))' "$RUNNER_TEMP/autofindex-session3/batch-summary.json"
+          else
+            echo "No browser summary: environment or setup failed"
+          fi
+      - name: Retain diagnostic receipts and sealed evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: leboncoin-session3-evidence
+          path: |
+            ${{ runner.temp }}/autofindex-session3/batch-summary.json
+            ${{ runner.temp }}/autofindex-session3/page-*.receipt.json
+            ${{ runner.temp }}/autofindex-session3/page-*.sealed.json
+          if-no-files-found: warn
+          retention-days: 7

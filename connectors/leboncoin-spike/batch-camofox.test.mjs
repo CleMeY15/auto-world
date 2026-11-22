@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { BATCH_PLAN, BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN, DETAIL_BATCH_PLAN_SHA256,
-  RESUME_BATCH_PLAN, RESUME_BATCH_PLAN_SHA256, SESSION_BATCH_PLAN, SESSION_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
+  RESUME_BATCH_PLAN, RESUME_BATCH_PLAN_SHA256, SESSION_BATCH_PLAN, SESSION_BATCH_PLAN_SHA256,
+  SESSION_PROBE_PLAN, SESSION_PROBE_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
 import { canonicalListingUrl } from "./batch-dom.mjs";
 import { RESUME_CHECKPOINT } from "./batch-resume-checkpoint.mjs";
 import { observeBatchPage } from "./batch-runtime.mjs";
@@ -292,4 +293,35 @@ test("batch's public summary contains no listing text or image URLs", async () =
   assert.equal(result.summary.project_database_updated, false);
   assert.equal(result.summary.photos_downloaded, false);
   assert.equal(JSON.stringify(result.summary).includes("https://"), false);
+});
+
+test("real-browser probe manifest is strictly three known pages and cannot follow recommendations", async () => {
+  assert.equal(SESSION_PROBE_PLAN.seed_urls.length, 3);
+  assert.equal(SESSION_PROBE_PLAN.max_listing_pages, 3);
+  assert.equal(SESSION_PROBE_PLAN.max_candidates, 3);
+  assert.equal(SESSION_PROBE_PLAN.recommendations, false);
+  assert.equal(SESSION_PROBE_PLAN.max_discovery_pages, 0);
+  assert.notEqual(SESSION_PROBE_PLAN_SHA256, SESSION_BATCH_PLAN_SHA256);
+  let clock = Date.parse("2026-11-22T22:00:00.000Z");
+  const visited = [];
+  const result = await runBatch({
+    plan: SESSION_PROBE_PLAN, now: () => clock, wait: async (ms) => { clock += ms; },
+    observe: async ({ url: target, kind }) => {
+      visited.push(target);
+      assert.equal(kind, "listing");
+      const started_at = new Date(clock).toISOString(); clock += 100;
+      const record = discoveryRecord([url(999), url(998)], {
+        navigation: { httpStatus: 404, url: target },
+        session_continuity: { before: true, after: true },
+      });
+      record.dom.url = target;
+      return { started_at, completed_at: new Date(clock).toISOString(), record };
+    },
+  });
+  assert.deepEqual(visited, SESSION_PROBE_PLAN.seed_urls);
+  assert.equal(result.summary.attempted, 3);
+  assert.equal(result.summary.discovered, 3);
+  assert.equal(result.summary.status, "sample_exhausted");
+  assert.equal(result.summary.local_session_guard_verified, true);
+  assert.equal(result.summary.network_request_count, "not_measured");
 });

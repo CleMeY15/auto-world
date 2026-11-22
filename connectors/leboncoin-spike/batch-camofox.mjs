@@ -31,12 +31,17 @@ export const SESSION_BATCH_PLAN = Object.freeze({ ...DETAIL_BATCH_PLAN,
   schema_version: "leboncoin-session-batch-plan/v1", context: "temporary_session_with_local_blank_guard",
   max_owned_tabs: 2, max_source_tabs: 1 });
 export const SESSION_BATCH_PLAN_SHA256 = hash(JSON.stringify(SESSION_BATCH_PLAN));
+// One-off real-browser validation only; the previous batch manifest stays unchanged.
+export const SESSION_PROBE_PLAN = Object.freeze({ ...SESSION_BATCH_PLAN,
+  schema_version: "leboncoin-session-probe-plan/v1", max_listing_pages: 3, max_candidates: 3,
+  recommendations: false });
+export const SESSION_PROBE_PLAN_SHA256 = hash(JSON.stringify(SESSION_PROBE_PLAN));
 const isoTime = (value) => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 /** Bounded frontier; every URL after the start is read from an observed page. */
 export async function runBatch({ observe, onObservation = async () => {}, now = Date.now, wait = delay, plan = BATCH_PLAN }) {
-  if (![BATCH_PLAN, DETAIL_BATCH_PLAN, RESUME_BATCH_PLAN, SESSION_BATCH_PLAN].includes(plan)) throw new Error("invalid_batch_plan");
-  const guardedSession = plan === SESSION_BATCH_PLAN;
+  if (![BATCH_PLAN, DETAIL_BATCH_PLAN, RESUME_BATCH_PLAN, SESSION_BATCH_PLAN, SESSION_PROBE_PLAN].includes(plan)) throw new Error("invalid_batch_plan");
+  const guardedSession = plan === SESSION_BATCH_PLAN || plan === SESSION_PROBE_PLAN;
   const planSha = hash(JSON.stringify(plan));
   const excluded = new Set(plan.excluded_urls ?? []);
   const discovery = plan.start_url ? [plan.start_url] : [];
@@ -145,9 +150,9 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
 
 async function main(args) {
   if (![4, 6].includes(args.length) || args[0] !== "--runtime" || args[2] !== "--out"
-    || (args.length === 6 && (args[4] !== "--route" || !["known-details", "resume-known-details", "session-known-details"].includes(args[5])))) throw new Error("invalid_arguments");
+    || (args.length === 6 && (args[4] !== "--route" || !["known-details", "resume-known-details", "session-known-details", "session-probe"].includes(args[5])))) throw new Error("invalid_arguments");
   const routePlans = { "known-details": DETAIL_BATCH_PLAN, "resume-known-details": RESUME_BATCH_PLAN,
-    "session-known-details": SESSION_BATCH_PLAN };
+    "session-known-details": SESSION_BATCH_PLAN, "session-probe": SESSION_PROBE_PLAN };
   const plan = args.length === 4 ? BATCH_PLAN : routePlans[args[5]];
   const planSha = hash(JSON.stringify(plan));
   const out = resolve(args[3]); await mkdir(out, { mode: 0o700 });
@@ -157,7 +162,7 @@ async function main(args) {
   const runtime = await startBatchRuntime({ runtime: args[1], out: join(out, "runtime") });
   let result; let cleanup; let sessionGuard; let sessionCleanup;
   try {
-    if (plan === SESSION_BATCH_PLAN) sessionGuard = await createBatchSessionGuard(runtime.api);
+    if (plan === SESSION_BATCH_PLAN || plan === SESSION_PROBE_PLAN) sessionGuard = await createBatchSessionGuard(runtime.api);
     result = await runBatch({
       plan,
       observe: async ({ url }) => sessionGuard ? sessionGuard.observe(url) : observeBatchPage(runtime.api, url),
