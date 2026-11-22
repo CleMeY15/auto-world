@@ -1,0 +1,24 @@
+{
+  "name": "@auto-world/http-acquisition",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist"],
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "build": "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json",
+    "lint": "eslint src test --max-warnings=0",
+    "typecheck": "pnpm --filter @auto-world/connector-sdk build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@auto-world/connector-sdk": "workspace:*",
+    "@auto-world/source-registry": "workspace:*",
+    "@auto-world/vehicle-schema": "workspace:*",
+    "parse5": "8.1.1"
+  },
+  "devDependencies": { "@types/node": "22.20.2" }
+}

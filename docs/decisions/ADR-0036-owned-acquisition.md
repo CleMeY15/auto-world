@@ -1,6 +1,6 @@
 # ADR-0036 — Owned acquisition foundation
 
-Status: proposed for TASK-0135; independent review and implementation evidence are recorded separately.
+Status: accepted for the bounded TASK-0135 implementation after independent architecture and code review on 22 November 2026. Delivery, live-source access and production qualification remain separate; see the validation record.
 
 ## Product direction
 
@@ -13,6 +13,8 @@ Reuse `connectors/_sdk`, PostgreSQL, OpenSearch and the existing Fastify API. A 
 Add `@auto-world/http-acquisition` under `connectors/http-acquisition`. It receives a bounded, ordered manifest of stable source listing IDs and source URLs. It executes through the existing SDK with caller-supplied authenticated registry, lease and store ports. No second persistence implementation, production deployment or source credential is introduced.
 
 The public run wrapper owns the adapter and authority guard together. The wrapper requires `crawl`, a matching source, credential-free configuration, and `explicit_tombstone` deletion mode on every current-authority read. It rejects a policy change; it never rewrites or approves the registry. A seed list is not a full site inventory. Missing seeds, a 404, unsupported markup or a failed HTTP request cannot mark other listings withdrawn. A later discovery/reconciliation contract must prove complete source scope before absence inference.
+
+The SDK's existing `InventoryHead.lastCompletedFullAt` can advance when this bounded `full` batch completes. Consumers must not interpret it as exhaustive source coverage. The future discovery contract must carry explicit coverage evidence and settle coexistence with other collectors in the same source scope before production composition. This package's return value always identifies seed-only coverage.
 
 ## Capture and resume
 
@@ -31,6 +33,8 @@ Tests may inject a transport restricted to a single owned loopback HTTP fixture.
 Use pinned MIT-licensed `parse5` for inert HTML parsing. Inspect bounded `application/ld+json` scripts using the existing strict JSON decoder. Support a documented compact Schema.org profile with Car/Vehicle, arrays and `@graph`; never fetch or expand remote contexts. Require exactly one unambiguous vehicle candidate for a seed detail page. Source listing identity comes from the verified source manifest, not a guessed VIN, model SKU or whole URL.
 
 Map only explicitly requested/granted SDK fields. Prices use exact decimal conversion with currency units; kilometre/mile units stay explicit. Missing and ambiguous fields are not invented. A VIN observation does not resolve a vehicle identity. Model date is not first-registration date. Richer descriptive fields remain in raw evidence until the future real-listing contract is implemented.
+
+The 512 KiB input bound applies before parsing; HTML node/depth bounds apply during traversal after parse5 constructs the tree. They do not preempt parser CPU. Hostile-case performance and worker isolation are separate pre-scale qualification work. The manifest is trusted operator configuration, not an arbitrary public object/API input.
 
 ## Expansion sequence
 

@@ -2,7 +2,7 @@
 
 ## Brief / Definition of Ready
 
-- Status: IN_PROGRESS; priority P0 for the new owned-acquisition lane requested by the user on 22 November 2026.
+- Status: IN_PROGRESS, implementation LOCAL_VALIDATED / GITHUB_DELIVERY_PENDING; priority P0 for the new owned-acquisition lane requested by the user on 22 November 2026.
 - Owner: root; branch `product/0135-owned-acquisition`; base `44c59c8be1bc65456595a6e081a8c7996d1a508f`.
 - Request: build our own powerful acquisition system and API, using owned/open-source code, with leboncoin as the first target and worldwide expansion as the product goal. The request authorizes implementation, not a fabricated third-party access grant or a claim of full coverage.
 - First deliverable: an executable, bounded HTTP/HTML acquisition module integrated with the existing Connector SDK. Preserve original HTTP bodies, extract a documented Schema.org vehicle profile, and demonstrate ingestion/history/recovery against an owned local HTTP fixture.
@@ -37,4 +37,4 @@ UI is not modified; visual/browser changes are not applicable to this module. Ex
 
 ## Delivery
 
-Validation: [TASK-0135](../../docs/validation/TASK-0135.md). No DONE or live collection is claimed by this brief. Rollback removes the new caller/package; existing SDK, source histories and the current site remain untouched.
+Validation: [TASK-0135](../../docs/validation/TASK-0135.md), draft [PR268](https://github.com/CleMeY15/auto-world/pull/268). The bounded foundation has independent architecture/code approval, 70 passing targeted tests, global lint/typecheck and dependency/secret checks. Final GitHub/main delivery is distinct. No DONE or live collection is claimed by this brief. Rollback removes the new caller/package; existing SDK, source histories and the current site remain untouched.
