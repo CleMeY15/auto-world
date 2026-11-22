@@ -2,7 +2,7 @@
 
 ## Collecte autonome — TASK-0137, 22 novembre 2026
 
-[PR270](https://github.com/CleMeY15/auto-world/pull/270), base TASK-0136, plan publié avant implémentation dans `6085c0e`. Un essai dédié sur Linux doit ouvrir une annonce avec notre code puis, uniquement en cas d'extraction complète, effectuer deux passages supplémentaires espacés. [Compte rendu](../docs/validation/TASK-0137.md). Le VPS est documenté mais non joignable depuis cette session sans authentification hPanel ; aucun service serveur n'a été modifié. Ne pas déclarer de collecte durable active sans preuve réelle.
+[PR270](https://github.com/CleMeY15/auto-world/pull/270), base TASK-0136, plan publié avant implémentation dans `6085c0e`. Run 45024088325 sur source 85ab8da : navigateur lancé, une navigation HTTP 403, zéro extraction ; aucun deuxième passage ou retry. [Compte rendu](../docs/validation/TASK-0137.md). La lecture cloud a réussi séparément, sans établir l'accès de notre worker. Un pilote horaire ChatGPT préexistant est activé ; son premier lancement programmé reste à vérifier. Le VPS demeure non connecté depuis cette session ; aucun service serveur ni registre n'est modifié.
 
 ## Priorité utilisateur — faisabilité leboncoin, 22 novembre 2026
 

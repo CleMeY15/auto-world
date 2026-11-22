@@ -2,7 +2,7 @@
 
 ## Collecte autonome demandée — 22 novembre 2026
 
-[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270), poursuit la preuve d'accès avec notre programme sur un runner Linux compatible. Essai borné : une annonce, jusqu'à trois passages automatiques conditionnés par un résultat exploitable, arrêt au premier échec. [État et preuves](docs/validation/TASK-0137.md). Une installation durable et la couverture du catalogue restent distinctes de ce diagnostic.
+[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le navigateur propre démarre sur Linux, mais la première navigation reçoit HTTP 403. Zéro extraction, arrêt sans deuxième passage. [État et preuves](docs/validation/TASK-0137.md). Une nouvelle lecture cloud a réussi séparément ; elle ne qualifie pas le worker indépendant. Le pilote horaire ChatGPT préexistant reste un essai distinct, avec premier lancement programmé à vérifier. L'accès propre durable et la couverture du catalogue restent ouverts.
 
 ## Priorité : essai leboncoin avant extension du produit
 
