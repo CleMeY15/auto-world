@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { BATCH_PLAN, BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN, DETAIL_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
+import { BATCH_PLAN, BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN, DETAIL_BATCH_PLAN_SHA256,
+  RESUME_BATCH_PLAN, RESUME_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
+import { canonicalListingUrl } from "./batch-dom.mjs";
+import { RESUME_CHECKPOINT } from "./batch-resume-checkpoint.mjs";
 import { observeBatchPage } from "./batch-runtime.mjs";
 
 function discoveryRecord(links, overrides = {}) {
@@ -86,13 +89,96 @@ test("HTTP403 stops the frontier without retrying or reaching detail pages", asy
   assert.equal(result.summary.status, "stopped"); assert.ok(result.summary.stop_reason);
 });
 
-test("a shortened wait never starts another navigation", async () => {
-  let clock = Date.parse("2026-11-22T20:00:00.000Z"); let calls = 0;
-  const result = await runBatch({ now: () => clock, wait: async () => {}, observe: async () => {
+test("a timer waking at 9999ms waits the residual interval before another navigation", async () => {
+  let clock = Date.parse("2026-11-22T20:00:00.000Z"); const waits = []; const opens = [];
+  const result = await runBatch({ now: () => clock, wait: async (ms) => {
+    waits.push(ms); clock += waits.length === 1 ? 9999 : ms;
+  }, observe: async ({ url: target, kind }) => {
+    opens.push({ target, at: clock }); const started_at = new Date(clock).toISOString(); clock += 100;
+    const record = discoveryRecord(kind === "discovery" ? [url(1)] : []);
+    if (kind === "listing") { record.navigation = { httpStatus: 404, url: target }; record.dom.url = target; }
+    return { started_at, completed_at: new Date(clock).toISOString(), record };
+  } });
+  assert.deepEqual(waits, [10_000, 2]);
+  assert.equal(opens.length, 2); assert.equal(opens[1].target, url(1));
+  assert.equal(opens[1].at - (opens[0].at + 100), 10_001);
+  assert.equal(result.measurements[1].previous_gap_ms, 10_001);
+  assert.equal(result.summary.stop_reason, null); assert.equal(result.summary.attempted, 1);
+  assert.equal(result.summary.status, "sample_exhausted");
+});
+
+test("a wait making no clock progress stops immediately without another navigation", async () => {
+  let clock = Date.parse("2026-11-22T20:00:00.000Z"); let calls = 0; const waits = [];
+  const result = await runBatch({ now: () => clock, wait: async (ms) => { waits.push(ms); }, observe: async () => {
     calls += 1; const started_at = new Date(clock).toISOString(); clock += 100;
     return { started_at, completed_at: new Date(clock).toISOString(), record: discoveryRecord([url(1)]) };
   } });
   assert.equal(calls, 1); assert.equal(result.summary.stop_reason, "interval_not_met");
+  assert.deepEqual(waits, [10_000]); assert.equal(result.summary.attempted, 0);
+});
+
+test("progressing but persistently early timers stop after three wakes with the 10000ms minimum intact", async () => {
+  let clock = Date.parse("2026-11-22T20:00:00.000Z"); let calls = 0; const waits = [];
+  const result = await runBatch({ now: () => clock, wait: async (ms) => { waits.push(ms); clock += 1; },
+    observe: async () => {
+      calls += 1; const started_at = new Date(clock).toISOString(); clock += 100;
+      return { started_at, completed_at: new Date(clock).toISOString(), record: discoveryRecord([url(1)]) };
+    } });
+  assert.deepEqual(waits, [10_000, 9999, 9998]);
+  assert.equal(calls, 1); assert.equal(result.summary.stop_reason, "interval_not_met");
+  assert.equal(result.summary.attempted, 0); assert.equal(result.summary.status, "stopped");
+});
+
+test("resume checkpoint has 31 canonical unique candidates disjoint from 22 collected URLs and caps the remainder at 78", () => {
+  const seeds = RESUME_CHECKPOINT.seed_urls; const excluded = RESUME_CHECKPOINT.previously_collected_urls;
+  assert.equal(seeds.length, 31); assert.equal(new Set(seeds).size, 31);
+  assert.equal(excluded.length, 22); assert.equal(new Set(excluded).size, 22);
+  assert.ok([...seeds, ...excluded].every((target) => canonicalListingUrl(target) === target));
+  assert.ok(seeds.every((target) => !excluded.includes(target)));
+  assert.equal(RESUME_CHECKPOINT.collected, excluded.length);
+  assert.equal(RESUME_CHECKPOINT.remaining_limit, 78);
+  assert.equal(RESUME_CHECKPOINT.collected + RESUME_CHECKPOINT.remaining_limit, BATCH_PLAN.max_listing_pages);
+  assert.deepEqual(RESUME_BATCH_PLAN.seed_urls, seeds); assert.deepEqual(RESUME_BATCH_PLAN.excluded_urls, excluded);
+  assert.equal(RESUME_BATCH_PLAN.max_listing_pages, 78); assert.equal(RESUME_BATCH_PLAN.max_discovery_pages, 0);
+  assert.equal(RESUME_BATCH_PLAN.start_url, null); assert.equal(RESUME_BATCH_PLAN.min_gap_ms, 10_000);
+  assert.equal(RESUME_BATCH_PLAN.resume_from.run_id, RESUME_CHECKPOINT.run_id);
+  assert.equal(RESUME_BATCH_PLAN.resume_from.source_revision, RESUME_CHECKPOINT.source_revision);
+  assert.equal(RESUME_BATCH_PLAN.resume_from.batch_id, RESUME_CHECKPOINT.batch_id);
+  assert.equal(RESUME_BATCH_PLAN.resume_from.plan_sha256, RESUME_CHECKPOINT.plan_sha256);
+  assert.equal(RESUME_BATCH_PLAN.resume_from.collected, 22);
+  assert.match(RESUME_BATCH_PLAN_SHA256, /^[a-f0-9]{64}$/u);
+});
+
+test("resume excludes collected seeds and recommended duplicates while reaching 78 complete new records without a 79th open", async () => {
+  // Fixture-derived synthetic responses test the frontier only; no new live evidence.
+  const fixture = JSON.parse(await readFile(new URL("./fixtures/3305814470.json", import.meta.url), "utf8"));
+  const excluded = new Set(RESUME_BATCH_PLAN.excluded_urls);
+  const fresh = Array.from({ length: 100 }, (_, index) => url(index + 1000));
+  assert.ok(fresh.every((target) => !excluded.has(target) && !RESUME_BATCH_PLAN.seed_urls.includes(target)));
+  const links = [...RESUME_BATCH_PLAN.excluded_urls.flatMap((target) => [target, `${target}?tracking=1#photo`]),
+    ...RESUME_BATCH_PLAN.seed_urls.slice(0, 3), ...fresh];
+  let clock = Date.parse("2026-11-22T20:00:00.000Z"); const calls = []; const retained = [];
+  const result = await runBatch({ plan: RESUME_BATCH_PLAN, now: () => clock, wait: async (ms) => { clock += ms; },
+    observe: async ({ url: target, kind }) => {
+      calls.push({ target, kind }); const started_at = new Date(clock).toISOString(); clock += 100;
+      const record = discoveryRecord(calls.length === 1 ? links : []);
+      record.navigation = { httpStatus: 200, url: target, navigationOk: true };
+      record.dom.url = target; record.dom.listing = globalThis.structuredClone(fixture);
+      return { started_at, completed_at: new Date(clock).toISOString(), record };
+    }, onObservation: async ({ ordinal }) => { retained.push(ordinal); return { capture_sha256: "b".repeat(64) }; } });
+  assert.equal(calls.length, 78); assert.equal(new Set(calls.map((item) => item.target)).size, 78);
+  assert.ok(calls.every((item) => item.kind === "listing" && !excluded.has(item.target)));
+  assert.deepEqual(calls.slice(0, 31).map((item) => item.target), RESUME_BATCH_PLAN.seed_urls);
+  assert.deepEqual(calls.slice(31).map((item) => item.target), fresh.slice(0, 47));
+  assert.equal(result.summary.discovery_pages_attempted, 0); assert.equal(result.summary.attempted, 78);
+  assert.equal(result.summary.complete, 78); assert.equal(result.entries.length, 78);
+  assert.equal(result.summary.discovered, 131); assert.equal(result.summary.partial, 0); assert.equal(result.summary.rejected, 0);
+  assert.equal(result.summary.status, "target_reached"); assert.equal(result.summary.stop_reason, null);
+  assert.equal(result.summary.plan_sha256, RESUME_BATCH_PLAN_SHA256);
+  assert.equal(result.summary.project_database_updated, false); assert.equal(result.summary.stored, 0);
+  assert.deepEqual(retained, Array.from({ length: 78 }, (_, index) => index + 1));
+  assert.ok(result.measurements.slice(1).every((item) => item.previous_gap_ms >= 10_000));
+  assert.equal(new Set(result.entries.map((entry) => entry.normalized.source.original_url)).size, 78);
 });
 
 test("evidence output failure stops without using links from that page", async () => {

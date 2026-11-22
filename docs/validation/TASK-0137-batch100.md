@@ -74,3 +74,11 @@ Figer une nouvelle liste issue du checkpoint vérifié :31URL encore en attente 
 Même Camofox, contexte ordinaire de campagne, délais, arrêt réel et stockage chiffré. Tests du réveil à9999ms suivi du reliquat, d'une attente sans progression, de l'exclusion22 et du plafond78. Workflow one-shot sur le parent de ce plan, premier run/tentative. Conserver les identités des deux lots, puis importer les deux dans la même base de préparation et vérifier100 identités si le plafond est atteint. Ne pas attribuer les22 captures anciennes au nouveau run.
 
 Statut :22_REAL_LISTINGS_STAGED / TIMER_CORRECTION_AND_RESUME_PLANNED / PROJECT_DATABASE_ACCESS_MISSING.
+
+### Vérifications avant la reprise réseau
+
+Plan publié dans e710daabf5ca0f074519595eccad7b5f28006cc6 avant implémentation. Revue indépendante des trois fichiers source/manifeste/workflow : aucun blocage ; comparaison exacte des31candidats FIFO et22exclusions au checkpoint authentifié. Les preuves du premier lot restent rattachées à leur ancienne révision.
+
+Validation locale sérialisée :95 tests Node PASS et19 tests Python PASS ; lint et secretlint des quatre fichiers source/tests/workflow PASS. Le scénario de réveil9999ms attend encore2ms avant ouverture (intervalle mesuré10001ms), l'absence de progrès arrête immédiatement et les réveils trop précoces sont bornés à trois. Un scénario synthétique de78 résultats vérifie exclusions, doublons, plafond et statut ; il ne remplace pas le résultat réel attendu.
+
+Statut avant publication du code : RESUME_LOCAL_VALIDATED / REAL_RESUME_PENDING / PROJECT_DATABASE_ACCESS_MISSING.

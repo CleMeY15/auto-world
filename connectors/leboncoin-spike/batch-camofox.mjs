@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { diagnosticIdentity, encodeSealedFragments, inspectSealedEnvelope, loadDiagnosticPublicKey, sealAccessCapture } from "./access-diagnostic.mjs";
 import { assessBatchRecord, canonicalDiscoveryUrl, canonicalListingUrl } from "./batch-dom.mjs";
 import { observeBatchPage, startBatchRuntime } from "./batch-runtime.mjs";
+import { RESUME_CHECKPOINT } from "./batch-resume-checkpoint.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 export const BATCH_PLAN = Object.freeze({ schema_version: "leboncoin-batch-plan/v1", start_url: "https://www.leboncoin.fr/c/voitures",
@@ -17,13 +18,21 @@ export const DETAIL_BATCH_PLAN = Object.freeze({ ...BATCH_PLAN, schema_version: 
   start_url: null, max_discovery_pages: 0,
   seed_urls: Object.freeze(["3305814470", "3312238672", "3308374007"].map((id) => `https://www.leboncoin.fr/ad/voitures/${id}`)) });
 export const DETAIL_BATCH_PLAN_SHA256 = hash(JSON.stringify(DETAIL_BATCH_PLAN));
+export const RESUME_BATCH_PLAN = Object.freeze({ ...DETAIL_BATCH_PLAN, schema_version: "leboncoin-resume-batch-plan/v1",
+  seed_urls: RESUME_CHECKPOINT.seed_urls, excluded_urls: RESUME_CHECKPOINT.previously_collected_urls,
+  max_listing_pages: RESUME_CHECKPOINT.remaining_limit,
+  resume_from: Object.freeze({ source_revision: RESUME_CHECKPOINT.source_revision, run_id: RESUME_CHECKPOINT.run_id,
+    batch_id: RESUME_CHECKPOINT.batch_id, plan_sha256: RESUME_CHECKPOINT.plan_sha256, collected: RESUME_CHECKPOINT.collected }) });
+export const RESUME_BATCH_PLAN_SHA256 = hash(JSON.stringify(RESUME_BATCH_PLAN));
 const isoTime = (value) => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 /** Bounded frontier; every URL after the start is read from an observed page. */
 export async function runBatch({ observe, onObservation = async () => {}, now = Date.now, wait = delay, plan = BATCH_PLAN }) {
-  if (plan !== BATCH_PLAN && plan !== DETAIL_BATCH_PLAN) throw new Error("invalid_batch_plan");
-  const planSha = plan === BATCH_PLAN ? BATCH_PLAN_SHA256 : DETAIL_BATCH_PLAN_SHA256;
-  const discovery = plan.start_url ? [plan.start_url] : []; const candidates = [...(plan.seed_urls ?? [])];
+  if (![BATCH_PLAN, DETAIL_BATCH_PLAN, RESUME_BATCH_PLAN].includes(plan)) throw new Error("invalid_batch_plan");
+  const planSha = hash(JSON.stringify(plan));
+  const excluded = new Set(plan.excluded_urls ?? []);
+  const discovery = plan.start_url ? [plan.start_url] : [];
+  const candidates = [...(plan.seed_urls ?? [])].filter((url) => !excluded.has(url));
   const discoveredPages = new Set(discovery); const discoveredListings = new Set(candidates);
   const opened = new Set(); const measurements = []; const entries = [];
   const started = now(); let previousEnd = null; let stopReason = null;
@@ -37,8 +46,16 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     const url = useDiscovery ? discovery.shift() : candidates.shift();
     if (opened.has(url)) continue;
     if (previousEnd !== null) {
-      const needed = Math.max(0, plan.min_gap_ms - (now() - previousEnd));
-      if (needed) { try { await wait(needed); } catch { stopReason = "interval_failed"; break; } }
+      // Timers may wake a millisecond early. Wait for the measured deadline,
+      // keeping the same minimum gap and a bounded no-progress failure path.
+      for (let wake = 0; wake < 3; wake += 1) {
+        const needed = plan.min_gap_ms - (now() - previousEnd);
+        if (needed <= 0) break;
+        const before = now();
+        try { await wait(Math.max(needed, 2)); } catch { stopReason = "interval_failed"; break; }
+        if (now() <= before) { stopReason = "interval_not_met"; break; }
+      }
+      if (stopReason) break;
       if (now() - previousEnd < plan.min_gap_ms) { stopReason = "interval_not_met"; break; }
     }
     if (now() - started >= plan.max_duration_ms) { stopReason = "duration_limit"; break; }
@@ -78,7 +95,7 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     if (assessment.stop) { stopReason = assessment.outcome; break; }
     for (const raw of assessment.listing_urls ?? []) {
       const link = canonicalListingUrl(raw);
-      if (!link || discoveredListings.has(link) || discoveredListings.size >= plan.max_candidates) continue;
+      if (!link || excluded.has(link) || discoveredListings.has(link) || discoveredListings.size >= plan.max_candidates) continue;
       discoveredListings.add(link); if (!opened.has(link)) candidates.push(link);
     }
     for (const raw of assessment.discovery_urls ?? []) {
@@ -89,7 +106,7 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
   }
   return { entries, measurements, summary: { schema_version: "leboncoin-batch-summary/v1", plan_sha256: planSha,
     started_at: new Date(started).toISOString(), completed_at: new Date(now()).toISOString(),
-    status: stopReason ? "stopped" : entries.length === 100 ? "target_reached" : "sample_exhausted", stop_reason: stopReason,
+    status: stopReason ? "stopped" : entries.length === plan.max_listing_pages ? "target_reached" : "sample_exhausted", stop_reason: stopReason,
     discovered: discoveredListings.size, discovery_pages_attempted: discoveryAttempts, attempted: listingAttempts,
     complete: entries.length, partial, rejected, stored: 0, control_signals: signals,
     project_database_updated: false, photos_downloaded: false, recurring_collection_proven: false,
@@ -98,9 +115,9 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
 
 async function main(args) {
   if (![4, 6].includes(args.length) || args[0] !== "--runtime" || args[2] !== "--out"
-    || (args.length === 6 && (args[4] !== "--route" || args[5] !== "known-details"))) throw new Error("invalid_arguments");
-  const plan = args.length === 6 ? DETAIL_BATCH_PLAN : BATCH_PLAN;
-  const planSha = plan === BATCH_PLAN ? BATCH_PLAN_SHA256 : DETAIL_BATCH_PLAN_SHA256;
+    || (args.length === 6 && (args[4] !== "--route" || !["known-details", "resume-known-details"].includes(args[5])))) throw new Error("invalid_arguments");
+  const plan = args.length === 4 ? BATCH_PLAN : args[5] === "known-details" ? DETAIL_BATCH_PLAN : RESUME_BATCH_PLAN;
+  const planSha = hash(JSON.stringify(plan));
   const out = resolve(args[3]); await mkdir(out, { mode: 0o700 });
   const key = await loadDiagnosticPublicKey();
   const batchId = randomBytes(16).toString("hex");
