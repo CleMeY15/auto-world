@@ -1,3 +1,7 @@
+## Dernier essai réel — pilote plafonné à 100 annonces
+
+**IN_PROGRESS / 1_OF_2_EXTRACTED / VERIFICATION_OBSTRUCTING / REGULAR_ACCESS_UNPROVEN**. Le [run GitHub 45076524445](https://github.com/CleMeY15/auto-world/actions/runs/45076524445), source `b01d950e`, a ouvert une première fiche HTTP 200 exploitable. La deuxième ouverture reçoit HTTP 200, mais un cadre de vérification obstrue la page, entraînant un arrêt sans retry. 13 URL candidates observées ; 2 tentées, 1 complète et 1 rejetée ; 98 tentatives non exécutées. La continuité du contexte est vérifiée (quatre contrôles positifs) et tous les processus sont nettoyés. Le précédent pilote 3/3 n'établissait pas cette stabilité. [Rapport détaillé](../../docs/validation/TASK-0137-session100.md). La base PostgreSQL conserve ses **22 annonces antérieures** ; la donnée isolée de ce nouveau run est stockée seulement dans la base de préparation du runner.
+
 # TASK-0137 — Prouver une collecte leboncoin autonome et répétée
 
 ## Diagnostic complémentaire — continuité du contexte

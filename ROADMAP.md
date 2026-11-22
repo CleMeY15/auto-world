@@ -1,3 +1,7 @@
+## Pilote 100 Camofox — arrêt au deuxième accès, session intacte
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [run 45076524445](https://github.com/CleMeY15/auto-world/actions/runs/45076524445) : sur 100 fiches maximum prévues, **2 tentées / 1 complète**, deuxième fiche HTTP 200 mais contrôle de vérification réellement obstruant. Arrêt immédiat `verification_obstructing`, sans retry, 13 candidats détectés. La garde de session est valide sur 4/4 contrôles, donc pas de perte du contexte observée. [Bilan et limites](docs/validation/TASK-0137-session100.md). Les 22 fiches déjà importées dans PostgreSQL restent intactes ; ce nouveau run ne modifie pas le VPS. Accès stable et 100 annonces non prouvés ; TASK-0137 reste IN_PROGRESS.
+
 # ROADMAP MASTER — Auto World Search
 
 ## Diagnostic d'accès — continuité du contexte navigateur

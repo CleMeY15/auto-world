@@ -1,3 +1,7 @@
+## Pilote 100 — test réel arrêté à la deuxième fiche
+
+22 novembre 2026, [run 45076524445](https://github.com/CleMeY15/auto-world/actions/runs/45076524445), commit `b01d950e` : nouvelle voie Camofox avec garde locale, 100 annonces maximum mais arrêt sur la **2e** (`verification_obstructing`, HTTP 200). **1 annonce complète**, 13 candidats découverts ; la garde est validée 4/4, sans perte, nettoyage confirmé. [Bilan vérifiable](../docs/validation/TASK-0137-session100.md). La base de préparation CI a 1 entrée, sans insertion dans le VPS. Les 22 annonces précédentes restent stockées dans le schéma privé. La cause précise du contrôle n'est pas établie, aucune nouvelle relance. La collecte exhaustive/récurrente n'est toujours pas qualifiée.
+
 # Passation courante
 
 ## Diagnostic d'accès — correction locale testée
