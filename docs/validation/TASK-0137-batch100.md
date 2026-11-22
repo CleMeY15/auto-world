@@ -58,3 +58,19 @@ Voie explicite --route known-details, manifeste distinct ; comportement et empre
 Un workflow dédié one-shot utilisera le parent de ce plan et sa première exécution/tentative. Budget cumulé maximum101ouvertures pour les deux routes, inférieur aux105 initialement prévues. Tests de départ par trois IDs connus, déduplication et absence d'ouverture catégorie ; régressions existantes, lint/secrets et revue indépendante. Aucune nouvelle prétention de connexion à la base du projet.
 
 Statut : CATEGORY_DISCOVERY_OBSTRUCTED / KNOWN_DETAIL_BATCH_PLANNED / PROJECT_DATABASE_ACCESS_MISSING.
+
+## Lot direct :22 annonces conservées ; reprise après correction de minuterie
+
+Run45062255767, source3ccf52ef4e8626724d24518a13eade29e27338d8 :22fiches distinctes ont réponduHTTP200, avec données complètes et aucun signal de contrôle relevé.53candidats ont été découverts. Le programme s'arrête avant la23e ouverture parce que l'attente finit à9999ms au lieu des10000ms requis : dernière capture terminée19:48:05.070UTC, résumé19:48:15.069UTC. Ce n'est pas un refus du site.
+
+ZIP SHA2569239dbdc54c8af5ace24374ca447c6085ec01f2ab2fbbac657e9356d9973850c vérifié ;22 enveloppes authentifiées, identités/normalisation/fichier de candidats rejoués. La base SQLite de préparation est relue à22 annonces distinctes ; le rejeu exact ajoute0 observation.0 annonce insérée dans la base du VPS. Hostinger affiche maintenant une page de connexion ; une session authentifiée reste nécessaire.
+
+### Plan de reprise avant code
+
+Corriger l'attente pour mesurer une échéance complète : si le minuteur se réveille légèrement tôt mais que l'horloge avance, attendre le reliquat, au maximum trois réveils. Si l'horloge n'avance pas ou si le budget/échéance ne peut être établi, conserver l'arrêt. Le seuil10secondes reste inchangé et aucune navigation source n'est répétée pour cette correction.
+
+Figer une nouvelle liste issue du checkpoint vérifié :31URL encore en attente et22URL déjà collectées à exclure. Nouvelle route --route resume-known-details, manifeste distinct avec source/run d'origine, maximum78 ouvertures nouvelles. Les recommandations des pages qualifiées peuvent compléter la file, toujours après déduplication et exclusion du premier lot. Le cumul reste au maximum100fiches et1page catalogue. Ne pas reprendre la page catalogue ni un obstacle source.
+
+Même Camofox, contexte ordinaire de campagne, délais, arrêt réel et stockage chiffré. Tests du réveil à9999ms suivi du reliquat, d'une attente sans progression, de l'exclusion22 et du plafond78. Workflow one-shot sur le parent de ce plan, premier run/tentative. Conserver les identités des deux lots, puis importer les deux dans la même base de préparation et vérifier100 identités si le plafond est atteint. Ne pas attribuer les22 captures anciennes au nouveau run.
+
+Statut :22_REAL_LISTINGS_STAGED / TIMER_CORRECTION_AND_RESUME_PLANNED / PROJECT_DATABASE_ACCESS_MISSING.
