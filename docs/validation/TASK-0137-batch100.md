@@ -33,4 +33,14 @@ Audit du dépôt et de la session : aucun accès PostgreSQL/VPS exploitable. La 
 
 Budget maximum :105ouvertures,45minutes de collecte plus installation/validation. Coût financier non mesuré. Réévaluation au premier échec matériel. Retrait par revert ciblé du code/workflow ; aucun effacement de données existantes. Le schéma d'essai n'est créé sur le VPS que lorsque l'accès permet une écriture vérifiable.
 
-Statut : PLAN_READY / IMPLEMENTATION_PENDING / PROJECT_DATABASE_ACCESS_MISSING.
+## Implémentation et contrôle local avant le premier run
+
+Plan publié dans PR270 puis commit083c44021a2b6d645a86aa55b50d85bc08c422e7 avant code. Voie batch séparée, deux modules de lecture/orchestration et runtime temporaire, stockage Python/SQLite avec rejeu du normaliseur Node existant. Les anciens collecteurs sont inchangés. L'import PostgreSQL est généré, pas exécuté sur le serveur.
+
+Validation locale Node24.22.3 (version native Node22.23.2 à vérifier dans le job) :89 tests Node PASS, dont28 pour la voie batch et61 régressions historiques ;19 tests Python PASS. Lint initial : quatre noms de globals non déclarés, corrigés par import/qualification explicite ; lint final PASS. Secretlint des dix fichiers concernés PASS. YAML, SHA40 des actions et timeout360 vérifiés. Aucun build/interface produit modifié.
+
+La revue indépendante a fait corriger le seuil de conservation (seuls résultats listing_observed), le compteur stored initialement fixé à zéro et les rejets avant extraction. Le test métier conserve une fiche authentique après le refus403 suivant et vérifie complete1/attempted2/rejected1. Le schéma de préparation teste aussi100 identités distinctes avec données de test ; ce n'est pas une collecte réelle.
+
+Limites : géométrie/hit-test sont des observations locales et ne prouvent pas l'absence absolue d'occlusion, notamment pointer-events:none ; corps internes des iframes et ensemble des sous-requêtes non capturés. Les références photo ne sont pas des fichiers image. SQLite prouve uniquement le stockage de préparation. Le SQL PostgreSQL attend une exécution vérifiée sur la connexion réelle.
+
+Statut avant réseau : LOCAL_VALIDATED / REAL_BATCH_PENDING / PROJECT_DATABASE_ACCESS_MISSING.
