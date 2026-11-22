@@ -44,3 +44,17 @@ La revue indépendante a fait corriger le seuil de conservation (seuls résultat
 Limites : géométrie/hit-test sont des observations locales et ne prouvent pas l'absence absolue d'occlusion, notamment pointer-events:none ; corps internes des iframes et ensemble des sous-requêtes non capturés. Les références photo ne sont pas des fichiers image. SQLite prouve uniquement le stockage de préparation. Le SQL PostgreSQL attend une exécution vérifiée sur la connexion réelle.
 
 Statut avant réseau : LOCAL_VALIDATED / REAL_BATCH_PENDING / PROJECT_DATABASE_ACCESS_MISSING.
+
+## Premier lot : découverte interrompue ; adaptation à partir des fiches directes
+
+Run45061723405, source50341458f681dd7b3562418ce8e75f709124e0f3 : la page catégorie répondHTTP200, mais le cadre de vérification couvre1920×978 pixels (100%du viewport) et intercepte les cinq points contrôlés. Le lot s'arrête avant toute fiche :1page de découverte,0fiches,0annonce extraite ou stockée. Le reçu SQLite0 et le jobSUCCESS attestent l'exécution, pas un import d'annonces. ZIP SHA256ca91f2e15cc190d72864a8469157e3edeaf5bccc21317615bfee646e9c381c14, identité et déchiffrement authentifié vérifiés. Les corps internes des cadres restent inconnus.
+
+### Plan complémentaire avant code
+
+Distinguer maintenant l'accès au catalogue de l'accès aux fiches directes, dont des lectures ponctuelles avaient réussi. Le nouveau lot part des trois URL déjà observées (3305814470,3312238672,3308374007) et complète sa file uniquement avec les liens automobiles rendus dans ces fiches/recommandations. Il n'ouvre pas la page catégorie bloquée et n'utilise pas ses liens capturés. Les cent annonces éventuelles forment un échantillon de recommandations, sans représentativité revendiquée.
+
+Voie explicite --route known-details, manifeste distinct ; comportement et empreinte du plan catégorie inchangés. Zéro page de recherche,100ouvertures de fiches maximum, dix secondes entre navigations, mêmes délais, contrôles, conservation chiffrée et arrêt sur refus/demande humaine/obstruction. Même configuration Camofox, aucun changement d'identité configuré, proxy, cookie importé ou interaction de contrôle. Un nouveau contexte de campagne isolé est celui du workflow ordinaire.
+
+Un workflow dédié one-shot utilisera le parent de ce plan et sa première exécution/tentative. Budget cumulé maximum101ouvertures pour les deux routes, inférieur aux105 initialement prévues. Tests de départ par trois IDs connus, déduplication et absence d'ouverture catégorie ; régressions existantes, lint/secrets et revue indépendante. Aucune nouvelle prétention de connexion à la base du projet.
+
+Statut : CATEGORY_DISCOVERY_OBSTRUCTED / KNOWN_DETAIL_BATCH_PLANNED / PROJECT_DATABASE_ACCESS_MISSING.
