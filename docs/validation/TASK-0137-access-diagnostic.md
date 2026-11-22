@@ -73,4 +73,24 @@ Revue finale indépendante : **APPROUVÉ**, aucun défaut bloquant identifié su
 
 ### Résultat réel
 
-Non encore réalisé. Les identités de révision/run, la récupération et l'inspection privée seront ajoutées après l'essai. Un job vert signifie uniquement qu'un diagnostic a été conservé, pas qu'une annonce a été extraite.
+Le [run 45028412874](https://github.com/CleMeY15/auto-world/actions/runs/45028412874), job `137226399493`, a exécuté la révision `dcf3d61625ab08591f1b88e3951829daa3a78ddb` le 22 novembre 2026. Le diagnostic s'étend de 13:37:40.905 à 13:37:42.737 UTC : 1 832 ms pour l'enveloppe de diagnostic, pas une mesure de latence HTTP. Le job est vert parce que le dossier a été conservé ; **aucune annonce n'a été extraite**.
+
+| Observation | Résultat |
+| --- | --- |
+| Runtime | Node 22.23.2, Playwright 1.64.0, Chromium 156.0.8078.4, sandbox actif |
+| Navigation | Un `goto`, un document principal, une iframe observée, aucune redirection observée |
+| Réponse principale | HTTP 403, identité CDP `matched`, corps UTF-8 décodé de 771 octets |
+| SHA-256 du corps | `60b7cee3d7328e0897b71f7996cd3dc05bea608080304af322e8dd181e106e62` |
+| Capture | `2be34e9c82707cae0009d94490c891a1`, à 13:37:42.724 UTC |
+| Enveloppe chiffrée | 5 773 octets, SHA-256 `025073cb12e7beb98a000783065ee630cd723f8cd3ebb688ff9bad427a5c350a` |
+| Artefact GitHub | `14757045397`, nom `leboncoin-access-diagnostic`, expiration 29 novembre 2026 |
+
+Le responsable a récupéré les trois fragments chiffrés depuis les logs authentifiés du job. Ordre, nombre, encodage, taille et empreinte ont été vérifiés, puis identité AAD, empreinte de destinataire, enveloppe RSA et tag GCM. Le résumé recalculé depuis le dossier déchiffré correspond au reçu public. Les octets de l'artefact ZIP GitHub n'ont pas été téléchargés : ce sont les mêmes octets d'enveloppe annoncés par le reçu qui ont été récupérés depuis les logs.
+
+Inspection privée, sans exécution du texte reçu : le document contient le message « Please enable JS and disable any ad blocker » et charge `https://ct.captcha-delivery.com/c.js`. La [documentation DataDome](https://docs.datadome.co/docs/javascript-tag) attribue cette origine aux pages de réponse de sa protection. Le header `x-cache: Error from cloudfront` ne permet pas à lui seul d'identifier la règle qui a déclenché le refus. La requête emploie l'UA Chromium headless standard.
+
+**Conclusion établie : une page de vérification DataDome remplace l'annonce.** Le déclencheur précis (IP, session, automatisation ou autre) et le résultat final de cette vérification restent inconnus. Les mots du bootstrap ne prouvent pas l'affichage d'un CAPTCHA interactif. Les valeurs opaques de configuration n'ont pas reçu de signification supposée.
+
+Le dossier privé a été conservé dans `autofindex_diagnostic_leboncoin_403.zip` : 16 398 octets, SHA-256 `61e1e724d8a6a0ec8291f8eeb5b2faefbaf44bc1c14b5d3fe4538a820023621f`. Corps, paramètres dynamiques et clé privée ne sont pas publiés dans ce dépôt. Le reviewer indépendant a confirmé le corps et son empreinte sans lire la clé privée.
+
+Deux restrictions de notre programme peuvent interrompre une vérification automatique normale : le blocage des navigations d'iframe vers une autre URL et l'arrêt dès le 403 initial. Elles n'expliquent pas ce 403 initial, reçu avant leurs effets. La [tranche de compatibilité suivante](TASK-0137-normal-flow.md) teste cette hypothèse sans changer d'identité ni interagir avec une demande humaine.
