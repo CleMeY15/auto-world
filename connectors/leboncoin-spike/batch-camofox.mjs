@@ -13,29 +13,35 @@ export const BATCH_PLAN = Object.freeze({ schema_version: "leboncoin-batch-plan/
   page_timeout_ms: 90_000, max_duration_ms: 45 * 60_000, retries: 0,
   recommendations: true, context: "single_temporary_session", photos: "references_only" });
 export const BATCH_PLAN_SHA256 = hash(JSON.stringify(BATCH_PLAN));
+export const DETAIL_BATCH_PLAN = Object.freeze({ ...BATCH_PLAN, schema_version: "leboncoin-detail-batch-plan/v1",
+  start_url: null, max_discovery_pages: 0,
+  seed_urls: Object.freeze(["3305814470", "3312238672", "3308374007"].map((id) => `https://www.leboncoin.fr/ad/voitures/${id}`)) });
+export const DETAIL_BATCH_PLAN_SHA256 = hash(JSON.stringify(DETAIL_BATCH_PLAN));
 const isoTime = (value) => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 /** Bounded frontier; every URL after the start is read from an observed page. */
-export async function runBatch({ observe, onObservation = async () => {}, now = Date.now, wait = delay }) {
-  const discovery = [BATCH_PLAN.start_url]; const candidates = [];
-  const discoveredPages = new Set(discovery); const discoveredListings = new Set();
+export async function runBatch({ observe, onObservation = async () => {}, now = Date.now, wait = delay, plan = BATCH_PLAN }) {
+  if (plan !== BATCH_PLAN && plan !== DETAIL_BATCH_PLAN) throw new Error("invalid_batch_plan");
+  const planSha = plan === BATCH_PLAN ? BATCH_PLAN_SHA256 : DETAIL_BATCH_PLAN_SHA256;
+  const discovery = plan.start_url ? [plan.start_url] : []; const candidates = [...(plan.seed_urls ?? [])];
+  const discoveredPages = new Set(discovery); const discoveredListings = new Set(candidates);
   const opened = new Set(); const measurements = []; const entries = [];
   const started = now(); let previousEnd = null; let stopReason = null;
   let discoveryAttempts = 0; let listingAttempts = 0; let partial = 0; let rejected = 0; let signals = 0;
-  while (discoveryAttempts + listingAttempts < BATCH_PLAN.max_discovery_pages + BATCH_PLAN.max_listing_pages) {
-    if (now() - started >= BATCH_PLAN.max_duration_ms) { stopReason = "duration_limit"; break; }
-    const useDiscovery = discovery.length > 0 && discoveryAttempts < BATCH_PLAN.max_discovery_pages
-      && discoveredListings.size < BATCH_PLAN.max_listing_pages;
-    if (!useDiscovery && (listingAttempts >= BATCH_PLAN.max_listing_pages || candidates.length === 0)) break;
+  while (discoveryAttempts + listingAttempts < plan.max_discovery_pages + plan.max_listing_pages) {
+    if (now() - started >= plan.max_duration_ms) { stopReason = "duration_limit"; break; }
+    const useDiscovery = discovery.length > 0 && discoveryAttempts < plan.max_discovery_pages
+      && discoveredListings.size < plan.max_listing_pages;
+    if (!useDiscovery && (listingAttempts >= plan.max_listing_pages || candidates.length === 0)) break;
     const kind = useDiscovery ? "discovery" : "listing";
     const url = useDiscovery ? discovery.shift() : candidates.shift();
     if (opened.has(url)) continue;
     if (previousEnd !== null) {
-      const needed = Math.max(0, BATCH_PLAN.min_gap_ms - (now() - previousEnd));
+      const needed = Math.max(0, plan.min_gap_ms - (now() - previousEnd));
       if (needed) { try { await wait(needed); } catch { stopReason = "interval_failed"; break; } }
-      if (now() - previousEnd < BATCH_PLAN.min_gap_ms) { stopReason = "interval_not_met"; break; }
+      if (now() - previousEnd < plan.min_gap_ms) { stopReason = "interval_not_met"; break; }
     }
-    if (now() - started >= BATCH_PLAN.max_duration_ms) { stopReason = "duration_limit"; break; }
+    if (now() - started >= plan.max_duration_ms) { stopReason = "duration_limit"; break; }
     opened.add(url); if (kind === "listing") listingAttempts += 1; else discoveryAttempts += 1;
     const ordinal = measurements.length + 1;
     let capture;
@@ -43,7 +49,7 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     catch { if (kind === "listing") rejected += 1; stopReason = "environment_error"; break; }
     if (!isoTime(capture?.started_at) || !isoTime(capture?.completed_at)
       || Date.parse(capture.completed_at) < Date.parse(capture.started_at)
-      || (previousEnd !== null && Date.parse(capture.started_at) - previousEnd < BATCH_PLAN.min_gap_ms)) {
+      || (previousEnd !== null && Date.parse(capture.started_at) - previousEnd < plan.min_gap_ms)) {
       if (kind === "listing") rejected += 1; stopReason = "capture_time_invalid"; break;
     }
     let assessment;
@@ -72,16 +78,16 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     if (assessment.stop) { stopReason = assessment.outcome; break; }
     for (const raw of assessment.listing_urls ?? []) {
       const link = canonicalListingUrl(raw);
-      if (!link || discoveredListings.has(link) || discoveredListings.size >= BATCH_PLAN.max_candidates) continue;
+      if (!link || discoveredListings.has(link) || discoveredListings.size >= plan.max_candidates) continue;
       discoveredListings.add(link); if (!opened.has(link)) candidates.push(link);
     }
     for (const raw of assessment.discovery_urls ?? []) {
       const link = canonicalDiscoveryUrl(raw);
-      if (!link || discoveredPages.has(link) || discoveredPages.size >= BATCH_PLAN.max_discovery_pages) continue;
+      if (!link || discoveredPages.has(link) || discoveredPages.size >= plan.max_discovery_pages) continue;
       discoveredPages.add(link); discovery.push(link);
     }
   }
-  return { entries, measurements, summary: { schema_version: "leboncoin-batch-summary/v1", plan_sha256: BATCH_PLAN_SHA256,
+  return { entries, measurements, summary: { schema_version: "leboncoin-batch-summary/v1", plan_sha256: planSha,
     started_at: new Date(started).toISOString(), completed_at: new Date(now()).toISOString(),
     status: stopReason ? "stopped" : entries.length === 100 ? "target_reached" : "sample_exhausted", stop_reason: stopReason,
     discovered: discoveredListings.size, discovery_pages_attempted: discoveryAttempts, attempted: listingAttempts,
@@ -91,7 +97,10 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
 }
 
 async function main(args) {
-  if (args.length !== 4 || args[0] !== "--runtime" || args[2] !== "--out") throw new Error("invalid_arguments");
+  if (![4, 6].includes(args.length) || args[0] !== "--runtime" || args[2] !== "--out"
+    || (args.length === 6 && (args[4] !== "--route" || args[5] !== "known-details"))) throw new Error("invalid_arguments");
+  const plan = args.length === 6 ? DETAIL_BATCH_PLAN : BATCH_PLAN;
+  const planSha = plan === BATCH_PLAN ? BATCH_PLAN_SHA256 : DETAIL_BATCH_PLAN_SHA256;
   const out = resolve(args[3]); await mkdir(out, { mode: 0o700 });
   const key = await loadDiagnosticPublicKey();
   const batchId = randomBytes(16).toString("hex");
@@ -100,11 +109,12 @@ async function main(args) {
   let result; let cleanup;
   try {
     result = await runBatch({
+      plan,
       observe: async ({ url }) => observeBatchPage(runtime.api, url),
       wait: (ms) => delay(ms, undefined, { signal: runtime.signal }),
       onObservation: async ({ url, kind, ordinal, capture, assessment, measurement }) => {
         const identity = { ...baseIdentity, schema_version: "leboncoin-batch-capture/v1", capture_id: randomBytes(16).toString("hex"),
-          batch_id: batchId, batch_ordinal: ordinal, page_kind: kind, plan_sha256: BATCH_PLAN_SHA256, target_url_sha256: hash(url) };
+          batch_id: batchId, batch_ordinal: ordinal, page_kind: kind, plan_sha256: planSha, target_url_sha256: hash(url) };
         const privateCapture = { identity, ...runtime.metadata, ...capture, target_url: url,
           observation_json: assessment.observation_json ?? null,
           normalized_sha256: assessment.normalized ? hash(JSON.stringify(assessment.normalized)) : null };
@@ -130,7 +140,7 @@ async function main(args) {
   const bundleSummary = Object.fromEntries(["discovered", "attempted", "complete", "partial", "rejected", "stored", "status", "stop_reason"]
     .map((name) => [name, summary[name]]));
   const bundle = { schema_version: "leboncoin-batch-bundle/v1", batch_id: batchId, source_revision: process.env.GITHUB_SHA,
-    run_id: process.env.GITHUB_RUN_ID, plan_sha256: BATCH_PLAN_SHA256, created_at: summary.completed_at,
+    run_id: process.env.GITHUB_RUN_ID, plan_sha256: planSha, created_at: summary.completed_at,
     summary: bundleSummary, entries: result.entries };
   await writeFile(join(out, "batch-bundle.private.json"), `${JSON.stringify(bundle)}\n`, { mode: 0o600, flag: "wx" });
   await writeFile(join(out, "batch-summary.json"), `${JSON.stringify(summary)}\n`, { mode: 0o600, flag: "wx" });

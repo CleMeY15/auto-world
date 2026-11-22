@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { BATCH_PLAN, runBatch } from "./batch-camofox.mjs";
+import { BATCH_PLAN, BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN, DETAIL_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
 import { observeBatchPage } from "./batch-runtime.mjs";
 
 function discoveryRecord(links, overrides = {}) {
@@ -12,6 +12,31 @@ function discoveryRecord(links, overrides = {}) {
     ...overrides };
 }
 const url = (i) => `https://www.leboncoin.fr/ad/voitures/${3300000000 + i}`;
+
+test("direct route opens only known seeds and never the catalogue when no recommendations are observed", async () => {
+  let clock = Date.parse("2026-11-22T20:00:00.000Z"); const calls = [];
+  const result = await runBatch({ plan: DETAIL_BATCH_PLAN, now: () => clock, wait: async (ms) => { clock += ms; },
+    observe: async ({ url: target, kind }) => {
+      calls.push({ target, kind }); const started_at = new Date(clock).toISOString(); clock += 100;
+      const record = discoveryRecord([]); record.navigation = { httpStatus: 404, url: target }; record.dom.url = target;
+      return { started_at, completed_at: new Date(clock).toISOString(), record };
+    } });
+  assert.deepEqual(calls.map((item) => item.target), DETAIL_BATCH_PLAN.seed_urls);
+  assert.ok(calls.every((item) => item.kind === "listing"));
+  assert.equal(result.summary.discovery_pages_attempted, 0); assert.equal(result.summary.discovered, 3);
+  assert.equal(result.summary.plan_sha256, DETAIL_BATCH_PLAN_SHA256);
+  assert.equal(BATCH_PLAN_SHA256, "7910bfddfb612fe22acde23d2d5b73eaf3ffbb4099e4585a29ed1270cfd5de29");
+});
+
+test("the direct route stops on a refused known seed instead of trying another seed", async () => {
+  let calls = 0;
+  const result = await runBatch({ plan: DETAIL_BATCH_PLAN, observe: async ({ url: target }) => {
+    calls += 1; const record = discoveryRecord([]); record.navigation = { httpStatus: 403, url: target }; record.dom.url = target;
+    return { started_at: "2026-11-22T20:00:00.000Z", completed_at: "2026-11-22T20:00:01.000Z", record };
+  } });
+  assert.equal(calls, 1); assert.equal(result.summary.attempted, 1); assert.equal(result.summary.rejected, 1);
+  assert.equal(result.summary.stop_reason, "source_refused");
+});
 
 test("a later refusal preserves the earlier complete observation and balanced counts", async () => {
   const fixture = JSON.parse(await readFile(new URL("./fixtures/3305814470.json", import.meta.url), "utf8"));
