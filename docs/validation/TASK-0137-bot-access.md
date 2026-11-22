@@ -21,7 +21,7 @@ Le [formulaire officiel](https://datadome.co/resources/bot-and-ai-agent-verifica
 | Périmètre effectif | Prototype sur une URL automobile connue par invocation, sans découverte exhaustive activée |
 | Limites | Navigation et temps bornés, arrêt sur interaction humaine/refus, aucune résolution de CAPTCHA ou substitution d'identité |
 | Données visées | Caractéristiques automobiles, prix, kilométrage et provenance ; références de photos actuellement observables |
-| Résultat d'accès établi | Diagnostic HTTP 403 DataDome conservé ; le résultat du parcours complet est suivi séparément dans [la validation](TASK-0137-normal-flow.md) |
+| Résultat d'accès établi | HTTP 403 puis refus explicite affiché par DataDome lors du parcours normal du 22 novembre à 14:02 UTC ; aucune annonce extraite. [Preuve et limites](TASK-0137-normal-flow.md) |
 
 La collecte régulière de catalogue, les copies de photos et les archives mondiales sont des objectifs du projet ; leur accès, leur périmètre et leur exploitation ne sont pas attestés par le prototype.
 

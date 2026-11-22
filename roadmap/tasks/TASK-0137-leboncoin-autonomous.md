@@ -2,15 +2,15 @@
 
 ## Brief / Definition of Ready
 
-- Statut : IN_PROGRESS / OWN_ACCESS_BLOCKED, priorité utilisateur du 22 novembre 2026. Le runner démarre Chromium puis reçoit HTTP 403 sur sa seule navigation ; zéro extraction. [Résultat et limites](../../docs/validation/TASK-0137.md).
-- Suite explicitement demandée : [diagnostic inspectable du 403](../../docs/validation/TASK-0137-access-diagnostic.md) réalisé sur `dcf3d616` : page DataDome de 771 octets récupérée et vérifiée, aucune annonce extraite. [Plan de compatibilité du parcours automatique](../../docs/validation/TASK-0137-normal-flow.md) revu, à publier avant code ; laisser la vérification native se terminer sans changer d'identité ni interagir avec un CAPTCHA.
+- Statut : IN_PROGRESS / OWN_ACCESS_BLOCKED, priorité utilisateur du 22 novembre 2026. Le [parcours normal testé sur `4a47c3c6`](../../docs/validation/TASK-0137-normal-flow.md#résultat-réel--refus-explicite-après-chargement-de-la-vérification) charge la vérification DataDome puis observe un refus explicite : HTTP 403, aucun retour, zéro extraction. La règle déclenchée reste inconnue ; collecte propre répétée non démontrée.
+- Suite explicitement demandée : [diagnostic inspectable du 403](../../docs/validation/TASK-0137-access-diagnostic.md) réalisé sur `dcf3d616`, puis [parcours automatique](../../docs/validation/TASK-0137-normal-flow.md) sur `4a47c3c6`, après publication du plan et revue. Preuves privées récupérées et vérifiées ; [dossier d'identification du bot](../../docs/validation/TASK-0137-bot-access.md) préparé, sans message externe ni accès obtenu.
 - Responsable/exécutant : contexte Codex principal ; revue indépendante : contexte Codex distinct. Modèle annoncé GPT-6 Astra Pro ; effort effectif et coût non exposés, `unknown`.
 - Branche : `spike/0137-leboncoin-autonomous`, base TASK-0136 `e935eb923624894afd5ea8fc020cf14fb7e17c03`. PR empilée sur `spike/0136-leboncoin-feasibility`.
 - Résultat demandé : notre propre code ouvre une annonce réelle, enregistre les champs utiles puis recommence automatiquement à des dates distinctes. Une exécution planifiée qui échoue n'est pas une collecte réussie.
 - Dépendances : [TASK-0136](TASK-0136-leboncoin-feasibility.md), [ADR-0036](../../docs/decisions/ADR-0036-owned-acquisition.md), [validation du premier essai](../../docs/validation/TASK-0136.md).
 - Autorisation : l'utilisateur demande explicitement un essai autonome régulier sur leboncoin. Cette expérience isolée ne constitue aucune permission de production, redistribution publique ou activation du registre source.
 - Ressource exclusive : checkout `auto-world-acquisition`. Aucun service/check-out du VPS, port public ou catalogue existant modifié. Qualité sérialisée dans ce checkout.
-- Risque principal : accès réel non encore établi. Arrêt sur refus, challenge ou extraction incomplète ; pas de changement d'identité réseau, cookies importés, furtivité, résolution de CAPTCHA ou API de scraping tierce.
+- Risque principal : accès réel non encore établi. Le parcours normal peut observer une vérification automatique bornée ; arrêt sur refus explicite, demande humaine ou extraction incomplète. Pas de changement d'identité réseau, cookies importés, furtivité, résolution de CAPTCHA ou API de scraping tierce.
 
 ## Contexte d'exécution vérifié
 

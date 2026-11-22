@@ -42,7 +42,7 @@ TASK-0137 reste IN_PROGRESS tant que la collecte propre répétée n'est pas pro
 - [DataDome response pages](https://docs.datadome.co/docs/response-pages) : les trois états sont distincts.
 - [Tag JavaScript et iframes DataDome](https://docs.datadome.co/docs/javascript-tag).
 
-Le plan a été publié dans PR270 sur `61aec6f13794a20fc892d38553e943747ec8131e` avant le code. Le workflow dédié a reçu une revue indépendante favorable de ses gardes, actions épinglées et chemins de publication. Le code est en réalisation ; aucun résultat en ligne n'est encore attribué à cette tranche.
+Le plan a été publié dans PR270 sur `61aec6f13794a20fc892d38553e943747ec8131e` avant le code. Le workflow dédié a reçu une revue indépendante favorable de ses gardes, actions épinglées et chemins de publication. À ce premier jalon, le code était en réalisation et aucun résultat en ligne n'était attribué à cette tranche.
 
 Un [dossier préparatoire d'identification du robot](TASK-0137-bot-access.md) est disponible si le parcours normal aboutit à un refus. Il distingue vérification de l'identité par DataDome et décision d'accès du site ; aucune soumission externe n'a été effectuée.
 
@@ -64,4 +64,36 @@ SHA-256 des fichiers gelés :
 | `native-flow.test.mjs` | `5fd4e84a585b3740f9e559100b27c2306d91be460f7f882a281e51dbbc4fbe28` |
 | `leboncoin-native-flow.yml` | `6acc7919225d0b61494511739e07613ef22e7919ab621ceb2a9ae51dfadbb36a` |
 
-Revue finale indépendante : **APPROUVÉ**, aucun défaut bloquant restant sur les cinq fichiers code/tests/workflow vérifiés. Le reviewer a confirmé les corrections sur leurs empreintes finales, sans relancer les contrôles ni effectuer de requête source. Le résultat réel reste à enregistrer ; aucun accès source local ni succès de collecte anticipé, gates CI généraux séparés.
+Revue finale indépendante : **APPROUVÉ**, aucun défaut bloquant restant sur les cinq fichiers code/tests/workflow vérifiés. Le reviewer a confirmé les corrections sur leurs empreintes finales, sans relancer les contrôles ni effectuer de requête source. À ce jalon avant push, le résultat réel restait à observer ; aucun accès source local ni succès de collecte anticipé, gates CI généraux séparés.
+
+### Résultat réel — refus explicite après chargement de la vérification
+
+Le [run 45030547435](https://github.com/CleMeY15/auto-world/actions/runs/45030547435), job `137232953804`, a exécuté `4a47c3c61ed2dc0605e2b486ad2e06066fe62558`. Installation, 74 tests hors réseau, Chromium, collecte de preuve et publication de l'artefact ont réussi. **Le job vert ne signifie pas une collecte : `collection_success` vaut `false`.**
+
+| Observation | Résultat |
+| --- | --- |
+| Fenêtre du programme | 22 novembre 2026, 14:02:26.976–14:02:29.167 UTC |
+| Versions | Node 22.23.2, Playwright 1.64.0, Chromium 156.0.8078.4, sandbox active |
+| Navigation initiale | HTTP 403 ; un seul `goto`, un document principal observé |
+| Parcours natif | Une iframe de vérification observée, aucune frame omise/inaccessible dans l'échantillon borné |
+| Retour / redirection | Aucun retour vers l'annonce ; aucune redirection observée |
+| Garde de navigation | `navigations_blocked: 0` ; ce compteur ne décrit pas toutes les requêtes après fermeture |
+| État final | `explicit_refusal` ; extraction non tentée, zéro annonce extraite |
+
+Le responsable a vérifié et déchiffré le dossier de 4 557 octets. L'iframe de `geo.captcha-delivery.com` présente le titre **« You have been blocked »** et le texte **« Access is temporarily restricted »**. La page liste plusieurs raisons possibles ; cette liste ne révèle pas la règle effectivement déclenchée. Aucune demande interactive n'a été poursuivie, aucune nouvelle tentative lancée après ce refus.
+
+Le chargement de la vérification n'est donc plus interrompu par notre ancienne garde d'iframe dans cet essai, mais l'accès à l'annonce n'est pas obtenu. Cela ne permet ni d'attribuer la décision à l'IP seule, ni de conclure à un refus de tous les hébergements.
+
+Preuves conservées :
+
+- Corps initial : 771 octets décodés, SHA-256 `068c0e407e5adad96b740ef151d0069ba10f64d1d3219bbe8aa076600dcab1ff`.
+- Enveloppe : 7 305 octets, SHA-256 `75be76c98358942e3176239081c7e36d68c40d5216041f8132d9cd2a7ba363bc` ; quatre fragments récupérés depuis les logs authentifiés.
+- Identité AAD, destinataire, fragments, empreintes et tag GCM vérifiés ; projection recalculée depuis le dossier déchiffré identique au reçu public.
+- Artefact GitHub `14757562500`, nom `leboncoin-native-flow`, expiration 29 novembre 2026. Son ZIP n'a pas été téléchargé : l'enveloppe a été récupérée et vérifiée par le transport texte documenté.
+- Dossier privé des deux essais : `autofindex_diagnostic_leboncoin_complet.zip`, 37 190 octets, quinze membres, SHA-256 `a19efdb67566ad369848ff2af2c38cd84cd9b9d8714d64958729cfe0365f439e`. Corps, adresse réseau, paramètres et références de session restent hors dépôt et hors logs en clair. Aucune clé privée incluse.
+
+Le reviewer indépendant a relu reçu, capture et vérification sans lire la clé ni refaire le déchiffrement. Conclusion **APPROUVÉE** : refus explicite dans ce contexte, absence de collecte, déclencheur précis non établi. Les gates CI généraux restent distincts ; aucune fusion ou acceptation de production.
+
+### Suite opérationnelle
+
+La collecte propre régulière reste non démontrée : TASK-0137 demeure IN_PROGRESS / OWN_ACCESS_BLOCKED. Le [dossier préparé pour AutoFindexBot](TASK-0137-bot-access.md) conserve une piste compatible avec notre propre code : identité de robot vérifiable et décision d'accès par le site. Il manque les coordonnées professionnelles, le domaine et le mécanisme d'identité à déclarer. Aucune soumission ni garantie d'acceptation ; la vérification DataDome et l'autorisation du site sont deux étapes distinctes.
