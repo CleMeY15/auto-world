@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { BATCH_PLAN, BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN, DETAIL_BATCH_PLAN_SHA256,
-  RESUME_BATCH_PLAN, RESUME_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
+  RESUME_BATCH_PLAN, RESUME_BATCH_PLAN_SHA256, SESSION_BATCH_PLAN, SESSION_BATCH_PLAN_SHA256, runBatch } from "./batch-camofox.mjs";
 import { canonicalListingUrl } from "./batch-dom.mjs";
 import { RESUME_CHECKPOINT } from "./batch-resume-checkpoint.mjs";
 import { observeBatchPage } from "./batch-runtime.mjs";
@@ -39,6 +39,80 @@ test("the direct route stops on a refused known seed instead of trying another s
   } });
   assert.equal(calls, 1); assert.equal(result.summary.attempted, 1); assert.equal(result.summary.rejected, 1);
   assert.equal(result.summary.stop_reason, "source_refused");
+});
+
+test("the guarded route still stops at the first source refusal", async () => {
+  let calls = 0;
+  const result = await runBatch({ plan: SESSION_BATCH_PLAN, observe: async ({ url: target }) => {
+    calls += 1;
+    const record = discoveryRecord([], { navigation: { httpStatus: 403, url: target },
+      session_continuity: { before: true, after: true } });
+    record.dom.url = target;
+    return { started_at: "2026-11-22T20:00:00.000Z", completed_at: "2026-11-22T20:00:01.000Z", record };
+  } });
+  assert.equal(calls, 1); assert.equal(result.summary.stop_reason, "source_refused");
+  assert.equal(result.summary.local_session_guard_verified, true);
+  assert.equal(result.summary.network_request_count, "not_measured");
+  assert.equal(result.summary.plan_sha256, SESSION_BATCH_PLAN_SHA256);
+  assert.notEqual(SESSION_BATCH_PLAN_SHA256, DETAIL_BATCH_PLAN_SHA256);
+});
+
+test("loss of the local guard stops new pages and preserves earlier qualified data", async () => {
+  const fixture = JSON.parse(await readFile(new URL("./fixtures/3305814470.json", import.meta.url), "utf8"));
+  let calls = 0; let clock = Date.parse("2026-11-22T20:00:00.000Z"); const saved = [];
+  const result = await runBatch({ plan: SESSION_BATCH_PLAN, now: () => clock, wait: async (ms) => { clock += ms; },
+    observe: async ({ url: target }) => {
+      calls += 1; const started_at = new Date(clock).toISOString(); clock += 100;
+      const record = discoveryRecord([], { navigation: { httpStatus: 200, url: target },
+        session_continuity: { before: true, after: calls === 1 } });
+      record.dom.url = target; record.dom.listing = globalThis.structuredClone(fixture);
+      return { started_at, completed_at: new Date(clock).toISOString(), record };
+    }, onObservation: async ({ ordinal }) => { saved.push(ordinal); } });
+  assert.equal(calls, 2); assert.equal(result.summary.stop_reason, "session_continuity_lost");
+  assert.equal(result.entries.length, 1); assert.equal(result.entries[0].normalized.source.listing_id, "3305814470");
+  assert.equal(result.summary.local_session_guard_verified, false); assert.deepEqual(saved, [1, 2]);
+});
+
+test("the guarded route cannot accept an observation without continuity proof", async () => {
+  let calls = 0;
+  const result = await runBatch({ plan: SESSION_BATCH_PLAN, observe: async () => {
+    calls += 1;
+    return { started_at: "2026-11-22T20:00:00.000Z", completed_at: "2026-11-22T20:00:01.000Z",
+      record: discoveryRecord([]) };
+  } });
+  assert.equal(calls, 1); assert.equal(result.summary.stop_reason, "session_continuity_lost");
+  assert.equal(result.summary.complete, 0); assert.equal(result.summary.local_session_guard_verified, false);
+});
+
+test("a guard lost before navigation does not count an unopened source page or report global continuity", async () => {
+  const fixture = JSON.parse(await readFile(new URL("./fixtures/3305814470.json", import.meta.url), "utf8"));
+  let dispatches = 0; let clock = Date.parse("2026-11-22T20:00:00.000Z");
+  const result = await runBatch({ plan: SESSION_BATCH_PLAN, now: () => clock, wait: async (ms) => { clock += ms; },
+    observe: async ({ url: target }) => {
+      dispatches += 1;
+      if (dispatches === 2) throw Object.assign(new Error("session_continuity_lost"), { source_observation_started: false });
+      const started_at = new Date(clock).toISOString(); clock += 100;
+      const record = discoveryRecord([], { navigation: { httpStatus: 200, url: target },
+        session_continuity: { before: true, after: true } });
+      record.dom.url = target; record.dom.listing = globalThis.structuredClone(fixture);
+      return { started_at, completed_at: new Date(clock).toISOString(), record };
+    } });
+  assert.equal(dispatches, 2); assert.equal(result.summary.attempted, 1); assert.equal(result.summary.complete, 1);
+  assert.equal(result.summary.rejected, 0); assert.equal(result.measurements.length, 1);
+  assert.equal(result.summary.pre_navigation_failures, 1); assert.equal(result.summary.session_continuity_lost, true);
+  assert.equal(result.summary.local_session_guard_verified, false); assert.equal(result.summary.stop_reason, "session_continuity_lost");
+});
+
+test("source refusal remains visible when the local guard also disappears after that page", async () => {
+  const result = await runBatch({ plan: SESSION_BATCH_PLAN, observe: async ({ url: target }) => {
+    const record = discoveryRecord([], { navigation: { httpStatus: 403, url: target },
+      session_continuity: { before: true, after: false }, error: "session_continuity_lost" });
+    record.dom.url = target;
+    return { started_at: "2026-11-22T20:00:00.000Z", completed_at: "2026-11-22T20:00:01.000Z", record };
+  } });
+  assert.equal(result.summary.stop_reason, "source_refused"); assert.equal(result.summary.session_continuity_lost, true);
+  assert.equal(result.summary.attempted, 1); assert.equal(result.summary.pre_navigation_failures, 0);
+  assert.equal(result.summary.local_session_guard_verified, false); assert.equal(result.measurements[0].navigation_status, 403);
 });
 
 test("a later refusal preserves the earlier complete observation and balanced counts", async () => {

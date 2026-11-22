@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Diagnostic d'accès — continuité du contexte navigateur
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md) : l'audit du Camofox épinglé révèle que fermer le dernier onglet peut laisser son nettoyage périodique détruire la session entre deux fiches. Une voie séparée avec garde locale de continuité passe 117 tests hors réseau et le lint ; [analyse et portée](docs/validation/TASK-0137-session-continuity.md). Ce mécanisme ne démontre pas la cause du 403, ni une collecte régulière ou exhaustive. Les 22 annonces importées restent le dernier résultat réel.
+
 ## Lot réel leboncoin — 22 annonces insérées dans PostgreSQL
 
 22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le lot direct a extrait 22 annonces distinctes avec HTTP 200. Après correction d'une attente interrompue à 9 999 ms, la reprise reçoit HTTP 403 dès sa première fiche et n'ajoute rien. Le lot valide est maintenant inséré dans la base privée du projet ; une nouvelle connexion après écriture confirme 22 annonces distinctes. La publication du [reçu d'import](docs/validation/evidence/TASK-0137-project-import-receipt.json) et des métadonnées techniques de la cible a été explicitement autorisée par l'utilisateur. [Exécutions, import et limites](docs/validation/TASK-0137-batch100.md). Objectif de 100 non atteint ; collecte régulière et couverture catalogue non démontrées. Le catalogue du site et le registre source restent inchangés. TASK-0137 demeure IN_PROGRESS. Les checkpoints suivants sont historiques.

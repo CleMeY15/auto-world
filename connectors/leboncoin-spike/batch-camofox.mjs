@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { diagnosticIdentity, encodeSealedFragments, inspectSealedEnvelope, loadDiagnosticPublicKey, sealAccessCapture } from "./access-diagnostic.mjs";
 import { assessBatchRecord, canonicalDiscoveryUrl, canonicalListingUrl } from "./batch-dom.mjs";
 import { observeBatchPage, startBatchRuntime } from "./batch-runtime.mjs";
+import { createBatchSessionGuard } from "./batch-session.mjs";
 import { RESUME_CHECKPOINT } from "./batch-resume-checkpoint.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -24,11 +25,18 @@ export const RESUME_BATCH_PLAN = Object.freeze({ ...DETAIL_BATCH_PLAN, schema_ve
   resume_from: Object.freeze({ source_revision: RESUME_CHECKPOINT.source_revision, run_id: RESUME_CHECKPOINT.run_id,
     batch_id: RESUME_CHECKPOINT.batch_id, plan_sha256: RESUME_CHECKPOINT.plan_sha256, collected: RESUME_CHECKPOINT.collected }) });
 export const RESUME_BATCH_PLAN_SHA256 = hash(JSON.stringify(RESUME_BATCH_PLAN));
+// Historical plans remain immutable. This route checks a locally held context;
+// it has no collection workflow and does not establish reliable source access.
+export const SESSION_BATCH_PLAN = Object.freeze({ ...DETAIL_BATCH_PLAN,
+  schema_version: "leboncoin-session-batch-plan/v1", context: "temporary_session_with_local_blank_guard",
+  max_owned_tabs: 2, max_source_tabs: 1 });
+export const SESSION_BATCH_PLAN_SHA256 = hash(JSON.stringify(SESSION_BATCH_PLAN));
 const isoTime = (value) => typeof value === "string" && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 /** Bounded frontier; every URL after the start is read from an observed page. */
 export async function runBatch({ observe, onObservation = async () => {}, now = Date.now, wait = delay, plan = BATCH_PLAN }) {
-  if (![BATCH_PLAN, DETAIL_BATCH_PLAN, RESUME_BATCH_PLAN].includes(plan)) throw new Error("invalid_batch_plan");
+  if (![BATCH_PLAN, DETAIL_BATCH_PLAN, RESUME_BATCH_PLAN, SESSION_BATCH_PLAN].includes(plan)) throw new Error("invalid_batch_plan");
+  const guardedSession = plan === SESSION_BATCH_PLAN;
   const planSha = hash(JSON.stringify(plan));
   const excluded = new Set(plan.excluded_urls ?? []);
   const discovery = plan.start_url ? [plan.start_url] : [];
@@ -36,6 +44,7 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
   const discoveredPages = new Set(discovery); const discoveredListings = new Set(candidates);
   const opened = new Set(); const measurements = []; const entries = [];
   const started = now(); let previousEnd = null; let stopReason = null;
+  let continuityLost = false; let preNavigationFailures = 0;
   let discoveryAttempts = 0; let listingAttempts = 0; let partial = 0; let rejected = 0; let signals = 0;
   while (discoveryAttempts + listingAttempts < plan.max_discovery_pages + plan.max_listing_pages) {
     if (now() - started >= plan.max_duration_ms) { stopReason = "duration_limit"; break; }
@@ -63,7 +72,16 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     const ordinal = measurements.length + 1;
     let capture;
     try { capture = await observe({ url, kind, ordinal }); }
-    catch { if (kind === "listing") rejected += 1; stopReason = "environment_error"; break; }
+    catch (error) {
+      if (guardedSession && error?.source_observation_started === false) {
+        if (kind === "listing") listingAttempts -= 1; else discoveryAttempts -= 1;
+        preNavigationFailures += 1;
+      } else if (kind === "listing") rejected += 1;
+      if (guardedSession && error?.message === "session_continuity_lost") {
+        continuityLost = true; stopReason = "session_continuity_lost";
+      } else stopReason = "environment_error";
+      break;
+    }
     if (!isoTime(capture?.started_at) || !isoTime(capture?.completed_at)
       || Date.parse(capture.completed_at) < Date.parse(capture.started_at)
       || (previousEnd !== null && Date.parse(capture.started_at) - previousEnd < plan.min_gap_ms)) {
@@ -73,12 +91,21 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     try { assessment = assessBatchRecord(capture.record, url, kind, capture.completed_at); }
     catch { assessment = { outcome: "assessment_failed", stop: true, normalized: null }; }
     if (capture.record?.tab_closed !== true) { assessment.stop = true; assessment.outcome = "tab_cleanup_failed"; }
+    const continuityObserved = capture.record?.session_continuity?.before === true
+      && capture.record?.session_continuity?.after === true;
+    if (guardedSession && !continuityObserved) {
+      continuityLost = true; assessment.stop = true;
+      if (!["source_refused", "human_verification", "verification_obstructing"].includes(assessment.outcome)) {
+        assessment.outcome = "session_continuity_lost";
+      }
+    }
     const measurement = { ordinal, kind, target_url_sha256: hash(url), started_at: capture.started_at,
       completed_at: capture.completed_at, previous_gap_ms: previousEnd === null ? null : Date.parse(capture.started_at) - previousEnd,
       outcome: assessment.outcome, navigation_status: capture.record?.navigation?.httpStatus ?? null,
       api_status: capture.record?.api_status ?? null, control_signal: assessment.control?.signal_present === true,
       control_obstructing: assessment.control?.obstructing === true, core_fields_observed: assessment.normalized?.core_fields_observed === true,
-      issues_count: assessment.normalized?.issues?.length ?? null, tab_closed: capture.record?.tab_closed === true };
+      issues_count: assessment.normalized?.issues?.length ?? null, tab_closed: capture.record?.tab_closed === true,
+      ...(guardedSession ? { local_session_guard_verified: continuityObserved } : {}) };
     if (measurement.control_signal) signals += 1;
     measurements.push(measurement); previousEnd = Date.parse(capture.completed_at);
     let retained;
@@ -110,24 +137,30 @@ export async function runBatch({ observe, onObservation = async () => {}, now = 
     discovered: discoveredListings.size, discovery_pages_attempted: discoveryAttempts, attempted: listingAttempts,
     complete: entries.length, partial, rejected, stored: 0, control_signals: signals,
     project_database_updated: false, photos_downloaded: false, recurring_collection_proven: false,
-    catalog_coverage_proven: false, frame_body_coverage: "not_established", http_response_body: "not_captured" } };
+    catalog_coverage_proven: false, frame_body_coverage: "not_established", http_response_body: "not_captured",
+    ...(guardedSession ? { local_session_guard_verified: measurements.length > 0 && !continuityLost
+      && measurements.every((item) => item.local_session_guard_verified), session_continuity_lost: continuityLost,
+      pre_navigation_failures: preNavigationFailures, network_request_count: "not_measured" } : {}) } };
 }
 
 async function main(args) {
   if (![4, 6].includes(args.length) || args[0] !== "--runtime" || args[2] !== "--out"
-    || (args.length === 6 && (args[4] !== "--route" || !["known-details", "resume-known-details"].includes(args[5])))) throw new Error("invalid_arguments");
-  const plan = args.length === 4 ? BATCH_PLAN : args[5] === "known-details" ? DETAIL_BATCH_PLAN : RESUME_BATCH_PLAN;
+    || (args.length === 6 && (args[4] !== "--route" || !["known-details", "resume-known-details", "session-known-details"].includes(args[5])))) throw new Error("invalid_arguments");
+  const routePlans = { "known-details": DETAIL_BATCH_PLAN, "resume-known-details": RESUME_BATCH_PLAN,
+    "session-known-details": SESSION_BATCH_PLAN };
+  const plan = args.length === 4 ? BATCH_PLAN : routePlans[args[5]];
   const planSha = hash(JSON.stringify(plan));
   const out = resolve(args[3]); await mkdir(out, { mode: 0o700 });
   const key = await loadDiagnosticPublicKey();
   const batchId = randomBytes(16).toString("hex");
   const baseIdentity = diagnosticIdentity(process.env);
   const runtime = await startBatchRuntime({ runtime: args[1], out: join(out, "runtime") });
-  let result; let cleanup;
+  let result; let cleanup; let sessionGuard; let sessionCleanup;
   try {
+    if (plan === SESSION_BATCH_PLAN) sessionGuard = await createBatchSessionGuard(runtime.api);
     result = await runBatch({
       plan,
-      observe: async ({ url }) => observeBatchPage(runtime.api, url),
+      observe: async ({ url }) => sessionGuard ? sessionGuard.observe(url) : observeBatchPage(runtime.api, url),
       wait: (ms) => delay(ms, undefined, { signal: runtime.signal }),
       onObservation: async ({ url, kind, ordinal, capture, assessment, measurement }) => {
         const identity = { ...baseIdentity, schema_version: "leboncoin-batch-capture/v1", capture_id: randomBytes(16).toString("hex"),
@@ -148,10 +181,16 @@ async function main(args) {
         return { capture_sha256: inspected.sha256 };
       },
     });
-  } finally { cleanup = await runtime.stop(); }
+  } finally {
+    try { if (sessionGuard) sessionCleanup = await sessionGuard.close(); }
+    finally { cleanup = await runtime.stop(); }
+  }
   if (cleanup.established !== true || cleanup.remaining !== 0 || cleanup.process_exited !== true) {
     result.summary.status = "stopped"; result.summary.stop_reason = "runtime_cleanup_failed";
+  } else if (sessionGuard && (sessionCleanup?.established !== true || sessionCleanup?.tab_closed !== true)) {
+    result.summary.status = "stopped"; result.summary.stop_reason = "session_guard_cleanup_failed";
   }
+  if (sessionGuard) result.summary.session_guard = { ...sessionGuard.stats(), cleanup: sessionCleanup };
   const summary = { ...result.summary, batch_id: batchId, source_revision: process.env.GITHUB_SHA,
     run_id: process.env.GITHUB_RUN_ID, cleanup };
   const bundleSummary = Object.fromEntries(["discovered", "attempted", "complete", "partial", "rejected", "stored", "status", "stop_reason"]

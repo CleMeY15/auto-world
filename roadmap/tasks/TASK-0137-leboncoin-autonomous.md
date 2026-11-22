@@ -1,5 +1,9 @@
 # TASK-0137 — Prouver une collecte leboncoin autonome et répétée
 
+## Diagnostic complémentaire — continuité du contexte
+
+Une garde locale de session passe 117 tests hors réseau et le lint, après constat du nettoyage des contextes vides dans le Camofox épinglé. [Diagnostic, correction et portée](../../docs/validation/TASK-0137-session-continuity.md). Ce défaut possible ne prouve pas la cause du 403 ; aucun nouveau résultat source ni import n'est attribué à cette correction. TASK-0137 reste IN_PROGRESS.
+
 ## Dernier résultat — lot réel et import PostgreSQL, 22 novembre 2026
 
 **IN_PROGRESS / 22_REAL_LISTINGS_IMPORTED / REGULAR_ACCESS_UNPROVEN.** La demande complémentaire d'environ 100 annonces a produit 22 fiches complètes distinctes (run `45062255767`, HTTP 200), conservées et normalisées. L'arrêt initial à 9 999 ms venait du minuteur. Après correction vérifiée, le run `45064032767` est refusé HTTP 403 dès la première fiche, avec contrôle DataDome occupant le viewport : 0 nouvelle annonce. Le cumul est 23 fiches distinctes tentées, 22 complètes ; l'objectif de 100 n'est pas atteint.

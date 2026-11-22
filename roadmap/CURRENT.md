@@ -1,5 +1,9 @@
 # Passation courante
 
+## Diagnostic d'accès — correction locale testée
+
+22 novembre 2026, [TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), PR270 : les pauses entre fiches peuvent laisser Camofox détruire une session devenue vide. Une nouvelle route avec onglet local de garde et vérification avant/après lecture passe 117 tests hors réseau et le lint. [Preuves, plan et limites](../docs/validation/TASK-0137-session-continuity.md). Aucun nouvel essai source ni import ; 22 reste le nombre réel stocké. La garde vise la continuité locale, pas une garantie d'accès ni une qualification de production.
+
 ## Lot réel leboncoin — 22 annonces dans la base du VPS
 
 22 novembre 2026, [TASK-0137](tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : [lot direct 45062255767](https://github.com/CleMeY15/auto-world/actions/runs/45062255767), source `3ccf52ef4e8626724d24518a13eade29e27338d8`, 22 annonces complètes / 22 fiches HTTP 200 / 53 candidats. Arrêt logiciel à 9 999 ms, corrigé par attente résiduelle bornée. [Reprise 45064032767](https://github.com/CleMeY15/auto-world/actions/runs/45064032767), source `6f13fe64575196260ed2b9864ff47bcb02c7946e` : première fiche HTTP 403 avec contrôle obstruant, 0 nouvelle annonce. Les preuves des trois exécutions sont authentifiées et conservées.
