@@ -90,3 +90,5 @@ Infrastructure maintenance outside product cohort; independent delivery review
 pending, cost/tokens/human effort unknown.
 
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.
+
+22 novembre 2026 : [TASK-0137](../tasks/TASK-0137-leboncoin-autonomous.md), hors cohorte UI, répond à la demande explicite de collecte autonome régulière. Plan publié dans [PR270](https://github.com/CleMeY15/auto-world/pull/270) avant implémentation. Responsable principal, exécutant du programme et reviewer en contextes Codex distincts ; paramètres hérités, effort/coût/temps humain non exposés (`unknown`). Premier essai borné sur runner Linux ; accès et répétition restent à mesurer avant toute conclusion. Les blocages de connexion VPS sont conservés dans le compte rendu.

@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Collecte autonome demandée — 22 novembre 2026
+
+[TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270), poursuit la preuve d'accès avec notre programme sur un runner Linux compatible. Essai borné : une annonce, jusqu'à trois passages automatiques conditionnés par un résultat exploitable, arrêt au premier échec. [État et preuves](docs/validation/TASK-0137.md). Une installation durable et la couverture du catalogue restent distinctes de ce diagnostic.
+
 ## Priorité : essai leboncoin avant extension du produit
 
 [TASK-0136](roadmap/tasks/TASK-0136-leboncoin-feasibility.md), [PR269](https://github.com/CleMeY15/auto-world/pull/269) en brouillon : trois observations réelles obtenues dans le navigateur cloud et normalisées. Le GET HTTP direct est refusé ; le programme autonome est bloqué avant navigation par l'environnement local. La faisabilité durable reste ouverte. [Compte rendu précis](docs/validation/TASK-0136.md). Vérifier ce programme dans l'environnement de déploiement avant de poursuivre le développement général.

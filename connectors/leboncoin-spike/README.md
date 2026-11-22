@@ -46,10 +46,9 @@ node --test tests/leboncoin-spike.test.mjs
 
 ## Essayer le programme autonome
 
-Playwright et Chromium doivent être déjà installés dans l'environnement d'essai. Versions présentes lors du diagnostic : Playwright 1.62.1, Chromium 156.0.8078.79, Node 22.23.2. Ce spike ne modifie pas les dépendances de production. Il ne réutilise aucun cookie ni profil du navigateur cloud. L'import de `playwright` doit être résolu dans cet environnement ; aucun service ChatGPT n'est appelé par ce CLI.
+Versions présentes lors du diagnostic historique TASK-0136 : Playwright 1.62.1 ambiant, Chromium 156.0.8078.79, Node 22.23.2. Pour TASK-0137, le programme utilise désormais `@playwright/test` 1.64.0 déjà figé dans `apps/web/package.json`, avec son Chromium correspondant et `chromiumSandbox: true`. Installer les dépendances avec `pnpm install --frozen-lockfile`, puis `pnpm --filter @auto-world/web exec playwright install --with-deps chromium` sur une machine compatible. Aucun cookie ni profil du navigateur cloud n'est repris, aucune API de scraping ou de catalogue tierce n'est appelée par ce CLI.
 
 ```sh
-AUTO_FINDEX_CHROMIUM_PATH=/usr/bin/chromium \
 node connectors/leboncoin-spike/collect-browser.mjs \
   --url https://www.leboncoin.fr/ad/voitures/3305814470 \
   --out .local-data/leboncoin-test-unique
@@ -58,6 +57,20 @@ node connectors/leboncoin-spike/collect-browser.mjs \
 Une navigation, aucune relance automatique. Les requêtes image/media sont bloquées : ce profil de chargement diffère du navigateur cloud. Le navigateur peut suivre une redirection HTTP avant sa détection ; l'URL finale et la chaîne sont contrôlées et rapportées. Cela diffère du GET urllib initial qui ne suivait aucune redirection. Un refus ou une vérification reste un échec d'accès, jamais une annonce vide.
 
 Le dossier de sortie doit être nouveau : `attempt.json` décrit le transport ; `snapshot.json` conserve la projection lorsqu'elle existe ; `result.json` conserve sa normalisation. `extracted` exige les champs essentiels observés sans anomalie de normalisation, sinon le résultat reste `partial_capture`. Les résultats cloud ne sont jamais utilisés comme secours automatique. Le collecteur final n'a pas été réexécuté après les ajustements de capture, diagnostic et normalisation : le compte rendu initial est conservé tel quel.
+
+## Diagnostic autonome répété — TASK-0137
+
+Le [plan](../../roadmap/tasks/TASK-0137-leboncoin-autonomous.md) est publié dans [PR270](https://github.com/CleMeY15/auto-world/pull/270). `autonomous-probe.mjs` ouvre l'unique annonce connue `3305814470`, puis effectue au maximum deux autres observations automatiques, chacune au moins cinq minutes après la fin de la précédente. Il s'arrête au premier échec, refus, challenge ou résultat incomplet. Ce n'est ni un balayage du catalogue ni un cron permanent.
+
+```sh
+node connectors/leboncoin-spike/autonomous-probe.mjs --out .local-data/leboncoin-probe-unique
+```
+
+Le parent du dossier `--out` doit déjà exister ; le dossier final doit être nouveau. Dans un clone neuf, créer d'abord `.local-data` avec `mkdir -m 700 .local-data`.
+
+Le dossier privé conserve les captures de cette exécution. `receipt.json` publie uniquement une projection autorisée : statuts, heures, champs numériques automobiles, compteurs et empreintes. Aucun titre, texte libre, contact, VIN/plaque, photo ou corps de challenge n'est publié. Les lignes `AUTO_FINDEX_RECEIPT` des logs contiennent ce même reçu assaini. Dans GitHub Actions, seul ce fichier est conservé sept jours ; les projections privées disparaissent avec le runner et leur empreinte n'est pas un substitut à leur conservation durable.
+
+Le workflow est limité au premier push d'implémentation sur la branche dédiée, au parent du plan et à une seule tentative. Il utilise Ubuntu 22.04 et ne modifie aucune protection système. Les tests généraux du dépôt n'effectuent aucune navigation réelle. Résultat de l'expérience : consulter le [compte rendu TASK-0137](../../docs/validation/TASK-0137.md), qui distingue préparation, accès, répétition et exploitation durable.
 
 ## Limites de ce premier essai
 

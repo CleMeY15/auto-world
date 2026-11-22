@@ -1,5 +1,9 @@
 # Passation courante
 
+## Collecte autonome — TASK-0137, 22 novembre 2026
+
+[PR270](https://github.com/CleMeY15/auto-world/pull/270), base TASK-0136, plan publié avant implémentation dans `6085c0e`. Un essai dédié sur Linux doit ouvrir une annonce avec notre code puis, uniquement en cas d'extraction complète, effectuer deux passages supplémentaires espacés. [Compte rendu](../docs/validation/TASK-0137.md). Le VPS est documenté mais non joignable depuis cette session sans authentification hPanel ; aucun service serveur n'a été modifié. Ne pas déclarer de collecte durable active sans preuve réelle.
+
 ## Priorité utilisateur — faisabilité leboncoin, 22 novembre 2026
 
 [TASK-0136](tasks/TASK-0136-leboncoin-feasibility.md), [PR269 en brouillon](https://github.com/CleMeY15/auto-world/pull/269), empilée sur PR268 : trois fiches réelles ouvertes dans le navigateur cloud et normalisées hors réseau. Le GET direct a reçu HTTP403 avec vérification JavaScript ; notre CLI Playwright n'a pas pu démarrer Chromium (socket local refusé), zéro navigation. **L'accès autonome et la viabilité durable restent non qualifiés.** [Preuves et limites](../docs/validation/TASK-0136.md). Prochain jalon : un essai du même programme dans l'environnement de déploiement où Chromium peut démarrer, avant développement supplémentaire du site. Aucun registre source, site ou catalogue de production activé.

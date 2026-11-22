@@ -15,6 +15,8 @@
 
 Chromium local échoue avant navigation (socket interdit). Le VPS de développement est documenté, mais la connexion SSH de cette session échoue avant connexion et hPanel demande une authentification. Les workflows du projet exécutent déjà Playwright sur des runners Linux. Un workflow de diagnostic dédié peut donc tester le programme hors de l'environnement local, sans toucher la CI générale ni les services du site.
 
+Runtime choisi avant lancement : `ubuntu-22.04`, explicitement supporté par [Playwright](https://playwright.dev/docs/intro) et disponible dans les [images GitHub](https://github.com/actions/runner-images). Le [diagnostic Chromium](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md) explique la restriction AppArmor des builds de développement sur Ubuntu 23.10 et versions suivantes. Choisir ce runtime compatible permet de conserver `chromiumSandbox: true` sans changer de politique système. Ce choix a reçu une revue indépendante avant la première exécution.
+
 ## Plan, à publier dans la PR avant réalisation
 
 1. Résoudre Playwright depuis la dépendance figée du dépôt, et installer son Chromium correspondant sur un runner Linux standard. Aucun affaiblissement des protections du système en cas d'échec.

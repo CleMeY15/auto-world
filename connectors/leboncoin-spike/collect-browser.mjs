@@ -1,11 +1,12 @@
 import { mkdir, chmod, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readVisibleLeboncoinDom } from "./capture-dom.mjs";
 import { extractLeboncoinDomObservation } from "./extract.mjs";
 
-const require = createRequire(import.meta.url);
-const { chromium } = require("playwright");
+const require = createRequire(new URL("../../apps/web/package.json", import.meta.url));
+const PLAYWRIGHT_VERSION = "1.64.0";
 const LIMIT_MS = 30_000;
 const MAX_SNAPSHOT_BYTES = 256 * 1024;
 const TITLE = 'main h1[data-qa-id="adview_title"]';
@@ -24,9 +25,11 @@ function options(args) {
   return { url: values["--url"], out: resolve(values["--out"]) };
 }
 
-function diagnosticCode(error) {
+export function diagnosticCode(error) {
   const message = String(error?.message);
   if (/socket\(\)\s*failed:\s*Operation not permitted/iu.test(message)) return "local_socket_permission_denied";
+  if (/No usable sandbox|sandbox.*(?:not available|unavailable|not supported)|Failed to move to new namespace/iu.test(message)) return "sandbox_unavailable";
+  if (message === "playwright_version_mismatch") return "playwright_version_mismatch";
   return /(?:net::ERR_[A-Z_]+|EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ECONNRESET)/u.exec(message)?.[0]
     ?? (error?.name === "TimeoutError" ? "operation_timeout" : "operation_failed");
 }
@@ -44,8 +47,8 @@ async function challengeVisible(page) {
   }).catch(() => false);
 }
 
-async function collect({ url, out }) {
-  await mkdir(out, { recursive: true, mode: 0o700 });
+export async function collect({ url, out }) {
+  await mkdir(out, { mode: 0o700 });
   await chmod(out, 0o700);
   const report = {
     schema_version: "leboncoin-own-browser-attempt/v1",
@@ -65,7 +68,7 @@ async function collect({ url, out }) {
     },
     runtime: {
       node: process.version, context: "fresh_nonpersistent", headless: true,
-      executable_path: process.env.AUTO_FINDEX_CHROMIUM_PATH ?? "playwright_default",
+      playwright_version: null, chromium_version: null, chromium_sandbox: true,
       shared_profile: false,
     },
   };
@@ -88,11 +91,16 @@ async function collect({ url, out }) {
   });
 
   async function run() {
+    const version = require("@playwright/test/package.json").version;
+    if (version !== PLAYWRIGHT_VERSION) throw new Error("playwright_version_mismatch");
+    const { chromium } = require("@playwright/test");
+    report.runtime.playwright_version = version;
     browser = await chromium.launch({
       headless: true,
+      chromiumSandbox: true,
       timeout: remaining(10_000),
-      ...(process.env.AUTO_FINDEX_CHROMIUM_PATH ? { executablePath: process.env.AUTO_FINDEX_CHROMIUM_PATH } : {}),
     });
+    report.runtime.chromium_version = browser.version();
     stage = "context";
     const context = await browser.newContext({ acceptDownloads: false });
     page = await context.newPage();
@@ -123,7 +131,7 @@ async function collect({ url, out }) {
     }
     report.transport.redirect_count = Math.max(0, chain.length - 1);
     report.transport.redirect_chain = chain.reverse();
-    if ([403, 429].includes(report.navigation_status) || await challengeVisible(page)) {
+    if ([403, 429].includes(report.navigation_status)) {
       report.status = "access_blocked";
       return;
     }
@@ -144,6 +152,9 @@ async function collect({ url, out }) {
       report.reason = "expected_headline_not_visible";
       return;
     }
+    // A 200 page may finish ordinary JavaScript rendering during the bounded
+    // headline wait. No reload or challenge interaction is attempted.
+    if (await challengeVisible(page)) { report.status = "access_blocked"; return; }
     const expand = page.locator('[data-qa-id="criteria_more"]')
       .filter({ hasText: /Voir les \d+ critères supplémentaires/u }).first();
     report.criteria_expansion = "not_present";
@@ -214,8 +225,10 @@ async function collect({ url, out }) {
   if (report.status !== "extracted") process.exitCode = 2;
 }
 
-try { await collect(options(process.argv.slice(2))); }
-catch (error) {
-  process.stderr.write(`${error?.message === "invalid_arguments" ? usage : "Collector failed before saving its private report."}\n`);
-  process.exitCode = 1;
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { await collect(options(process.argv.slice(2))); }
+  catch (error) {
+    process.stderr.write(`${error?.message === "invalid_arguments" ? usage : "Collector failed before saving its private report."}\n`);
+    process.exitCode = 1;
+  }
 }
