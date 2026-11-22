@@ -1,5 +1,9 @@
 # TASK-0137 — Lot réel borné de 100 annonces
 
+## Résultat actuel — 22 annonces importées, objectif 100 non atteint
+
+Le lot direct a fourni 22 annonces distinctes, toutes complètes avec HTTP 200. Elles sont désormais insérées dans la base privée du projet ; une nouvelle connexion après écriture confirme 22 annonces distinctes. Le [reçu d'import](evidence/TASK-0137-project-import-receipt.json) et les métadonnées techniques de la cible sont publiés avec l'autorisation explicite de l'utilisateur. La reprise destinée à compléter le lot a reçu HTTP 403 dès sa première fiche, donc 0 annonce supplémentaire. Le site offline n'affiche pas encore ces données ; aucune source de production ni collecte récurrente n'est activée. Les sections de plan et leurs états pending ci-dessous sont historiques.
+
 ## Plan avant implémentation — 22 novembre 2026
 
 Demande explicite : extraire environ cent annonces leboncoin et les mettre dans la base du projet. Le test reste privé, ponctuel et limité. Il prolonge TASK-0137 sans réécrire les essais précédents. Base : 9a4313ffd04c7032deab3e158cdeac1e2a3d618d ; PR270 et branche spike/0137-leboncoin-autonomous.
@@ -82,3 +86,59 @@ Plan publié dans e710daabf5ca0f074519595eccad7b5f28006cc6 avant implémentation
 Validation locale sérialisée :95 tests Node PASS et19 tests Python PASS ; lint et secretlint des quatre fichiers source/tests/workflow PASS. Le scénario de réveil9999ms attend encore2ms avant ouverture (intervalle mesuré10001ms), l'absence de progrès arrête immédiatement et les réveils trop précoces sont bornés à trois. Un scénario synthétique de78 résultats vérifie exclusions, doublons, plafond et statut ; il ne remplace pas le résultat réel attendu.
 
 Statut avant publication du code : RESUME_LOCAL_VALIDATED / REAL_RESUME_PENDING / PROJECT_DATABASE_ACCESS_MISSING.
+
+## Reprise réellement exécutée — refus dès la première fiche
+
+Implémentation `6f13fe64575196260ed2b9864ff47bcb02c7946e`, [run45064032767](https://github.com/CleMeY15/auto-world/actions/runs/45064032767), lot `86749fdfaecbe3ba78d79403a0717522`, plan SHA-256 `18b5fe79e97c38258d155f92cb5c1b24aa9edee95ae9cb363f850369c7d438de`. La première URL est exactement celle en tête du checkpoint authentifié, absente des 22 déjà collectées. Une seule navigation entre 20:02:22.374 et 20:02:24.772 UTC : HTTP 403, `source_refused`, contrôle « DataDome Device Check » couvrant 1920×997 pixels et interceptant les cinq points mesurés. Aucun corps interne de cadre ni cause de décision serveur n'est établi.
+
+Comptes : 31 candidats hérités, 1 fiche tentée, 1 rejetée, 0 complète, 0 stockée. Aucun autre candidat ouvert. Le reçu SQLite du runner est à zéro, son job SUCCESS atteste l'exécution de l'arrêt et la conservation des preuves. Nettoyage : 9 processus suivis, 0 restant, processus principal terminé.
+
+Artifact `14770762350`, 5 487 octets ; ZIP SHA-256 `a8675baa55cae8418bb592ed409b1f7f8d33bd3b4d8574c70069cd6427801e3c`. ZIP, enveloppe authentifiée, identités, DOM, normaliseur et file de reprise vérifiés. Revue indépendante favorable aux comptes et à leur interprétation. Le lot vide n'a pas été ajouté à la base du VPS.
+
+| Exécution | Découverte ouverte | Fiches ouvertes | Annonces complètes |
+| --- | ---: | ---: | ---: |
+| 45061723405 — catégorie | 1 | 0 | 0 |
+| 45062255767 — fiches directes | 0 | 22 | 22 |
+| 45064032767 — reprise corrigée | 0 | 1 | 0 |
+| Total réellement exécuté | 1 | 23 | 22 |
+
+Les 31 candidats de reprise font partie des 53 candidats du lot direct : ne pas sommer ces compteurs. Le premier arrêt était logiciel ; le refus de reprise survient à la première navigation d'une nouvelle exécution. Ces faits ne prouvent pas une détection provoquée par un nombre précis de requêtes.
+
+## Import dans PostgreSQL et portée du résultat
+
+Le lot valide de 22 annonces a été importé dans la base privée du projet, puis vérifié depuis une nouvelle connexion après COMMIT. Le [reçu publié](evidence/TASK-0137-project-import-receipt.json) reproduit les résultats du contrôle exécuté sur le VPS et conservés dans le dossier de livraison. Le reçu antérieur de préparation SQLite reste une preuve historique distincte.
+
+### Cible et intégrité de l'import
+
+| Élément | Valeur observée |
+| --- | --- |
+| Serveur | `srv2160688.hstgr.cloud` |
+| Checkout | `/home/autoworld/projects/auto-world` |
+| Projet Docker existant | `aw-test-435e897c-aa57-4574-8087-cff23603030f` |
+| Base / schéma d'essai | `autoworld` / `aw_acquisition_trial` |
+| Port PostgreSQL observé | `32782` |
+| Rôle utilisé | `aw_migrator` |
+| Version PostgreSQL | `17.11 (Debian 17.11-1.pgdg13+2)` |
+| Lot importé | `8f67269ce9fbaa10f0f34977722a979e` |
+| Run de collecte | `45062255767` |
+| Révision du collecteur | `3ccf52ef4e8626724d24518a13eade29e27338d8` |
+| Taille du SQL transféré | 366 411 octets |
+| SHA-256 du SQL transféré | `f40558b981680a0ec910014696563be11f0c14acf882e443b6866dbda1489fcf` |
+
+Le contrôle est horodaté au 22 novembre 2026 à **21 h 18 min 31,014 s, heure de Paris** (`2026-11-22T20:18:31.014Z` dans le reçu). C'est l'heure de vérification, pas un horodatage établi du COMMIT. La révision du collecteur ne désigne pas le checkout déployé.
+
+Résultat de la relecture : **22 annonces stockées, 22 identifiants distincts, 22 observations distinctes et 22 empreintes des données brutes vérifiées**. Le reçu confirme `transaction_committed`, `fresh_connection_readback` et `project_database_updated` à `true` ; `source_registry_changed` et `site_catalogue_updated` restent à `false`.
+
+La livraison privée contient les données normalisées, une base de préparation, l'import SQL, un aperçu autonome et les preuves de stockage. L'import concerne un espace d'essai ; le site offline n'affiche pas encore ces annonces. Les 61 références de photos sont conservées, sans téléchargement de fichiers image. L'échantillon contient 19 Porsche et 3 Mercedes-Benz, issues de trois fiches connues et de recommandations, sans représentativité revendiquée.
+
+Aucune source de production ni collecte régulière n'est activée. L'accès durable et la couverture du catalogue restent non démontrés ; l'objectif de 100 n'est pas rempli.
+
+### Autorisation de publication et portée de la mise à jour
+
+Le 22 novembre 2026, après demande explicite de publication de ce compte rendu dans PR270, l'utilisateur a répondu : « Oui je t'autorise même avec les détails privées ». Cette autorisation couvre le bilan, le reçu et les métadonnées techniques ci-dessus. Les données d'annonces et les captures restent dans la livraison privée ; aucun secret d'authentification n'est inclus dans le reçu.
+
+Plan documentaire publié dans PR270 avant modification : actualiser les quatre fichiers de suivi et ajouter la copie du reçu JSON, avec vérification de cohérence, des liens, des secrets et du diff, puis revue indépendante en lecture seule. Aucun code de collecte, service, registre ou interface n'est modifié ; aucune nouvelle collecte ni écriture en base n'est exécutée pour cette publication. Le retrait de ce checkpoint peut se faire par revert documentaire ciblé, sans annuler l'import existant.
+
+Vérifications : 95 tests Node et 19 Python réussis localement et dans le job de reprise avec Node22.23.2 ; lint, secrets, YAML et revue indépendante des sources/preuves réussis. Tooling compatibility `45064038075` SUCCESS. La CI générale `45064038051` était encore en cours à la clôture de l'observation ; aucune qualification globale ni fusion n'en est déduite. Les modifications finales sont documentaires, sans relance de collecte.
+
+Statut : **22_REAL_LISTINGS_IMPORTED / HUNDRED_TARGET_NOT_REACHED / REGULAR_ACCESS_UNPROVEN**. TASK-0137 demeure IN_PROGRESS.

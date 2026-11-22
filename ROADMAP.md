@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Lot réel leboncoin — 22 annonces insérées dans PostgreSQL
+
+22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : le lot direct a extrait 22 annonces distinctes avec HTTP 200. Après correction d'une attente interrompue à 9 999 ms, la reprise reçoit HTTP 403 dès sa première fiche et n'ajoute rien. Le lot valide est maintenant inséré dans la base privée du projet ; une nouvelle connexion après écriture confirme 22 annonces distinctes. La publication du [reçu d'import](docs/validation/evidence/TASK-0137-project-import-receipt.json) et des métadonnées techniques de la cible a été explicitement autorisée par l'utilisateur. [Exécutions, import et limites](docs/validation/TASK-0137-batch100.md). Objectif de 100 non atteint ; collecte régulière et couverture catalogue non démontrées. Le catalogue du site et le registre source restent inchangés. TASK-0137 demeure IN_PROGRESS. Les checkpoints suivants sont historiques.
+
 ## Pilote Camofox — deux annonces relues, contrôle non résolu
 
 22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md), [PR270](https://github.com/CleMeY15/auto-world/pull/270) : deux campagnes réelles ont chacune obtenu les données de deux annonces avec des goto initiaux HTTP 200. Valeurs comparées identiques à environ douze minutes d'écart. Chaque campagne s'arrête à la deuxième fiche sur un cadre de vérification détecté ; celui-ci persiste après l'attente passive de 5 002 ms de la seconde campagne, sans disparition des champs automobiles. Troisième annonce et secondes passes non atteintes. [Bilan, preuves et limites](docs/validation/TASK-0137-camofox-pilot.md). IN_PROGRESS / REPEAT_PENDING ; aucune collecte continue, source ou base produit activée. Les checkpoints plus bas sont historiques. Le pilote ChatGPT antérieur reste désactivé.

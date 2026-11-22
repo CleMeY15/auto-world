@@ -1,6 +1,12 @@
 # TASK-0137 — Prouver une collecte leboncoin autonome et répétée
 
-## Dernier résultat — pilote Camofox du 22 novembre 2026
+## Dernier résultat — lot réel et import PostgreSQL, 22 novembre 2026
+
+**IN_PROGRESS / 22_REAL_LISTINGS_IMPORTED / REGULAR_ACCESS_UNPROVEN.** La demande complémentaire d'environ 100 annonces a produit 22 fiches complètes distinctes (run `45062255767`, HTTP 200), conservées et normalisées. L'arrêt initial à 9 999 ms venait du minuteur. Après correction vérifiée, le run `45064032767` est refusé HTTP 403 dès la première fiche, avec contrôle DataDome occupant le viewport : 0 nouvelle annonce. Le cumul est 23 fiches distinctes tentées, 22 complètes ; l'objectif de 100 n'est pas atteint.
+
+Le lot de 22 a été inséré dans la base privée du projet, puis relu après écriture : 22 annonces distinctes. Le [reçu d'import](../../docs/validation/evidence/TASK-0137-project-import-receipt.json) et les métadonnées techniques de sa cible sont publiés avec l'autorisation explicite de l'utilisateur du 22 novembre 2026. Il s'agit d'un import de données réelles dans la base du projet ; le catalogue du site et la qualification de la source ne sont pas modifiés. [Plan, contrôles, trois exécutions et preuve d'import](../../docs/validation/TASK-0137-batch100.md). Le lot issu des recommandations ne prouve ni exhaustivité ni collecte régulière. Les sections suivantes conservent les états antérieurs.
+
+## Pilote historique — deux annonces relues, 22 novembre 2026
 
 **IN_PROGRESS / REPEAT_PENDING.** Les campagnes 45050640500 (source 668680d4) et 45051751652 (source 8181d3fc) ont chacune lu les champs de deux annonces avec HTTP 200 initial. Les valeurs comparées sont identiques à environ douze minutes d'écart. Le protocole qualifie la première fiche, puis s'arrête à la deuxième sur un cadre de vérification détecté, même après l'attente passive de 5 002 ms de la campagne complémentaire. Le DOM de la deuxième annonce reste exploitable ; ne pas convertir son statut de qualification en absence de données. La géométrie et le contenu interne du cadre ne sont pas établis, donc aucun blocage visuel ou demande humaine précise ne peut être déduit. Troisième annonce et secondes passes non atteintes. [Compte rendu complet, plans, tests et reçus originaux](../../docs/validation/TASK-0137-camofox-pilot.md). Revue indépendante des sources et preuves favorable ; 61 tests ciblés passent aussi en natif. Aucune collecte continue, catalogue complet, base produit ou source activée. Les étapes suivantes sont historiques et ne remplacent pas ce bilan.
 
