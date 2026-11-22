@@ -1,0 +1,72 @@
+name: Observe one leboncoin page with Camofox
+
+on:
+  push:
+    branches: [spike/0137-leboncoin-autonomous]
+    paths: [.github/workflows/leboncoin-camofox-probe.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leboncoin-camofox-probe
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0137-leboncoin-autonomous' &&
+      github.event.before == 'cc4bdbf26b8438f75e7f115f29cdc7c78624ae31' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out the exact experiment revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify the published plan parent
+        run: test "$(git rev-parse HEAD^)" = 'cc4bdbf26b8438f75e7f115f29cdc7c78624ae31'
+
+      - name: Check out the pinned upstream runtime separately
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jo-inc/camofox-browser
+          ref: 31376c27db94204ffdc635ae71a7f61328e91a5e
+          path: .camofox-runtime
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check the offline experiment behavior
+        run: node --test connectors/leboncoin-spike/probe-camofox.test.mjs
+
+      - name: Install upstream runtime with its lockfile
+        working-directory: .camofox-runtime
+        run: npm ci --omit=dev
+
+      - name: Install supported Firefox system dependencies
+        working-directory: .camofox-runtime
+        run: node node_modules/playwright-core/cli.js install-deps firefox
+
+      - name: Observe the known listing once
+        run: node connectors/leboncoin-spike/probe-camofox.mjs --runtime "$GITHUB_WORKSPACE/.camofox-runtime" --out "$RUNNER_TEMP/autofindex-leboncoin-camofox"
+
+      - name: Retain only the public receipt and sealed evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: leboncoin-camofox-probe
+          path: |
+            ${{ runner.temp }}/autofindex-leboncoin-camofox/public-camofox.json
+            ${{ runner.temp }}/autofindex-leboncoin-camofox/sealed-camofox.json
+          if-no-files-found: warn
+          retention-days: 7
