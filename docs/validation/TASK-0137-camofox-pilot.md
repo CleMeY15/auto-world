@@ -35,4 +35,25 @@ Les comparaisons portent sur les huit champs normalisés title, brand, model, mo
 
 ## Résultats réels
 
-Exécution native à lancer ; aucun résultat supplémentaire établi. Le pilote horaire ChatGPT antérieur a été relu comme désactivé avant ce lancement ; il reste distinct et n'a pas été réactivé.
+[Run initial 45050640500](https://github.com/CleMeY15/auto-world/actions/runs/45050640500), source `668680d4b08fe6acd68341ced8b82f4f2979c801`, le 22 novembre 2026 de 17:40:28 à 17:41:09 UTC : **deux observations tentées sur six prévues, une qualifiée, arrêt verification_present, quatre non tentées, aucune seconde passe**. Les deux goto initiaux reçoivent HTTP 200 ; intervalle mesuré 30 031 ms. Les deux nettoyages établissent neuf processus suivis, zéro restant.
+
+Le premier DOM contient Porsche 911 Carrera S, année modèle 2021, 23 000 km, 146 990 EUR. Le deuxième contient Porsche 911 Carrera, année modèle 2020, 29 800 km, 119 900 EUR ; son titre mentionne 2021, divergence déjà présente dans la fixture historique. Chaque DOM contient huit critères et trois références de photos, et son rejeu hors réseau donne listing/core true/issues[]. Le reçu de la deuxième observation reste verification_present et core_fields_observed=false parce que la qualification s'arrête avant normalisation, pas parce que les champs seraient absents.
+
+Une iframe visible intitulée « Verification system » pointe vers le chemin /interstitial/ de geo.captcha-delivery.com dans la deuxième capture. Son contenu interne n'est pas capturé. Aucun refus ou demande humaine n'est observé dans la page mère ; cela n'exclut pas leur présence dans l'iframe. Hypothèse transitoire non établie.
+
+25 fragments reconstituent deux enveloppes : identités, SHA, tailles, AAD, déchiffrement GCM et empreintes DOM vérifiés par le coordinateur ; rejeu pur et preuves relus indépendamment sans nouvelle navigation ni lecture de clé par le reviewer. Le [bilan original](leboncoin-camofox-pilot-20261122/initial-summary.json) est conservé sans réécriture. Artefact GitHub 14765950206, 45 145 octets, rétention jusqu'au 29 novembre ; bytes de capture vérifiés depuis les fragments chiffrés des logs, pas depuis un ZIP local.
+
+Les 41 tests passent aussi dans le job Node 22.23.2 ; job SUCCESS signifie exécution/stockage des preuves, pas répétabilité réussie. Le pilote horaire ChatGPT antérieur a été relu comme désactivé et reste distinct.
+
+## Protocole complémentaire — plan avant code
+
+Hypothèse à distinguer, non acquise : l'iframe pourrait encore être dans une phase transitoire normale de chargement. Son contenu interne n'a pas été capturé ; l'absence de texte de refus dans la page mère n'en établit pas l'absence dans l'iframe.
+
+Nouvelle campagne séparée, même manifeste de trois annonces et deux passages au maximum, mêmes délais de 30 s / 5 min et même configuration. Une observation passive supplémentaire est autorisée uniquement après HTTP 200, correspondance des URL, noyau DOM normalisé valide, iframe interstitial exacte et absence de refus ou demande humaine explicite observés. Dans ce seul cas, attendre une fois cinq secondes mesurées sur l'onglet déjà ouvert, puis relire snapshot et DOM. Aucun clic, reload, nouvelle navigation, réponse CAPTCHA, proxy ou import de session. Si le cadre reste présent, si une vérification/refus apparaît ou si la relecture est incomplète, arrêter.
+
+Conserver les états initial et final dans la même capture chiffrée avec leurs empreintes et durées ; qualifier uniquement l'état final et garder toutes les limites de couverture. Ajouter des tests hors réseau sur l'éligibilité stricte, l'unique attente, la même cible/onglet, le refus persistant, l'échec de relecture et les preuves des deux états. Revue indépendante avant exécution. Le workflow visera un nouveau parent de plan fixé et seulement son deuxième run, première tentative. Budget complémentaire : six ouvertures au plus ; aucune collecte permanente ni activation de base/source.
+
+La revue indépendante considère cette attente passive comme une expérience discriminante raisonnable. L'hypothèse n'est pas présentée comme une correction prouvée.
+
+
+État de ce nouveau protocole : PLAN_REVIEWED, implémentation et nouveau résultat à venir. Aucun succès anticipé ni activation de source/base.
