@@ -1,0 +1,51 @@
+name: AutoFindex Jina Reader 500 URLs (one-shot)
+on:
+  push:
+    branches: [spike/0139-jina-scale-benchmark]
+    paths: [.github/workflows/autofindex-jina-scale.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-jina-scale-once
+  cancel-in-progress: false
+jobs:
+  validate-jina-volume:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0139-jina-scale-benchmark' &&
+      github.event.before == 'fd0d91b12dda554721b04e97d1445d17eb410ca4' &&
+      github.run_attempt == 1 &&
+      github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 195
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated benchmark branch without saved credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Validate plan-first commit
+        run: test "$(git rev-parse HEAD~3)" = '1984cbbb69ee1a236c53c7d8120b7cb15b8aee6e'
+      - name: Run isolated offline tests
+        run: |
+          python -m py_compile connectors/leboncoin-spike/jina-scale-benchmark.py
+          python connectors/leboncoin-spike/jina_scale_benchmark_test.py
+      - name: Run one capped Jina verification without retries or raw storage
+        run: |
+          python connectors/leboncoin-spike/jina-scale-benchmark.py --out "$RUNNER_TEMP/autofindex-jina-scale"
+      - name: Save redacted JSON metrics only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: autofindex-jina-scale-500
+          path: ${{ runner.temp }}/autofindex-jina-scale/*.json
+          if-no-files-found: warn
+          retention-days: 7
