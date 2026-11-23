@@ -1,0 +1,104 @@
+name: Benchmark free Leboncoin acquisition tools (one-shot)
+on:
+  push:
+    branches: [spike/0138-free-access-benchmark]
+    paths: [.github/workflows/leboncoin-free-benchmark.yml]
+permissions:
+  contents: read
+concurrency:
+  group: leboncoin-free-benchmark-once
+  cancel-in-progress: false
+jobs:
+  compare:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0138-free-access-benchmark' &&
+      github.event.before == 'dc2066d371b4fd80f8d74c32e693943d64f6a42d' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        method: [jina, lbc, lbc-finder, lbc-api, scrapling, crawlee, crawl4ai, cloudflare]
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout fixed benchmark source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Verify plan precedes implementation
+        run: test "$(git rev-parse HEAD^)" = 'dc2066d371b4fd80f8d74c32e693943d64f6a42d'
+      - name: Install Python 3.12 (separate per candidate)
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Verify offline benchmark classification and stop rules
+        run: python connectors/leboncoin-spike/free_benchmark_test.py
+      - name: Install only the selected free open-source provider and required browser
+        id: install
+        continue-on-error: true
+        env:
+          METHOD: ${{ matrix.method }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip setuptools wheel
+          case "$METHOD" in
+            jina)
+              echo 'Jina Reader no-key API: no package necessary'
+              ;;
+            lbc)
+              python -m pip install 'lbc==1.1.8'
+              ;;
+            lbc-finder)
+              git clone --quiet --filter=blob:none https://github.com/etienne-hd/lbc-finder.git "$RUNNER_TEMP/lbc-finder"
+              git -C "$RUNNER_TEMP/lbc-finder" checkout --detach ab446bcf7021d0b563a348832bad7548aca8eb4c
+              python -m pip install "$RUNNER_TEMP/lbc-finder"
+              echo "LBC_FINDER_DIR=$RUNNER_TEMP/lbc-finder/lbc-finder" >> "$GITHUB_ENV"
+              ;;
+            lbc-api)
+              git clone --quiet --filter=blob:none https://github.com/RemiPelloux/lbc-api.git "$RUNNER_TEMP/lbc-api"
+              git -C "$RUNNER_TEMP/lbc-api" checkout --detach 9a4fc1a4b99741a57b6fe3cbb2ef41ec9b982f98
+              python -m pip install "$RUNNER_TEMP/lbc-api"
+              echo "LBC_API_DIR=$RUNNER_TEMP/lbc-api" >> "$GITHUB_ENV"
+              ;;
+            scrapling)
+              python -m pip install 'scrapling[fetchers]'
+              scrapling install
+              ;;
+            crawlee)
+              python -m pip install 'crawlee[playwright]'
+              python -m playwright install --with-deps chromium
+              ;;
+            crawl4ai)
+              python -m pip install crawl4ai
+              crawl4ai-setup
+              ;;
+            cloudflare)
+              echo 'Browser Run requires user-owned Cloudflare account and token'
+              ;;
+            *)
+              exit 2
+              ;;
+          esac
+          python -m pip freeze | grep -Ei '^(lbc|lbc-finder|lbc-api|scrapling|crawlee|crawl4ai|playwright|patchright|fastapi|uvicorn)=' || true
+      - name: Execute one bounded source check, at most 100 records
+        if: always() && !cancelled() && steps.install.outcome != 'skipped'
+        env:
+          METHOD: ${{ matrix.method }}
+        run: |
+          python connectors/leboncoin-spike/free-benchmark.py --method "$METHOD" --out "$RUNNER_TEMP/autofindex-free-benchmark"
+      - name: Preserve only sanitized metrics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: free-benchmark-${{ matrix.method }}
+          path: ${{ runner.temp }}/autofindex-free-benchmark/*.json
+          if-no-files-found: warn
+          retention-days: 7
