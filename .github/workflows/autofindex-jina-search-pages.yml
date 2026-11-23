@@ -1,0 +1,51 @@
+name: AutoFindex Jina search-pages 500 cards (one-shot)
+on:
+  push:
+    branches: [spike/0140-jina-search-pages]
+    paths: [.github/workflows/autofindex-jina-search-pages.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-jina-search-pages-once
+  cancel-in-progress: false
+jobs:
+  compare-search-listing-pages:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0140-jina-search-pages' &&
+      github.event.before == 'b4349006ca605b73a57e1339d570ac9eb53e0e33' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 80
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated source (no persisted credentials)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 5
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Confirm benchmark plan precedes code
+        run: test "$(git rev-parse HEAD~3)" = '0ce12170cdecabc57e380a0b326c92dadc0a1acf'
+      - name: Offline validation before live page checks
+        run: |
+          python -m py_compile connectors/leboncoin-spike/jina-list-benchmark.py
+          python connectors/leboncoin-spike/jina_list_benchmark_test.py
+      - name: Read public car search pages with 500-card ceiling
+        run: |
+          python connectors/leboncoin-spike/jina-list-benchmark.py --out "$RUNNER_TEMP/autofindex-jina-search-pages"
+      - name: Upload sanitized report only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: autofindex-jina-listing-500
+          path: ${{ runner.temp }}/autofindex-jina-search-pages/*.json
+          if-no-files-found: warn
+          retention-days: 7
