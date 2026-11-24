@@ -1,6 +1,7 @@
 import {createServer as httpServer} from 'node:http';
 import {createReader, ReaderError} from './reader.mjs';
 import {extractCar} from './extract.mjs';
+import {extractListingPage} from './listing.mjs';
 
 const MAX_REQUEST = 512 * 1024;
 async function readBody(req) {
@@ -26,6 +27,14 @@ export function createReaderServer(reader=createReader()) {
         const body=await readBody(req);
         if(typeof body.html!=='string') throw new ReaderError('HTML_REQUIRED',400);
         return json(res,200,extractCar(body.html));
+      }
+      if(req.method==='POST' && path==='/v1/extract-list') {
+        const body=await readBody(req);
+        if(typeof body.html!=='string') throw new ReaderError('HTML_REQUIRED',400);
+        let parsed;
+        try { parsed=extractListingPage(body.html,{baseUrl:body.baseUrl,limit:body.limit}); }
+        catch(err) { if(err instanceof TypeError) throw new ReaderError('INVALID_LISTING_PARAMETERS',400); throw err; }
+        return json(res,200,parsed);
       }
       if(req.method==='POST' && path==='/v1/read') {
         const body=await readBody(req);

@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {extractCar} from '../src/extract.mjs';
+import {extractListingPage} from '../src/listing.mjs';
 import {createReader,ReaderError} from '../src/reader.mjs';
 import {createReaderServer} from '../src/server.mjs';
 
 const html=await readFile(new URL('../fixtures/car.html',import.meta.url),'utf8');
 const updated=await readFile(new URL('../fixtures/car-update.html',import.meta.url),'utf8');
+const results=await readFile(new URL('../fixtures/results.html',import.meta.url),'utf8');
 const shell=await readFile(new URL('../fixtures/app-shell.html',import.meta.url),'utf8');
 const url='https://fixtures.autofindex.example/car/911';
 const source={enabled:true,fixtureOnly:true,rightsStatus:'permitted_crawl',evidenceRef:'TEST_FIXTURE_NOT_REAL_AUTH',allowedOrigins:['https://fixtures.autofindex.example'],cacheTtlMs:15000,allowBrowser:true};
@@ -90,4 +92,22 @@ test('offline extraction API works, default remote reader denies access',async()
  const denied=await fetch(base+'/v1/read',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sourceId:'demo',url})});
  assert.equal(denied.status,403); assert.equal((await denied.json()).error,'SOURCE_NOT_AUTHORIZED');
  } finally { await new Promise(resolve=>server.close(resolve)); }
+});
+
+test('one search results page extracts two cars and deduplicates cards',()=>{
+ const r=extractListingPage(results,{baseUrl:'https://fixtures.autofindex.example/search/cars'});
+ assert.equal(r.count,2);assert.deepEqual(r.items.map(x=>x.make),['Peugeot','Renault']);
+ assert.deepEqual(r.items.map(x=>x.price.amount),[21500,24900]);
+ assert.equal(r.items[0].position,1);assert.match(r.evidence.rawSha256,/^[0-9a-f]{64}$/);
+});
+test('search results parser obeys output limit and API supports batch extraction',async()=>{
+ assert.equal(extractListingPage(results,{baseUrl:'https://fixtures.autofindex.example/search',limit:1}).count,1);
+ const server=createReaderServer();
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try {
+   const res=await fetch(`http://127.0.0.1:${server.address().port}/v1/extract-list`,{
+     method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({html:results,baseUrl:'https://fixtures.autofindex.example/search'})
+   });
+   assert.equal(res.status,200);const j=await res.json();assert.equal(j.items.length,2);
+ } finally {await new Promise(resolve=>server.close(resolve));}
 });
