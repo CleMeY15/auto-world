@@ -1,0 +1,100 @@
+{
+  "source": {
+    "receipt_timestamp": "2026-11-24T13:48:13+00:00",
+    "status": "target_met",
+    "search_pages": 91,
+    "result_pages": 91,
+    "http_requests_for_search_pages": 91,
+    "http_outcomes": {
+      "200": 91
+    },
+    "reader_outcomes": {
+      "results": 91
+    },
+    "card_observations": 2432,
+    "unidentified_or_ambiguous_cards": 28,
+    "reported_card_issues": {
+      "unidentified_or_ambiguous": 28
+    },
+    "distinct_ids": 2043,
+    "repeat_observations": 361,
+    "incomplete_distinct": 22,
+    "fields_missing_on_incomplete": {
+      "price_eur": 17,
+      "mileage_km": 5,
+      "year": 4
+    },
+    "conflicting_distinct": 0,
+    "eligible_complete": 2021,
+    "excluded_after_target": 21,
+    "selected": 2000,
+    "detail_page_fetches": 0
+  },
+  "html_card_verification": {
+    "all_verified": true,
+    "exact_same_id_href_on_observation_page": 2000,
+    "href_elsewhere_on_observation_page_only": 445,
+    "href_within_the_matching_card": 1555,
+    "id_and_four_fields_same_card": 2000,
+    "projected_csv_bytes": 109662,
+    "projected_csv_columns": [
+      "source_id",
+      "title",
+      "year",
+      "price",
+      "mileage"
+    ],
+    "projected_csv_sha256": "cfbb87376d8abea95d10539c050da3c206eb057df9f5181299c00040183566e7",
+    "records": 2000,
+    "source_page_digests_verified": 91
+  },
+  "project_postgresql": {
+    "database": "autoworld",
+    "schema": "aw_marketplace_trial",
+    "table": "listings",
+    "server_version": "17.11",
+    "first_inserted": 2000,
+    "first_verified": 2000,
+    "replay_existing": 2000,
+    "replay_verified": 2000,
+    "replay_added": 0,
+    "distinct_ids": 2000,
+    "prior_rows_before": 22,
+    "prior_rows_after": 22,
+    "sha256_record_fields": "a385888b8f4fd8b4842bb6db090f9c3e56cc9f4c8c6560b9e6bf40e3663fd122",
+    "sha256_csv_5_fields": "cfbb87376d8abea95d10539c050da3c206eb057df9f5181299c00040183566e7",
+    "verified_utc": "2026-11-24T13:49:38.045976+00:00",
+    "importer_commit": "3f049fc26422df595bfae25dbf8c25471381180c",
+    "separate_readback_confirmed": true
+  },
+  "normalized_fields": [
+    "source",
+    "source_id",
+    "source_locator",
+    "title",
+    "price",
+    "currency",
+    "year",
+    "mileage",
+    "distance_unit"
+  ],
+  "reported_geography": {
+    "count": 2000,
+    "country_single": 2000,
+    "country_codes": 14,
+    "fr": 1811,
+    "country_unknown_or_inconsistent": 0,
+    "publication_readable": 2000,
+    "min_publication": "2024-08-13",
+    "max_publication": "2026-11-24",
+    "locator_types": {
+      "detail": 1997,
+      "outbound_link": 3
+    }
+  },
+  "local_backup_verification": {
+    "database_rows": 2000,
+    "distinct_ids_after_restore": 2000,
+    "private_file_sha256": "c771459e6c30a989e00bf24e782307db8504a6dbbee1651e84d8ccb5474a5b8f"
+  }
+}
