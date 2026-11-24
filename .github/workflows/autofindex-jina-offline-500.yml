@@ -1,0 +1,48 @@
+name: AutoFindex offline validation of 500 synthetic car cards
+on:
+  push:
+    branches: [spike/0143-jina-offline-500-validation]
+    paths: [.github/workflows/autofindex-jina-offline-500.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-jina-offline-500
+  cancel-in-progress: false
+jobs:
+  validate-synthetic-cards:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0143-jina-offline-500-validation' &&
+      github.event.before == '0b24dbe0428c9c91077b5eaa812f68dfc15bc322' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated test branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 5
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Confirm plan precedes test
+        run: test "$(git rev-parse HEAD~3)" = 'cba515e4c783c9256d1ffa9a7921baf1d183f237'
+      - name: Existing offline regression tests
+        run: python connectors/leboncoin-spike/jina_list_benchmark_test.py
+      - name: Measure 500 synthetic cards and simulated refusals without live HTTP
+        run: python connectors/leboncoin-spike/jina_offline_500_validation.py --out "$RUNNER_TEMP/autofindex-offline-500"
+      - name: Upload aggregate offline results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: autofindex-offline-500-validation
+          path: ${{ runner.temp }}/autofindex-offline-500/*.json
+          retention-days: 7
+          if-no-files-found: warn
