@@ -1,0 +1,53 @@
+name: AutoFindex Jina page 9 isolated retest (one request)
+on:
+  push:
+    branches: [spike/0142-jina-page9-one-retest]
+    paths: [.github/workflows/autofindex-jina-page9-retest.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-jina-page9-retest-one-shot
+  cancel-in-progress: false
+jobs:
+  verify-page-nine:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0142-jina-page9-one-retest' &&
+      github.event.before == '4d7e9b83945fd41650f9ace5a91a79008ecaa266' &&
+      github.run_attempt == 1 &&
+      github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout code without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 3
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Verify plan is committed before workflow
+        run: test "$(git rev-parse HEAD^)" = '4d7e9b83945fd41650f9ace5a91a79008ecaa266'
+      - name: Run offline verification regression tests
+        run: |
+          python -m py_compile connectors/leboncoin-spike/jina_verification_diagnostic.py
+          python -m py_compile connectors/leboncoin-spike/jina-list-benchmark.py
+          python connectors/leboncoin-spike/jina_list_benchmark_test.py
+      - name: Exactly one Jina read of page nine
+        run: |
+          python connectors/leboncoin-spike/jina_verification_diagnostic.py --out "$RUNNER_TEMP/autofindex-jina-page9-retest"
+      - name: Save sanitized diagnostic only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: autofindex-jina-page9-retest
+          path: ${{ runner.temp }}/autofindex-jina-page9-retest/*.json
+          retention-days: 7
+          if-no-files-found: warn
