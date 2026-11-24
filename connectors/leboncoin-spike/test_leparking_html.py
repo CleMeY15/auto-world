@@ -99,6 +99,17 @@ class SavedPageTest(unittest.TestCase):
         result = parse_html(result_cards(card(year="?").replace("75001", "2000")))
         self.assertIsNone(result["cards"][0]["year"])
 
+    def test_visible_empty_message_in_results_only(self):
+        footer = '<footer><script src="/recaptcha.js"></script></footer>'
+        visible = '<li><strong>Aucune annonce trouvée.</strong></li>'
+        self.assertEqual(parse_html(result_cards(visible) + footer)["status"], "empty_results")
+        for hidden in ('<script>0 annonces</script>', '<li hidden>0 annonces</li>',
+                       '<template><li>0 annonces</li></template>',
+                       '<li aria-hidden="true"><strong>0 annonces</strong></li>'):
+            self.assertEqual(parse_html(result_cards(hidden))["status"], "unrecognized")
+        self.assertEqual(parse_html(result_cards() + visible)["status"], "unrecognized")
+        self.assertEqual(parse_html(result_cards(visible, card()))["status"], "results")
+
     def test_unrecognized_html(self):
         parsed = parse_html('<p>Erreur temporaire</p><div class="right-result-bloc"></div>')
         self.assertEqual(parsed["status"], "unrecognized")

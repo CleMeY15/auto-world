@@ -26,14 +26,14 @@ FIELDS = ("title", "price_eur", "year", "mileage_km")
 FORMATS = ("leboncoin-md", "leparking-md", "leparking-html")
 
 
-def no_results_status(body):
+def no_results_status(body, *, accept_plain_empty=True):
     sample = body[:20_000]
     if any(RULES[name].search(sample) for name in
            ("explicit_block", "human_verification", "challenge_widget")):
         return "verification_signal"
     if any(RULES[name].search(sample) for name in ("provider_name_only", "generic_captcha_word")):
         return "verification_mention"
-    if re.search(r"^\s*(?:aucun(?:e)? (?:résultat|annonce)|0 (?:résultats?|annonces?))[.!]?\s*$",
+    if accept_plain_empty and re.search(r"^\s*(?:aucun(?:e)? (?:résultat|annonce)|0 (?:résultats?|annonces?))[.!]?\s*$",
                  body, re.IGNORECASE | re.MULTILINE):
         return "empty_results"
     return "unrecognized"
@@ -57,7 +57,7 @@ def parse_input(mode, body):
     if status in {"parsed", "results"}:
         status = "results"
     elif status in {"no_cards", "unrecognized"} and not conflicts:
-        status = no_results_status(body)
+        status = no_results_status(body, accept_plain_empty=mode != "leparking-html")
     if not rows and conflicts:
         status = "conflict"
     elif not rows and status == "results":
@@ -81,7 +81,6 @@ def audit_files(mode, paths, include_rows=False):
             pages.append({"page": index, "status": "input_error", "reason": type(err).__name__})
             continue
         rows, page_conflicts, observed, metrics = parse_input(mode, body)
-        pages.append({"page": index, **metrics})
         conflicts.update(page_conflicts)
         repeats += metrics["page_duplicates"]
         if mode == "leboncoin-md":
@@ -94,7 +93,10 @@ def audit_files(mode, paths, include_rows=False):
                     fields.setdefault(field, []).append(row[field])
             repeats += len(rows) - len(observed)
         page_ids = {row["source_id"] for row in rows} | page_conflicts | set(observed)
-        repeats += len(seen_ids & page_ids)
+        overlap = len(seen_ids & page_ids)
+        repeats += overlap
+        pages.append({"page": index, **metrics, "new_source_ids": len(page_ids) - overlap,
+                      "previously_seen_source_ids": overlap})
         seen_ids.update(page_ids)
         for key, fields in observed.items():
             known = evidence.setdefault(key, {})

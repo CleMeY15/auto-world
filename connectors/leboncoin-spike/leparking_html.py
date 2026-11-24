@@ -5,6 +5,8 @@ from datetime import date
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
+from leparking_page import EMPTY
+
 
 BASE_URL = "https://www.leparking.fr/"
 DETAIL_PATH = re.compile(r"/voiture-occasion-detail/(?:[^/?#\\]+/)+([A-Z0-9]{8})\.html")
@@ -39,9 +41,19 @@ class CardReader(HTMLParser):
         self.rows = []
         self.canonical = {}
         self.in_results = False
+        self.empty_message = False
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        # Record hidden subtrees even when their parent is outside #resultats.
+        # This also prevents a hidden container from opening a results scope.
+        hidden = (tag in {"script", "style", "template", "noscript"} or "hidden" in attrs
+                  or (attrs.get("aria-hidden") or "").casefold() == "true"
+                  or (self.stack and self.stack[-1][1] == "hidden"))
+        if hidden:
+            if tag not in VOID:
+                self.stack.append((tag, "hidden", [], None))
+            return
         classes = set((attrs.get("class") or "").split())
         role = None
         href = None
@@ -76,11 +88,22 @@ class CardReader(HTMLParser):
                     # Postal codes in some countries also have four digits.
                     role = "year_spec" if len(spec_list[2]) == 2 else "spec"
                     spec_list[2].append("")
+        if self.in_results and self.card is None and role is None and tag in {"p", "li", "h1", "h2", "h3", "div"}:
+            role = "message"
         if tag not in VOID and (self.card is not None or role == "results" or self.stack):
             self.stack.append((tag, role, [], href))
 
     def handle_data(self, data):
-        if self.card is not None and not any(tag in {"script", "style"} for tag, *_ in self.stack):
+        if self.stack and self.stack[-1][1] == "hidden":
+            return
+        if self.in_results and self.card is None:
+            # Inline elements can split one message, e.g. <p>Aucune <b>annonce</b>.</p>.
+            for _, role, chunks, _ in reversed(self.stack):
+                if role in {"message", "results"}:
+                    chunks.append(data)
+                    break
+            return
+        if self.card is not None:
             for _, role, chunks, _ in self.stack:
                 if role in {"title", "detail", "price", "spec", "year_spec"}:
                     chunks.append(data)
@@ -92,6 +115,8 @@ class CardReader(HTMLParser):
             frames = self.stack[pos:]
             del self.stack[pos:]
             for _, role, chunks, href in reversed(frames):
+                if role in {"message", "results"} and EMPTY.fullmatch(" ".join("".join(chunks).split())):
+                    self.empty_message = True
                 if role == "results":
                     self.in_results = False
                 if self.card is None:
@@ -160,7 +185,12 @@ def parse_html(body):
         fields = {name: next(iter(raw[name]), None) for name in FIELDS}
         cards.append({"key": key, "source_id": key.split(":", 1)[1], "url": url, **fields,
                       "complete": all(v is not None for v in fields.values())})
-    status = "results" if grouped else "unrecognized"
+    if grouped:
+        status = "results"
+    elif reader.empty_message and not reader.rows:
+        status = "empty_results"
+    else:
+        status = "unrecognized"
     return {"status": status, "cards": cards, "observed_values": evidence,
             "conflict_ids": sorted(key.split(":", 1)[1] for key in ambiguous),
             "observations": len(reader.rows),

@@ -1,6 +1,6 @@
 # Lire les pages de résultats de Leboncoin et du Parking
 
-**Mesures du 24 novembre 2026, heure de Paris.** Sur Le Parking, le HTML a livré 26 annonces complètes pour une page. Sur Leboncoin, la recherche officielle a accepté cinq pages de 100 résultats, mais n’a transmis aucune ligne individuelle au traitement. La cible de 500 annonces réelles distinctes et complètes par source reste ouverte.
+**Première campagne du 24 novembre 2026, heure de Paris.** Sur Le Parking, le HTML a livré 26 annonces complètes pour une page. Sur Leboncoin, la recherche officielle a accepté cinq pages de 100 résultats, mais n’a transmis aucune ligne individuelle au traitement. La cible de 500 annonces réelles distinctes et complètes par source reste ouverte.
 
 | Source et mode | Périmètre réellement lu | Identités vérifiables | Titres, prix, années et km réunis |
 | --- | --- | ---: | ---: |
@@ -13,6 +13,8 @@
 Les 64 tests ciblés passent en local. Ils couvrent les deux lecteurs du Parking, les régressions du lecteur Leboncoin et le programme qui compte les annonces sur plusieurs pages. [Mesures au format JSON](../../connectors/leboncoin-spike/evidence/marketplace-pages-2026-11-24.json)
 
 Une identité correspond à un identifiant de publication sur la source. Ces mesures ne vérifient ni le VIN, ni la présence du véhicule chez le vendeur. Les documents bruts et les lignes de véhicules du test du jour ne sont pas publiés.
+
+Le [retest du 24 novembre sur les fiches individuelles et le lot de 500](TASK-0147-retest-details-et-500.md) complète cette première campagne.
 
 ## Leboncoin
 

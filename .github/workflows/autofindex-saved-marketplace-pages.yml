@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - 'connectors/leboncoin-spike/*.py'
+      - 'connectors/leboncoin-spike/*.mjs'
+      - 'connectors/leboncoin-spike/fixtures/*.json'
       - '.github/workflows/autofindex-saved-marketplace-pages.yml'
 permissions:
   contents: read
@@ -26,3 +28,9 @@ jobs:
         run: |
           python -m py_compile marketplace_pages.py leparking_page.py leparking_html.py jina-list-benchmark.py
           python -m unittest -q jina_list_benchmark_test leboncoin_saved_rows_test test_leparking_page test_leparking_html test_marketplace_pages
+      - name: Set up repository Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Check detail-field consistency on stored observations
+        run: node --test extract.test.mjs detail-review.test.mjs
