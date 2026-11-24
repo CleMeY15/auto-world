@@ -131,5 +131,66 @@ class Tests(unittest.TestCase):
         self.assertTrue(diag["body_text_persisted"] is False)
 
 
+    def test_labelled_price_formats(self):
+        for line in ("Prix: 12 490 €", "Prix : 12 490 €", "Prix : 12\u202f490 €"):
+            with self.subTest(line=line):
+                self.assertEqual(m.price_eur(line), 12490)
+                card = TWO.replace("6 200 €", line)
+                result = m.parse_page(card)
+                self.assertTrue(result["cards"][0]["complete"])
+                self.assertEqual(result["cards"][0]["key"], "id:3305814471")
+
+    def test_only_total_price_not_monthly_or_incidental_amount(self):
+        for line in ("Prix : 250 €/mois", "Prix: 250 € par mois", "Dès 250 €",
+                     "Mensualité : 250 €", "Frais de dossier : 250 €"):
+            self.assertIsNone(m.price_eur(line), line)
+        sample = TWO.replace("6 200 €", "Prix : 6 200 €\nDès 250 €/mois")
+        self.assertTrue(m.parse_page(sample)["cards"][0]["complete"])
+
+    def test_short_title_only_with_explicit_card_link(self):
+        for title in ("Twingo", "Golf", "C3", "A3", "208"):
+            with self.subTest(title=title):
+                card = TWO.replace("Renault Megane DCI", title)
+                r = m.parse_page(card)
+                self.assertTrue(r["cards"][0]["complete"])
+                self.assertEqual(r["cards"][0]["key"], "id:3305814471")
+        plain = "Twingo\n6 200 €\n·2015·180000 km·Diesel"
+        self.assertFalse(m.parse_page(plain)["cards"][0]["complete"])
+
+    def test_linked_title_is_preferred_over_metadata(self):
+        body = TWO.replace("6 200 €", "Véhicule garanti\nPrix : 6 200 €")
+        captured = []
+        original = m.digest
+        def spy(value):
+            captured.append(value)
+            return original(value)
+        with patch.object(m, "digest", side_effect=spy):
+            r = m.parse_page(body)
+        self.assertTrue(r["cards"][0]["complete"])
+        self.assertEqual(captured, [m.normalize("Renault Megane DCI") + "|6200|2015|180000"])
+
+    def test_duplicate_equal_prices_accepted_conflicting_prices_rejected(self):
+        repeated = TWO.replace("6 200 €", "6 200 €\nPrix : 6 200 €")
+        conflict = TWO.replace("6 200 €", "6 200 €\nPrix : 8 300 €")
+        self.assertTrue(m.parse_page(repeated)["cards"][0]["complete"])
+        self.assertFalse(m.parse_page(conflict)["cards"][0]["complete"])
+
+    def test_missing_price_does_not_borrow_previous_card_amount(self):
+        body = ONE + "\nPrix : 12 490 €\n" + TWO.replace("6 200 €", "Prix indisponible")
+        cards = m.parse_page(body)["cards"]
+        self.assertEqual(len(cards), 2)
+        self.assertTrue(cards[0]["complete"])
+        self.assertFalse(cards[1]["complete"])
+
+    def test_empty_or_generic_link_is_not_title(self):
+        for label in ("", "Diesel", "Détails", "En savoir plus", "Photo"):
+            body = TWO.replace("Renault Megane DCI", label).replace("6 200 €", "Garantie incluse\n6 200 €")
+            self.assertFalse(m.parse_page(body)["cards"][0]["complete"], label)
+
+    def test_conflicting_linked_titles_are_rejected(self):
+        body = "### [Autre voiture](https://www.leboncoin.fr/ad/voitures/3305814479)\n" + TWO
+        self.assertFalse(m.parse_page(body)["cards"][0]["complete"])
+
+
 if __name__ == "__main__":
     unittest.main()
