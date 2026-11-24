@@ -90,7 +90,7 @@ def optional_public_listing(html):
     from own_fetch import BLOCKED_TEXT
 
     def risky(text):
-        return bool(BLOCKED_TEXT.search(text) or BAD_SCREEN.search(text) or COOKIE.search(text))
+        return bool(BLOCKED_TEXT.search(text) or BAD_SCREEN.search(text) or COOKIE.search(text) or ACCESS_NOTICE.search(text))
 
     if not isinstance(html, str) or len(html) > 4_000_000:
         return False
@@ -107,7 +107,8 @@ def optional_public_listing(html):
                or OVERLAY.search(el.get("class", "")+" "+el.get("id", ""))
                or re.search(r"position\s*:\s*fixed", el.get("style", ""), re.I)
                or (el.tag in {"script", "iframe", "object", "embed"} and
-                   RISK_SOURCE.search(el.get("src", "")+" "+el.get("data", ""))) for el in root.iter()):
+                   RISK_SOURCE.search(" ".join((el.get("src", ""), el.get("data", ""), el.get("srcdoc", ""),
+                                               el.text or "")))) for el in root.iter()):
             return False
         links = [n.get("href") for n in root.iter("link") if "canonical" in n.get("rel", "").lower().split()]
         if len(links) != 1 or listing_identity(links[0])[0] != "mobile.de":
@@ -148,7 +149,7 @@ def optional_public_listing(html):
                 text = " ".join(read_text(note))
                 # Ignore only a short notice that explicitly qualifies the send-message action.
                 if (len(text) <= 220 and CAPTCHA.search(text) and FOR_SENDING.search(text)
-                        and not ACCESS_NOTICE.search(text) and not risky(CAPTCHA.sub("", text))
+                        and not risky(CAPTCHA.sub("", text))
                         and all(n.tag in {"label", "p", "small", "span", "strong", "em", "b", "i", "input"}
                                 for n in note.iter())):
                     skip.add(note)
@@ -157,7 +158,7 @@ def optional_public_listing(html):
             for para in footer.iter("p"):
                 text = " ".join(read_text(para))
                 if (len(text) <= 300 and accessible(para) and HELP.search(text) and CONTACT_MESSAGE.search(text)
-                        and QUOTED_DENIAL.search(text) and not ACCESS_NOTICE.search(text)
+                        and QUOTED_DENIAL.search(text)
                         and not risky(QUOTED_DENIAL.sub("", text))
                         and all(n.tag in {"p", "span", "strong", "em", "b", "i", "a"} for n in para.iter())):
                     skip.add(para)
@@ -168,7 +169,7 @@ def optional_public_listing(html):
         if not skip:
             return False
         remaining = " ".join(read_text(root, skip))
-        if risky(remaining) or ACCESS_NOTICE.search(remaining):
+        if risky(remaining):
             return False
         fields = visible_fields(read_text(vehicle, skip))
         return all(fields.get(k) is not None for k in ("price", "currency", "year", "mileage_km"))

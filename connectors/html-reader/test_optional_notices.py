@@ -26,7 +26,8 @@ class OptionalNoticesTests(unittest.TestCase):
     def test_rejects_missing_or_invisible_vehicle_evidence(self):
         for doc in (page(canonical=''), page(canonical=CANONICAL*2), page(facts=FACTS.replace('43.200 km', '')),
                     page(facts='<div style="display: none">'+FACTS+'</div>'), page(facts=FACTS*2),
-                    page(facts='<main><h1>Local Testauto</h1></main>')):
+                    page(facts='<main><h1>Local Testauto</h1></main>'),
+                    page().replace('<title>Local Testauto', '<title>Annonce indisponible')):
             with self.subTest(doc=doc):
                 self.assertFalse(optional_public_listing(doc))
 
@@ -40,6 +41,8 @@ class OptionalNoticesTests(unittest.TestCase):
                   FORM+'<div style="position: fixed; inset: 0">Continuer</div>',
                   FORM.replace('</form>', '<iframe src="/captcha/widget"></iframe></form>'),
                   FORM+'<p>Véhicule indisponible</p>',
+                  FORM+'<script>const resource="challenge-platform";</script>',
+                  FORM+'<iframe srcdoc="captcha"></iframe>',
                   NOTE.replace('dans le formulaire de contact, contactez le vendeur', 'sur cette page'),
                   FORM.replace('Envoyer</button>', 'Valider</button>'),
                   NOTE.replace('« Access Denied »', 'Access Denied'),
