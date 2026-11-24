@@ -16,6 +16,8 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
+from jina_verification_diagnostic import diagnostics
+
 CAP = 500
 MAX_PAGES = 40
 MIN_GAP_SECONDS = 12
@@ -23,10 +25,6 @@ MAX_SECONDS = 60 * 60
 FETCH_TIMEOUT_SECONDS = 65
 MAX_BYTES = 3_000_000
 SEARCH = "https://www.leboncoin.fr/recherche?category=2&page="
-BLOCK = re.compile(
-    r"you have been blocked|access denied|datadome|captcha|verify that you are human|"
-    r"verification required|vérification de sécurité|challenge-platform", re.I
-)
 CORE = re.compile(
     r"[·•]\s*(?P<year>19[5-9][0-9]|20[0-2][0-9])\s*[·•]\s*"
     r"(?P<km>[0-9][0-9 \u00a0\u202f.,]{0,13})\s*km\b", re.I
@@ -212,9 +210,17 @@ def execute(fetcher=fetch_page, *, max_pages=MAX_PAGES, cap=CAP, gap=MIN_GAP_SEC
             per_page.append({"page": page, "http_status": status, "outcome": "unexpected_http"})
             reason = "unexpected_http"
             break
-        if BLOCK.search(response[:20_000]):
-            per_page.append({"page": page, "http_status": status, "outcome": "verification"})
-            reason = "verification"
+        diagnosis = diagnostics(response, parse_page, status=status)
+        if diagnosis["classification"] != "no_signal":
+            per_page.append({
+                "page": page,
+                "http_status": status,
+                "outcome": "verification_signal",
+                "diagnosis": diagnosis,
+            })
+            print("AUTOFINDEX_JINA_VERIFICATION " + json.dumps(per_page[-1]), flush=True)
+            # Do not proceed past a potential challenge, including generic keyword-only signals.
+            reason = "verification_signal"
             break
         page_hash = digest(response)
         parsed = parse_page(response)
