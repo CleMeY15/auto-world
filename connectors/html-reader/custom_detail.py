@@ -368,7 +368,10 @@ def parse_detail(content, source_url=None, *, format="html"):
     candidates, resolve, is_list = structured(docs)
     if (BAD_SCREEN.search(" ".join(titles + headings + lines[:14]))
             or any(t.casefold().strip(" .!") in {"captcha", "vérification de sécurité", "sicherheitsüberprüfung", "security check"} for t in titles + headings + lines[:4])):
-        raise DetailError("blocked_or_unavailable", "This document shows a verification or unavailable page.")
+        from optional_notices import optional_public_listing
+
+        if format != "html" or not optional_public_listing(content):
+            raise DetailError("blocked_or_unavailable", "This document shows a verification or unavailable page.")
     if is_list or any(LIST_HEADING.search(t) for t in titles + headings + lines[:3]):
         raise DetailError("list_page", "This document describes search results or a list.")
     if source_url is not None:

@@ -288,19 +288,21 @@ class ChallengeLabels(HTMLParser):
 
 
 def looks_gated(raw):
+    from optional_notices import optional_public_listing
+
+    html = raw.decode("utf-8", "replace")
     labels = ChallengeLabels()
-    labels.feed(raw.decode("utf-8", "replace"))
+    labels.feed(html)
     heading = " ".join(" ".join(parts) for parts in labels.headings.values())
     if BLOCKED_TEXT.search(heading):
         return True
     visible = " ".join(" ".join(labels.visible).split())
     if len(visible) < 1800:
-        if BLOCKED_TEXT.search(visible):
-            return True
-        if re.search(r"(accept|accepter|zustimmen).{0,32}(cookies|continuer|continue|fortfahren)", visible, re.I):
-            return True
         if any(re.search(r"captcha-delivery\.com|/cdn-cgi/challenge-platform|geo\.captcha", src, re.I) for src in labels.scripts):
             return True
+        cookie_prompt = re.search(r"(accept|accepter|zustimmen).{0,32}(cookies|continuer|continue|fortfahren)", visible, re.I)
+        if BLOCKED_TEXT.search(visible) or cookie_prompt:
+            return not optional_public_listing(html)
     return False
 
 

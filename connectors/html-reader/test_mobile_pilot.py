@@ -31,6 +31,30 @@ def run(*args):
 
 
 class NativeMobilePilotTests(unittest.TestCase):
+    def test_optional_notice_is_not_a_transport_refusal(self):
+        from test_optional_notices import COOKIES, FORM, NOTE
+
+        facts = HTML[HTML.index(b"<h1>"):].decode()
+        for notice in (COOKIES, FORM, NOTE):
+            body = (f'<html><head><link rel="canonical" href="{CANONICAL}"></head>'
+                    f'<body><main><article>{facts}</article></main>{notice}</body></html>').encode()
+            for status in (200, 403, 429):
+                responses = [Response(200, "text/plain", ROBOTS), Response(status, "text/html", body)]
+                with self.subTest(notice=notice, status=status), patch("own_fetch.get", side_effect=responses) as http, \
+                        patch("lecteur.import_observations", return_value={"verified": 1}) as db:
+                    code, report = run(FETCH_URL, "--database", DB)
+                    self.assertEqual([c.args[0] for c in http.call_args_list], [ROBOTS_URL, FETCH_URL])
+                    self.assertEqual(report["http"]["detail_http"], status)
+                    if status == 200:
+                        self.assertEqual((code, report["errors"]), (0, []))
+                        self.assertEqual(report["observations"][0]["row"], dict(source="mobile.de", source_id="100",
+                            source_url=CANONICAL, title="Marke Beispiel", price="17850.00", currency="EUR",
+                            year=2018, mileage_km=42100))
+                        db.assert_called_once()
+                    else:
+                        self.assertEqual((code, report["observations"], report["http"]["result"]), (2, [], "http_refusal"))
+                        db.assert_not_called()
+
     def test_fetch_parse_and_optional_database(self):
         replies = [Response(200, "text/plain", ROBOTS), Response(200, "text/html", HTML)]
         with patch("own_fetch.get", side_effect=replies) as transport, \
