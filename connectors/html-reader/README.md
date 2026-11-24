@@ -1,0 +1,71 @@
+# Lecteur d’annonces AutoFindex
+
+Le programme lit le document HTML envoyé à un visiteur ou le texte enregistré d’une fiche. Python 3.10+ et sa bibliothèque standard suffisent. Le mode réseau du pilote est configuré pour les pages de résultats et les fiches Le Parking. Les fichiers mobile.de et AutoScout24 sont lus localement. Le programme fonctionne sans clé, abonnement ni service de lecture tiers.
+
+## Une page de résultats, plusieurs véhicules
+
+Depuis la racine du dépôt, lancer les commandes suivantes. Le second fichier en sortie conserve exactement les octets reçus et doit porter un nom disponible.
+
+```sh
+cd connectors/html-reader
+python3 lecteur.py fetch 'https://www.leparking.fr/voiture-occasion/mercedes-clk-cabriolet-clk-350.html' --kind parking-results --save-html page.html > resultats.json
+```
+
+Chaque observation contient l’identifiant et l’URL de la fiche Le Parking, le titre, le prix, la devise, l’année et le kilométrage. Sur une carte de résultats, `origin_domains` conserve les domaines affichés et `origin_platforms` regroupe les éditions nationales d’AutoScout24. Un véhicule peut porter plusieurs étiquettes. Filtrer les neuf fiches du test, ou leurs équivalents sur un autre lot, avec Python seul.
+
+```sh
+python3 - <<'PY'
+import json
+with open("resultats.json", encoding="utf-8") as stream:
+    rows = [x["row"] for x in json.load(stream)["observations"]]
+for row in rows:
+    if {"mobile.de", "AutoScout24"}.intersection(row["origin_platforms"]):
+        print(row["source_id"], row["title"], row["price"], row["currency"], row["origin_domains"])
+PY
+```
+
+Le lecteur des cartes reprend celui du pilote AutoFindex [#282](https://github.com/CleMeY15/auto-world/pull/282). Il associe les chiffres et étiquettes à leur carte et exige une URL individuelle observée. Le journal dénombre séparément les données manquantes, les identifiants ambigus, les répétitions, les conflits et les liens de suivi sans URL individuelle. `parking_results.merge_results` peut consolider plusieurs pages de résultats archivées et écarte les identifiants dont les observations se contredisent.
+
+## Fiches individuelles et lots de fichiers
+
+```sh
+python3 lecteur.py file fiche.html --url "$URL_DE_L_ANNONCE" > fiche.json
+python3 lecteur.py file fiche.txt --url "$URL_DE_L_ANNONCE" --format text > texte.json
+python3 lecteur.py file page.html --kind parking-results > relecture.json
+python3 lecteur.py batch sources.json > lot.json
+```
+
+Remplacer la variable par l’URL individuelle du document. Pour mobile.de et AutoScout24, un HTML avec URL canonique peut également être lu sans `--url`. Le manifeste est un tableau JSON. Chaque entrée comprend `file` (chemin relatif sous le dossier du manifeste), `source_url`, et éventuellement `format`, `kind`, `provenance`. Exemple synthétique de manifeste pour des fichiers locaux.
+
+```json
+[
+  {"file":"mobile.html","source_url":"https://suchen.mobile.de/fahrzeuge/details.html?id=100","provenance":"synthetic"},
+  {"file":"resultats.html","kind":"parking-results","provenance":"archived"}
+]
+```
+
+`direct-origin` est attribué par la commande de téléchargement au site qui a fourni le document. `archived`, `indexed`, `indirect` et `synthetic` décrivent les fichiers locaux. Chaque observation conserve l’empreinte SHA-256 des octets analysés. Le code de sortie est 0 si les documents ont été traités, 2 si un document a échoué. Si une carte individuelle est incomplète, les autres cartes restent exploitables et le compteur `incomplete` le signale. Une page de détail qui demande une vérification, comporte plusieurs identités contradictoires ou manque de champs génère une erreur.
+
+Pour les fiches natives, les contrôles sur les prix et le kilométrage distinguent le prix affiché des mensualités de financement et les kilomètres des miles. L’année correspond au champ lu sur la fiche. Les quatre copies natives du test affichaient une date d’immatriculation. La fiche individuelle Le Parking utilisait une année de fabrication et les cartes de résultats une année affichée.
+
+## Essai PostgreSQL
+
+Le programme de lecture fonctionne seul. Pour persister les observations, installer le client libre `psql` et utiliser une base PostgreSQL locale d’essai avec le droit d’y créer un schéma. Exemple pour une nouvelle base.
+
+```sh
+createdb autofindex_trial_mes_annonces
+python3 reader_pg.py resultats.json --database autofindex_trial_mes_annonces
+```
+
+Le reçu indique combien de lignes ont été ajoutées, retrouvées et vérifiées via une nouvelle connexion. Un second import du même document conserve les lignes existantes. Un nouveau document peut produire une nouvelle observation du même véhicule. Un contenu différent pour la même clé entraîne l’annulation de la transaction. Le pilote conserve les montants en EUR, CHF, GBP ou USD dans leur devise d’origine. Il accepte jusqu’à 2 000 observations par import. Un rapport qui contient des erreurs de documents est rejeté avant écriture.
+
+## Test et exploitation du pilote
+
+```sh
+python3 -m unittest discover -v
+python3 check_postgres.py autofindex_trial_mes_annonces
+```
+
+Le deuxième contrôle ajoute une observation explicitement synthétique à la base d’essai choisie. Le premier s’exécute entièrement hors ligne. Le client réseau borné consulte les règles du domaine, utilise HTTPS et consigne les refus, redirections, types inattendus et écrans de vérification. La commande de démonstration lit une URL à la fois. Pour une autre source déjà approuvée, la commande `own_fetch.py --help` décrit la configuration des hôtes et chemins. Un nouvel hôte nécessite aussi un parseur adapté à son document. Les étiquettes de republication ne donnent ni l’identifiant natif, ni l’URL native, ni la disponibilité actuelle du véhicule.
+
+[Résultats et erreurs observés le 24 novembre 2026](../../docs/validation/TASK-0150-lecteur-html.md)

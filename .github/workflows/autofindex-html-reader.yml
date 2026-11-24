@@ -1,0 +1,30 @@
+name: AutoFindex HTML reader
+on:
+  pull_request:
+    paths:
+      - 'connectors/html-reader/**'
+      - '.github/workflows/autofindex-html-reader.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: connectors/html-reader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run deterministic offline tests
+        run: python3 -m unittest discover -v
+      - name: Verify PostgreSQL import and replay on synthetic data
+        run: |
+          sudo systemctl start postgresql
+          sudo -u postgres createuser "$(id -un)"
+          sudo -u postgres createdb --owner="$(id -un)" autofindex_trial_reader_ci
+          python3 check_postgres.py autofindex_trial_reader_ci
