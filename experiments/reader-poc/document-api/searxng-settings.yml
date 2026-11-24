@@ -1,0 +1,25 @@
+# Moteur unique de démonstration : la recherche plein texte de Wikipédia FR.
+# Le conteneur reçoit SEARXNG_SECRET via l'environnement de l'opérateur.
+use_default_settings:
+  engines:
+    keep_only:
+      - wikipedia
+server:
+  limiter: false
+  public_instance: false
+search:
+  formats:
+    - html
+    - json
+  autocomplete: ""
+engines:
+  - name: wikipedia
+    engine: mediawiki
+    shortcut: wp
+    base_url: https://fr.wikipedia.org/
+    search_type: text
+    language_support: true
+    categories: [general]
+    disabled: false
+outgoing:
+  request_timeout: 4.0

@@ -1,0 +1,71 @@
+services:
+  reader:
+    build: .
+    ports:
+      - "127.0.0.1:${READER_PORT:-8788}:8788"
+    environment:
+      READER_ALLOWED_HOSTS: ${READER_ALLOWED_HOSTS:-}
+      READER_SEARXNG_URL: ${READER_SEARXNG_URL:-}
+      READER_RENDER_SOCKET: /sockets/renderer.sock
+    volumes:
+      - reader-data:/data
+      - render-sockets:/sockets
+    networks:
+      - reader-out
+      - lookup
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  searxng:
+    profiles: [web]
+    image: ghcr.io/searxng/searxng:2026.11.23-a7163d091@sha256:a7fc607aa6723f5a8982105bcc5ffba4d1b9fc7c6922a31a88d6e4cba49ef12a
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+      FORCE_OWNERSHIP: "false"
+    volumes:
+      - ./searxng-settings.yml:/etc/searxng/settings.yml:ro
+    networks:
+      - search-out
+      - lookup
+
+  renderer:
+    profiles: [render]
+    build:
+      context: .
+      dockerfile: Dockerfile.renderer
+    user: "10001:10001"
+    environment:
+      READER_RENDER_SOCKET: /sockets/renderer.sock
+      HOME: /tmp
+    volumes:
+      - render-sockets:/sockets
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    shm_size: 128mb
+    mem_limit: 768m
+    pids_limit: 150
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./renderer-seccomp.json
+    cap_drop: [ALL]
+    init: true
+
+  reference:
+    profiles: [reference]
+    image: ghcr.io/jina-ai/reader@sha256:8cc9a5cf6dc9c240235fccc0026661de74b6e13c21b36e6a86b3281b9ef10f28
+    network_mode: none
+    shm_size: 512mb
+    init: true
+
+volumes:
+  reader-data:
+  render-sockets:
+
+networks:
+  reader-out:
+  search-out:
+  lookup:
+    internal: true

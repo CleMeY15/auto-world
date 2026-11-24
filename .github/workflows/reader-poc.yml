@@ -29,3 +29,30 @@ jobs:
       - name: Exercise synthetic change detection
         working-directory: experiments/reader-poc
         run: node src/demo.mjs
+
+  document-containers:
+    name: Document API container (${{ matrix.mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [core, web, renderer]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate container profile with synthetic documents
+        working-directory: experiments/reader-poc/document-api
+        env:
+          SMOKE_MODE: ${{ matrix.mode }}
+          READER_PUBLIC_DEMO: ${{ contains(github.event.pull_request.body, '<!-- reader-public-demo -->') && '1' || '0' }}
+        run: bash ./test_containers.sh "$SMOKE_MODE"
+
+  upstream-reference:
+    name: Official Jina Reader offline conversion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Convert synthetic HTML with pinned Jina image
+        working-directory: experiments/reader-poc/document-api
+        run: bash ./test_containers.sh reference

@@ -1,0 +1,11 @@
+FROM python:3.12-slim-bookworm
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 PYTHONDONTWRITEBYTECODE=1
+RUN apt-get update && apt-get install -y --no-install-recommends chromium chromium-sandbox fonts-liberation \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir playwright==1.62.0 \
+    && useradd --uid 10001 --create-home reader \
+    && install -d -o reader -g reader -m 0700 /sockets
+WORKDIR /app
+COPY render_worker.py .
+USER reader
+CMD ["python", "render_worker.py"]

@@ -1,0 +1,85 @@
+{
+  "outil": "Craft Anything CLI",
+  "version": "0.6.1",
+  "distribution": "https://github.com/storytold/craft-anything/releases/tag/v0.6.1",
+  "archive_sha256": "83ec0730c9117f399122b315c63ed4c3a8d31ac55bddd74cb8b33cd2f76ef704",
+  "signature_du_manifeste": "Signature OpenPGP valide avec la clé livrée dans la même publication, 2B76741B414AAD6CD33E631213A005C0B9D7C3ED.",
+  "source": "https://github.com/jina-ai/reader/tree/1574bfd380d249c86c82db4dace0d9c8fe17e2b1",
+  "methode": "Vérification de chaque fichier avec son identifiant de blob Git, puis analyse statique locale des fichiers publics.",
+  "commandes": [
+    "craft-anything-cli --deep --project jina-docs.cany app-source-import --path <dossier-des-sources-publiques>",
+    "craft-anything-cli --deep --project jina-docs.cany core-text-read --path <README-amont> --offset 187 --limit 60"
+  ],
+  "releves": [
+    {
+      "operation": "app_source_import",
+      "releve": "ev_131402493bde8787e40770005f56fd79bd10ae03132497e8fb8c36301675722b",
+      "moteur": "0.6.1",
+      "resume": "jina-public: 8 file(s), 3 script(s) analysed, 0 ignored."
+    },
+    {
+      "operation": "core_text_read",
+      "releve": "ev_029736a7013b457ad5126804895908135cc8d6cf8ae0737ab06e896cac176fb1",
+      "moteur": "0.6.1",
+      "resume": "README.jina.md: lines 188–247 of 288 (UTF-8)."
+    }
+  ],
+  "fichiers": [
+    {
+      "chemin": "Dockerfile",
+      "sha256": "f0223d1bf6338a82cfbc43aa00e7aa286d5048e5b8bc1f9a85f8c559ed188189",
+      "exports": []
+    },
+    {
+      "chemin": "README.md",
+      "sha256": "583b250f78916c63a244eeb2903077548bcc39e9245f471947857fe84c70536c",
+      "exports": []
+    },
+    {
+      "chemin": "architecture.md",
+      "sha256": "e86e00cb4c79b2973619fe499d993a1743f16fe96a8694999f9ad013472e973b",
+      "exports": []
+    },
+    {
+      "chemin": "docker-compose.yml",
+      "sha256": "f71b88dc10c777263d8869c1230544d77636116c3c6aa886f3a3c7f31a9c6a5c",
+      "exports": []
+    },
+    {
+      "chemin": "package.json",
+      "sha256": "96a3fac994e9abd353f5f6e5b15548ec1e61a20fa7130b89f5d0b4e273cb9ed4",
+      "exports": []
+    },
+    {
+      "chemin": "src/stand-alone/crawl.ts",
+      "sha256": "9cdfc9da2298830cbc1038119f5640e0fe840bff99d38dcc5d95323461bb76af",
+      "exports": [
+        "CrawlStandAloneServer",
+        "default"
+      ]
+    },
+    {
+      "chemin": "src/stand-alone/search.ts",
+      "sha256": "9effb04f2795dce93d88ec2f2e0a75f645a087c7143baee9f42bb84ea7dc5593",
+      "exports": [
+        "SearchStandAloneServer",
+        "default"
+      ]
+    },
+    {
+      "chemin": "src/stand-alone/serp.ts",
+      "sha256": "66bb084a86fe17d3261895b7f513c14b460ccc8fefc64f6b17566042992af104",
+      "exports": [
+        "SERPStandAloneServer",
+        "default"
+      ]
+    }
+  ],
+  "constats": [
+    "L’image officielle lance build/stand-alone/crawl.js par défaut.",
+    "Le dépôt contient trois serveurs TypeScript autonomes pour la lecture, la recherche enrichie et les résultats de recherche.",
+    "L’image fournit HTTP/1.1 sur le port 8081 et h2c sur le port 8080.",
+    "Le README documente un service sans état par défaut et un cache objet optionnel."
+  ],
+  "portee": "Ce relevé décrit la structure du code publié. Il ne constitue pas un test du service hébergé de Jina."
+}
