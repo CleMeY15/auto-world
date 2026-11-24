@@ -41,7 +41,19 @@ INVALID_TITLE = re.compile(
     r"toute la france|situ[ée]e|paiement|baisse de prix|"
     r"d[èe]s|voir|acheter|filtres|carte|titre|mes recherches|favoris)\b", re.I
 )
-MONTHLY = re.compile(r"/\s*mois|mensualit[ée]|ou d[èe]s", re.I)
+MONTHLY = re.compile(r"/\s*mois|\bpar mois\b|mensualit[ée]|(?:^|\bou\s+)d[èe]s\b|^à partir de\b", re.I)
+PRICE_LABEL = re.compile(r"^prix\s*:\s*", re.I)
+CARD_TITLE_LINK = re.compile(
+    r"^\s*(?:#{1,6}\s+|[-*+]\s+)?(?:\*\*)?"
+    r"\[(?P<title>[^\]\r\n]*)\]\("
+    r"(?:https?://(?:www\.)?leboncoin\.fr)?/ad/voitures/(?P<id>[0-9]{8,12})"
+    r"(?:[?#][^\s)]*)?\)(?:\*\*)?\s*$", re.I
+)
+GENERIC_LINK_LABEL = re.compile(
+    r"^(?:d[ée]tails?|en savoir plus|consulter|photo|photos|"
+    r"essence|diesel|hybride|[ée]lectrique|manuelle|automatique|"
+    r"professionnel|particulier|occasion|neuf)$", re.I
+)
 
 
 def digest(value):
@@ -63,9 +75,13 @@ def normalize(s):
 
 
 def price_eur(line):
-    if MONTHLY.search(line) or line.lower().startswith("prix:"):
+    # A price must be a standalone amount (optionally explicitly labelled).
+    # Do not mistake a monthly payment, fee, or text mentioning money for it.
+    candidate = line.strip()
+    if MONTHLY.search(candidate):
         return None
-    m = PRICE.search(line)
+    candidate = PRICE_LABEL.sub("", candidate, count=1)
+    m = PRICE.fullmatch(candidate.rstrip(".").strip())
     if not m:
         return None
     try:
@@ -73,6 +89,30 @@ def price_eur(line):
     except ValueError:
         return None
     return value if 100 <= value <= 5_000_000 else None
+
+
+def plausible_title(candidate, *, linked=False):
+    # Short models (C3, A3, Twingo, 208, etc.) require an explicit title link.
+    # Unlinked text retains the original conservative multiword check.
+    return bool(
+        (2 if linked else 5) <= len(candidate) <= 240
+        and (any(ch.isalpha() for ch in candidate) or (linked and candidate.isdecimal()))
+        and not INVALID_TITLE.search(candidate)
+        and not GENERIC_LINK_LABEL.fullmatch(candidate)
+        and not MONTHLY.search(candidate)
+        and not PRICE.search(candidate)
+        and not candidate.startswith(("http", "【"))
+        and (linked or len(candidate.split()) >= 2)
+    )
+
+
+def unique_sale_price(lines):
+    matches = [(i, price_eur(textline(line))) for i, line in enumerate(lines)]
+    matches = [(i, value) for i, value in matches if value is not None]
+    if len({value for _, value in matches}) != 1:
+        return None, None
+    # Repeated copies of the same price are harmless; use the first.
+    return matches[0]
 
 
 def parse_page(body):
@@ -87,26 +127,32 @@ def parse_page(body):
         start = max(previous_end, core.start() - 1800)
         prefix = body[start:core.start()]
         lines = prefix.splitlines()
-        priced = [(i, price_eur(textline(ln))) for i, ln in enumerate(lines)]
-        priced = [(i, v) for i, v in priced if v is not None]
         price = None
         title = ""
-        if priced:
-            price_idx, price = priced[-1]
-            for line in reversed(lines[max(0, price_idx - 18):price_idx]):
-                candidate = textline(line)
-                if (
-                    len(candidate) >= 5 and len(candidate) <= 240
-                    and any(ch.isalpha() for ch in candidate)
-                    and not INVALID_TITLE.search(candidate)
-                    and not MONTHLY.search(candidate)
-                    and not PRICE.search(candidate)
-                    and not candidate.startswith("http")
-                    and not candidate.startswith("【")
-                    and len(candidate.split()) >= 2
-                ):
-                    title = candidate
-                    break
+        linked_id = None
+        anchors = []
+        for index, line in enumerate(lines):
+            link = CARD_TITLE_LINK.fullmatch(line)
+            if link:
+                anchors.append((index, link.group("id"), textline(link.group("title"))))
+        if anchors:
+            # If title links conflict, the card boundary is ambiguous.
+            # Never borrow the previous card's price or substitute nearby text
+            # for an empty/generic linked title.
+            identities = {(ad_id, normalize(label)) for _, ad_id, label in anchors}
+            if len(identities) == 1:
+                index, linked_id, label = anchors[-1]
+                if plausible_title(label, linked=True):
+                    _, price = unique_sale_price(lines[index + 1:])
+                    title = label
+        else:
+            price_idx, price = unique_sale_price(lines)
+            if price_idx is not None:
+                for line in reversed(lines[max(0, price_idx - 18):price_idx]):
+                    candidate = textline(line)
+                    if plausible_title(candidate):
+                        title = candidate
+                        break
 
         year = int(core.group("year"))
         km = int(re.sub(r"\D", "", core.group("km")))
@@ -115,8 +161,10 @@ def parse_page(body):
             continue
 
         local_link_ids = set(DIRECT_URL.findall(prefix[-1800:]))
-        # A link is assignable only if exactly one appears in the card-local prefix.
-        ad_id = next(iter(local_link_ids)) if len(local_link_ids) == 1 else None
+        # Prefer an unambiguous title-linked ID; otherwise require one local ID.
+        ad_id = linked_id if linked_id and linked_id in local_link_ids else (
+            next(iter(local_link_ids)) if len(local_link_ids) == 1 else None
+        )
         complete = bool(title and price is not None and year and km >= 0)
         if complete:
             fingerprint = digest("|".join((normalize(title), str(price), str(year), str(km))))
