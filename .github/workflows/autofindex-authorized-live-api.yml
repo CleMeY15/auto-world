@@ -1,0 +1,50 @@
+name: AutoFindex authorized live API validation
+on:
+  push:
+    branches: [spike/0146-authorized-live-api]
+    paths: [.github/workflows/autofindex-authorized-live-api.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-authorized-live-api-one-shot
+  cancel-in-progress: false
+jobs:
+  validate-live-api:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0146-authorized-live-api' &&
+      github.event.before == '60f3bdd04d5bebe777ec96b0f1d9f8b19bc085c6' &&
+      github.run_attempt == 1 && github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated validation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 5
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Verify committed test plan
+        run: test "$(git rev-parse HEAD~3)" = 'c244b0320922ffb7f54fedc14ffc79cfb5e1bf0e'
+      - name: Offline regression and guardrail tests
+        run: |
+          python connectors/leboncoin-spike/jina_list_benchmark_test.py
+          python connectors/leboncoin-spike/authorized_live_api_validation_test.py
+      - name: Validate up to 500 live native vehicle records via documented public API
+        run: python connectors/leboncoin-spike/authorized_live_api_validation.py --out "$RUNNER_TEMP/autofindex-live-api"
+      - name: Upload aggregate evidence and incidents even if incomplete
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: autofindex-authorized-live-api
+          path: ${{ runner.temp }}/autofindex-live-api/*.json
+          retention-days: 7
+          if-no-files-found: warn
