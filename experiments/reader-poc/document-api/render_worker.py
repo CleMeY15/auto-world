@@ -20,6 +20,8 @@ MAX_REQUEST = 6 * MAX_INPUT + 8192
 MAX_OUTPUT = 4 * 1024 * 1024
 JOB_TIMEOUT = 12
 DOC_URL = "https://document.invalid/"
+SELF_TEST = {"html": "<!doctype html><main></main><script>document.querySelector('main').id='ready'</script>",
+             "format": "html", "selector": "#ready"}
 CSP = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
        "img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; "
        "worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'; "
@@ -65,7 +67,11 @@ def decode_job(body):
 def render_document(job):
     from playwright.sync_api import Error, TimeoutError, sync_playwright
 
-    with sync_playwright() as pw:
+    with contextlib.ExitStack() as stack:
+        try:
+            pw = stack.enter_context(sync_playwright())
+        except Exception as exc:
+            raise RenderIssue(503, "renderer_driver_unavailable") from exc
         try:
             browser = pw.chromium.launch(
                 executable_path=os.environ.get("CHROMIUM_PATH", "/usr/bin/chromium"),
@@ -74,7 +80,11 @@ def render_document(job):
                       "--disable-extensions", "--disable-gpu", "--js-flags=--jitless --max-old-space-size=96"],
             )
         except Error as exc:
-            raise RenderIssue(503, "renderer_unavailable") from exc
+            detail = str(exc).lower()
+            if any(reason in detail for reason in ("no usable sandbox", "failed to move to new namespace",
+                                                    "failed to unshare", "namespace sandbox")):
+                raise RenderIssue(503, "renderer_sandbox_unavailable") from exc
+            raise RenderIssue(503, "renderer_browser_unavailable") from exc
         try:
             ctx = browser.new_context(
                 offline=True, accept_downloads=False, service_workers="block",
@@ -117,16 +127,19 @@ def render_document(job):
             browser.close()
 
 
-def child():
+def child(check_install=False):
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (7, 8))
     resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024**2, 16 * 1024**2))
     nofile = min(1024, resource.getrlimit(resource.RLIMIT_NOFILE)[0])
     resource.setrlimit(resource.RLIMIT_NOFILE, (nofile, nofile))
     try:
-        job = decode_job(sys.stdin.buffer.read(MAX_REQUEST + 1))
+        job = SELF_TEST if check_install else decode_job(sys.stdin.buffer.read(MAX_REQUEST + 1))
         sys.stdout.buffer.write(render_document(job))
     except RenderIssue as exc:
+        if check_install:
+            # Only the fixed in-process SELF_TEST reaches this diagnostic path.
+            print(f"{exc.code}: {exc.__cause__ or exc}", file=sys.stderr)
         sys.stdout.buffer.write(json.dumps({"status": exc.status, "error": exc.code}).encode())
         return 2
     except ImportError:
@@ -172,7 +185,7 @@ def clear_children():
         os._exit(1)
 
 
-def run_job(body):
+def run_job(body, check_install=False):
     job = decode_job(body)
     with tempfile.TemporaryDirectory(prefix="reader-job-") as temp:
         with tempfile.TemporaryFile(dir=temp) as src, tempfile.TemporaryFile(dir=temp) as dst:
@@ -180,8 +193,10 @@ def run_job(body):
             src.seek(0)
             env = {"HOME": temp, "TMPDIR": temp, "LANG": "C.UTF-8", "PATH": os.defpath,
                    "PYTHONDONTWRITEBYTECODE": "1", "CHROMIUM_PATH": os.getenv("CHROMIUM_PATH", "/usr/bin/chromium")}
-            proc = subprocess.Popen([sys.executable, os.path.abspath(__file__), "--child"],
-                                    stdin=src, stdout=dst, stderr=subprocess.DEVNULL,
+            env.update(XDG_CACHE_HOME=temp, XDG_CONFIG_HOME=temp, XDG_RUNTIME_DIR=temp)
+            proc = subprocess.Popen([sys.executable, os.path.abspath(__file__),
+                                     "--check-child" if check_install else "--child"],
+                                    stdin=src, stdout=dst, stderr=None if check_install else subprocess.DEVNULL,
                                     cwd=temp, env=env, start_new_session=True)
             try:
                 status = proc.wait(timeout=JOB_TIMEOUT)
@@ -198,6 +213,8 @@ def run_job(body):
     if status == 2:
         result = json.loads(output)
         raise RenderIssue(result["status"], result["error"])
+    if status == 3:
+        raise RenderIssue(503, "renderer_playwright_missing")
     if status or not output:
         raise RenderIssue(503, "renderer_unavailable")
     if job["format"] == "screenshot":
@@ -244,6 +261,15 @@ def main():
     # PR_SET_CHILD_SUBREAPER, required so the watchdog also reaps detached descendants.
     if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "Could not enable child subreaper")
+    if sys.argv[1:] == ["--check-install"]:
+        try:
+            _, output = run_job(json.dumps(SELF_TEST).encode(), check_install=True)
+        except RenderIssue as exc:
+            raise SystemExit(f"Renderer installation check failed: {exc.code}") from exc
+        if b'<main id="ready">' not in output:
+            raise SystemExit("Renderer installation check failed: JavaScript did not update the static document")
+        print("Renderer installation check passed: isolated Chromium executed inline JavaScript.")
+        return
     sock = Path(os.getenv("READER_RENDER_SOCKET", "/sockets/renderer.sock"))
     os.umask(0o077)
     if sock.is_socket():
@@ -257,6 +283,6 @@ def main():
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--child"]:
-        sys.exit(child())
+    if sys.argv[1:] in (["--child"], ["--check-child"]):
+        sys.exit(child(sys.argv[1:] == ["--check-child"]))
     main()

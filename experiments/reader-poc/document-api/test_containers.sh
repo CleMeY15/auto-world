@@ -27,6 +27,9 @@ trap cleanup EXIT
 
 case "$mode" in
   core)
+    if [[ ${READER_PUBLIC_DEMO:-0} == 1 ]]; then
+      export READER_ALLOWED_HOSTS=example.com
+    fi
     docker compose up -d --build reader
     docker compose run --rm --no-deps -T -v "$PWD:/checks:ro" -w /checks reader \
       python -m unittest -v test_app test_documents test_binary_documents test_fetch_document test_search_index test_web_search
@@ -35,6 +38,8 @@ case "$mode" in
 import json
 import sys
 import time
+import os
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 base = "http://" + sys.argv[1]
@@ -63,12 +68,25 @@ assert indexed["sha256"] == converted["sha256"]
 rows = call("/v1/search?q=AutoFindexCamille")["data"]
 assert len(rows) == 1 and rows[0]["url"] == source
 print("PASS container: HTML read, SHA-256, index and search via loopback HTTP.")
+if os.getenv("READER_PUBLIC_DEMO") == "1":
+    try:
+        req = Request(base + "/https://example.com/", headers={"Accept": "application/json"})
+        with urlopen(req, timeout=35) as resp:
+            page = json.load(resp)["data"]
+        if page["title"] == "Example Domain" and "# Example Domain" in page["content"]:
+            print("LIVE PASS: example.com read from the public origin; title and Markdown heading verified.")
+        else:
+            print("LIVE MISMATCH: example.com response did not contain the expected title and Markdown heading.")
+    except HTTPError as exc:
+        print("LIVE UNAVAILABLE: example.com, HTTP", exc.code, exc.read(300).decode(errors="replace"))
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print("LIVE UNAVAILABLE: example.com,", type(exc).__name__, str(exc)[:200])
 PY
     ;;
   web)
     export READER_SEARXNG_URL=http://searxng:8080
     docker compose --profile web up -d --build reader searxng
-    docker compose exec -T reader python - <<'PY'
+    docker compose exec -T -e READER_PUBLIC_DEMO="${READER_PUBLIC_DEMO:-0}" reader python - <<'PY'
 import json
 import os
 import time
@@ -100,10 +118,25 @@ try:
 except HTTPError as exc:
     assert exc.status == 400, exc.status
 print("PASS container: SearXNG health, live engine settings, JSON search handler and Reader configuration.")
+if os.getenv("READER_PUBLIC_DEMO") == "1":
+    try:
+        # One query via our own Reader; no hydration or detail-page requests.
+        with urlopen("http://127.0.0.1:8788/v1/search/web?q=Porsche%20911&limit=1&read=0", timeout=20) as response:
+            rows = json.load(response)["data"]
+        if rows:
+            print("LIVE PASS: Wikipedia via Reader, results =", len(rows), "first title =", rows[0]["title"][:160])
+        else:
+            print("LIVE EMPTY: Wikipedia via Reader returned zero results.")
+    except HTTPError as exc:
+        print("LIVE UNAVAILABLE: Wikipedia via Reader, HTTP", exc.code, exc.read(300).decode(errors="replace"))
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print("LIVE UNAVAILABLE: Wikipedia via Reader,", type(exc).__name__, str(exc)[:200])
 PY
     ;;
   renderer)
     docker compose --profile render up -d --build reader renderer
+    docker compose exec -T renderer python render_worker.py --check-install
+    docker compose run --rm --no-deps -T -v "$PWD:/checks:ro" -w /checks renderer python -m unittest -v test_render_worker
     docker compose exec -T reader python - <<'PYRENDER'
 import json
 import os

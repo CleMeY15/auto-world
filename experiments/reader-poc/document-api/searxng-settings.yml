@@ -18,6 +18,7 @@ engines:
     shortcut: wp
     base_url: https://fr.wikipedia.org/
     search_type: text
+    language_support: true
     categories: [general]
     disabled: false
 outgoing:

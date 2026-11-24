@@ -44,6 +44,7 @@ jobs:
         working-directory: experiments/reader-poc/document-api
         env:
           SMOKE_MODE: ${{ matrix.mode }}
+          READER_PUBLIC_DEMO: "1"
         run: bash ./test_containers.sh "$SMOKE_MODE"
 
   upstream-reference:

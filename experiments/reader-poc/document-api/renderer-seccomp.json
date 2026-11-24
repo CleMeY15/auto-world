@@ -51,6 +51,11 @@
 	],
 	"syscalls": [
 		{
+			"names": ["clone3"],
+			"action": "SCMP_ACT_ERRNO",
+			"errnoRet": 38
+		},
+		{
 			"comment": "Allow create user namespaces",
 			"names": [
 				"clone",
