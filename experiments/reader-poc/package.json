@@ -1,0 +1,12 @@
+{
+  "name": "@auto-world/reader-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "demo": "node src/demo.mjs",
+    "serve": "node src/server.mjs"
+  }
+}

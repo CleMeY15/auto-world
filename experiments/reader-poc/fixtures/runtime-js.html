@@ -1,0 +1,7 @@
+<!doctype html><html><head><title>Client-only fictive</title></head><body>
+<div id="app">Patientez</div>
+<script>
+const vehicle={"@context":"https://schema.org","@type":"Car","name":"Renault Megane EV fictive","brand":{"name":"Renault"},"model":"Megane EV","vehicleModelDate":"2024","mileageFromOdometer":{"value":12500,"unitCode":"KMT"},"offers":{"price":24900,"priceCurrency":"EUR"}};
+const data=document.createElement('script'); data.type='application/ld+json';data.textContent=JSON.stringify(vehicle);document.head.appendChild(data);
+document.querySelector('#app').textContent='Client JS chargé';
+</script></body></html>

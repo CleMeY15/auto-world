@@ -1,0 +1,11 @@
+import {readFile} from 'node:fs/promises';
+import {createReader} from './reader.mjs';
+const html=await readFile(new URL('../fixtures/car.html',import.meta.url),'utf8');
+const html2=await readFile(new URL('../fixtures/car-update.html',import.meta.url),'utf8');
+let turn=0;
+const reader=createReader({fixtureTransport:true,sources:{demo:{enabled:true,fixtureOnly:true,rightsStatus:'permitted_crawl',evidenceRef:'TEST_SYNTHETIC_ONLY',allowedOrigins:['https://fixtures.autofindex.example'],cacheTtlMs:30*60*1000}},fetchImpl:async()=>new Response(turn++ ? html2:html,{status:200,headers:{'content-type':'text/html'}})});
+const url='https://fixtures.autofindex.example/car/911';
+const initial=await reader.read({sourceId:'demo',url});
+const cached=await reader.read({sourceId:'demo',url});
+const updated=await reader.read({sourceId:'demo',url,refresh:true});
+console.log(JSON.stringify({initial:{vehicle:initial.title,price:initial.price,km:initial.odometerKm},cached:{hit:cached.cacheHit},updated:{price:updated.price,km:updated.odometerKm,changes:updated.changes},stats:reader.stats()},null,2));
