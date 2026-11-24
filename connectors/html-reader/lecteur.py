@@ -6,7 +6,9 @@ from pathlib import Path
 import sys
 from urllib.parse import urlsplit
 
+from browser_archive import ARCHIVE_FORMATS, MAX_ARCHIVE_BYTES, read_archive
 from custom_detail import DetailError, DetailHTML, MAX_BYTES, parse_detail
+from mobile_print import MAX_PDF_BYTES, parse_pdf
 from own_fetch import read_public_html, save_new_private
 from parking_detail import parse_parking
 from parking_results import parse_results
@@ -15,15 +17,29 @@ KINDS = ("detail", "parking-results")
 LOCAL_ORIGINS = ("archived", "indexed", "indirect", "synthetic")
 
 
-def read_limited(path):
+def read_limited(path, limit=MAX_BYTES):
     with path.open("rb") as stream:
-        data = stream.read(MAX_BYTES + 1)
-    if len(data) > MAX_BYTES:
-        raise DetailError("too_large", "Document or manifest exceeds 8 MB.")
+        data = stream.read(limit + 1)
+    if len(data) > limit:
+        raise DetailError("too_large", "Document exceeds its size limit.")
     return data
 
 
 def read_document(data, url, kind, fmt, provenance):
+    if fmt == "pdf":
+        if kind != "detail" or provenance == "direct-origin":
+            raise DetailError("invalid_mode", "PDF printouts are local individual documents.")
+        row = parse_pdf(data, url)
+        digest = hashlib.sha256(data).hexdigest()
+        return ([{"provenance": provenance, "document_sha256": digest, "row": row}],
+                {"sha256": digest, "format": fmt, "accepted": 1})
+    if fmt in ARCHIVE_FORMATS:
+        if kind != "detail" or provenance == "direct-origin":
+            raise DetailError("invalid_mode", "Browser archives are local individual documents.")
+        row, html_digest = read_archive(data, fmt, url)
+        digest = hashlib.sha256(data).hexdigest()
+        return ([{"provenance": provenance, "document_sha256": digest, "row": row}],
+                {"sha256": digest, "html_sha256": html_digest, "format": fmt, "accepted": 1})
     if kind not in KINDS or fmt not in ("html", "text"):
         raise DetailError("invalid_mode", "Unknown document kind or format.")
     digest = hashlib.sha256(data).hexdigest()
@@ -68,11 +84,15 @@ def parse_file_entry(entry, path):
     url = entry.get("source_url")
     if url is not None and not isinstance(url, str):
         raise DetailError("invalid_url", "The source URL must be a string.")
-    fmt = entry.get("format") or ("html" if path.suffix.lower() in {".html", ".htm"} else "text")
+    extensions = {".pdf": "pdf", ".html": "html", ".htm": "html", ".mht": "mhtml", ".mhtml": "mhtml", ".webarchive": "webarchive"}
+    fmt = entry.get("format") or extensions.get(path.suffix.lower(), "text")
+    if not isinstance(fmt, str):
+        raise DetailError("invalid_mode", "Document format must be a string.")
     origin = entry.get("provenance", "archived")
     if origin not in LOCAL_ORIGINS:
         raise DetailError("invalid_provenance", "Saved files need a local-document provenance.")
-    return read_document(read_limited(path), url, entry.get("kind", "detail"), fmt, origin)
+    limit = MAX_ARCHIVE_BYTES if fmt in ARCHIVE_FORMATS else MAX_PDF_BYTES if fmt == "pdf" else MAX_BYTES
+    return read_document(read_limited(path, limit), url, entry.get("kind", "detail"), fmt, origin)
 
 
 def parser():
@@ -82,7 +102,7 @@ def parser():
     one.add_argument("file", type=Path)
     one.add_argument("--url", help="Original individual HTTPS URL; required for text")
     one.add_argument("--kind", choices=KINDS, default="detail")
-    one.add_argument("--format", choices=("html", "text"))
+    one.add_argument("--format", choices=("html", "text", "mhtml", "webarchive", "pdf"))
     one.add_argument("--provenance", choices=LOCAL_ORIGINS, default="archived")
     fetch = sub.add_parser("fetch", help="Read one public page inside the configured Le Parking pilot")
     fetch.add_argument("url")

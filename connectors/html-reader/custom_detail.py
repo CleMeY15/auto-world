@@ -198,12 +198,12 @@ def kilometers(value):
 
 
 PRICE_LABEL = r"prix(?: de vente| comptant| TTC)?|kaufpreis|barpreis|bruttopreis|preis|cash price|asking price|price|prezzo|precio|prijs"
-KM_LABEL = r"kilom[eé]trage|kilometerstand|kilométrage au compteur|kilométrage du véhicule|mileage|chilometraggio|kilometraje"
-YEAR_LABEL = r"premi[eè]re (?:immatriculation|mise en circulation)|(?:1(?:ère|re) )immatriculation|erstzulassung|first registration|prima immatricolazione|primera matriculación|eerste inschrijving|année"
+KM_LABEL = r"kilom[eé]trage|kilometerstand|laufleistung|kilométrage au compteur|kilométrage du véhicule|mileage|chilometraggio|kilometraje"
+YEAR_LABEL = r"premi[eè]re (?:immatriculation|mise en circulation)|(?:1(?:ère|re) )immatriculation|erstzulassung(?: \(EZ\))?|EZ|first registration|prima immatricolazione|primera matriculación|eerste inschrijving|année"
 CUR = r"(?:€|EUR|CHF|GBP|£|USD|\$)"
 MONEY = re.compile(r"(?:(?P<pre>" + CUR + r")\s*(?P<a>[0-9][0-9.,'’\s]*(?:[-–])?)|"
                    r"(?P<b>[0-9][0-9.,'’\s]*(?:[-–])?)\s*(?P<post>" + CUR + r"))"
-                   r"(?:\s*\(?(?:TTC|Brutto|inkl\. MwSt\.)\)?)?", re.I)
+                   r"(?:\s*\(?(?:TTC|Brutto|inkl\.?\s*(?:(?:\d{1,2}(?:[.,]\d+)?\s*%)\s*)?MwSt\.?|MwSt\.? ausweisbar)\)?)?", re.I)
 BAD_SCREEN = re.compile(r"(?:^|\b)(?:access denied|request blocked|403 forbidden|429 too many requests|verify (?:that )?you are human|checking your browser|please verify you are human|vous [êe]tes (?:un )?humain|zugriff verweigert|bestätigen sie, dass sie ein mensch sind|just a moment|diese anzeige ist nicht mehr|cette annonce n.est plus disponible|this (?:ad|listing) is no longer available)", re.I)
 LIST_HEADING = re.compile(r"^(?:search results|suchergebnisse|résultats de (?:la )?recherche|annonces trouvées|voitures (?:d.occasion|disponibles)|\d[\d., ]* (?:offres|résultats|angebote|treffer|annonces|results)\b)", re.I)
 
@@ -221,29 +221,32 @@ def money(s):
 
 def visible_values(lines, labels):
     for i, text in enumerate(lines):
+        if re.fullmatch(r"(?:" + labels + r")\s*[:|]?", text, re.I):
+            if i+1 < len(lines):
+                yield i+1, lines[i+1]
+            continue
         match = re.fullmatch(r"(?:" + labels + r")(?:\s*[:|]\s*|\s+)(.+)", text, re.I)
         if match:
-            yield match[1].strip()
-        elif re.fullmatch(r"(?:" + labels + r")\s*[:|]?", text, re.I) and i+1 < len(lines):
-            yield lines[i+1]
+            yield i, match[1].strip()
 
 
-EXCLUDED_PRICE = re.compile(r"\b(?:netto|net|HT|hors taxes|mensualité|mensuel|monthly|monatsrate|monatlich|finanzierung|leasing|acompte|down payment)\b|/(?:mois|monat|month)", re.I)
+EXCLUDED_PRICE = re.compile(r"\b(?:netto|net|zzgl|zuzüglich|exkl|HT|hors taxes|mensualité|mensuel|monthly|monatsrate|monatlich|finanzierung|leasing|acompte|down payment)\b|/(?:mois|monat|month)", re.I)
+PRICE_SUFFIX = re.compile(r"^(?:HT|netto|zzgl|zuzüglich|exkl|hors taxes|par mois|per month|monatlich)\b|^/(?:mois|monat|month)\b", re.I)
 
 
 def visible_fields(lines):
-    prices = [money(s) for s in visible_values(lines, PRICE_LABEL)]
+    def cash_price(i, value):
+        if EXCLUDED_PRICE.search(value) or (i+1 < len(lines) and PRICE_SUFFIX.search(lines[i+1])):
+            return None
+        return money(value)
+
+    prices = [cash_price(i, s) for i, s in visible_values(lines, PRICE_LABEL)]
     if not any(prices):
-        prices = []
-        for i, line in enumerate(lines):
-            if (i and EXCLUDED_PRICE.search(lines[i-1])) or EXCLUDED_PRICE.search(line):
-                continue
-            if i+1 < len(lines) and re.match(r"^(?:HT|netto|par mois|/mois|per month|monatlich)\b", lines[i+1], re.I):
-                continue
-            prices.append(money(line))
+        prices = [cash_price(i, line) for i, line in enumerate(lines)
+                  if not i or not EXCLUDED_PRICE.search(lines[i-1])]
     price = one(prices, "price")
-    yrs = [year_of(v) for v in visible_values(lines, YEAR_LABEL)]
-    km = [kilometers(v) for v in visible_values(lines, KM_LABEL)]
+    yrs = [year_of(v) for _, v in visible_values(lines, YEAR_LABEL)]
+    km = [kilometers(v) for _, v in visible_values(lines, KM_LABEL)]
     return {"price": price[0] if price else None, "currency": price[1] if price else None,
             "year": one(yrs, "year"), "mileage_km": one(km, "mileage_km")}
 

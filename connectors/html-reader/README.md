@@ -1,6 +1,6 @@
 # Lecteur d’annonces AutoFindex
 
-Le programme lit le document HTML envoyé à un visiteur ou le texte enregistré d’une fiche. Python 3.10+ et sa bibliothèque standard suffisent. Le mode réseau du pilote est configuré pour les pages de résultats et les fiches Le Parking. Les fichiers mobile.de et AutoScout24 sont lus localement. Le programme fonctionne sans clé, abonnement ni service de lecture tiers.
+Le programme lit le document HTML envoyé à un visiteur ou le texte enregistré d’une fiche. Python 3.10+ et sa bibliothèque standard suffisent pour le HTML, le texte et les archives de navigateur. L’import PDF utilise aussi le programme libre pdftotext de Poppler. Le mode réseau du pilote est configuré pour les pages de résultats et les fiches Le Parking. Les fichiers mobile.de et AutoScout24 sont lus localement. Le programme fonctionne sans clé, abonnement ni service de lecture tiers.
 
 ## Une page de résultats, plusieurs véhicules
 
@@ -47,6 +47,24 @@ Remplacer la variable par l’URL individuelle du document. Pour mobile.de et Au
 `direct-origin` est attribué par la commande de téléchargement au site qui a fourni le document. `archived`, `indexed`, `indirect` et `synthetic` décrivent les fichiers locaux. Chaque observation conserve l’empreinte SHA-256 des octets analysés. Le code de sortie est 0 si les documents ont été traités, 2 si un document a échoué. Si une carte individuelle est incomplète, les autres cartes restent exploitables et le compteur `incomplete` le signale. Une page de détail qui demande une vérification, comporte plusieurs identités contradictoires ou manque de champs génère une erreur.
 
 Pour les fiches natives, les contrôles sur les prix et le kilométrage distinguent le prix affiché des mensualités de financement et les kilomètres des miles. L’année correspond au champ lu sur la fiche. Les quatre copies natives du test affichaient une date d’immatriculation. La fiche individuelle Le Parking utilisait une année de fabrication et les cartes de résultats une année affichée.
+
+## Importer des documents mobile.de déjà enregistrés
+
+Une impression PDF qui conserve une couche texte, le numéro d’annonce, le lien de la fiche et ses caractéristiques peut être importée en une commande. L’adresse, le titre, le prix affiché, la devise, l’année d’immatriculation et le kilométrage sont lus dans le document. Les URL imprimées peuvent se poursuivre sur la ligne suivante. Le lecteur conserve l’empreinte du PDF et classe le résultat comme archivé. Une capture d’écran ou un PDF composé uniquement d’images génère une erreur explicite.
+
+```sh
+python3 lecteur.py file annonce.pdf > observation.json
+python3 reader_pg.py observation.json --database autofindex_trial_mes_annonces
+```
+
+Le PDF requiert `pdftotext` dans le PATH. Sous Debian ou Ubuntu, ce binaire fait partie de `poppler-utils`. Les PDF sont traités hors ligne, sans suivre les hyperliens. La limite est de 16 Mo pour le fichier et de 2 Mo de texte extrait. Un fichier contenant plusieurs en-têtes d’annonces est rejeté.
+
+Le même point d’entrée accepte `.webarchive` de Safari et `.mhtml` ou `.mht`. Il traite uniquement la ressource HTML principale, contrôle la cohérence de l’URL et de l’identifiant et conserve les empreintes de l’archive et du HTML. Les éléments incorporés et les cadres secondaires ne peuvent pas fournir une autre annonce. Les documents expurgés qui ne contiennent plus les champs essentiels peuvent échouer. Le manifeste par lots accepte chacun de ces formats par extension.
+
+```sh
+python3 lecteur.py file annonce.webarchive
+python3 lecteur.py file annonce.mhtml
+```
 
 ## Essai PostgreSQL
 

@@ -21,7 +21,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Run deterministic offline tests
-        run: python3 -m unittest discover -v
+        run: |
+          command -v pdftotext || (sudo apt-get update && sudo apt-get install -y poppler-utils)
+          python3 -m unittest discover -v
       - name: Verify PostgreSQL import and replay on synthetic data
         run: |
           sudo systemctl start postgresql
