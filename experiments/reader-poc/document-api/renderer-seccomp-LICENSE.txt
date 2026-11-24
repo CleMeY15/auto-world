@@ -1,6 +1,8 @@
 renderer-seccomp.json
 Local modification, 2026-11-24: return ENOSYS for clone3 so glibc can fall back to clone.
 The clone3 syscall stays denied, consistent with Docker Engine's default on x86_64.
+Local modification, 2026-11-24: allow the chroot syscall within the Chromium sandbox.
+The outer container retains no Linux capabilities.
 Upstream: microsoft/playwright v1.62.0, utils/docker/seccomp_profile.json
 https://github.com/microsoft/playwright/blob/v1.62.0/utils/docker/seccomp_profile.json
 

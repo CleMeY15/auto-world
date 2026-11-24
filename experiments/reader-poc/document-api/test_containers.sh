@@ -28,7 +28,7 @@ trap cleanup EXIT
 case "$mode" in
   core)
     if [[ ${READER_PUBLIC_DEMO:-0} == 1 ]]; then
-      export READER_ALLOWED_HOSTS=example.com
+      export READER_ALLOWED_HOSTS=raw.githubusercontent.com
     fi
     docker compose up -d --build reader
     docker compose run --rm --no-deps -T -v "$PWD:/checks:ro" -w /checks reader \
@@ -70,17 +70,17 @@ assert len(rows) == 1 and rows[0]["url"] == source
 print("PASS container: HTML read, SHA-256, index and search via loopback HTTP.")
 if os.getenv("READER_PUBLIC_DEMO") == "1":
     try:
-        req = Request(base + "/https://example.com/", headers={"Accept": "application/json"})
+        req = Request(base + "/https://raw.githubusercontent.com/CleMeY15/auto-world/92be99e90775fea9c9eb9ad8c6b8bd03b3c864f6/experiments/reader-poc/README.md", headers={"Accept": "application/json"})
         with urlopen(req, timeout=35) as resp:
             page = json.load(resp)["data"]
-        if page["title"] == "Example Domain" and "# Example Domain" in page["content"]:
-            print("LIVE PASS: example.com read from the public origin; title and Markdown heading verified.")
+        if page["sha256"] == "40bbd4e847d1c399ea35ef413f20877c2f916cb9a5a600f28809f57d90d6aa85" and page["content"].startswith("# AutoFindex Reader POC"):
+            print("LIVE PASS: the Reader fetched the project README over HTTPS; source SHA-256 and Markdown heading verified.")
         else:
-            print("LIVE MISMATCH: example.com response did not contain the expected title and Markdown heading.")
+            print("LIVE MISMATCH: the remote README did not match its frozen source SHA-256 or Markdown heading.")
     except HTTPError as exc:
-        print("LIVE UNAVAILABLE: example.com, HTTP", exc.code, exc.read(300).decode(errors="replace"))
+        print("LIVE UNAVAILABLE: project README, HTTP", exc.code, exc.read(300).decode(errors="replace"))
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        print("LIVE UNAVAILABLE: example.com,", type(exc).__name__, str(exc)[:200])
+        print("LIVE UNAVAILABLE: project README,", type(exc).__name__, str(exc)[:200])
 PY
     ;;
   web)

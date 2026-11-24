@@ -44,7 +44,7 @@ jobs:
         working-directory: experiments/reader-poc/document-api
         env:
           SMOKE_MODE: ${{ matrix.mode }}
-          READER_PUBLIC_DEMO: "1"
+          READER_PUBLIC_DEMO: ${{ contains(github.event.pull_request.body, '<!-- reader-public-demo -->') && '1' || '0' }}
         run: bash ./test_containers.sh "$SMOKE_MODE"
 
   upstream-reference:
