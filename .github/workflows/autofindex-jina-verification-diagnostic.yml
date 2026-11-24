@@ -1,0 +1,53 @@
+name: Diagnose Jina page-9 verification signal (one request)
+on:
+  push:
+    branches: [spike/0141-jina-verification-diagnostics]
+    paths: [.github/workflows/autofindex-jina-verification-diagnostic.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-jina-diagnostic-once
+  cancel-in-progress: false
+jobs:
+  diagnose-page-9:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0141-jina-verification-diagnostics' &&
+      github.event.before == '688d2776f65c8c953b6e65ab27f4f91c4c6ddf3b' &&
+      github.run_attempt == 1 &&
+      github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 6
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated diagnostic without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 6
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Confirm plan predates implementation
+        run: test "$(git rev-parse HEAD~4)" = 'f1fb09ab4a698deab8a26f271a0a8ad17b9a1251'
+      - name: Offline regression tests and syntax
+        run: |
+          python -m py_compile connectors/leboncoin-spike/jina_verification_diagnostic.py
+          python -m py_compile connectors/leboncoin-spike/jina-list-benchmark.py
+          python connectors/leboncoin-spike/jina_list_benchmark_test.py
+      - name: Exactly one Jina read of page nine with redacted diagnosis
+        run: |
+          python connectors/leboncoin-spike/jina_verification_diagnostic.py --out "$RUNNER_TEMP/autofindex-jina-verification"
+      - name: Preserve only sanitized diagnostic result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: autofindex-jina-page9-diagnostic
+          path: ${{ runner.temp }}/autofindex-jina-verification/*.json
+          if-no-files-found: warn
+          retention-days: 7
