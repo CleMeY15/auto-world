@@ -247,6 +247,11 @@ def main():
         and single.get("all_fields_and_id_exact", 0) == 500
         and clean["unique_cards_reported"] == 500
         and clean["stop_reason"] == "target_500_cards_reached"
+        and clean["duplicate_complete_observations"] == 70
+        and mixed["unique_cards_reported"] == 500
+        and mixed["stop_reason"] == "target_500_cards_reached"
+        and mixed["duplicate_complete_observations"] == 70
+        and mixed["partial_card_observations"] == 0
         and mixed_quality["ids_with_at_least_one_exact_observation"] == 500
         and mixed_quality["ids_with_any_incorrect_observation"] == 0
         and mixed_quality["unexpected_or_unlinked_observations"] == 0
@@ -257,10 +262,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     (out / "offline-500-validation.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print("AUTOFINDEX_OFFLINE_500 " + json.dumps(result, ensure_ascii=False), flush=True)
-    # A successful job denotes completed measurement; validation_passed is the
-    # separately reported quality gate. Never substitute synthetic for live.
-    if not (single["tested"] == 500 and all(s["no_followup_after_signal"] for s in stops.values())):
-        raise SystemExit("Test coverage or stop-rule regression")
+    # Write the report before enforcing the quality gate, so even a failed
+    # validation leaves reproducible evidence. Never substitute synthetic for live.
+    if not result["validation_passed"]:
+        raise SystemExit("Offline parser quality gate failed")
 
 
 if __name__ == "__main__":

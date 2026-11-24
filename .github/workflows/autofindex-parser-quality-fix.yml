@@ -1,0 +1,49 @@
+name: AutoFindex corrected parser quality gate 500 synthetic cards
+on:
+  push:
+    branches: [spike/0144-jina-parser-quality-fix]
+    paths: [.github/workflows/autofindex-parser-quality-fix.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autofindex-parser-quality-fix-offline
+  cancel-in-progress: false
+jobs:
+  parser-quality-gate:
+    if: >-
+      github.repository == 'CleMeY15/auto-world' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/spike/0144-jina-parser-quality-fix' &&
+      github.event.before == 'a57695f173ac9bf982d9a0a711561bd60f27b733' &&
+      github.run_attempt == 1 &&
+      github.run_number == 1
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout isolated test branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 6
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Confirm plan precedes implementation
+        run: test "$(git rev-parse HEAD~4)" = 'dcfae6ae4605ace515c78efbe62a92c13dcc4163'
+      - name: Run expanded offline regression tests
+        run: python connectors/leboncoin-spike/jina_list_benchmark_test.py
+      - name: Run strict 500-card quality gate with mock responses
+        run: python connectors/leboncoin-spike/jina_offline_500_validation.py --out "$RUNNER_TEMP/autofindex-parser-quality-fix"
+      - name: Upload aggregate quality evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: autofindex-parser-quality-fix-500
+          path: ${{ runner.temp }}/autofindex-parser-quality-fix/*.json
+          retention-days: 7
+          if-no-files-found: warn
