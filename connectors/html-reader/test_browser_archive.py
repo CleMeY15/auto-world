@@ -65,6 +65,18 @@ class BrowserArchiveTest(unittest.TestCase):
             self.assertEqual(row["year"], 2020)
             self.assertEqual(len(digest), 64)
 
+    def test_mhtml_folded_location_headers(self):
+        from email.parser import BytesParser
+        from email import policy
+        original = BytesParser(policy=policy.default).parsebytes(mhtml())
+        # Build a deliberately folded header independent of the local email library.
+        unfolded = original.as_bytes(policy=SMTP.clone(max_line_length=998))
+        for field in (b"Snapshot-Content-Location", b"Content-Location"):
+            unfolded = unfolded.replace(field + b": " + URL.encode(),
+                                        field + b":\r\n   " + URL.encode())
+        row, _ = read_archive(unfolded, "mhtml")
+        self.assertEqual(row["source_id"], "123456")
+
     def test_mhtml_targets_must_match_and_archive_must_be_unambiguous(self):
         for data, explicit in ((mhtml(url=URL+"7"), None), (mhtml(), URL+"8"),
                 (mhtml(start="<missing>"), None), (mhtml(before_main=True), None), (b"bad",None)):

@@ -49,14 +49,17 @@ def mhtml_main(data):
     url = root.get("Content-Location")
     if not url or len(root.get_all("Content-Location", [])) != 1:
         fail("The main document needs its original URL.")
+    # Unfolded headers can retain leading whitespace when a browser writes the
+    # entire URL on a continuation line. Whitespace inside the URL stays invalid.
+    url = str(url).strip(" \t\r\n")
     snapshot_urls = archive.get_all("Snapshot-Content-Location", [])
     for snapshot in snapshot_urls:
-        if listing_identity(str(snapshot))[:2] != listing_identity(str(url))[:2]:
+        if listing_identity(str(snapshot).strip(" \t\r\n"))[:2] != listing_identity(url)[:2]:
             raise DetailError("ambiguous_identity", "Snapshot and main document identify different listings.")
     html = root.get_payload(decode=True)
     if root.defects or archive.defects:
         fail("Damaged MIME archive.")
-    return str(url), root.get_content_type(), html, root.get_content_charset()
+    return url, root.get_content_type(), html, root.get_content_charset()
 
 
 def read_archive(data, fmt, supplied_url=None):
