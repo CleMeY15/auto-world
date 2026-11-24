@@ -1,0 +1,151 @@
+{
+  "test_date_paris": "2026-11-24",
+  "acquired_direct_active_api_rows": 0,
+  "mobile_de": {
+    "inventory_probe": {
+      "request_utc": "2026-11-24T14:32:20.335151+00:00",
+      "endpoint": "https://services.mobile.de/search-api/search?classification=refdata%2Fclasses%2FCar&condition=USED&country=DE&page.number=1&page.size=1",
+      "method": "GET",
+      "auth": "none",
+      "mode": "inventory",
+      "http": 401,
+      "auth_challenge": "Basic",
+      "content_type": "text/plain",
+      "intermediary_marker": null
+    },
+    "makes": {
+      "request_utc": "2026-11-24T14:32:28.406232+00:00",
+      "endpoint": "https://services.mobile.de/refdata/classes/Car/makes",
+      "method": "GET",
+      "auth": "none",
+      "mode": "references",
+      "http": 200,
+      "bytes": 26690,
+      "content_type": "application/vnd.de.mobile.api+xml",
+      "xml_root": "refList",
+      "reference_values": 187,
+      "makes_sample": [
+        "ABARTH",
+        "AC",
+        "ACURA",
+        "AIWAYS",
+        "AIXAM"
+      ],
+      "examples_identified": {
+        "BMW": true,
+        "AUDI": true
+      }
+    },
+    "example": {
+      "observed": 1,
+      "distinct_ids": 1,
+      "no_id": 0,
+      "repeated_ids": 0,
+      "conflicting_ids": 0,
+      "incomplete_ids": 0,
+      "complete": 1,
+      "missing_fields": {},
+      "total_reported": 16,
+      "current_page": 1,
+      "mode": "saved_xml",
+      "rows_sha256": "7a0c382f5749622f21ae5baa6dc1592100d29232c840215cf036d8b99f85c667"
+    }
+  },
+  "autoscout24": {
+    "observed_utc": "2026-11-24T14:34:09.177161+00:00",
+    "makes_http": 200,
+    "make_count": 1088,
+    "model_entries": 13362,
+    "read_car_example_http": 200,
+    "read_car_example_sha256": "46750ad34c7446a475ecf1d4ac7b5c97d34a86493e9666fa5232f0037362f95f",
+    "public_spec_sha256": "b38f1d7b71ef74ed0b3785528c1b89580a65a222bc36e5e74898b966c203f685",
+    "anonymous_customers_http": 401,
+    "anonymous_customers_basic_challenge": false,
+    "anonymous_customers_intermediary_reason": null,
+    "marketplace_inventory_requests": 0,
+    "live_marketplace_ads_received": 0,
+    "mode": "official-dealer-fixture-and-taxonomy",
+    "normalized_example": {
+      "title": "BMW 320 Avant",
+      "price": "16500.00",
+      "currency": "EUR",
+      "mileage_km": 75000,
+      "year": 2015,
+      "source_id_valid": true,
+      "source_locator_valid": true,
+      "publication_status": "Inactive",
+      "title_derived_from_taxonomy": true
+    },
+    "source_search_api": "https://www.autoscout24.de/haendlerportal/schnittstelle-search-api/",
+    "search_graphql_status": "not_attempted_without_partner_contract",
+    "market_listing_count_evidenced": 0
+  },
+  "leparking_attribution": {
+    "batch_rows": 2000,
+    "batch_sha256": "c771459e6c30a989e00bf24e782307db8504a6dbbee1651e84d8ccb5474a5b8f",
+    "source_pages": 91,
+    "publisher_counts": {
+      "mobile.de": 12,
+      "AutoScout24": 308
+    },
+    "union": 317,
+    "publisher_overlap": 3,
+    "distinct_by_domain": {
+      "autoscout24.be": 46,
+      "autoscout24.ch": 2,
+      "autoscout24.de": 3,
+      "autoscout24.fr": 246,
+      "autoscout24.lu": 4,
+      "autoscout24.nl": 12,
+      "mobile.de": 12
+    },
+    "observations_by_domain": {
+      "autoscout24.be": 46,
+      "autoscout24.ch": 2,
+      "autoscout24.de": 3,
+      "autoscout24.fr": 277,
+      "autoscout24.lu": 4,
+      "autoscout24.nl": 12,
+      "mobile.de": 12
+    },
+    "with_a_visible_target_publisher_domain_href_in_own_card": 0,
+    "origin_label_link_is_leparking_for_all_matches": true
+  },
+  "leparking_detail_page_check": [
+    {
+      "publisher_label": "autoscout24.fr",
+      "status": 200,
+      "html_bytes": 137003,
+      "external_links_to_named_domain": 0,
+      "has_detail_shaped_native_url": false,
+      "leparking_redirect_links": 7
+    },
+    {
+      "publisher_label": "mobile.de",
+      "status": 200,
+      "html_bytes": 129158,
+      "external_links_to_named_domain": 0,
+      "has_detail_shaped_native_url": false,
+      "leparking_redirect_links": 7
+    }
+  ],
+  "postgresql": {
+    "observed_at_utc": "2026-11-24T14:38:05.126893+00:00",
+    "database": "autoworld",
+    "table": "aw_marketplace_trial.listings",
+    "execution_location": "existing private project PostgreSQL on VPS",
+    "transaction_read_only": true,
+    "provenance": "authorized-export",
+    "source": "leparking",
+    "historic_rows": 2000,
+    "matching_mobile_de": 12,
+    "matching_autoscout24": 308,
+    "overlap": 3,
+    "distinct_total": 317,
+    "mapped_identifiers_missing": 0,
+    "rows_added": 0,
+    "provider_inventory_direct_access": false,
+    "origin": "displayed upstream platform labels on previously captured Le Parking result cards",
+    "aggregate_query_only_on_hosted_database": true
+  }
+}

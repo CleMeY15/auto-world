@@ -1,0 +1,31 @@
+name: Marketplace search connector checks
+
+on:
+  pull_request:
+    paths:
+      - 'connectors/marketplace-search/**'
+      - 'connectors/leboncoin-spike/parking_origin_labels.py'
+      - 'connectors/leboncoin-spike/test_parking_origin_labels.py'
+      - 'connectors/leboncoin-spike/verify_saved_parking_xpath.py'
+      - '.github/workflows/autofindex-marketplace-search-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Exercise API contracts without publisher credentials
+        working-directory: connectors/marketplace-search
+        run: python3 -m unittest discover -v
+      - name: Exercise publisher attribution on synthetic HTML
+        working-directory: connectors/leboncoin-spike
+        run: |
+          /usr/bin/python3 -c 'import lxml.html' || sudo apt-get install -y python3-lxml
+          /usr/bin/python3 -m unittest -v test_parking_origin_labels
