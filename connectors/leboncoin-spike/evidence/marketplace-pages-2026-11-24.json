@@ -1,0 +1,98 @@
+{
+  "date_local": "2026-11-24",
+  "timezone": "Europe/Paris",
+  "leboncoin": {
+    "channel": "official_chatgpt_cars_search",
+    "sort": "time_desc",
+    "country": "FR",
+    "requests": 5,
+    "shown": [
+      100,
+      100,
+      100,
+      100,
+      100
+    ],
+    "total": [
+      811043,
+      811043,
+      811042,
+      811041,
+      811042
+    ],
+    "distinct_returned_cursors": 5,
+    "all_have_more": true,
+    "individual_rows_exposed": 0,
+    "distinct_ad_ids": null,
+    "detail_requests": 0,
+    "verification_presented": false,
+    "jina_requests_this_run": 0
+  },
+  "leparking": {
+    "query_url": "https://www.leparking.fr/voiture-occasion/renault-clio.html",
+    "html": {
+      "http_status": 200,
+      "bytes": 478416,
+      "sha256": "31d045359bad01af0097ff3556b4be153ea6a43f0646eeba2644b096c637e573",
+      "format": "leparking-html",
+      "pages": [
+        {
+          "page": 1,
+          "status": "results",
+          "observations": 27,
+          "page_duplicates": 1,
+          "issues": {}
+        }
+      ],
+      "distinct_identified": 26,
+      "identity_scope": "source_identifiers_on_cards",
+      "complete_unique": 26,
+      "partial_unique": 0,
+      "conflicting_unique": 0,
+      "repeat_observations": 1,
+      "missing_fields_on_partial_rows": {}
+    },
+    "jina": {
+      "http_status": 200,
+      "bytes": 30382,
+      "sha256": "ee9085b9b7ce0f0ed9f369211c2828a88465bd089fb9d8856a7205bec186aee4",
+      "format": "leparking-md",
+      "pages": [
+        {
+          "page": 1,
+          "status": "results",
+          "observations": 27,
+          "page_duplicates": 1,
+          "issues": {}
+        }
+      ],
+      "distinct_identified": 26,
+      "identity_scope": "source_identifiers_on_cards",
+      "complete_unique": 3,
+      "partial_unique": 23,
+      "conflicting_unique": 0,
+      "repeat_observations": 1,
+      "missing_fields_on_partial_rows": {
+        "price_eur": 23
+      }
+    },
+    "matching_source_ids": 25,
+    "comparable_fields": {
+      "price_eur": {
+        "comparable": 3,
+        "equal": 3
+      },
+      "year": {
+        "comparable": 25,
+        "equal": 25
+      },
+      "mileage_km": {
+        "comparable": 25,
+        "equal": 25
+      }
+    },
+    "detail_requests": 0,
+    "next_pages_requested": 0
+  },
+  "production_import": false
+}

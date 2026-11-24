@@ -54,6 +54,15 @@ GENERIC_LINK_LABEL = re.compile(
     r"essence|diesel|hybride|[ée]lectrique|manuelle|automatique|"
     r"professionnel|particulier|occasion|neuf)$", re.I
 )
+CARD_BADGE = re.compile(
+    r"(?:pro|particulier|vendeur (?:professionnel|particulier)|"
+    r"très bonne affaire|bonne affaire|prix équitable|pack sérénité|"
+    r"paiement sécurisé|crédit auto|véhicule garanti|garantie incluse|baisse de prix)\.?", re.I
+)
+MONTHLY_ROW = re.compile(
+    r"(?:(?:d[èe]s|[àa] partir de|mensualit[ée])\s*:?\s*)?"
+    r"[0-9][0-9 .,\u00a0\u202f]*\s*€\s*(?:/\s*mois|par mois)\.?", re.I
+)
 
 
 def digest(value):
@@ -115,12 +124,30 @@ def unique_sale_price(lines):
     return matches[0]
 
 
-def parse_page(body):
-    """Return only in-memory card keys and quality indicators; no raw texts."""
+def known_row_detail(line):
+    """Unknown text can be the title of an adjacent, unlinked advertisement."""
+    if not line.strip():
+        return True
+    if re.match(r"^\s*(?:#{1,6}\s+|\[)", line):
+        return False
+    value = textline(line)
+    return bool(price_eur(value) is not None or CARD_BADGE.fullmatch(value)
+                or MONTHLY_ROW.fullmatch(value))
+
+
+def parse_page(body, *, include_linked_rows=False):
+    """Return aggregate evidence, optionally with linked rows from a local input.
+
+    The live benchmark uses the default, which never exposes titles or URLs.
+    Opt-in rows are individual observations. Cross-page reconciliation belongs
+    to the caller, which can inspect contradictory observations of one ID.
+    """
     if not isinstance(body, str):
         raise TypeError("body must be text")
     body = html.unescape(body)
     cars = []
+    rows = []
+    row_issues = Counter()
     previous_end = 0
     cores = list(CORE.finditer(body))
     for core in cores:
@@ -130,6 +157,7 @@ def parse_page(body):
         price = None
         title = ""
         linked_id = None
+        anchor_index = None
         anchors = []
         for index, line in enumerate(lines):
             link = CARD_TITLE_LINK.fullmatch(line)
@@ -142,6 +170,7 @@ def parse_page(body):
             identities = {(ad_id, normalize(label)) for _, ad_id, label in anchors}
             if len(identities) == 1:
                 index, linked_id, label = anchors[-1]
+                anchor_index = index
                 if plausible_title(label, linked=True):
                     _, price = unique_sale_price(lines[index + 1:])
                     title = label
@@ -157,6 +186,8 @@ def parse_page(body):
         year = int(core.group("year"))
         km = int(re.sub(r"\D", "", core.group("km")))
         if km > 2_000_000:
+            if include_linked_rows:
+                row_issues["mileage_out_of_range"] += 1
             previous_end = core.end()
             continue
 
@@ -166,6 +197,27 @@ def parse_page(body):
             next(iter(local_link_ids)) if len(local_link_ids) == 1 else None
         )
         complete = bool(title and price is not None and year and km >= 0)
+        if include_linked_rows:
+            # Require the ID on the title itself. A bare link in nearby text
+            # is insufficient to identify the advertised vehicle.
+            if not anchors:
+                row_issues["no_linked_title"] += 1
+            elif anchor_index is None or local_link_ids != {linked_id}:
+                row_issues["conflicting_listing_links"] += 1
+            elif not all(known_row_detail(line) for line in lines[anchor_index + 1:]):
+                row_issues["ambiguous_card_boundary"] += 1
+            elif not title:
+                row_issues["invalid_title"] += 1
+            elif price is None:
+                row_issues["missing_or_conflicting_price"] += 1
+            elif not re.fullmatch(r"[0-9]+|[0-9]{1,3}(?:[ .,\u00a0\u202f][0-9]{3})+",
+                                  core.group("km").strip()):
+                row_issues["invalid_mileage_format"] += 1
+            else:
+                rows.append({"source": "leboncoin", "source_id": linked_id,
+                             "source_url": "https://www.leboncoin.fr/ad/voitures/" + linked_id,
+                             "title": title, "price_eur": price, "year": year,
+                             "mileage_km": km})
         if complete:
             fingerprint = digest("|".join((normalize(title), str(price), str(year), str(km))))
             key = "id:" + ad_id if ad_id else "fingerprint:" + fingerprint
@@ -174,11 +226,15 @@ def parse_page(body):
             cars.append({"key": None, "linkable": False, "complete": False})
         previous_end = core.end()
 
-    return {
+    result = {
         "raw_vehicle_patterns": len(cores),
         "cards": cars,
         "direct_vehicle_links_in_page": len(set(DIRECT_URL.findall(body))),
     }
+    if include_linked_rows:
+        result["rows"] = rows
+        result["row_issues"] = dict(row_issues)
+    return result
 
 
 def fetch_page(page):
