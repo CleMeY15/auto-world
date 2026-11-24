@@ -23,6 +23,11 @@
 
 Fait particulièrement important : les requêtes anonymes non internes désactivent dans la classe CrawlerHost l'allocation du proxy géré. Nous ne savons pas quel moteur ni quel cache a effectivement produit les 100 réponses du benchmark.
 
+
+## Découverte additionnelle : un service spécialisé non publié
+
+Jina Reader expose aussi [BogoSitesControl](https://github.com/jina-ai/reader/blob/1574bfd380d249c86c82db4dace0d9c8fe17e2b1/src/services/bogo-sites.ts). Le composant peut recevoir des règles de correspondance depuis un service externe et déléguer certaines lectures à ce service lorsqu'il est configuré. Le code de ce service externe et ses règles de routage ne figurent pas dans le dépôt open source. Nous ne savons **pas** si Leboncoin est concerné, ni si ce composant a servi nos 100 réponses. Pour AutoFindex, la transposition utile est un adaptateur spécialisé par source autorisée, branché sur le registre de droits d'accès.
+
 ## Résultat de notre benchmark Jina (23 novembre)
 100 appels, 99 HTTP 200, 1 HTTP 503 ; 72 classifications complètes par heuristique (indice de marque/prix/km/année), 5 partielles, 23 sans indices. Latence moyenne 4,93195 s, médiane 4,2995 s. Ni la fraîcheur ni la lecture de l'origine ni la facturation en tokens n'ont été observées. Un HTTP 200 n'établit pas un accès réussi en temps réel à Leboncoin. La catégorie « complète » ne valide pas les champs structurés d'une seule annonce.
 
