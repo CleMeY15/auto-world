@@ -41,3 +41,6 @@ Pour activer le navigateur dans une **composition autorisée** uniquement : inst
 ## Trajectoire d'intégration
 
 Conserver ce module uniquement dans `experiments/` pour les tests synthétiques. Après revue Codex indépendante, créer un adaptateur formel entre `createReader.read` et les ports autorisés du Connector SDK (`fetchPage`, `mapPage`) en respectant les contrats ADR-0002/0003. Le calendrier, les licences et les flux par source restent des étapes distinctes.
+## Conversion documentaire et recherche
+
+L’[API de lecture et de recherche](document-api/README.md) complète le prototype automobile. Elle fournit une URL de lecture, l’import HTML/PDF/Office, la recherche locale persistante et des profils facultatifs pour le rendu et la recherche web. Son port local est 8788.
