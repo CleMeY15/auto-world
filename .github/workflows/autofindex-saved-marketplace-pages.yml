@@ -1,0 +1,36 @@
+name: AutoFindex saved marketplace pages
+on:
+  push:
+    branches: [spike/0147-marketplace-pages]
+  pull_request:
+    paths:
+      - 'connectors/leboncoin-spike/*.py'
+      - 'connectors/leboncoin-spike/*.mjs'
+      - 'connectors/leboncoin-spike/fixtures/*.json'
+      - '.github/workflows/autofindex-saved-marketplace-pages.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: connectors/leboncoin-spike
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Check saved-page readers without accessing either marketplace
+        run: |
+          python -m py_compile marketplace_pages.py leparking_page.py leparking_html.py jina-list-benchmark.py
+          python -m unittest -q jina_list_benchmark_test leboncoin_saved_rows_test test_leparking_page test_leparking_html test_marketplace_pages
+      - name: Set up repository Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Check detail-field consistency on stored observations
+        run: node --test extract.test.mjs detail-review.test.mjs
