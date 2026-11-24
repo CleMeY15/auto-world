@@ -2,6 +2,7 @@
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import partial
 from html.parser import HTMLParser
 import http.client
@@ -28,6 +29,11 @@ INTERNAL_SUFFIXES = (".localhost", ".local", ".internal", ".home", ".lan", ".tes
 URI_UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 MAX_ROBOTS = 512_000
 MAX_DETAIL = 4_000_000
+MAX_REFUSAL_SAMPLE = 8_192
+REFUSAL_STATUSES = {401, 403, 407, 429, 451}
+TEXT_TYPES = {"text/plain", "text/html", "application/xhtml+xml"}
+SUPPORT_ID = re.compile(r"[a-fA-F0-9]{16,64}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}")
+PAGE_REFERENCE = re.compile(r"\breference\s*#\s*([0-9]{1,4}\.[a-f0-9]{4,16}\.[0-9]{8,13}\.[a-f0-9]{1,16})(?=\s|$)", re.I)
 BLOCKED_TEXT = re.compile(
     r"access denied|access to this page has been denied|request rejected|request blocked|"
     r"just a moment|verify (?:that )?you are (?:a )?human|checking your browser|"
@@ -52,14 +58,66 @@ class Response:
     mime: str
     body: bytes
     oversized: bool = False
+    support: dict | None = None
+
+
+def support_ids(headers):
+    """Only well-formed correlation IDs from their designated response headers."""
+    result = {}
+    for name in ("X-Request-Id", "X-Correlation-Id"):
+        values = headers.get_all(name) or []
+        if len(values) == 1 and isinstance(values[0], str) and SUPPORT_ID.fullmatch(values[0]):
+            result[name.lower()] = values[0]
+    return result
+
+
+def refusal_summary(mime, sample, truncated=False):
+    """Keep only enumerated diagnostics. Never return body or arbitrary header values."""
+    report = {"media_type": mime if mime in TEXT_TYPES else "other",
+              "inspected_bytes": 0, "sample_truncated": None}
+    if sample is None or mime not in TEXT_TYPES:
+        return report
+    report.update(inspected_bytes=len(sample), sample_truncated=truncated)
+    text = sample.decode("utf-8", "replace")
+    title = ""
+    if mime != "text/plain":
+        labels = ChallengeLabels()
+        try:
+            labels.feed(text)
+            labels.close()
+        except (AssertionError, ValueError):
+            return report
+        title = " ".join(" ".join(labels.headings["title"]).split()).casefold()
+        text = " ".join(labels.visible)
+    if title in {"access denied", "forbidden", "request blocked", "zugriff verweigert", "accès refusé"}:
+        report["recognized_title"] = title
+    report["explicit_captcha_text"] = bool(re.search(r"\b(?:re|h)?captcha\b", text, re.I))
+    report["explicit_human_check_text"] = bool(re.search(
+        r"\b(?:verify (?:that )?you are (?:a )?human|vérifiez que vous êtes humain|"
+        r"bestätigen sie, dass sie ein mensch sind)\b", text, re.I))
+    reference = PAGE_REFERENCE.search(text)
+    if reference:
+        report["reference"] = reference[1]
+    return report
 
 
 def read_response(reply, status, limit):
     mime = reply.headers.get_content_type()
+    ids = support_ids(reply.headers)
+    if status in REFUSAL_STATUSES:
+        raw = None
+        if mime in TEXT_TYPES and (reply.headers.get("Content-Encoding") or "identity").lower() == "identity":
+            try:
+                raw = reply.read(MAX_REFUSAL_SAMPLE + 1)
+            except (OSError, EOFError, http.client.HTTPException):
+                pass  # The status and response headers were already received.
+        minimal = refusal_summary(mime, None if raw is None else raw[:MAX_REFUSAL_SAMPLE],
+                                  raw is not None and len(raw) > MAX_REFUSAL_SAMPLE)
+        return Response(status, mime, b"", support={**ids, **minimal})
     if status != 200:
         return Response(status, mime, b"")
     raw = reply.read(limit + 1)
-    return Response(status, mime, raw[:limit], len(raw) > limit)
+    return Response(status, mime, raw[:limit], len(raw) > limit, ids or None)
 
 
 def get(url, limit, *, trusted_egress_hosts=DEMO_TRUSTED_EGRESS_HOSTS):
@@ -249,7 +307,8 @@ def looks_gated(raw):
 def read_public_html(url, *, routes=DEMO_ROUTES, trusted_egress_hosts=DEMO_TRUSTED_EGRESS_HOSTS,
                      transport=None, sleeper=time.sleep):
     """Return coarse receipt and optional raw bytes. Never fetches links from a page."""
-    receipt = {"host": None, "result": "url_rejected", "robots_http": None,
+    receipt = {"host": None, "result": "url_rejected", "stage": "admission",
+               "started_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "robots_http": None,
                "detail_http": None, "requests": 0, "html_bytes": 0}
     if not approved_url(url, routes):
         return receipt, None
@@ -258,6 +317,7 @@ def read_public_html(url, *, routes=DEMO_ROUTES, trusted_egress_hosts=DEMO_TRUST
     host = urlsplit(url).hostname
     receipt["host"] = host
     try:
+        receipt["stage"] = "robots"
         receipt["requests"] += 1
         robots = transport(f"https://{host}/robots.txt", MAX_ROBOTS)
         receipt["robots_http"] = robots.status
@@ -274,14 +334,19 @@ def read_public_html(url, *, routes=DEMO_ROUTES, trusted_egress_hosts=DEMO_TRUST
                 sleeper(delay)
         elif robots.status not in (404, 410):
             receipt["result"] = "robots_unavailable"
+            if robots.status in REFUSAL_STATUSES and robots.support:
+                receipt["support"] = robots.support
             return receipt, None
+        receipt["stage"] = "page"
         receipt["requests"] += 1
         detail = transport(url, MAX_DETAIL)
         receipt["detail_http"] = detail.status
         if 300 <= detail.status < 400:
             receipt["result"] = "redirect_stopped"
         elif detail.status != 200:
-            receipt["result"] = "http_refusal" if detail.status in (401, 403, 407, 429, 451) else "http_error"
+            receipt["result"] = "http_refusal" if detail.status in REFUSAL_STATUSES else "http_error"
+            if detail.status in REFUSAL_STATUSES and detail.support:
+                receipt["support"] = detail.support
         elif detail.oversized:
             receipt["result"] = "response_too_large"
         elif detail.mime not in ("text/html", "application/xhtml+xml"):
@@ -290,6 +355,9 @@ def read_public_html(url, *, routes=DEMO_ROUTES, trusted_egress_hosts=DEMO_TRUST
             receipt["result"] = "empty_body"
         elif looks_gated(detail.body):
             receipt["result"] = "verification_or_consent"
+            receipt["support"] = {**(detail.support or {}),
+                                  **refusal_summary(detail.mime, detail.body[:MAX_REFUSAL_SAMPLE],
+                                                    len(detail.body) > MAX_REFUSAL_SAMPLE)}
         else:
             receipt.update(result="html_received", html_bytes=len(detail.body))
             return receipt, detail.body

@@ -3,18 +3,24 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 from urllib.parse import urlsplit
 
 from browser_archive import ARCHIVE_FORMATS, MAX_ARCHIVE_BYTES, read_archive
-from custom_detail import DetailError, DetailHTML, MAX_BYTES, parse_detail
+from custom_detail import DetailError, DetailHTML, MAX_BYTES, listing_identity, parse_detail
 from mobile_print import MAX_PDF_BYTES, parse_pdf
 from own_fetch import read_public_html, save_new_private
 from parking_detail import parse_parking
 from parking_results import parse_results
+from reader_pg import import_observations
 
 KINDS = ("detail", "parking-results")
 LOCAL_ORIGINS = ("archived", "indexed", "indirect", "synthetic")
+MOBILE_HOST = "suchen.mobile.de"
+MOBILE_PATH = "/fahrzeuge/details.html"
+MOBILE_URL = re.compile(re.escape("https://" + MOBILE_HOST + MOBILE_PATH) + r"\?id=[0-9]{1,20}&vip=1")
 
 
 def read_limited(path, limit=MAX_BYTES):
@@ -95,6 +101,35 @@ def parse_file_entry(entry, path):
     return read_document(read_limited(path, limit), url, entry.get("kind", "detail"), fmt, origin)
 
 
+def read_mobile(url, result, *, database=None, save_html=None):
+    """Read the operator-supplied public listing, and optionally import its observation."""
+    if not MOBILE_URL.fullmatch(url):
+        result["http"] = {"result": "url_rejected", "requests": 0}
+        raise DetailError("invalid_mobile_url", "Supply the exact public HTTPS detail URL ending in ?id=<digits>&vip=1.")
+
+    receipt, html = read_public_html(url, routes={MOBILE_HOST: (MOBILE_PATH,)},
+                                     trusted_egress_hosts=frozenset({MOBILE_HOST}))
+    result["http"] = dict(receipt, requested_url=url)
+    if html is None:
+        raise DetailError(receipt["result"], "No usable HTML received on the authorized route.")
+
+    # Require the received document to identify itself independently of the request.
+    # Equality is by platform and native ID, including equivalent native canonical paths.
+    observations, doc = read_document(html, None, "detail", "html", "direct-origin")
+    row = observations[0]["row"]
+    if (row["source"], row["source_id"]) != listing_identity(url)[:2]:
+        raise DetailError("ambiguous_identity", "The received document identifies a different listing.")
+    result["observations"].extend(observations)
+    result["documents"].append(doc)
+    if save_html:
+        save_new_private(save_html, html)
+    if database is not None:
+        try:
+            result["postgresql"] = import_observations(database, observations)
+        except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+            raise DetailError("postgres_unverified", str(error)) from error
+
+
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -108,6 +143,10 @@ def parser():
     fetch.add_argument("url")
     fetch.add_argument("--kind", choices=KINDS, default="detail")
     fetch.add_argument("--save-html", type=Path, help="Also retain received bytes in a new 0600 file")
+    mobile = sub.add_parser("mobile", help="Read one authorized mobile.de detail page over ordinary HTTPS")
+    mobile.add_argument("url", help="Original public URL with id=<digits>&vip=1")
+    mobile.add_argument("--database", help="Optionally import into a local autofindex_trial_* database or the autoworld collection schema")
+    mobile.add_argument("--save-html", type=Path, help="Retain the recognized document in a new 0600 file")
     manifest = sub.add_parser("batch", help="Read local documents listed in a JSON manifest")
     manifest.add_argument("manifest", type=Path)
     return p
@@ -122,7 +161,9 @@ def main(argv=None):
         result["documents"].append(document)
 
     try:
-        if args.command == "fetch":
+        if args.command == "mobile":
+            read_mobile(args.url, result, database=args.database, save_html=args.save_html)
+        elif args.command == "fetch":
             receipt, body = read_public_html(args.url)
             result["http"] = receipt
             if body is None:

@@ -1,9 +1,10 @@
-"""Store complete HTML-reader observations in an explicitly selected local trial database.
+"""Store complete HTML-reader observations under the isolated schema of a selected local database.
 
 Input is an array, or a reader report with observations and an empty errors array.
 Each observation has provenance, document_sha256 (source document bytes) and row.
 Provenance is supplied by the acquisition step.
 Rows from different documents are append-only observations. The original currency is preserved.
+The named application database accepts only direct mobile.de observations from this pilot.
 """
 import argparse
 from datetime import date
@@ -91,14 +92,23 @@ def clean(item):
     return dict(subset, price=format(value, '.2f'), provenance=item['provenance'], document_sha256=digest, **labels(row))
 
 
+def validate_database_name(database):
+    if database == 'autoworld':
+        return database
+    if not isinstance(database, str) or not re.fullmatch(r'autofindex_trial_[a-z0-9_]{1,45}', database):
+        raise ValueError('expected autoworld or an explicitly named autofindex_trial_* database')
+    return database
+
+
 def psql(database, sql):
-    # Disallow service strings and network destinations for this local trial.
-    if not re.fullmatch(r'autofindex_trial_[a-z0-9_]{1,45}', database):
-        raise ValueError('expected an explicitly named autofindex_trial_* database')
+    # Disallow libpq service strings and nonlocal or multiple destinations.
+    validate_database_name(database)
     if os.getenv('PGSERVICE') or os.getenv('PGSERVICEFILE'):
         raise ValueError('select a local database without a libpq service')
     for key in ('PGHOST', 'PGHOSTADDR'):
         host = os.getenv(key, '')
+        if ',' in host:
+            raise ValueError('single local PostgreSQL connection required')
         if host and not (key == 'PGHOST' and (host.startswith('/') or host == 'localhost')):
             try:
                 local_address = ipaddress.ip_address(host).is_loopback
@@ -116,6 +126,7 @@ def psql(database, sql):
 
 
 def import_observations(database, items):
+    validate_database_name(database)
     if isinstance(items, dict):
         if items.get('errors') != []:
             raise ValueError('a reader report must have an empty errors array before import')
@@ -125,6 +136,8 @@ def import_observations(database, items):
     distinct = {}
     for item in items:
         row = clean(item)
+        if database == 'autoworld' and (row['source'], row['provenance']) != ('mobile.de', 'direct-origin'):
+            raise ValueError('autoworld requires a direct-origin mobile.de observation')
         key = tuple(row[name] for name in KEYS)
         if distinct.setdefault(key, row) != row:
             raise ValueError('different fields for one observation in input')

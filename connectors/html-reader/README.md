@@ -1,6 +1,6 @@
 # Lecteur d’annonces AutoFindex
 
-Le programme lit le document HTML envoyé à un visiteur ou le texte enregistré d’une fiche. Python 3.10+ et sa bibliothèque standard suffisent pour le HTML, le texte et les archives de navigateur. L’import PDF utilise aussi le programme libre pdftotext de Poppler. Le mode réseau du pilote est configuré pour les pages de résultats et les fiches Le Parking. Les fichiers mobile.de et AutoScout24 sont lus localement. Le programme fonctionne sans clé, abonnement ni service de lecture tiers.
+Le programme lit le document HTML envoyé à un visiteur ou le texte enregistré d’une fiche. Python 3.10+ et sa bibliothèque standard suffisent pour le HTML, le texte et les archives de navigateur. L’import PDF utilise aussi le programme libre pdftotext de Poppler. Le mode réseau général du pilote lit les pages Le Parking. La commande mobile traite les URL individuelles autorisées de mobile.de. Les archives des deux plateformes et les fichiers AutoScout24 se lisent localement. Le programme fonctionne sans clé, abonnement ni service de lecture tiers.
 
 ## Une page de résultats, plusieurs véhicules
 
@@ -47,6 +47,26 @@ Remplacer la variable par l’URL individuelle du document. Pour mobile.de et Au
 `direct-origin` est attribué par la commande de téléchargement au site qui a fourni le document. `archived`, `indexed`, `indirect` et `synthetic` décrivent les fichiers locaux. Chaque observation conserve l’empreinte SHA-256 des octets analysés. Le code de sortie est 0 si les documents ont été traités, 2 si un document a échoué. Si une carte individuelle est incomplète, les autres cartes restent exploitables et le compteur `incomplete` le signale. Une page de détail qui demande une vérification, comporte plusieurs identités contradictoires ou manque de champs génère une erreur.
 
 Pour les fiches natives, les contrôles sur les prix et le kilométrage distinguent le prix affiché des mensualités de financement et les kilomètres des miles. L’année correspond au champ lu sur la fiche. Les quatre copies natives du test affichaient une date d’immatriculation. La fiche individuelle Le Parking utilisait une année de fabrication et les cartes de résultats une année affichée.
+
+## Alimenter PostgreSQL depuis mobile.de
+
+Une URL individuelle fournie dans le périmètre autorisé peut être testée avec le lecteur HTML identifié AutoFindex. Utiliser l’URL originale complète autorisée, reçue avec ses paramètres. Le format pris en charge dans ce pilote est la page de détail HTTPS sur suchen.mobile.de avec les paramètres id (numérique) et vip=1. Le lecteur conserve l’URL demandée dans son reçu. L’URL canonique et l’identifiant natif sont relus dans le HTML et comparés à l’annonce demandée.
+
+```sh
+python3 lecteur.py mobile "$URL_ANNONCE_AUTORISEE" --database autoworld
+```
+
+La connexion à PostgreSQL s’effectue sur la machine du projet ou son socket local. Pour la destination explicite `autoworld`, le pilote écrit les observations directes de mobile.de dans `aw_html_trial.observations`. Les documents archivés et synthétiques disposent de bases d’essai séparées.
+
+Pour un lot, fournir un fichier UTF-8 avec une URL autorisée par ligne. L’intervalle en secondes vient de l’accord avec l’éditeur. Le programme compte les URL fournies et distinctes, les observations confirmées, les pages disparues et les fiches en attente.
+
+```sh
+python3 mobile_batch.py urls.txt --state suivi.sqlite --database autoworld --interval-seconds "$INTERVALLE_CONVENU"
+```
+
+Le fichier SQLite est local au processus de collecte. Il lie le lot au contenu exact du manifeste et à sa destination. Un seul processus peut traiter cet état à la fois. Après la validation du HTML, le programme conserve l’observation jusqu’au commit et à la relecture dans PostgreSQL. En cas de panne de base, la reprise utilise les données déjà validées. Un 404 ou 410 sur la fiche est enregistré comme indisponibilité. Un refus d’accès, une limitation de débit ou un écran de vérification arrête l’ensemble du lot. Un lancement ordinaire retrouve cet arrêt sans nouvelle requête. Les options de reprise après rétablissement sont décrites dans `mobile_batch.py --help`.
+
+Un manifeste terminé mesure uniquement la couverture de ses propres URL. Pour suivre tout le stock actif, il faut une source d’inventaire complète et à jour que mobile.de a ouverte au lecteur. Les règles publiques observées lors de l’essai permettaient un format de fiche et restreignaient les chemins usuels des listes. Le pilote ne génère pas d’identifiants et ne découvre pas les annonces par numérotation.
 
 ## Importer des documents mobile.de déjà enregistrés
 
