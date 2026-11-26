@@ -12,7 +12,7 @@ main:focus { outline: none; }
 .site-container { margin-inline: auto; max-width: var(--aw-layout-content-max); padding-inline: clamp(var(--aw-space-4), 4vw, 3rem); }
 .site-header { align-items: center; display: flex; flex-wrap: wrap; gap: .25rem 1rem; justify-content: space-between; min-height: 5rem; padding-block: .625rem; }
 .site-wordmark { align-items: center; display: inline-flex; max-width: 100%; min-height: var(--aw-size-touch); }
-.site-wordmark img { display: block; width: clamp(8.5rem, 18vw, 11.25rem); height: auto; filter: brightness(0.19); }
+.site-wordmark img { display: block; width: clamp(8.5rem, 18vw, 11.25rem); max-width: 100%; height: auto; filter: brightness(0.19); }
 [data-aw-theme="dark"] .site-wordmark img,
 :root:not([data-aw-theme]):has([data-aw-default-theme="dark"]) .site-wordmark img { filter: none; }
 @media (prefers-color-scheme: dark) {

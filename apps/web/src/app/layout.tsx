@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
-  return <html lang="fr"><body data-aw-default-theme={process.env.NEXT_PUBLIC_PRIVATE_WEB === "1" ? "dark" : undefined}>{children}{process.env.NEXT_PUBLIC_PRIVATE_WEB === "1" && <PrivateSession />}</body></html>;
+  return <html lang="fr"><body>{children}{process.env.NEXT_PUBLIC_PRIVATE_WEB === "1" && <PrivateSession />}</body></html>;
 }

@@ -14,7 +14,7 @@ export default function CatalogLayout({ children }: { children: ReactNode }) {
   if (!privateCatalogEnabled()) notFound();
   return <>
     <a href="#catalogue" className="site-skip">Aller au contenu</a>
-    <header className="site-container site-header catalogue-width">
+    <header className="site-container site-header catalogue-width" data-aw-default-theme="dark">
       <ProductWordmark />
       <nav aria-label="Catalogue"><a className="catalogue-nav-link" href="/catalogue">Annonces</a></nav>
     </header>
