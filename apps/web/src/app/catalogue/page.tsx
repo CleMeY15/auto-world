@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Banner, Button, Field, Skeleton } from "@auto-world/design-system";
 import { fetchList, maxQueryLength, pageWindow, windowPath, type PageWindow } from "../../catalogue/reader";
 import { formatKm, formatPrice } from "./format";
+import { ListPhotos, ListingThumbnail } from "./list-photos";
 
 async function Publications({ window }: { window: PageWindow }) {
   let page: Awaited<ReturnType<typeof fetchList>>;
@@ -21,12 +22,15 @@ async function Publications({ window }: { window: PageWindow }) {
     </section>;
   }
   return <>
-    <ul data-catalog-dataset={page.dataset} aria-label="Annonces Leboncoin" className="catalogue-list">{page.items.map(item => <li key={item.id}>
-      <a className="catalogue-row" href={windowPath(window, item.id)}>
-        <span><strong>{item.label}</strong><span className="catalogue-meta">{[item.year, item.km !== null ? formatKm(item.km) : null].filter(v => v !== null).join(" · ")}</span></span>
-        <span className="catalogue-price">{formatPrice(item.price)}</span>
-      </a>
-    </li>)}</ul>
+    <ListPhotos hasPhotos={page.items.some(item => item.photos.length > 0)}>
+      <ul id="catalogue-results" data-catalog-dataset={page.dataset} aria-label="Annonces Leboncoin" className="catalogue-list">{page.items.map(item => <li key={item.id}>
+        <a className="catalogue-row" href={windowPath(window, item.id)}>
+          <ListingThumbnail src={item.photos[0]} />
+          <span><strong>{item.label}</strong><span className="catalogue-meta">{[item.year, item.km !== null ? formatKm(item.km) : null].filter(v => v !== null).join(" · ")}</span></span>
+          <span className="catalogue-price">{formatPrice(item.price)}</span>
+        </a>
+      </li>)}</ul>
+    </ListPhotos>
     <nav aria-label="Pagination" className="catalogue-pages">
       {window.after && <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Premières annonces</a>}
       {page.next && <a className="aw-button" href={windowPath({ ...window, after: page.next })}>Page suivante</a>}
@@ -46,7 +50,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       {window.limit !== 20 && <input type="hidden" name="limit" value={window.limit} />}
       <Button type="submit">Rechercher</Button>
     </form>
-    {window.q && <a className="site-nav" href={windowPath({ limit: window.limit })}>Effacer la recherche</a>}
+    {window.q && <a className="site-nav catalogue-clear" href={windowPath({ limit: window.limit })}>Effacer la recherche</a>}
     <Suspense fallback={<div role="status"><span>Chargement des annonces…</span><Skeleton className="catalogue-skeleton" /></div>}>
       <Publications window={window} />
     </Suspense>

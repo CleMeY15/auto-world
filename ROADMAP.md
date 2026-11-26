@@ -4,6 +4,8 @@
 
 Le candidat de livraison reprend les travaux des [PR 287](https://github.com/CleMeY15/auto-world/pull/287) et [288](https://github.com/CleMeY15/auto-world/pull/288) sur la base PostgreSQL du projet. La lecture privée a retrouvé 1 022 annonces sur onze pages. L’affichage sur le domaine dépend de l’admission des lots et de la recette du déployeur par Nexus. [Décision de publication](docs/decisions/ADR-0037-private-postgres-catalog.md)
 
+La version `94b80e91` du catalogue est en service. La correction des photos dans les résultats ajoute un affichage à la demande de la première photo référencée de chaque annonce. Le test navigateur du catalogue couvre le décodage des vignettes, les annonces sans photo, l’échec d’une image distante et le masquage sur mobile et ordinateur. Le retour arrière suit la procédure de publication du site privé.
+
 TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
 accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded
 two-solve [implementation and validation](docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-and-local-verification)

@@ -21,6 +21,7 @@ await mkdir(directory, { recursive: true });
 const mediaRoot = "https://img.leboncoin.fr/api/v1/lbcpb1/images/";
 const photo = mediaRoot + "gh/bb/cc/gh" + "a".repeat(38) + ".jpg?rule=large";
 const secondPhoto = mediaRoot + "aa/bb/cc/78c4f2de-4ec6-45a2-8081-ab2e106ad504";
+const peugeotPhoto = mediaRoot + "aa/bb/cc/" + "d".repeat(40) + ".jpg";
 const items = [
   ["100", "Peugeot", "208", 1950000, 38700],
   ["200", "Renault", "Clio", null, null],
@@ -28,7 +29,7 @@ const items = [
 ].map(([id, brand, model, price, km]) => ({
   source_listing_id: id, source_url: "https://www.leboncoin.fr/ad/voitures/" + id, source_label: "Leboncoin",
   brand, model, year: 2022, price_amount_minor: price, price_currency: price === null ? null : "EUR",
-  mileage_km: km, observed_at: "2026-11-22T12:00:00+00:00", images: id === "300" ? [photo, secondPhoto] : id === "100" ? [photo] : [],
+  mileage_km: km, observed_at: "2026-11-22T12:00:00+00:00", images: id === "300" ? [photo, secondPhoto] : id === "100" ? [peugeotPhoto] : [],
 }));
 
 let state = "healthy";
@@ -112,7 +113,7 @@ try {
           const request = route.request();
           if (request.url().startsWith(base + "/")) return route.continue();
           external.push({ url: request.url(), referrer: (await request.allHeaders()).referer ?? "", type: request.resourceType() });
-          if (![photo, secondPhoto].includes(request.url())) return route.abort();
+          if (![photo, secondPhoto, peugeotPhoto].includes(request.url())) return route.abort();
           await firstImage.promise;
           if (outcome === "failure") return route.abort("failed");
           if (outcome === "offline") return route.abort("internetdisconnected");
@@ -214,6 +215,39 @@ try {
         assert.equal(await field.inputValue(), "2022");
         const firstPage = await page.getByRole("link", { name: "Premières annonces" }).getAttribute("href");
         assert.equal(firstPage, "/catalogue?q=2022&limit=2");
+        const hide = page.getByRole("button", {name:"Masquer les photos de Leboncoin"});
+        const citroen = page.getByRole("link", {name:/Citroën C3/});
+        assert.equal(await citroen.locator("img").count(), 0);
+        outcome = "failure";
+        await show.focus();
+        await show.press("Enter");
+        await citroen.getByText("Photo indisponible", {exact:true}).waitFor();
+        assert.deepEqual(external.slice(allowedHits), [{url:photo, referrer:"", type:"image"}]);
+        await hide.press("Enter");
+        assert.equal(await citroen.getByText("Photo indisponible", {exact:true}).count(), 0);
+        outcome = "success";
+        await page.getByRole("link", {name:"Premières annonces"}).click();
+        const peugeot = page.getByRole("link", {name:/Peugeot 208/});
+        const renault = page.getByRole("link", {name:/Renault Clio/});
+        await peugeot.waitFor();
+        const firstPageHits = external.length;
+        assert.equal(await page.locator(".catalogue-list img").count(), 0);
+        await show.click();
+        const thumbnail = peugeot.locator("img");
+        await thumbnail.scrollIntoViewIfNeeded();
+        assert.equal(await thumbnail.getAttribute("src"), peugeotPhoto);
+        assert.equal(await thumbnail.getAttribute("alt"), "");
+        assert.equal(await thumbnail.getAttribute("loading"), "lazy");
+        assert.equal(await thumbnail.getAttribute("referrerpolicy"), "no-referrer");
+        assert.equal(await thumbnail.evaluate(async element => { await element.decode(); return element.naturalWidth; }), 480);
+        const thumbnailBox = await thumbnail.boundingBox();
+        assert(thumbnailBox && thumbnailBox.width > 0 && Math.abs(thumbnailBox.width * 0.75 - thumbnailBox.height) < 1);
+        await renault.getByText("Sans photo", {exact:true}).waitFor();
+        assert.equal(await renault.locator("img").count(), 0);
+        assert.deepEqual(external.slice(firstPageHits), [{url:peugeotPhoto, referrer:"", type:"image"}]);
+        await inspect(page, engine + "-" + size + "-list-photos");
+        await hide.click();
+        assert.equal(await page.locator(".catalogue-list img").count(), 0);
         await field.fill("100");
         await submit.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
