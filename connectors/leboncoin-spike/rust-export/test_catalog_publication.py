@@ -36,14 +36,14 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
         admitted_dom, private_dom = "a" * 32, "b" * 32
         vin = "WAUZZZ8V1GA123456"
 
-        def dom(key, batch, status="listing", model="Clio", at=observation):
+        def dom(key, batch, status="listing", model="Clio", at=observation, **fields):
             url = "https://www.leboncoin.fr/ad/voitures/" + key
             raw = (batch + key + at.isoformat()).encode()
             digest = hashlib.sha256(raw).hexdigest()
+            observed_fields = {"brand": "Renault", "model": model, "model_year": 2021, **fields}
             normal = {"status": status, "source": {"original_url": url, "listing_id": key, "name": "leboncoin"},
                       "schema_version": "leboncoin-replay/v1", "photos": {"status": "observed", "values": []},
-                      "fields": {k: {"status": "observed", "value": v} for k,v in
-                                 (("brand", "Renault"), ("model", model), ("model_year", 2021))}}
+                      "fields": {k: {"status": "observed", "value": v} for k, v in observed_fields.items()}}
             cur.execute(f"INSERT INTO {schema}.batches VALUES (%s,'','','','',%s,'{{}}') ON CONFLICT DO NOTHING",
                         (batch, at))
             cur.execute(f"INSERT INTO {schema}.raw_observations VALUES (%s,'leboncoin',%s,%s,%s,%s,%s)",
@@ -64,9 +64,10 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                             VALUES (%s,%s,%s,%s,%s,%s)""", (digest, raw, at, until, len(rows), json.dumps(values)))
             return digest
 
-        dom("100", admitted_dom)
-        dom("200", private_dom)
-        dom("300", admitted_dom, model=vin)
+        facts = {"price": {"currency": "EUR", "amountMinor": 1_200_001}, "mileage": {"unit": "km", "amount": 50_000}}
+        dom("100", admitted_dom, **facts)
+        dom("200", private_dom, **facts)
+        dom("300", admitted_dom, model=vin, brand="Audi", model_year="2021", mileage={"unit": "mi", "amount": 5})
         private_export = export([("400",[fixtures.PHOTO]), ("500",[fixtures.PHOTO]), ("600",None)], observation)
         admitted_export = export([("400",None), ("700",[fixtures.PHOTO])], observation + hour)
         grant = {"valid_from": observation - hour, "valid_until": observation + 10*hour,
@@ -88,7 +89,24 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                 self.assertEqual(set(page()), {"100", "300", "400", "700"})
                 self.assertEqual(set(page("q=Clio")), {"100", "400", "700"})
                 self.assertEqual(page("q=" + vin), {})
+                self.assertEqual(set(page("brand=Audi&limit=1")), {"300"})
+                self.assertEqual(set(page("q=Clio&brand=audi")), set())
+                self.assertEqual(set(page("priceMin=12000&priceMax=12001")), {"100"})
+                self.assertEqual(set(page("priceMax=12000")), set())
+                self.assertEqual(set(page("priceMin=0")), {"100"})
+                self.assertEqual(set(page("kmMax=50000")), {"100"})
+                self.assertEqual(set(page("kmMax=49999")), set())
+                self.assertEqual(set(page("brand=Renault&q=Clio&yearMin=2021&yearMax=2021&kmMax=50000&priceMin=10000&priceMax=15000")), {"100"})
+                first = reader.read(reader.LIST, "yearMax=2020&limit=1")[1]
+                self.assertEqual([r["source_listing_id"] for r in first["items"]], ["400"])
+                self.assertEqual(first["next_cursor"], "400")
+                tail = reader.read(reader.LIST, "yearMax=2020&limit=1&after=400")[1]
+                self.assertEqual([r["source_listing_id"] for r in tail["items"]], ["700"])
+                self.assertIsNone(tail["next_cursor"])
                 self.assertIsNone(page()["300"]["model"])
+                self.assertIsNone(detail("300")[1]["year"])
+                self.assertIsNone(detail("300")[1]["mileage_km"])
+                self.assertEqual(set(page("yearMin=2021")), {"100"})
                 self.assertIsNone(detail("300")[1]["model"])
                 for key in ("200", "500", "600"):
                     self.assertEqual(detail(key)[0], "404 Not Found")

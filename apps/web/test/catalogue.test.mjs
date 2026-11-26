@@ -25,6 +25,20 @@ test("private catalogue keeps the page window in detail and return links", () =>
   for (const q of [["duplicate"], "a".repeat(81), "a\nb", "a\0b"]) assert.equal(pageWindow({ q }), null);
   assert.equal(windowPath({ after: "10", limit: 3, q: "A&B / 20" }, "42"), "/catalogue/42?q=A%26B+%2F+20&after=10&limit=3");
 });
+test("catalogue criteria survive pagination and detail navigation, including zero bounds", () => {
+  const query = {brand:"Citroën", priceMin:"0", priceMax:"012345", yearMin:"2000", yearMax:"2022", kmMax:"100000"};
+  const criteria = pageWindow(query);
+  assert.deepEqual(criteria, { after:undefined, limit:20, brand:"Citroën", priceMin:0, priceMax:12345, yearMin:2000, yearMax:2022, kmMax:100000 });
+  const link = windowPath({...criteria, q:"C3", after:"10", limit:8}, "42");
+  const url = new URL(link, "https://autofind.tech");
+  assert.equal(url.pathname, "/catalogue/42");
+  assert.deepEqual(pageWindow(Object.fromEntries(url.searchParams)), {...criteria, q:"C3", after:"10", limit:8});
+  assert.equal(windowPath(pageWindow({brand:"", kmMax:"", priceMin:""})), "/catalogue");
+  for (const invalid of [{priceMax:"2.50"}, {priceMin:"1&3"}, {priceMin:"2",priceMax:"1"}, {yearMin:"1885"},
+    {yearMin:"2021", yearMax:"1999"}, {brand:["DS","Audi"]}, {brand:"<DS>"}, {kmMax:"9007199254740992"}]) {
+    assert.equal(pageWindow(invalid), null);
+  }
+});
 test("private catalogue retains unknowns and accepts only the matching Leboncoin source URL", () => {
   assert.equal(readPublication(item).price, null);
   assert.equal(readPublication(item).dateKind, "source_capture");
@@ -71,7 +85,7 @@ test("the private release uses the Unix reader and disables every demo backend",
   const temp = await mkdtemp(join(tmpdir(), "autofind-reader-test-"));
   const socket = join(temp, "reader.sock");
   let status = 200;
-  let payload = { dataset: "autoworld/leboncoin", items: [item], next_cursor: "42" };
+  let payload = { dataset: "autoworld/leboncoin", items: [item], brands: ["Citroën", "Tesla"], next_cursor: "42" };
   let request;
   const server = http.createServer((req, res) => {
     request = req;
@@ -96,10 +110,13 @@ test("the private release uses the Unix reader and disables every demo backend",
   await assert.rejects(fetchDetail("42"), /catalog_disabled/);
   assert.equal(request, undefined);
   process.env.AUTOFIND_PRIVATE_CATALOG = "1";
-  const page = await fetchList({ after: "10", limit: 1, q: "é & 3" });
+  const page = await fetchList({ after: "10", limit: 1, q: "é & 3", brand:"Tesla", priceMin:0, kmMax:30000 });
   assert.equal(page.next, "42");
   assert.equal(page.dataset, "autoworld/leboncoin");
-  assert.equal(request.url, "/internal/catalog?limit=1&q=%C3%A9+%26+3&after=10");
+  assert.deepEqual(page.brands, ["Citroën", "Tesla"]);
+  const location = new URL(request.url, "http://localhost");
+  assert.equal(location.pathname, "/internal/catalog");
+  assert.deepEqual(Object.fromEntries(location.searchParams), { q:"é & 3", after:"10", limit:"1", brand:"Tesla", priceMin:"0", kmMax:"30000" });
   assert.equal(request.method, "GET");
   assert.equal(request.headers.host, "localhost");
   assert.equal(request.headers.cookie, undefined);

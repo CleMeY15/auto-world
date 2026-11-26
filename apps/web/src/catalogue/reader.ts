@@ -1,8 +1,19 @@
 import http from "node:http";
 import { privateCatalogEnabled } from "./mode.ts";
+import { numericFilterLimits, type NumericFilter } from "./filters.ts";
 
 type Query = Readonly<Record<string, string | string[] | undefined>>;
-export type PageWindow = { readonly after?: string; readonly limit: number; readonly q?: string };
+const numericFilters = Object.keys(numericFilterLimits) as NumericFilter[];
+export type PageWindow = {
+  readonly after?: string;
+  readonly limit: number;
+  readonly q?: string;
+  readonly brand?: string;
+} & Readonly<Partial<Record<NumericFilter, number>>>;
+
+function isBrandLabel(value: unknown): value is string {
+  return typeof value === "string" && /^[\p{L}\p{N}][\p{L}\p{N} .&-]{0,49}$/u.test(value);
+}
 export interface Publication {
   id: string;
   label: string;
@@ -32,7 +43,8 @@ export function isListingId(value: unknown): value is string {
 }
 export const maxQueryLength = 80;
 export function pageWindow(query: Query): PageWindow | null {
-  if (Object.keys(query).some(key => key !== "after" && key !== "limit" && key !== "q")) return null;
+  const allowed = ["after", "limit", "q", "brand", ...numericFilters];
+  if (Object.keys(query).some(key => !allowed.includes(key))) return null;
   const after = query.after;
   const limit = query.limit ?? "20";
   const rawQuery = query.q ?? "";
@@ -40,13 +52,35 @@ export function pageWindow(query: Query): PageWindow | null {
   const q = rawQuery.trim();
   if (after !== undefined && !isListingId(after)) return null;
   if (typeof limit !== "string" || !/^(?:[1-9][0-9]?|100)$/u.test(limit)) return null;
-  return { after, limit: Number(limit), ...(q ? { q } : {}) };
+  const brand = query.brand;
+  if (brand !== undefined && brand !== "" && !isBrandLabel(brand)) return null;
+  const bounds: Partial<Record<NumericFilter, number>> = {};
+  for (const key of numericFilters) {
+    const raw = query[key];
+    if (raw === undefined || raw === "") continue;
+    if (typeof raw !== "string" || !/^[0-9]{1,16}$/u.test(raw)) return null;
+    const value = Number(raw);
+    const [min, max] = numericFilterLimits[key];
+    if (value < min || value > max) return null;
+    bounds[key] = value;
+  }
+  if (bounds.priceMin !== undefined && bounds.priceMax !== undefined && bounds.priceMin > bounds.priceMax) return null;
+  if (bounds.yearMin !== undefined && bounds.yearMax !== undefined && bounds.yearMin > bounds.yearMax) return null;
+  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...bounds };
 }
-export function windowPath(window: PageWindow, id?: string) {
+function windowQuery(window: PageWindow) {
   const query = new URLSearchParams();
   if (window.q) query.set("q", window.q);
   if (window.after) query.set("after", window.after);
   if (window.limit !== 20) query.set("limit", String(window.limit));
+  if (window.brand) query.set("brand", window.brand);
+  for (const key of numericFilters) {
+    if (window[key] !== undefined) query.set(key, String(window[key]));
+  }
+  return query;
+}
+export function windowPath(window: PageWindow, id?: string) {
+  const query = windowQuery(window);
   return `/catalogue${id ? `/${id}` : ""}${query.size ? `?${query}` : ""}`;
 }
 function object(value: unknown): value is Record<string, unknown> {
@@ -104,11 +138,13 @@ async function fetchReader(path: string) {
   }
 }
 export async function fetchList(window: PageWindow) {
-  const query = new URLSearchParams({ limit: String(window.limit) });
-  if (window.q) query.set("q", window.q);
-  if (window.after) query.set("after", window.after);
+  const query = windowQuery(window);
+  query.set("limit", String(window.limit));
   const page = await fetchReader(`/internal/catalog?${query}`);
-  if (!object(page) || page.dataset !== "autoworld/leboncoin" || !Array.isArray(page.items) || page.items.length > window.limit) throw new Error("catalog_page_invalid");
+  if (!object(page) || page.dataset !== "autoworld/leboncoin" || !Array.isArray(page.items) || page.items.length > window.limit
+    || !Array.isArray(page.brands) || page.brands.length > 256 || !page.brands.every(isBrandLabel)) {
+    throw new Error("catalog_page_invalid");
+  }
   const items = page.items.map(readPublication);
   let previous = window.after ?? "";
   for (const item of items) {
@@ -118,7 +154,7 @@ export async function fetchList(window: PageWindow) {
   if (page.next_cursor !== null && (!isListingId(page.next_cursor) || page.next_cursor !== items.at(-1)?.id)) {
     throw new Error("catalog_cursor_invalid");
   }
-  return { dataset: page.dataset, items, next: page.next_cursor };
+  return { dataset: page.dataset, items, next: page.next_cursor, brands: page.brands };
 }
 export async function fetchDetail(id: string) {
   if (!isListingId(id)) throw new Error("catalog_id_invalid");

@@ -74,3 +74,9 @@ AUTOFIND_TEST_POSTGRES_IMAGE="$LOCAL_POSTGRES_IMAGE" python3 -m unittest discove
 ```
 
 Avec une image PostgreSQL déjà présente, les tests démarrent leurs propres instances isolées, utilisent le schéma historique du dépôt et vérifient l’import, le rejeu, les droits de lecture et la purge.
+
+### Filtres du catalogue connecté
+
+La liste accepte `brand` (marque), `priceMin` et `priceMax` (euros entiers), `yearMin` et `yearMax` (millésimes) et `kmMax` (kilomètres). Les bornes sont inclusives. Une valeur vide retire le critère. Le lecteur applique les critères simultanément avec la recherche `q` sur les annonces admises, avant la limite de page. Une annonce au prix inconnu reste consultable tant que la recherche ne fixe pas de borne de prix. La même règle s’applique au kilométrage et à l’année.
+
+Une nouvelle sélection repart de la première page. Le lien vers une fiche et le retour aux résultats conservent les critères et le curseur. Le lecteur PostgreSQL et son fichier SQL se déploient ensemble avec la version web. La réponse de liste fournit aussi les marques du vocabulaire contrôlé pour alimenter le sélecteur.

@@ -3,7 +3,7 @@ import { ProductWordmark } from "../product-wordmark";
 import "../guide.css";
 
 export const metadata: Metadata = {
-  title: "Estimer ma carte grise — AutoFind",
+  title: "Estimer ma carte grise — AutoFindex",
   description: "Préparez les informations utiles puis estimez votre carte grise sur le simulateur officiel de Service Public.",
 };
 
@@ -20,7 +20,7 @@ export default function RegistrationGuidePage() {
           <section className="guide-intro" aria-labelledby="registration-title">
             <h1 id="registration-title">Estimer ma <span>carte grise</span></h1>
             <p>Pour un véhicule déjà immatriculé en France, utilisez le simulateur officiel de Service Public.</p>
-            <p className="guide-muted">L’estimation se fait sur le site officiel. AutoFind ne calcule pas de montant.</p>
+            <p className="guide-muted">L’estimation se fait sur le site officiel. AutoFindex ne calcule pas de montant.</p>
             <a
               className="aw-button guide-primary"
               id="registration-simulator"
@@ -63,11 +63,11 @@ export default function RegistrationGuidePage() {
               aria-describedby="registration-help-destination"
             >Consulter la fiche officielle</a>
             <p className="guide-note" id="registration-help-destination">Service Public · Nouvel onglet</p>
-            <p>Si le service reste indisponible, revenez plus tard. AutoFind ne peut ni vérifier son état ni récupérer votre estimation.</p>
+            <p>Si le service reste indisponible, revenez plus tard. AutoFindex ne peut ni vérifier son état ni récupérer votre estimation.</p>
           </details>
         </section>
       </main>
-      <footer className="site-footer site-container">AutoFind</footer>
+      <footer className="site-footer site-container">AutoFindex</footer>
     </>
   );
 }

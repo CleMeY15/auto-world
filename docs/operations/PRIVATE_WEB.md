@@ -23,6 +23,8 @@ PRIVATE_WEB_REQUIRE_REPORTS=1 python3 infra/private-web/test/stack.py
 
 La recette principale de cette branche peut être exécutée avant intégration de TASK-0129 en omettant PRIVATE_WEB_REQUIRE_REPORTS. Le gate d'activation l'exige à 1. Le test utilise des ports loopback temporaires, un certificat local, deux sockets et une base éphémère. PRIVATE_WEB_EVIDENCE peut désigner un répertoire de captures. Ne jamais réutiliser la base de test.
 
+La page publique et la connexion servent le globe et le logo AutoFindex depuis le même hôte. Les deux visuels proviennent de la présentation du projet. Le test navigateur vérifie leur décodage, l’accès au catalogue et les six étapes de la feuille de route avec et sans JavaScript. [Présentation AutoFindex](https://autofindex-lancement-terre.paris-clement.chatgpt.site/)
+
 ## Staging par l’administrateur
 
 Utiliser un shell root **uniquement pour la préparation hôte**, sans exécuter de code de build sous root. Partir d'une copie fraîche de la révision revue conservée sous un chemin appartenant à root, parents inclus. Contrôler la provenance avant installation. Les instructions suivantes supposent des destinations neuves ; si elles existent déjà, inventorier leur propriétaire et passer par le retour arrière/mise à jour ciblée. Aucune copie depuis un répertoire de travail modifiable par autrui pour installer une commande root.
@@ -37,7 +39,7 @@ install -d -m 0755 /opt/aw-private-web/templates /opt/aw-private-web/bin
 install -m 0644 infra/private-web/*.py infra/private-web/product.cjs infra/private-web/nginx.conf /opt/aw-private-web/
 install -m 0644 infra/private-web/templates/access.html infra/private-web/templates/launch.html infra/private-web/templates/brand.css /opt/aw-private-web/templates/
 install -d -m 0755 /opt/aw-private-web/launch
-install -m 0644 infra/private-web/launch/launch.js infra/private-web/launch/launch.webp /opt/aw-private-web/launch/
+install -m 0644 infra/private-web/launch/launch.js infra/private-web/launch/launch.webp infra/private-web/launch/wordmark.webp /opt/aw-private-web/launch/
 install -m 0755 infra/private-web/manage infra/private-web/preflight.sh infra/private-web/render-edge /opt/aw-private-web/
 install -m 0644 infra/private-web/*.service /etc/systemd/system/
 systemctl daemon-reload

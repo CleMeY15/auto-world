@@ -1,5 +1,11 @@
 # ROADMAP MASTER — Auto World Search
 
+## Identité AutoFindex et catalogue filtré
+
+L’accueil public reprend le globe et la frise de la présentation AutoFindex. Le catalogue connecté utilise les photos et les prix issus des lots admis. La recherche et les critères de marque, prix, année et kilométrage s’appliquent avant pagination dans PostgreSQL. La qualification en production concerne le frontal public, le lecteur et le site privé de la même version. [Identité visuelle](DESIGN.md) · [Procédure de livraison](docs/operations/PRIVATE_CATALOG_RELEASE.md)
+
+En recette isolée, Chromium et WebKit couvrent l’accueil, la connexion, la liste, les filtres et la fiche sur mobile et ordinateur. Les tests PostgreSQL vérifient les bornes en centimes, les unités de kilométrage, les valeurs absentes et une marque dont le premier résultat se trouve au-delà de la première page non filtrée. [Parcours du catalogue](apps/web/test/private-catalog-browser.mjs) · [Tests PostgreSQL](connectors/leboncoin-spike/rust-export/test_catalog_publication.py)
+
 ## Catalogue privé AutoFind — 26 novembre 2026
 
 Le candidat de livraison reprend les travaux des [PR 287](https://github.com/CleMeY15/auto-world/pull/287) et [288](https://github.com/CleMeY15/auto-world/pull/288) sur la base PostgreSQL du projet. La lecture privée a retrouvé 1 022 annonces sur onze pages. L’affichage sur le domaine dépend de l’admission des lots et de la recette du déployeur par Nexus. [Décision de publication](docs/decisions/ADR-0037-private-postgres-catalog.md)

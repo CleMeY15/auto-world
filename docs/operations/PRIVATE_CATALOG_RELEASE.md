@@ -33,3 +33,16 @@ Nexus doit intégrer ces étapes à la transaction privilégiée existante et en
 5. Avant le premier passage en ligne, répéter dans la pile isolée un échec de la nouvelle sonde et une interruption après l’échange de version. Vérifier la reconstruction de l’ancien état, SHA/build ID, permissions, unités, sockets, refus anonyme et résultat fonctionnel après reprise. Conserver les seuls digests, statuts et résultats. Le publisher actuellement installé traite l’ancien jeu de fichiers. Son extension, le test de reprise et l’installation des dépendances hôte restent à réaliser par Nexus.
 
 Les pièces et décisions de publication sont administrées indépendamment des versions du site. Un retour arrière applicatif ne restaure jamais une autorisation retirée ou un lot exclu.
+
+
+## Livraison de l’identité AutoFindex et des filtres
+
+La version web, le lecteur Python et sa requête SQL forment une même livraison. Le résultat de liste inclut désormais le vocabulaire des marques et accepte les bornes de prix, d’année et de kilométrage. La requête sélectionne les annonces admises correspondant aux critères avant de limiter la page. Le catalogue, les lots admis, les rôles et les DNS restent ceux du VPS.
+
+Pour qualifier cette révision, intégrer au déployeur administré les opérations suivantes.
+
+1. Vérifier la révision fusionnée et les empreintes du lecteur, de son SQL, du frontal et des assets publics. L’admission installée le 26 novembre réserve les révisions ordinaires aux changements applicatifs. Une révision qui modifie le lecteur ou le frontal demande un nouveau profil revu pour ces fichiers précis.
+2. Livrer ensemble depuis la même archive Git `gateway.py`, `templates/launch.html`, `templates/access.html`, `templates/brand.css`, `launch/launch.js`, `launch/launch.webp` et `launch/wordmark.webp`. Le frontal de recette, la transaction en ligne et le journal de retour arrière doivent couvrir ces mêmes fichiers, y compris l’absence du nouveau logo dans la version précédente. Vérifier que le service lecteur utilise le Python et le SQL du build sélectionné.
+3. Vérifier sur le frontal candidat que le logo et le globe s’affichent avant connexion, que les six étapes sont accessibles au clavier et que la connexion, la déconnexion et les refus anonymes conservent leur comportement. Les assertions de l’ancienne version portant sur le compte à rebours et les anciens boutons photo restent propres à cette version pour le retour arrière.
+4. Avec une session temporaire, rechercher une annonce admise, appliquer puis retirer un filtre compatible avec ses données, ouvrir sa fiche et revenir à la liste filtrée. Comparer le résultat avec le lecteur, vérifier le décodage d’une vignette et d’une photo de fiche, puis révoquer la session. Refaire le parcours après publication et consigner le SHA, le build et les verdicts sans contenu d’annonce.
+5. Répéter la restauration du produit et de tous les fichiers publics sur la pile isolée en injectant une erreur avant acceptation. La publication ordinaire repasse ensuite par `autofind-release prepare` et `autofind-release publish` pour la révision admise.

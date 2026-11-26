@@ -1,67 +1,62 @@
 (() => {
-  const timer = document.querySelector("[data-deadline]");
-  const clock = timer.querySelector(".clock");
-  if (clock.hidden) return;
-  const control = timer.querySelector("button");
-  const expired = timer.querySelector(".expired");
-  const digits = [...clock.querySelectorAll("b")];
-  const deadline = Date.parse(timer.dataset.deadline);
-  let interval;
-  let paused = false;
+  const rail = document.querySelector(".rail");
+  if (!rail) return;
+  const tabs = Array.from(rail.querySelectorAll("a"));
+  const panels = tabs.map(tab => document.getElementById(tab.hash.slice(1)));
+  if (panels.some(panel => !panel)) return;
 
-  function draw() {
-    const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    if (remaining === 0) {
-      clock.hidden = control.hidden = true;
-      expired.hidden = false;
-      clearInterval(interval);
-      return false;
-    }
-    const values = [Math.floor(remaining / 86400), Math.floor(remaining / 3600) % 24,
-      Math.floor(remaining / 60) % 60, remaining % 60];
-    values.forEach((value, i) => { digits[i].textContent = String(value).padStart(2, "0"); });
-    return true;
+  const controls = document.querySelector(".phase-controls");
+  const previous = controls.querySelector("[data-previous]");
+  const next = controls.querySelector("[data-next]");
+  let selected;
+
+  function select(index, focus = false) {
+    if (index < 0 || index >= tabs.length) return;
+    selected = index;
+    tabs.forEach((tab, i) => {
+      const active = i === index;
+      tab.tabIndex = active ? 0 : -1;
+      tab.setAttribute("aria-selected", String(active));
+      panels[i].hidden = !active;
+    });
+    previous.setAttribute("aria-disabled", String(index === 0));
+    next.setAttribute("aria-disabled", String(index === tabs.length - 1));
+    if (focus) tabs[index].focus();
   }
 
-  function sync() {
-    clearInterval(interval);
-    if (!document.hidden && !paused && draw()) interval = setInterval(draw, 1000);
-  }
-  if (!draw()) return;
-  control.hidden = false;
-  control.addEventListener("click", () => {
-    paused = !paused;
-    control.textContent = paused ? "Reprendre" : "Figer";
-    sync();
+  rail.setAttribute("role", "tablist");
+  rail.setAttribute("aria-label", "Étapes du déploiement");
+  tabs.forEach((tab, i) => {
+    const panel = panels[i];
+    tab.id = `tab-${panel.id}`;
+    tab.parentElement.setAttribute("role", "presentation");
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", panel.id);
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", tab.id);
+    panel.tabIndex = 0;
+    tab.addEventListener("click", event => {
+      if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+      event.preventDefault();
+      select(i);
+    });
+    tab.addEventListener("keydown", event => {
+      let target;
+      switch (event.key) {
+        case "ArrowRight": target = (i + 1) % tabs.length; break;
+        case "ArrowLeft": target = (i + tabs.length - 1) % tabs.length; break;
+        case "Home": target = 0; break;
+        case "End": target = tabs.length - 1; break;
+        case " ": target = i; break;
+        default: return;
+      }
+      event.preventDefault();
+      select(target, true);
+    });
   });
-  document.addEventListener("visibilitychange", sync);
-  sync();
-})();
-
-(() => {
-  const track = document.querySelector(".road-track");
-  if (!track) return;
-  const navigation = document.querySelector(".road-nav");
-  const [previous, next] = navigation.querySelectorAll("button");
-  const stops = [...track.querySelectorAll(".milestones li")];
-
-  function updateNavigation() {
-    const end = track.scrollWidth - track.clientWidth;
-    navigation.hidden = end <= 1;
-    track.tabIndex = navigation.hidden ? -1 : 0;
-    previous.setAttribute("aria-disabled", String(track.scrollLeft <= 1));
-    next.setAttribute("aria-disabled", String(track.scrollLeft >= end - 1));
-  }
-
-  function move(forward) {
-    const left = track.getBoundingClientRect().left;
-    const offsets = stops.map(stop => stop.getBoundingClientRect().left - left);
-    const distance = forward ? offsets.find(x => x > 1) : offsets.findLast(x => x < -1);
-    if (distance !== undefined) track.scrollBy({ left: distance });
-  }
-
-  previous.addEventListener("click", () => move(false));
-  next.addEventListener("click", () => move(true));
-  track.addEventListener("scroll", updateNavigation, { passive: true });
-  new ResizeObserver(updateNavigation).observe(track);
+  const linked = tabs.findIndex(tab => tab.hash === location.hash);
+  select(linked >= 0 ? linked : tabs.findIndex(tab => tab.getAttribute("aria-current") === "step"));
+  previous.addEventListener("click", () => select(selected - 1, true));
+  next.addEventListener("click", () => select(selected + 1, true));
+  controls.hidden = false;
 })();

@@ -9,7 +9,7 @@ import { providerLabels, reportFixtureVersion, reportsForListing } from "../../.
 import { ProductWordmark } from "../../../../product-wordmark";
 import { ReturnToListing } from "../../return-to-listing";
 
-export const metadata = { title: "Document d’exemple · AutoFind" };
+export const metadata = { title: "Document d’exemple · AutoFindex" };
 
 export default async function ExampleReportPage({ params }: {
   readonly params: Promise<{ listingId: string; documentId: string }>;
@@ -46,7 +46,7 @@ export default async function ExampleReportPage({ params }: {
         <article>
           <p className="report-vehicle">{report.vehicle}</p>
           <h1>Exemple de rapport {providerLabels[report.provider]}</h1>
-          <p>Simulation créée par AutoFind. Toutes les données de ce document sont fictives.</p>
+          <p>Simulation créée par AutoFindex. Toutes les données de ce document sont fictives.</p>
           <h2>Observation du véhicule</h2>
           <p>{report.observation}</p>
           <p className="report-source">Provenance déclarée dans le scénario · {report.suppliedBy === "titulaire" ? "Titulaire de la carte grise" : "Vendeur"}</p>

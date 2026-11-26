@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 import os
 from pathlib import Path
 import re
@@ -55,26 +54,20 @@ def check(request):
     return HttpResponse(status=204 if permitted else 403)
 
 
-BETA_TARGET = datetime(2027, 1, 13, 11, tzinfo=timezone.utc)
 LAUNCH_ASSETS = Path(__file__).resolve().parent / "launch"
 
 
 @require_http_methods(["GET", "HEAD"])
 def launch_asset(request, filename, media_type):
+    if filename == "launch.webp" and request.GET.get("variant") == "wordmark":
+        filename = "wordmark.webp"
     return FileResponse((LAUNCH_ASSETS / filename).open("rb"), content_type=media_type)
 
 
 def enter(request):
     target = request.headers.get("X-Original-URI", "")
     if request.method in {"GET", "HEAD"} and target.partition("?")[0] == "/":
-        remaining = max(0, int((BETA_TARGET - datetime.now(timezone.utc)).total_seconds()))
-        days, rest = divmod(remaining, 86400)
-        hours, rest = divmod(rest, 3600)
-        minutes, seconds = divmod(rest, 60)
-        return render(request, "launch.html", {
-            "deadline": BETA_TARGET.isoformat(), "target_day": BETA_TARGET.date(),
-            "remaining": remaining, "digits": tuple(f"{n:02}" for n in (days, hours, minutes, seconds)),
-        })
+        return render(request, "launch.html")
     if request.method != "GET" or not page_target(target):
         return HttpResponse(status=401)
     return render(request, "access.html", {"next": target}, status=401)

@@ -5,8 +5,8 @@ import "@auto-world/design-system/styles.css";
 import "./site.css";
 
 export const metadata: Metadata = {
-  title: "AutoFind · Espace privé",
-  description: "L’espace privé AutoFind pour rechercher, consulter et comparer les annonces de démonstration.",
+  title: "AutoFindex · Espace privé",
+  description: "Recherchez des véhicules et consultez les annonces et leurs photos dans le catalogue privé AutoFindex.",
   robots: { index: false, follow: false },
 };
 

@@ -5,7 +5,7 @@ import "../guide.css";
 import "./importation.css";
 
 export const metadata: Metadata = {
-  title: "Mon dossier d’importation Allemagne → France — AutoFind",
+  title: "Mon dossier d’importation Allemagne → France — AutoFindex",
   description: "Préparez les pièces d’une voiture d’occasion achetée en Allemagne et retrouvez les démarches officielles pour l’immatriculer en France.",
   referrer: "no-referrer",
 };
@@ -62,7 +62,7 @@ export default function ImportDossierPage() {
           </aside>
         </div>
       </main>
-      <footer className="site-footer site-container">AutoFind</footer>
+      <footer className="site-footer site-container">AutoFindex</footer>
     </>
   );
 }
