@@ -142,6 +142,20 @@ def media(row, exported_at, policy):
     return observed, retain_until, urls
 
 
+def verified_sale_price(row):
+    if "sale_price_evidence" not in row:
+        return None
+    evidence = row["sale_price_evidence"]
+    require(isinstance(evidence, dict) and set(evidence) == {"schema", "list_id", "currency", "amount_minor"}
+            and evidence["schema"] == "searchData.ads.offer.price/v1"
+            and evidence["list_id"] == row["source_listing_id"] and evidence["currency"] == "EUR",
+            "invalid_sale_price_evidence")
+    cents = evidence["amount_minor"]
+    require(type(cents) is int and 0 < cents <= 9_007_199_254_740_991
+            and cents % 100 == 0 and row["prix"] == str(cents // 100), "invalid_sale_price_amount")
+    return cents
+
+
 def known_model(make, value):
     if not value:
         return None
@@ -160,7 +174,7 @@ def project(raw, exported_at, basis, policy, now):
     projections, seen = [], set()
     deadline = min(policy.end, exported_at + policy.raw, exported_at + policy.normalized)
     for row in rows:
-        require(isinstance(row, dict) and set(row) == ROW_FIELDS and type(row["index"]) is int
+        require(isinstance(row, dict) and (row.keys() - {"sale_price_evidence"}) == ROW_FIELDS and type(row["index"]) is int
                 and row["index"] >= 0 and all(row[k] is None or isinstance(row[k], str) and len(row[k]) <= 128
                                             for k in TEXT_FIELDS), "invalid_native_row")
         require(not any(CONTACT.search(unicodedata.normalize("NFKC", row[k] or "")) for k in TEXT_FIELDS),
@@ -179,7 +193,7 @@ def project(raw, exported_at, basis, policy, now):
         projections.append({
             "source_listing_id": key, "brand": make, "model": known_model(make, row["modele"]),
             "year": year if 1886 <= year <= exported_at.year + 2 else None,
-            "price_amount_minor": None, "mileage_km": int(km[1]) if km else None,
+            "price_amount_minor": verified_sale_price(row), "mileage_km": int(km[1]) if km else None,
             "images": urls, "media_observed_at": observed.isoformat() if observed else None,
             "media_retain_until": expiry.isoformat() if expiry else None, "export_time_basis": basis,
         })

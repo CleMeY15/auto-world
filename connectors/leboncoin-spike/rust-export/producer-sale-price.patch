@@ -1,0 +1,134 @@
+--- a/src/parser.rs
++++ b/src/parser.rs
+@@ -10,6 +10,8 @@
+     pub media: Option<MediaReferenceInfo>,
+     pub index: usize,
+     pub prix: Option<String>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub sale_price_evidence: Option<crate::structured::SalePriceEvidence>,
+     pub marque: Option<String>,
+     pub modele: Option<String>,
+     pub annee: Option<String>,
+@@ -44,11 +46,9 @@
+         }
+         
+         let url = extract_url(&element);
++        let evidence = prices.as_ref().and_then(|prices| crate::structured::evidence(prices, url.as_deref()?));
+         let price = match &prices {
+-            Some(by_id) => url.as_deref()
+-                .and_then(|s| url::Url::parse(s).ok())
+-                .and_then(|url| by_id.get(crate::scraper::listing_id(&url)?).copied().flatten())
+-                .map(|amount| amount.to_string()),
++            Some(_) => evidence.as_ref().map(|p| (p.amount_minor / 100).to_string()),
+             None => extract_price(&text),
+         };
+         let mut listing = Listing {
+@@ -57,6 +57,7 @@
+             media: None,
+             index: listings.len(),
+             prix: price,
++            sale_price_evidence: evidence,
+             marque: None,
+             modele: None,
+             annee: None,
+@@ -338,6 +339,7 @@
+             images: None,
+             media: None,
+             index: listings.len(),
++            sale_price_evidence: None,
+             prix: Some(mat.as_str().replace('€', "").trim().to_string()),
+             marque: None,
+             modele: None,
+--- a/src/structured.rs
++++ b/src/structured.rs
+@@ -28,12 +28,13 @@
+     {
+         return None;
+     }
+-    if ad["attributes"].as_array().is_some_and(|attrs| {
+-        attrs
+-            .iter()
+-            .any(|attr| attr["key"] == "car_contract" && attr["value_label"] != "Non")
+-    }) {
+-        return None;
++    if let Some(attributes) = ad.get("attributes") {
++        for attr in attributes.as_array()? {
++            let key = attr.get("key")?.as_str()?;
++            if key == "car_contract" && attr.get("value_label")?.as_str()? != "Non" {
++                return None;
++            }
++        }
+     }
+     let [amount] = ad["price"].as_array()?.as_slice() else {
+         return None;
+@@ -48,6 +49,30 @@
+     Some(amount)
+ }
+ 
++#[derive(Clone, Debug, serde::Serialize)]
++pub struct SalePriceEvidence {
++    schema: &'static str,
++    list_id: String,
++    currency: &'static str,
++    pub amount_minor: u64,
++}
++
++pub(crate) fn evidence(
++    prices: &HashMap<String, Option<u64>>,
++    listing_url: &str,
++) -> Option<SalePriceEvidence> {
++    let url = url::Url::parse(listing_url).ok()?;
++    let id = crate::scraper::listing_id(&url)?;
++    let euros = prices.get(id).copied().flatten()?;
++    let cents = euros.checked_mul(100).filter(|n| *n <= 9_007_199_254_740_991)?;
++    Some(SalePriceEvidence {
++        schema: "searchData.ads.offer.price/v1",
++        list_id: id.to_owned(),
++        currency: "EUR",
++        amount_minor: cents,
++    })
++}
++
+ pub(crate) fn prices(doc: &Html) -> Option<HashMap<String, Option<u64>>> {
+     let data = page_data(doc)?;
+     let ads = data
+@@ -75,6 +100,23 @@
+     use serde_json::json;
+ 
+     #[test]
++    fn malformed_contract_attributes_cannot_attest_a_sale_price() {
++        let mut offer = json!({"ad_type": "offer", "price": [499], "price_cents": 49900});
++        assert_eq!(super::sale_price(&offer), Some(499));
++        for attributes in [
++            json!({"key": "car_contract", "value_label": "Oui"}),
++            json!(null), json!("invalid"), json!([null]), json!([{}]),
++            json!([{"key": "car_contract"}]),
++            json!([{"key": "car_contract", "value_label": "Oui"}]),
++        ] {
++            offer["attributes"] = attributes;
++            assert_eq!(super::sale_price(&offer), None);
++        }
++        offer["attributes"] = json!([{"key": "car_contract", "value_label": "Non"}]);
++        assert_eq!(super::sale_price(&offer), Some(499));
++    }
++
++    #[test]
+     fn source_prices_are_joined_by_id_and_only_sale_prices_are_exported() {
+         let ads = json!([
+             {"list_id": 3, "ad_type":"offer","price":[26900],"price_cents":2690000},
+@@ -98,6 +140,14 @@
+         assert_eq!(identifiable.len(), 9);
+         assert!(identifiable[0].url.as_ref().unwrap().ends_with("/3"));
+         assert_eq!(identifiable[0].prix.as_deref(), Some("26900"));
+-        assert!(identifiable[1..].iter().all(|r| r.prix.is_none()));
++        let evidence = serde_json::to_value(&identifiable[0]).unwrap();
++        assert_eq!(evidence["sale_price_evidence"], json!({
++            "schema": "searchData.ads.offer.price/v1", "list_id": "3",
++            "currency": "EUR", "amount_minor": 2690000
++        }));
++        assert!(identifiable[1..].iter().all(|r| r.prix.is_none() && r.sale_price_evidence.is_none()));
++        let fallback = parse_html("<article><a href='/ad/voitures/4'>Peugeot 208 occasion à partir de 499 € par mois, avec garantie</a></article>", "https://www.leboncoin.fr");
++        let row = fallback.iter().find(|r| r.prix.is_some()).unwrap();
++        assert!(serde_json::to_value(row).unwrap().get("sale_price_evidence").is_none());
+     }
+ }
