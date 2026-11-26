@@ -247,6 +247,10 @@ try {
   }
   console.log({ checks, performanceSamples });
   await writeFile(new URL("checks.json", directory), JSON.stringify({ checks, performanceSamples }));
+} catch (error) {
+  // Next installs process-level exception handlers. Preserve a failing CI exit status.
+  process.exitCode = 1;
+  console.error(error);
 } finally {
   web.closeAllConnections();
   reader.closeAllConnections();
