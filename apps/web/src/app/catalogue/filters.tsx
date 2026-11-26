@@ -25,6 +25,8 @@ function RangeFields({ label, unit, lowerName, upperName, lower, upper, min, max
 export function FilterPanel({ criteria, brands, active }: {
   criteria: PageWindow; brands: readonly string[]; active: number;
 }) {
+  const requestedBrand = criteria.brand ?? "";
+  const matchedBrand = brands.find(brand => brand.toLowerCase() === requestedBrand.toLowerCase());
   return <details className="catalogue-filters">
     <summary><FilterIcon /> Filtres {active > 0 && <span>({active})</span>}</summary>
     <form action="/catalogue" method="get" aria-label="Filtrer les annonces" className="catalogue-filter-form"
@@ -37,8 +39,9 @@ export function FilterPanel({ criteria, brands, active }: {
       {criteria.limit !== 20 && <input type="hidden" name="limit" value={criteria.limit} />}
       <div className="catalogue-select-label">
         <label htmlFor="catalogue-brand">Marque</label>
-        <select id="catalogue-brand" className="site-select" name="brand" defaultValue={criteria.brand ?? ""}>
+        <select id="catalogue-brand" className="site-select" name="brand" defaultValue={matchedBrand ?? requestedBrand}>
           <option value="">Toutes les marques</option>
+          {requestedBrand && !matchedBrand && <option>{requestedBrand}</option>}
           {brands.map(brand => <option key={brand}>{brand}</option>)}
         </select>
       </div>

@@ -47,7 +47,7 @@ const reader = http.createServer((req, res) => {
     }
     const rows = state === "empty" ? [] : items.filter(item =>
       item.source_listing_id > (url.searchParams.get("after") ?? "")
-      && (!brand || item.brand === brand)
+      && (!brand || item.brand.toLowerCase() === brand.toLowerCase())
       && inRange(item.price_amount_minor === null ? null : item.price_amount_minor / 100, "priceMin", "priceMax")
       && inRange(item.year, "yearMin", "yearMax")
       && inRange(item.mileage_km, "kmMin", "kmMax")
@@ -300,6 +300,21 @@ try {
         await apply.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        for (const [requested, expected] of [["citroën", "Citroën"], ["Marque inconnue", "Marque inconnue"]]) {
+          await page.goto(base + "/catalogue?brand=" + encodeURIComponent(requested));
+          await filters.click();
+          assert.equal(await brandSelect.inputValue(), expected);
+          await priceMax.fill("20000");
+          await apply.click();
+          await page.waitForURL(url => url.searchParams.get("priceMax") === "20000");
+          assert.equal(new URL(page.url()).searchParams.get("brand"), expected);
+          if (expected === "Citroën") {
+            await page.getByRole("link", {name:/Citroën C3/}).waitFor();
+            assert.equal(await page.locator("a.catalogue-row").count(), 1);
+          } else {
+            await page.getByRole("heading", {name:"Aucune annonce pour cette recherche"}).waitFor();
+          }
+        }
         await page.goto(base + "/catalogue/200");
         await page.getByRole("heading", {name:"Renault Clio"}).waitFor();
         await page.getByText("Prix à confirmer", {exact:true}).waitFor();
