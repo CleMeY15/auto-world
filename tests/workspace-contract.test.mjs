@@ -116,7 +116,7 @@ test("declares every architecture boundary as a private workspace package", () =
       assert.equal(manifest.exports["./styles.css"], "./dist/styles.css");
     } else assert.deepEqual(manifest.scripts, activeContract ? {
       build: `${dependencyBuild}tsc -p tsconfig.json`,
-      lint: connector ? "eslint src test test-support --max-warnings=0" : "eslint src test --max-warnings=0",
+      lint: `eslint src test${connector ? " test-support" : ""}${registry ? " bin" : ""} --max-warnings=0`,
       typecheck: `${dependencyBuild}tsc -p tsconfig.test.json --noEmit`,
       test: "pnpm run build && node --test test/*.test.mjs",
     } : {
