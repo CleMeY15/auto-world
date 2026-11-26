@@ -41,12 +41,30 @@
              modele: None,
 --- a/src/structured.rs
 +++ b/src/structured.rs
-@@ -46,6 +46,30 @@
-         }
+@@ -28,12 +28,13 @@
+     {
+         return None;
      }
+-    if ad["attributes"].as_array().is_some_and(|attrs| {
+-        attrs
+-            .iter()
+-            .any(|attr| attr["key"] == "car_contract" && attr["value_label"] != "Non")
+-    }) {
+-        return None;
++    if let Some(attributes) = ad.get("attributes") {
++        for attr in attributes.as_array()? {
++            let key = attr.get("key")?.as_str()?;
++            if key == "car_contract" && attr.get("value_label")?.as_str()? != "Non" {
++                return None;
++            }
++        }
+     }
+     let [amount] = ad["price"].as_array()?.as_slice() else {
+         return None;
+@@ -48,6 +49,30 @@
      Some(amount)
-+}
-+
+ }
+ 
 +#[derive(Clone, Debug, serde::Serialize)]
 +pub struct SalePriceEvidence {
 +    schema: &'static str,
@@ -69,10 +87,36 @@
 +        currency: "EUR",
 +        amount_minor: cents,
 +    })
- }
-
++}
++
  pub(crate) fn prices(doc: &Html) -> Option<HashMap<String, Option<u64>>> {
-@@ -98,6 +122,14 @@
+     let data = page_data(doc)?;
+     let ads = data
+@@ -75,6 +100,23 @@
+     use serde_json::json;
+ 
+     #[test]
++    fn malformed_contract_attributes_cannot_attest_a_sale_price() {
++        let mut offer = json!({"ad_type": "offer", "price": [499], "price_cents": 49900});
++        assert_eq!(super::sale_price(&offer), Some(499));
++        for attributes in [
++            json!({"key": "car_contract", "value_label": "Oui"}),
++            json!(null), json!("invalid"), json!([null]), json!([{}]),
++            json!([{"key": "car_contract"}]),
++            json!([{"key": "car_contract", "value_label": "Oui"}]),
++        ] {
++            offer["attributes"] = attributes;
++            assert_eq!(super::sale_price(&offer), None);
++        }
++        offer["attributes"] = json!([{"key": "car_contract", "value_label": "Non"}]);
++        assert_eq!(super::sale_price(&offer), Some(499));
++    }
++
++    #[test]
+     fn source_prices_are_joined_by_id_and_only_sale_prices_are_exported() {
+         let ads = json!([
+             {"list_id": 3, "ad_type":"offer","price":[26900],"price_cents":2690000},
+@@ -98,6 +140,14 @@
          assert_eq!(identifiable.len(), 9);
          assert!(identifiable[0].url.as_ref().unwrap().ends_with("/3"));
          assert_eq!(identifiable[0].prix.as_deref(), Some("26900"));

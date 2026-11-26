@@ -12,7 +12,7 @@ Le [SELECT du catalogue privé](catalog_project.sql) joint la vue existante des 
 
 ### Prix de vente dans les prochains exports
 
-Le champ facultatif `sale_price_evidence` conserve la valeur de vente issue de `searchData.ads` pour l’offre Leboncoin portant le même `list_id`. Le producteur joint par identifiant, écarte les demandes, les contrats de location, les prix ambigus et les devises étrangères. Pour le marché FR il attend un montant entier en euros dans la liste `price` et vérifie `price_cents` lorsque la source le fournit. Il convertit le montant en centimes une seule fois. Le champ est omis quand seul le texte d’une carte donne un prix.
+Le champ facultatif `sale_price_evidence` conserve la valeur de vente issue de `searchData.ads` pour l’offre Leboncoin portant le même `list_id`. Le producteur joint par identifiant, écarte les demandes, les contrats de location, les prix ambigus et les devises étrangères. Pour le marché FR il attend un montant entier en euros dans la liste `price` et vérifie `price_cents` lorsque la source le fournit. Il convertit le montant en centimes une seule fois. Si la source fournit des attributs illisibles ou un contrat dont la valeur est inconnue, le producteur omet la preuve de prix. Il l’omet aussi quand seul le texte de la carte donne un montant.
 
 Exemple synthétique pour une ligne dont `source_listing_id` vaut `"11"` et `prix` vaut `"12950"`.
 
