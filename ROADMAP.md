@@ -4,6 +4,10 @@
 
 # ROADMAP MASTER — Auto World Search
 
+## Intégration privée du scraper Rust
+
+L’import des fichiers JSON natifs du scraper utilise le schéma Leboncoin existant dans PostgreSQL. La recette porte sur les galeries ordonnées, la provenance d’export et le rejeu sans doublon. [Raccordement et tests](connectors/leboncoin-spike/rust-export/README.md)
+
 ## Diagnostic d'accès — continuité du contexte navigateur
 
 22 novembre 2026, [TASK-0137](roadmap/tasks/TASK-0137-leboncoin-autonomous.md) : l'audit du Camofox épinglé révèle que fermer le dernier onglet peut laisser son nettoyage périodique détruire la session entre deux fiches. Une voie séparée avec garde locale de continuité passe 117 tests hors réseau et le lint ; [analyse et portée](docs/validation/TASK-0137-session-continuity.md). Ce mécanisme ne démontre pas la cause du 403, ni une collecte régulière ou exhaustive. Les 22 annonces importées restent le dernier résultat réel.

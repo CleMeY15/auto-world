@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for new local Rust export files
+
+[Timer]
+OnStartupSec=15s
+OnUnitInactiveSec=1min
+AccuracySec=5s
+Unit=autofind-rust-exports.service
+
+[Install]
+WantedBy=timers.target
