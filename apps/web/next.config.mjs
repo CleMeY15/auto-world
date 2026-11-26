@@ -10,6 +10,12 @@ export default {
   turbopack: { root },
   async headers() {
     return [{
+      source: "/catalogue/:path*",
+      headers: [
+        { key: "X-DNS-Prefetch-Control", value: "off" },
+        { key: "Content-Security-Policy", value: "img-src 'self' https://img.leboncoin.fr/api/v1/lbcpb1/images/" },
+      ],
+    }, {
       source: "/carte-grise",
       headers: [{ key: "X-DNS-Prefetch-Control", value: "off" }],
     }, {

@@ -1,9 +1,11 @@
+import { privateCatalogEnabled } from "../catalogue/mode.ts";
+
 export type DemoBackendMode = "offline" | "prototype" | "disabled";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
 export function resolveDemoBackendMode(environment: Environment = process.env): DemoBackendMode {
-  if (environment.AUTO_WORLD_DEMO !== "1") return "disabled";
+  if (privateCatalogEnabled(environment) || environment.AUTO_WORLD_DEMO !== "1") return "disabled";
   const requested = environment.AUTO_WORLD_WEB_BACKEND;
   if (requested === undefined || requested === "" || requested === "offline") return "offline";
   if (requested === "prototype") return "prototype";

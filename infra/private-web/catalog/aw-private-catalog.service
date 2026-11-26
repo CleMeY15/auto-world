@@ -1,0 +1,25 @@
+[Unit]
+Description=AutoFind read-only PostgreSQL catalogue
+Requires=aw-private-catalog.socket
+After=aw-private-catalog.socket
+
+[Service]
+User=aw-private-catalog
+DynamicUser=yes
+WorkingDirectory=/opt/aw-private-product/services/private-catalog
+Environment="PATH=/opt/aw-private-node/bin:/usr/bin:/bin"
+Environment=AUTOFIND_PRIVATE_CATALOG=1 PGSERVICE=af_rust_export_reader PGSERVICEFILE=%d/pg_service.conf PYTHONDONTWRITEBYTECODE=1
+Environment=AUTOFIND_SOURCE_REGISTRY=/etc/aw-private-web/src_leboncoin_fr.json
+Environment=AUTOFIND_CATALOG_EVIDENCE=/etc/aw-private-web/catalog-authorization
+LoadCredential=pg_service.conf:/etc/aw-private-web/catalog-readonly.conf
+Sockets=aw-private-catalog.socket
+ExecStart=/usr/bin/python3 -m gunicorn --bind unix:/run/aw-private-catalog/reader.sock --no-control-socket --workers 2 catalog_reader:application
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+Restart=on-failure

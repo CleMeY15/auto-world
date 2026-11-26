@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+if [ "${AUTOFIND_PRIVATE_CATALOG:-}" = 1 ]; then
+    exec /usr/bin/python3 -I -B "$(dirname "$0")/catalog_preflight.py"
+fi
 # Requires the reviewed reports build and the offline synthetic DTO authority.
 product() {
     curl -fsS --max-time 3 --unix-socket /run/aw-private-product/web.sock -H 'Host: 127.0.0.1:3130' "http://localhost$1"

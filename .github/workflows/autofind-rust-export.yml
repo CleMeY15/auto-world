@@ -5,6 +5,8 @@ on:
       - '.github/workflows/autofind-rust-export.yml'
       - 'connectors/leboncoin-spike/rust-export/**'
       - 'connectors/leboncoin-spike/batch-store.py'
+      - 'services/private-catalog/**'
+      - 'infra/private-web/**'
 permissions:
   contents: read
 jobs:
@@ -18,7 +20,7 @@ jobs:
       - name: Install the PostgreSQL driver
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y python3-psycopg2
+          sudo apt-get install -y python3-psycopg2 python3-django
       - name: Test native export ingestion with synthetic files
         env:
           AUTOFIND_TEST_POSTGRES_IMAGE: postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
@@ -26,3 +28,9 @@ jobs:
         run: |
           docker pull "$AUTOFIND_TEST_POSTGRES_IMAGE"
           /usr/bin/python3 -m unittest discover -v
+
+      - name: Test the private reader, session gateway and HTTPS cutover
+        run: |
+          /usr/bin/python3 -m unittest discover -v -s services/private-catalog
+          /usr/bin/python3 infra/private-web/test/catalog.py
+          /usr/bin/python3 infra/private-web/test/catalog_release.py

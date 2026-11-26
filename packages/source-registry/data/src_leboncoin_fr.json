@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "sourceId": "src_leboncoin_fr",
+  "revisions": [
+    {
+      "revision": 1,
+      "state": "disabled",
+      "event": {
+        "eventId": "aud_leboncoin_fr_genesis",
+        "kind": "create",
+        "actorRef": "actor_codex",
+        "at": "2026-11-26T15:15:41.893Z",
+        "reasonRef": "reason_leboncoin_fr_catalog_candidate"
+      },
+      "configuration": {
+        "displayName": "Leboncoin France",
+        "territories": [
+          "FR"
+        ],
+        "acquisitionMethods": [
+          "crawl"
+        ],
+        "credentials": {
+          "kind": "none"
+        },
+        "legalStatus": "unknown",
+        "policy": null,
+        "operations": {
+          "incremental": false,
+          "fullReconcileIntervalSeconds": 604800,
+          "deletionMode": "explicit_tombstone",
+          "deletionPropagationSeconds": 86400,
+          "freshnessSeconds": 3600,
+          "requestsPerMinute": 1,
+          "concurrency": 1,
+          "timeoutMs": 30000,
+          "maxRetries": 0
+        },
+        "healthPolicy": {
+          "maxSampleAgeSeconds": 300,
+          "maxSuccessAgeSeconds": 3600,
+          "maxErrorBps": 0,
+          "maxParseErrorBps": 0,
+          "maxStaleBps": 0,
+          "maxLatencyP95Ms": 5000
+        }
+      }
+    }
+  ]
+}
