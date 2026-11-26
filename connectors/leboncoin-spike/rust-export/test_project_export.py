@@ -43,6 +43,11 @@ def synthetic_row(observed, key="11"):
             "prix": "12950", "boite": "AUTO", "carburant": "DIESEL"}
 
 
+def sale_evidence(key):
+    return {"schema": "searchData.ads.offer.price/v1", "list_id": key,
+            "currency": "EUR", "amount_minor": 1295000}
+
+
 class ExportTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -58,6 +63,22 @@ class ExportTests(unittest.TestCase):
         self.path = self.directory / "rust.json"
         self.path.write_text(json.dumps([self.row], indent=2))
         os.utime(self.path, (self.exported.timestamp(), self.exported.timestamp()))
+
+    def test_structured_euro_price_is_bound_to_the_offer(self):
+        evidence = sale_evidence("11")
+        def price(row):
+            rows, _ = project(json.dumps([row]).encode(), self.exported, "file_mtime", self.policy, self.now)
+            return rows[0]["price_amount_minor"]
+        self.assertIsNone(price(self.row))
+        self.assertEqual(price(self.row | {"sale_price_evidence": evidence}), 1295000)
+        for invalid in (None, evidence | {"schema": "unknown"}, evidence | {"list_id": "12"},
+                        evidence | {"currency": "CHF"}, evidence | {"extra": "private"},
+                        *(evidence | {"amount_minor": value} for value in
+                          (True, "1295000", 12950.0, 0, -100, 1295001, 12950, 9007199254741000))):
+            with self.subTest(invalid=invalid), self.assertRaises(Rejected):
+                price(self.row | {"sale_price_evidence": invalid})
+        with self.assertRaisesRegex(Rejected, "invalid_sale_price_amount"):
+            price(self.row | {"prix": "299", "sale_price_evidence": evidence})
 
     def test_bound_projection_and_file_time(self):
         unknown = synthetic_row(self.observed, "12") | {"images": None, "nb_photos": None, "media": None,
@@ -128,6 +149,9 @@ class ExportTests(unittest.TestCase):
     @unittest.skipUnless(os.getenv("AUTOFIND_TEST_POSTGRES_IMAGE"), "requires disposable local PostgreSQL")
     def test_concurrent_import_exact_readback_and_replay_after_mtime_change(self):
         import psycopg2
+        priced = synthetic_row(self.observed, "12") | {"sale_price_evidence": sale_evidence("12")}
+        self.path.write_text(json.dumps([self.row, priced]))
+        os.utime(self.path, (self.exported.timestamp(), self.exported.timestamp()))
         sock = self.directory / "socket"
         sock.mkdir()
         sock.chmod(0o777)
@@ -178,8 +202,8 @@ class ExportTests(unittest.TestCase):
         with closing(psycopg2.connect(host=str(sock), user="postgres", dbname="autoworld")) as db, db, db.cursor() as cur:
             cur.execute("SELECT raw_bytes FROM aw_acquisition_trial.rust_exports")
             self.assertEqual([bytes(r[0]) for r in cur], [self.path.read_bytes()])
-            cur.execute("SELECT source_listing_id, model, images, price_amount_minor FROM aw_acquisition_trial.rust_export_listings")
-            self.assertEqual(cur.fetchall(), [("11", "208", [PHOTO], None)])
+            cur.execute("SELECT source_listing_id, model, images, price_amount_minor FROM aw_acquisition_trial.rust_export_listings ORDER BY 1")
+            self.assertEqual(cur.fetchall(), [("11", "208", [PHOTO], None), ("12", "208", [PHOTO], 1295000)])
 
 
 if __name__ == "__main__":

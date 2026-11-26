@@ -4,11 +4,31 @@ Le scraper conserve son mode d’acquisition et écrit ses fichiers `listings_ru
 
 ### Stockage et lecture
 
-La table `rust_exports` conserve une seule copie des octets de chaque export, son SHA-256, sa date, son échéance et sa projection validée. La vue `rust_export_listings` fournit une ligne par identifiant et les URL des photos dans leur ordre. L’export original conserve aussi les champs natifs, dont le prix déclaré par le scraper. Un prix issu du seul export reste inconnu dans la projection de prix vérifiés.
+La table `rust_exports` conserve une seule copie des octets de chaque export, son SHA-256, sa date, son échéance et sa projection validée. La vue `rust_export_listings` fournit une ligne par identifiant et les URL des photos dans leur ordre. L’export original conserve aussi les champs natifs, dont le prix déclaré par le scraper. Le texte natif `prix` des exports historiques reste privé. Le lecteur publie le prix d’une offre Rust lorsque le producteur fournit les éléments structurés décrits ci-dessous.
 
 La date par défaut correspond à la dernière écriture du fichier par le producteur. L’option `--exported-at` accepte une heure de fin d’export attestée. Les références photo conservent leurs propres heures d’observation et d’expiration. Un rejeu des mêmes octets conserve la première date enregistrée. L’absence d’une annonce dans un fichier partiel ne produit aucun retrait.
 
 Le [SELECT du catalogue privé](catalog_project.sql) joint la vue existante des observations DOM et les nouveaux exports, applique les règles d’expiration et donne la priorité à la fiche source vérifiée pour le prix et les retraits. Il expose l’origine de la ligne et la signification de la date. Les photos restent hébergées à la source.
+
+### Prix de vente dans les prochains exports
+
+Le champ facultatif `sale_price_evidence` conserve la valeur de vente issue de `searchData.ads` pour l’offre Leboncoin portant le même `list_id`. Le producteur joint par identifiant, écarte les demandes, les contrats de location, les prix ambigus et les devises étrangères. Pour le marché FR il attend un montant entier en euros dans la liste `price` et vérifie `price_cents` lorsque la source le fournit. Il convertit le montant en centimes une seule fois. Le champ est omis quand seul le texte d’une carte donne un prix.
+
+Exemple synthétique pour une ligne dont `source_listing_id` vaut `"11"` et `prix` vaut `"12950"`.
+
+```json
+{"schema":"searchData.ads.offer.price/v1","list_id":"11","currency":"EUR","amount_minor":1295000}
+```
+
+L’importeur exige l’égalité de l’identifiant et la concordance exacte de la somme en centimes avec les euros entiers de la ligne. Une preuve mal formée rejette l’export. Une archive historique, identifiée par son empreinte, conserve sa projection initiale et peut être rejouée. Aucun recalcul à partir du texte historique ne permettrait de distinguer dans toutes les cartes un prix de vente d’une mensualité ou de chiffres concaténés.
+
+#### Installation des deux composants
+
+1. Préparer le nouvel importeur en copiant ensemble `sync_exports.py`, `project_export.py` et `vehicle_labels.json` depuis la même révision validée dans un répertoire de livraison sur le VPS. Exécuter en mode contrôle fichier `project_export.py` sur un export synthétique avant la bascule. Faire pointer `IMPORT_TOOL` dans le fichier privé `~/.config/autofind-project-export/import.conf` vers le nouveau `sync_exports.py`. L’unité utilisateur relit ce chemin à chaque démarrage.
+2. Le [correctif du producteur Rust](producer-sale-price.patch) cible `src/parser.rs` et `src/structured.rs` du scraper existant sur le VPS. Leurs empreintes SHA-256 avant la modification sont respectivement `aa1676849b3d5316c2549665ffada10ddb52404f19c5fd55888da32216ce3a5a` et `70bd051ed151d0a30c7a9789a12e4855efbfcfa2070281df31f79a80496ecd71`. Vérifier les deux empreintes et appliquer le correctif depuis la racine du projet Cargo, une seule fois. Les sources du VPS déjà corrigées peuvent être contrôlées par application inverse à blanc.
+3. Compiler depuis ces sources avec le `Cargo.lock` du scraper, exécuter `cargo test --locked --offline` et vérifier le nouvel exécutable de release avec `--replay-page` sur une page synthétique locale contenant un prix de vente et une mensualité. Vérifier que l’invocation habituelle du scraper utilise ce binaire ou reconstruit ces sources. Le producteur et l’importeur peuvent alors traiter les prochains exports selon le cycle habituel d’admission des lots. Une mise en ligne du site Next seule ne met pas à jour ces deux composants.
+
+Pour un retour arrière, rétablir d’abord le producteur précédent. Conserver l’importeur compatible jusqu’au traitement des fichiers déjà produits avec le nouveau champ, puis rétablir l’ancien chemin `IMPORT_TOOL`. Les exports existants et la base sont conservés.
 
 ### Installation dans le projet existant
 
