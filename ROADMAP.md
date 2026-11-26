@@ -4,7 +4,9 @@
 
 Le candidat de livraison reprend les travaux des [PR 287](https://github.com/CleMeY15/auto-world/pull/287) et [288](https://github.com/CleMeY15/auto-world/pull/288) sur la base PostgreSQL du projet. La lecture privée a retrouvé 1 022 annonces sur onze pages. L’affichage sur le domaine dépend de l’admission des lots et de la recette du déployeur par Nexus. [Décision de publication](docs/decisions/ADR-0037-private-postgres-catalog.md)
 
-La version `94b80e91` du catalogue est en service. La correction des photos dans les résultats ajoute un affichage à la demande de la première photo référencée de chaque annonce. Le test navigateur du catalogue couvre le décodage des vignettes, les annonces sans photo, l’échec d’une image distante et le masquage sur mobile et ordinateur. Le retour arrière suit la procédure de publication du site privé.
+La version `ff9565e5` en service affiche les photos après activation. Dans la prochaine version, la liste et la fiche afficheront immédiatement la première photo de l’annonce. Le test navigateur couvre le décodage, les erreurs et la navigation dans la galerie sur mobile et ordinateur. La bascule utilise la recette connectée du déployeur.
+
+Les 22 prix publiés du lot DOM proviennent des observations de la source. Pour les exports Rust, le catalogue distingue le prix de vente structuré d’une chaîne extraite du texte de la carte. Une ancienne ligne sans preuve de prix conserve un montant inconnu. [Contrat de l’import Rust](connectors/leboncoin-spike/rust-export/README.md)
 
 TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
 accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded

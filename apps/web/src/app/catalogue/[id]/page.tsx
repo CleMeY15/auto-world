@@ -22,7 +22,8 @@ export default async function PublicationPage({ params, searchParams }: {
   }
   if (!item) notFound();
   return <>{back}<h1>{item.label}</h1>
-    <p className="catalogue-detail-price">{formatPrice(item.price)}</p>
+    <p className="catalogue-detail-price">{formatPrice(item)}</p>
+    {item.photos.length > 0 && <PhotoGallery label={item.label} photos={item.photos} />}
     <dl className="catalogue-facts">
       <dt>Année</dt><dd>{item.year ?? "Non renseignée"}</dd>
       <dt>Kilométrage</dt><dd>{item.km !== null ? formatKm(item.km) : "Non renseigné"}</dd>
@@ -30,15 +31,12 @@ export default async function PublicationPage({ params, searchParams }: {
       <dt>{item.dateKind === "file_export" ? "Exportée le" : "Annonce observée le"}</dt>
       <dd><time dateTime={item.observedAt}>{formatDate(item.observedAt)}</time></dd>
     </dl>
-    {item.photos.length > 0 && <>
-      <PhotoGallery label={item.label} photos={item.photos} />
-      <details className="catalogue-photos">
+    {item.photos.length > 0 && <details className="catalogue-photos">
       <summary>Liens vers les photos ({item.photos.length})</summary>
       <ol aria-label="Photos de l’annonce Leboncoin">{item.photos.map((url, index) =>
         <li key={url}><a className="site-nav" href={url} referrerPolicy="no-referrer" rel="external noreferrer">Photo {index + 1}</a></li>
       )}</ol>
-      </details>
-    </>}
+    </details>}
     <a className="aw-button" href={item.sourceUrl} referrerPolicy="no-referrer" rel="external noreferrer">Voir l’annonce sur Leboncoin</a>
   </>;
 }
