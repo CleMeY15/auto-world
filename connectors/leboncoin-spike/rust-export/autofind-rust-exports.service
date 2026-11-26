@@ -1,0 +1,9 @@
+[Unit]
+Description=Import completed Rust exports into the existing AutoFind PostgreSQL database
+
+[Service]
+Type=oneshot
+UMask=0077
+NoNewPrivileges=yes
+EnvironmentFile=%h/.config/autofind-project-export/import.conf
+ExecStart=/usr/bin/python3 -B ${IMPORT_TOOL} --directory ${EXPORT_DIRECTORY} --since ${EXPORT_SINCE} --state ${EXPORT_STATE} --policy ${EXPORT_POLICY} --service af_rust_export_writer

@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Catalogue privé AutoFind — 26 novembre 2026
+
+Le candidat de livraison reprend les travaux des [PR 287](https://github.com/CleMeY15/auto-world/pull/287) et [288](https://github.com/CleMeY15/auto-world/pull/288) sur la base PostgreSQL du projet. La lecture privée a retrouvé 1 022 annonces sur onze pages. L’affichage sur le domaine dépend de l’admission des lots et de la recette du déployeur par Nexus. [Décision de publication](docs/decisions/ADR-0037-private-postgres-catalog.md)
+
 TASK-0005, 18 November 2026: [PR252](https://github.com/CleMeY15/auto-world/pull/252)
 accepted the PostgreSQL/Gosu capture plan on main `9bbf4d23`. The bounded
 two-solve [implementation and validation](docs/validation/TASK-0005-postgres-gosu-material-capture.md#implementation-and-local-verification)
