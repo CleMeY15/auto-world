@@ -1,0 +1,9 @@
+[Unit]
+Description=AutoFind private catalogue socket
+
+[Socket]
+ListenStream=/run/aw-private-catalog/reader.sock
+SocketGroup=aw-private-product
+SocketMode=0660
+DirectoryMode=0755
+RemoveOnStop=yes
