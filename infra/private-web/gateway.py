@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
@@ -14,6 +15,11 @@ PAGES = {"/", "/demo", "/carte-grise", "/historique-vehicule", "/importation"}
 REPORT = re.compile(r"/demo/rapports/[\w-]+/[\w-]+", re.ASCII)
 STATIC = re.compile(r"/_next/static/(?:[\w.@~-]+/)*[\w.@~-]+", re.ASCII)
 API = re.compile(r"/api/demo/(?:v2/catalog|(?:v2/|v3/)?search|(?:v2/)?listings/[\w-]+)", re.ASCII)
+CATALOG = re.compile(r"/catalogue(?:/[1-9][0-9]{0,19})?", re.ASCII)
+
+
+def catalog_enabled():
+    return os.environ.get("AUTOFIND_PRIVATE_CATALOG") == "1"
 
 
 def page_target(value):
@@ -23,7 +29,8 @@ def page_target(value):
     if "\\" in value or any(ord(c) < 32 or ord(c) == 127 for c in value):
         return False
     pathname = urlsplit(value).path
-    return pathname in PAGES or bool(REPORT.fullmatch(pathname))
+    detail = CATALOG if catalog_enabled() else REPORT
+    return pathname in PAGES or bool(detail.fullmatch(pathname))
 
 
 class PrivateLogin(LoginView):
@@ -31,7 +38,11 @@ class PrivateLogin(LoginView):
 
     def get_redirect_url(self):
         target = super().get_redirect_url()
-        return target if page_target(target) else "/demo"
+        if page_target(target):
+            if catalog_enabled() and target in {"/", "/demo"}:
+                return "/catalogue"
+            return target
+        return "/catalogue" if catalog_enabled() else "/demo"
 
 
 def check(request):
@@ -39,7 +50,7 @@ def check(request):
         return HttpResponse(status=401)
     target = request.headers.get("X-Original-URI", "")
     pathname = target.partition("?")[0]
-    permitted = (page_target(target) or API.fullmatch(pathname) or pathname == "/icon.svg"
+    permitted = (page_target(target) or (not catalog_enabled() and API.fullmatch(pathname)) or pathname == "/icon.svg"
                  or (STATIC.fullmatch(pathname) and ".." not in pathname and "/./" not in pathname))
     return HttpResponse(status=204 if permitted else 403)
 

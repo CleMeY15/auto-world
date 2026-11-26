@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { privateCatalogEnabled } from "../catalogue/mode";
 import { connection } from "next/server";
 
 import { resolveDemoBackendMode } from "../demo/backend";
@@ -7,6 +9,7 @@ import { FoundationPreview } from "./preview";
 
 export default async function HomePage() {
   await connection();
+  if (privateCatalogEnabled()) redirect("/catalogue");
   const demoEnabled = resolveDemoBackendMode() !== "disabled";
 
   return (

@@ -4,6 +4,10 @@
 
 # ROADMAP MASTER — Auto World Search
 
+## Catalogue PostgreSQL du site privé — 26 novembre 2026
+
+Candidat testé sur la base existante. Le changement concerne le catalogue après connexion, ses fiches et la recherche par marque, modèle, année ou numéro. La recette PostgreSQL privée a relu 1 022 annonces. L’admission des lots et la publication de la version sur le domaine restent en attente. [Décision et preuves](docs/decisions/ADR-0037-private-postgres-catalog.md)
+
 ## Intégration privée du scraper Rust
 
 L’import des fichiers JSON natifs du scraper utilise le schéma Leboncoin existant dans PostgreSQL. La recette porte sur les galeries ordonnées, la provenance d’export et le rejeu sans doublon. [Raccordement et tests](connectors/leboncoin-spike/rust-export/README.md)

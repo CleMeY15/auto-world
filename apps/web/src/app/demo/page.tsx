@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { privateCatalogEnabled } from "../../catalogue/mode";
 import { connection } from "next/server";
 
 import { demoBackendLabel, resolveDemoBackendMode } from "../../demo/backend";
@@ -12,6 +14,7 @@ export const metadata = {
 
 export default async function DemoPage() {
   await connection();
+  if (privateCatalogEnabled()) redirect("/catalogue");
   const backendMode = resolveDemoBackendMode();
   const enabled = backendMode !== "disabled";
   const storageNamespace = backendMode === "prototype" ? "prototype" : "offline";
