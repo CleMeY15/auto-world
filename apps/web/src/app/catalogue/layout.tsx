@@ -7,7 +7,7 @@ import "./catalogue.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Catalogue privé — AutoFind", description: "Annonces automobiles observées par AutoFind.",
+  title: "Catalogue privé — AutoFindex", description: "Annonces automobiles observées par AutoFindex.",
   robots: { index: false, follow: false }, referrer: "no-referrer",
 };
 export default function CatalogLayout({ children }: { children: ReactNode }) {
@@ -16,6 +16,7 @@ export default function CatalogLayout({ children }: { children: ReactNode }) {
     <a href="#catalogue" className="site-skip">Aller au contenu</a>
     <header className="site-container site-header catalogue-width">
       <ProductWordmark />
+      <nav aria-label="Catalogue"><a className="catalogue-nav-link" href="/catalogue">Annonces</a></nav>
     </header>
     <main id="catalogue" tabIndex={-1} className="site-container catalogue-width catalogue-main">{children}</main>
     <footer className="site-container catalogue-width">

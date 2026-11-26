@@ -3,7 +3,7 @@ import { ProductWordmark } from "../product-wordmark";
 import "../guide.css";
 
 export const metadata: Metadata = {
-  title: "Demander un rapport HistoVec — AutoFind",
+  title: "Demander un rapport HistoVec — AutoFindex",
   description: "Découvrez comment demander au vendeur le rapport HistoVec d’un véhicule et consulter le service officiel.",
 };
 
@@ -50,11 +50,11 @@ export default function HistoryGuidePage() {
           </section>
         </div>
         <section className="guide-support history-guide-support" aria-label="Informations pratiques">
-          <p>AutoFind ne récupère ni ne vérifie le rapport. L’historique administratif ne garantit pas l’état du véhicule et ne remplace pas les documents et vérifications nécessaires à la vente.</p>
+          <p>AutoFindex ne récupère ni ne vérifie le rapport. L’historique administratif ne garantit pas l’état du véhicule et ne remplace pas les documents et vérifications nécessaires à la vente.</p>
           <details>
             <summary>Besoin d’aide pour consulter HistoVec ?</summary>
             <p>Seul le titulaire actuel d’une carte grise valide peut générer le rapport. Si vous achetez le véhicule, demandez son lien au vendeur ou au titulaire : aucune plaque ni information personnelle n’est à saisir ici.</p>
-            <p>Une connexion internet est nécessaire pour ouvrir HistoVec. Si le service ne s’ouvre pas, réessayez plus tard. AutoFind ne peut pas vérifier sa disponibilité.</p>
+            <p>Une connexion internet est nécessaire pour ouvrir HistoVec. Si le service ne s’ouvre pas, réessayez plus tard. AutoFindex ne peut pas vérifier sa disponibilité.</p>
             <a
               className="guide-help"
               id="history-help"
@@ -68,7 +68,7 @@ export default function HistoryGuidePage() {
           </details>
         </section>
       </main>
-      <footer className="site-footer site-container">AutoFind</footer>
+      <footer className="site-footer site-container">AutoFindex</footer>
     </>
   );
 }

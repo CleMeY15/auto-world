@@ -1,15 +1,16 @@
-# AutoFind design contract
+# AutoFindex design contract
 
 ## Source of truth
 - Status: Active. Product increments through TASK-0117 are accepted on main through their delivery checkpoints. TASK-0118 adds name-only editing under its own [task gates](roadmap/tasks/TASK-0118-rename-saved-comparisons.md), without infrastructure admission.
-- Last refreshed 2026-11-18 for the signed-in AutoFind web experience.
-- Primary product surfaces: responsive web search, results, synthetic listing detail, local saved searches and listings. Native mobile comes later.
+- Updated 2026-11-26 for the AutoFindex landing page, member catalogue and vehicle detail.
+- Primary web surfaces include the public launch page, sign-in, authenticated PostgreSQL catalogue, vehicle detail and member tools. The synthetic prototype retains its own routes.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
 ## Brand
-- Personality: calm, precise, premium and helpful; clarity over decoration.
-- Trust signals: visible synthetic/demo label, observation provenance, explicit unknowns and reversible actions.
-- Avoid: copying Apple assets or layouts, invented car imagery/specifications, fake deal/trust badges, dashboard clutter and dark patterns.
+
+The owner’s [AutoFindex presentation](https://autofindex-lancement-terre.paris-clement.chatgpt.site/) supplies the original wordmark, globe artwork and six-phase roadmap. Use the visual name **AutoFindex** across the public entry, sign-in, member catalogue, guides and page metadata.
+
+The landing page introduces the private catalogue and its current availability. The Earth illustration and roadmap belong to the public project presentation. International coverage, VIN archives and other projected capabilities carry their own roadmap status. Member listings use the photos and facts associated with their actual source.
 
 ## Product goals
 - Goals: understand a small search result quickly, narrow it by exact fictitious make/model/first-registration year, inspect separate canonical observations and authored-description evidence, then save and revisit it without losing context.
@@ -34,12 +35,12 @@
 - Tradeoff: the synthetic slice has less automotive detail than the target product, but never pretends placeholder content is verified inventory.
 
 ## Visual language
-- The private workspace opens on the same charcoal canvas, warm ivory type and papaya accent as the [AutoFind sign-in](infra/private-web/templates/access.html). Use the accent for primary actions, links, active controls and keyboard focus. The light variant uses warm paper with a darker orange for legibility. The private search and interface preview open in dark mode and offer Light and System. The static guides follow the device’s preference before the first paint. Success, warning and error retain their own text and semantic colors. Use [the shared tokens](packages/design-system/src/tokens.ts) for both appearances.
-- Typography: intentional platform-native stack—San Francisco through the iOS system UI font, Roboto through the Android system UI font, and Segoe UI Variable on Windows, with `system-ui` fallback. This is a branded performance/accessibility choice: instant offline rendering, familiar native reading rhythm and no copied/proprietary font asset or remote request. Distinction comes from a restrained large display line, precise weight/spacing and tabular price numerals, not a generic default paragraph style. Product/UX must reject it at TASK-0007 visual sign-off if the result lacks premium character; a self-hosted licensed typeface would then require a reviewed follow-up.
+- The member catalogue and sign-in use a petroleum canvas (#0b1319), raised navy surfaces (#111d25), ivory text (#fff8eb) and amber (#fba823) for actions and focus. The light variant uses a dark orange with the warm background. Status colors carry their existing semantic meaning. [Shared tokens](packages/design-system/src/tokens.ts)
+- Use Inter when available locally and the native UI font stack otherwise. Set prices and mileage in tabular numerals. The public page and the member header share the owner's original lettering.
 - Spacing/layout rhythm: consistent token scale, generous touch spacing and stable card geometry.
 - Use capsule buttons, compact field corners and thin separators. Reserve the entrance artwork for editorial surfaces. Listing evidence, histories and comparison rows take priority in the workspace.
 - Motion: brief, interruptible feedback; no transition may delay the primary action; honor reduced motion.
-- Imagery/iconography: no external seller media; use a clearly labeled local illustration/placeholder, never a photo implying an actual vehicle. Use one small, consistent line-icon family implemented from reviewed local vectors.
+- Imagery/iconography: synthetic routes use labeled local illustrations. Member results render only admitted source photos with attribution and a stable frame. Missing media has an explicit fallback. Use one small, consistent line-icon family implemented from reviewed local vectors.
 
 ## Components
 - Existing components to reuse: `@auto-world/design-system` Button, Field, Chip, Card, Skeleton and Banner; shared tokens and local Search/Bookmark/Filter/Back/Close vectors. `apps/web` demonstrates these primitives without vehicle data.

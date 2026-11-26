@@ -8,8 +8,8 @@ import { DemoApp } from "./demo-app";
 import "./demo.css";
 
 export const metadata = {
-  title: "Recherche synthétique — AutoFind",
-  description: "Démonstration locale de la recherche AutoFind sur des données synthétiques.",
+  title: "Recherche synthétique — AutoFindex",
+  description: "Démonstration locale de la recherche AutoFindex sur des données synthétiques.",
 };
 
 export default async function DemoPage() {
@@ -28,7 +28,7 @@ export default async function DemoPage() {
       </header>
       <DemoApp enabled={enabled} storageNamespace={storageNamespace} />
       <footer className="demo-footer demo-shell">
-        AutoFind · {backendMode === "prototype" ? "Prototype persistant local, données synthétiques uniquement." : "Données synthétiques uniquement."}
+        AutoFindex · {backendMode === "prototype" ? "Prototype persistant local, données synthétiques uniquement." : "Données synthétiques uniquement."}
         <nav className="site-tools" aria-label="Outils">
           <a className="site-nav" href="/carte-grise">Carte grise</a>
           <a className="site-nav" href="/historique-vehicule">Historique du véhicule</a>

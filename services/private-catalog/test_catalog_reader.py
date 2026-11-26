@@ -30,7 +30,10 @@ class CatalogTest(unittest.TestCase):
 
     def test_query_boundary(self):
         with patch.object(catalog, "publication_grant") as grant:
-            for query in ("limit=0", "limit=101", "after=", "after=1&after=2", "limit=1&sort=x", "q=%00", "q=" + "x" * 81, "bad"):
+            for query in ("limit=0", "limit=101", "after=", "after=1&after=2", "limit=1&sort=x", "q=%00", "q=" + "x" * 81, "bad",
+                          "brand=Renault&brand=Kia", "brand=%00", "priceMin=-1", "priceMax=12.5",
+                          "priceMin=2&priceMax=1", "yearMin=2020&yearMax=1999", "yearMax=1885",
+                          "yearMin=10000", "kmMax=9007199254740992", "priceMin=90071992547410"):
                 self.assertEqual(call(query=query)[0], "400 Bad Request")
             for path in (catalog.LIST + "/0", catalog.LIST + "/../12", "/demo"):
                 self.assertEqual(call(path)[0], "404 Not Found")
@@ -47,21 +50,21 @@ class CatalogTest(unittest.TestCase):
             with patch.object(catalog, "query_listings", return_value=rows) as query:
                 status, body, _ = call(query="limit=1&after=10&q=Clio")
                 self.assertEqual(status, "200 OK")
-                self.assertEqual(body, {"dataset": catalog.DATASET, "items": rows[:1], "next_cursor": "11"})
-                query.assert_called_once_with({}, "10", "", 2, "Clio")
+                self.assertEqual(body, {"dataset": catalog.DATASET, "items": rows[:1], "brands": catalog.BRANDS, "next_cursor": "11"})
+                query.assert_called_once_with({}, "10", "", 2, "Clio", catalog.filter_params({}))
                 query.return_value = [rows[0]]
                 self.assertEqual(call(catalog.LIST + "/11")[1], rows[0])
-                query.assert_called_with({}, "", "11", 1, "")
+                query.assert_called_with({}, "", "11", 1, "", catalog.filter_params({}))
                 query.return_value = []
                 self.assertEqual(call(catalog.LIST + "/11")[0], "404 Not Found")
-                self.assertEqual(call()[1], {"dataset": catalog.DATASET, "items": [], "next_cursor": None})
+                self.assertEqual(call()[1], {"dataset": catalog.DATASET, "items": [], "brands": catalog.BRANDS, "next_cursor": None})
                 query.side_effect = catalog.CatalogUnavailable("postgres_unavailable")
                 self.assertEqual(call()[0], "503 Service Unavailable")
             self.assertEqual(grant.call_count, 5)
 
     def test_list_and_detail_emit_only_controlled_make_model_pairs(self):
         base = {"source_listing_id": "123", "record_at": datetime.now(timezone.utc),
-                "record_time_kind": "source_capture", "year": None, "mileage": None,
+                "record_time_kind": "source_capture", "year": None, "mileage_km": None,
                 "price_amount_minor": None, "photo_references": []}
         for make, model, approved in [
             ("Renault", "Clio", ("Renault", "Clio")),
@@ -81,7 +84,7 @@ class CatalogTest(unittest.TestCase):
     def test_projection_keeps_only_published_fields_and_nulls(self):
         result = catalog.listing({"source_listing_id": "123", "record_at": datetime.now(timezone.utc),
                                   "record_time_kind": "file_export", "brand": "A", "model": "06 12 34 56 78",
-                                  "year": "2020", "mileage": {"unit": "mi", "amount": 1},
+                                  "year": "2020", "mileage_km": -1,
                                   "price_amount_minor": None, "photo_references": [], "private": "source text"})
         self.assertNotIn("private", result)
         self.assertEqual(result["source_url"], "https://www.leboncoin.fr/ad/voitures/123")

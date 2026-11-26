@@ -54,7 +54,13 @@ WITH candidates AS (
     ORDER BY source_id, source_listing_id, priority DESC, captured_at DESC
 ),
 projected AS (
-SELECT source_listing_id, record_origin, captured_at AS record_at, brand, model, year, mileage,
+SELECT source_listing_id, record_origin, captured_at AS record_at, brand, model,
+       CASE WHEN jsonb_typeof(year) = 'number' AND year::text ~ '^[0-9]{4}$' AND year::text >= '1886'
+            THEN year::text::integer END AS year,
+       CASE WHEN mileage->>'unit' = 'km' AND jsonb_typeof(mileage->'amount') = 'number'
+                 AND mileage->>'amount' ~ '^[0-9]{1,16}$'
+            THEN CASE WHEN (mileage->>'amount')::bigint <= 9007199254740991
+                      THEN (mileage->>'amount')::bigint END END AS mileage_km,
        CASE WHEN record_origin = 'rust_export' THEN 'file_export' ELSE 'source_capture' END AS record_time_kind,
        CASE WHEN price->>'currency' = 'EUR' AND jsonb_typeof(price->'amountMinor') = 'number'
                  AND price->>'amountMinor' ~ '^[0-9]{1,16}$'
@@ -76,7 +82,7 @@ WHERE is_listing AND CURRENT_TIMESTAMP >= %(valid_from)s::timestamptz
     SELECT key AS brand, value AS models FROM jsonb_each(%(vehicle_vocabulary)s::jsonb)
 ), labelled AS (
     SELECT p.source_listing_id, p.record_origin, p.record_at, p.record_time_kind,
-           v.brand, m.model, p.year, p.mileage, p.price_amount_minor, p.photo_references
+           v.brand, m.model, p.year, p.mileage_km, p.price_amount_minor, p.photo_references
     FROM projected p
     LEFT JOIN vocabulary v ON jsonb_typeof(p.brand) = 'string'
                           AND lower(v.brand) = lower(btrim(p.brand #>> '{}'))
@@ -87,9 +93,12 @@ WHERE is_listing AND CURRENT_TIMESTAMP >= %(valid_from)s::timestamptz
 )
 SELECT * FROM labelled
 WHERE source_listing_id COLLATE "C" > %(after)s
-  AND (%(search)s = '' OR strpos(lower(concat_ws(' ', brand, model,
-         CASE WHEN jsonb_typeof(year) = 'number' AND year::text ~ '^[0-9]{4}$' AND year::text >= '1886'
-              THEN year::text END,
-         source_listing_id)), lower(%(search)s)) > 0)
+  AND (%(search)s = '' OR strpos(lower(concat_ws(' ', brand, model, year, source_listing_id)), lower(%(search)s)) > 0)
+  AND (%(brand)s = '' OR lower(brand) = lower(%(brand)s))
+  AND (%(priceMin)s::bigint IS NULL OR price_amount_minor >= %(priceMin)s::bigint * 100)
+  AND (%(priceMax)s::bigint IS NULL OR price_amount_minor <= %(priceMax)s::bigint * 100)
+  AND (%(yearMin)s::integer IS NULL OR year >= %(yearMin)s)
+  AND (%(yearMax)s::integer IS NULL OR year <= %(yearMax)s)
+  AND (%(kmMax)s::bigint IS NULL OR mileage_km <= %(kmMax)s)
 ORDER BY source_listing_id COLLATE "C"
 LIMIT %(page_size)s::integer;

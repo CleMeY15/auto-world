@@ -1,4 +1,4 @@
-"""Authenticated AutoFind site's internal PostgreSQL reader, served over a Unix socket."""
+"""Authenticated AutoFindex site's internal PostgreSQL reader, served over a Unix socket."""
 import json
 import logging
 import os
@@ -18,6 +18,13 @@ GRANT_CHECK = ROOT / "packages/source-registry/bin/catalog-publication-grant.mjs
 PROJECTION = ROOT / "connectors/leboncoin-spike/rust-export/catalog_page.sql"
 VEHICLE_VOCABULARY = PROJECTION.with_name("vehicle_labels.json").read_text(encoding="utf-8")
 VEHICLE_MODELS = json.loads(VEHICLE_VOCABULARY)
+BRANDS = sorted(VEHICLE_MODELS)
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
+BOUNDS = {
+    "priceMin": (0, MAX_SAFE_INTEGER // 100), "priceMax": (0, MAX_SAFE_INTEGER // 100),
+    "yearMin": (1886, 9999), "yearMax": (1886, 9999), "kmMax": (0, MAX_SAFE_INTEGER),
+}
+LIST_PARAMS = {"after", "limit", "q", "brand", *BOUNDS}
 QUERY = PROJECTION.read_text(encoding="utf-8")
 SERVICE = "af_rust_export_reader"
 DATASET = "autoworld/leboncoin"
@@ -49,8 +56,7 @@ def publication_grant():
 
 def listing(row):
     listing_id = row["source_listing_id"]
-    mileage = row["mileage"]
-    km = mileage.get("amount") if isinstance(mileage, dict) and mileage.get("unit") == "km" else None
+    km = row["mileage_km"]
     year = row["year"]
     make = row["brand"] if isinstance(row["brand"], str) and row["brand"] in VEHICLE_MODELS else None
     model = row["model"] if make and row["model"] in VEHICLE_MODELS[make] else None
@@ -63,14 +69,34 @@ def listing(row):
         "brand": make,
         "model": model,
         "year": year if type(year) is int and 1886 <= year <= 9999 else None,
-        "mileage_km": km if type(km) is int and 0 <= km <= 9_007_199_254_740_991 else None,
+        "mileage_km": km if type(km) is int and 0 <= km <= MAX_SAFE_INTEGER else None,
         "price_amount_minor": row["price_amount_minor"],
         "price_currency": "EUR" if row["price_amount_minor"] is not None else None,
         "images": row["photo_references"],
     }
 
 
-def query_listings(grant, after, listing_id, count, search=""):
+def filter_params(params):
+    brand = params.get("brand", "")
+    if brand and (len(brand) > 50 or not brand[0].isalnum()
+                  or any(not c.isalnum() and c not in " .&-" for c in brand)):
+        raise ValueError
+    filters = {"brand": brand}
+    for key, (minimum, maximum) in BOUNDS.items():
+        raw = params.get(key, "")
+        if not raw:
+            filters[key] = None
+            continue
+        if not re.fullmatch(r"[0-9]{1,16}", raw) or not minimum <= int(raw) <= maximum:
+            raise ValueError
+        filters[key] = int(raw)
+    for low, high in (("priceMin", "priceMax"), ("yearMin", "yearMax")):
+        if filters[low] is not None and filters[high] is not None and filters[low] > filters[high]:
+            raise ValueError
+    return filters
+
+
+def query_listings(grant, after, listing_id, count, search, filters):
     try:
         with closing(psycopg2.connect(service=SERVICE, connect_timeout=3,
                                       application_name="autofind-private-catalog")) as connection:
@@ -83,7 +109,7 @@ def query_listings(grant, after, listing_id, count, search=""):
                 identity = cursor.fetchone()
                 if identity["database"] != "autoworld" or identity["role"] != SERVICE:
                     raise CatalogUnavailable("unexpected_database_identity")
-                cursor.execute(QUERY, {**grant, "after": after, "listing_id": listing_id, "page_size": count,
+                cursor.execute(QUERY, {**grant, **filters, "after": after, "listing_id": listing_id, "page_size": count,
                                        "search": search, "vehicle_vocabulary": VEHICLE_VOCABULARY})
                 return [listing(row) for row in cursor.fetchall()]
     except psycopg2.Error:
@@ -95,11 +121,12 @@ def read(path, query):
     after = ""
     limit = 20
     search = ""
+    params = {}
     if path == LIST:
         try:
-            pairs = parse_qsl(query, strict_parsing=True, max_num_fields=3, keep_blank_values=True)
+            pairs = parse_qsl(query, strict_parsing=True, max_num_fields=len(LIST_PARAMS), keep_blank_values=True)
             params = dict(pairs)
-            if len(pairs) != len(params) or params.keys() - {"after", "limit", "q"}:
+            if len(pairs) != len(params) or params.keys() - LIST_PARAMS:
                 raise ValueError
             search = params.get("q", "")
             if len(search) > 80 or any(not c.isprintable() for c in search):
@@ -120,11 +147,15 @@ def read(path, query):
     else:
         return "404 Not Found", {"error": "not_found"}
 
+    try:
+        filters = filter_params(params)
+    except ValueError:
+        return "400 Bad Request", {"error": "invalid_query"}
     grant = publication_grant()
-    rows = query_listings(grant, after, listing_id, 1 if listing_id else limit + 1, search)
+    rows = query_listings(grant, after, listing_id, 1 if listing_id else limit + 1, search, filters)
     if listing_id:
         return ("200 OK", rows[0]) if rows else ("404 Not Found", {"error": "not_found"})
-    return "200 OK", {"dataset": DATASET, "items": rows[:limit],
+    return "200 OK", {"dataset": DATASET, "items": rows[:limit], "brands": BRANDS,
                       "next_cursor": rows[limit - 1]["source_listing_id"] if len(rows) > limit else None}
 
 

@@ -19,108 +19,59 @@ async function main() {
     assert.equal(landing.status(), 200);
     const signIn = page.getByRole("link", { name: "Se connecter" });
     await signIn.waitFor();
-    const timer = page.locator("[data-deadline]");
-    assert.equal(await timer.locator("time").getAttribute("datetime"), "2027-01-13");
-    assert.equal(await page.locator(".film img").evaluate(img => img.complete && img.naturalWidth > 0), true);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.getByRole("heading", {level: 1, name: /Le marché auto mondial/}).waitFor();
+    for (const selector of [".hero-art img", ".site-head .brand img"]) {
+      await page.locator(selector).evaluate(img => img.decode());
+    }
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.equal(await page.getByRole("link", {name:"Accéder au catalogue"}).getAttribute("href"), "/acces/connexion");
     const { default: AxeBuilder } = require("../../../apps/web/node_modules/@axe-core/playwright");
     const landingAudit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     assert.deepEqual(landingAudit.violations.map(v => v.id), []);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    assert.equal(await page.locator(".film img").evaluate(img => getComputedStyle(img).animationName), "none");
-    if (await timer.getByRole("button", { name: "Figer" }).isVisible()) {
-      await timer.getByRole("button", { name: "Figer" }).click();
-      await timer.getByRole("button", { name: "Reprendre" }).click();
-    }
+    assert.equal(await page.locator(".hero-art img").evaluate(img => getComputedStyle(img).animationName), "none");
     if (process.env.PRIVATE_WEB_EVIDENCE) {
       mkdirSync(process.env.PRIVATE_WEB_EVIDENCE, { recursive: true });
       await page.screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/accueil-mobile.png" : "/accueil-bureau.png") });
     }
-    const roadmap = page.locator(".road details");
-    const summary = roadmap.locator("summary");
-    await summary.focus();
-    await summary.press("Enter");
-    await roadmap.locator('[aria-current="step"]').waitFor();
-    const headings = await roadmap.locator("li h3").allTextContents();
-    assert.equal(headings.length, 9);
-    const auctionTitle = "Enchérir sur des voitures du monde entier";
-    assert.deepEqual(headings.slice(-3), [
-      "Parcourir les annonces de toute l’Europe", "Parcourir les annonces du monde entier", auctionTitle,
-    ]);
-    await expect(roadmap.locator("li").last().locator("small")).toHaveText("À terme · sans date annoncée");
-    assert.equal(await roadmap.locator('[aria-current="step"] h3').innerText(), "Ouvrir un rapport depuis l’annonce");
-    const track = roadmap.locator(".road-track");
-    const stops = await track.locator("li").evaluateAll(items => items.map(item => {
-      const { left, top } = item.getBoundingClientRect();
-      return { left, top };
-    }));
-    assert.ok(stops.every((stop, index) => stop.top === stops[0].top && (!index || stop.left > stops[index - 1].left)));
-    const previous = roadmap.getByRole("button", { name: "Fonctionnalité précédente" });
-    const next = roadmap.getByRole("button", { name: "Fonctionnalité suivante" });
-    const lastStop = track.locator("li").last();
-    const scrollable = await track.evaluate(el => el.scrollWidth > el.clientWidth + 1);
-    if (scrollable) {
-      await next.waitFor();
-      assert.equal(await previous.getAttribute("aria-disabled"), "true");
-      await next.focus();
-      await next.press("Enter");
-      await expect.poll(() => track.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-    } else {
-      assert.equal(await next.isVisible(), false);
-    }
-    assert.equal(await page.getByText("McLaren 600LT", { exact: true }).count(), 0);
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    assert.equal(await roadmap.locator(".chapter").first().evaluate(el => getComputedStyle(el).animationName), "none");
-    if (scrollable) {
-      for (let i = 0; i < stops.length && await next.getAttribute("aria-disabled") !== "true"; i++) {
-        await next.press("Enter");
-      }
-      await expect(next).toHaveAttribute("aria-disabled", "true");
-      const last = await lastStop.boundingBox();
-      const frame = await track.boundingBox();
-      assert.ok(last.x >= frame.x - 1 && last.x + last.width <= frame.x + frame.width + 1);
-    }
+    await page.getByRole("link", {name: "Découvrir le projet"}).click();
+    const roadmap = page.locator("#deploiement");
+    const tabs = roadmap.getByRole("tab");
+    const panel = roadmap.getByRole("tabpanel");
+    assert.equal(await tabs.count(), 6);
+    await expect(roadmap.getByRole("tab", {selected:true})).toHaveText("P1Catalogue privé");
+    await expect(panel.getByRole("heading")).toHaveText("Parcourir le premier catalogue privé.");
+    const current = roadmap.getByRole("tab", {name:/P1/});
+    await current.focus();
+    await current.press("ArrowRight");
+    await expect(panel.getByRole("heading")).toHaveText("Relier la France, l’Allemagne et la Corée.");
+    await roadmap.getByRole("button", {name:/Précédente/}).click();
+    await expect(current).toHaveAttribute("aria-selected", "true");
+    await current.press("End");
+    await expect(panel.getByRole("heading")).toHaveText("Explorer le marché mondial.");
+    await expect(roadmap.getByRole("button", {name:/Suivante/})).toHaveAttribute("aria-disabled", "true");
+    await tabs.last().press("Home");
+    await expect(roadmap.getByRole("button", {name:/Précédente/})).toHaveAttribute("aria-disabled", "true");
+    await current.click();
     if (process.env.PRIVATE_WEB_EVIDENCE) {
-      await roadmap.evaluate(() => document.activeElement.blur());
-      await page.locator(".road").screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/etapes-mobile.png" : "/etapes-bureau.png") });
+      await roadmap.screenshot({ path: process.env.PRIVATE_WEB_EVIDENCE + (mobile ? "/etapes-mobile.png" : "/etapes-bureau.png") });
     }
-    if (scrollable) {
-      await previous.press("Enter");
-      await expect(next).toHaveAttribute("aria-disabled", "false");
-    }
-    await summary.press("Space");
-    assert.equal(await roadmap.getAttribute("open"), null);
     const plain = await browser.newContext({
       ignoreHTTPSErrors: true, javaScriptEnabled: false, viewport: { width: 320, height: 740 },
     });
     const plainPage = await plain.newPage();
-    plainPage.setDefaultTimeout(10000);
     await plainPage.route(base + "/", async route => {
       const response = await route.fetch();
-      const body = (await response.text()).replace("</head>", "<style>html { font-size: 200% }</style></head>");
+      const body = (await response.text()).replace("</head>", "<style>:root { font-size: 200% }</style></head>");
       await route.fulfill({ response, body });
     });
     await plainPage.goto(base);
-    await plainPage.locator(".road summary").press("Enter");
-    const plainTrack = plainPage.locator(".road-track");
-    await plainTrack.scrollIntoViewIfNeeded();
-    await plainTrack.focus();
-    await plainTrack.press("ArrowRight");
-    await expect.poll(() => plainTrack.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-    const finalHeading = plainTrack.getByRole("heading", { name: auctionTitle });
-    await finalHeading.scrollIntoViewIfNeeded();
-    const headingBox = await finalHeading.boundingBox();
-    const trackBox = await plainTrack.boundingBox();
-    assert.ok(headingBox.x >= trackBox.x - 1 && headingBox.x + headingBox.width <= trackBox.x + trackBox.width + 1);
+    assert.ok(await plainPage.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize) >= 32));
+    assert.equal(await plainPage.locator(".phase:visible").count(), 6);
+    await plainPage.getByRole("link", {name: /P5/}).click();
+    assert.equal(new URL(plainPage.url()).hash, "#phase-5");
     assert.ok(await plainPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await plain.close();
-    const expiryContext = await browser.newContext({ ignoreHTTPSErrors: true });
-    const expiry = await expiryContext.newPage();
-    await expiry.clock.install({ time: new Date("2027-01-13T11:00:01Z") });
-    await expiry.goto(base);
-    await expiry.locator(".expired").waitFor();
-    assert.equal(await expiry.locator(".clock").isVisible(), false);
-    await expiryContext.close();
     await signIn.click();
     await page.getByLabel("Identifiant").waitFor();
     assert.equal(new URL(page.url()).pathname, "/acces/connexion");
@@ -134,6 +85,7 @@ async function main() {
     const timing = await page.evaluate(() => performance.getEntriesByType("navigation")[0].domContentLoadedEventEnd);
     assert.ok(timing > 0 && timing < 2000, "login DOM ready outside 2 s local budget");
     console.log("Login DOM ready (ms):", Math.round(timing));
+    await page.getByRole("link", {name: "AutoFindex, accueil"}).focus();
     await page.keyboard.press("Tab");
     assert.equal(await page.locator(":focus").getAttribute("id"), "username");
     const evidence = process.env.PRIVATE_WEB_EVIDENCE;
@@ -209,7 +161,7 @@ async function main() {
     await login();
     await logoutLink.waitFor();
     assert.equal(page.url(), base + "/demo");
-    await page.getByRole("link", { name: "AutoFind, accueil" }).waitFor();
+    await page.getByRole("link", { name: "AutoFindex, accueil" }).waitFor();
     const scene = page.locator(".demo-search-scene img");
     await scene.scrollIntoViewIfNeeded();
     await scene.evaluate(img => img.decode());

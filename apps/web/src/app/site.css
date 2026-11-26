@@ -11,9 +11,13 @@ h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; }
 main:focus { outline: none; }
 .site-container { margin-inline: auto; max-width: var(--aw-layout-content-max); padding-inline: clamp(var(--aw-space-4), 4vw, 3rem); }
 .site-header { align-items: center; display: flex; flex-wrap: wrap; gap: .25rem 1rem; justify-content: space-between; min-height: 5rem; padding-block: .625rem; }
-.site-wordmark { align-items: center; color: var(--aw-color-text); display: inline-flex; font-size: clamp(1.35rem, 2.4vw, 2rem); font-weight: 750; gap: .6rem; letter-spacing: -.075em; line-height: 1; min-height: var(--aw-size-touch); text-decoration: none; }
-.site-mark { background: var(--aw-color-action); clip-path: polygon(46% 0,72% 0,26% 100%,0 100%,46% 0,80% 0,100% 100%,72% 100%,62% 49%,75% 22%); display: inline-block; flex: none; height: .95em; width: 1em; }
-@media (forced-colors: active) { .site-mark { background: LinkText; forced-color-adjust: none; } }
+.site-wordmark { align-items: center; display: inline-flex; max-width: 100%; min-height: var(--aw-size-touch); }
+.site-wordmark img { display: block; width: clamp(8.5rem, 18vw, 11.25rem); height: auto; filter: brightness(0.19); }
+[data-aw-theme="dark"] .site-wordmark img,
+:root:not([data-aw-theme]):has([data-aw-default-theme="dark"]) .site-wordmark img { filter: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-aw-theme]) .site-wordmark img { filter: none; }
+}
 .site-nav { align-items: center; display: inline-flex; font-size: var(--aw-font-size-small); font-weight: 600; min-height: var(--aw-size-touch); }
 .site-tools { display: flex; flex-wrap: wrap; gap: var(--aw-space-2) var(--aw-space-6); }
 .site-intro { border-top: 1px solid var(--aw-color-border); padding-block: 3rem 2rem; }

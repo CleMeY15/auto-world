@@ -388,7 +388,7 @@ export function DemoApp({ enabled, storageNamespace = "offline" }: { readonly en
   useEffect(() => { favorites.hydrate(); savedSearches.hydrate(); savedComparisons.hydrate(); }, [favorites, savedComparisons, savedSearches]);
   useEffect(() => {
     const label = screen === "search" ? "Recherche" : screen === "results" ? "Résultats" : screen === "detail" ? "Détail synthétique" : screen === "compare" ? "Comparer" : screen === "shared" ? "Recherche reçue" : screen === "received-comparison" ? "Comparaison reçue" : "Mes listes";
-    document.title = `${label} — AutoFind`;
+    document.title = `${label} — AutoFindex`;
   }, [screen]);
   useEffect(() => {
     if (["session", "corrupt", "future", "denied", "quota"].includes(favoriteSnapshot.storageStatus)) {

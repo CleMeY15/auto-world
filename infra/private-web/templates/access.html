@@ -1,49 +1,44 @@
 <!doctype html>
 <html lang="fr"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; script-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'">
-<meta name="color-scheme" content="dark">
-<title>{% if leave %}Déconnexion{% elif expired %}Session expirée{% else %}Connexion{% endif %} · AutoFind</title>
+<meta name="theme-color" content="#0b141b">
+<title>{% if leave %}Déconnexion{% elif expired %}Session expirée{% else %}Connexion{% endif %} · AutoFindex</title>
 <style>
-:root {--accent:#ff995e;--paper:#fff8eb;--gutter:clamp(1.25rem,5vw,6rem);color-scheme:dark;background:#0a0e10;color:var(--paper);font:1rem/1.5 "Helvetica Neue",Arial,sans-serif}
-* {box-sizing:border-box}
-body {margin:0;min-height:100svh;position:relative;isolation:isolate;display:flex;flex-direction:column}
 {% include "brand.css" %}
-header {padding:1.35rem var(--gutter)}
-main {flex:1;display:flex;align-items:center;padding:clamp(2rem,7vh,5rem) var(--gutter) clamp(3rem,10vh,7rem)}
-.panel {width:min(100%,24rem);min-width:0}
-.film {position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#0a0e10 0%,rgba(10,14,16,.98) 22%,rgba(10,14,16,.9) 38%,rgba(10,14,16,.25) 65%,transparent),url("/acces/launch.webp") 70% center/cover no-repeat}
-h1 {font-size:clamp(2.3rem,4.5vw,4.7rem);line-height:1.02;letter-spacing:-.065em;font-weight:580;margin:0;overflow-wrap:anywhere}
-p {color:#d9d7d2;margin:.95rem 0 1.65rem;text-wrap:pretty}
-label {display:block;font-weight:600;margin:1.05rem 0 .4rem}
-input {width:100%;min-height:48px;padding:.65rem .8rem;font:inherit;color:var(--paper);background:#13191b;border:1px solid #7c817d;border-radius:5px}
-.login {font-family:inherit;cursor:pointer;margin:1.6rem 0 .35rem;padding-left:1.25rem;gap:1.25rem}
-:focus-visible {outline:3px solid var(--accent);outline-offset:3px}
-.back {display:inline-flex;align-items:center;min-height:44px;color:var(--paper);text-underline-offset:.22em}
-.notice {padding:.6rem .85rem;border-inline-start:2px solid var(--accent);background:#201b16;color:#ffe4d2;margin:1rem 0}
-@media(max-width:730px) {
-  header {padding-block:.9rem}
-  main {flex:0;padding-block:1.75rem 2rem}
-  .panel {max-width:30rem;width:100%;margin:auto}
-  .film {position:relative;inset:auto;order:2;min-height:clamp(11rem,56vw,21rem);flex:1;background:linear-gradient(180deg,#0a0e10,transparent 38%,rgba(10,14,16,.25)),url("/acces/launch.webp") 70% 52%/cover no-repeat}
+body { min-height: 100svh; display: flex; flex-direction: column; }
+.auth-main { position: relative; isolation: isolate; flex: 1; overflow: hidden; display: grid; align-items: center; }
+.auth-main::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg,var(--night) 15%,rgb(11 20 27 / .93) 33%,transparent 69%),url("/acces/launch.webp") right -7vw center / min(65vw,57rem) auto no-repeat; }
+.auth-main .shell { padding-block: clamp(2.5rem, 7vh, 6rem); }
+.panel { width: min(100%, 25.5rem); }
+h1 { font-size: clamp(2.05rem, 4.5vw, 4rem); letter-spacing: -.063em; font-weight: 580; }
+p { color: var(--muted); margin: 1.05rem 0 1.7rem; text-wrap: pretty; }
+label { display: block; font-weight: 590; margin: 1rem 0 .35rem; }
+input { width: 100%; min-height: 48px; padding: .6rem .85rem; font: inherit; color: var(--paper); background: var(--surface); border: 1px solid #77858f; border-radius: .4rem; }
+.cta { margin-block: 1.35rem .5rem; }
+.notice { padding: .7rem 1rem; color: var(--paper); border-left: 3px solid var(--amber); background: var(--surface); }
+.back { display: inline-flex; min-height: 44px; align-items: center; }
+@media (max-width: 47rem) {
+  .auth-main { align-items: start; }
+  .auth-main::before { background: linear-gradient(180deg,var(--night) 45%,transparent 86%),url("/acces/launch.webp") right -32vw bottom -58vw / 110vw auto no-repeat; }
+  .auth-main .shell { padding-bottom: 9rem; }
 }
-</style></head><body><header><div class="brand"><i class="mark" aria-hidden="true"></i>AutoFind</div></header>
-<div class="film" aria-hidden="true"></div>
-<main><div class="panel">
+</style></head><body>
+<header class="site-head"><div class="shell"><a class="brand" href="/" aria-label="AutoFindex, accueil"><img src="/acces/launch.webp?variant=wordmark" width="735" height="98" alt="AutoFindex"></a></div></header>
+<main class="auth-main"><div class="shell"><div class="panel">
 {% if leave %}
 <h1>Déconnexion</h1><p>Fermer votre session sur cet appareil ? Les favoris, listes et comparaisons enregistrés sur ce site seront aussi effacés de ce navigateur.</p>
-<form method="post" action="/acces/deconnexion">{% csrf_token %}<button class="login">Se déconnecter<span class="login-icon" aria-hidden="true"><i></i></span></button></form>
+<form method="post" action="/acces/deconnexion">{% csrf_token %}<button class="cta">Se déconnecter <span class="arrow" aria-hidden="true">↗</span></button></form>
 <a class="back" href="/demo">Revenir à la recherche</a>
 {% elif expired %}
-<h1>Session expirée</h1><p>Rechargez la page pour reprendre votre connexion.</p>
+<h1>Session expirée</h1><p>Reconnectez-vous pour retrouver le catalogue privé.</p>
 <a class="back" href="/acces/connexion">Retour à la connexion</a>
 {% else %}
 {% if signed_out %}<p class="notice" role="status">Vous êtes déconnecté.</p><script src="/acces/clear.js"></script>{% endif %}
-<h1>Connexion</h1><p>Accédez à votre espace privé AutoFind.</p>
+<h1>Connexion</h1><p>Retrouvez les annonces dans votre espace privé AutoFindex.</p>
 {% if form.errors %}<p class="notice" role="alert">Identifiant ou mot de passe incorrect.</p>{% endif %}
 <form method="post" action="/acces/connexion">{% csrf_token %}
 <input type="hidden" name="next" value="{{ next|default:'/demo' }}">
 <label for="username">Identifiant</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="150" value="{{ form.username.value|default:'' }}">
 <label for="password">Mot de passe</label><input id="password" name="password" type="password" autocomplete="current-password" required>
-<button class="login">Se connecter<span class="login-icon" aria-hidden="true"><i></i></span></button></form><script src="/acces/fragment.js" defer></script>
-{% endif %}</div></main></body></html>
+<button class="cta">Se connecter <span class="arrow" aria-hidden="true">↗</span></button></form><script src="/acces/fragment.js" defer></script>
+{% endif %}</div></div></main></body></html>

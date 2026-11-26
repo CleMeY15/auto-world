@@ -34,7 +34,7 @@ export default async function HomePage() {
         <FoundationPreview />
       </main>
       <footer className="site-footer site-container">
-        AutoFind
+        AutoFindex
         <nav className="site-tools" aria-label="Outils">
           <a className="site-nav" href="/carte-grise">Carte grise</a>
           <a className="site-nav" href="/historique-vehicule">Historique du véhicule</a>
