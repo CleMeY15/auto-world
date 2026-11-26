@@ -12,7 +12,18 @@ for (const enabled of [true, false]) {
     expect(html).toMatch(/lang="fr"/u);
     expect(html).toContain("Aperçu de l’interface");
     expect(html).toContain("Aucune annonce ni recherche réelle");
-    expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)|<img(?:\s|>)|sourceListingId|connectorRunId|snapshotId|legalStatus/u);
+    expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)|sourceListingId|connectorRunId|snapshotId|legalStatus/u);
+    expect(html.match(/<img\b/gu)).toHaveLength(1);
+    await expect(page.locator("img")).toHaveCount(1);
+    const wordmark = page.getByRole("link", { name: "AutoFindex, accueil", exact: true })
+      .getByRole("img", { name: "AutoFindex", exact: true });
+    await expect(wordmark).toHaveAttribute("src", /^\/_next\/static\/media\/autofindex-wordmark\.[\w-]+\.webp$/u);
+    expect(await wordmark.getAttribute("srcset")).toBeNull();
+    const loadedLogo = await wordmark.evaluate(async (img: HTMLImageElement) => {
+      await img.decode();
+      return { actual: img.currentSrc, expected: img.src };
+    });
+    expect(loadedLogo.actual).toBe(loadedLogo.expected);
     await expect(page.getByRole("link", { name: "Voir les états" })).toHaveAttribute("href", "#states");
     const guides = page.getByRole("navigation", { name: "Outils" });
     await expect(guides.getByRole("link", { name: "Carte grise" })).toHaveAttribute("href", "/carte-grise");
