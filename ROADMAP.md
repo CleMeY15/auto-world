@@ -2,6 +2,8 @@
 
 ## Identité AutoFindex et catalogue filtré
 
+La recherche détaillée du catalogue membre regroupe marque et modèle, budget, motorisation, carrosserie, année, kilométrage, habitacle, historique et photos. Les critères se combinent dans PostgreSQL avant pagination. Les caractéristiques conservées sur les fiches DOM sont vérifiées par rapport à leur preuve. Les anciens exports Rust gardent leurs caractéristiques inconnues quand leur preuve manque. [Parcours navigateur](apps/web/test/private-catalog-browser.mjs) · [Contrat et qualification](docs/operations/PRIVATE_CATALOG_RELEASE.md#recherche-détaillée)
+
 Le filtre « Prix de vente renseigné » permet de parcourir les annonces dont le prix peut être affiché, sans saisir de budget. Il se combine avec les autres critères et se conserve au changement de page et au retour de fiche. [Parcours du catalogue](apps/web/test/private-catalog-browser.mjs)
 
 L’accueil public reprend le globe et la frise de la présentation AutoFindex. Le catalogue connecté utilise les photos et les prix issus des lots admis. La recherche et les critères de marque, prix, année et kilométrage s’appliquent avant pagination dans PostgreSQL. La qualification en production concerne le frontal public, le lecteur et le site privé de la même version. [Identité visuelle](DESIGN.md) · [Procédure de livraison](docs/operations/PRIVATE_CATALOG_RELEASE.md)

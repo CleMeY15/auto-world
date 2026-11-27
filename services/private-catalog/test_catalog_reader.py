@@ -33,6 +33,10 @@ class CatalogTest(unittest.TestCase):
             for query in ("limit=0", "limit=101", "after=", "after=1&after=2", "limit=1&sort=x", "q=%00", "q=" + "x" * 81, "bad",
                           "brand=Renault&brand=Kia", "brand=%00", "priceMin=-1", "priceMax=12.5",
                           "hasPrice=1&hasPrice=1", "hasPrice=0", "hasPrice=true",
+                          "model=Clio", "brand=Renault&model=Clio&model=Zoe", "brand=Renault&model=%00",
+                          "hasPhotos=no", "hasPhotos=1&hasPhotos=1", "kmMin=-1", "kmMin=2&kmMax=1",
+                          "fuel=%00", "doors=0", "doors=10", "seatsMin=6&seatsMax=4", "inspectionValid=true",
+                          "firstOwner=0", "serviceBook=non",
                           "priceMin=2&priceMax=1", "yearMin=2020&yearMax=1999", "yearMax=1885",
                           "yearMin=10000", "kmMax=9007199254740992", "priceMin=90071992547410"):
                 self.assertEqual(call(query=query)[0], "400 Bad Request")
@@ -58,14 +62,16 @@ class CatalogTest(unittest.TestCase):
             with patch.object(catalog, "query_listings", return_value=rows) as query:
                 status, body, _ = call(query="limit=1&after=10&q=Clio")
                 self.assertEqual(status, "200 OK")
-                self.assertEqual(body, {"dataset": catalog.DATASET, "items": rows[:1], "brands": catalog.BRANDS, "next_cursor": "11"})
+                self.assertEqual(body, {"dataset": catalog.DATASET, "items": rows[:1], "brands": catalog.BRANDS,
+                                        "modelsByBrand": catalog.VEHICLE_MODELS, "filterOptions": catalog.FILTER_OPTIONS, "next_cursor": "11"})
                 query.assert_called_once_with({}, "10", "", 2, "Clio", catalog.filter_params({}))
                 query.return_value = [rows[0]]
                 self.assertEqual(call(catalog.LIST + "/11")[1], rows[0])
                 query.assert_called_with({}, "", "11", 1, "", catalog.filter_params({}))
                 query.return_value = []
                 self.assertEqual(call(catalog.LIST + "/11")[0], "404 Not Found")
-                self.assertEqual(call()[1], {"dataset": catalog.DATASET, "items": [], "brands": catalog.BRANDS, "next_cursor": None})
+                self.assertEqual(call()[1], {"dataset": catalog.DATASET, "items": [], "brands": catalog.BRANDS,
+                                             "modelsByBrand": catalog.VEHICLE_MODELS, "filterOptions": catalog.FILTER_OPTIONS, "next_cursor": None})
                 query.side_effect = catalog.CatalogUnavailable("postgres_unavailable")
                 self.assertEqual(call()[0], "503 Service Unavailable")
             self.assertEqual(grant.call_count, 5)

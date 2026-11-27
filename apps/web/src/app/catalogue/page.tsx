@@ -12,11 +12,25 @@ const integer = new Intl.NumberFormat("fr-FR");
 function activeCriteria(window: PageWindow) {
   return ([
     ["brand", window.brand],
+    ["model", window.model],
+    ["fuel", window.fuel],
+    ["gearbox", window.gearbox && "Boîte " + window.gearbox.toLocaleLowerCase("fr")],
+    ["body", window.body],
+    ["color", window.color && "Couleur · " + window.color],
+    ["upholstery", window.upholstery && "Sellerie · " + window.upholstery],
+    ["doors", window.doors && window.doors + (window.doors === 1 ? " porte" : " portes")],
+    ["seatsMin", window.seatsMin && "Places min. · " + window.seatsMin],
+    ["seatsMax", window.seatsMax && "Places max. · " + window.seatsMax],
+    ["firstOwner", window.firstOwner && "Première main"],
+    ["inspectionValid", window.inspectionValid && "Contrôle technique valide"],
+    ["serviceBook", window.serviceBook && "Carnet d’entretien"],
+    ["hasPhotos", window.hasPhotos && "Avec photos"],
     ["hasPrice", window.hasPrice && "Prix de vente renseigné"],
     ["priceMin", window.priceMin !== undefined && "Dès " + integer.format(window.priceMin) + " €"],
     ["priceMax", window.priceMax !== undefined && "Jusqu’à " + integer.format(window.priceMax) + " €"],
     ["yearMin", window.yearMin !== undefined && "À partir de " + window.yearMin],
     ["yearMax", window.yearMax !== undefined && "Jusqu’en " + window.yearMax],
+    ["kmMin", window.kmMin !== undefined && formatKm(window.kmMin) + " min."],
     ["kmMax", window.kmMax !== undefined && formatKm(window.kmMax) + " max."],
   ] as const).flatMap(([key, label]) => label ? [{ key, label }] : []);
 }
@@ -42,14 +56,15 @@ async function Publications({ window }: { window: PageWindow }) {
         {active.map(({ key }) => <input key={key} type="hidden" name={key} value={window[key]} />)}
         <Button type="submit">Rechercher</Button>
       </form>
-      <FilterPanel criteria={window} brands={page.brands} active={active.length} />
+      <FilterPanel criteria={window} brands={page.brands} modelsByBrand={page.modelsByBrand}
+        filterOptions={page.filterOptions} active={active.length} />
     </div>
     {filtered && <nav className="catalogue-applied" aria-label="Critères appliqués">
       {window.q && <a href={windowPath({ ...window, q: undefined, after: undefined })} aria-label="Effacer la recherche">
         « {window.q} » <CloseIcon />
       </a>}
       {active.map(({key,label}) => <a key={key} aria-label={"Retirer le filtre " + label}
-        href={windowPath({ ...window, [key]: undefined, after: undefined })}>{label}<CloseIcon /></a>)}
+        href={windowPath({ ...window, [key]: undefined, ...(key === "brand" ? { model: undefined } : {}), after: undefined })}>{label}<CloseIcon /></a>)}
       {active.length > 0 && <a className="catalogue-clear" href={noFilters}>Effacer les filtres</a>}
     </nav>}
     {page.items.length > 0 ? <>
@@ -65,7 +80,7 @@ async function Publications({ window }: { window: PageWindow }) {
           </span>
           <span className="catalogue-card-copy">
             <strong>{item.label}</strong>
-            <span className="catalogue-meta">{[item.year, item.km !== null ? formatKm(item.km) : null].filter(v => v !== null).join(" · ")}</span>
+            <span className="catalogue-meta">{[item.year, item.km !== null ? formatKm(item.km) : null, item.features.fuel, item.features.gearbox].filter(v => v != null).join(" · ")}</span>
             <span className="catalogue-card-bottom">
               <span className={item.price === null ? "catalogue-price catalogue-price-unknown" : "catalogue-price"}>{formatPrice(item)}</span>
               <span aria-hidden="true">↗</span>

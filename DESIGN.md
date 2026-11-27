@@ -6,6 +6,10 @@
 - Primary web surfaces include the public launch page, sign-in, authenticated PostgreSQL catalogue, vehicle detail and member tools. The synthetic prototype retains its own routes.
 - Evidence reviewed: [product UX](docs/PRODUCT_UX.md), [roadmap](ROADMAP.md), [Definition of Done](docs/DEFINITION_OF_DONE.md), [vehicle intelligence](docs/VEHICLE_INTELLIGENCE.md), implemented `apps/web/src/app/`, shared `packages/design-system/` and [reviewed viewport/state screenshots](docs/validation/TASK-0007.md#visual-and-interaction-evidence).
 
+## Member search
+
+On the member catalogue, keep make, its dependent model and the budget visible above results. Group the detailed criteria by vehicle characteristics, mileage and year, interior, history and listing media. The native disclosures and the GET form support keyboard navigation and shareable criteria. Removing the make also clears its model. Only observed, publishable characteristics appear on each vehicle.
+
 ## Brand
 
 The owner’s [AutoFindex presentation](https://autofindex-lancement-terre.paris-clement.chatgpt.site/) supplies the original wordmark, globe artwork and six-phase roadmap. Use the visual name **AutoFindex** across the public entry, sign-in, member catalogue, guides and page metadata.

@@ -22,6 +22,17 @@ const mediaRoot = "https://img.leboncoin.fr/api/v1/lbcpb1/images/";
 const photo = mediaRoot + "gh/bb/cc/gh" + "a".repeat(38) + ".jpg?rule=large";
 const secondPhoto = mediaRoot + "aa/bb/cc/78c4f2de-4ec6-45a2-8081-ab2e106ad504";
 const peugeotPhoto = mediaRoot + "aa/bb/cc/" + "d".repeat(40) + ".jpg";
+const modelsByBrand = { "Citroën": ["C3", "C4"], Peugeot: ["208", "308"], Renault: ["Clio"] };
+const filterOptions = {
+  fuel: ["Diesel", "Essence"], gearbox: ["Automatique", "Manuelle"], body: ["Berline"],
+  color: ["Gris", "Noir"], upholstery: ["Tissu"],
+};
+const vehicleFacts = {
+  "100": {fuel:"Diesel", gearbox:"Manuelle", body:"Berline", color:"Gris", upholstery:"Tissu",
+    seats:5, doors:3, firstOwner:null, inspectionValid:true, serviceBook:null},
+  "300": {fuel:"Diesel", gearbox:"Automatique", body:"Berline", color:"Noir", upholstery:"Tissu",
+    seats:5, doors:5, firstOwner:true, inspectionValid:true, serviceBook:true},
+};
 const items = [
   ["100", "Peugeot", "208", 1950000, 38700],
   ["200", "Renault", "Clio", null, null],
@@ -31,6 +42,7 @@ const items = [
   brand, model, year: 2022, price_amount_minor: price, price_currency: price === null ? null : "EUR",
   observed_at_kind: id === "200" ? "file_export" : "source_capture",
   mileage_km: km, observed_at: "2026-11-22T12:00:00+00:00", images: id === "300" ? [photo, secondPhoto] : id === "100" ? [peugeotPhoto] : [],
+  ...vehicleFacts[id],
 }));
 
 let state = "healthy";
@@ -40,21 +52,27 @@ const reader = http.createServer((req, res) => {
   if (state === "unavailable") { res.writeHead(503).end(); return; }
   if (url.pathname === "/internal/catalog") {
     const query = (url.searchParams.get("q") ?? "").toLowerCase();
-    const brand = url.searchParams.get("brand");
+    const values = url.searchParams;
     function inRange(value, min, max) {
       return (!url.searchParams.has(min) || value !== null && value >= Number(url.searchParams.get(min)))
         && (!url.searchParams.has(max) || value !== null && value <= Number(url.searchParams.get(max)));
     }
     const rows = state === "empty" ? [] : items.filter(item =>
       item.source_listing_id > (url.searchParams.get("after") ?? "")
-      && (!brand || item.brand.toLowerCase() === brand.toLowerCase())
+      && ["brand","model",...Object.keys(filterOptions)].every(key =>
+        !values.get(key) || item[key]?.toLowerCase() === values.get(key).toLowerCase())
+      && ["firstOwner", "inspectionValid", "serviceBook"].every(key => values.get(key) !== "1" || item[key] === true)
+      && (!values.get("doors") || item.doors === Number(values.get("doors")))
+      && inRange(item.seats ?? null, "seatsMin", "seatsMax")
+      && (values.get("hasPhotos") !== "1" || item.images.length > 0)
       && (url.searchParams.get("hasPrice") !== "1" || item.price_amount_minor !== null)
       && inRange(item.price_amount_minor === null ? null : item.price_amount_minor / 100, "priceMin", "priceMax")
       && inRange(item.year, "yearMin", "yearMax")
       && inRange(item.mileage_km, "kmMin", "kmMax")
       && [item.brand, item.model, item.year, item.source_listing_id].join(" ").toLowerCase().includes(query));
     const limit = Number(url.searchParams.get("limit"));
-    body = { dataset: "autoworld/leboncoin", brands: ["Citroën", "Peugeot", "Renault"], items: rows.slice(0, limit), next_cursor: rows.length > limit ? rows[limit - 1].source_listing_id : null };
+    body = { dataset: "autoworld/leboncoin", brands: Object.keys(modelsByBrand), modelsByBrand, filterOptions,
+      items: rows.slice(0, limit), next_cursor: rows.length > limit ? rows[limit - 1].source_listing_id : null };
   } else {
     body = items.find(item => "/internal/catalog/" + item.source_listing_id === url.pathname);
     if (!body) { res.writeHead(404).end(); return; }
@@ -255,12 +273,23 @@ try {
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
         await page.goto(base + "/catalogue?q=2022&limit=2");
-        const filters = page.locator(".catalogue-filters summary");
+        const filters = page.locator(".catalogue-filters > summary");
+        const brandSelect = page.getByRole("combobox", {name:"Marque", exact:true});
+        const modelSelect = page.getByRole("combobox", {name:"Modèle", exact:true});
+        await brandSelect.waitFor();
+        assert.equal(await modelSelect.isDisabled(), true);
+        await brandSelect.selectOption("Citroën");
+        await modelSelect.selectOption("C3");
+        await brandSelect.selectOption("Peugeot");
+        assert.equal(await modelSelect.inputValue(), "");
+        assert.equal(await modelSelect.locator("option", {hasText:"C3"}).count(), 0);
+        await modelSelect.selectOption("208");
+        await brandSelect.selectOption("Citroën");
+        await modelSelect.selectOption("C3");
         await filters.waitFor({state:"visible"});
         await filters.focus();
         await filters.press("Enter");
         await page.locator(".catalogue-filters[open]").waitFor();
-        const brandSelect = page.getByLabel("Marque", {exact:true});
         const priceMin = page.getByRole("spinbutton", {name:"Prix en euros minimum"});
         const priceMax = page.getByRole("spinbutton", {name:"Prix en euros maximum"});
         const priceOnly = page.getByRole("checkbox", {name:"Prix de vente renseigné", exact:true});
@@ -273,7 +302,34 @@ try {
         await priceMin.fill("");
         await page.getByRole("spinbutton", {name:"Année minimum"}).fill("2020");
         await page.getByRole("spinbutton", {name:"Kilométrage maximal"}).fill("60000");
-        await brandSelect.selectOption("Citroën");
+        await page.getByRole("spinbutton", {name:"Kilométrage minimal"}).fill("50000");
+        await page.getByRole("combobox", {name:"Énergie", exact:true}).selectOption("Diesel");
+        const gearbox = page.getByRole("combobox", {name:"Boîte de vitesses", exact:true});
+        await gearbox.selectOption("Automatique");
+        await page.getByRole("combobox", {name:"Carrosserie", exact:true}).selectOption("Berline");
+        await page.getByRole("checkbox", {name:"Avec photos", exact:true}).check();
+        await page.getByRole("checkbox", {name:"Première main", exact:true}).check();
+        await page.getByRole("checkbox", {name:"Contrôle technique valide", exact:true}).check();
+        await page.getByRole("checkbox", {name:"Carnet d’entretien", exact:true}).check();
+        const refinements = page.locator(".catalogue-refinements > summary");
+        await refinements.focus();
+        await refinements.press("Enter");
+        await page.getByRole("combobox", {name:"Couleur extérieure", exact:true}).selectOption("Noir");
+        await page.getByRole("combobox", {name:"Sellerie", exact:true}).selectOption("Tissu");
+        const doors = page.getByRole("spinbutton", {name:"Nombre de portes", exact:true});
+        await doors.fill("10");
+        await refinements.click();
+        await filters.click();
+        const beforeInvalidDoorCount = page.url();
+        await apply.click();
+        await doors.waitFor({state:"visible"});
+        assert.equal(await doors.evaluate(el => el.validity.rangeOverflow), true);
+        assert.equal(page.url(), beforeInvalidDoorCount);
+        await doors.fill("5");
+        await page.getByRole("spinbutton", {name:"Nombre de places minimum"}).fill("5");
+        await page.getByRole("spinbutton", {name:"Nombre de places maximum"}).fill("5");
+        await refinements.scrollIntoViewIfNeeded();
+        await inspect(page, engine + "-" + size + "-habitacle");
         await priceOnly.check();
         await page.evaluate(() => globalThis.scrollTo({ top: 0, behavior: "instant" }));
         await inspect(page, engine + "-" + size + "-filtres");
@@ -282,12 +338,28 @@ try {
         assert.equal(await page.locator(".catalogue-row").count(), 1);
         await citroen.click();
         const backPath = new URL(await back.getAttribute("href"), base);
-        for (const [k,v] of Object.entries({q:"2022", brand:"Citroën", hasPrice:"1", priceMax:"15000", yearMin:"2020", kmMax:"60000"})) {
+        const combined = {q:"2022", brand:"Citroën", model:"C3", fuel:"Diesel", gearbox:"Automatique", body:"Berline",
+          color:"Noir", upholstery:"Tissu", doors:"5", seatsMin:"5", seatsMax:"5", firstOwner:"1", inspectionValid:"1",
+          serviceBook:"1", hasPhotos:"1", hasPrice:"1", priceMax:"15000", yearMin:"2020", kmMin:"50000", kmMax:"60000"};
+        for (const [k,v] of Object.entries(combined)) {
           assert.equal(backPath.searchParams.get(k),v);
         }
         await back.click();
+        assert.equal(await modelSelect.inputValue(), "C3");
+        await filters.click();
+        await gearbox.selectOption("Manuelle");
+        await apply.click();
+        await page.getByRole("heading", {name:"Aucune annonce pour cette recherche"}).waitFor();
+        await page.getByRole("link", {name:/Retirer le filtre .*Manuelle/i}).click();
+        await citroen.waitFor();
+        const recovered = new URL(page.url()).searchParams;
+        assert.equal(recovered.has("gearbox"), false);
+        for (const [key, value] of Object.entries(combined)) {
+          if (key !== "gearbox") assert.equal(recovered.get(key), value);
+        }
         await page.getByRole("link", {name:"Retirer le filtre Citroën"}).click();
         assert.equal(new URL(page.url()).searchParams.has("brand"), false);
+        assert.equal(new URL(page.url()).searchParams.has("model"), false);
         assert.equal(new URL(page.url()).searchParams.get("priceMax"), "15000");
         assert.equal(new URL(page.url()).searchParams.get("hasPrice"), "1");
         await page.getByRole("link", {name:"Effacer les filtres"}).click();
@@ -322,6 +394,17 @@ try {
         await renault.getByText("Prix à confirmer", {exact:true}).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("q"), "Clio");
         assert.equal(new URL(page.url()).searchParams.has("hasPrice"), false);
+        await page.goto(base + "/catalogue?fuel=Diesel&hasPhotos=1&limit=1");
+        await peugeot.waitFor();
+        await page.getByRole("link", {name:"Page suivante"}).click();
+        await citroen.waitFor();
+        await citroen.click();
+        const paginatedBack = new URL(await back.getAttribute("href"), base);
+        assert.equal(paginatedBack.searchParams.get("fuel"), "Diesel");
+        assert.equal(paginatedBack.searchParams.get("hasPhotos"), "1");
+        assert.equal(paginatedBack.searchParams.get("after"), "100");
+        await back.click();
+        assert.equal(await page.getByRole("link", {name:"Page suivante"}).count(), 0);
         await page.goto(base + "/catalogue?yearMin=2022&limit=1");
         await page.getByRole("link", {name:"Page suivante"}).click();
         await page.getByRole("link", {name:/Renault Clio/}).waitFor();

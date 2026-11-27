@@ -1,19 +1,22 @@
 import http from "node:http";
 import { privateCatalogEnabled } from "./mode.ts";
-import { numericFilterLimits, type NumericFilter } from "./filters.ts";
+import { flagKeys, numericFilterLimits, optionKeys, type FilterOptions, type FlagKey, type NumericFilter, type OptionKey } from "./filters.ts";
 
 type Query = Readonly<Record<string, string | string[] | undefined>>;
 const numericFilters = Object.keys(numericFilterLimits) as NumericFilter[];
+const textFilters = ["model", ...optionKeys] as const;
 export type PageWindow = {
   readonly after?: string;
   readonly limit: number;
   readonly q?: string;
   readonly brand?: string;
-  readonly hasPrice?: 1;
-} & Readonly<Partial<Record<NumericFilter, number>>>;
+} & Readonly<Partial<Record<NumericFilter, number> & Record<FlagKey, 1> & Record<"model" | OptionKey, string>>>;
 
 function isBrandLabel(value: unknown): value is string {
   return typeof value === "string" && /^[\p{L}\p{N}][\p{L}\p{N} .&-]{0,49}$/u.test(value);
+}
+function isFilterLabel(value: unknown): value is string {
+  return typeof value === "string" && /^[\p{L}\p{N}][\p{L}\p{N} .&!+’'(),/-]{0,49}$/u.test(value);
 }
 export interface Publication {
   id: string;
@@ -25,6 +28,12 @@ export interface Publication {
   price: number | null;
   km: number | null;
   photos: readonly string[];
+  features: Readonly<Partial<Record<OptionKey, string>>>;
+  doors: number | null;
+  seats: number | null;
+  firstOwner: boolean | null;
+  inspectionValid: boolean | null;
+  serviceBook: boolean | null;
 }
 const readerSocket = "/run/aw-private-catalog/reader.sock";
 const maxResponseBytes = 8 * 1024 * 1024;
@@ -44,7 +53,7 @@ export function isListingId(value: unknown): value is string {
 }
 export const maxQueryLength = 80;
 export function pageWindow(query: Query): PageWindow | null {
-  const allowed = ["after", "limit", "q", "brand", "hasPrice", ...numericFilters];
+  const allowed = ["after", "limit", "q", "brand", ...textFilters, ...flagKeys, ...numericFilters];
   if (Object.keys(query).some(key => !allowed.includes(key))) return null;
   const after = query.after;
   const limit = query.limit ?? "20";
@@ -55,8 +64,22 @@ export function pageWindow(query: Query): PageWindow | null {
   if (typeof limit !== "string" || !/^(?:[1-9][0-9]?|100)$/u.test(limit)) return null;
   const brand = query.brand;
   if (brand !== undefined && brand !== "" && !isBrandLabel(brand)) return null;
-  const hasPrice = query.hasPrice;
-  if (hasPrice !== undefined && hasPrice !== "" && hasPrice !== "1") return null;
+  const flags: Partial<Record<FlagKey, 1>> = {};
+  for (const key of flagKeys) {
+    const raw = query[key];
+    if (raw === undefined || raw === "") continue;
+    if (raw !== "1") return null;
+    flags[key] = 1;
+  }
+  const labels: Partial<Record<"model" | OptionKey, string>> = {};
+  for (const key of textFilters) {
+    const raw = query[key];
+    if (raw === undefined || raw === "") continue;
+    if (!isFilterLabel(raw)) return null;
+    if (key === "model" && !/^[\p{L}\p{N} .&!+-]+$/u.test(raw)) return null;
+    labels[key] = raw;
+  }
+  if (labels.model && !brand) return null;
   const bounds: Partial<Record<NumericFilter, number>> = {};
   for (const key of numericFilters) {
     const raw = query[key];
@@ -67,10 +90,11 @@ export function pageWindow(query: Query): PageWindow | null {
     if (value < min || value > max) return null;
     bounds[key] = value;
   }
-  if (bounds.priceMin !== undefined && bounds.priceMax !== undefined && bounds.priceMin > bounds.priceMax) return null;
-  if (bounds.yearMin !== undefined && bounds.yearMax !== undefined && bounds.yearMin > bounds.yearMax) return null;
-  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}),
-    ...(hasPrice ? { hasPrice: 1 as const } : {}), ...bounds };
+  for (const [min, max] of [["priceMin","priceMax"], ["yearMin","yearMax"], ["kmMin","kmMax"], ["seatsMin","seatsMax"]] as const) {
+    const lower = bounds[min], upper = bounds[max];
+    if (lower !== undefined && upper !== undefined && lower > upper) return null;
+  }
+  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...labels, ...flags, ...bounds };
 }
 function windowQuery(window: PageWindow) {
   const query = new URLSearchParams();
@@ -78,8 +102,7 @@ function windowQuery(window: PageWindow) {
   if (window.after) query.set("after", window.after);
   if (window.limit !== 20) query.set("limit", String(window.limit));
   if (window.brand) query.set("brand", window.brand);
-  if (window.hasPrice) query.set("hasPrice", "1");
-  for (const key of numericFilters) {
+  for (const key of [...textFilters, ...flagKeys, ...numericFilters]) {
     if (window[key] !== undefined) query.set(key, String(window[key]));
   }
   return query;
@@ -97,6 +120,26 @@ function numberOrNull(value: unknown): value is number | null {
 function labelOrNull(value: unknown): value is string | null {
   return value === null || typeof value === "string" && value.length > 0 && value.length <= 100;
 }
+function featureLabels(row: Record<string, unknown>) {
+  const features: Partial<Record<OptionKey, string>> = {};
+  for (const key of optionKeys) {
+    const value = row[key];
+    if (value == null) continue;
+    if (!isFilterLabel(value)) throw new Error("catalog_feature_invalid");
+    features[key] = value;
+  }
+  return features;
+}
+function countOrNull(value: unknown) {
+  if (value == null) return null;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 9) throw new Error("catalog_feature_invalid");
+  return value;
+}
+function flagOrNull(value: unknown) {
+  if (value == null) return null;
+  if (typeof value !== "boolean") throw new Error("catalog_feature_invalid");
+  return value;
+}
 export function readPublication(value: unknown): Publication {
   if (!object(value) || !isListingId(value.source_listing_id)
     || value.source_label !== "Leboncoin"
@@ -113,7 +156,9 @@ export function readPublication(value: unknown): Publication {
   return { id: value.source_listing_id, label: [value.brand, value.model].filter(Boolean).join(" ") || `Annonce ${value.source_listing_id}`,
     sourceUrl: value.source_url, observedAt: value.observed_at, dateKind: value.observed_at_kind ?? "source_capture",
     year: value.year, price: value.price_amount_minor,
-    km: value.mileage_km, photos: value.images };
+    km: value.mileage_km, photos: value.images, features: featureLabels(value),
+    doors: countOrNull(value.doors), seats: countOrNull(value.seats), firstOwner: flagOrNull(value.firstOwner),
+    inspectionValid: flagOrNull(value.inspectionValid), serviceBook: flagOrNull(value.serviceBook) };
 }
 async function fetchReader(path: string) {
   if (!privateCatalogEnabled()) throw new Error("catalog_disabled");
@@ -150,6 +195,11 @@ export async function fetchList(window: PageWindow) {
     || !Array.isArray(page.brands) || page.brands.length > 256 || !page.brands.every(isBrandLabel)) {
     throw new Error("catalog_page_invalid");
   }
+  const modelMap = page.modelsByBrand;
+  const options = page.filterOptions;
+  if (!object(modelMap) || Object.keys(modelMap).length !== page.brands.length || !object(options)
+    || !page.brands.every(brand => Object.hasOwn(modelMap, brand) && validChoices(modelMap[brand]))
+    || !optionKeys.every(key => validChoices(options[key]))) throw new Error("catalog_filters_invalid");
   const items = page.items.map(readPublication);
   let previous = window.after ?? "";
   for (const item of items) {
@@ -159,7 +209,11 @@ export async function fetchList(window: PageWindow) {
   if (page.next_cursor !== null && (!isListingId(page.next_cursor) || page.next_cursor !== items.at(-1)?.id)) {
     throw new Error("catalog_cursor_invalid");
   }
-  return { dataset: page.dataset, items, next: page.next_cursor, brands: page.brands };
+  return { dataset: page.dataset, items, next: page.next_cursor, brands: page.brands,
+    modelsByBrand: modelMap as Readonly<Record<string, readonly string[]>>, filterOptions: options as FilterOptions };
+}
+function validChoices(values: unknown): values is string[] {
+  return Array.isArray(values) && values.length <= 256 && values.every(isFilterLabel) && new Set(values).size === values.length;
 }
 export async function fetchDetail(id: string) {
   if (!isListingId(id)) throw new Error("catalog_id_invalid");
