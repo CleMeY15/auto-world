@@ -482,7 +482,19 @@ try {
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
         await page.goto(base + "/catalogue?yearMin=2022&limit=1&after=100");
-        await page.getByLabel("Trier par", {exact:true}).selectOption("price-asc");
+        const sortControl = page.getByLabel("Trier par", {exact:true});
+        const applySort = page.getByRole("button", {name:"Appliquer le tri"});
+        if (engine === "chromium" && size === "desktop") {
+          const beforeSort = page.url();
+          await sortControl.focus();
+          await sortControl.press("ArrowDown");
+          await sortControl.press("ArrowDown");
+          assert.equal(await sortControl.inputValue(), "price-desc");
+          assert.equal(await sortControl.evaluate(el => el === el.ownerDocument.activeElement), true);
+          assert.equal(page.url(), beforeSort);
+        }
+        await sortControl.selectOption("price-asc");
+        await applySort.click();
         await page.getByRole("link", {name:/Citroën C3/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
         assert.equal(new URL(page.url()).searchParams.get("yearMin"), "2022");
@@ -492,7 +504,8 @@ try {
         assert.equal(await page.getByLabel("Trier par", {exact:true}).inputValue(), "price-asc");
         await page.getByRole("link", {name:"Page suivante"}).click();
         await page.getByRole("link", {name:/Renault Clio/}).waitFor();
-        await page.getByLabel("Trier par", {exact:true}).selectOption("price-desc");
+        await sortControl.selectOption("price-desc");
+        await applySort.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         for (const [requested, expected] of [["citroën", "Citroën"], ["Marque inconnue", "Marque inconnue"]]) {
           await page.goto(base + "/catalogue?brand=" + encodeURIComponent(requested));

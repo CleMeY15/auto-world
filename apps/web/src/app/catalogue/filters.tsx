@@ -159,10 +159,9 @@ export function SortResults({ criteria }: { criteria: PageWindow }) {
     {Object.entries(criteria).map(([key, value]) => value !== undefined && key !== "after" && key !== "sort"
       && !(key === "limit" && value === 20) && <input key={key} type="hidden" name={key} value={value} />)}
     <label htmlFor="catalogue-sort">Trier par</label>
-    <select id="catalogue-sort" className="site-select" name="sort" defaultValue={criteria.sort ?? "default"}
-      onChange={event => event.currentTarget.form?.requestSubmit()}>
+    <select id="catalogue-sort" className="site-select" name="sort" defaultValue={criteria.sort ?? "default"}>
       {Object.entries(sortLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
     </select>
-    <noscript><button type="submit">Appliquer le tri</button></noscript>
+    <Button variant="secondary" type="submit" aria-label="Appliquer le tri">Appliquer</Button>
   </form>;
 }

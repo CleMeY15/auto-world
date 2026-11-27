@@ -25,7 +25,7 @@ export const sortLabels = {
   "km-desc": "Kilométrage décroissant",
   "year-desc": "Année la plus récente",
   "year-asc": "Année la plus ancienne",
-  "observed-desc": "Observées récemment",
-  "observed-asc": "Observées en premier",
+  "observed-desc": "Capture ou export le plus récent",
+  "observed-asc": "Capture ou export le plus ancien",
 } as const;
 export type CatalogSort = keyof typeof sortLabels;
