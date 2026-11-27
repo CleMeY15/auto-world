@@ -20,13 +20,16 @@
 .catalogue-filters summary { width: fit-content; cursor: pointer; min-height: var(--aw-size-touch); border: 1px solid var(--aw-color-control-border); border-radius: var(--aw-radius-control); padding: .55rem 1rem; display: flex; align-items: center; gap: .5rem; font-weight: 600; }
 .catalogue-filters summary::-webkit-details-marker { display: none; }
 .catalogue-filters[open] summary { border-color: var(--aw-color-action); color: var(--aw-color-action); }
-.catalogue-filter-form { display: grid; gap: 1.25rem; margin-top: .9rem; background: var(--aw-color-surface); border: 1px solid var(--aw-color-border); border-radius: var(--aw-radius-card); padding: clamp(1rem, 3vw, 1.6rem); }
+.catalogue-filter-form { display: grid; align-items: start; gap: 1.25rem; margin-top: .9rem; background: var(--aw-color-surface); border: 1px solid var(--aw-color-border); border-radius: var(--aw-radius-card); padding: clamp(1rem, 3vw, 1.6rem); }
 .catalogue-filter-form .aw-field { min-width: 0; }
 .catalogue-filter-form .aw-field__control, .catalogue-filter-form .site-select { width: 100%; min-width: 0; }
 .catalogue-select-label { font-size: var(--aw-font-size-small); font-weight: 600; display: grid; align-content: start; gap: .4rem; }
 .catalogue-filter-form fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; border: none; margin: 0; padding: 0; }
 .catalogue-filter-form legend { font-size: var(--aw-font-size-small); font-weight: 650; padding: 0; margin-bottom: .35rem; }
 .catalogue-filter-form fieldset .aw-field__label { color: var(--aw-color-text-muted); font-size: .82rem; }
+.catalogue-price-filter { grid-column: 1 / -1; display: flex; align-items: center; gap: .6rem; min-height: var(--aw-size-touch); font-size: var(--aw-font-size-small); cursor: pointer; }
+.catalogue-price-filter input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--aw-color-action); }
+.catalogue-price-filter input:focus-visible { outline: 2px solid var(--aw-color-focus); outline-offset: 3px; }
 .catalogue-filter-submit { justify-self: start; align-self: end; }
 .catalogue-applied { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-block: -.5rem 1.5rem; }
 .catalogue-applied a { min-height: var(--aw-size-touch); display: inline-flex; align-items: center; gap: .5rem; border-bottom: 1px solid var(--aw-color-border); text-decoration: none; font-size: var(--aw-font-size-small); }

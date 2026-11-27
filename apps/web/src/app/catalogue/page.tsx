@@ -12,6 +12,7 @@ const integer = new Intl.NumberFormat("fr-FR");
 function activeCriteria(window: PageWindow) {
   return ([
     ["brand", window.brand],
+    ["hasPrice", window.hasPrice && "Prix de vente renseigné"],
     ["priceMin", window.priceMin !== undefined && "Dès " + integer.format(window.priceMin) + " €"],
     ["priceMax", window.priceMax !== undefined && "Jusqu’à " + integer.format(window.priceMax) + " €"],
     ["yearMin", window.yearMin !== undefined && "À partir de " + window.yearMin],

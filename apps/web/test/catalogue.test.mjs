@@ -26,14 +26,15 @@ test("private catalogue keeps the page window in detail and return links", () =>
   assert.equal(windowPath({ after: "10", limit: 3, q: "A&B / 20" }, "42"), "/catalogue/42?q=A%26B+%2F+20&after=10&limit=3");
 });
 test("catalogue criteria survive pagination and detail navigation, including zero bounds", () => {
-  const query = {brand:"Citroën", priceMin:"0", priceMax:"012345", yearMin:"2000", yearMax:"2022", kmMax:"100000"};
+  const query = {brand:"Citroën", hasPrice:"1", priceMin:"0", priceMax:"012345", yearMin:"2000", yearMax:"2022", kmMax:"100000"};
   const criteria = pageWindow(query);
-  assert.deepEqual(criteria, { after:undefined, limit:20, brand:"Citroën", priceMin:0, priceMax:12345, yearMin:2000, yearMax:2022, kmMax:100000 });
+  assert.deepEqual(criteria, { after:undefined, limit:20, brand:"Citroën", hasPrice:1, priceMin:0, priceMax:12345, yearMin:2000, yearMax:2022, kmMax:100000 });
   const link = windowPath({...criteria, q:"C3", after:"10", limit:8}, "42");
   const url = new URL(link, "https://autofind.tech");
   assert.equal(url.pathname, "/catalogue/42");
   assert.deepEqual(pageWindow(Object.fromEntries(url.searchParams)), {...criteria, q:"C3", after:"10", limit:8});
-  assert.equal(windowPath(pageWindow({brand:"", kmMax:"", priceMin:""})), "/catalogue");
+  assert.equal(windowPath(pageWindow({brand:"", kmMax:"", priceMin:"", hasPrice:""})), "/catalogue");
+  for (const hasPrice of ["0", "true", "01", ["1", "1"]]) assert.equal(pageWindow({hasPrice}), null);
   for (const invalid of [{priceMax:"2.50"}, {priceMin:"1&3"}, {priceMin:"2",priceMax:"1"}, {yearMin:"1885"},
     {yearMin:"2021", yearMax:"1999"}, {brand:["DS","Audi"]}, {brand:"<DS>"}, {kmMax:"9007199254740992"}]) {
     assert.equal(pageWindow(invalid), null);

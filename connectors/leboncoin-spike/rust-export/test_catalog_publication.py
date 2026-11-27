@@ -52,14 +52,14 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
             cur.execute(f"INSERT INTO {schema}.batch_entries VALUES (%s,%s,%s,%s)", (batch,key,digest,digest))
 
         def export(rows, at):
-            raw = json.dumps([{"source_listing_id": key, "at": at.isoformat()} for key, _ in rows]).encode()
+            raw = json.dumps([{"source_listing_id": key, "at": at.isoformat()} for key, _, _ in rows]).encode()
             digest = hashlib.sha256(raw).hexdigest()
             until = observation + 10 * hour
             values = [{"source_listing_id": key, "brand": "Renault", "model": "Clio", "year": 2020,
-                       "price_amount_minor": None, "mileage_km": None, "images": photos,
+                       "price_amount_minor": cents, "mileage_km": None, "images": photos,
                        "media_observed_at": at.isoformat() if photos is not None else None,
                        "media_retain_until": until.isoformat() if photos is not None else None}
-                      for key, photos in rows]
+                      for key, photos, cents in rows]
             cur.execute(f"""INSERT INTO {fixtures.TABLE} (export_sha256,raw_bytes,exported_at,retain_until,row_count,listings)
                             VALUES (%s,%s,%s,%s,%s,%s)""", (digest, raw, at, until, len(rows), json.dumps(values)))
             return digest
@@ -67,9 +67,11 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
         facts = {"price": {"currency": "EUR", "amountMinor": 1_200_001}, "mileage": {"unit": "km", "amount": 50_000}}
         dom("100", admitted_dom, **facts)
         dom("200", private_dom, **facts)
-        dom("300", admitted_dom, model=vin, brand="Audi", model_year="2021", mileage={"unit": "mi", "amount": 5})
-        private_export = export([("400",[fixtures.PHOTO]), ("500",[fixtures.PHOTO]), ("600",None)], observation)
-        admitted_export = export([("400",None), ("700",[fixtures.PHOTO])], observation + hour)
+        dom("300", admitted_dom, model=vin, brand="Audi", model_year="2021", mileage={"unit": "mi", "amount": 5},
+            price={"currency": "USD", "amountMinor": 500_000})
+        private_export = export([("400", [fixtures.PHOTO], 150_000), ("500", [fixtures.PHOTO], 90_000),
+                                 ("600", None, None)], observation)
+        admitted_export = export([("400", None, None), ("700", [fixtures.PHOTO], 1_500_000)], observation + hour)
         grant = {"valid_from": observation - hour, "valid_until": observation + 10*hour,
                  "media_seconds": 86400, "normalized_seconds": 86400,
                  "dom_batch_ids": [admitted_dom], "export_ids": [admitted_export]}
@@ -93,7 +95,7 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                 self.assertEqual(set(page("q=Clio&brand=audi")), set())
                 self.assertEqual(set(page("priceMin=12000&priceMax=12001")), {"100"})
                 self.assertEqual(set(page("priceMax=12000")), set())
-                self.assertEqual(set(page("priceMin=0")), {"100"})
+                self.assertEqual(set(page("priceMin=0")), {"100", "700"})
                 self.assertEqual(set(page("kmMax=50000")), {"100"})
                 self.assertEqual(set(page("kmMax=49999")), set())
                 self.assertEqual(set(page("brand=Renault&q=Clio&yearMin=2021&yearMax=2021&kmMax=50000&priceMin=10000&priceMax=15000")), {"100"})
@@ -112,6 +114,15 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                     self.assertEqual(detail(key)[0], "404 Not Found")
                 self.assertEqual(detail("400")[1]["images"], [])
                 self.assertEqual(detail("700")[1]["images"], [fixtures.PHOTO])
+                dom("800", admitted_dom, price={"currency": "EUR", "amountMinor": 0})
+                priced = page("hasPrice=1")
+                self.assertEqual({key: item["price_amount_minor"] for key, item in priced.items()},
+                                 {"100": 1_200_001, "700": 1_500_000, "800": 0})
+                self.assertEqual(set(page("hasPrice=1&brand=Renault&priceMax=0")), {"800"})
+                self.assertEqual(set(page("hasPrice=1&brand=Audi")), set())
+                filtered = reader.read(reader.LIST, "hasPrice=1&limit=1&after=100")[1]
+                self.assertEqual([row["source_listing_id"] for row in filtered["items"]], ["700"])
+                self.assertEqual(filtered["next_cursor"], "700")
                 grant["export_ids"].append(private_export)
                 self.assertEqual(detail("400")[1]["images"], [fixtures.PHOTO])
                 grant["export_ids"].remove(admitted_export)

@@ -95,6 +95,7 @@ SELECT * FROM labelled
 WHERE source_listing_id COLLATE "C" > %(after)s
   AND (%(search)s = '' OR strpos(lower(concat_ws(' ', brand, model, year, source_listing_id)), lower(%(search)s)) > 0)
   AND (%(brand)s = '' OR lower(brand) = lower(%(brand)s))
+  AND (NOT %(hasPrice)s OR price_amount_minor IS NOT NULL)
   AND (%(priceMin)s::bigint IS NULL OR price_amount_minor >= %(priceMin)s::bigint * 100)
   AND (%(priceMax)s::bigint IS NULL OR price_amount_minor <= %(priceMax)s::bigint * 100)
   AND (%(yearMin)s::integer IS NULL OR year >= %(yearMin)s)
