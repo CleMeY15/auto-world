@@ -143,10 +143,19 @@ WHERE is_listing AND CURRENT_TIMESTAMP >= %(valid_from)s::timestamptz
         SELECT model FROM jsonb_array_elements_text(v.models) AS model_names(model)
         WHERE jsonb_typeof(p.model) = 'string' AND lower(model) = lower(btrim(p.model #>> '{}'))
     ) m ON true
-)
-SELECT * FROM labelled
-WHERE source_listing_id COLLATE "C" > %(after)s
-  AND (%(search)s = '' OR strpos(lower(concat_ws(' ', brand, model, year, source_listing_id)), lower(%(search)s)) > 0)
+), ranked AS (
+SELECT labelled.*,
+       %(sort_sign)s::integer * CASE %(sort_field)s
+           WHEN 'price' THEN price_amount_minor
+           WHEN 'year' THEN year
+           WHEN 'km' THEN mileage_km
+           WHEN 'observed' THEN extract(epoch FROM record_at) * 1000000
+           WHEN 'default' THEN 0
+       END AS sort_rank,
+       -- Keep historical ID ordering for existing links; ties in explicit sorts use numeric IDs.
+       CASE WHEN %(sort_field)s = 'default' THEN 0 ELSE length(source_listing_id) END AS id_length
+FROM labelled
+WHERE (%(search)s = '' OR strpos(lower(concat_ws(' ', brand, model, year, source_listing_id)), lower(%(search)s)) > 0)
   AND (%(brand)s = '' OR lower(brand) = lower(%(brand)s))
   AND (%(model)s = '' OR lower(model) = lower(%(model)s))
   AND (NOT %(hasPrice)s OR price_amount_minor IS NOT NULL)
@@ -160,5 +169,11 @@ WHERE source_listing_id COLLATE "C" > %(after)s
   AND (%(yearMax)s::integer IS NULL OR year <= %(yearMax)s)
   AND (%(kmMin)s::bigint IS NULL OR mileage_km >= %(kmMin)s)
   AND (%(kmMax)s::bigint IS NULL OR mileage_km <= %(kmMax)s)
-ORDER BY source_listing_id COLLATE "C"
+)
+SELECT * FROM ranked
+WHERE %(after_id)s = '' OR
+      (sort_rank IS NULL, coalesce(sort_rank, 0), id_length, source_listing_id COLLATE "C") >
+      (%(after_rank)s::numeric IS NULL, coalesce(%(after_rank)s::numeric, 0),
+       CASE WHEN %(sort_field)s = 'default' THEN 0 ELSE length(%(after_id)s) END, %(after_id)s)
+ORDER BY sort_rank ASC NULLS LAST, id_length, source_listing_id COLLATE "C"
 LIMIT %(page_size)s::integer;

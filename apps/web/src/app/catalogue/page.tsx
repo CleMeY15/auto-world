@@ -4,8 +4,8 @@ import { Banner, Button, CloseIcon, SearchIcon, Skeleton } from "@auto-world/des
 import { privateCatalogEnabled } from "../../catalogue/mode";
 import { fetchList, maxQueryLength, pageWindow, windowPath, type PageWindow } from "../../catalogue/reader";
 import { formatKm, formatPrice } from "./format";
-import { ListingThumbnail } from "./list-photos";
-import { FilterPanel } from "./filters";
+import { ListingCard } from "./list-photos";
+import { FilterPanel, SortResults } from "./filters";
 
 const integer = new Intl.NumberFormat("fr-FR");
 
@@ -41,7 +41,7 @@ async function Publications({ window }: { window: PageWindow }) {
     return <Banner tone="warning"><p>Le catalogue est momentanément indisponible.</p><a className="site-nav" href={windowPath(window)}>Réessayer</a></Banner>;
   }
   const active = activeCriteria(window);
-  const noFilters = windowPath({ q: window.q, limit: window.limit });
+  const noFilters = windowPath({ q: window.q, limit: window.limit, sort: window.sort });
   const filtered = Boolean(window.q || active.length);
   return <>
     <div className="catalogue-tools">
@@ -52,6 +52,7 @@ async function Publications({ window }: { window: PageWindow }) {
           <input id="catalogue-recherche" name="q" type="search" placeholder="Marque, modèle, année…"
             defaultValue={window.q ?? ""} maxLength={maxQueryLength} />
         </div>
+        {window.sort && <input type="hidden" name="sort" value={window.sort} />}
         {window.limit !== 20 && <input type="hidden" name="limit" value={window.limit} />}
         {active.map(({ key }) => <input key={key} type="hidden" name={key} value={window[key]} />)}
         <Button type="submit">Rechercher</Button>
@@ -71,13 +72,10 @@ async function Publications({ window }: { window: PageWindow }) {
       <div className="catalogue-list-heading">
         <h2>{filtered ? "Résultats de recherche" : "Toutes les annonces"}</h2>
         <span>{page.items.length} {page.items.length === 1 ? "annonce affichée" : "annonces affichées"}</span>
+        <SortResults criteria={window} />
       </div>
       <ul id="catalogue-results" data-catalog-dataset={page.dataset} aria-label="Annonces Leboncoin" className="catalogue-list">{page.items.map(item => <li key={item.id}>
-        <a className="catalogue-row" href={windowPath(window, item.id)}>
-          <span className="catalogue-card-media">
-            <ListingThumbnail src={item.photos[0]} />
-            {item.photos.length > 1 && <span className="catalogue-photo-count">{item.photos.length} photos</span>}
-          </span>
+        <ListingCard href={windowPath(window, item.id)} photos={item.photos} label={item.label}>
           <span className="catalogue-card-copy">
             <strong>{item.label}</strong>
             <span className="catalogue-meta">{[item.year, item.km !== null ? formatKm(item.km) : null, item.features.fuel, item.features.gearbox].filter(v => v != null).join(" · ")}</span>
@@ -86,7 +84,7 @@ async function Publications({ window }: { window: PageWindow }) {
               <span aria-hidden="true">↗</span>
             </span>
           </span>
-        </a>
+        </ListingCard>
       </li>)}</ul>
       <nav aria-label="Pagination" className="catalogue-pages">
         {window.after && <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Premières annonces</a>}
@@ -95,7 +93,7 @@ async function Publications({ window }: { window: PageWindow }) {
     </> : <section className="catalogue-empty" data-catalog-dataset={page.dataset}>
       <h2>{window.after ? "Fin des résultats" : filtered ? "Aucune annonce pour cette recherche" : "Aucune annonce disponible"}</h2>
       {window.after ? <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Revenir aux premières annonces</a>
-        : filtered ? <a className="site-nav" href={windowPath({ limit: window.limit })}>Voir toutes les annonces</a>
+        : filtered ? <a className="site-nav" href={windowPath({ limit: window.limit, sort: window.sort })}>Voir toutes les annonces</a>
         : <a className="site-nav" href={windowPath(window)}>Actualiser le catalogue</a>}
     </section>}
   </>;

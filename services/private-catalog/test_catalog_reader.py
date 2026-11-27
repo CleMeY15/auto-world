@@ -36,7 +36,9 @@ class CatalogTest(unittest.TestCase):
                           "model=Clio", "brand=Renault&model=Clio&model=Zoe", "brand=Renault&model=%00",
                           "hasPhotos=no", "hasPhotos=1&hasPhotos=1", "kmMin=-1", "kmMin=2&kmMax=1",
                           "fuel=%00", "doors=0", "doors=10", "seatsMin=6&seatsMax=4", "inspectionValid=true",
-                          "firstOwner=0", "serviceBook=non",
+                          "firstOwner=0", "serviceBook=non", "sort=default&after=price-desc~42~10",
+                          "sort=year-desc&after=year-asc~2020~1", "sort=price-asc&after=12", "sort=km-asc&after=km-asc~NaN~3",
+                          "sort=price-desc&after=price-desc~999999999999999999999~5", "sort=km-asc&after=km-asc~10~03",
                           "priceMin=2&priceMax=1", "yearMin=2020&yearMax=1999", "yearMax=1885",
                           "yearMin=10000", "kmMax=9007199254740992", "priceMin=90071992547410"):
                 self.assertEqual(call(query=query)[0], "400 Bad Request")
@@ -64,10 +66,10 @@ class CatalogTest(unittest.TestCase):
                 self.assertEqual(status, "200 OK")
                 self.assertEqual(body, {"dataset": catalog.DATASET, "items": rows[:1], "brands": catalog.BRANDS,
                                         "modelsByBrand": catalog.VEHICLE_MODELS, "filterOptions": catalog.FILTER_OPTIONS, "next_cursor": "11"})
-                query.assert_called_once_with({}, "10", "", 2, "Clio", catalog.filter_params({}))
+                query.assert_called_once_with({}, "", 2, "Clio", catalog.filter_params({"after": "10"}))
                 query.return_value = [rows[0]]
                 self.assertEqual(call(catalog.LIST + "/11")[1], rows[0])
-                query.assert_called_with({}, "", "11", 1, "", catalog.filter_params({}))
+                query.assert_called_with({}, "11", 1, "", catalog.filter_params({}))
                 query.return_value = []
                 self.assertEqual(call(catalog.LIST + "/11")[0], "404 Not Found")
                 self.assertEqual(call()[1], {"dataset": catalog.DATASET, "items": [], "brands": catalog.BRANDS,

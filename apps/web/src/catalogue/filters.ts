@@ -16,3 +16,16 @@ export type OptionKey = typeof optionKeys[number];
 export type FilterOptions = Readonly<Record<OptionKey, readonly string[]>>;
 export const flagKeys = ["hasPrice", "hasPhotos", "firstOwner", "inspectionValid", "serviceBook"] as const;
 export type FlagKey = typeof flagKeys[number];
+
+export const sortLabels = {
+  default: "Ordre du catalogue",
+  "price-asc": "Prix croissant",
+  "price-desc": "Prix décroissant",
+  "km-asc": "Kilométrage croissant",
+  "km-desc": "Kilométrage décroissant",
+  "year-desc": "Année la plus récente",
+  "year-asc": "Année la plus ancienne",
+  "observed-desc": "Observées récemment",
+  "observed-asc": "Observées en premier",
+} as const;
+export type CatalogSort = keyof typeof sortLabels;

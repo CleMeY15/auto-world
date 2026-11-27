@@ -40,6 +40,18 @@ test("catalogue criteria survive pagination and detail navigation, including zer
     assert.equal(pageWindow(invalid), null);
   }
 });
+test("sorted links bind the cursor to its order", () => {
+  for (const sort of ["price-asc", "price-desc", "km-asc", "km-desc", "year-asc", "year-desc", "observed-asc", "observed-desc"]) {
+    const q = {sort, after:sort + "~x~42", brand:"Renault"};
+    const criteria = pageWindow(q);
+    assert.ok(criteria);
+    assert.deepEqual(Object.fromEntries(new URL(windowPath(criteria, "42"), "https://example.test").searchParams), q);
+  }
+  for (const args of [{sort:"price"}, {sort:["km-asc"]}, {sort:"price-asc", after:"42"},
+    {sort:"km-desc",after:"km-asc~0~42"}, {sort:"default",after:"price-desc~1~42"}]) {
+    assert.equal(pageWindow(args), null);
+  }
+});
 test("private catalogue retains unknowns and accepts only the matching Leboncoin source URL", () => {
   assert.equal(readPublication(item).price, null);
   assert.equal(readPublication(item).dateKind, "source_capture");
@@ -138,6 +150,15 @@ test("the private release uses the Unix reader and disables every demo backend",
   assert.equal(request.method, "GET");
   assert.equal(request.headers.host, "localhost");
   assert.equal(request.headers.cookie, undefined);
+  payload.next_cursor = "price-desc~x~42";
+  assert.equal((await fetchList({limit:1, sort:"price-desc"})).next, payload.next_cursor);
+  payload.next_cursor = "price-desc~100~42";
+  await assert.rejects(fetchList({limit:1, sort:"price-desc"}), /catalog_cursor_invalid/);
+  const micros = String(BigInt(Date.parse(item.observed_at)) * 1000n + 321n);
+  payload.items = [{...item, observed_at:item.observed_at.replace(".000000", ".000321")}];
+  payload.next_cursor = "observed-asc~" + micros + "~42";
+  assert.equal((await fetchList({limit:1, sort:"observed-asc"})).next, payload.next_cursor);
+  payload.items = [item];
   payload.modelsByBrand.Tesla = ["<script>"];
   await assert.rejects(fetchList({limit:1}), /catalog_filters_invalid/);
   payload.modelsByBrand.Tesla = ["Model 3"];

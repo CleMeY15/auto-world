@@ -1,12 +1,13 @@
 import http from "node:http";
 import { privateCatalogEnabled } from "./mode.ts";
-import { flagKeys, numericFilterLimits, optionKeys, type FilterOptions, type FlagKey, type NumericFilter, type OptionKey } from "./filters.ts";
+import { sortLabels, type CatalogSort, flagKeys, numericFilterLimits, optionKeys, type FilterOptions, type FlagKey, type NumericFilter, type OptionKey } from "./filters.ts";
 
 type Query = Readonly<Record<string, string | string[] | undefined>>;
 const numericFilters = Object.keys(numericFilterLimits) as NumericFilter[];
 const textFilters = ["model", ...optionKeys] as const;
 export type PageWindow = {
   readonly after?: string;
+  readonly sort?: CatalogSort;
   readonly limit: number;
   readonly q?: string;
   readonly brand?: string;
@@ -51,16 +52,26 @@ const idPattern = /^[1-9][0-9]{0,19}$/u;
 export function isListingId(value: unknown): value is string {
   return typeof value === "string" && idPattern.test(value);
 }
+function validCursor(value: unknown, sort: CatalogSort): value is string {
+  if (sort === "default") return isListingId(value);
+  if (typeof value !== "string") return false;
+  const [mode, key, id, ...extra] = value.split("~");
+  return mode === sort && key !== undefined && /^(?:x|-?[0-9]{1,20})$/u.test(key)
+    && isListingId(id) && !extra.length;
+}
 export const maxQueryLength = 80;
 export function pageWindow(query: Query): PageWindow | null {
-  const allowed = ["after", "limit", "q", "brand", ...textFilters, ...flagKeys, ...numericFilters];
+  const allowed = ["after", "sort", "limit", "q", "brand", ...textFilters, ...flagKeys, ...numericFilters];
   if (Object.keys(query).some(key => !allowed.includes(key))) return null;
   const after = query.after;
   const limit = query.limit ?? "20";
   const rawQuery = query.q ?? "";
   if (typeof rawQuery !== "string" || [...rawQuery].length > maxQueryLength || /\p{Cc}/u.test(rawQuery)) return null;
   const q = rawQuery.trim();
-  if (after !== undefined && !isListingId(after)) return null;
+  const sort = query.sort ?? "default";
+  if (typeof sort !== "string" || !Object.hasOwn(sortLabels, sort)) return null;
+  const order = sort as CatalogSort;
+  if (after !== undefined && !validCursor(after, order)) return null;
   if (typeof limit !== "string" || !/^(?:[1-9][0-9]?|100)$/u.test(limit)) return null;
   const brand = query.brand;
   if (brand !== undefined && brand !== "" && !isBrandLabel(brand)) return null;
@@ -94,10 +105,11 @@ export function pageWindow(query: Query): PageWindow | null {
     const lower = bounds[min], upper = bounds[max];
     if (lower !== undefined && upper !== undefined && lower > upper) return null;
   }
-  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...labels, ...flags, ...bounds };
+  return { after, ...(order === "default" ? {} : { sort: order }), limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...labels, ...flags, ...bounds };
 }
 function windowQuery(window: PageWindow) {
   const query = new URLSearchParams();
+  if (window.sort && window.sort !== "default") query.set("sort", window.sort);
   if (window.q) query.set("q", window.q);
   if (window.after) query.set("after", window.after);
   if (window.limit !== 20) query.set("limit", String(window.limit));
@@ -187,6 +199,19 @@ async function fetchReader(path: string) {
     response.destroy();
   }
 }
+function cursorForLastItem(item: Publication, order: CatalogSort) {
+  if (order === "default") return item.id;
+  const [field] = order.split("-");
+  let value: number | bigint | null;
+  if (field === "observed") {
+    // Date.parse retains milliseconds; the reader's key also includes the remaining microseconds.
+    const fraction = /\.([0-9]+)/u.exec(item.observedAt)?.[1] ?? "";
+    value = BigInt(Date.parse(item.observedAt)) * 1000n + BigInt(fraction.padEnd(6, "0").slice(3, 6));
+  } else {
+    value = field === "km" ? item.km : field === "price" ? item.price : item.year;
+  }
+  return [order, value ?? "x", item.id].join("~");
+}
 export async function fetchList(window: PageWindow) {
   const query = windowQuery(window);
   query.set("limit", String(window.limit));
@@ -201,12 +226,16 @@ export async function fetchList(window: PageWindow) {
     || !page.brands.every(brand => Object.hasOwn(modelMap, brand) && validChoices(modelMap[brand]))
     || !optionKeys.every(key => validChoices(options[key]))) throw new Error("catalog_filters_invalid");
   const items = page.items.map(readPublication);
+  const order = window.sort ?? "default";
+  const ids = new Set<string>();
   let previous = window.after ?? "";
   for (const item of items) {
-    if (item.id <= previous) throw new Error("catalog_page_order_invalid");
+    if (ids.has(item.id) || (order === "default" && item.id <= previous)) throw new Error("catalog_page_order_invalid");
+    ids.add(item.id);
     previous = item.id;
   }
-  if (page.next_cursor !== null && (!isListingId(page.next_cursor) || page.next_cursor !== items.at(-1)?.id)) {
+  const last = items.at(-1);
+  if (page.next_cursor !== null && (!last || !validCursor(page.next_cursor, order) || page.next_cursor !== cursorForLastItem(last, order))) {
     throw new Error("catalog_cursor_invalid");
   }
   return { dataset: page.dataset, items, next: page.next_cursor, brands: page.brands,

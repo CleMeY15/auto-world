@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, ChevronLeftIcon, Field, FilterIcon } from "@auto-world/design-system";
 import type { PageWindow } from "../../catalogue/reader";
-import { numericFilterLimits, type FilterOptions, type OptionKey, type FlagKey } from "../../catalogue/filters";
+import { sortLabels, numericFilterLimits, type FilterOptions, type OptionKey, type FlagKey } from "../../catalogue/filters";
 
 function RangeFields({ label, unit, lowerName, upperName, lower, upper, min, max, lowerLabel, upperLabel }: {
   label: string; unit: string; lowerName: string; upperName: string;
@@ -73,6 +73,7 @@ export function FilterPanel({ criteria, brands, modelsByBrand, filterOptions, ac
         if (input.value) input.value = String(input.valueAsNumber);
       }
     }}>
+    {criteria.sort && <input type="hidden" name="sort" value={criteria.sort} />}
     {criteria.q && <input type="hidden" name="q" value={criteria.q} />}
     {criteria.limit !== 20 && <input type="hidden" name="limit" value={criteria.limit} />}
     <div className="catalogue-primary-filters">
@@ -150,5 +151,18 @@ export function FilterPanel({ criteria, brands, modelsByBrand, filterOptions, ac
       </div>
     </details>
     <Button className="catalogue-filter-submit" type="submit">Appliquer les filtres</Button>
+  </form>;
+}
+
+export function SortResults({ criteria }: { criteria: PageWindow }) {
+  return <form className="catalogue-sort" action="/catalogue" method="get" aria-label="Ordre des annonces">
+    {Object.entries(criteria).map(([key, value]) => value !== undefined && key !== "after" && key !== "sort"
+      && !(key === "limit" && value === 20) && <input key={key} type="hidden" name={key} value={value} />)}
+    <label htmlFor="catalogue-sort">Trier par</label>
+    <select id="catalogue-sort" className="site-select" name="sort" defaultValue={criteria.sort ?? "default"}
+      onChange={event => event.currentTarget.form?.requestSubmit()}>
+      {Object.entries(sortLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+    </select>
+    <noscript><button type="submit">Appliquer le tri</button></noscript>
   </form>;
 }
