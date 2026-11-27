@@ -16,7 +16,7 @@ from psycopg2.extras import RealDictCursor
 ROOT = Path(__file__).resolve().parents[2]
 GRANT_CHECK = ROOT / "packages/source-registry/bin/catalog-publication-grant.mjs"
 PROJECTION = ROOT / "connectors/leboncoin-spike/rust-export/catalog_page.sql"
-VEHICLE_VOCABULARY = PROJECTION.with_name("vehicle_labels.json").read_text(encoding="utf-8")
+VEHICLE_VOCABULARY = PROJECTION.with_name("vehicle_labels_v2.json").read_text(encoding="utf-8")
 VEHICLE_MODELS = json.loads(VEHICLE_VOCABULARY)
 BRANDS = sorted(VEHICLE_MODELS)
 FILTER_OPTIONS = {

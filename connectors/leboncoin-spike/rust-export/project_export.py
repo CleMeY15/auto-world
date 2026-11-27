@@ -32,6 +32,19 @@ PHOTO = re.compile(
 )
 TEXT_FIELDS = {"prix", "marque", "modele", "annee", "kilometrage", "carburant", "boite"}
 ROW_FIELDS = TEXT_FIELDS | {"index", "source_listing_id", "url", "nb_photos", "media", "images"}
+EVIDENCE_FIELDS = {"sale_price_evidence", "vehicle_features_evidence", "vehicle_model_evidence"}
+FEATURE_LABELS = {
+    "fuel": {"Essence", "Diesel", "Électrique", "Hybride", "Hybride rechargeable", "GPL", "Bioéthanol",
+             "GNV", "Hydrogène", "Autre"},
+    "gearbox": {"Manuelle", "Automatique", "Semi-automatique"},
+    "body": {"Berline", "Citadine", "Break", "SUV, 4x4 et pick-up", "Coupé", "Cabriolet", "Monospace",
+             "Minibus", "Utilitaire", "Autre"},
+    "color": {"Argent", "Beige", "Blanc", "Bleu", "Bordeaux", "Gris", "Jaune", "Marron", "Noir", "Orange",
+              "Rose", "Rouge", "Vert", "Violet", "Autre"},
+    "upholstery": {"Tissu", "Tout cuir", "Cuir partiel", "Alcantara", "Velours", "Similicuir", "Autre"},
+}
+FEATURE_COUNTS = {"doors", "seats"}
+FEATURE_FLAGS = {"firstOwner", "inspectionValid", "serviceBook"}
 REQUIRED_GRANT = {"source_listing_id", "url", "price", "mileage", "description", "media"}
 CONTACT = re.compile(
     r"[\w.%+'-]+@[\w.-]+\.[\w-]{2,}|(?:[a-z][a-z0-9+.\-]*://|www\.)\S+"
@@ -41,8 +54,10 @@ CONTACT = re.compile(
 
 # Only controlled vehicle vocabulary can leave the private export. The Rust parser also
 # returns fragments of ad titles for unknown models; those must stay out of the listing view.
-MODELS = json.loads(Path(__file__).with_name("vehicle_labels.json").read_text(encoding="utf-8"))
-MAKES = frozenset(MODELS)
+MODELS = {
+    1: json.loads(Path(__file__).with_name("vehicle_labels.json").read_text(encoding="utf-8")),
+    2: json.loads(Path(__file__).with_name("vehicle_labels_v2.json").read_text(encoding="utf-8")),
+}
 
 
 class Rejected(ValueError):
@@ -156,25 +171,74 @@ def verified_sale_price(row):
     return cents
 
 
-def known_model(make, value):
-    if not value:
+def verified_vehicle_features(row):
+    if "vehicle_features_evidence" not in row:
         return None
-    # Match a controlled model prefix at a word boundary, returning the controlled label only.
-    candidate = value.casefold().strip()
-    return max((model for model in MODELS.get(make, ())
-                if candidate == model.casefold() or candidate.startswith(model.casefold() + " ")),
-               key=len, default=None)
+    evidence = row["vehicle_features_evidence"]
+    require(isinstance(evidence, dict) and set(evidence) == {"schema", "list_id", "attributes"}
+            and evidence["schema"] == "searchData.ads.offer.features/v1"
+            and evidence["list_id"] == row["source_listing_id"], "invalid_vehicle_features_evidence")
+    attrs = evidence["attributes"]
+    require(isinstance(attrs, dict) and attrs and attrs.keys() <= FEATURE_LABELS.keys() | FEATURE_COUNTS | FEATURE_FLAGS,
+            "invalid_vehicle_features")
+    for name, value in attrs.items():
+        if name in FEATURE_LABELS:
+            valid = isinstance(value, str) and value in FEATURE_LABELS[name]
+        elif name in FEATURE_COUNTS:
+            valid = type(value) is int and 1 <= value <= 9
+        else:
+            valid = type(value) is bool
+        require(valid, "invalid_vehicle_features")
+    return attrs
 
 
-def project(raw, exported_at, basis, policy, now):
+def vehicle_identity(row, labels_version):
+    brand, model = row["marque"], row["modele"]
+    if "vehicle_model_evidence" in row:
+        require(labels_version == 2, "invalid_stored_labels_version")
+        require(brand in MODELS[2] and model in MODELS[2][brand] and row["vehicle_model_evidence"] == {
+            "schema": "searchData.ads.offer.model/v1", "list_id": row["source_listing_id"],
+            "brand": brand, "model": model,
+        }, "invalid_vehicle_model_evidence")
+        return brand, model
+
+    # Older producers extract title fragments. Preserve their original controlled projection.
+    if brand not in MODELS[1]:
+        return None, None
+    candidate = (model or "").casefold().strip()
+    match = max((label for label in MODELS[1][brand]
+                 if candidate == label.casefold() or candidate.startswith(label.casefold() + " ")),
+                key=len, default=None)
+    return brand, match
+
+
+def saved_labels_version(stored):
+    require(isinstance(stored, list) and stored and all(isinstance(row, dict) for row in stored),
+            "existing_archive_mismatch")
+    if all("vehicle_labels_version" not in row for row in stored):
+        require(all("vehicle_features" not in row for row in stored), "invalid_stored_labels_version")
+        return 1
+    require(all(type(row.get("vehicle_labels_version")) is int and row["vehicle_labels_version"] == 2 for row in stored),
+            "invalid_stored_labels_version")
+    return 2
+
+
+def same_projection(stored, expected):
+    # Python considers False == 0 and True == 1. A persisted JSON boolean,
+    # integer or float must replay as the same type as the archived projection.
+    return json.dumps(stored, sort_keys=True) == json.dumps(expected, sort_keys=True)
+
+
+def project(raw, exported_at, basis, policy, now, *, labels_version=2):
     require(policy.start <= exported_at <= now < policy.end, "invalid_export_date")
     require(basis in {"file_mtime", "producer_completion"}, "invalid_export_date_basis")
     rows = decode(raw)
     require(isinstance(rows, list) and 1 <= len(rows) <= MAX_ROWS, "invalid_export_rows")
     projections, seen = [], set()
+    require(type(labels_version) is int and labels_version in MODELS, "invalid_stored_labels_version")
     deadline = min(policy.end, exported_at + policy.raw, exported_at + policy.normalized)
     for row in rows:
-        require(isinstance(row, dict) and (row.keys() - {"sale_price_evidence"}) == ROW_FIELDS and type(row["index"]) is int
+        require(isinstance(row, dict) and (row.keys() - EVIDENCE_FIELDS) == ROW_FIELDS and type(row["index"]) is int
                 and row["index"] >= 0 and all(row[k] is None or isinstance(row[k], str) and len(row[k]) <= 128
                                             for k in TEXT_FIELDS), "invalid_native_row")
         require(not any(CONTACT.search(unicodedata.normalize("NFKC", row[k] or "")) for k in TEXT_FIELDS),
@@ -187,16 +251,23 @@ def project(raw, exported_at, basis, policy, now):
         observed, expiry, urls = media(row, exported_at, policy)
         if observed is not None:
             deadline = min(deadline, expiry, observed + policy.raw, observed + policy.normalized)
-        make = row["marque"] if row["marque"] in MAKES else None
+        make, model = vehicle_identity(row, labels_version)
         km = re.fullmatch(r"(0|[1-9][0-9]{0,8})\s*km", row["kilometrage"] or "", re.I)
         year = int(row["annee"]) if re.fullmatch(r"[0-9]{4}", row["annee"] or "") else 0
-        projections.append({
-            "source_listing_id": key, "brand": make, "model": known_model(make, row["modele"]),
+        projected = {
+            "source_listing_id": key, "brand": make, "model": model,
             "year": year if 1886 <= year <= exported_at.year + 2 else None,
             "price_amount_minor": verified_sale_price(row), "mileage_km": int(km[1]) if km else None,
             "images": urls, "media_observed_at": observed.isoformat() if observed else None,
             "media_retain_until": expiry.isoformat() if expiry else None, "export_time_basis": basis,
-        })
+        }
+        if labels_version == 2:
+            projected["vehicle_labels_version"] = 2
+        features = verified_vehicle_features(row)
+        if features is not None:
+            require(labels_version == 2, "invalid_stored_labels_version")
+            projected["vehicle_features"] = features
+        projections.append(projected)
     require(deadline > now, "export_retention_expired")
     return projections, deadline
 
@@ -231,17 +302,18 @@ def import_to_database(service, raw, digest, file_time, explicit_time, policy_pa
             previous = cur.fetchone()
             at = explicit_time or file_time
             basis = "producer_completion" if explicit_time else "file_mtime"
+            labels_version = 2
             if previous is not None:
                 stored_body, at, old_deadline, stored_count, stored = previous
-                require(bytes(stored_body) == raw and isinstance(stored, list) and stored and isinstance(stored[0], dict),
-                        "existing_archive_mismatch")
+                require(bytes(stored_body) == raw, "existing_archive_mismatch")
+                labels_version = saved_labels_version(stored)
                 basis = stored[0].get("export_time_basis")
                 require(explicit_time is None or at == explicit_time, "conflicting_export_date")
             cur.execute("SELECT clock_timestamp()")
             now = cur.fetchone()[0]
-            rows, deadline = project(raw, at, basis, load_policy(policy_path, now), now)
+            rows, deadline = project(raw, at, basis, load_policy(policy_path, now), now, labels_version=labels_version)
             if previous is not None:
-                require(stored == rows and stored_count == len(rows) and now < old_deadline <= deadline,
+                require(same_projection(stored, rows) and stored_count == len(rows) and now < old_deadline <= deadline,
                         "existing_projection_or_retention_mismatch")
                 return receipt(digest, rows, at, old_deadline, basis, "already_imported")
 
@@ -253,7 +325,8 @@ def import_to_database(service, raw, digest, file_time, explicit_time, policy_pa
             require(cur.rowcount == 1, "expired_before_insert")
             cur.execute(read_export_row, (digest,))
             stored = cur.fetchone()
-            require(stored is not None and bytes(stored[0]) == raw and tuple(stored[1:]) == (at, deadline, len(rows), rows),
+            require(stored is not None and bytes(stored[0]) == raw and tuple(stored[1:4]) == (at, deadline, len(rows))
+                    and same_projection(stored[4], rows),
                     "stored_export_verification_failed")
             return receipt(digest, rows, at, deadline, basis, "inserted")
     except psycopg2.Error as exc:

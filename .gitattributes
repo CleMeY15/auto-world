@@ -1,4 +1,5 @@
 connectors/leboncoin-spike/rust-export/producer-sale-price.patch -text -whitespace
+connectors/leboncoin-spike/rust-export/producer-vehicle-features.patch -text -whitespace
 docs/validation/attestation-canary/** -text
 docs/validation/attestation-canary/runs/** -whitespace
 docs/fixtures/attestation-canary.txt text eol=lf

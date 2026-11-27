@@ -13,7 +13,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from project_export import Rejected, load_policy, process, project
+from project_export import Rejected, load_policy, process, project, same_projection, saved_labels_version
 
 PHOTO = "https://img.leboncoin.fr/api/v1/lbcpb1/images/ab/cd/ef/" + "a"*40 + ".jpg?rule=ad-large"
 MIGRATION = Path(__file__).parent / "migrations/0003-native-rust-exports.up.sql"
@@ -48,6 +48,14 @@ def sale_evidence(key):
             "currency": "EUR", "amount_minor": 1295000}
 
 
+def feature_evidence(key, attributes):
+    return {"schema": "searchData.ads.offer.features/v1", "list_id": key, "attributes": attributes}
+
+
+def model_evidence(key, brand, model):
+    return {"schema": "searchData.ads.offer.model/v1", "list_id": key, "brand": brand, "model": model}
+
+
 class ExportTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -79,6 +87,84 @@ class ExportTests(unittest.TestCase):
                 price(self.row | {"sale_price_evidence": invalid})
         with self.assertRaisesRegex(Rejected, "invalid_sale_price_amount"):
             price(self.row | {"prix": "299", "sale_price_evidence": evidence})
+
+    def test_vehicle_evidence_is_typed_and_bound_to_its_listing(self):
+        def inspect(row):
+            return project(json.dumps([row]).encode(), self.exported, "file_mtime", self.policy, self.now)[0][0]
+        attrs = {"fuel": "Diesel", "gearbox": "Manuelle", "body": "Break", "color": "Gris", "upholstery": "Tissu",
+                 "doors": 3, "seats": 5, "firstOwner": True, "inspectionValid": False}
+        proof = feature_evidence("11", attrs)
+        result = inspect(self.row | {"vehicle_features_evidence": proof})
+        self.assertEqual(result["vehicle_features"], attrs)
+        self.assertNotIn("serviceBook", result["vehicle_features"])
+        self.assertNotIn("vehicle_features", inspect(self.row))
+        invalid_proofs = [None, proof | {"schema": "unknown"}, proof | {"list_id": "12"}, proof | {"extra": "x"}]
+        for bad in ({}, [], None, {"vin": "supplied"}, {"fuel": "diesel"}, {"color": ["Gris"]}, {"doors": True},
+                    {"seats": 1.0}, {"seats": 0}, {"seats": 10}, {"firstOwner": 0}, {"serviceBook": None}):
+            invalid_proofs.append(proof | {"attributes": bad})
+        for invalid in invalid_proofs:
+            with self.subTest(invalid=invalid), self.assertRaises(Rejected):
+                inspect(self.row | {"vehicle_features_evidence": invalid})
+        scoped = synthetic_policy(self.now)
+        scoped["revisions"][0]["configuration"]["policy"]["grants"][0]["fields"].remove("description")
+        self.policy_file.write_text(json.dumps(scoped))
+        with self.assertRaisesRegex(Rejected, "unavailable_private_scope"):
+            load_policy(self.policy_file, self.now)
+
+    def test_stored_projection_selects_one_controlled_model_vocabulary(self):
+        row = self.row | {"marque": "Tesla", "modele": "Model 3 Long Range"}
+        def projected(version):
+            return project(json.dumps([row]).encode(), self.exported, "file_mtime", self.policy, self.now,
+                           labels_version=version)[0]
+        legacy = [{"source_listing_id": "11", "brand": "Tesla", "model": None, "year": 2018,
+                   "price_amount_minor": None, "mileage_km": 11000, "images": [PHOTO],
+                   "media_observed_at": self.observed.isoformat(),
+                   "media_retain_until": (self.observed + timedelta(days=14)).isoformat(),
+                   "export_time_basis": "file_mtime"}]
+        self.assertEqual(projected(saved_labels_version(legacy)), legacy)
+        new = projected(2)
+        self.assertEqual(new, [legacy[0] | {"vehicle_labels_version": 2}])
+        self.assertEqual(projected(saved_labels_version(new)), new)
+        self.assertFalse(same_projection([{"firstOwner": False}], [{"firstOwner": 0}]))
+        self.assertFalse(same_projection([{"seats": 1.0}], [{"seats": 1}]))
+        for damaged in ([*new, *legacy], [{"vehicle_labels_version": True}], [{"vehicle_labels_version": 2.0}],
+                        [{"vehicle_labels_version": "2"}], [{"vehicle_labels_version": 99}], [{"vehicle_features": {}}]):
+            with self.subTest(damaged=damaged), self.assertRaisesRegex(Rejected, "invalid_stored_labels_version"):
+                saved_labels_version(damaged)
+
+    def test_new_vehicle_models_require_the_exact_structured_pair_for_this_offer(self):
+        def inspect(*rows, version=2):
+            return project(json.dumps(rows).encode(), self.exported, "file_mtime", self.policy, self.now,
+                           labels_version=version)[0]
+
+        for brand, model in (("Tesla", "Model 3"), ("Dacia", "Sandero")):
+            row = self.row | {"marque": brand, "modele": model}
+            self.assertIsNone(inspect(row)[0]["model"])
+            proof = model_evidence("11", brand, model)
+            proved = row | {"vehicle_model_evidence": proof}
+            projected = inspect(proved)
+            self.assertEqual((projected[0]["brand"], projected[0]["model"]), (brand, model))
+            self.assertEqual(inspect(proved, version=saved_labels_version(projected)), projected)
+            with self.assertRaisesRegex(Rejected, "invalid_stored_labels_version"):
+                inspect(proved, version=1)
+
+        # A title token after e.g. "NotTesla" can resemble a real Tesla model in an older export.
+        self.assertIsNone(inspect(self.row | {"marque": "Tesla", "modele": "Model 3 avec"})[0]["model"])
+        self.assertEqual(inspect(self.row)[0]["model"], "208")
+
+        tesla = self.row | {"marque": "Tesla", "modele": "Model 3"}
+        proof = model_evidence("11", "Tesla", "Model 3")
+        first = synthetic_row(self.observed, "12")
+        for invalid in (None, [], {}, proof | {"list_id": "12"}, proof | {"list_id": 11},
+                        proof | {"schema": "unknown"}, proof | {"extra": "test"}, proof | {"brand": "Dacia"},
+                        proof | {"model": "Model Y"}, proof | {"model": ["Model 3"]}):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(Rejected, "invalid_vehicle_model_evidence"):
+                inspect(first, tesla | {"vehicle_model_evidence": invalid})
+        for brand, model in (("Tesla", "model 3"), ("Tesla", "Model 3 Grande"), ("tesla", "Model 3"),
+                             ("Peugeot", "Model 3"), ("Tesla", "Model 30"), (None, None)):
+            row = tesla | {"marque": brand, "modele": model, "vehicle_model_evidence": model_evidence("11", brand, model)}
+            with self.subTest(brand=brand, model=model), self.assertRaisesRegex(Rejected, "invalid_vehicle_model_evidence"):
+                inspect(first, row)
 
     def test_bound_projection_and_file_time(self):
         unknown = synthetic_row(self.observed, "12") | {"images": None, "nb_photos": None, "media": None,
@@ -149,7 +235,11 @@ class ExportTests(unittest.TestCase):
     @unittest.skipUnless(os.getenv("AUTOFIND_TEST_POSTGRES_IMAGE"), "requires disposable local PostgreSQL")
     def test_concurrent_import_exact_readback_and_replay_after_mtime_change(self):
         import psycopg2
-        priced = synthetic_row(self.observed, "12") | {"sale_price_evidence": sale_evidence("12")}
+        attributes = {"fuel": "Diesel", "inspectionValid": False}
+        priced = synthetic_row(self.observed, "12") | {
+            "sale_price_evidence": sale_evidence("12"), "vehicle_features_evidence": feature_evidence("12", attributes),
+            "marque": "Dacia", "modele": "Sandero", "vehicle_model_evidence": model_evidence("12", "Dacia", "Sandero"),
+        }
         self.path.write_text(json.dumps([self.row, priced]))
         os.utime(self.path, (self.exported.timestamp(), self.exported.timestamp()))
         sock = self.directory / "socket"
@@ -203,7 +293,38 @@ class ExportTests(unittest.TestCase):
             cur.execute("SELECT raw_bytes FROM aw_acquisition_trial.rust_exports")
             self.assertEqual([bytes(r[0]) for r in cur], [self.path.read_bytes()])
             cur.execute("SELECT source_listing_id, model, images, price_amount_minor FROM aw_acquisition_trial.rust_export_listings ORDER BY 1")
-            self.assertEqual(cur.fetchall(), [("11", "208", [PHOTO], None), ("12", "208", [PHOTO], 1295000)])
+            self.assertEqual(cur.fetchall(), [("11", "208", [PHOTO], None), ("12", "Sandero", [PHOTO], 1295000)])
+            cur.execute("SELECT listings FROM aw_acquisition_trial.rust_exports")
+            archived = cur.fetchone()[0]
+            self.assertEqual(saved_labels_version(archived), 2)
+            self.assertEqual(archived[1]["vehicle_features"], attributes)
+            self.assertNotIn("vehicle_features", archived[0])
+
+            # An original archive keeps its model and its timestamps, even when the newer
+            # vocabulary now recognizes that model and the local copy has been touched.
+            historical = synthetic_row(self.observed, "13") | {"marque": "Tesla", "modele": "Model 3 Long Range"}
+            raw = json.dumps([historical]).encode()
+            rows, expiry = project(raw, self.exported, "file_mtime", self.policy, self.now, labels_version=1)
+            self.assertIsNone(rows[0]["model"])
+            self.assertNotIn("vehicle_labels_version", rows[0])
+            legacy_hash = hashlib.sha256(raw).hexdigest()
+            cur.execute("""INSERT INTO aw_acquisition_trial.rust_exports
+                               (export_sha256,raw_bytes,exported_at,retain_until,row_count,listings)
+                           VALUES (%s,%s,%s,%s,1,%s)""",
+                        (legacy_hash, raw, self.exported, expiry, json.dumps(rows)))
+        self.path.write_bytes(raw)
+        os.utime(self.path, (later.timestamp(), later.timestamp()))
+        with patch.dict(os.environ, PGSERVICEFILE=str(config)):
+            receipt = process(self.path, self.policy_file, service=SERVICE)
+        self.assertEqual(receipt["status"], "already_imported")
+        self.assertEqual(receipt["exported_at"], self.exported.isoformat())
+        self.assertEqual(receipt["retain_until"], expiry.isoformat())
+        with closing(psycopg2.connect(host=str(sock), user="postgres", dbname="autoworld")) as db, db, db.cursor() as cur:
+            cur.execute("SELECT raw_bytes,listings FROM aw_acquisition_trial.rust_exports WHERE export_sha256=%s",
+                        (legacy_hash,))
+            stored_bytes, stored_rows = cur.fetchone()
+            self.assertEqual(bytes(stored_bytes), raw)
+            self.assertEqual(stored_rows, rows)
 
 
 if __name__ == "__main__":
