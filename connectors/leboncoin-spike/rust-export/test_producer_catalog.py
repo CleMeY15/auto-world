@@ -87,6 +87,14 @@ class ProducerCatalogTests(fixtures.NativeMigrationTests):
                 self.assertEqual([r["source_listing_id"] for r in result["items"]], ["42"])
                 admitted.clear()
                 self.assertEqual(reader.read(reader.LIST, query)[1]["items"], [])
+            for key in ("rawSeconds", "normalizedSeconds"):
+                expired = synthetic_policy(now)
+                expired["revisions"][0]["configuration"]["policy"]["retention"][key] = 60
+                policy_file.write_text(json.dumps(expired))
+                with self.subTest(expired=key):
+                    result = subprocess.run(command, input=page, cwd=crate, capture_output=True, timeout=15)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(result.stdout, b"")
             policy["revisions"][0]["configuration"]["policy"]["grants"][0]["fields"] = ["media"]
             policy_file.write_text(json.dumps(policy))
             denied = subprocess.run(command, input=page, cwd=crate, capture_output=True, timeout=15)

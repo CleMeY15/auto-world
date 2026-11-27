@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import runpy
+import sys
 
 import psycopg2
 
@@ -25,6 +26,11 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
             embedded = re.findall(pattern, migration, re.DOTALL)
             self.assertEqual(len(embedded), 1)
             self.assertEqual(json.loads(embedded[0]), json.loads((fixtures.HERE / source).read_text()))
+        legacy_labels = json.loads((fixtures.HERE / "vehicle_labels.json").read_text())
+        self.assertTrue(all(label.isascii() for models in legacy_labels.values() for label in models))
+        ascii_folds = {chr(i): chr(i).casefold() for i in range(128, sys.maxunicode + 1) if chr(i).casefold().isascii()}
+        sql_folds = re.search(r"\$ascii_folds\$(.*?)\$ascii_folds\$", up).group(1)
+        self.assertEqual(json.loads(sql_folds), ascii_folds)
         cur.execute("BEGIN;" + ddl + "COMMIT;")
         cur.execute(f"INSERT INTO {schema}.metadata VALUES ('schema',%s)",
                     ("leboncoin-private-trial/v1:" + hashlib.sha256(ddl.encode()).hexdigest(),))
@@ -110,10 +116,21 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
             cur.execute(up)
         cur.execute("ROLLBACK")
         cur.execute(f"DELETE FROM {fixtures.TABLE} WHERE export_sha256=%s", (bad_model,))
-        for raw_price, projection in (({}, {"price_amount_minor": 1295000}),
-                                      ({"marque": "Tesla", "modele": "Model 3"}, projected_model),
-                                      (native_price("99", euros="1295"), {"price_amount_minor": 1295000})):
-            forged_before_upgrade = insert("99", raw_fields=raw_price, projected_fields=projection)
+        clio = {"marque": "Renault", "modele": "Clio IV"}
+        forged_legacy_models = (
+            (clio, {"brand": "Renault", "model": "Captur"}),
+            (clio, {"brand": "Renault", "model": None}),
+            (clio, {"brand": None, "model": None}),
+            (clio, {"brand": "Peugeot", "model": "208"}),
+            ({"marque": "Renault", "modele": "Clio-IV"}, {"brand": "Renault", "model": "Clio"}),
+            ({"marque": "Ford", "modele": "  FOCUS ST édition "}, {"brand": "Ford", "model": "Focus"}),
+            ({"marque": "Citroën", "modele": ""}, {"brand": "Citroën", "model": "C3"}),
+            ({"marque": "citroën", "modele": "C3"}, {"brand": "Citroën", "model": "C3"}),
+        )
+        for raw_fields, projection in (
+                ({}, {"price_amount_minor": 1295000}), ({"marque": "Tesla", "modele": "Model 3"}, projected_model),
+                (native_price("99", euros="1295"), {"price_amount_minor": 1295000}), *forged_legacy_models):
+            forged_before_upgrade = insert("99", raw_fields=raw_fields, projected_fields=projection)
             with self.assertRaisesRegex(psycopg2.Error, "invalid_existing_vehicle_features"):
                 cur.execute(up)
             cur.execute("ROLLBACK")
@@ -123,11 +140,33 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         self.assertEqual(original, identity())
 
         # Both endpoints and the database accept the complete, same set of filter values.
-        from project_export import FEATURE_FLAGS, FEATURE_LABELS
+        from project_export import FEATURE_FLAGS, FEATURE_LABELS, vehicle_identity
         reader_path = fixtures.HERE.parents[2] / "services/private-catalog/catalog_reader.py"
         reader = runpy.run_path(str(reader_path))
         self.assertEqual(FEATURE_LABELS, {key: set(values) for key, values in reader["FILTER_OPTIONS"].items()})
         self.assertEqual(FEATURE_FLAGS, set(reader["EQUIPMENT_FLAGS"]))
+        # Compare the database against the importer's actual v1 choice across the entire
+        # historical dictionary, Unicode ends, literal internal boundaries and unknowns.
+        samples = [
+            (make, title)
+            for make, models in legacy_labels.items() for model in models
+            for title in (model, model.swapcase() + " édition", model + "-suite")
+        ]
+        samples.extend((make, title) for make in ("Renault", "Citroën", "Tesla", "renault", None)
+                       for title in (None, "", "0", "Clio IV", "ClioIV", "Clio\tIV", "\u200bClio", "C3 Aircross HDi"))
+        samples.extend(("Renault", chr(i) + "Clio" + chr(i)) for i in range(sys.maxunicode + 1) if chr(i).isspace())
+        samples.extend([("Ford", "KA édition"), ("Ford", "FOCUſ ST 2017"), ("Kia", "ﬆinger"),
+                        ("Volkswagen", "Paßat"), ("Volkswagen", "Paẞat"), ("Audi", "e-TRON GT quattro"),
+                        ("Renault", "Clİo"), ("Renault", "cLïo"), ("Citroën", "c3\u00a0aircross")])
+        raw_samples = [{"source_listing_id": str(i), "marque": make, "modele": title}
+                       for i, (make, title) in enumerate(samples, start=1)]
+        projected_samples = []
+        for item in raw_samples:
+            make, model = vehicle_identity(item, 1)
+            projected_samples.append({"source_listing_id": item["source_listing_id"], "brand": make, "model": model})
+        cur.execute(f"SELECT {schema}.valid_rust_vehicle_evidence(%s,%s)",
+                    (json.dumps(raw_samples).encode(), json.dumps(projected_samples)))
+        self.assertTrue(cur.fetchone()[0])
         raw_ids = [{"source_listing_id": "55"}, {"source_listing_id": "56"}]
         mixed = [raw_ids[0] | {"vehicle_labels_version": 2}, raw_ids[1]]
         cur.execute(f"SELECT {schema}.valid_rust_vehicle_evidence(%s,%s)",
@@ -202,6 +241,7 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
             with self.subTest(marker=marker), self.assertRaisesRegex(psycopg2.Error, "invalid_native_vehicle_features"):
                 insert("88", raw_fields=native, projected_fields=projected_model | {"vehicle_labels_version": marker})
         for raw_fields, projected_fields in (
+            *forged_legacy_models,
             ({"marque": "Tesla", "modele": "Model 3"}, projected_model),
             ({"marque": "Tesla", "modele": "Model 3"}, {"brand": "Tesla", "model": "Model 3"}),
             ({"marque": "Renault"}, {"brand": "Renault", "model": "Clio"}),

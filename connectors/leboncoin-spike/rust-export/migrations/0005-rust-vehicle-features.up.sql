@@ -104,7 +104,15 @@ RETURNS boolean LANGUAGE sql IMMUTABLE STRICT SET search_path = pg_catalog AS $$
   "Volkswagen": ["Golf", "Polo", "Tiguan", "T-Roc", "T-Cross", "ID.3", "ID.4", "ID.5", "ID.7", "Passat", "Arteon", "Touareg", "Sharan", "Caddy", "Up!", "Beetle", "Jetta", "Bora", "Lupo", "Phaeton", "Scirocco", "Eos", "Corrado", "Golf GTI", "Golf R", "Golf Plus", "Golf Sportsvan", "Golf Variant", "Polo GTI", "Polo R", "Tiguan R"],
   "Volvo": ["S60", "S80", "V40", "V40 Cross Country", "V60", "V70", "XC60", "XC70", "XC90"],
   "Škoda": ["Citigo", "Fabia", "Kamiq", "Karoq", "Kodiaq", "Octavia", "Rapid", "Roomster", "Scala", "Superb", "Yeti"]
-}$labels_v2$::jsonb AS current
+}$labels_v2$::jsonb AS current,
+        -- Every v1 model label is ASCII. These are all non-ASCII characters whose
+        -- full Unicode casefold is ASCII. Every other non-ASCII fold still blocks
+        -- a match within an ASCII label and does not introduce a word boundary.
+        $ascii_folds${"ß":"ss","ſ":"s","ẞ":"ss","K":"k","ﬀ":"ff","ﬁ":"fi","ﬂ":"fl","ﬃ":"ffi","ﬄ":"ffl","ﬅ":"st","ﬆ":"st"}$ascii_folds$::jsonb AS ascii_folds,
+        -- The importer strips Python whitespace from both ends. Inside a title,
+        -- only an ordinary space after the label counts as a prefix boundary.
+        U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\0085\00A0\1680' ||
+        U&'\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000' AS trim_chars
     ), native AS (
         -- The raw JSON retains the number token. jsonb alone would round-trip 1e2 as the integer 100.
         SELECT record::jsonb AS item, (record#>'{sale_price_evidence,amount_minor}')::text AS cents_token,
@@ -129,6 +137,27 @@ RETURNS boolean LANGUAGE sql IMMUTABLE STRICT SET search_path = pg_catalog AS $$
     AND NOT EXISTS (
         SELECT FROM native r FULL JOIN normalized n ON n.item->>'source_listing_id' = r.item->>'source_listing_id'
         CROSS JOIN vocabulary v
+        CROSS JOIN LATERAL (
+            SELECT CASE WHEN v.legacy ? (r.item->>'marque') THEN r.item->>'marque' END AS make,
+                   r.item->>'modele' AS title
+        ) input
+        CROSS JOIN LATERAL (
+            SELECT CASE WHEN input.title COLLATE "C" ~ '[ßſẞKﬀﬁﬂﬃﬄﬅﬆ]' THEN (
+                SELECT string_agg(coalesce(v.ascii_folds->>c.ch, c.ch), '' ORDER BY c.ord)
+                FROM unnest(string_to_array(input.title, NULL)) WITH ORDINALITY c(ch, ord)
+            ) ELSE input.title END AS folded_title
+        ) unicode
+        CROSS JOIN LATERAL (
+            SELECT btrim(translate(unicode.folded_title, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+                         v.trim_chars) COLLATE "C" AS title
+        ) candidate
+        LEFT JOIN LATERAL (
+            SELECT label FROM jsonb_array_elements_text(v.legacy->input.make) labels(label)
+            WHERE NOT (r.item ? 'vehicle_model_evidence')
+              AND (candidate.title = lower(label COLLATE "C")
+                   OR starts_with(candidate.title, lower(label COLLATE "C") || ' '))
+            ORDER BY length(label) DESC LIMIT 1
+        ) legacy_model ON true
         WHERE r.item IS NULL OR n.item IS NULL
            OR jsonb_typeof(r.item->'source_listing_id') IS DISTINCT FROM 'string'
            OR r.item->'source_listing_id' IS DISTINCT FROM n.item->'source_listing_id'
@@ -141,13 +170,10 @@ RETURNS boolean LANGUAGE sql IMMUTABLE STRICT SET search_path = pg_catalog AS $$
                    'schema', 'searchData.ads.offer.model/v1', 'list_id', r.item->'source_listing_id',
                    'brand', r.item->'marque', 'model', r.item->'modele')
            ELSE
-               (coalesce(n.item->'brand','null') = 'null' OR
-                   (jsonb_typeof(n.item->'brand') = 'string' AND v.legacy ? (n.item->>'brand')
-                    AND n.item->'brand' = r.item->'marque'))
-               AND (coalesce(n.item->'model','null') = 'null' OR
-                   (jsonb_typeof(n.item->'model') = 'string' AND jsonb_typeof(r.item->'modele') = 'string'
-                    AND (r.item->>'modele') ~ '[^[:space:]]'
-                    AND (v.legacy -> (n.item->>'brand')) ? (n.item->>'model')))
+               coalesce(jsonb_typeof(r.item->'marque'),'null') IN ('string','null')
+               AND coalesce(jsonb_typeof(r.item->'modele'),'null') IN ('string','null')
+               AND coalesce(n.item->'brand','null') = coalesce(to_jsonb(input.make),'null')
+               AND coalesce(n.item->'model','null') = coalesce(to_jsonb(legacy_model.label),'null')
            END) IS NOT TRUE
            OR (CASE WHEN r.item ? 'sale_price_evidence' THEN
                CASE WHEN r.cents_token ~ '^[1-9][0-9]{0,13}00$'

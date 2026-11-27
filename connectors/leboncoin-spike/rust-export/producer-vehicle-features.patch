@@ -58,14 +58,32 @@ diff --git a/src/config.rs b/src/config.rs
 +                .as_i64()
 +                .filter(|s| (1..=MAX_RETENTION_SECONDS).contains(s))
 +        };
-+        valid_retention("rawSeconds")?;
-+        valid_retention("normalizedSeconds")?;
-+        let seconds = valid_retention("mediaSeconds")?;
++        let seconds = valid_retention("rawSeconds")?
++            .min(valid_retention("normalizedSeconds")?)
++            .min(valid_retention("mediaSeconds")?);
 +        if valid_from >= valid_until {
              return None;
          }
          Some(Self {
-@@ -60,10 +87,10 @@
+@@ -56,14 +83,28 @@
+         )
+     }
+ 
++    pub(crate) fn check_export(
++        observed: DateTime<Utc>,
++        deadline: DateTime<Utc>,
++    ) -> Result<(), Box<dyn std::error::Error>> {
++        let current = Self::load()?
++            .deadline(observed)
++            .ok_or("Export outside current authorization")?;
++        let now = Utc::now();
++        if observed > now || deadline <= now || current < deadline {
++            return Err("Export retention expired or shortened during capture".into());
++        }
++        Ok(())
++    }
++
+     pub(crate) fn load() -> Result<Self, Box<dyn std::error::Error>> {
          let json = fs::read_to_string(POLICY_PATH)
              .map_err(|e| format!("Unable to read {POLICY_PATH}: {e}"))?;
          let policy = Self::parse(&serde_json::from_str(&json)?)
@@ -78,7 +96,7 @@ diff --git a/src/config.rs b/src/config.rs
          Ok(policy)
      }
  }
-@@ -122,17 +149,22 @@
+@@ -122,17 +163,22 @@
      use super::*;
      use serde_json::json;
  
@@ -109,7 +127,7 @@ diff --git a/src/config.rs b/src/config.rs
          assert_eq!(
              policy.deadline(time("2026-01-01T00:00:00Z")),
              Some(time("2026-01-01T00:01:00Z"))
-@@ -142,7 +174,73 @@
+@@ -142,7 +188,88 @@
              Some(time("2026-01-02T00:00:00Z"))
          );
          assert!(policy.deadline(time("2026-01-02T00:00:00Z")).is_none());
@@ -117,6 +135,21 @@ diff --git a/src/config.rs b/src/config.rs
 -        assert!(MediaPolicy::parse(&source).is_none());
 -    }
 -}
++    }
++
++    #[test]
++    fn export_retention_expires_at_the_first_of_all_three_limits() {
++        let when: DateTime<Utc> = "2026-01-01T12:00:00Z".parse().unwrap();
++        for key in ["rawSeconds", "normalizedSeconds", "mediaSeconds"] {
++            let mut record = full_scope();
++            record["revisions"][0]["configuration"]["policy"]["retention"][key] = json!(1);
++            let policy = MediaPolicy::parse(&record).unwrap();
++            assert_eq!(
++                policy.deadline(when),
++                Some(when + Duration::seconds(1)),
++                "{key}"
++            );
++        }
 +    }
 +
 +    #[test]
@@ -198,6 +231,32 @@ diff --git a/src/main.rs b/src/main.rs
  mod replay;
  
  
+@@ -31,6 +32,8 @@
+     // Load configuration
+     dotenvy::dotenv().ok();
+     let config = config::Config::load()?;
++    let started = chrono::Utc::now();
++    let expires = config.media_policy.deadline(started).ok_or("Export outside authorization")?;
+     
+     info!("🚀 Starting Leboncoin Scraper");
+     let target = config.max_listings;
+@@ -48,6 +51,8 @@
+     let total_time = start.elapsed();
+     
+     if listings.is_empty() { return Err("Aucune annonce identifiable".into()); }
++
++    config::MediaPolicy::check_export(started, expires)?;
+ 
+     // Print statistics
+     println!("\n======================================================================");
+@@ -111,6 +116,7 @@
+     let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+     let filename = format!("listings_rust_v2_{}.json", timestamp);
+     let json = serde_json::to_string_pretty(&listings)?;
++    config::MediaPolicy::check_export(started, expires)?;
+     let mut file = File::create(&filename)?;
+     file.write_all(json.as_bytes())?;
+     
 diff --git a/src/media.rs b/src/media.rs
 --- a/src/media.rs
 +++ b/src/media.rs
@@ -355,7 +414,18 @@ diff --git a/src/parser.rs b/src/parser.rs
 diff --git a/src/replay.rs b/src/replay.rs
 --- a/src/replay.rs
 +++ b/src/replay.rs
-@@ -90,11 +90,13 @@
+@@ -62,7 +62,9 @@
+         observed_at: observed.to_rfc3339(),
+         retain_until: deadline.to_rfc3339(),
+     };
+-    serde_json::to_writer(output, &project_page(&html, &url, &media))?;
++    let rows = project_page(&html, &url, &media);
++    MediaPolicy::check_export(observed, deadline)?;
++    serde_json::to_writer(output, &rows)?;
+     Ok(())
+ }
+ 
+@@ -90,11 +92,13 @@
      ))
      .expect("static image URL pattern");
      for row in rows {
