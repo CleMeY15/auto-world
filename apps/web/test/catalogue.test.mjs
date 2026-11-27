@@ -54,6 +54,21 @@ test("private catalogue retains unknowns and accepts only the matching Leboncoin
   for (const bad of [{source_url: "https://example.org"}, {source_url: "https://www.leboncoin.fr/ad/voitures/41"},
     {price_currency: "EUR"}, {images: ["javascript:void(0)"]}]) assert.throws(() => readPublication({...item, ...bad}));
 });
+test("detailed vehicle criteria survive a shared link and reject malformed ranges or dependent models", () => {
+  const query = {brand:"Volkswagen", model:"Up!", fuel:"Électrique", gearbox:"Automatique", body:"Citadine",
+    doors:"3", seatsMin:"2", seatsMax:"5", kmMin:"0", kmMax:"50000", color:"Blanc", upholstery:"Tissu",
+    firstOwner:"1", inspectionValid:"1", serviceBook:"1", hasPhotos:"1", after:"101"};
+  const criteria = pageWindow(query);
+  assert.ok(criteria);
+  const link = new URL(windowPath(criteria, "170"), "https://autofind.tech");
+  assert.deepEqual(Object.fromEntries(link.searchParams), query);
+  for (const invalid of [{model:"Golf"}, {kmMin:"2",kmMax:"1"}, {seatsMin:"6",seatsMax:"4"},
+    {doors:"10"}, {doors:"-1"}, {seatsMax:"0"}, {hasPhotos:"yes"}, {fuel:["Diesel","Essence"]}, {color:"<img>"}]) {
+    assert.equal(pageWindow(invalid), null);
+  }
+  assert.deepEqual(readPublication({...item, fuel:"Diesel", doors:3, serviceBook:false}).features, {fuel:"Diesel"});
+  assert.throws(() => readPublication({...item, seats:"5"}));
+});
 test("private gallery accepts the three observed CDN paths with a single optional image rule", () => {
   const root = "https://img.leboncoin.fr/api/v1/lbcpb1/images/";
   const uuid = "78c4f2de-4ec6-45a2-8081-ab2e106ad504";
@@ -86,7 +101,9 @@ test("the private release uses the Unix reader and disables every demo backend",
   const temp = await mkdtemp(join(tmpdir(), "autofind-reader-test-"));
   const socket = join(temp, "reader.sock");
   let status = 200;
-  let payload = { dataset: "autoworld/leboncoin", items: [item], brands: ["Citroën", "Tesla"], next_cursor: "42" };
+  let payload = { dataset: "autoworld/leboncoin", items: [item], brands: ["Citroën", "Tesla"],
+    modelsByBrand: {"Citroën":["C3"], Tesla:["Model 3"]}, filterOptions:{fuel:["Électrique"],gearbox:[],body:[],color:[],upholstery:[]},
+    next_cursor: "42" };
   let request;
   const server = http.createServer((req, res) => {
     request = req;
@@ -121,6 +138,9 @@ test("the private release uses the Unix reader and disables every demo backend",
   assert.equal(request.method, "GET");
   assert.equal(request.headers.host, "localhost");
   assert.equal(request.headers.cookie, undefined);
+  payload.modelsByBrand.Tesla = ["<script>"];
+  await assert.rejects(fetchList({limit:1}), /catalog_filters_invalid/);
+  payload.modelsByBrand.Tesla = ["Model 3"];
   payload.next_cursor = "401";
   await assert.rejects(fetchList({limit: 1}), /catalog_cursor_invalid/);
   payload = { dataset: "synthetic", items: [], next_cursor: null };

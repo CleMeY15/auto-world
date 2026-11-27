@@ -39,6 +39,15 @@ export default async function PublicationPage({ params, searchParams }: {
           <dl className="catalogue-facts">
             <div><dt>Année</dt><dd>{item.year ?? "Non renseignée"}</dd></div>
             <div><dt>Kilométrage</dt><dd>{item.km !== null ? formatKm(item.km) : "Non renseigné"}</dd></div>
+            {([
+              ["Énergie", item.features.fuel], ["Boîte de vitesses", item.features.gearbox],
+              ["Carrosserie", item.features.body], ["Couleur extérieure", item.features.color],
+              ["Sellerie", item.features.upholstery], ["Nombre de portes", item.doors], ["Nombre de places", item.seats],
+              ["Première main", item.firstOwner], ["Contrôle technique valide", item.inspectionValid],
+              ["Carnet d’entretien", item.serviceBook],
+            ] as const).map(([label, value]) => value == null ? null : <div key={label}>
+              <dt>{label}</dt><dd>{typeof value === "boolean" ? (value ? "Oui" : "Non") : value}</dd>
+            </div>)}
             <div><dt>{item.dateKind === "file_export" ? "Exportée le" : "Observée le"}</dt>
               <dd><time dateTime={item.observedAt}>{formatDate(item.observedAt)}</time></dd></div>
           </dl>
