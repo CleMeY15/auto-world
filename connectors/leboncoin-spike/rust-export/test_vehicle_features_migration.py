@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import re
 import runpy
 
 import psycopg2
@@ -18,6 +19,12 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         migrations = fixtures.HERE / "migrations"
         up = (migrations / "0005-rust-vehicle-features.up.sql").read_text()
         down = (migrations / "0005-rust-vehicle-features.down.sql").read_text()
+        for version, source, migration in (
+                (1, "vehicle_labels.json", up), (2, "vehicle_labels_v2.json", up), (1, "vehicle_labels.json", down)):
+            pattern = rf"\$labels_v{version}\$(.*?)\$labels_v{version}\$"
+            embedded = re.findall(pattern, migration, re.DOTALL)
+            self.assertEqual(len(embedded), 1)
+            self.assertEqual(json.loads(embedded[0]), json.loads((fixtures.HERE / source).read_text()))
         cur.execute("BEGIN;" + ddl + "COMMIT;")
         cur.execute(f"INSERT INTO {schema}.metadata VALUES ('schema',%s)",
                     ("leboncoin-private-trial/v1:" + hashlib.sha256(ddl.encode()).hexdigest(),))
@@ -78,9 +85,15 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         def native_model(key):
             return {"marque": "Tesla", "modele": "Model 3", "vehicle_model_evidence": model_proof(key)}
 
+        def native_price(key, euros="12950", cents=1295000):
+            return {"prix": euros, "sale_price_evidence": {"schema": "searchData.ads.offer.price/v1",
+                    "list_id": key, "currency": "EUR", "amount_minor": cents}}
+
         projected_model = {"vehicle_labels_version": 2, "brand": "Tesla", "model": "Model 3"}
-        insert("11", raw_fields={"marque": "Renault", "modele": "Clio IV"},
+        insert("11", raw_fields={"marque": "Renault", "modele": "Clio IV", "prix": "799"},
                projected_fields={"brand": "Renault", "model": "Clio"})
+        historical_paid = insert("13", raw_fields=native_price("13"), projected_fields={"price_amount_minor": 1295000},
+                                 until=origin + hour)
         cur.execute(f"SELECT to_jsonb(r)->'vehicle_features' FROM {view} r")
         self.assertIsNone(cur.fetchone()[0])
         # A noncanonical JSON field inserted outside the importer before migration must not be published.
@@ -97,6 +110,14 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
             cur.execute(up)
         cur.execute("ROLLBACK")
         cur.execute(f"DELETE FROM {fixtures.TABLE} WHERE export_sha256=%s", (bad_model,))
+        for raw_price, projection in (({}, {"price_amount_minor": 1295000}),
+                                      ({"marque": "Tesla", "modele": "Model 3"}, projected_model),
+                                      (native_price("99", euros="1295"), {"price_amount_minor": 1295000})):
+            forged_before_upgrade = insert("99", raw_fields=raw_price, projected_fields=projection)
+            with self.assertRaisesRegex(psycopg2.Error, "invalid_existing_vehicle_features"):
+                cur.execute(up)
+            cur.execute("ROLLBACK")
+            cur.execute(f"DELETE FROM {fixtures.TABLE} WHERE export_sha256=%s", (forged_before_upgrade,))
         cur.execute(up)
         cur.execute(up)
         self.assertEqual(original, identity())
@@ -137,7 +158,8 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         cur.execute("SET ROLE fixture_features_writer")
         supported = {"fuel": "Diesel", "gearbox": "Manuelle", "doors": 3, "seats": 5,
                      "firstOwner": True, "inspectionValid": False}
-        digest = insert("22", supported, raw_fields=native_model("22"), projected_fields=projected_model)
+        digest = insert("22", supported, raw_fields=native_model("22") | native_price("22"),
+                        projected_fields=projected_model | {"price_amount_minor": 1295000})
         insert("33", {"body": "Coupé"}, until=origin + hour)
         first = insert("44", {"color": "Gris", "serviceBook": True})
         second = insert("44", {"fuel": "Essence"}, at=origin + hour)
@@ -179,7 +201,65 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         for marker in (None, False, 2.0, "2"):
             with self.subTest(marker=marker), self.assertRaisesRegex(psycopg2.Error, "invalid_native_vehicle_features"):
                 insert("88", raw_fields=native, projected_fields=projected_model | {"vehicle_labels_version": marker})
+        for raw_fields, projected_fields in (
+            ({"marque": "Tesla", "modele": "Model 3"}, projected_model),
+            ({"marque": "Tesla", "modele": "Model 3"}, {"brand": "Tesla", "model": "Model 3"}),
+            ({"marque": "Renault"}, {"brand": "Renault", "model": "Clio"}),
+            (native | {"modele": "unlisted", "vehicle_model_evidence": evidence | {"model": "unlisted"}},
+             projected_model | {"model": "unlisted"}),
+        ):
+            with self.subTest(raw=raw_fields), self.assertRaisesRegex(psycopg2.Error, "invalid_native_vehicle_features"):
+                insert("88", raw_fields=raw_fields, projected_fields=projected_fields)
+        price = native_price("88")
+        sale = price["sale_price_evidence"]
+        projected_price = {"price_amount_minor": 1295000}
+        for label, raw_fields, projected_fields in (
+            ("no proof", {"prix": "12950"}, projected_price), ("no projected price", price, {}),
+            ("null projected price", price, {"price_amount_minor": None}),
+            ("different projected amount", price, {"price_amount_minor": 129500}),
+            ("different offer", price | {"sale_price_evidence": sale | {"list_id": "87"}}, projected_price),
+            ("numeric offer ID", price | {"sale_price_evidence": sale | {"list_id": 88}}, projected_price),
+            ("foreign currency", price | {"sale_price_evidence": sale | {"currency": "USD"}}, projected_price),
+            ("different euros", price | {"prix": "1295"}, projected_price),
+            ("numeric euros", price | {"prix": 12950}, projected_price),
+            ("noncanonical euros", price | {"prix": "012950"}, projected_price),
+            ("schema", price | {"sale_price_evidence": sale | {"schema": "other"}}, projected_price),
+            ("extra", price | {"sale_price_evidence": sale | {"extra": "x"}}, projected_price),
+            ("float cents", native_price("88", cents=1295000.0), projected_price),
+            ("string cents", native_price("88", cents="1295000"), projected_price),
+            ("boolean cents", native_price("88", cents=True), projected_price),
+            ("fractional euros", native_price("88", cents=1295001), {"price_amount_minor": 1295001}),
+            ("zero", native_price("88", euros="0", cents=0), {"price_amount_minor": 0}),
+            ("too large", native_price("88", euros="90071992547410", cents=9007199254741000),
+             {"price_amount_minor": 9007199254741000}),
+        ):
+            with self.subTest(label=label), self.assertRaisesRegex(psycopg2.Error, "invalid_native_vehicle_features"):
+                insert("88", raw_fields=raw_fields, projected_fields=projected_fields)
         cur.execute("RESET ROLE")
+        by_id = {"source_listing_id": "88"}
+        raw_price = json.dumps([by_id | price]).replace("1295000", "1.295e6")
+        cur.execute(f"SELECT {schema}.valid_rust_vehicle_evidence(%s,%s)",
+                    (raw_price.encode(), json.dumps([by_id | projected_price])))
+        self.assertFalse(cur.fetchone()[0])
+        # The private importer rejects duplicate JSON fields and floating-point feature counts.
+        raw_duplicate = json.dumps([by_id | price]).replace('"currency": "EUR"', '"currency": "CHF", "currency": "EUR"')
+        cur.execute(f"SELECT {schema}.valid_rust_vehicle_evidence(%s,%s)",
+                    (raw_duplicate.encode(), json.dumps([by_id | projected_price])))
+        self.assertFalse(cur.fetchone()[0])
+        raw_count = json.dumps([by_id | {"vehicle_features_evidence": {
+            "schema": "searchData.ads.offer.features/v1", "list_id": "88", "attributes": {"doors": 5}}}])
+        raw_count = raw_count.replace('"doors": 5', '"doors": 5e0')
+        typed_count = [by_id | {"vehicle_labels_version": 2, "vehicle_features": {"doors": 5}}]
+        cur.execute(f"SELECT {schema}.valid_rust_vehicle_evidence(%s,%s)", (raw_count.encode(), json.dumps(typed_count)))
+        self.assertFalse(cur.fetchone()[0])
+        cur.execute(f"SELECT listings FROM {fixtures.TABLE} WHERE export_sha256=%s", (historical_paid,))
+        self.assertEqual(cur.fetchone()[0], [{"source_listing_id": "13", "price_amount_minor": 1295000}])
+        # JSONB considers integers equal to numerically equivalent decimals. Neither
+        # a relabelled version nor a retyped price can be smuggled into an UPDATE.
+        for field, numeric in (("vehicle_labels_version", "2.0"), ("price_amount_minor", "1295000.0")):
+            with self.subTest(field=field), self.assertRaisesRegex(psycopg2.Error, "immutable_native_export"):
+                cur.execute(f"UPDATE {fixtures.TABLE} SET listings=jsonb_set(listings, %s, %s::jsonb) WHERE export_sha256=%s",
+                            (["0", field], numeric, digest))
         cur.execute("SET ROLE fixture_features_reader")
         cur.execute(f"SELECT brand,model FROM {view} WHERE source_listing_id IN ('11','22') ORDER BY source_listing_id")
         self.assertEqual(cur.fetchall(), [("Renault", "Clio"), ("Tesla", "Model 3")])
@@ -204,8 +284,10 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         cur.execute("SET ROLE fixture_features_reader")
         cur.execute(f"SELECT source_listing_id,vehicle_features FROM {view} ORDER BY 1")
         self.assertEqual(cur.fetchall(), [("11", None), ("22", None)])
-        cur.execute(f"SELECT brand,model FROM {view} WHERE source_listing_id='11'")
-        self.assertEqual(cur.fetchone(), ("Renault", "Clio"))
+        cur.execute(f"SELECT brand,model,price_amount_minor FROM {view} WHERE source_listing_id='11'")
+        self.assertEqual(cur.fetchone(), ("Renault", "Clio", None))
+        cur.execute(f"SELECT model,price_amount_minor FROM {view} WHERE source_listing_id='22'")
+        self.assertEqual(cur.fetchone(), (None, 1295000))
         cur.execute(f"SELECT listing_observation_sha256 FROM {dom_view}")
         self.assertIsNone(cur.fetchone()[0])
         cur.execute("RESET ROLE")
@@ -216,3 +298,5 @@ class VehicleFeaturesMigrationTests(fixtures.NativeMigrationTests):
         cur.execute(up)
         cur.execute(f"SELECT vehicle_features FROM {view} WHERE source_listing_id='22'")
         self.assertEqual(cur.fetchone(), (supported,))
+        cur.execute(f"SELECT brand,model,price_amount_minor FROM {view} WHERE source_listing_id='22'")
+        self.assertEqual(cur.fetchone(), ("Tesla", "Model 3", 1295000))

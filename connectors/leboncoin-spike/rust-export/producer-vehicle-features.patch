@@ -1,3 +1,192 @@
+diff --git a/src/config.rs b/src/config.rs
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -3,6 +3,15 @@
+ use std::{env, fs};
+ 
+ const POLICY_PATH: &str = "../../../packages/source-registry/data/leboncoin.json";
++const EXPORT_FIELDS: [&str; 6] = [
++    "source_listing_id",
++    "url",
++    "price",
++    "mileage",
++    "description",
++    "media",
++];
++const MAX_RETENTION_SECONDS: i64 = 100 * 366 * 86_400;
+ 
+ pub struct MediaPolicy {
+     valid_from: DateTime<Utc>,
+@@ -19,14 +28,24 @@
+             grant["territory"] == "FR"
+                 && grant["acquisitionMethod"] == "crawl"
+                 && grant["audience"] == "consumer"
+-                && grant["fields"]
+-                    .as_array()
+-                    .is_some_and(|fields| fields.iter().any(|f| f == "media"))
++                && grant["fields"].as_array().is_some_and(|fields| {
++                    EXPORT_FIELDS
++                        .iter()
++                        .all(|required| fields.iter().any(|f| f.as_str() == Some(*required)))
++                })
+         });
+-        if record["sourceId"] != "leboncoin-fr"
++        if record["schemaVersion"].as_u64() != Some(1)
++            || record["sourceId"] != "leboncoin-fr"
+             || revision["state"] != "enabled"
+             || config["legalStatus"] != "permitted_crawl"
++            || !config["territories"].as_array()?.iter().any(|v| v == "FR")
++            || !config["acquisitionMethods"]
++                .as_array()?
++                .iter()
++                .any(|v| v == "crawl")
++            || policy["pii"]["mode"] != "none"
+             || policy["media"]["mode"] != "reference"
++            || policy["media"]["attributionRequired"].as_bool() != Some(true)
+             || !has_grant
+         {
+             return None;
+@@ -34,8 +53,16 @@
+         let auth = &policy["authorization"];
+         let valid_from = auth["validFrom"].as_str()?.parse().ok()?;
+         let valid_until = auth["validUntil"].as_str()?.parse().ok()?;
+-        let seconds = policy["retention"]["mediaSeconds"].as_i64()?;
+-        if seconds <= 0 || valid_from >= valid_until {
++        let retention = &policy["retention"];
++        let valid_retention = |key: &str| {
++            retention[key]
++                .as_i64()
++                .filter(|s| (1..=MAX_RETENTION_SECONDS).contains(s))
++        };
++        valid_retention("rawSeconds")?;
++        valid_retention("normalizedSeconds")?;
++        let seconds = valid_retention("mediaSeconds")?;
++        if valid_from >= valid_until {
+             return None;
+         }
+         Some(Self {
+@@ -60,10 +87,10 @@
+         let json = fs::read_to_string(POLICY_PATH)
+             .map_err(|e| format!("Unable to read {POLICY_PATH}: {e}"))?;
+         let policy = Self::parse(&serde_json::from_str(&json)?)
+-            .ok_or("Leboncoin gallery policy unavailable")?;
++            .ok_or("Leboncoin export policy unavailable")?;
+         policy
+             .deadline(Utc::now())
+-            .ok_or("Leboncoin gallery authorization outside validity period")?;
++            .ok_or("Leboncoin export authorization outside validity period")?;
+         Ok(policy)
+     }
+ }
+@@ -122,17 +149,22 @@
+     use super::*;
+     use serde_json::json;
+ 
++    fn full_scope() -> Value {
++        json!({
++        "schemaVersion":1,"sourceId": "leboncoin-fr", "revisions": [{"state":"enabled","configuration":{
++        "legalStatus":"permitted_crawl","territories":["FR"],"acquisitionMethods":["crawl"],"policy":{
++            "pii":{"mode":"none"},"media":{"mode":"reference","attributionRequired":true},
++            "retention":{"rawSeconds":600, "normalizedSeconds":300, "mediaSeconds":60},
++            "authorization":{"validFrom":"2026-01-01T00:00:00Z","validUntil":"2026-01-02T00:00:00Z"},
++            "grants":[{"territory":"FR","acquisitionMethod":"crawl","audience":"consumer","fields":EXPORT_FIELDS}]
++        }}}]})
++    }
++
+     #[test]
+     fn media_references_expire_at_the_earlier_policy_limit() {
+-        let mut source = json!({
+-        "sourceId": "leboncoin-fr", "revisions": [{"state":"enabled","configuration":{
+-        "legalStatus":"permitted_crawl","policy":{
+-            "media":{"mode":"reference"},"retention":{"mediaSeconds":60},
+-            "authorization":{"validFrom":"2026-01-01T00:00:00Z","validUntil":"2026-01-02T00:00:00Z"},
+-            "grants":[{"territory":"FR","acquisitionMethod":"crawl","audience":"consumer","fields":["media"]}]
+-        }}}]});
+-        let policy = MediaPolicy::parse(&source).unwrap();
++        let policy = MediaPolicy::parse(&full_scope()).unwrap();
+         let time = |s: &str| s.parse::<DateTime<Utc>>().unwrap();
++        assert!(policy.deadline(time("2025-12-31T23:59:59Z")).is_none());
+         assert_eq!(
+             policy.deadline(time("2026-01-01T00:00:00Z")),
+             Some(time("2026-01-01T00:01:00Z"))
+@@ -142,7 +174,73 @@
+             Some(time("2026-01-02T00:00:00Z"))
+         );
+         assert!(policy.deadline(time("2026-01-02T00:00:00Z")).is_none());
+-        source["revisions"][0]["configuration"]["policy"]["grants"] = json!([]);
+-        assert!(MediaPolicy::parse(&source).is_none());
+-    }
+-}
++    }
++
++    #[test]
++    fn all_export_fields_require_one_matching_consumer_grant() {
++        let mut record = full_scope();
++        let grants = &mut record["revisions"][0]["configuration"]["policy"]["grants"];
++        let full = grants[0].clone();
++        grants[0]["fields"] = json!(["media"]);
++        assert!(MediaPolicy::parse(&record).is_none());
++
++        for required in EXPORT_FIELDS {
++            let mut partial = full.clone();
++            partial["fields"]
++                .as_array_mut()
++                .unwrap()
++                .retain(|field| field != required);
++            let mut remainder = full.clone();
++            remainder["fields"] = json!([required]);
++            record["revisions"][0]["configuration"]["policy"]["grants"] =
++                json!([partial, remainder]);
++            assert!(MediaPolicy::parse(&record).is_none());
++        }
++        for (name, other) in [
++            ("territory", "DE"),
++            ("audience", "internal"),
++            ("acquisitionMethod", "api"),
++        ] {
++            let mut foreign = full.clone();
++            foreign[name] = json!(other);
++            record["revisions"][0]["configuration"]["policy"]["grants"] = json!([foreign]);
++            assert!(MediaPolicy::parse(&record).is_none());
++        }
++    }
++
++    #[test]
++    fn a_complete_field_grant_still_requires_the_private_export_policy() {
++        for (pointer, value) in [
++            ("/schemaVersion", json!(2)),
++            ("/revisions/0/configuration/territories", json!(["DE"])),
++            (
++                "/revisions/0/configuration/acquisitionMethods",
++                json!(["api"]),
++            ),
++            (
++                "/revisions/0/configuration/policy/pii/mode",
++                json!("contact"),
++            ),
++            (
++                "/revisions/0/configuration/policy/media/attributionRequired",
++                json!(false),
++            ),
++            (
++                "/revisions/0/configuration/policy/retention/rawSeconds",
++                json!(false),
++            ),
++            (
++                "/revisions/0/configuration/policy/retention/normalizedSeconds",
++                json!(0),
++            ),
++            (
++                "/revisions/0/configuration/policy/retention/mediaSeconds",
++                json!(MAX_RETENTION_SECONDS + 1),
++            ),
++        ] {
++            let mut record = full_scope();
++            *record.pointer_mut(pointer).unwrap() = value;
++            assert!(MediaPolicy::parse(&record).is_none(), "{pointer}");
++        }
++    }
++}
 diff --git a/src/main.rs b/src/main.rs
 --- a/src/main.rs
 +++ b/src/main.rs
@@ -9,6 +198,78 @@ diff --git a/src/main.rs b/src/main.rs
  mod replay;
  
  
+diff --git a/src/media.rs b/src/media.rs
+--- a/src/media.rs
++++ b/src/media.rs
+@@ -73,7 +73,7 @@
+     if html.len() > MAX_PAGE_BYTES {
+         return None;
+     }
+-    let data = page_data(&Html::parse_document(html))?;
++    let data = page_data(&Html::parse_document(html)).ok().flatten()?;
+     let ad = data.pointer("/props/pageProps/ad")?;
+     if source_id(ad)? != expected_id {
+         return None;
+@@ -81,13 +81,10 @@
+     declared_gallery(ad)
+ }
+ 
+-fn structured_galleries(doc: &Html) -> HashMap<String, Vec<String>> {
++fn structured_galleries(data: Option<&Value>) -> HashMap<String, Vec<String>> {
+     let mut result = HashMap::new();
+-    let Some(data) = page_data(doc) else {
+-        return result;
+-    };
+     let Some(ads) = data
+-        .pointer("/props/pageProps/searchData/ads")
++        .and_then(|data| data.pointer("/props/pageProps/searchData/ads"))
+         .and_then(Value::as_array)
+     else {
+         return result;
+@@ -105,7 +102,10 @@
+         return HashMap::new();
+     }
+     let doc = Html::parse_document(html);
+-    let mut result = structured_galleries(&doc);
++    let Ok(data) = page_data(&doc) else {
++        return HashMap::new();
++    };
++    let mut result = structured_galleries(data.as_ref());
+     let card_selector = Selector::parse(".dbt-k86q96, .grid-item, article, .li-item").unwrap();
+     let links = Selector::parse("a[href]").unwrap();
+     let images = Selector::parse("img, picture source").unwrap();
+@@ -215,6 +215,31 @@
+     }
+ 
+     #[test]
++    fn ambiguous_scripts_never_restore_a_card_thumbnail_or_a_detail_gallery() {
++        let photo = "https://img.leboncoin.fr/api/v1/lbcpb1/images/fixture.jpg";
++        let gallery = |images| {
++            let ad = json!({"list_id":42,"images":images});
++            let data = json!({"props":{"pageProps":{"searchData":{"ads":[ad]},"ad":ad}}});
++            format!("<script id='__NEXT_DATA__'>{data}</script>")
++        };
++        let empty = gallery(json!({"nb_images":0,"urls":[]}));
++        let declared = gallery(json!({"urls":[photo]}));
++        let malformed = "<script id='__NEXT_DATA__'>malformed</script>";
++        let card = format!("<article><a href='/ad/voitures/42'></a><img src='{photo}'></article>");
++        for (first, second) in [
++            (&empty[..], &declared[..]),
++            (&declared, &empty),
++            (&empty, &empty),
++            (malformed, &empty),
++            (&declared, malformed),
++        ] {
++            let page = format!("{first}{card}{second}");
++            assert!(galleries(&page).is_empty());
++            assert_eq!(detail_gallery(&page, "42"), None);
++        }
++    }
++
++    #[test]
+     fn detail_validates_source_identity_and_empty_status() {
+         let url = "https://img.leboncoin.fr/api/v1/lbcpb1/images/a.jpg";
+         let html = |ad: Value| {
 diff --git a/src/parser.rs b/src/parser.rs
 --- a/src/parser.rs
 +++ b/src/parser.rs
@@ -28,7 +289,7 @@ diff --git a/src/parser.rs b/src/parser.rs
      let document = Html::parse_document(html);
      
 -    let prices = crate::structured::prices(&document);
-+    let offers = crate::structured::offers(&document);
++    let Ok(offers) = crate::structured::offers(&document) else { return Vec::new(); };
      let card_selector = Selector::parse(".dbt-k86q96, .grid-item, article, .li-item").unwrap();
      
      for element in document.select(&card_selector) {
@@ -116,20 +377,30 @@ diff --git a/src/replay.rs b/src/replay.rs
 diff --git a/src/structured.rs b/src/structured.rs
 --- a/src/structured.rs
 +++ b/src/structured.rs
-@@ -4,7 +4,11 @@
+@@ -2,10 +2,19 @@
+ use serde_json::Value;
+ use std::collections::HashMap;
  
- pub(crate) fn page_data(doc: &Html) -> Option<Value> {
+-pub(crate) fn page_data(doc: &Html) -> Option<Value> {
++pub(crate) struct AmbiguousPageData;
++
++pub(crate) fn page_data(doc: &Html) -> Result<Option<Value>, AmbiguousPageData> {
      let selector = Selector::parse("script#__NEXT_DATA__").expect("valid selector");
 -    let script = doc.select(&selector).next()?;
+-    serde_json::from_str(script.text().next()?).ok()
 +    let mut scripts = doc.select(&selector);
-+    let script = scripts.next()?;
-+    if scripts.next().is_some() {
-+        return None;
++    match (scripts.next(), scripts.next()) {
++        (None, _) => Ok(None),
++        (Some(script), None) => Ok(script
++            .text()
++            .next()
++            .and_then(|text| serde_json::from_str(text).ok())),
++        (Some(_), Some(_)) => Err(AmbiguousPageData),
 +    }
-     serde_json::from_str(script.text().next()?).ok()
  }
  
-@@ -49,7 +53,7 @@
+ pub(crate) fn source_id(ad: &Value) -> Option<String> {
+@@ -49,7 +58,7 @@
      Some(amount)
  }
  
@@ -138,7 +409,7 @@ diff --git a/src/structured.rs b/src/structured.rs
  pub struct SalePriceEvidence {
      schema: &'static str,
      list_id: String,
-@@ -57,41 +61,94 @@
+@@ -57,41 +66,100 @@
      pub amount_minor: u64,
  }
  
@@ -186,12 +457,21 @@ diff --git a/src/structured.rs b/src/structured.rs
 +    offers.get(crate::scraper::listing_id(&url)?)
 +}
 +
-+pub(crate) fn offers(doc: &Html) -> Option<HashMap<String, OfferEvidence>> {
++pub(crate) fn offers(
++    doc: &Html,
++) -> Result<Option<HashMap<String, OfferEvidence>>, AmbiguousPageData> {
      let data = page_data(doc)?;
-     let ads = data
-         .pointer("/props/pageProps/searchData/ads")?
-         .as_array()?;
+-    let ads = data
+-        .pointer("/props/pageProps/searchData/ads")?
+-        .as_array()?;
 -    let mut prices = HashMap::new();
++    let Some(ads) = data
++        .as_ref()
++        .and_then(|data| data.pointer("/props/pageProps/searchData/ads"))
++        .and_then(Value::as_array)
++    else {
++        return Ok(None);
++    };
 +    let mut offers = HashMap::<String, OfferEvidence>::new();
      for ad in ads {
          let Some(id) = source_id(ad) else { continue };
@@ -254,11 +534,11 @@ diff --git a/src/structured.rs b/src/structured.rs
 +            },
 +        );
 +    }
-+    Some(offers)
++    Ok(Some(offers))
  }
  
  #[cfg(test)]
-@@ -105,7 +162,10 @@
+@@ -105,7 +173,10 @@
          assert_eq!(super::sale_price(&offer), Some(499));
          for attributes in [
              json!({"key": "car_contract", "value_label": "Oui"}),
@@ -270,7 +550,35 @@ diff --git a/src/structured.rs b/src/structured.rs
              json!([{"key": "car_contract"}]),
              json!([{"key": "car_contract", "value_label": "Oui"}]),
          ] {
-@@ -141,13 +201,21 @@
+@@ -114,6 +185,27 @@
+         }
+         offer["attributes"] = json!([{"key": "car_contract", "value_label": "Non"}]);
+         assert_eq!(super::sale_price(&offer), Some(499));
++    }
++
++    #[test]
++    fn multiple_snapshot_scripts_reject_the_offers_and_the_card_text_fallback() {
++        let ad = json!({"list_id":42,"ad_type":"offer","price":[13000],"attributes":[
++            {"key":"brand","key_label":"Marque","value":"Dacia","values":["Dacia"],"value_label":"Dacia"},
++            {"key":"model","key_label":"Modèle","value":"Sandero","values":["Sandero"],"value_label":"Sandero"},
++            {"key":"fuel","key_label":"Énergie","value":"2","values":["2"],"value_label":"Diesel"}
++        ]});
++        let data = json!({"props":{"pageProps":{"searchData":{"ads":[ad]}}}});
++        let script = format!("<script id='__NEXT_DATA__'>{data}</script>");
++        let card = "<article><a href='/ad/voitures/42'>Renault Clio de 2020 avec 50000 km au prix de 499 € par mois.</a></article>";
++        let url = "https://www.leboncoin.fr/c/voitures";
++        let rows = parse_html(&format!("{script}{card}"), url);
++        assert_eq!(rows[0].prix.as_deref(), Some("13000"));
++        assert_eq!(rows[0].modele.as_deref(), Some("Sandero"));
++        assert!(rows[0].vehicle_features_evidence.is_some());
++        for other in [&script[..], "<script id='__NEXT_DATA__'>malformed</script>"] {
++            assert!(parse_html(&format!("{script}{card}{other}"), url).is_empty());
++            assert!(parse_html(&format!("{other}{card}{script}"), url).is_empty());
++        }
+     }
+ 
+     #[test]
+@@ -141,13 +233,21 @@
          assert!(identifiable[0].url.as_ref().unwrap().ends_with("/3"));
          assert_eq!(identifiable[0].prix.as_deref(), Some("26900"));
          let evidence = serde_json::to_value(&identifiable[0]).unwrap();
@@ -304,7 +612,7 @@ diff --git a/src/vehicle_features.rs b/src/vehicle_features.rs
 new file mode 100644
 --- /dev/null
 +++ b/src/vehicle_features.rs
-@@ -0,0 +1,381 @@
+@@ -0,0 +1,465 @@
 +use serde_json::{Map, Value};
 +use std::collections::HashSet;
 +
@@ -355,57 +663,58 @@ new file mode 100644
 +        return None;
 +    }
 +    let attrs = offer.get("attributes")?.as_array()?;
-+    let mut make = None;
-+    let mut model = None;
++    let (mut brand, mut model, mut brand_alias, mut model_alias) = (None, None, None, None);
 +    for attr in attrs {
-+        let key = attr.get("key")?.as_str()?;
-+        let (slot, label) = match key {
-+            "brand" => (&mut make, "Marque"),
++        let (slot, label) = match attr.get("key")?.as_str()? {
++            "brand" => (&mut brand, "Marque"),
 +            "model" => (&mut model, "Modèle"),
++            "u_car_brand" => (&mut brand_alias, "Marque"),
++            "u_car_model" => (&mut model_alias, "Modèle"),
 +            _ => continue,
 +        };
-+        if slot.is_some() || attr.get("key_label")?.as_str()? != label {
++        if slot.replace(attr).is_some() || attr.get("key_label")?.as_str()? != label {
 +            return None;
 +        }
-+        let name = attr.get("value_label")?.as_str()?;
-+        let values = attr.get("values")?.as_array()?;
-+        if attr.get("value")?.as_str()? != name || values.first()?.as_str()? != name {
-+            return None;
-+        }
-+        // The model sometimes has a secondary technical classification in position 2.
-+        // Its observed forms are lower-case codes separated by underscores.
-+        match &values[1..] {
-+            [] => (),
-+            [code] if key == "model" => {
-+                let code = code.as_str()?;
-+                if !code.contains('_')
-+                    || code.len() > 80
-+                    || !code
-+                        .bytes()
-+                        .all(|c| c == b'_' || c.is_ascii_lowercase() || c.is_ascii_digit())
-+                {
-+                    return None;
-+                }
-+            }
-+            _ => return None,
-+        }
-+        *slot = Some(name);
 +    }
-+    let make = make?.to_lowercase();
-+    let model = model?.to_lowercase();
-+    let mut aliases_seen = HashSet::new();
-+    for attr in attrs {
-+        let key = attr.get("key")?.as_str()?;
-+        let (label, expected) = match key {
-+            "u_car_brand" => ("Marque", &make),
-+            "u_car_model" => ("Modèle", &model),
-+            _ => continue,
-+        };
-+        if !aliases_seen.insert(key)
-+            || attr.get("key_label")?.as_str()? != label
-+            || attr.get("value_label")?.as_str()?.to_lowercase() != *expected
++    let (brand, brand_code, brand_codes) = model_attribute(brand?)?;
++    let (model, model_code, model_codes) = model_attribute(model?)?;
++    if brand != brand_code || brand_codes.len() != 1 || model != model_code {
++        return None;
++    }
++    match &model_codes[1..] {
++        [] => (),
++        [class] if class.as_str() == Some("model_all") => (),
++        _ => return None,
++    }
++    let make = folded_brand(brand);
++    let model_key = model.to_lowercase();
++    let brand_alias_code = if let Some(attr) = brand_alias {
++        let (label, code, codes) = model_attribute(attr)?;
++        if codes.len() != 1
++            || label.to_lowercase() != code.to_lowercase()
++            || !same_brand(code, &make)
 +        {
 +            return None;
++        }
++        Some(code)
++    } else {
++        None
++    };
++    if let Some(attr) = model_alias {
++        let (label, code, codes) = model_attribute(attr)?;
++        let (alias_brand, alias_model) = code.split_once('_')?;
++        if label.to_lowercase() != model_key
++            || alias_model.to_lowercase() != model_key
++            || !same_brand(alias_brand, &make)
++            || brand_alias_code.is_some_and(|expected| alias_brand != expected)
++            || codes.len() != model_codes.len()
++        {
++            return None;
++        }
++        if let Some(second) = codes.get(1) {
++            if second.as_str()? != format!("{alias_brand}_model_all") {
++                return None;
++            }
 +        }
 +    }
 +    let labels = LABELS.get_or_init(|| {
@@ -414,9 +723,37 @@ new file mode 100644
 +    });
 +    let (canonical, models) = labels
 +        .iter()
-+        .find(|(label, _)| label.to_lowercase() == make)?;
-+    let model = models.iter().find(|label| label.to_lowercase() == model)?;
++        .find(|(label, _)| folded_brand(label) == make)?;
++    let model = models
++        .iter()
++        .find(|label| label.to_lowercase() == model_key)?;
 +    Some((canonical.clone(), model.clone()))
++}
++
++// Both representations of the source code must agree before it can corroborate a label.
++fn model_attribute(attr: &Value) -> Option<(&str, &str, &[Value])> {
++    let label = attr.get("value_label")?.as_str()?;
++    let code = attr.get("value")?.as_str()?;
++    let codes = attr.get("values")?.as_array()?;
++    (codes.first()?.as_str()? == code).then_some((label, code, codes.as_slice()))
++}
++
++fn folded_brand(label: &str) -> String {
++    let lower = label.to_lowercase();
++    match lower.as_str() {
++        "citroen" => "citroën".to_owned(),
++        "skoda" => "škoda".to_owned(),
++        _ => lower,
++    }
++}
++
++fn same_brand(code: &str, make: &str) -> bool {
++    let normalized = folded_brand(code);
++    normalized == make
++        || matches!(
++            (normalized.as_str(), make),
++            ("mercedes", "mercedes-benz") | ("mercedes-benz", "mercedes")
++        )
 +}
 +
 +fn feature_value(name: &str, attr: &Value) -> Option<Value> {
@@ -646,6 +983,61 @@ new file mode 100644
 +        );
 +        assert!(rows[1].get("vehicle_features_evidence").is_none());
 +        assert!(rows[2].get("vehicle_features_evidence").is_none());
++    }
++
++    #[test]
++    fn source_model_aliases_must_corroborate_the_brand_model_and_class() {
++        let brand = attr("brand", "Marque", "Jeep", "Jeep");
++        let mut model = attr("model", "Modèle", "Cherokee", "Cherokee");
++        model["values"] = json!(["Cherokee", "model_all"]);
++        let brand_alias = attr("u_car_brand", "Marque", "JEEP", "JEEP");
++        let mut model_alias = attr("u_car_model", "Modèle", "JEEP_Cherokee", "Cherokee");
++        model_alias["values"] = json!(["JEEP_Cherokee", "JEEP_model_all"]);
++        let valid = json!([brand, model, brand_alias, model_alias]);
++        assert_eq!(
++            super::canonical_model(&offer(42, valid.clone())),
++            Some(("Jeep".into(), "Cherokee".into()))
++        );
++        for (index, name, replacement) in [
++            (2, "value", json!("FORD")),
++            (2, "values", json!(["FORD"])),
++            (2, "value_label", json!("FORD")),
++            (2, "values", json!(["JEEP", "FORD"])),
++            (3, "value", json!("JEEP_Compass")),
++            (3, "values", json!(["JEEP_Compass", "JEEP_model_all"])),
++            (3, "value_label", json!("Compass")),
++            (3, "values", json!(["JEEP_Cherokee", "FORD_model_all"])),
++            (3, "values", json!(["JEEP_Cherokee", "JEEP_Different"])),
++            (3, "values", json!(["JEEP_Cherokee"])),
++            (3, "values", json!(null)),
++            (1, "values", json!(["Cherokee", "not_a_class"])),
++        ] {
++            let mut conflicting = valid.clone();
++            conflicting[index][name] = replacement;
++            assert!(super::canonical_model(&offer(42, conflicting)).is_none());
++        }
++        for (index, wrong_code) in [(2, "FORD"), (3, "FORD_Cherokee"), (3, "JEEP_Compass")] {
++            let mut conflicting = valid.clone();
++            conflicting[index]["value"] = json!(wrong_code);
++            conflicting[index]["values"][0] = json!(wrong_code);
++            assert!(super::canonical_model(&offer(42, conflicting)).is_none());
++        }
++        for (brand, alias, canonical, name) in [
++            ("Mercedes", "MERCEDES-BENZ", "Mercedes", "Classe C"),
++            ("Citroen", "CITROEN", "Citroën", "C4 Picasso"),
++        ] {
++            let code = format!("{alias}_{name}");
++            let attrs = json!([
++                attr("brand", "Marque", brand, brand),
++                attr("model", "Modèle", name, name),
++                attr("u_car_brand", "Marque", alias, alias),
++                attr("u_car_model", "Modèle", &code, name)
++            ]);
++            assert_eq!(
++                super::canonical_model(&offer(42, attrs)),
++                Some((canonical.into(), name.into()))
++            );
++        }
 +    }
 +    #[test]
 +    fn model_is_bound_to_the_structured_vehicle_even_when_a_card_mentions_another_make() {
