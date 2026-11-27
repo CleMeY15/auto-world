@@ -2,6 +2,8 @@
 
 ## Identité AutoFindex et catalogue filtré
 
+Le filtre « Prix de vente renseigné » permet de parcourir les annonces dont le prix peut être affiché, sans saisir de budget. Il se combine avec les autres critères et se conserve au changement de page et au retour de fiche. [Parcours du catalogue](apps/web/test/private-catalog-browser.mjs)
+
 L’accueil public reprend le globe et la frise de la présentation AutoFindex. Le catalogue connecté utilise les photos et les prix issus des lots admis. La recherche et les critères de marque, prix, année et kilométrage s’appliquent avant pagination dans PostgreSQL. La qualification en production concerne le frontal public, le lecteur et le site privé de la même version. [Identité visuelle](DESIGN.md) · [Procédure de livraison](docs/operations/PRIVATE_CATALOG_RELEASE.md)
 
 En recette isolée, Chromium et WebKit couvrent l’accueil, la connexion, la liste, les filtres et la fiche sur mobile et ordinateur. Les tests PostgreSQL vérifient les bornes en centimes, les unités de kilométrage, les valeurs absentes et une marque dont le premier résultat se trouve au-delà de la première page non filtrée. [Parcours du catalogue](apps/web/test/private-catalog-browser.mjs) · [Tests PostgreSQL](connectors/leboncoin-spike/rust-export/test_catalog_publication.py)

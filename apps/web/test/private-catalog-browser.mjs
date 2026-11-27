@@ -48,6 +48,7 @@ const reader = http.createServer((req, res) => {
     const rows = state === "empty" ? [] : items.filter(item =>
       item.source_listing_id > (url.searchParams.get("after") ?? "")
       && (!brand || item.brand.toLowerCase() === brand.toLowerCase())
+      && (url.searchParams.get("hasPrice") !== "1" || item.price_amount_minor !== null)
       && inRange(item.price_amount_minor === null ? null : item.price_amount_minor / 100, "priceMin", "priceMax")
       && inRange(item.year, "yearMin", "yearMax")
       && inRange(item.mileage_km, "kmMin", "kmMax")
@@ -262,6 +263,7 @@ try {
         const brandSelect = page.getByLabel("Marque", {exact:true});
         const priceMin = page.getByRole("spinbutton", {name:"Prix en euros minimum"});
         const priceMax = page.getByRole("spinbutton", {name:"Prix en euros maximum"});
+        const priceOnly = page.getByRole("checkbox", {name:"Prix de vente renseigné", exact:true});
         const apply = page.getByRole("button", {name:"Appliquer les filtres"});
         await priceMin.fill("20000");
         await priceMax.fill("15000");
@@ -272,6 +274,7 @@ try {
         await page.getByRole("spinbutton", {name:"Année minimum"}).fill("2020");
         await page.getByRole("spinbutton", {name:"Kilométrage maximal"}).fill("60000");
         await brandSelect.selectOption("Citroën");
+        await priceOnly.check();
         await page.evaluate(() => globalThis.scrollTo({ top: 0, behavior: "instant" }));
         await inspect(page, engine + "-" + size + "-filtres");
         await apply.click();
@@ -279,17 +282,46 @@ try {
         assert.equal(await page.locator(".catalogue-row").count(), 1);
         await citroen.click();
         const backPath = new URL(await back.getAttribute("href"), base);
-        for (const [k,v] of Object.entries({q:"2022", brand:"Citroën", priceMax:"15000", yearMin:"2020", kmMax:"60000"})) {
+        for (const [k,v] of Object.entries({q:"2022", brand:"Citroën", hasPrice:"1", priceMax:"15000", yearMin:"2020", kmMax:"60000"})) {
           assert.equal(backPath.searchParams.get(k),v);
         }
         await back.click();
         await page.getByRole("link", {name:"Retirer le filtre Citroën"}).click();
         assert.equal(new URL(page.url()).searchParams.has("brand"), false);
         assert.equal(new URL(page.url()).searchParams.get("priceMax"), "15000");
+        assert.equal(new URL(page.url()).searchParams.get("hasPrice"), "1");
         await page.getByRole("link", {name:"Effacer les filtres"}).click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("q"), "2022");
         assert.equal(new URL(page.url()).searchParams.has("priceMax"), false);
+        assert.equal(new URL(page.url()).searchParams.has("hasPrice"), false);
+        await page.goto(base + "/catalogue?limit=1");
+        await filters.click();
+        assert.equal(await priceOnly.isChecked(), false);
+        await priceOnly.focus();
+        await priceOnly.press("Space");
+        assert.equal(await priceOnly.isChecked(), true);
+        await priceOnly.scrollIntoViewIfNeeded();
+        await inspect(page, engine + "-" + size + "-prix-renseigne");
+        await apply.click();
+        await page.waitForURL(url => url.searchParams.get("hasPrice") === "1");
+        await peugeot.waitFor();
+        await page.getByRole("link", {name:"Page suivante"}).click();
+        await citroen.waitFor();
+        assert.equal(new URL(page.url()).searchParams.get("after"), "100");
+        assert.equal(new URL(page.url()).searchParams.get("hasPrice"), "1");
+        assert.equal(await page.getByRole("link", {name:"Page suivante"}).count(), 0);
+        await filters.click();
+        assert.equal(await priceOnly.isChecked(), true);
+        await field.fill("Clio");
+        await submit.click();
+        await page.getByRole("heading", {name:"Aucune annonce pour cette recherche"}).waitFor();
+        assert.equal(new URL(page.url()).searchParams.get("hasPrice"), "1");
+        assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        await page.getByRole("link", {name:"Retirer le filtre Prix de vente renseigné"}).click();
+        await renault.getByText("Prix à confirmer", {exact:true}).waitFor();
+        assert.equal(new URL(page.url()).searchParams.get("q"), "Clio");
+        assert.equal(new URL(page.url()).searchParams.has("hasPrice"), false);
         await page.goto(base + "/catalogue?yearMin=2022&limit=1");
         await page.getByRole("link", {name:"Page suivante"}).click();
         await page.getByRole("link", {name:/Renault Clio/}).waitFor();

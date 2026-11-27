@@ -9,6 +9,7 @@ export type PageWindow = {
   readonly limit: number;
   readonly q?: string;
   readonly brand?: string;
+  readonly hasPrice?: 1;
 } & Readonly<Partial<Record<NumericFilter, number>>>;
 
 function isBrandLabel(value: unknown): value is string {
@@ -43,7 +44,7 @@ export function isListingId(value: unknown): value is string {
 }
 export const maxQueryLength = 80;
 export function pageWindow(query: Query): PageWindow | null {
-  const allowed = ["after", "limit", "q", "brand", ...numericFilters];
+  const allowed = ["after", "limit", "q", "brand", "hasPrice", ...numericFilters];
   if (Object.keys(query).some(key => !allowed.includes(key))) return null;
   const after = query.after;
   const limit = query.limit ?? "20";
@@ -54,6 +55,8 @@ export function pageWindow(query: Query): PageWindow | null {
   if (typeof limit !== "string" || !/^(?:[1-9][0-9]?|100)$/u.test(limit)) return null;
   const brand = query.brand;
   if (brand !== undefined && brand !== "" && !isBrandLabel(brand)) return null;
+  const hasPrice = query.hasPrice;
+  if (hasPrice !== undefined && hasPrice !== "" && hasPrice !== "1") return null;
   const bounds: Partial<Record<NumericFilter, number>> = {};
   for (const key of numericFilters) {
     const raw = query[key];
@@ -66,7 +69,8 @@ export function pageWindow(query: Query): PageWindow | null {
   }
   if (bounds.priceMin !== undefined && bounds.priceMax !== undefined && bounds.priceMin > bounds.priceMax) return null;
   if (bounds.yearMin !== undefined && bounds.yearMax !== undefined && bounds.yearMin > bounds.yearMax) return null;
-  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...bounds };
+  return { after, limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}),
+    ...(hasPrice ? { hasPrice: 1 as const } : {}), ...bounds };
 }
 function windowQuery(window: PageWindow) {
   const query = new URLSearchParams();
@@ -74,6 +78,7 @@ function windowQuery(window: PageWindow) {
   if (window.after) query.set("after", window.after);
   if (window.limit !== 20) query.set("limit", String(window.limit));
   if (window.brand) query.set("brand", window.brand);
+  if (window.hasPrice) query.set("hasPrice", "1");
   for (const key of numericFilters) {
     if (window[key] !== undefined) query.set(key, String(window[key]));
   }

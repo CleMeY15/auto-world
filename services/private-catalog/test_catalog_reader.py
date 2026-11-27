@@ -32,6 +32,7 @@ class CatalogTest(unittest.TestCase):
         with patch.object(catalog, "publication_grant") as grant:
             for query in ("limit=0", "limit=101", "after=", "after=1&after=2", "limit=1&sort=x", "q=%00", "q=" + "x" * 81, "bad",
                           "brand=Renault&brand=Kia", "brand=%00", "priceMin=-1", "priceMax=12.5",
+                          "hasPrice=1&hasPrice=1", "hasPrice=0", "hasPrice=true",
                           "priceMin=2&priceMax=1", "yearMin=2020&yearMax=1999", "yearMax=1885",
                           "yearMin=10000", "kmMax=9007199254740992", "priceMin=90071992547410"):
                 self.assertEqual(call(query=query)[0], "400 Bad Request")
@@ -43,6 +44,13 @@ class CatalogTest(unittest.TestCase):
             with patch.dict(os.environ, {"AUTOFIND_PRIVATE_CATALOG": "0"}):
                 self.assertEqual(call()[0], "503 Service Unavailable")
             grant.assert_not_called()
+
+    def test_has_price_flag(self):
+        with patch.object(catalog, "publication_grant", return_value={}), patch.object(catalog, "query_listings", return_value=[]) as query:
+            for raw, wanted in (("", False), ("hasPrice=", False), ("brand=Renault&hasPrice=1", True)):
+                with self.subTest(raw=raw):
+                    self.assertEqual(call(query=raw)[0], "200 OK")
+                    self.assertIs(query.call_args.args[-1]["hasPrice"], wanted)
 
     def test_pagination_detail_and_database_failure(self):
         rows = [{"source_listing_id": "11"}, {"source_listing_id": "20"}]

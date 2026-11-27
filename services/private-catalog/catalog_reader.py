@@ -24,7 +24,7 @@ BOUNDS = {
     "priceMin": (0, MAX_SAFE_INTEGER // 100), "priceMax": (0, MAX_SAFE_INTEGER // 100),
     "yearMin": (1886, 9999), "yearMax": (1886, 9999), "kmMax": (0, MAX_SAFE_INTEGER),
 }
-LIST_PARAMS = {"after", "limit", "q", "brand", *BOUNDS}
+LIST_PARAMS = {"after", "limit", "q", "brand", "hasPrice", *BOUNDS}
 QUERY = PROJECTION.read_text(encoding="utf-8")
 SERVICE = "af_rust_export_reader"
 DATASET = "autoworld/leboncoin"
@@ -81,7 +81,10 @@ def filter_params(params):
     if brand and (len(brand) > 50 or not brand[0].isalnum()
                   or any(not c.isalnum() and c not in " .&-" for c in brand)):
         raise ValueError
-    filters = {"brand": brand}
+    has_price = params.get("hasPrice", "")
+    if has_price not in ("", "1"):
+        raise ValueError
+    filters = {"brand": brand, "hasPrice": has_price == "1"}
     for key, (minimum, maximum) in BOUNDS.items():
         raw = params.get(key, "")
         if not raw:
