@@ -57,9 +57,8 @@ const reader = http.createServer((req, res) => {
       return (!url.searchParams.has(min) || value !== null && value >= Number(url.searchParams.get(min)))
         && (!url.searchParams.has(max) || value !== null && value <= Number(url.searchParams.get(max)));
     }
-    const rows = state === "empty" ? [] : items.filter(item =>
-      item.source_listing_id > (url.searchParams.get("after") ?? "")
-      && ["brand","model",...Object.keys(filterOptions)].every(key =>
+    let rows = state === "empty" ? [] : items.filter(item =>
+      ["brand","model",...Object.keys(filterOptions)].every(key =>
         !values.get(key) || item[key]?.toLowerCase() === values.get(key).toLowerCase())
       && ["firstOwner", "inspectionValid", "serviceBook"].every(key => values.get(key) !== "1" || item[key] === true)
       && (!values.get("doors") || item.doors === Number(values.get("doors")))
@@ -70,9 +69,35 @@ const reader = http.createServer((req, res) => {
       && inRange(item.year, "yearMin", "yearMax")
       && inRange(item.mileage_km, "kmMin", "kmMax")
       && [item.brand, item.model, item.year, item.source_listing_id].join(" ").toLowerCase().includes(query));
+    const sort = values.get("sort") ?? "default";
+    function key(item) {
+      if (sort.startsWith("price-")) return item.price_amount_minor;
+      if (sort.startsWith("km-")) return item.mileage_km;
+      if (sort.startsWith("year-")) return item.year;
+      return Date.parse(item.observed_at) * 1000;
+    }
+    function cursor(item) {
+      return sort === "default" ? item.source_listing_id : [sort, key(item) ?? "x", item.source_listing_id].join("~");
+    }
+    if (sort === "default") {
+      rows = rows.filter(item => item.source_listing_id > (values.get("after") ?? ""));
+    } else {
+      rows.sort((left, right) => {
+        const a = key(left), b = key(right);
+        if (a === b) return Number(left.source_listing_id) - Number(right.source_listing_id);
+        if (a === null) return 1;
+        if (b === null) return -1;
+        return sort.endsWith("-desc") ? b - a : a - b;
+      });
+      if (values.has("after")) {
+        const index = rows.findIndex(item => cursor(item) === values.get("after"));
+        assert.ok(index >= 0);
+        rows = rows.slice(index + 1);
+      }
+    }
     const limit = Number(url.searchParams.get("limit"));
     body = { dataset: "autoworld/leboncoin", brands: Object.keys(modelsByBrand), modelsByBrand, filterOptions,
-      items: rows.slice(0, limit), next_cursor: rows.length > limit ? rows[limit - 1].source_listing_id : null };
+      items: rows.slice(0, limit), next_cursor: rows.length > limit ? cursor(rows[limit - 1]) : null };
   } else {
     body = items.find(item => "/internal/catalog/" + item.source_listing_id === url.pathname);
     if (!body) { res.writeHead(404).end(); return; }
@@ -112,7 +137,7 @@ try {
     const browser = await type.launch();
     try {
       for (const [size, viewport] of [["mobile", {width:390, height:844}], ["desktop", {width:1280, height:900}]]) {
-        const context = await browser.newContext({ viewport, locale: "fr-FR" });
+        const context = await browser.newContext({ viewport, hasTouch: size === "mobile", locale: "fr-FR" });
         if (engine === "chromium") await context.addInitScript(() => {
           const sample = globalThis.__catalogPerformance = { lcp: 0, cls: 0 };
           new globalThis.PerformanceObserver(list => {
@@ -204,6 +229,47 @@ try {
         assert.equal(await leadImage.evaluate(async element => { await element.decode(); return element.naturalWidth; }), 480);
         assert.equal(await leadImage.getAttribute("src"), photo);
         assert(external.every(hit => [peugeotPhoto, photo].includes(hit.url) && hit.referrer === "" && hit.type === "image"));
+        const cardGallery = page.getByRole("group", {name:"Photos de Citroën C3"});
+        const nextOnCard = cardGallery.getByRole("button", {name:"Photo suivante"});
+        const previousOnCard = cardGallery.getByRole("button", {name:"Photo précédente"});
+        const cardUrl = page.url();
+        const cardBox = await leadImage.boundingBox();
+        assert(await previousOnCard.isDisabled());
+        const buttonBox = await nextOnCard.boundingBox();
+        assert(buttonBox.width >= 44 && buttonBox.height >= 44);
+        await nextOnCard.click();
+        await cardGallery.getByText("Photo 2 sur 2").waitFor();
+        assert(await nextOnCard.isDisabled());
+        await leadImage.evaluate(image => image.decode());
+        assert.equal(await leadImage.getAttribute("src"), secondPhoto);
+        assert.equal(await leadImage.count(), 1);
+        assert.deepEqual(await leadImage.boundingBox(), cardBox);
+        assert.deepEqual(external.at(-1), {url:secondPhoto, referrer:"", type:"image"});
+        await inspect(page, engine + "-" + size + "-card-photos");
+        await nextOnCard.press("ArrowLeft");
+        await cardGallery.getByText("Photo 1 sur 2").waitFor();
+        if (size === "mobile") {
+          const media = citroen.locator(".catalogue-card-media");
+          const {x, y, width, height} = await media.boundingBox();
+          const startX = x + width * .7, endX = x + width * .3, middle = y + height / 2;
+          if (engine === "chromium") {
+            const cdp = await context.newCDPSession(page);
+            for (const [type, touchPoints] of [
+              ["touchStart", [{x:startX,y:middle}]], ["touchMove", [{x:endX,y:middle}]], ["touchEnd", []],
+            ]) await cdp.send("Input.dispatchTouchEvent", {type, touchPoints});
+            await cdp.detach();
+          } else {
+            const pointer = {bubbles:true, isPrimary:true, pointerId:1, pointerType:"touch", clientY:middle};
+            await media.dispatchEvent("pointerdown", {...pointer, clientX:startX});
+            await media.dispatchEvent("pointerup", {...pointer, clientX:endX});
+            await media.dispatchEvent("click");
+          }
+          await cardGallery.getByText("Photo 2 sur 2").waitFor();
+          await previousOnCard.press("Enter");
+        }
+        assert.equal(page.url(), cardUrl);
+        await leadImage.evaluate(image => image.decode());
+        assert.equal(await leadImage.getAttribute("src"), photo);
         const beforeDetail = external.length;
         await citroen.click({noWaitAfter:true});
         await page.getByRole("heading", {name:"Citroën C3"}).waitFor();
@@ -415,6 +481,32 @@ try {
         await apply.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        await page.goto(base + "/catalogue?yearMin=2022&limit=1&after=100");
+        const sortControl = page.getByLabel("Trier par", {exact:true});
+        const applySort = page.getByRole("button", {name:"Appliquer le tri"});
+        if (engine === "chromium" && size === "desktop") {
+          const beforeSort = page.url();
+          await sortControl.focus();
+          await sortControl.press("ArrowDown");
+          await sortControl.press("ArrowDown");
+          assert.equal(await sortControl.inputValue(), "price-desc");
+          assert.equal(await sortControl.evaluate(el => el === el.ownerDocument.activeElement), true);
+          assert.equal(page.url(), beforeSort);
+        }
+        await sortControl.selectOption("price-asc");
+        await applySort.click();
+        await page.getByRole("link", {name:/Citroën C3/}).waitFor();
+        assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        assert.equal(new URL(page.url()).searchParams.get("yearMin"), "2022");
+        await page.getByRole("link", {name:"Page suivante"}).click();
+        await page.getByRole("link", {name:/Peugeot 208/}).click();
+        await page.getByRole("link", {name:"Retour aux annonces"}).click();
+        assert.equal(await page.getByLabel("Trier par", {exact:true}).inputValue(), "price-asc");
+        await page.getByRole("link", {name:"Page suivante"}).click();
+        await page.getByRole("link", {name:/Renault Clio/}).waitFor();
+        await sortControl.selectOption("price-desc");
+        await applySort.click();
+        await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         for (const [requested, expected] of [["citroën", "Citroën"], ["Marque inconnue", "Marque inconnue"]]) {
           await page.goto(base + "/catalogue?brand=" + encodeURIComponent(requested));
           await filters.click();

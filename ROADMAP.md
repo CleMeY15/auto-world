@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Catalogue membre : tri et galerie de résultats
+
+La liste permet de trier par prix de vente vérifié, kilométrage, année ou date de capture ou d’export dans les deux sens. Le lecteur applique les critères et le tri avant pagination. Les montants inconnus apparaissent après les prix connus. Chaque carte de plusieurs photos propose les flèches et le balayage tactile. La fiche reste accessible depuis la photo et le titre. [Tests de pagination PostgreSQL](connectors/leboncoin-spike/rust-export/test_catalog_publication.py) · [Parcours mobile et bureau](apps/web/test/private-catalog-browser.mjs)
+
 ## Identité AutoFindex et catalogue filtré
 
 Le raccordement des prochains exports Rust aux filtres utilise des attributs structurés rattachés à l’identifiant de l’offre. L’importeur accepte les anciens exports et la vue de provenance du catalogue expose uniquement la projection normalisée. [Installation et restauration](connectors/leboncoin-spike/rust-export/README.md#caractéristiques-des-véhicules-et-modèles)

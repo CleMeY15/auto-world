@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 from contextlib import closing
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl
 
@@ -46,7 +46,10 @@ BOUNDS = {
     "kmMin": (0, MAX_SAFE_INTEGER), "kmMax": (0, MAX_SAFE_INTEGER),
     "seatsMin": (1, 9), "seatsMax": (1, 9),
 }
-LIST_PARAMS = {"after", "limit", "q", "brand", "model", "hasPrice", "hasPhotos", "doors",
+SORT_FIELDS = {"price": "price_amount_minor", "year": "year", "km": "mileage_km", "observed": "observed_at"}
+SORTS = {f"{field}-{direction}" for field in SORT_FIELDS for direction in ("asc", "desc")} | {"default"}
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+LIST_PARAMS = {"sort", "after", "limit", "q", "brand", "model", "hasPrice", "hasPhotos", "doors",
                *BOUNDS, *FILTER_OPTIONS, *EQUIPMENT_FLAGS}
 QUERY = PROJECTION.read_text(encoding="utf-8")
 SERVICE = "af_rust_export_reader"
@@ -118,12 +121,45 @@ def flag_enabled(params, key):
     return value == "1"
 
 
+def page_position(sort, after):
+    if sort not in SORTS:
+        raise ValueError
+    field, _, direction = sort.partition("-")
+    sign = -1 if direction == "desc" else 1
+    listing_id = ""
+    rank = None
+    if after is not None:
+        if sort == "default":
+            listing_id = after
+            rank = 0
+        else:
+            cursor_sort, value, listing_id = after.split("~")
+            if cursor_sort != sort or not re.fullmatch(r"x|-?[0-9]{1,20}", value):
+                raise ValueError
+            rank = None if value == "x" else sign * int(value)
+        if not LISTING_ID.fullmatch(listing_id):
+            raise ValueError
+    return {"sort_field": field, "sort_sign": sign, "after_id": listing_id, "after_rank": rank}
+
+
+def page_cursor(sort, row):
+    listing_id = row["source_listing_id"]
+    if sort == "default":
+        return listing_id
+    field = SORT_FIELDS[sort.partition("-")[0]]
+    value = row[field]
+    if field == "observed_at":
+        value = (datetime.fromisoformat(value) - EPOCH) // timedelta(microseconds=1)
+    return f"{sort}~{value if value is not None else 'x'}~{listing_id}"
+
+
 def filter_params(params):
     brand = filter_label(params.get("brand", ""), " .&-")
     model = filter_label(params.get("model", ""))
     if model and not brand:
         raise ValueError
-    filters = {"brand": brand, "model": model, "hasPrice": flag_enabled(params, "hasPrice"),
+    filters = {**page_position(params.get("sort", "default"), params.get("after")),
+               "brand": brand, "model": model, "hasPrice": flag_enabled(params, "hasPrice"),
                "hasPhotos": flag_enabled(params, "hasPhotos")}
     required_features = {}
     for key, canonical in CANONICAL_OPTIONS.items():
@@ -153,7 +189,7 @@ def filter_params(params):
     return filters
 
 
-def query_listings(grant, after, listing_id, count, search, filters):
+def query_listings(grant, listing_id, count, search, filters):
     try:
         with closing(psycopg2.connect(service=SERVICE, connect_timeout=3,
                                       application_name="autofind-private-catalog")) as connection:
@@ -166,7 +202,7 @@ def query_listings(grant, after, listing_id, count, search, filters):
                 identity = cursor.fetchone()
                 if identity["database"] != "autoworld" or identity["role"] != SERVICE:
                     raise CatalogUnavailable("unexpected_database_identity")
-                cursor.execute(QUERY, {**grant, **filters, **FEATURE_VOCABULARY, "after": after, "listing_id": listing_id, "page_size": count,
+                cursor.execute(QUERY, {**grant, **filters, **FEATURE_VOCABULARY, "listing_id": listing_id, "page_size": count,
                                        "search": search, "vehicle_vocabulary": VEHICLE_VOCABULARY})
                 return [listing(row) for row in cursor.fetchall()]
     except psycopg2.Error:
@@ -175,7 +211,6 @@ def query_listings(grant, after, listing_id, count, search, filters):
 
 def read(path, query):
     listing_id = ""
-    after = ""
     limit = 20
     search = ""
     params = {}
@@ -189,10 +224,6 @@ def read(path, query):
             if len(search) > 80 or any(not c.isprintable() for c in search):
                 raise ValueError
             search = search.strip()
-            if "after" in params:
-                after = params["after"]
-                if not LISTING_ID.fullmatch(after):
-                    raise ValueError
             if "limit" in params:
                 if not re.fullmatch(r"(?:[1-9][0-9]?|100)", params["limit"]):
                     raise ValueError
@@ -209,12 +240,12 @@ def read(path, query):
     except ValueError:
         return "400 Bad Request", {"error": "invalid_query"}
     grant = publication_grant()
-    rows = query_listings(grant, after, listing_id, 1 if listing_id else limit + 1, search, filters)
+    rows = query_listings(grant, listing_id, 1 if listing_id else limit + 1, search, filters)
     if listing_id:
         return ("200 OK", rows[0]) if rows else ("404 Not Found", {"error": "not_found"})
     return "200 OK", {"dataset": DATASET, "items": rows[:limit], "brands": BRANDS, "modelsByBrand": VEHICLE_MODELS,
                       "filterOptions": FILTER_OPTIONS,
-                      "next_cursor": rows[limit - 1]["source_listing_id"] if len(rows) > limit else None}
+                      "next_cursor": page_cursor(params.get("sort", "default"), rows[limit - 1]) if len(rows) > limit else None}
 
 
 def application(environ, start_response):

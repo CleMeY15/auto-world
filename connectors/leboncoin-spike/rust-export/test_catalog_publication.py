@@ -168,6 +168,38 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                 self.assertEqual([row["source_listing_id"] for row in filtered["items"]], ["700"])
                 self.assertEqual(filtered["next_cursor"], "700")
                 self.assertIsNone(detail("700")[1]["fuel"])
+                dom("9", admitted_dom, at=observation + timedelta(microseconds=1), model_year=2022,
+                    price=facts["price"], mileage={"unit": "km", "amount": 0})
+                dom("20", admitted_dom, model_year=2019, **facts)
+                expected_orders = {
+                    "price-asc": ["800", "9", "20", "100", "700", "300", "400"],
+                    "price-desc": ["700", "9", "20", "100", "800", "300", "400"],
+                    "year-asc": ["20", "400", "700", "100", "800", "9", "300"],
+                    "year-desc": ["9", "100", "800", "400", "700", "20", "300"],
+                    "km-asc": ["9", "20", "100", "300", "400", "700", "800"],
+                    "km-desc": ["20", "100", "9", "300", "400", "700", "800"],
+                    "observed-asc": ["20", "100", "300", "800", "9", "400", "700"],
+                    "observed-desc": ["400", "700", "9", "20", "100", "300", "800"],
+                }
+                for sort, expected in expected_orders.items():
+                    with self.subTest(sort=sort):
+                        query = f"sort={sort}&limit=1"
+                        for wanted in expected:
+                            status, body = reader.read(reader.LIST, query)
+                            self.assertEqual(status, "200 OK")
+                            self.assertEqual([row["source_listing_id"] for row in body["items"]], [wanted])
+                            cursor = body["next_cursor"]
+                            if wanted != expected[-1]:
+                                self.assertTrue(cursor.startswith(sort + "~"))
+                                query = f"sort={sort}&limit=1&after={cursor}"
+                        self.assertIsNone(cursor)
+                self.assertEqual(list(page("sort=year-desc&brand=Renault&yearMin=2021&hasPrice=1")),
+                                 ["9", "100", "800"])
+                # The cursor carries the last rank even after the grant excludes that listing.
+                first = reader.read(reader.LIST, "sort=price-desc&limit=1")[1]
+                grant["export_ids"].remove(admitted_export)
+                self.assertEqual(list(page("sort=price-desc&limit=1&after=" + first["next_cursor"])), ["9"])
+                grant["export_ids"].append(admitted_export)
                 # A self-consistent normalized document from another observation must not attach its fuel here.
                 dom("880", admitted_dom, criteria=[("fuel", "Énergie", "Diesel")], evidence_digest="d" * 64)
                 self.assertEqual(detail("880")[0], "200 OK")

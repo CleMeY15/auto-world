@@ -53,3 +53,9 @@ La marque, le modèle dépendant et le budget sont visibles à l’ouverture du 
 Pour les fiches DOM, le lecteur associe chaque critère à sa clé technique, à son libellé et à la preuve de la valeur conservée. Une donnée manquante, contradictoire ou hors vocabulaire reste inconnue. Les photos sont filtrées après vérification de la galerie. Les vues Rust historiques restent compatibles. La recherche sur des attributs Rust structurés utilise la colonne facultative `vehicle_features` lorsqu’elle est fournie par la vue de provenance.
 
 Pour qualifier cette livraison, exercer une recherche multicritère sur deux pages, ouvrir une fiche et revenir aux mêmes critères, puis retirer un seul critère après un résultat vide. Le lecteur, sa requête et le site se publient à la même révision. Leur restauration utilise la transaction de publication existante. Les périmètres de source et de lots restent régis par le registre du VPS.
+
+## Tri et photos dans les résultats
+
+Le sélecteur « Trier par » conserve les critères actifs et repart de la première page. Les liens de pagination et de retour depuis la fiche conservent l’ordre. Le tri temporel porte sur la date d’observation du catalogue (capture ou export). Les valeurs inconnues suivent les valeurs renseignées dans les deux directions. L’ancienne URL sans tri conserve sa pagination numérique historique.
+
+Livrer le web, le lecteur et la requête SQL ensemble avec la transaction de publication du projet. En recette, parcourir une liste filtrée triée par prix sur deux pages, inverser le tri et revenir d’une fiche. Sur une carte de plusieurs photos, passer à une autre photo puis ouvrir la fiche. Tester aussi une galerie indisponible et un prix inconnu. Le retour arrière restaure les trois composants à la révision précédente. Les lots de données gardent leur propre admission.
