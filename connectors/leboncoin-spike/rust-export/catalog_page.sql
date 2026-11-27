@@ -6,7 +6,8 @@ WITH candidates AS (
        CASE WHEN normalized_json#>>'{fields,mileage,status}' = 'observed' THEN normalized_json#>'{fields,mileage,value}' END AS mileage,
        CASE WHEN normalized_json#>>'{fields,price,status}' = 'observed' THEN normalized_json#>'{fields,price,value}' END AS price,
        normalized_json->'criteria' AS feature_source,
-       normalized_json->>'observation_sha256' AS feature_evidence_sha,
+       CASE WHEN normalized_json->>'observation_sha256' = to_jsonb(dom)->>'listing_observation_sha256'
+            THEN normalized_json->>'observation_sha256' END AS feature_evidence_sha,
        CASE WHEN batch_ids && %(dom_batch_ids)s::text[] AND normalized_json->>'status' = 'listing'
             AND captured_at > CURRENT_TIMESTAMP - %(media_seconds)s::integer * INTERVAL '1 second'
             AND normalized_json#>>'{photos,status}' = 'observed'
@@ -16,7 +17,7 @@ WITH candidates AS (
               OR normalized_json#>>'{photos,status}' IN ('observed', 'invalid', 'ambiguous')
             THEN captured_at END AS gallery_event_at,
        batch_ids && %(dom_batch_ids)s::text[] AND normalized_json->>'status' = 'listing' AS is_listing, 1 AS priority
-    FROM aw_acquisition_trial.catalog_dom_provenance
+    FROM aw_acquisition_trial.catalog_dom_provenance AS dom
     WHERE source_id = 'leboncoin'
       AND source_listing_id ~ '^[1-9][0-9]{0,19}$'
       AND original_url = 'https://www.leboncoin.fr/ad/voitures/' || source_listing_id

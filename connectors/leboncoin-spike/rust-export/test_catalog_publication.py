@@ -36,16 +36,16 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
         admitted_dom, private_dom = "a" * 32, "b" * 32
         vin = "WAUZZZ8V1GA123456"
 
-        def dom(key, batch, status="listing", model="Clio", at=observation, criteria=(), **fields):
+        def dom(key, batch, status="listing", model="Clio", at=observation, criteria=(), evidence_digest=None, **fields):
             url = "https://www.leboncoin.fr/ad/voitures/" + key
             raw = (batch + key + at.isoformat()).encode()
             digest = hashlib.sha256(raw).hexdigest()
             observed_fields = {"brand": "Renault", "model": model, "model_year": 2021, **fields}
             normal = {"status": status, "source": {"original_url": url, "listing_id": key, "name": "leboncoin"},
-                      "schema_version": "leboncoin-replay/v1", "observation_sha256": digest, "photos": {"status": "observed", "values": []},
+                      "schema_version": "leboncoin-replay/v1", "observation_sha256": evidence_digest or digest, "photos": {"status": "observed", "values": []},
                       "criteria": [{"key": name, "label": label, "value": value, "evidence": {
                           "raw": value, "selector": 'main [data-qa-id^="criteria_item_"]',
-                          "json_pointer": f"/criteria/{index}/value", "observation_sha256": digest}}
+                          "json_pointer": f"/criteria/{index}/value", "observation_sha256": evidence_digest or digest}}
                           for index, (name, label, value) in enumerate(criteria)],
                       "fields": {k: {"status": "observed", "value": v} for k, v in observed_fields.items()}}
             cur.execute(f"INSERT INTO {schema}.batches VALUES (%s,'','','','',%s,'{{}}') ON CONFLICT DO NOTHING",
@@ -110,6 +110,16 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                 self.assertEqual(set(page("brand=renault&model=cLiO")), {"100", "400", "700"})
                 self.assertEqual(set(page("brand=Audi&model=" + vin)), set())
                 self.assertEqual(set(page("brand=Renault&model=Yaris")), set())
+                # Earlier views don't attest which source observation owns the criteria.
+                self.assertIsNone(detail("100")[1]["fuel"])
+                self.assertEqual(page("fuel=Essence"), {})
+                cur.execute(f"""CREATE OR REPLACE VIEW {schema}.catalog_dom_provenance WITH (security_barrier = true) AS
+                                SELECT l.source_id, l.source_listing_id, l.original_url, l.captured_at, l.normalized_json,
+                                    ARRAY(SELECT b.batch_id FROM {schema}.batch_entries b
+                                          WHERE b.observation_sha256 = l.observation_sha256
+                                            AND b.source_listing_id = l.source_listing_id) AS batch_ids,
+                                    l.observation_sha256 AS listing_observation_sha256
+                                FROM {schema}.latest_listings l""")
                 observed = detail("100")[1]
                 self.assertEqual([observed[key] for key in ("fuel", "gearbox", "body", "color", "upholstery", "doors", "seats",
                                                             "firstOwner", "inspectionValid", "serviceBook")],
@@ -158,6 +168,11 @@ class CatalogPublicationTests(fixtures.NativeMigrationTests):
                 self.assertEqual([row["source_listing_id"] for row in filtered["items"]], ["700"])
                 self.assertEqual(filtered["next_cursor"], "700")
                 self.assertIsNone(detail("700")[1]["fuel"])
+                # A self-consistent normalized document from another observation must not attach its fuel here.
+                dom("880", admitted_dom, criteria=[("fuel", "Énergie", "Diesel")], evidence_digest="d" * 64)
+                self.assertEqual(detail("880")[0], "200 OK")
+                self.assertIsNone(detail("880")[1]["fuel"])
+                self.assertEqual(page("fuel=Diesel"), {})
                 # Exercise a forward-compatible Rust projection using the existing read-only role.
                 cur.execute(f"ALTER VIEW {schema}.catalog_rust_provenance RENAME TO rust_provenance_fixture")
                 accepted_native = {"fuel": "Diesel", "gearbox": "Automatique", "doors": 3, "seats": 4,
