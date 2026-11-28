@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useState, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, useSyncExternalStore, type ReactNode } from "react";
 import { BookmarkIcon, Button } from "@auto-world/design-system";
 import { favoriteIds, favoritesPrefix, maxFavorites } from "../../catalogue/favorites";
 
@@ -18,36 +18,37 @@ function read(key: string): Collection {
   return { ids: [], error: unreadable };
 }
 
-const Context = createContext<{
-  scope: string | null; collection: Collection | null; message: string;
-  toggle: (id: string) => string | null;
-} | null>(null);
+type Snapshot = { collection: Collection | null; message: string };
+const initial: Snapshot = { collection: null, message: "" };
 
-export function FavoriteProvider({ scope, children }: { scope: string | null; children: ReactNode }) {
-  const [collection, setCollection] = useState<Collection | null>(null);
-  const [message, setMessage] = useState("");
+function createStore(scope: string | null) {
   const key = favoritesPrefix + scope;
-  useEffect(() => {
-    if (!scope) return;
-    // Read browser-only state after hydration, never from a public document.
-    function load() {
+  const listeners = new Set<() => void>();
+  let snapshot = initial;
+  function publish(collection: Collection, message = "") {
+    snapshot = { collection, message };
+    for (const listener of listeners) listener();
+  }
+  function subscribe(listener: () => void) {
+    listeners.add(listener);
+    if (scope && !snapshot.collection) {
       try {
         for (const old of Object.keys(sessionStorage)) {
           if (old.startsWith(favoritesPrefix) && old !== key) sessionStorage.removeItem(old);
         }
-        setCollection(read(key));
-      } catch { setCollection({ ids: [], error: unreadable }); }
+        publish(read(key));
+      } catch { publish({ ids: [], error: unreadable }); }
     }
-    load();
-  }, [scope, key]);
+    return () => { listeners.delete(listener); };
+  }
   function toggle(id: string) {
     if (!scope) return "Favoris indisponibles pour cette session.";
     const current = read(key);
-    if (current.error) { setCollection(current); return current.error; }
+    if (current.error) { publish(current); return current.error; }
     const saved = current.ids.includes(id);
     if (!saved && current.ids.length >= maxFavorites) {
       const error = "Limite de 12 favoris atteinte. Retirez une annonce pour continuer.";
-      setMessage(error);
+      publish(current, error);
       return error;
     }
     const ids = saved ? current.ids.filter(value => value !== id) : [...current.ids, id];
@@ -55,19 +56,27 @@ export function FavoriteProvider({ scope, children }: { scope: string | null; ch
       sessionStorage.setItem(key, JSON.stringify(ids));
     } catch {
       const error = "Modification impossible. Vérifiez le stockage de cet onglet puis réessayez.";
-      setMessage(error);
+      publish(current, error);
       return error;
     }
-    setCollection({ ids });
-    setMessage(saved ? "Annonce retirée des favoris." : "Annonce ajoutée aux favoris.");
+    publish({ ids }, saved ? "Annonce retirée des favoris." : "Annonce ajoutée aux favoris.");
     return null;
   }
-  return <Context.Provider value={{ scope, collection, message, toggle }}>{children}</Context.Provider>;
+  return { scope, subscribe, toggle, getSnapshot: () => snapshot };
+}
+
+const Context = createContext<ReturnType<typeof createStore> | null>(null);
+
+export function FavoriteProvider({ scope, children }: { scope: string | null; children: ReactNode }) {
+  const [store] = useState(() => createStore(scope));
+  return <Context.Provider value={store}>{children}</Context.Provider>;
 }
 export function useFavorites() {
-  const context = useContext(Context);
-  if (!context) throw new Error("missing_favorite_provider");
-  return context;
+  const store = useContext(Context);
+  if (!store) throw new Error("missing_favorite_provider");
+  // Each streamed boundary hydrates against the same empty server snapshot.
+  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, () => initial);
+  return { ...snapshot, scope: store.scope, toggle: store.toggle };
 }
 export function FavoriteButton({ id, label }: { id: string; label: string }) {
   const { collection, scope, toggle } = useFavorites();
