@@ -12,4 +12,8 @@ Depuis les résultats, avancer deux fois, ouvrir une fiche, revenir aux résulta
 Un essai sans JavaScript a montré que le squelette React reste affiché. Un lien noscript active le rendu HTML complet avec le seul marqueur web `html=1`, conservé dans le parcours.
 2. Construire les destinations sous /catalogue à partir de la fenêtre validée, sans URL imbriquée, données de fiche ou écriture dans le navigateur. Seul le curseur actif atteint le lecteur [ADR-0037](../../docs/decisions/ADR-0037-private-postgres-catalog.md). Conserver les protections de session [ADR-0038](../../docs/decisions/ADR-0038-private-catalogue-favorites.md).
 3. Tester la borne, les entrées hostiles et les anciens liens en unité, puis les parcours 1→2→3→2→1, fiche, changement de critères, page vide et contrôles natifs sur fixtures. Examiner les captures 390 et 1280 px, axe, focus, CLS et LCP. Exécuter en série les contrôles du dépôt et le build privé avec sa matrice navigateur.
-4. Consigner les résultats et limites pour le coordinateur. Retour arrière par restauration de la version web précédente, sans migration. Les anciens liens avec trail peuvent être rouverts en supprimant ce paramètre.
+4. Consigner les résultats et limites pour le coordinateur. Retour arrière par restauration de la version web précédente, sans migration. Les anciens liens avec trail peuvent être rouverts en supprimant les paramètres web trail et html.
+
+## Passation
+
+[Preuves applicatives, captures et mesures](../../docs/validation/TASK-0152.md). Candidat sur fixtures. Le coordinateur prend en charge la revue indépendante et l’acceptation de livraison.

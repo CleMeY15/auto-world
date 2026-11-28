@@ -65,3 +65,9 @@ Livrer le web, le lecteur et la requête SQL ensemble avec la transaction de pub
 Le frontal, la passerelle Django et le web forment une seule révision pour cette fonctionnalité. Le contrôle de session produit la portée locale des favoris et le frontal remplace l’en-tête entrant par la valeur de sa sous-requête. Une version incomplète doit laisser les favoris indisponibles. Le lecteur et les admissions existants gardent leur propre cycle.
 
 La recette doit confirmer le refus anonyme de la page et de la lecture, y compris avec un en-tête client forgé, puis la séparation entre deux sessions sur le même navigateur, le nettoyage à la déconnexion et la relecture d’une référence retirée. Les journaux ne doivent contenir ni portée, ni identifiants, ni critères. Revenir au trio précédent dans la transaction de restauration documentée ci-dessus. Les clés locales versionnées deviennent inertes.
+
+## Page précédente du catalogue membre
+
+Sur une recherche filtrée et triée, suivre deux pages, ouvrir une fiche, revenir aux résultats puis remonter deux pages au clavier. Contrôler le retour depuis une dernière page devenue vide. Sans JavaScript, le lien du squelette ouvre la version HTML complète. La page précédente est disponible dans la limite des huit derniers départs portés par l’URL. Les anciens liens directs permettent de revenir au début. Le lecteur reçoit uniquement la fenêtre active et revérifie les lots à chaque lecture.
+
+La qualification locale utilise des fixtures. La recette hébergée relève de la procédure de publication existante. Les compteurs HTTP de statut et de durée suffisent pour ce parcours. La restauration utilise la révision intégrée précédente, sans migration. Pour rouvrir un lien de cette version après restauration, retirer les paramètres web `trail` et `html` en conservant les critères et `after`.

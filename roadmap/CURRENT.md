@@ -2,7 +2,7 @@
 
 TASK-0151 est acceptée sur fixtures sur main `59755cd2967801ac8e86600044d8252b48a99a52`, arbre identique à la source relue `b5c45ba7`. Les quatre workflows du push (cinq jobs) passent au premier essai, dont 706 parcours navigateur réussis, dix exclusions existantes et dix phases persistantes sur dix. La recette hébergée reste en attente. [Acceptation finale de PR297](https://github.com/CleMeY15/auto-world/pull/297)
 
-Voie P1 en cours sur fixtures : [TASK-0152](tasks/TASK-0152-catalogue-pagination.md).
+[TASK-0152](tasks/TASK-0152-catalogue-pagination.md) est candidate sur fixtures. [Parcours privé vérifié et captures](../docs/validation/TASK-0152.md). Revue indépendante et livraison à suivre.
 
 ## Historique du 17 au 19 novembre
 

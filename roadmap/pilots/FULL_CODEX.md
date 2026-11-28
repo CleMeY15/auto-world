@@ -88,3 +88,5 @@ pending, cost/tokens/human effort unknown.
 18 November infrastructure observation. The [AWS CLI diagnostic](../../docs/validation/TASK-0005-aws-cli-2.41.md) uses Codex gpt-6.2-astra / ultra for implementation, ordered plan reviews and delivery. The implementation worktrees are isolated. This infrastructure increment is outside the product cohort. Cost and active human time are unknown.
 
 28 novembre 2026. [TASK-0151, favoris du catalogue membre](../../docs/validation/TASK-0151.md) : présentation locale sur aa5a3f94 à 13:44 UTC après vérification de la frontière de session et des pixels mobile/bureau. Réalisation Codex gpt-6.2-astra / ultra, revue indépendante attribuée au coordinateur. Acceptations source/main attendues.
+
+28 novembre 2026. [TASK-0152, pagination membre](../../docs/validation/TASK-0152.md), Codex gpt-6.2-astra / ultra. La recette privée sur 1c7ad839 a révélé le besoin d’un rendu HTML explicite sans JavaScript. Après correction, quatre configurations et les deux parcours sans JavaScript passent. Revue et décision de livraison attribuées au coordinateur. Coûts inconnus.
