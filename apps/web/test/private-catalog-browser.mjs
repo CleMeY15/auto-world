@@ -585,8 +585,14 @@ try {
         state = "unavailable";
         await page.getByRole("button", {name:"Réessayer"}).click();
         await page.getByText("Vos favoris ne peuvent pas être chargés.", {exact:false}).waitFor();
-        state = "healthy";
+        sessionScope = null;
         await page.getByRole("button", {name:"Réessayer"}).click();
+        await page.getByRole("link", {name:"Rouvrir les favoris"}).waitFor();
+        assert.equal(await saved.count(), 0);
+        assert.equal(await page.getByRole("button", {name:/Retirer des favoris/}).count(), 0);
+        state = "healthy";
+        sessionScope = firstScope;
+        await page.getByRole("link", {name:"Rouvrir les favoris"}).click();
         await saved.getByRole("link", {name:"Peugeot 208"}).waitFor();
         await saved.getByRole("button", {name:"Retirer des favoris · Annonce indisponible"}).click();
         await saved.getByRole("button", {name:/Retirer des favoris · Renault/}).click();

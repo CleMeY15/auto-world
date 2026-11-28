@@ -14,6 +14,7 @@ function Entries({ ids, scope, query, onRemove }: {
 }) {
   const [rows, setRows] = useState<FavoriteRow[] | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [sessionChanged, setSessionChanged] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
@@ -22,6 +23,10 @@ function Entries({ ids, scope, query, onRemove }: {
           method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
           body: JSON.stringify({ scope, ids }), signal: controller.signal,
         });
+        if (result.status === 401 || result.status === 403) {
+          if (!controller.signal.aborted) setSessionChanged(true);
+          return;
+        }
         if (!result.ok) throw new Error("lookup_failed");
         const items: FavoriteRow[] = await result.json();
         if (!Array.isArray(items) || items.length !== ids.length) throw new Error("lookup_failed");
@@ -33,6 +38,8 @@ function Entries({ ids, scope, query, onRemove }: {
     void load();
     return () => controller.abort();
   }, [attempt, ids, scope]);
+  if (sessionChanged) return <Banner tone="warning"><p>Votre session a changé. Rouvrez vos favoris pour continuer.</p>
+    <a className="site-nav" href={"/catalogue/favoris" + (query ? "?" + query : "")}>Rouvrir les favoris</a></Banner>;
   if (!rows) return <Loading />;
   const failed = rows.some(row => row.status === "failed");
   return <>
