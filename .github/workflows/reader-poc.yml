@@ -1,0 +1,31 @@
+name: Reader POC synthetic tests
+on:
+  pull_request:
+    paths:
+      - 'experiments/reader-poc/**'
+      - '.github/workflows/reader-poc.yml'
+  push:
+    branches:
+      - 'spike/reader-poc-20261124'
+    paths:
+      - 'experiments/reader-poc/**'
+      - '.github/workflows/reader-poc.yml'
+permissions:
+  contents: read
+jobs:
+  fixture-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Use Node.js 22.23.2
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+      - name: Run isolated reader tests
+        working-directory: experiments/reader-poc
+        run: node --test test/*.test.mjs
+      - name: Exercise synthetic change detection
+        working-directory: experiments/reader-poc
+        run: node src/demo.mjs
