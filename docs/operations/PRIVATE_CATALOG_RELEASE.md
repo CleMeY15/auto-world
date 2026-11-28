@@ -59,3 +59,9 @@ Pour qualifier cette livraison, exercer une recherche multicritère sur deux pag
 Le sélecteur « Trier par » conserve les critères actifs et repart de la première page. Les liens de pagination et de retour depuis la fiche conservent l’ordre. Le tri temporel porte sur la date d’observation du catalogue (capture ou export). Les valeurs inconnues suivent les valeurs renseignées dans les deux directions. L’ancienne URL sans tri conserve sa pagination numérique historique.
 
 Livrer le web, le lecteur et la requête SQL ensemble avec la transaction de publication du projet. En recette, parcourir une liste filtrée triée par prix sur deux pages, inverser le tri et revenir d’une fiche. Sur une carte de plusieurs photos, passer à une autre photo puis ouvrir la fiche. Tester aussi une galerie indisponible et un prix inconnu. Le retour arrière restaure les trois composants à la révision précédente. Les lots de données gardent leur propre admission.
+
+## Favoris de session (candidat TASK-0151)
+
+Le frontal, la passerelle Django et le web forment une seule révision pour cette fonctionnalité. Le contrôle de session produit la portée locale des favoris et le frontal remplace l’en-tête entrant par la valeur de sa sous-requête. Une version incomplète doit laisser les favoris indisponibles. Le lecteur et les admissions existants gardent leur propre cycle.
+
+La recette doit confirmer le refus anonyme de la page et de la lecture, y compris avec un en-tête client forgé, puis la séparation entre deux sessions sur le même navigateur, le nettoyage à la déconnexion et la relecture d’une référence retirée. Les journaux ne doivent contenir ni portée, ni identifiants, ni critères. Revenir au trio précédent dans la transaction de restauration documentée ci-dessus. Les clés locales versionnées deviennent inertes.
