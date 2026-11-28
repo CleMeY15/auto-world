@@ -73,6 +73,7 @@ export function FilterPanel({ criteria, brands, modelsByBrand, filterOptions, ac
         if (input.value) input.value = String(input.valueAsNumber);
       }
     }}>
+    {criteria.html && <input type="hidden" name="html" value="1" />}
     {criteria.sort && <input type="hidden" name="sort" value={criteria.sort} />}
     {criteria.q && <input type="hidden" name="q" value={criteria.q} />}
     {criteria.limit !== 20 && <input type="hidden" name="limit" value={criteria.limit} />}
@@ -156,7 +157,7 @@ export function FilterPanel({ criteria, brands, modelsByBrand, filterOptions, ac
 
 export function SortResults({ criteria }: { criteria: PageWindow }) {
   return <form className="catalogue-sort" action="/catalogue" method="get" aria-label="Ordre des annonces">
-    {Object.entries(criteria).map(([key, value]) => value !== undefined && key !== "after" && key !== "sort"
+    {Object.entries(criteria).map(([key, value]) => value !== undefined && key !== "after" && key !== "trail" && key !== "sort"
       && !(key === "limit" && value === 20) && <input key={key} type="hidden" name={key} value={value} />)}
     <label htmlFor="catalogue-sort">Trier par</label>
     <select id="catalogue-sort" className="site-select" name="sort" defaultValue={criteria.sort ?? "default"}>

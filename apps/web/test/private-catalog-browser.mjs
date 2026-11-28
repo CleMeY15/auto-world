@@ -92,7 +92,7 @@ const reader = http.createServer((req, res) => {
         if (b === null) return -1;
         return sort.endsWith("-desc") ? b - a : a - b;
       });
-      if (values.has("after")) {
+      if (state !== "empty" && values.has("after")) {
         const index = rows.findIndex(item => cursor(item) === values.get("after"));
         assert.ok(index >= 0);
         rows = rows.slice(index + 1);
@@ -309,7 +309,7 @@ try {
         assert.equal(await photoLink.getAttribute("referrerpolicy"), "no-referrer");
         assert.match(await photoLink.getAttribute("rel"), /noreferrer/);
         const back = page.getByRole("link", {name:"Retour aux annonces"});
-        assert.equal(await back.getAttribute("href"), "/catalogue?q=2022&after=200&limit=2");
+        assert.equal(await back.getAttribute("href"), "/catalogue?q=2022&after=200&limit=2&trail=first");
         assert.equal(new URL(page.url()).searchParams.get("q"), "2022");
         const next = page.getByRole("button", {name:"Suivante"});
         const prev = page.getByRole("button", {name:"Précédente"});
@@ -355,6 +355,7 @@ try {
         await page.waitForURL(url => url.searchParams.get("q") === "100");
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        assert.equal(new URL(page.url()).searchParams.has("trail"), false);
         await page.goto(base + "/catalogue?q=2022&limit=2");
         const filters = page.locator(".catalogue-filters > summary");
         const brandSelect = page.getByRole("combobox", {name:"Marque", exact:true});
@@ -473,6 +474,7 @@ try {
         await page.getByRole("heading", {name:"Aucune annonce pour cette recherche"}).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("hasPrice"), "1");
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        assert.equal(new URL(page.url()).searchParams.has("trail"), false);
         await page.getByRole("link", {name:"Retirer le filtre Prix de vente renseigné"}).click();
         await renault.getByText("Prix à confirmer", {exact:true}).waitFor();
         assert.equal(new URL(page.url()).searchParams.get("q"), "Clio");
@@ -498,6 +500,7 @@ try {
         await apply.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        assert.equal(new URL(page.url()).searchParams.has("trail"), false);
         const beforeSort = base + "/catalogue?yearMin=2022&limit=1&after=100";
         const sortControl = page.getByLabel("Trier par", {exact:true});
         const applySort = page.getByRole("button", {name:"Appliquer le tri"});
@@ -532,6 +535,7 @@ try {
         await applySort.click();
         await page.getByRole("link", {name:/Citroën C3/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
+        assert.equal(new URL(page.url()).searchParams.has("trail"), false);
         assert.equal(new URL(page.url()).searchParams.get("yearMin"), "2022");
         await page.getByRole("link", {name:"Page suivante"}).click();
         await page.getByRole("link", {name:/Peugeot 208/}).click();
@@ -564,6 +568,39 @@ try {
         await page.goto(base + "/catalogue/100");
         await page.getByRole("img", {name:"Peugeot 208, photo 1"}).waitFor();
         assert.equal(await page.getByRole("group", {name:"Navigation entre les photos"}).count(), 0);
+        const firstPage = base + "/catalogue?sort=price-asc&q=2022&limit=1&yearMin=2022";
+        await page.goto(firstPage);
+        const forward = page.getByRole("link", {name:"Page suivante"});
+        const previous = page.getByRole("link", {name:"Page précédente"});
+        assert.equal(await previous.count(), 0);
+        await forward.click();
+        await peugeot.waitFor();
+        const secondPage = page.url();
+        assert.equal(new URL(secondPage).searchParams.get("after"), "price-asc~1399900~300");
+        await previous.focus();
+        await inspect(page, engine + "-" + size + "-pagination");
+        await forward.click();
+        await renault.waitFor();
+        const thirdPage = page.url();
+        assert.equal(new URL(thirdPage).searchParams.get("after"), "price-asc~1950000~100");
+        await renault.click();
+        await back.click();
+        assert.equal(page.url(), thirdPage);
+        state = "empty";
+        await page.reload();
+        await page.getByRole("heading", {name:"Fin des résultats"}).waitFor();
+        assert.equal(await page.getByRole("link", {name:"Revenir aux premières annonces"}).getAttribute("href"), firstPage.slice(base.length));
+        state = "healthy";
+        await previous.press("Enter");
+        await peugeot.waitFor();
+        assert.equal(page.url(), secondPage);
+        await previous.click();
+        await citroen.waitFor();
+        assert.equal(page.url(), firstPage);
+        await page.goto(base + "/catalogue?after=999");
+        await page.getByRole("heading", {name:"Fin des résultats"}).waitFor();
+        assert.equal(await previous.count(), 0);
+        assert.equal(await page.getByRole("link", {name:"Revenir aux premières annonces"}).getAttribute("href"), "/catalogue");
         await page.goto(base + "/catalogue?sort=price-asc&q=2022&limit=1");
         await page.getByRole("link", {name:"Page suivante"}).click();
         const listPath = page.url().slice(base.length);
@@ -695,6 +732,18 @@ try {
         assert.equal(await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:true}).count(), 0);
         await context.close();
       }
+      const plain = await browser.newPage({ javaScriptEnabled: false });
+      await plain.route("https://**/*", route => route.abort());
+      await plain.goto(base + "/catalogue?limit=1");
+      // Fast HTML responses may already contain visible results before a fallback is flushed.
+      const fullHtml = plain.getByRole("link", {name:"Afficher les annonces sans JavaScript"});
+      if (await fullHtml.isVisible()) await fullHtml.click();
+      await plain.getByRole("link", {name:"Page suivante"}).click();
+      await plain.getByRole("link", {name:"Page précédente"}).click();
+      assert.equal(new URL(plain.url()).pathname, "/catalogue");
+      assert.equal(new URL(plain.url()).searchParams.get("limit"), "1");
+      assert.equal(new URL(plain.url()).searchParams.has("after"), false);
+      await plain.close();
       const page = await browser.newPage();
       for (const [mode, message] of [["empty", "Aucune annonce disponible"], ["unavailable", "Le catalogue est momentanément indisponible."]]) {
         state = mode;

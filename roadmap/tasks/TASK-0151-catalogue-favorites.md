@@ -18,4 +18,4 @@ ADR-0037, décision de portée de session ADR-0038, PRODUCT_UX, DESIGN, DoD et r
 
 ## Passation
 
-[Validation locale, reprises et captures](../../docs/validation/TASK-0151.md) · [PR297](https://github.com/CleMeY15/auto-world/pull/297). Candidat en revue, acceptations source/main en attente.
+[Validation locale, reprises et captures](../../docs/validation/TASK-0151.md) · [PR297](https://github.com/CleMeY15/auto-world/pull/297). Source et main acceptés sur fixtures. Recette hébergée en attente.

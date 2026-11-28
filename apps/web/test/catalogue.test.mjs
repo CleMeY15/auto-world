@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { privateCatalogEnabled } from "../.test-dist/src/catalogue/mode.js";
 import { resolveDemoBackendMode } from "../.test-dist/src/demo/backend.js";
-import { fetchDetail, fetchList, isListingId, pageWindow, readPublication, windowPath } from "../.test-dist/src/catalogue/reader.js";
+import { fetchDetail, fetchList, isListingId, nextWindow, pageWindow, previousWindow, readPublication, windowPath } from "../.test-dist/src/catalogue/reader.js";
 
 const item = {
   source_listing_id: "42", source_url: "https://www.leboncoin.fr/ad/voitures/42", source_label: "Leboncoin",
@@ -51,6 +51,36 @@ test("sorted links bind the cursor to its order", () => {
     {sort:"km-desc",after:"km-asc~0~42"}, {sort:"default",after:"price-desc~1~42"}]) {
     assert.equal(pageWindow(args), null);
   }
+});
+test("only recent validated starting cursors can produce internal previous links", () => {
+  const initial = pageWindow({ sort: "observed-desc", limit: "1", q: "//example.org/?a&b", yearMin: "2022" });
+  const windows = [initial];
+  for (let i = 1; i <= 12; i++) {
+    const next = nextWindow(windows.at(-1), `observed-desc~1699999999999123~${i}`);
+    const url = new URL(windowPath(next), "https://example.test");
+    assert.equal(url.origin + url.pathname, "https://example.test/catalogue");
+    assert.deepEqual(pageWindow(Object.fromEntries(url.searchParams)), next);
+    windows.push(next);
+  }
+  let current = windows.at(-1);
+  for (let i = 11; i >= 4; i--) {
+    current = previousWindow(current);
+    assert.equal(current.after, windows[i].after);
+    assert.equal(current.q, initial.q);
+  }
+  assert.equal(previousWindow(current), null);
+  assert.equal(windowPath(previousWindow(windows[1])), windowPath(initial));
+  for (const trail of ["//example.org", "/catalogue", "12&limit=2", "1,first", "first,1,1", "", "3",
+    ["1", "2"], "price-asc~1~1", "1,2,4,5,6,7,8,9,10", "1".repeat(520)]) {
+    assert.equal(pageWindow({ after: "3", trail }), null);
+  }
+  assert.equal(pageWindow({ trail: "first" }), null);
+  assert.equal(pageWindow({ html: "//example.org" }), null);
+  const revisited = nextWindow(pageWindow({ after: "4", trail: "first,8,2" }), "8");
+  assert.deepEqual(revisited.trail, ["2", "4"]);
+  const direct = pageWindow({ after: "123" });
+  assert.equal(previousWindow(direct), null);
+  assert.equal(windowPath(previousWindow(nextWindow(direct, "456"))), windowPath(direct));
 });
 test("private catalogue retains unknowns and accepts only the matching Leboncoin source URL", () => {
   assert.equal(readPublication(item).price, null);
@@ -140,7 +170,7 @@ test("the private release uses the Unix reader and disables every demo backend",
   await assert.rejects(fetchDetail("42"), /catalog_disabled/);
   assert.equal(request, undefined);
   process.env.AUTOFIND_PRIVATE_CATALOG = "1";
-  const page = await fetchList({ after: "10", limit: 1, q: "é & 3", brand:"Tesla", priceMin:0, kmMax:30000 });
+  const page = await fetchList({ after: "10", html: 1, trail: ["first"], limit: 1, q: "é & 3", brand:"Tesla", priceMin:0, kmMax:30000 });
   assert.equal(page.next, "42");
   assert.equal(page.dataset, "autoworld/leboncoin");
   assert.deepEqual(page.brands, ["Citroën", "Tesla"]);

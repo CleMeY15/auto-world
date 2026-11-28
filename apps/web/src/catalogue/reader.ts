@@ -8,7 +8,9 @@ type Query = Readonly<Record<string, string | string[] | undefined>>;
 const numericFilters = Object.keys(numericFilterLimits) as NumericFilter[];
 const textFilters = ["model", ...optionKeys] as const;
 export type PageWindow = {
+  readonly html?: 1;
   readonly after?: string;
+  readonly trail?: readonly string[];
   readonly sort?: CatalogSort;
   readonly limit: number;
   readonly q?: string;
@@ -57,10 +59,23 @@ function validCursor(value: unknown, sort: CatalogSort): value is string {
   return mode === sort && key !== undefined && /^(?:x|-?[0-9]{1,20})$/u.test(key)
     && isListingId(id) && !extra.length;
 }
+const maxPreviousPages = 8;
+export function nextWindow(window: PageWindow, after: string): PageWindow {
+  const starts = [...(window.trail ?? []), window.after ?? "first"];
+  // A changed result set can revisit a cursor already present in the URL.
+  const trail = starts.slice(starts.lastIndexOf(after) + 1).slice(-maxPreviousPages);
+  return { ...window, after, trail };
+}
+export function previousWindow(window: PageWindow): PageWindow | null {
+  const previous = window.trail?.at(-1);
+  if (!previous) return null;
+  return { ...window, after: previous === "first" ? undefined : previous, trail: window.trail?.slice(0, -1) };
+}
 export const maxQueryLength = 80;
 export function pageWindow(query: Query): PageWindow | null {
-  const allowed = ["after", "sort", "limit", "q", "brand", ...textFilters, ...flagKeys, ...numericFilters];
+  const allowed = ["after", "trail", "html", "sort", "limit", "q", "brand", ...textFilters, ...flagKeys, ...numericFilters];
   if (Object.keys(query).some(key => !allowed.includes(key))) return null;
+  if (query.html !== undefined && query.html !== "1") return null;
   const after = query.after;
   const limit = query.limit ?? "20";
   const rawQuery = query.q ?? "";
@@ -70,6 +85,13 @@ export function pageWindow(query: Query): PageWindow | null {
   if (typeof sort !== "string" || !Object.hasOwn(sortLabels, sort)) return null;
   const order = sort as CatalogSort;
   if (after !== undefined && !validCursor(after, order)) return null;
+  let trail: string[] | undefined;
+  if (query.trail !== undefined) {
+    if (!after || typeof query.trail !== "string" || query.trail.length > maxPreviousPages * 64) return null;
+    trail = query.trail.split(",");
+    if (trail.length > maxPreviousPages || new Set([...trail, after]).size !== trail.length + 1
+      || !trail.every((cursor, index) => index === 0 && cursor === "first" || validCursor(cursor, order))) return null;
+  }
   if (typeof limit !== "string" || !/^(?:[1-9][0-9]?|100)$/u.test(limit)) return null;
   const brand = query.brand;
   if (brand !== undefined && brand !== "" && !isBrandLabel(brand)) return null;
@@ -103,7 +125,7 @@ export function pageWindow(query: Query): PageWindow | null {
     const lower = bounds[min], upper = bounds[max];
     if (lower !== undefined && upper !== undefined && lower > upper) return null;
   }
-  return { after, ...(order === "default" ? {} : { sort: order }), limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...labels, ...flags, ...bounds };
+  return { after, ...(query.html ? { html: 1 } : {}), ...(trail ? { trail } : {}), ...(order === "default" ? {} : { sort: order }), limit: Number(limit), ...(q ? { q } : {}), ...(brand ? { brand } : {}), ...labels, ...flags, ...bounds };
 }
 function windowQuery(window: PageWindow) {
   const query = new URLSearchParams();
@@ -119,6 +141,8 @@ function windowQuery(window: PageWindow) {
 }
 export function windowPath(window: PageWindow, id?: string) {
   const query = windowQuery(window);
+  if (window.html) query.set("html", "1");
+  if (window.after && window.trail?.length) query.set("trail", window.trail.join(","));
   return `/catalogue${id ? `/${id}` : ""}${query.size ? `?${query}` : ""}`;
 }
 function object(value: unknown): value is Record<string, unknown> {
