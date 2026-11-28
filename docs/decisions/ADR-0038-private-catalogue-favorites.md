@@ -1,0 +1,9 @@
+# ADR-0038 — Favoris limités à la session et à l’onglet
+
+Proposition pour TASK-0151, 28 novembre 2026. Un navigateur partagé peut changer de membre après expiration sans déconnexion explicite. L’origine web ou l’onglet seuls ne constituent donc pas une frontière de session.
+
+Après contrôle Django, la passerelle produit un HMAC-SHA256 à domaine dédié de la clé de session, sous le secret Django. Nginx transmet cette valeur issue de la sous-requête sur le socket privé, en remplacement de tout en-tête client. Le produit ne reçoit ni cookie ni nom de membre. Cette valeur opaque sert uniquement à séparer les collections, elle ne permet aucune authentification. En son absence les contrôles de favoris sont indisponibles.
+
+sessionStorage conserve au plus 12 identifiants uniques dans une clé privée versionnée qualifiée par cette portée. Une nouvelle session dans l’onglet écarte les anciennes clés de cette version. Le navigateur peut dupliquer un onglet avec sa sélection initiale. Les copies évoluent indépendamment. Le nettoyage et la notification de déconnexion existants s’appliquent. L’accès physique ou un script exécuté dans l’origine peuvent lire le stockage de l’onglet. Fermer la session sur un appareil partagé.
+
+La page Favoris relit les fiches demandées via fetchDetail, en corps POST borné derrière le contrôle de session. Le produit compare la portée à celle de la requête courante avant lecture. Seuls des résumés admis sont rendus, sans cache. Une référence retirée produit une ligne anonyme supprimable. Une panne permet de réessayer sans perte de références. Aucun envoi de télémétrie de sélection : seuls les statuts et durées agrégés existants du frontal sont disponibles. Le rollback conjoint du produit, de la passerelle et du frontal ignore les clés locales de cette version.
