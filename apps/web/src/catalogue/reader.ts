@@ -1,3 +1,5 @@
+import { isListingId } from "./listing-id.ts";
+export { isListingId } from "./listing-id.ts";
 import http from "node:http";
 import { privateCatalogEnabled } from "./mode.ts";
 import { sortLabels, type CatalogSort, flagKeys, numericFilterLimits, optionKeys, type FilterOptions, type FlagKey, type NumericFilter, type OptionKey } from "./filters.ts";
@@ -47,10 +49,6 @@ function isPhotoReference(value: unknown): value is string {
   const [path, query, extra] = value.slice(photoPrefix.length).split("?");
   if (!path || extra !== undefined || (query !== undefined && !/^rule=[A-Za-z0-9_-]{1,100}$/u.test(query))) return false;
   return hashPhoto.test(path) || prefixedPhoto.test(path) || uuidPhoto.test(path);
-}
-const idPattern = /^[1-9][0-9]{0,19}$/u;
-export function isListingId(value: unknown): value is string {
-  return typeof value === "string" && idPattern.test(value);
 }
 function validCursor(value: unknown, sort: CatalogSort): value is string {
   if (sort === "default") return isListingId(value);

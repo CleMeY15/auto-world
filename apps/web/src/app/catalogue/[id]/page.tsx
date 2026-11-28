@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Banner, ChevronLeftIcon } from "@auto-world/design-system";
 import { fetchDetail, isListingId, pageWindow, windowPath } from "../../../catalogue/reader";
 import { formatDate, formatKm, formatPrice } from "../format";
+import { FavoriteButton, FavoriteNotice } from "../favorites";
 import { PhotoGallery } from "./photo-gallery";
 
 export default async function PublicationPage({ params, searchParams }: {
@@ -11,13 +12,17 @@ export default async function PublicationPage({ params, searchParams }: {
 }) {
   if (!privateCatalogEnabled()) notFound();
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const window = pageWindow(query);
+  const { depuis, ...criteria } = query;
+  if (depuis !== undefined && depuis !== "favoris") notFound();
+  const window = pageWindow(criteria);
   if (!isListingId(id) || !window) notFound();
-  const back = <a className="site-nav catalogue-back" href={windowPath(window)}><ChevronLeftIcon />Retour aux annonces</a>;
+  const detailPath = windowPath(window, id);
+  const retry = depuis ? detailPath + (detailPath.includes("?") ? "&" : "?") + "depuis=favoris" : detailPath;
+  const back = <a className="site-nav catalogue-back" href={windowPath(window, depuis)}><ChevronLeftIcon />{depuis ? "Retour aux favoris" : "Retour aux annonces"}</a>;
   let item: Awaited<ReturnType<typeof fetchDetail>>;
   try { item = await fetchDetail(id); } catch {
     return <>{back}<h1>Annonce indisponible</h1><Banner tone="warning">
-      <p>La fiche ne peut pas être chargée pour le moment.</p><a className="site-nav" href={windowPath(window, id)}>Réessayer</a>
+      <p>La fiche ne peut pas être chargée pour le moment.</p><a className="site-nav" href={retry}>Réessayer</a>
     </Banner></>;
   }
   if (!item) notFound();
@@ -26,6 +31,8 @@ export default async function PublicationPage({ params, searchParams }: {
       <header className="catalogue-detail-heading">
         <h1>{item.label}</h1>
         <p>Annonce Leboncoin <span>·</span> N° {item.id}</p>
+        <div className="catalogue-favorite-actions"><FavoriteButton id={item.id} label={item.label} /></div>
+        <FavoriteNotice />
       </header>
       <div className="catalogue-detail-grid">
         <div className="catalogue-detail-media">

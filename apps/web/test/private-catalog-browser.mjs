@@ -46,6 +46,9 @@ const items = [
 }));
 
 let state = "healthy";
+const firstScope = "a".repeat(64);
+let sessionScope = firstScope;
+let holdLookup;
 const reader = http.createServer((req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
   let body;
@@ -99,6 +102,8 @@ const reader = http.createServer((req, res) => {
     body = { dataset: "autoworld/leboncoin", brands: Object.keys(modelsByBrand), modelsByBrand, filterOptions,
       items: rows.slice(0, limit), next_cursor: rows.length > limit ? cursor(rows[limit - 1]) : null };
   } else {
+    if (state === "revoked" && url.pathname === "/internal/catalog/100") { res.writeHead(404).end(); return; }
+    if (state === "partial" && url.pathname.endsWith("/100")) { res.writeHead(503).end(); return; }
     body = items.find(item => "/internal/catalog/" + item.source_listing_id === url.pathname);
     if (!body) { res.writeHead(404).end(); return; }
   }
@@ -112,7 +117,13 @@ const transport = nodeMock.method(http, "get", (options, ...args) => {
   return get(options, ...args);
 });
 await nextApp.prepare();
-const web = http.createServer(nextApp.getRequestHandler());
+const handle = nextApp.getRequestHandler();
+const web = http.createServer(async (req, res) => {
+  delete req.headers["x-aw-favorites-scope"];
+  if (sessionScope) req.headers["x-aw-favorites-scope"] = sessionScope;
+  if (holdLookup && req.url === "/catalogue/favoris/lecture") await holdLookup.promise;
+  await handle(req, res);
+});
 await new Promise((resolve, reject) => web.once("error", reject).listen(0, "127.0.0.1", resolve));
 const base = "http://127.0.0.1:" + web.address().port;
 
@@ -164,9 +175,15 @@ try {
         });
         const detailImage = Promise.withResolvers();
         let outcome = "success";
+        let scriptGate;
         await context.route("**/*", async route => {
           const request = route.request();
-          if (request.url().startsWith(base + "/")) return route.continue();
+          if (request.url().startsWith(base + "/")) {
+            if (scriptGate && request.resourceType() === "script") {
+              await scriptGate.promise;
+            }
+            return route.continue();
+          }
           external.push({ url: request.url(), referrer: (await request.allHeaders()).referer ?? "", type: request.resourceType() });
           if (![photo, secondPhoto, peugeotPhoto].includes(request.url())) return route.abort();
           if (request.url() === photo && new URL(request.frame().url()).pathname === "/catalogue/300") await detailImage.promise;
@@ -481,17 +498,35 @@ try {
         await apply.click();
         await page.getByRole("link", {name:/Peugeot 208/}).waitFor();
         assert.equal(new URL(page.url()).searchParams.has("after"), false);
-        await page.goto(base + "/catalogue?yearMin=2022&limit=1&after=100");
+        const beforeSort = base + "/catalogue?yearMin=2022&limit=1&after=100";
         const sortControl = page.getByLabel("Trier par", {exact:true});
         const applySort = page.getByRole("button", {name:"Appliquer le tri"});
         if (engine === "chromium" && size === "desktop") {
-          const beforeSort = page.url();
-          await sortControl.focus();
-          await sortControl.press("ArrowDown");
-          await sortControl.press("ArrowDown");
-          assert.equal(await sortControl.inputValue(), "price-desc");
-          assert.equal(await sortControl.evaluate(el => el === el.ownerDocument.activeElement), true);
+          scriptGate = Promise.withResolvers();
+          const selection = () => sortControl.evaluate(el => [el === el.ownerDocument.activeElement, el.value]);
+          try {
+            await Promise.all([
+              page.waitForRequest(request => request.resourceType() === "script" && request.url().startsWith(base + "/_next/")),
+              page.goto(beforeSort, { waitUntil: "commit" }),
+            ]);
+            // Streamed results can already be in the DOM while the fallback is still visible.
+            await sortControl.waitFor({ state: "visible" });
+            await sortControl.focus();
+            assert.deepEqual(await selection(), [true, "default"]);
+            await page.keyboard.press("ArrowDown");
+            assert.deepEqual(await selection(), [true, "price-asc"]);
+          } finally {
+            scriptGate.resolve();
+            scriptGate = undefined;
+          }
+          // This card action becomes available only after the results hydrate.
+          await page.getByRole("button", {name:"Favori · Renault Clio", disabled:false}).waitFor();
+          assert.deepEqual(await selection(), [true, "price-asc"]);
+          await page.keyboard.press("ArrowDown");
+          assert.deepEqual(await selection(), [true, "price-desc"]);
           assert.equal(page.url(), beforeSort);
+        } else {
+          await page.goto(beforeSort);
         }
         await sortControl.selectOption("price-asc");
         await applySort.click();
@@ -529,6 +564,135 @@ try {
         await page.goto(base + "/catalogue/100");
         await page.getByRole("img", {name:"Peugeot 208, photo 1"}).waitFor();
         assert.equal(await page.getByRole("group", {name:"Navigation entre les photos"}).count(), 0);
+        await page.goto(base + "/catalogue?sort=price-asc&q=2022&limit=1");
+        await page.getByRole("link", {name:"Page suivante"}).click();
+        const listPath = page.url().slice(base.length);
+        assert.equal(new URL(page.url()).searchParams.get("after"), "price-asc~1399900~300");
+        const favorite = page.getByRole("button", {name:"Favori · Peugeot 208", disabled:false});
+        await favorite.focus();
+        await favorite.press("Space");
+        await page.getByRole("button", { name: "Favori · Peugeot 208", pressed: true }).waitFor();
+        const box = await favorite.boundingBox();
+        assert(box.height >= 44 && box.width >= 44);
+        await page.getByRole("link", {name:/Peugeot 208/}).click();
+        await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:true}).click();
+        await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:false}).click();
+        await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:true}).waitFor();
+        const key = "autofindex.catalogue.favoris.v1." + sessionScope;
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), '["100"]');
+        holdLookup = Promise.withResolvers();
+        await page.getByRole("link", {name:"Favoris", exact:true}).click();
+        await page.getByText("Chargement des favoris…").waitFor();
+        holdLookup.resolve();
+        holdLookup = undefined;
+        const saved = page.getByRole("list", {name:"Favoris"});
+        await saved.getByRole("link", {name:"Peugeot 208"}).waitFor();
+        await inspect(page, engine + "-" + size + "-favoris");
+        await saved.getByRole("link").click();
+        await page.getByRole("link", {name:"Retour aux favoris"}).click();
+        await saved.getByRole("link").waitFor();
+        await page.getByRole("link", {name:"Retour aux annonces"}).click();
+        assert.equal(page.url(), base + listPath);
+        await favorite.waitFor();
+        await page.getByRole("link", {name:"Favoris", exact:true}).click();
+        await saved.getByRole("link").waitFor();
+        // Headless engines expose all tabs as visible. Drive the two visibility
+        // transitions explicitly while rotating the shared session in another tab.
+        const secondTab = await context.newPage();
+        await page.evaluate(() => {
+          Object.defineProperty(globalThis.document, "hidden", {configurable:true, value:true});
+          globalThis.document.dispatchEvent(new globalThis.Event("visibilitychange"));
+        });
+        assert.equal(await saved.isVisible(), false);
+        sessionScope = "b".repeat(64);
+        await secondTab.goto(base + "/catalogue/favoris");
+        await secondTab.getByRole("heading", {name:"Aucun favori"}).waitFor();
+        await page.evaluate(() => {
+          Object.defineProperty(globalThis.document, "hidden", {configurable:true, value:false});
+          globalThis.document.dispatchEvent(new globalThis.Event("visibilitychange"));
+        });
+        await page.getByRole("heading", {name:"Aucun favori"}).waitFor();
+        assert.equal(await saved.count(), 0);
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), null);
+        await secondTab.close();
+        sessionScope = firstScope;
+        await page.goto(base + listPath);
+        await favorite.click();
+        await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:true}).waitFor();
+        await page.getByRole("link", {name:"Favoris", exact:true}).click();
+        await saved.getByRole("link").waitFor();
+        state = "revoked";
+        await page.reload();
+        await saved.getByText("Annonce indisponible").waitFor();
+        assert.equal(await saved.getByRole("link").count(), 0);
+        assert.doesNotMatch(await saved.innerText(), /100|Peugeot|19.500/u);
+        assert.equal(await saved.locator("img").count(), 0);
+        state = "partial";
+        await page.evaluate(k => globalThis.sessionStorage.setItem(k, '["100","200","987654"]'), key);
+        await page.reload();
+        await page.getByText("Certains favoris ne peuvent pas être chargés.", {exact:false}).waitFor();
+        await saved.getByRole("link", {name:"Renault Clio"}).waitFor();
+        await saved.getByText("Annonce indisponible").waitFor();
+        assert.equal((await page.locator("body").innerText()).includes("987654"), false);
+        assert.equal(await saved.getByRole("link", {name:"Peugeot 208"}).count(), 0);
+        state = "unavailable";
+        await page.getByRole("button", {name:"Réessayer"}).click();
+        await page.getByText("Vos favoris ne peuvent pas être chargés.", {exact:false}).waitFor();
+        sessionScope = null;
+        await page.getByRole("button", {name:"Réessayer"}).click();
+        await page.getByRole("link", {name:"Rouvrir les favoris"}).waitFor();
+        assert.equal(await saved.count(), 0);
+        assert.equal(await page.getByRole("button", {name:/Retirer des favoris/}).count(), 0);
+        state = "healthy";
+        sessionScope = firstScope;
+        await page.getByRole("link", {name:"Rouvrir les favoris"}).click();
+        await saved.getByRole("link", {name:"Peugeot 208"}).waitFor();
+        await saved.getByRole("button", {name:"Retirer des favoris · Annonce indisponible"}).click();
+        await saved.getByRole("button", {name:/Retirer des favoris · Renault/}).click();
+        await saved.getByRole("button", {name:/Retirer des favoris · Peugeot/}).click();
+        await page.getByRole("heading", {name:"Aucun favori"}).waitFor();
+        assert.equal(await page.evaluate(() => globalThis.document.activeElement.tagName), "H1");
+        await page.evaluate(k => globalThis.sessionStorage.setItem(k, "future"), key);
+        await page.reload();
+        await page.getByText("Impossible de lire les favoris de cet onglet.").waitFor();
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), "future");
+        sessionScope = "b".repeat(64);
+        await page.reload();
+        await page.getByRole("heading", {name:"Aucun favori"}).waitFor();
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), null);
+        const lookup = base + "/catalogue/favoris/lecture";
+        assert.equal((await context.request.post(lookup, {data:{ scope:firstScope, ids:["100"] }})).status(), 403);
+        assert.equal((await context.request.post(lookup, {data:{ scope:sessionScope, ids:["100","100"] }})).status(), 400);
+        sessionScope = null;
+        await page.reload();
+        await page.getByText("Favoris indisponibles pour cette session.").waitFor();
+        assert.equal((await context.request.post(lookup, {data:{scope:firstScope, ids:["100"]}})).status(), 403);
+        sessionScope = firstScope;
+        await page.goto(base + "/catalogue/100");
+        sessionScope = "b".repeat(64);
+        // The still-visible user interface can race a rotation in another window.
+        // Verify the old tab is denied even without a visibility notification.
+        const rotatedDocument = page.waitForEvent("load");
+        const deniedWrite = page.waitForResponse(response =>
+          response.url() === lookup && response.request().method() === "POST" && response.status() === 403);
+        await page.getByRole("button", {name:"Favori · Peugeot 208", disabled:false}).click();
+        await deniedWrite;
+        await rotatedDocument;
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), null);
+        sessionScope = firstScope;
+        await page.goto(base + "/catalogue/100");
+        const full = Array.from({length:12}, (_, index) => String(index + 1));
+        await page.evaluate(([k, ids]) => globalThis.sessionStorage.setItem(k, JSON.stringify(ids)), [key, full]);
+        await page.reload();
+        await page.getByRole("button", {name:"Favori · Peugeot 208"}).click();
+        await page.getByRole("status").filter({hasText:"Limite de 12 favoris atteinte"}).waitFor();
+        assert.equal(await page.evaluate(k => globalThis.sessionStorage.getItem(k), key), JSON.stringify(full));
+        await page.evaluate(k => globalThis.sessionStorage.removeItem(k), key);
+        await page.reload();
+        await page.evaluate(() => { globalThis.Storage.prototype.setItem = () => { throw new Error("quota"); }; });
+        await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:false}).click();
+        await page.getByRole("status").filter({hasText:"Modification impossible"}).waitFor();
+        assert.equal(await page.getByRole("button", {name:"Favori · Peugeot 208", pressed:true}).count(), 0);
         await context.close();
       }
       const page = await browser.newPage();

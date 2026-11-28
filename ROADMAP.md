@@ -1,5 +1,9 @@
 # ROADMAP MASTER — Auto World Search
 
+## Favoris du catalogue membre
+
+[TASK-0151](roadmap/tasks/TASK-0151-catalogue-favorites.md) poursuit le parcours P1 recherche → fiche → favoris vers le Garage. Candidat en revue sur fixtures, avec conservation des références dans l’onglet et la session privée. [Décision de confidentialité](docs/decisions/ADR-0038-private-catalogue-favorites.md)
+
 ## Catalogue membre : tri et galerie de résultats
 
 La liste permet de trier par prix de vente vérifié, kilométrage, année ou date de capture ou d’export dans les deux sens. Le lecteur applique les critères et le tri avant pagination. Les montants inconnus apparaissent après les prix connus. Chaque carte de plusieurs photos propose les flèches et le balayage tactile. La fiche reste accessible depuis la photo et le titre. [Tests de pagination PostgreSQL](connectors/leboncoin-spike/rust-export/test_catalog_publication.py) · [Parcours mobile et bureau](apps/web/test/private-catalog-browser.mjs)

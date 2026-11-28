@@ -4,6 +4,7 @@ import { Banner, Button, CloseIcon, SearchIcon, Skeleton } from "@auto-world/des
 import { privateCatalogEnabled } from "../../catalogue/mode";
 import { fetchList, maxQueryLength, pageWindow, windowPath, type PageWindow } from "../../catalogue/reader";
 import { formatKm, formatPrice } from "./format";
+import { FavoriteButton, FavoriteNotice } from "./favorites";
 import { ListingCard } from "./list-photos";
 import { FilterPanel, SortResults } from "./filters";
 
@@ -85,6 +86,7 @@ async function Publications({ window }: { window: PageWindow }) {
             </span>
           </span>
         </ListingCard>
+        <FavoriteButton id={item.id} label={item.label} />
       </li>)}</ul>
       <nav aria-label="Pagination" className="catalogue-pages">
         {window.after && <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Premières annonces</a>}
@@ -108,6 +110,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       <h1>Annonces automobiles</h1>
       <p>Source des annonces · Leboncoin</p>
     </header>
+    <FavoriteNotice />
     <Suspense fallback={<div role="status" className="catalogue-loading">
       <span className="catalogue-sr-only">Chargement des annonces…</span>
       <Skeleton className="catalogue-loading-tools" />

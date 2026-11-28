@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 
 from django.contrib.auth import logout
 from django.contrib.auth.views import LoginView
+from django.utils.crypto import salted_hmac
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import render
 from django.urls import path, re_path
@@ -14,7 +15,7 @@ PAGES = {"/", "/demo", "/carte-grise", "/historique-vehicule", "/importation"}
 REPORT = re.compile(r"/demo/rapports/[\w-]+/[\w-]+", re.ASCII)
 STATIC = re.compile(r"/_next/static/(?:[\w.@~-]+/)*[\w.@~-]+", re.ASCII)
 API = re.compile(r"/api/demo/(?:v2/catalog|(?:v2/|v3/)?search|(?:v2/)?listings/[\w-]+)", re.ASCII)
-CATALOG = re.compile(r"/catalogue(?:/[1-9][0-9]{0,19})?", re.ASCII)
+CATALOG = re.compile(r"/catalogue(?:/(?:favoris|[1-9][0-9]{0,19}))?", re.ASCII)
 
 
 def catalog_enabled():
@@ -51,7 +52,13 @@ def check(request):
     pathname = target.partition("?")[0]
     permitted = (page_target(target) or (not catalog_enabled() and API.fullmatch(pathname)) or pathname == "/icon.svg"
                  or (STATIC.fullmatch(pathname) and ".." not in pathname and "/./" not in pathname))
-    return HttpResponse(status=204 if permitted else 403)
+    lookup = catalog_enabled() and pathname == "/catalogue/favoris/lecture"
+    response = HttpResponse(status=204 if permitted or lookup else 403)
+    if catalog_enabled() and (CATALOG.fullmatch(pathname) or lookup) and response.status_code == 204:
+        response["X-Aw-Favorites-Scope"] = salted_hmac(
+            "aw.catalogue.favorites.v1", request.session.session_key, algorithm="sha256"
+        ).hexdigest()
+    return response
 
 
 LAUNCH_ASSETS = Path(__file__).resolve().parent / "launch"

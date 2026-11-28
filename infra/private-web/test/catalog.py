@@ -44,6 +44,29 @@ class Gateway(unittest.TestCase):
         return client.get("/session-check", HTTP_X_ORIGINAL_URI=path).status_code
 
     @patch.dict(os.environ, {"AUTOFIND_PRIVATE_CATALOG": "1"})
+    def test_favorites_scope_requires_an_active_session_and_rotates(self):
+        client = Client()
+        def probe(path):
+            return client.get("/session-check", HTTP_X_ORIGINAL_URI=path, HTTP_X_AW_FAVORITES_SCOPE="spoofed")
+        for path in ("/catalogue/favoris", "/catalogue/favoris/lecture"):
+            response = probe(path)
+            self.assertEqual(response.status_code, 401)
+            self.assertNotIn("X-Aw-Favorites-Scope", response)
+        client.force_login(self.account)
+        scope = probe("/catalogue/favoris")["X-Aw-Favorites-Scope"]
+        self.assertRegex(scope, r"^[0-9a-f]{64}$")
+        for path in ("/catalogue", "/catalogue/42", "/catalogue/favoris/lecture"):
+            self.assertEqual(probe(path)["X-Aw-Favorites-Scope"], scope)
+        for path in ("/", "/api/demo/v2/catalog", "/catalogue/favoris/extra"):
+            self.assertNotIn("X-Aw-Favorites-Scope", probe(path))
+        client.logout()
+        client.force_login(self.account)
+        self.assertNotEqual(probe("/catalogue/favoris")["X-Aw-Favorites-Scope"], scope)
+        with patch.dict(os.environ, {"AUTOFIND_PRIVATE_CATALOG": "0"}):
+            self.assertEqual(probe("/catalogue/favoris").status_code, 403)
+            self.assertEqual(probe("/catalogue/favoris/lecture").status_code, 403)
+
+    @patch.dict(os.environ, {"AUTOFIND_PRIVATE_CATALOG": "1"})
     def test_authenticated_catalogue_without_fixture_or_internal_endpoints(self):
         client = Client()
         self.assertEqual(client.get("/", HTTP_X_ORIGINAL_URI="/").status_code, 200)

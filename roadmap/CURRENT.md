@@ -1,5 +1,9 @@
 # Passation courante
 
+**28 novembre 2026.** Base intégrée vérifiée : `815934c0`, [PR296](https://github.com/CleMeY15/auto-world/pull/296). Le catalogue membre comprend les filtres détaillés, le tri et la galerie sur carte. La navigation synthétique de TASK-0126 a été intégrée par [PR256](https://github.com/CleMeY15/auto-world/pull/256). La voie P1 en cours est [TASK-0151 — Favoris du catalogue membre](tasks/TASK-0151-catalogue-favorites.md). La [PR brouillon 297](https://github.com/CleMeY15/auto-world/pull/297) porte le candidat et ses [preuves locales](../docs/validation/TASK-0151.md). Cette lecture de Git établit le contenu de main. La recette hébergée, la qualification infrastructure et les acceptations de livraison ont leurs preuves distinctes.
+
+## Historique du 17 au 19 novembre
+
 18 November 2026. [AWS CLI 2.41.0 diagnostic qualification](../docs/validation/TASK-0005-aws-cli-2.41.md) is in progress on the accepted PR252 documentation base. PR251 measured 159 upstream blocking occurrences, including 49 in AWS CLI 2.38.5. TASK-0005/0005A remain IN_PROGRESS.
 
 Vérifiée le 17 novembre 2026 contre les checkpoints liés ci-dessous ; base initiale de TASK-0125 : `e3e8297cfb68540c3af4703b552e16e19ed39d4a`, puis intégration de main `c38c9c1a0e64f80c2170c00f4e87286e349b60c6`. Responsable de cette vue : propriétaire de la tâche qui la met à jour. **Vue dérivée et datée**, pas un moteur de sélection automatique ni une preuve de réussite du main actuel.
