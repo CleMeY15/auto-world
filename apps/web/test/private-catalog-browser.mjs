@@ -542,7 +542,7 @@ try {
         assert.equal(await page.getByRole("group", {name:"Navigation entre les photos"}).count(), 0);
         const listPath = "/catalogue?sort=price-asc&q=2022&limit=2";
         await page.goto(base + listPath);
-        const favorite = page.getByRole("button", {name:"Favori · Peugeot 208"});
+        const favorite = page.getByRole("button", {name:"Favori · Peugeot 208", disabled:false});
         await favorite.focus();
         await favorite.press("Space");
         await page.getByRole("button", { name: "Favori · Peugeot 208", pressed: true }).waitFor();
