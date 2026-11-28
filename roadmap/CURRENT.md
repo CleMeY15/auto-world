@@ -1,6 +1,8 @@
 # Passation courante
 
-**28 novembre 2026.** Base intégrée vérifiée : `815934c0`, [PR296](https://github.com/CleMeY15/auto-world/pull/296). Le catalogue membre comprend les filtres détaillés, le tri et la galerie sur carte. La navigation synthétique de TASK-0126 a été intégrée par [PR256](https://github.com/CleMeY15/auto-world/pull/256). La voie P1 en cours est [TASK-0151 — Favoris du catalogue membre](tasks/TASK-0151-catalogue-favorites.md). La [PR brouillon 297](https://github.com/CleMeY15/auto-world/pull/297) porte le candidat et ses [preuves locales](../docs/validation/TASK-0151.md). Cette lecture de Git établit le contenu de main. La recette hébergée, la qualification infrastructure et les acceptations de livraison ont leurs preuves distinctes.
+TASK-0151 est acceptée sur fixtures sur main `59755cd2967801ac8e86600044d8252b48a99a52`, arbre identique à la source relue `b5c45ba7`. Les quatre workflows du push (cinq jobs) passent au premier essai, dont 706 parcours navigateur réussis, dix exclusions existantes et dix phases persistantes sur dix. La recette hébergée reste en attente. [Acceptation finale de PR297](https://github.com/CleMeY15/auto-world/pull/297)
+
+[TASK-0152](tasks/TASK-0152-catalogue-pagination.md) est candidate sur fixtures. [Parcours privé vérifié et captures](../docs/validation/TASK-0152.md). Revue indépendante et livraison à suivre.
 
 ## Historique du 17 au 19 novembre
 

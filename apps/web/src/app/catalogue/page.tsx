@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Banner, Button, CloseIcon, SearchIcon, Skeleton } from "@auto-world/design-system";
 import { privateCatalogEnabled } from "../../catalogue/mode";
-import { fetchList, maxQueryLength, pageWindow, windowPath, type PageWindow } from "../../catalogue/reader";
+import { fetchList, maxQueryLength, nextWindow, pageWindow, previousWindow, windowPath, type PageWindow } from "../../catalogue/reader";
 import { formatKm, formatPrice } from "./format";
 import { FavoriteButton, FavoriteNotice } from "./favorites";
 import { ListingCard } from "./list-photos";
@@ -36,13 +36,25 @@ function activeCriteria(window: PageWindow) {
   ] as const).flatMap(([key, label]) => label ? [{ key, label }] : []);
 }
 
+function Pagination({ window, next, empty }: { window: PageWindow; next: string | null; empty: boolean }) {
+  const previous = previousWindow(window);
+  if (!window.after && !next) return null;
+  return <nav aria-label="Pagination" className="catalogue-pages">
+    {window.after && <a className="site-nav catalogue-first" href={windowPath({ ...window, after: undefined })}>
+      {empty ? "Revenir aux premières annonces" : "Premières annonces"}
+    </a>}
+    {previous && <a className="aw-button aw-button--secondary" rel="prev" href={windowPath(previous)}>Page précédente</a>}
+    {next && <a className="aw-button aw-button--secondary" rel="next" href={windowPath(nextWindow(window, next))}>Page suivante</a>}
+  </nav>;
+}
+
 async function Publications({ window }: { window: PageWindow }) {
   let page: Awaited<ReturnType<typeof fetchList>>;
   try { page = await fetchList(window); } catch {
     return <Banner tone="warning"><p>Le catalogue est momentanément indisponible.</p><a className="site-nav" href={windowPath(window)}>Réessayer</a></Banner>;
   }
   const active = activeCriteria(window);
-  const noFilters = windowPath({ q: window.q, limit: window.limit, sort: window.sort });
+  const noFilters = windowPath({ html: window.html, q: window.q, limit: window.limit, sort: window.sort });
   const filtered = Boolean(window.q || active.length);
   return <>
     <div className="catalogue-tools">
@@ -53,6 +65,7 @@ async function Publications({ window }: { window: PageWindow }) {
           <input id="catalogue-recherche" name="q" type="search" placeholder="Marque, modèle, année…"
             defaultValue={window.q ?? ""} maxLength={maxQueryLength} />
         </div>
+        {window.html && <input type="hidden" name="html" value="1" />}
         {window.sort && <input type="hidden" name="sort" value={window.sort} />}
         {window.limit !== 20 && <input type="hidden" name="limit" value={window.limit} />}
         {active.map(({ key }) => <input key={key} type="hidden" name={key} value={window[key]} />)}
@@ -88,14 +101,11 @@ async function Publications({ window }: { window: PageWindow }) {
         </ListingCard>
         <FavoriteButton id={item.id} label={item.label} />
       </li>)}</ul>
-      <nav aria-label="Pagination" className="catalogue-pages">
-        {window.after && <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Premières annonces</a>}
-        {page.next && <a className="aw-button aw-button--secondary" href={windowPath({ ...window, after: page.next })}>Page suivante</a>}
-      </nav>
+      <Pagination window={window} next={page.next} empty={false} />
     </> : <section className="catalogue-empty" data-catalog-dataset={page.dataset}>
       <h2>{window.after ? "Fin des résultats" : filtered ? "Aucune annonce pour cette recherche" : "Aucune annonce disponible"}</h2>
-      {window.after ? <a className="site-nav" href={windowPath({ ...window, after: undefined })}>Revenir aux premières annonces</a>
-        : filtered ? <a className="site-nav" href={windowPath({ limit: window.limit, sort: window.sort })}>Voir toutes les annonces</a>
+      {window.after ? <Pagination window={window} next={null} empty />
+        : filtered ? <a className="site-nav" href={windowPath({ html: window.html, limit: window.limit, sort: window.sort })}>Voir toutes les annonces</a>
         : <a className="site-nav" href={windowPath(window)}>Actualiser le catalogue</a>}
     </section>}
   </>;
@@ -111,7 +121,8 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       <p>Source des annonces · Leboncoin</p>
     </header>
     <FavoriteNotice />
-    <Suspense fallback={<div role="status" className="catalogue-loading">
+    {window.html ? <Publications window={window} /> : <Suspense fallback={<div role="status" className="catalogue-loading">
+      <noscript><a className="site-nav" href={windowPath({ ...window, html: 1 })}>Afficher les annonces sans JavaScript</a></noscript>
       <span className="catalogue-sr-only">Chargement des annonces…</span>
       <Skeleton className="catalogue-loading-tools" />
       <div className="catalogue-list" aria-hidden="true">
@@ -119,6 +130,6 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       </div>
     </div>}>
       <Publications window={window} />
-    </Suspense>
+    </Suspense>}
   </>;
 }

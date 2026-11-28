@@ -1,8 +1,10 @@
 # ROADMAP MASTER — Auto World Search
 
-## Favoris du catalogue membre
+## Pagination du catalogue membre
 
-[TASK-0151](roadmap/tasks/TASK-0151-catalogue-favorites.md) poursuit le parcours P1 recherche → fiche → favoris vers le Garage. Candidat en revue sur fixtures, avec conservation des références dans l’onglet et la session privée. [Décision de confidentialité](docs/decisions/ADR-0038-private-catalogue-favorites.md)
+TASK-0151 est acceptée sur fixtures sur main `59755cd2967801ac8e86600044d8252b48a99a52`, arbre identique à la source relue `b5c45ba7`. Les quatre workflows du push (cinq jobs) passent au premier essai, dont 706 parcours navigateur réussis, dix exclusions existantes et dix phases persistantes sur dix. La recette hébergée reste en attente. [Acceptation finale de PR297](https://github.com/CleMeY15/auto-world/pull/297)
+
+[TASK-0152](roadmap/tasks/TASK-0152-catalogue-pagination.md) est candidate sur fixtures. [Parcours privé vérifié et captures](docs/validation/TASK-0152.md). Revue indépendante et livraison à suivre.
 
 ## Catalogue membre : tri et galerie de résultats
 

@@ -79,7 +79,11 @@
 .catalogue-photo-count { position: absolute; inset: auto .65rem .65rem auto; padding: .18rem .45rem; font-size: .76rem; font-weight: 600; color: #fff8eb; background: #101a21; border-radius: .25rem; }
 .catalogue-pages { display: flex; flex-wrap: wrap; align-items: center; justify-content: end; gap: 1rem; margin-block: 1.5rem; }
 .catalogue-pages .aw-button, .catalogue-source-link { text-decoration: none; }
-.catalogue-pages:empty { display: none; }
+.catalogue-first { margin-inline-end: auto; }
+@media (max-width: 38rem) {
+  .catalogue-pages { justify-content: start; gap: .5rem; }
+  .catalogue-first { flex-basis: 100%; }
+}
 .catalogue-empty { padding-block: 3rem; border-block: 1px solid var(--aw-color-border); }
 .catalogue-empty h2 { margin-bottom: .75rem; }
 .catalogue-loading { min-height: 85svh; }
