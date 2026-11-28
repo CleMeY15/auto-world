@@ -1,6 +1,8 @@
 # TASK-0151 — Favoris du catalogue membre
 
-P1 · en réalisation · propriétaire : développement web, revue indépendante produit et confidentialité.
+P1 · acceptée sur main (fixtures) · propriétaire : développement web, revue indépendante produit et confidentialité.
+
+TASK-0151 est acceptée sur fixtures sur main `59755cd2967801ac8e86600044d8252b48a99a52`, arbre identique à la source relue `b5c45ba7`. Les quatre workflows du push (cinq jobs) passent au premier essai, dont 706 parcours navigateur réussis, dix exclusions existantes et dix phases persistantes sur dix. La recette hébergée reste en attente. [Acceptation finale de PR297](https://github.com/CleMeY15/auto-world/pull/297)
 
 ## Prêt à réaliser
 
