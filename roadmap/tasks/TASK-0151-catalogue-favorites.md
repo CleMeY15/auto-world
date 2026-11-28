@@ -13,3 +13,7 @@ Depuis une recherche filtrée ou une fiche, ajouter ou retirer une annonce avec 
 ## Contrats, validation et reprise
 
 ADR-0037, décision de portée de session ADR-0038, PRODUCT_UX, DESIGN, DoD et runbook du catalogue. Vérifier sur fixtures les frontières anonyme/membre, la rotation de session, la révocation entre deux visites, le stockage défaillant et les retours. Examiner les pixels mobile et bureau dans Chromium et WebKit, le clavier, axe, les cibles de 44 px et les mesures LCP/CLS. Exécuter les gates du dépôt en série. Revenir à la révision précédente du produit, du frontal et de la passerelle ensemble. Aucune migration de base. Revue indépendante et acceptations source/main requises avant clôture.
+
+## Passation
+
+[Validation locale, reprises et captures](../../docs/validation/TASK-0151.md) · [PR297](https://github.com/CleMeY15/auto-world/pull/297). Candidat en revue, acceptations source/main en attente.
