@@ -12,6 +12,7 @@ function Loading() {
 function Entries({ ids, scope, query, onRemove }: {
   ids: string[]; scope: string; query: string; onRemove: (id: string) => void;
 }) {
+  const { pending } = useFavorites();
   const [rows, setRows] = useState<FavoriteRow[] | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [sessionChanged, setSessionChanged] = useState(false);
@@ -53,21 +54,23 @@ function Entries({ ids, scope, query, onRemove }: {
         ? <><a className="site-nav" href={`/catalogue/${id}?${query ? query + "&" : ""}depuis=favoris`}>{title}</a>
           <p>{[row.year, row.price].filter(Boolean).join(" · ")}</p></>
         : <strong>{title}</strong>}</div>
-        <Button variant="secondary" onClick={() => onRemove(id)} aria-label={`Retirer des favoris · ${title}`}>Retirer</Button></li>;
+        <Button variant="secondary" disabled={pending} aria-busy={pending} onClick={() => onRemove(id)} aria-label={`Retirer des favoris · ${title}`}>Retirer</Button></li>;
     })}</ul>
   </>;
 }
 
 export function SavedCollection({ query, back }: { query: string; back: string }) {
   const { scope, collection, toggle } = useFavorites();
+  const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   return <>
     <header className="catalogue-intro"><h1 tabIndex={-1} ref={heading}>Favoris</h1>
       <p>Jusqu’à 12 annonces, conservées dans cet onglet pendant votre session.</p></header>
     <FavoriteNotice />
+    {error && <p role="status">{error}</p>}
     {scope && (!collection ? <Loading /> : !collection.error && (collection.ids.length
       ? <Entries key={collection.ids.join(",")} ids={collection.ids} scope={scope} query={query}
-        onRemove={id => { if (toggle(id) === null) heading.current?.focus(); }} />
+        onRemove={async id => { const reason = await toggle(id); setError(reason); if (!reason) heading.current?.focus(); }} />
       : <section className="catalogue-empty"><h2>Aucun favori</h2><p>Enregistrez une annonce depuis les résultats ou sa fiche.</p></section>))}
     <a className="site-nav catalogue-back" href={back}>Retour aux annonces</a>
   </>;
