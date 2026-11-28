@@ -1,0 +1,113 @@
+name: "Research — Jina Reader REE static audit"
+on:
+  push:
+    branches:
+      - spike/jina-reader-ree-20261124
+    paths:
+      - .github/workflows/jina-reader-ree-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jina-reader-ree-static-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: REE static audit of public Jina Reader source
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      REE_SHA: ab07274e41fd0ba56c9e6796fdd2fea840d6be00
+      READER_SHA: 1574bfd380d249c86c82db4dace0d9c8fe17e2b1
+      REPORT_DIR: /tmp/jina-reader-ree-report
+    steps:
+      - name: Setup pinned Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24.18.0"
+
+      - name: Clone and verify public source snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR"
+          git clone --depth 1 --filter=blob:none --branch main https://github.com/gryszzz/reverse-engineer-everything.git "$RUNNER_TEMP/ree"
+          git clone --depth 1 --filter=blob:none --branch main https://github.com/jina-ai/reader.git "$RUNNER_TEMP/reader"
+          test "$(git -C "$RUNNER_TEMP/ree" rev-parse HEAD)" = "$REE_SHA"
+          test "$(git -C "$RUNNER_TEMP/reader" rev-parse HEAD)" = "$READER_SHA"
+          printf 'REE_SHA=%s\nREADER_SHA=%s\n' "$REE_SHA" "$READER_SHA" > "$REPORT_DIR/revisions.txt"
+          printf 'Source-only static audit; no Leboncoin requests, no credentials, no proxy use.\n' > "$REPORT_DIR/scope.txt"
+
+      - name: Build isolated REE CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/ree"
+          npm ci --no-audit --no-fund
+          npm run build:cached
+
+      - name: Run REE static inspection and analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR/analysis"
+          cd "$RUNNER_TEMP/ree"
+          node ree.mjs doctor > "$REPORT_DIR/doctor.log" 2>&1 || true
+          node ree.mjs inspect "$RUNNER_TEMP/reader" > "$REPORT_DIR/inspect.log" 2>&1
+          set +e
+          timeout 1800 node ree.mjs analyze "$RUNNER_TEMP/reader" --authorized --out "$REPORT_DIR/analysis" --question "Identify the source-backed JavaScript and TypeScript import and call graph for Jina Reader: API routing, engine selection, HTML fetching, browser rendering, caching, quotas, robots handling, proxy interfaces, content conversion and observability." > "$REPORT_DIR/analyze.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$REPORT_DIR/analyze_exit_code.txt"
+          exit "$rc"
+
+      - name: Produce deterministic source inventory and evidence summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          repo=pathlib.Path(os.environ["RUNNER_TEMP"])/"reader"
+          out=pathlib.Path(os.environ["REPORT_DIR"])
+          groups={
+             "entrypoint":["src/api/crawler.ts","src/services/registry.ts","src/dto/crawler-options.ts"],
+             "http_fetch":["src/services/curl.ts"],
+             "browser":["src/services/puppeteer.ts","src/services/minimal-stealth.js"],
+             "proxy":["src/services/proxy-provider/index.ts","src/services/proxy-provider/thordata.ts"],
+             "cache":["src/db/noop-storage.ts","src/db/bucket-storage.ts"],
+             "extraction":["src/services/jsdom.ts","src/services/markify.ts","src/services/snapshot-formatter.ts"],
+             "robots":["src/services/robots-text.ts"],
+             "deployment":["Dockerfile","architecture.md","package.json"]
+          }
+          inventory=[]
+          for family,paths in groups.items():
+             for name in paths:
+                f=repo/name
+                if f.is_file():
+                    b=f.read_bytes()
+                    inventory.append({"family":family,"path":name,"bytes":len(b),"lines":b.count(b"\n")+1,"sha256":hashlib.sha256(b).hexdigest(),"present":True})
+                else:
+                    inventory.append({"family":family,"path":name,"present":False})
+          (out/"source_inventory.json").write_text(json.dumps(inventory,ensure_ascii=False,indent=2))
+          evidence=out/"analysis"/"summary.json"
+          if evidence.exists():
+             try:
+                j=json.loads(evidence.read_text())
+                (out/"analysis_summary_snapshot.json").write_text(json.dumps(j,indent=2,ensure_ascii=False))
+             except Exception as e:
+                (out/"summary_parse_issue.txt").write_text(type(e).__name__)
+          PY
+
+      - name: Upload source-only REE evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: jina-reader-ree-evidence
+          path: /tmp/jina-reader-ree-report
+          if-no-files-found: warn
+          retention-days: 14
